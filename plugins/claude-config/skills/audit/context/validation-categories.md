@@ -11,8 +11,9 @@
 - [Category G: Skill-listing budget](#category-g-skill-listing-budget)
 - [Category H: Model and effort settings](#category-h-model-and-effort-settings)
 - [Category I: Deep-link registration](#category-i-deep-link-registration)
+- [Category J: Known-issues fix versions](#category-j-known-issues-fix-versions)
 
-Detailed checks for each Phase 2 category (A–I). SKILL.md Phase 2 names the categories + points here;
+Detailed checks for each Phase 2 category (A–J). SKILL.md Phase 2 names the categories + points here;
 this file carries the per-check criteria. Run each category's checks and record findings with severity
 ratings.
 
@@ -57,7 +58,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   and enabled is not enough, a `Bash` hook does not cover a `Read`-pattern family, and coverage of one
   command family says nothing about a neighboring one. Where no hook inventory was taken, state the
   finding as conditional rather than as an assertion
-- **The liveness reading is Category D's, and Category D runs after this one.** A–I is presentation
+- **The liveness reading is Category D's, and Category D runs after this one.** A–J is presentation
   order, not a dependency ban: pull Category D's hook-suppression lever reading forward before taking
   the third narrowing, or defer the downgrade until Category D has run and revise the severity then.
   What you may not do is take the narrowing on an unread lever. On a scope-filtered run that excludes
@@ -91,9 +92,10 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 ## Category D: Hooks
 
-**The engine decides the mechanical rows of this category** (path resolution and readability,
-millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form,
-duplicates, the lever reading, cache-versus-loaded divergence) and the model does the rest below.
+**The engine decides the mechanical rows of this category** (path resolution and readability, event
+names against the fetched hooks page, millisecond-shaped timeouts, matcher class and anchoring,
+placeholder quoting in shell form, duplicates, the lever reading, cache-versus-loaded divergence)
+and the model does the rest below.
 **The inventory this category checks is Phase 1.0's**, from
 `scripts/check-hook-coverage.sh`, which the engine runs: settings-declared hooks *and* every enabled
 plugin's own hook config, read from the directory the session loads (a `directory` marketplace's
@@ -116,7 +118,8 @@ complete set.
 - On a Windows-targeting repo, judge exec-form `command` resolution from the Category D
   checklist row. That row carries the four-part record for the hooks-page Windows rule.
 - No duplicate hooks (same script registered twice for same event)
-- Hook events are valid (cross-reference against official docs)
+- Hook events are the engine's (`hook-event` rows). Read the hooks page yourself only for a
+  `hook-event-page-not-read` row, which the engine leaves `not-inspectable`
 - **Hook-suppression levers are read and reported**, because a hook that cannot run is not a control:
   `disableAllHooks` in the settings-declared layer, and `allowManagedHooksOnly` /
   `strictPluginOnlyCustomization` in the managed layer. `strictPluginOnlyCustomization` is `true`
@@ -191,17 +194,17 @@ the run. Use `SETTINGS_AUDIT_FIXTURE_DIR=<dir>` to short-circuit network calls i
 
 ```bash
 # Project audit (default: reads .claude/settings.json at the project root)
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # User audit (override target file)
 CLAUDE_SETTINGS_FILE=~/.claude/settings.json \
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+  bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # Plan + dry-run apply
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh"
+bash "<skill-dir>/scripts/fix-plugin-drift.sh"
 
 # Apply the orphan-false removals
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
+bash "<skill-dir>/scripts/fix-plugin-drift.sh" --yes
 ```
 
 **What `--yes` leaves behind:** each apply writes a `<settings>.bak.<UTC stamp>.<random>` sibling
@@ -323,8 +326,10 @@ effort settings". What governs the category:
   Phase 3.3 model-config fetch, not this file's wording
 - **Two authorities, and they can disagree.** The declared settings schema constrains `effortLevel`
   by `enum` and `fallbackModel` by `maxItems` (raw array length), while the harness caps the
-  fallback chain after deduplication. Report a schema violation and a harness-behavior finding as
-  the separate things they are
+  fallback chain after deduplication. The engine reads the harness's cap from the `fallbackModel`
+  section and does not read the schema, so a raw-length excess is a `skip` row and a section that
+  states no cap decides nothing. Report a schema violation and a harness-behavior finding as the
+  separate things they are
 - **Per-row visibility, not a blanket claim.** Some of these are silent and some announce
   themselves (a narrowed alias shows a substitution notice). Each row states which, because it
   changes what the finding is worth to the reader
@@ -361,3 +366,22 @@ registration". What governs the category:
   is exactly what cannot be proven, and managed settings may already carry the key. Absent a
   declared enforcement requirement, user-scope placement is the documented single-machine usage and
   is not a finding
+
+## Category J: Known-issues fix versions
+
+Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "J. Known-issues fix
+versions". What governs the category:
+
+- **Scope.** The rows of [known-issues.md](../reference/known-issues.md) that record
+  `Fixed in vX.Y.Z`, compared with the version `claude --version` reports. A row without the phrase
+  has no fix version to check and yields no row, so the category emits only what the file records.
+  The file's "Recording a fix version" gives the form and says what is recorded today and why
+- **The engine decides the comparison**, component by component (`2.1.92` is older than
+  `2.1.281`), and the model does not redo it. An unreadable installed version is a `skip` row, never
+  a pass
+- **A `finding` is a prompt, not a verdict.** The recorded version says when the fix shipped, not
+  that the workaround is safe to drop. Confirm the issue's live state in Phase 3.2 and that the
+  settings-specific workaround is no longer needed before recommending retirement, which is why the
+  severity stays `info`
+- **The other direction is Phase 3.2's.** An issue whose live thread names a fix release the file
+  does not record is compared by hand there

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { parseBoundaryLine } from "../lib/watch-slice-sessions.js";
 import {
@@ -68,6 +68,7 @@ describe("parsePromotedTimestampsSec", () => {
 describe("checkWatchOutcomes warn-only count floors", () => {
   it("assigns warn severity to synthesis count checks", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "watch-outcomes-"));
+    onTestFinished(() => fs.rmSync(tmp, { recursive: true, force: true }));
     fs.mkdirSync(path.join(tmp, "run-state"), { recursive: true });
     fs.writeFileSync(
       path.join(tmp, "run-state", "watch.json"),

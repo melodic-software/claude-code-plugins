@@ -3,6 +3,88 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-30
+
+### Added
+
+- **audit:** `cant-fail-scan.sh --blocks` also prints `block <file>:<start>-<end> <ordinal> <name>`
+  for each examined test block in `--lines` scope, in every adapter family; a bash harness is one
+  whole-file block. The ordinal counts same-named blocks through the whole file, so a block's
+  identity is its name and ordinal, never its line range.
+- **hooks:** `test-scan` records each scanned write in
+  `sessions/<pkey>/<session_id>/<tool_use_id>.json` under the plugin data directory: the file, its
+  repository, the agent, whether the write created the file, the blocks it created or changed
+  (`null` when unknown, meaning the whole file) and the `cant-fail-ok:` count. `<pkey>` hashes the
+  project directory and the transcript directory, so a `/clear` or fork successor finds its
+  predecessor's writes. Session state and the task-end judge's state directories are pruned after
+  7 days. The record also carries `lines`, the lines the write changed (`null` when unknown). A
+  test file a Bash call changed gets the same record, one per file as `<tool_use_id>-<n>`, when
+  Claude Code records the call's `bashEditDiff`.
+- **hooks:** an opt-in task-end test judge (`test_judge_enabled`, off by default, needs
+  `test_guards_enabled`). A separate headless `claude -p` run asks one question of each test block
+  the session created or changed: where did its expected value come from? It answers FLAG, PASS or
+  UNKNOWN with quoted evidence and, for FLAG, a proposed diff it never applies. `test-judge-bg.sh`
+  (PostToolUse, async) judges soon after a write and keeps the verdicts in a ledger;
+  `test-judge.sh` (Stop) waits only on runs still in flight, judges the rest (10 per Stop, the
+  remainder at the next task end), writes a review-findings file and, in an attended session,
+  asks Claude once to show the verdicts; `test-judge-start.sh` (SessionStart) names verdicts an
+  earlier session never showed. The judge's model class differs from every model that wrote the
+  tests: `test_judge_model` (default `opus`), `test_judge_fallback_model` (`sonnet`),
+  `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit; each run is reserved
+  before it waits for a judge slot, so jobs that start together cannot pass it). Each judge run
+  is bounded at 150 s by the same process-group watchdog that bounds the scanner (the plan's
+  "timeout 150" is that bound, not the coreutils binary, which stock macOS lacks and Git Bash may
+  resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL, and a run cut at its
+  bound gives no verdict. Every wait in the Stop hook (a judge slot, a run, a background job)
+  ends at its 180 s bound, and tests not judged in time go to a background job, which waits for
+  the Stop's own unfinished run to let go of them, and are shown at the next task end. On Windows
+  (Git Bash with the native `jq.exe`) the judge hooks read payload fields NUL-separated rather than
+  through `@tsv`, which doubled every backslash in a Windows `transcript_path`, `cwd` or file path
+  and so gave the Stop hook a different project key from `test-scan`'s; and every `jq` call runs
+  with `-b` under Git Bash and Cygwin, which `jq.exe` (1.6 and later) needs to write LF rather than
+  CRLF, chosen over stripping CR from each field because it leaves every byte as written, a CR a
+  diff or a quote really carries included, and costs no extra process. A Stop over files whose
+  verdicts are ready no longer re-runs the scanner: the in-doubt blocks are cached by the file's
+  content, the records and the config layers, and the hook reads each record and verdict with one
+  `jq`; a ready Stop over one file went from 187 processes to 31 on Linux, over five files from
+  671 to 79. A quote in a verdict is valid when it appears, whitespace trimmed, in the test file or
+  in another file of the repository (`git grep --untracked`), because the implementation line an
+  expected value restates is a FLAG's best evidence; one found nowhere still makes the verdict
+  UNKNOWN. The judge prompt now says so; it changed before any Phase 4 calibration label was read,
+  so the prompt freeze is not broken. Hardened after a security review: the findings directory
+  and the memory root must resolve, symbolic links followed, inside the checkout before and after
+  they are created; the `.gitignore` is written only where no name exists, so an existing link,
+  FIFO or other non-regular name is refused (noclobber alone would open a non-regular name); the
+  findings file goes to a temporary file in the checked directory and takes a free name with
+  `mv -n` after a second check, so a link in the repository cannot carry the write elsewhere (it
+  falls back to the plugin data directory; a local process racing those steps is an accepted
+  residual); the frontmatter `branch:` is quoted when its plain YAML form would misparse, with the
+  predicate `testing:audit` uses; `memory_dir` is used only
+  when it matches `[A-Za-z0-9._/-]` with no `..`; judge text in the findings file is capped, kept
+  on one line and fenced past its own backticks, and a verdict that failed validation shows only
+  its reason; a test file in no repository is not judged ("no repository"); and every numeric
+  setting is checked as a number before any arithmetic. The README and
+  `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
+  reaches.
+
+## [0.12.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **`test-scan` covers test files a Bash call changed.** A PostToolUse `Bash` hook reads `bashEditDiff`
+  and runs `test-scan` on each changed test file (up to four), behind the same opt-in. Claude Code
+  records the field only with `bashEditDiffEnabled: true` in user, `--settings` or managed settings,
+  or `CLAUDE_CODE_BASH_EDIT_DIFF=1`; without one of these it was absent in `default`, `acceptEdits`,
+  `auto` and `bypassPermissions` mode. The `Bash` row has no `if`, so its node launcher starts on
+  every Bash call, whatever `test_guards_enabled` says; the README states the cost
+  ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
+
 ## [0.11.9] - 2026-09-30
 
 ### Changed

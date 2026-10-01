@@ -32,12 +32,13 @@ engine plan:
    the path inline so no file write sits between the check and the deletion:
 
    ```text
-   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+   "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-verify \
      --snapshot "<run-dir>/snapshot.json" --path "relative/exact.tmp" \
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   In these commands `<skill-dir>` is the directory whose `scripts/` path `SKILL.md`'s engine
+   commands give. `--path` is repeatable: pass it once per approved path to report several paths in one call,
    with no file write. Each path gets its own verdict, and the paths must not overlap. The
    `--paths` file form reports the same way from
    `{"version": 1, "paths": ["relative/exact.tmp"]}` written to
@@ -115,7 +116,7 @@ engine plan:
    file and does the verify and the deletion in one process. Then run:
 
    ```text
-   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+   "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-verify \
      --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
      --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
    ```

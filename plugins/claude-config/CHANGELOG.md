@@ -5,6 +5,64 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.55.3] - 2026-09-30
+
+### Fixed
+
+- **`audit`, `audit-instructions`, `audit-pass` and `audit-permission-grants` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. In `audit`, `audit-pass` and `audit-permission-grants`, script paths now read `<skill-dir>/scripts/...` and `<plugin-root>/lib/...`, and each `SKILL.md` gains a `## Spoke paths` section saying which variable each placeholder is. `audit-instructions` is at the `SKILL.md` line cap, so its spokes point at the script paths `SKILL.md` already gives, resolved, instead of adding a section. The `audit-permission-grants` criteria, the `audit` hook-coverage checklist and the `audit` validation categories keep the literal token where it is the subject they detect, so no detection pattern or example changes.
+
+## [0.55.2] - 2026-09-30
+
+### Changed
+
+- `automode-entry-diff.sh --oracle` removes its scratch directory on exit; the suites remove their temporary directories.
+
+## [0.55.1] - 2026-09-30
+
+### Changed
+
+- **`audit`, `audit-instructions` and `audit-permission-state` descriptions fit the 500-character listing budget.** Each keeps its leading native-route phrase, its quoted trigger phrases and its sibling boundary, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.55.0] - 2026-09-30
+
+### Added
+
+- **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
+  `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
+  requested), takes the `fallbackModel` cap and the enum values
+  of string keys from the documented sections (a list with a bullet that is not a literal value, such
+  as the strftime pattern in `timeFormat`'s list, is open and gives no row, so `"%H:%M"` is not
+  flagged), checks nested keys inside objects the reference
+  documents, and quotes the binary's describe string for a key the docs leave undocumented. The
+  string is quoted only when every describe-bearing declaration of the key's name in the binary
+  carries the same one: the binary holds many schemas that reuse names such as `timeout` and
+  `enabled`, so a name declared with different descriptions gets none, and so does a key whose own
+  entry has no describe.
+- **`known-issues` fix versions are compared with the installed Claude Code version** in a new
+  Category J check. `reference/known-issues.md` documents the `Fixed in vX.Y.Z` form the check reads
+  and records why no tracked issue carries one yet, so the check emits no row until one does.
+  `SKILL.md`, the audit checklist and `context/validation-categories.md` describe Category J.
+
+### Changed
+
+- **The audit's Phase 2 prose matches the engine.** Hook event names are engine-decided in `SKILL.md`
+  and `context/validation-categories.md`, and the checklist template sends Phase 2 to the judgment
+  column; the model reads the hooks page only for a row the engine left `not-inspectable`.
+- **The audit checklist's hook Timeouts row states the figures `context/validation-categories.md`
+  states** (5-15s for simple formatters, 30s for slow-startup tools) and says they are this skill's
+  judgment, not a documented limit. It previously gave 5-30s and up to 60s.
+- **A `fallbackModel` array longer than the documented cap before duplicates are removed is no longer
+  a warning.** The row compared the raw length with the declared schema's `maxItems` of 3, which the
+  engine does not read, so that case is now a `skip` row. Only the distinct count past the cap the
+  `fallbackModel` section states is a finding.
+
+### Fixed
+
+- **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
+  a key containing U+0000 stays in one row.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
+  quotation the page no longer carries is restated from the page's wildcard table.
+
 ## [0.54.0] - 2026-09-30
 
 ### Changed

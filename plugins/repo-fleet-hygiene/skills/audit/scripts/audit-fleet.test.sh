@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp" # default plan files (mktemp) land inside the cleaned dir
 
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \

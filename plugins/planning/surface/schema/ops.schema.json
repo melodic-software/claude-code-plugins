@@ -133,7 +133,8 @@
         "title": {"type": "string"},
         "eyebrow": {"type": "string"},
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
-        "next": {"type": "string"}
+        "next": {"type": "string"},
+        "repo": {"type": "string"}
       }
     },
     "meta": {
@@ -202,7 +203,7 @@
       "properties": {
         "op": {"enum": ["record-terminal"]},
         "id": {"type": "string"},
-        "decision": {"enum": ["accept", "alt", "own", "defer"]},
+        "decision": {"enum": ["accept", "alt", "own", "defer", "hedged"]},
         "alt": {"type": "string"},
         "text": {"type": "string"}
       }

@@ -8,9 +8,7 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 
 | Entry | Decision |
 |---|---|
-| 1. A `hedged` decision kind on the page: the skill records a conditional accept as hedged, and the page has no such state | Build: #5471, after #4611 |
-| 2. The register gate grades a page export clean while commitments are unticked | Build: #5471, after #4611 |
-| 3. Addendum wording lint: whether the coined-term check becomes a script check | Open: awaiting the owner |
+| 1. Addendum wording lint: whether the coined-term check becomes a script check | Open: awaiting the owner |
 
 ## Deferred behaviors
 

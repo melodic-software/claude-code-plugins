@@ -113,17 +113,29 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   detected from a `microsoft` kernel release or `/proc/sys/fs/binfmt_misc/WSLInterop`. macOS has no
   probe and always reads as unverified.
 
-  **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
-  `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
-  answer not attached (bare `virtual-disk`); what it returns for those formats, and for an image
-  another process holds open, such as a running WSL distro's `ext4.vhdx`, has not been observed.
-  The image keeps `virtual-disk` and the block either way. **Basis:** the cmdlet's page
+  On Windows, `detached` (a bare `virtual-disk`) does not mean the image is unused. `Get-DiskImage`
+  reports `detached` for disks WSL2 or Docker Desktop holds open through their own virtual machine,
+  including a Running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx`, and WSL's
+  `swap.vhdx`. The image still keeps `virtual-disk` and the block, so nothing becomes deletable and
+  reclaimable bytes stay 0. This is a reporting caveat; it adds no reason code.
+
+  **Claim:** on Windows, `Get-DiskImage` answers `attached` plus the drive letter for a VHDX
+  mounted on the host and `detached` for the WSL and Docker disks above, and errors (exit 1, so
+  `virtual-disk-attach-unverified`) for an `initrd.img`; what it returns for a `.vmdk`, `.vdi`, or
+  `.qcow2` has not been observed. The image keeps `virtual-disk` and the block either way.
+  **Basis:** the operator's probe on melo-desk-001 (Windows 11 Pro 10.0.26200, Windows PowerShell
+  5.1, disk-hygiene 0.34.3),
+  `https://github.com/melodic-software/claude-code-plugins/issues/5228#issuecomment-5922688274`:
+  `Dev.vhdx` backing `D:` read `attached` plus `D:`; the Running distro's `ext4.vhdx`,
+  `docker_data.vhdx`, and `swap.vhdx` read `detached`; `initrd.img` errored with exit 1. Also the
+  cmdlet's page
   `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
   fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
-  and "reports whether the specified ISO or VHD file is currently attached"; its image-path
-  examples are an `.iso` and a `.vhdx`, and the page names no VMDK, VDI, QCOW2, or IMG. No
-  Windows host has run this route. **As of:** 2026-09-29. **Recheck:** the operator's Windows pilot (an attached VHDX, a
-  `.vmdk`, and a running WSL distro's `ext4.vhdx`), or that page naming more image formats;
+  and "reports whether the specified ISO or VHD file is currently attached"; it names no VMDK,
+  VDI, QCOW2, or IMG. None of `.vmdk`, `.vdi`, `.qcow2` was present on that host. **As of:**
+  2026-09-30. **Recheck:** a Windows host with a `.vmdk`, `.vdi`, or `.qcow2`, or a WSL-aware
+  attach check that reports a WSL or Docker disk as held open, or that page naming more image
+  formats;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
@@ -284,8 +296,9 @@ under the same `ask`. It deletes on any `clear` verdict, with or without `accept
 the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
 immediately.
 
-The Linux command, one approved standalone checkout per call. Any verdict but `clear` removes
-nothing; confirm the guard's `ask` only for that path.
+The Linux command, one approved standalone checkout per call (`<skill-dir>` is the directory whose
+`scripts/` path `SKILL.md`'s engine commands give). Any verdict but `clear` removes nothing;
+confirm the guard's `ask` only for that path.
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
@@ -783,7 +796,8 @@ read-only, for exact totals), keeps no per-path entries, and has no entry cap. I
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
-or cleanup contract.
+or cleanup contract. The report each registry match produces is specified in
+[managed-state-report.md](managed-state-report.md).
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has
@@ -849,7 +863,8 @@ command, or URL), `disposition`, `tier`, `size`, `first_seen_run`, `last_seen_ru
 
 `catalog` merges a findings file (`{"records": [...]}`, `source: engine`) and an operator answers
 file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapshot-relative
-`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence`:
+`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence` (`<skill-dir>` is the
+directory whose `scripts/` path `SKILL.md`'s engine commands give):
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" catalog \
@@ -861,15 +876,35 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
 - A record is a hint. It records a conclusion, never an approval. Preview and apply do not read it,
   so a catalogued `remove` still needs the same preview, approval token, and revalidation as an
   entry that was never catalogued.
-- A record belongs to one scan target: the same entry reached from another target is not annotated
-  and is asked again.
-- A changed identity (device, inode, kind) or descendant set invalidates the record. It is replaced
-  by an unresolved `keep` with its question, and the next scan stops annotating it.
+- An operator answer follows the entry, not the scan target. A record with `source: human` whose
+  identity (device, inode, kind) and descendant set still hold matches the same entry when another
+  scan target reaches it, whatever path that scan gives it, so the answer is not asked again. The
+  scan annotates the entry, or sets `target_prior_disposition` when the scan target itself is the
+  answered entry. A record under this target and path whose identity holds decides, unless it still
+  has an open question: then an answer recorded under another target replaces it. An engine record
+  is reused only under its own target and path.
+  A matched answer is not copied: the next answer recorded under this target becomes its own record
+  and wins here. The `catalog` report lists a matched entry under `unchanged` as `<path> |
+  <disposition> | <owner> | answered under <target>`.
+- A changed identity (device, inode, kind) or descendant set invalidates the record. Under its own
+  target it is replaced by an unresolved `keep` with its question, and the next scan stops
+  annotating it. An entry reached from another target whose identity or descendant set differs
+  from the answer is treated as never answered and is asked.
 - An engine finding with no owner is not a conclusion: the record stays `keep` and the report asks
   who owns it. Unknown stays visibly unknown, and `prior_unresolved` marks it on the next scan.
 - An operator answer clears the question with or without an owner, so `{"path": "<name>",
   "disposition": "keep"}` is a "keep, don't re-raise" answer. While identity holds, later engine
   findings do not overwrite it and the entry is not asked again.
+- The catalog accounts for an entry when it is in scope: every immediate child of the target; every
+  entry at any depth that is hinted, or empty (`logical_size` 0 with empty `size_qualifiers`); and,
+  at a user-home or `--root-children` target, every immediate child with empty `protected_reasons`
+  and no hints (`out-of-place`, the section 2 positional read). Any other deeper entry is ordinary.
+  Give one record per owning tool or product instead of one per file: a finding or answer with an
+  `owner` and `"owner_level": true` covers every entry below its path while its identity holds. The
+  `catalog` output lists each in-scope entry with no record and no owner-level ancestor under
+  `uncataloged`, with its `reasons`; report every one, so nothing that looks out of place is skipped.
+  A `--sizes-only` snapshot has no entries, so `catalog` refuses it. The catalog reads only snapshot
+  fields and walks nothing.
 - The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
   entries first, one line for each unchanged entry, and end with the questions. Records for entries
   the snapshot did not inventory are kept unchanged.

@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.3] - 2026-09-30
+
+### Changed
+
+- **`audit-dead-code`'s description fits the 500-character listing budget.** Its trigger phrases and sibling boundaries are unchanged ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.25.2] - 2026-09-30
 
 ### Fixed

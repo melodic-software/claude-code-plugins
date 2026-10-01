@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.3] - 2026-09-30
+
+### Fixed
+
+- **`clean` context files name bundled scripts as `<skill-dir>/scripts/...` instead of the literal plugin-root token.** The six routed `context/*.md` files reach the model as plain bytes, so the token in them was never substituted. `SKILL.md` gains a `## Spoke paths` section defining `<skill-dir>`, `reference/invocation-forms.md` records the placeholder form, and `allowed-tools-pairing.test.sh` now requires it and rejects any `${…}` token in a context file.
+
+## [0.18.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.18.1] - 2026-09-30
 
 ### Changed

@@ -111,7 +111,7 @@ Housekeeping:
 - `test -f docs/specs/tautological-tests-judge/plan.md && ! test -e docs/topics/tautological-tests-judge` passes.
 - `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0.
 
-### Phase 2: Block listing and session state (DT8, DT13) [TODO]
+### Phase 2: Block listing and session state (DT8, DT13) [DONE]
 
 Scanner: `cant-fail-scan.sh` has no block-listing output (`--inventory` prints counts only), so add
 `--blocks`, printing `block <file>:<start>-<end> <ordinal> <name>` from `close_block()` for each
@@ -350,6 +350,9 @@ Other files:
   writing `expect(add(a, b)).toBe(a + b)` gives a ledger verdict before the Stop, one forced turn
   carrying it, and the counts in a `systemMessage`; a hand-computed literal gives PASS; an ignored
   forced turn is not repeated. `grep -cE '^\| R2-P12 \|.*\| holds \|' docs/specs/tautological-tests/probes.md` returns 1.
+  Decided 2026-10-01 (user): the installed-copy variant runs after PR B merges, as an update from the
+  melodic-software marketplace, because installing an unmerged branch writes user-scope plugin
+  registries; Phase 3 is marked `[DONE]` in PR C once that row holds.
 - Manual probe R2-P13: a scripted 5-turn TDD session writing about 15 tests; records forced turns,
   judge runs discarded or superseded, judge cost and the longest Stop wait. It holds when forced
   turns are at most one per task end, superseded runs are at most a third of runs (else the debounce

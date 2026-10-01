@@ -38,7 +38,7 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
 ## Script
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+bash <skill-dir>/scripts/clean-batch.sh \
   --tier <scan|caches|build|git|all> \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
@@ -219,10 +219,10 @@ Dry-run a caches sweep of the whole `ghq` tree, skipping one repo, then apply th
 gated plan after confirming:
 
 ```bash
-ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+ghq list -p | bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
 # → BatchPlan: <plan-path>  — confirm, then:
-CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan <plan-path>
 ```
 
@@ -230,6 +230,6 @@ Dry-run a git prune across an explicit set including worktrees (each shared stor
 pruned once):
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+bash <skill-dir>/scripts/clean-batch.sh \
   --tier git --repo ~/repos/a --repo ~/repos/a-worktree --repo ~/repos/b
 ```

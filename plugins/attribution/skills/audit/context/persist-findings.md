@@ -18,7 +18,7 @@ Resolve it in this order:
    `reference/findings-file-shape.md`, which owns the shape the fix action consumes, and its
    `skills/fanout/` tree owns the merge-set rules. Read those files directly. For **where the file
    goes**, read `review/reference/topic-docs.md` "Resolution (the contract's five-rung order,
-   earlier wins)" — the detector-findings contract points there and `findings-file-shape.md` does not
+   earlier wins)"; the detector-findings contract points there and `findings-file-shape.md` does not
    restate the ladder. This rung works offline, which is the point of putting it first.
 2. **The publisher's raw URL**, when `review` is not installed:
    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.

@@ -75,6 +75,7 @@ hello world
 let workRoot;
 /** @type {string} */
 let fixtureDir;
+let previousTmpdir;
 
 /** @param {string} name */
 async function writeVtt(name) {
@@ -107,6 +108,8 @@ describe("runWatchCli envelope consumption", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-root-"));
     fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-fix-"));
+    previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = fixtureDir; // run-watch keeps its temp dirs, so they land in a dir removed below
     process.env.VIDEO_DIGEST_WORK_ROOT = workRoot;
     captured.stderr.length = 0;
     captured.stdout.length = 0;
@@ -117,6 +120,8 @@ describe("runWatchCli envelope consumption", () => {
   });
 
   afterEach(async () => {
+    if (previousTmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTmpdir;
     delete process.env.VIDEO_DIGEST_WORK_ROOT;
     await fs.rm(workRoot, { recursive: true, force: true });
     await fs.rm(fixtureDir, { recursive: true, force: true });

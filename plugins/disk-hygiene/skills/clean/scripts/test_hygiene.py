@@ -536,7 +536,19 @@ class HygieneTests(unittest.TestCase):
                     "preselect": True,
                 }
             ],
-            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "unknown-match-key": [{"match": {"glob": "*.tmp"}, "preselect": True}],
+            "hint-id-and-class": [
+                {
+                    "match": {"hint_id": "common-temp-file", "class": "temp"},
+                    "preselect": True,
+                }
+            ],
+            "hint-ids-and-class": [
+                {
+                    "match": {"hint_ids": ["common-temp-file"], "class": "temp"},
+                    "preselect": True,
+                }
+            ],
             "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
             "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
             "missing-preselect": [{"match": good}],
@@ -579,7 +591,7 @@ class HygieneTests(unittest.TestCase):
 
     def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            for basis in ("atime", "ctime", "", None):
+            for basis in ("birthtime", "", None):
                 path = self._overlay(
                     temporary,
                     "v2.json",
@@ -596,6 +608,219 @@ class HygieneTests(unittest.TestCase):
                     hygiene.HygieneError, "min_age_basis"
                 ):
                     hygiene.load_policy(path)
+
+    def _class_hint(self, hint_id: str, pattern: str, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": hint_id,
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": pattern,
+            "confidence_ceiling": "low",
+            "reason": "Class fixture",
+            **fields,
+        }
+
+    def test_class_rule_resolves_to_every_merged_hint_carrying_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"}),
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["bak-file", "orig-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                        "class": "backup",
+                        "hint_sources": {"bak-file": str(path), "orig-file": str(path)},
+                    }
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_class_rule_covers_a_hint_a_later_layer_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"})
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                additional_hints=[
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"})
+                ],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            (rule,) = policy["rules"]
+            self.assertEqual(["bak-file", "orig-file"], rule["hint_ids"])
+            self.assertEqual(
+                {"bak-file": str(user), "orig-file": str(project)},
+                rule["hint_sources"],
+            )
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            entries = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))
+            self.assertEqual(
+                {"source": str(user), "hint_source": str(project)},
+                {
+                    key: entries["a.orig"]["policy_rule"][key]
+                    for key in ("source", "hint_source")
+                },
+            )
+
+    def test_scan_records_a_directory_atime_from_before_it_was_listed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "sub").mkdir(parents=True)
+            (root / "sub" / "f.txt").write_text("x", encoding="utf-8")
+            old = 1_000_000_000 * 10**9
+            os.utime(root / "sub", ns=(old, old))
+            real_scandir = os.scandir
+
+            def touching_scandir(path: Any) -> Any:
+                listing = real_scandir(path)
+                os.utime(path, ns=(time.time_ns(), os.stat(path).st_mtime_ns))
+                return listing
+
+            with mock.patch.object(hygiene.os, "scandir", touching_scandir):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None)
+                )
+            self.assertEqual(old, hygiene.entry_map(snapshot)["sub"]["atime_ns"])
+
+    def test_baseline_temp_hints_carry_the_temp_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "temp"}, "preselect": True}],
+            )
+            (rule,) = hygiene.load_policy(path)["rules"]
+            self.assertLessEqual(
+                {"common-temp-file", "common-temp-directory", "scratch-artifact"},
+                set(rule["hint_ids"]),
+            )
+            self.assertNotIn("common-lock-file", rule["hint_ids"])
+
+    def test_class_rule_rejects_an_unknown_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("nope", "", None, ["temp"]):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[{"match": {"class": value}, "preselect": True}],
+                )
+                with (
+                    self.subTest(value=value),
+                    self.assertRaisesRegex(
+                        hygiene.HygieneError, "class must be one of"
+                    ),
+                ):
+                    hygiene.load_policy(path)
+
+    def test_class_rule_rejects_a_class_no_merged_hint_carries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "matches no hint.*crash-dump"
+            ):
+                hygiene.load_policy(path)
+            disabled = self._overlay(
+                temporary,
+                "disabled.json",
+                additional_hints=[
+                    self._class_hint("dump-file", "*.dmp", **{"class": "crash-dump"})
+                ],
+                disabled_hint_ids=["dump-file"],
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "matches no hint"):
+                hygiene.load_policy(disabled)
+
+    def test_hint_class_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[self._class_hint("x", "*.x", **{"class": "nope"})],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "hint class must be one of"
+            ):
+                hygiene.load_policy(path)
+
+    def test_class_rule_preselects_tagged_hints_and_names_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "guarded").mkdir(parents=True)
+            (root / "a.bak").write_text("old", encoding="utf-8")
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            (root / "guarded" / "keep.bak").write_text("old", encoding="utf-8")
+            (root / "plain.txt").write_text("keep", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "class.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig"),
+                ],
+                additional_protected_path_globs=["guarded/**"],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )
+            self.assertIs(True, entries["a.bak"]["preselected"])
+            self.assertEqual(
+                {
+                    "source": str(overlay),
+                    "index": 0,
+                    "hint_id": "bak-file",
+                    "class": "backup",
+                    "hint_source": str(overlay),
+                },
+                entries["a.bak"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["a.orig"])
+            self.assertNotIn("preselected", entries["plain.txt"])
+            protected = entries["guarded/keep.bak"]
+            self.assertIn("consumer-protected-path", protected["protected_reasons"])
+            self.assertIs(False, protected["preselected"])
+
+    def test_id_rule_policy_rule_carries_no_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.tmp").write_text("x", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "id.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            entry = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )["a.tmp"]
+            self.assertNotIn("class", entry["policy_rule"])
 
     def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -932,6 +1157,153 @@ class HygieneTests(unittest.TestCase):
             self._age(root / "dir.stage", 30)
             entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
             self.assertIs(True, entry["preselected"])
+
+    def test_policy_accepts_atime_and_ctime_min_age_bases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("mtime", "atime", "ctime"):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis):
+                    rules = hygiene.load_policy(path)["rules"]
+                    self.assertEqual(basis, rules[-1]["min_age_basis"])
+
+    def _refs_file(self, directory: str, references: Any) -> Path:
+        path = Path(directory) / "refs.json"
+        path.write_text(json.dumps({"references": references}), encoding="utf-8")
+        return path
+
+    def _scan_with_refs(self, temporary: str, *paths: str):
+        root, policy = self._aged_fixture(temporary)
+        for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+            self._age(root / name, 30)
+        refs = hygiene.load_in_flight_refs(
+            self._refs_file(
+                temporary,
+                [
+                    {"path": str(root / name), "reason": "referenced by PR #123"}
+                    for name in paths
+                ],
+            )
+        )
+        snapshot = hygiene.scan_tree(root, policy, in_flight_refs=refs)
+        return snapshot, hygiene.entry_map(snapshot)
+
+    def test_in_flight_ref_covers_the_path_and_its_descendants_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot, entries = self._scan_with_refs(temporary, "dir.stage")
+            for name in ("dir.stage", "dir.stage/child.txt"):
+                self.assertEqual(
+                    "in-flight: referenced by PR #123", entries[name]["in_flight_reason"]
+                )
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("dir.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)["candidates"][0]
+            self.assertEqual("low", result["tier"])
+            self.assertIs(False, result["preselected"])
+            self.assertEqual(
+                "in-flight: referenced by PR #123", result["in_flight_reason"]
+            )
+
+    def test_in_flight_ref_marks_the_ancestor_that_would_remove_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, entries = self._scan_with_refs(temporary, "dir.stage/child.txt")
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: contains a referenced path (referenced by PR #123)",
+                entries["dir.stage"]["in_flight_reason"],
+            )
+            self.assertIn("in_flight_reason", entries["dir.stage/child.txt"])
+            self.assertNotIn("in_flight_reason", entries["fresh.stage"])
+
+    def test_in_flight_ref_outside_the_target_affects_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+                self._age(root / name, 30)
+            refs = [{"path": str(root.parent / "elsewhere"), "reason": "x"}]
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root, policy, in_flight_refs=refs)
+            )
+            self.assertTrue(all("in_flight_reason" not in e for e in entries.values()))
+
+    def test_in_flight_refs_file_is_validated_strictly(self) -> None:
+        good = {"path": os.path.abspath("abs-path"), "reason": "referenced by PR #1"}
+        cases = {
+            "not an object": [good],
+            "unknown top-level field": {"references": [good], "extra": 1},
+            "references not a list": {"references": good},
+            "unknown entry field": {"references": [{**good, "extra": 1}]},
+            "missing reason": {"references": [{"path": good["path"]}]},
+            "empty reason": {"references": [{**good, "reason": " "}]},
+            "relative path": {"references": [{**good, "path": "rel/path"}]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "refs.json"
+            for name, content in cases.items():
+                path.write_text(json.dumps(content), encoding="utf-8")
+                with self.subTest(name), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_in_flight_refs(path)
+            path.write_text("{not json", encoding="utf-8")
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.load_in_flight_refs(path)
+            path.write_text(json.dumps({"references": [good]}), encoding="utf-8")
+            self.assertEqual([good], hygiene.load_in_flight_refs(path))
+
+    def _basis_entries(self, basis: str, old: int, new: int) -> list[dict[str, Any]]:
+        base = {"kind": "file", "hints": [], "protected_reasons": []}
+        stamps = {"mtime_ns": old, "atime_ns": old, "ctime_ns": old}
+        return [
+            {"path": "dir.stage", **base, "kind": "directory", "hints": [{"id": "h"}], **stamps},
+            {"path": "dir.stage/a", **base, **stamps, f"{basis}_ns": new},
+        ]
+
+    def test_min_age_basis_uses_the_chosen_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage"):
+                self._age(root / name, 30)
+            os.utime(root / "old.stage", ns=(time.time_ns(), root.joinpath("old.stage").stat().st_mtime_ns))
+            policy["rules"][-1]["min_age_basis"] = "atime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: accessed within 7 days", entries["old.stage"]["in_flight_reason"]
+            )
+            self.assertIs(True, entries["fresh.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "mtime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "ctime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertIn("changed within 7 days", entries["old.stage"]["in_flight_reason"])
+
+    def test_min_age_directory_newest_descendant_uses_the_chosen_basis(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        for basis in ("mtime", "atime", "ctime"):
+            for chosen in ("mtime", "atime", "ctime"):
+                entries = self._basis_entries(basis, old, time.time_ns())
+                rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                          "min_age_basis": chosen, "source": "s", "index": 0}]
+                hygiene.apply_rules(entries, rules)
+                with self.subTest(touched=basis, chosen=chosen):
+                    self.assertIs(basis != chosen, entries[0]["preselected"])
 
     def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6066,6 +6438,8 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
             silent, entries_under = snapshot_entries(1024**3)
         self.assertIsNotNone(recommended)
         self.assertIsNone(silent)
+        for entry in (*entries_under, *entries_over):
+            entry.pop("atime_ns", None)  # a scan's own reads can move atime
         self.assertEqual(entries_under, entries_over)
 
 
@@ -10090,6 +10464,226 @@ class GuardTests(unittest.TestCase):
         self.assertIn("this specific engine invocation", gated_reason)
         self.assertNotIn("Bash is restricted", gated_reason)
 
+    def _engine_words(self, tail: str) -> str:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self._data_root.resolve().as_posix()
+        return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
+
+    def _gated_reason(self, command: str) -> str:
+        result = self.run_guard_engine_gate(command)
+        assert result is not None
+        output = result["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        return cast(str, output["permissionDecisionReason"])
+
+    def test_engine_gate_denial_names_the_flag_order_violation(self) -> None:
+        command = self._engine_words("scan --target t --root-children --output s")
+        reason = self._gated_reason(command)
+        self.assertIn("'--root-children'", reason)
+        self.assertIn("required flags first", reason)
+        self.assertIn("--target, --output", reason)
+        self.assertIn(guard._ENGINE_GATE_SCOPE, reason)
+        self.assertIn("read-only forms that work", reason)
+        # belt-mode text is unchanged by the reason
+        belt = guard._bash_denial_guidance("/data/root", mode=guard._MODE_BELT)
+        self.assertEqual(
+            belt,
+            guard._bash_denial_guidance(
+                "/data/root", mode=guard._MODE_BELT, command=command
+            ),
+        )
+        self.assertNotIn("required flags first", belt)
+
+    def test_engine_mismatch_reason_names_each_early_stage(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        python = self.python_command()
+        root = "/data/root"
+        tail = f'scan --target t --output s --data-root "{root}"'
+        cases = {
+            "wrong interpreter": (
+                f'"/usr/bin/other" "{script}" {tail}',
+                "/usr/bin/other",
+            ),
+            "wrong script": (f'"{python}" "/tmp/other.py" {tail}', "/tmp/other.py"),
+            "unknown subcommand": (
+                f'"{python}" "{script}" bogus --data-root "{root}"',
+                "bogus",
+            ),
+            "missing data-root": (
+                f'"{python}" "{script}" scan --target t --output s',
+                "--data-root is missing",
+            ),
+            "unauthorized data-root": (
+                f'"{python}" "{script}" scan --target t --output s '
+                "--data-root /elsewhere",
+                "/elsewhere",
+            ),
+            "pipe after invocation": (
+                f'"{python}" "{script}" {tail} | tail',
+                "pipe",
+            ),
+        }
+        for label, (command, expected) in cases.items():
+            with self.subTest(label):
+                self.assertIn(expected, guard._engine_mismatch_reason(command, root))
+
+    def test_engine_mismatch_reason_names_the_engine_operand_of_a_mention(
+        self,
+    ) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        for command in (f'grep foo "{engine}"', f'cat "{engine}"'):
+            with self.subTest(command):
+                reason = guard._engine_mismatch_reason(command, "/data/root")
+                self.assertIn("is the engine path", reason)
+                self.assertIn(command.split()[0], reason)
+                self.assertNotIn("not this hook's Python", reason)
+        plugin_root = guard._engine_script_path().parents[3]
+        relative = guard._engine_script_path().relative_to(plugin_root).as_posix()
+        with chdir_context(plugin_root):
+            reason = guard._engine_mismatch_reason(f"grep foo {relative}", "/data/root")
+        self.assertIn("resolves to the engine from the current directory", reason)
+        self.assertIn(relative, reason)
+
+    def test_engine_mismatch_reason_names_only_the_operator_present(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        python = self.python_command()
+        head = f'"{python}" "{script}" scan --target t --output s --data-root /d'
+        cases = {
+            "pipe": (f"{head} | tail", "a pipe"),
+            "redirect": (f"{head} > out", "a redirect"),
+            "semicolon": (f"{head}; echo", "a ';'"),
+            "substitution": (f"{head} $(id)", "a substitution or expansion"),
+            "backslash": (f"{head} a\\b", "a backslash"),
+            "quote": (f'{head} a"b"', "a quote that does not wrap a whole word"),
+        }
+        for label, (command, expected) in cases.items():
+            with self.subTest(label):
+                reason = guard._engine_mismatch_reason(command, "/d")
+                self.assertIn(expected, reason)
+                for other, (_, phrase) in cases.items():
+                    if other != label:
+                        self.assertNotIn(phrase, reason)
+
+    def test_unparsable_reason_blames_an_unquoted_brace_never_a_quoted_one(
+        self,
+    ) -> None:
+        expansion = "a substitution or expansion"
+        for command, blamed in (
+            ("a {b,c}", "'{'"),
+            ("a '{b}' {c}", "'{'"),
+            ("a '{b}' $(x)", "'$'"),
+            ('a "{b}" | c', "a pipe"),
+        ):
+            with self.subTest(command=command):
+                self.assertIn(blamed, guard._unparsable_reason(command))
+        self.assertIn(expansion, guard._unparsable_reason("a {b,c}"))
+        for command in ("a '{b}' c\\d", "a '{b}' x'y'", 'a "{b}" \t'):
+            with self.subTest(command=command):
+                reason = guard._unparsable_reason(command)
+                self.assertNotIn("'{'", reason)
+                self.assertNotIn("'}'", reason)
+                self.assertNotIn(expansion, reason)
+
+    def test_literal_parser_accepts_braces_only_inside_whole_word_quotes(
+        self,
+    ) -> None:
+        parse = guard._literal_shell_words
+        self.assertEqual(["a", "{b}"], parse("a '{b}'"))
+        self.assertEqual(["a", "x{y} z"], parse('a "x{y} z"'))
+        self.assertEqual(["a", "{b}", "c"], parse("a '{b}' c", allow_backslash=True))
+        self.assertEqual(["a", "C:\\{g}"], parse('a "C:\\{g}"', allow_backslash=True))
+        for command in (
+            "a {b}",
+            "a x{b}",
+            "a '{b}'x",
+            "a x'{b}'",
+            "a '{b}' {c}",
+            "a '{b}",
+            'a "${x}"',
+            'a "$(x)"',
+            'a "`x`"',
+            "a '$x{b}'",
+            "a '{b}' $x",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(parse(command))
+
+    def test_quoted_braces_keep_engine_relevance_on_both_surfaces(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        command = f"python3 \"{script}\" scan --target '{{g}}' --output s"
+        self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+        self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+        self.assertFalse(guard._engine_gate_relevant("ls '{g}'", "Bash"))
+        self.assertFalse(guard._engine_gate_relevant("Get-Item '{g}'", "PowerShell"))
+
+    def test_operator_labels_cover_the_characters_the_literal_parser_rejects(
+        self,
+    ) -> None:
+        self.assertEqual(
+            set(guard._OPERATOR_LABELS), set(guard._SHELL_EXPANSION_OR_OPERATOR_CHARS)
+        )
+
+    def test_engine_gate_defers_the_read_only_forms_the_denial_advertises(self) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        relative = "plugins/disk-hygiene/skills/clean/scripts/hygiene.py"
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                f"git show origin/main:{relative}",
+                "git grep foo -- hygiene.py",
+                f"grep foo {relative}",
+                "rg foo hygiene.py",
+            ):
+                self.assertFalse(guard._engine_gate_relevant(command, "Bash"), command)
+            for command in (
+                f'grep foo "{engine}"',
+                f'cat "{engine}"',
+                f'git show "{engine}"',
+                f"grep foo {relative} | tail",
+            ):
+                self.assertTrue(guard._engine_gate_relevant(command, "Bash"), command)
+
+    def test_engine_gate_gates_a_relative_word_that_resolves_to_the_engine(
+        self,
+    ) -> None:
+        engine = guard._engine_script_path()
+        plugin_root = engine.parents[3]
+        relative = engine.relative_to(plugin_root).as_posix()
+        rev_form = f"git show origin/main:{relative}"
+        cases = (
+            (engine.parent, "rg foo hygiene.py"),
+            (engine.parent, "git grep foo -- hygiene.py"),
+            (plugin_root, f"grep foo {relative}"),
+        )
+        for cwd, command in cases:
+            with self.subTest(cwd=cwd.name, command=command), chdir_context(cwd):
+                self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
+                self.assertIn(
+                    "resolves to the installed engine from the current directory "
+                    "is still gated",
+                    self._gated_reason(command),
+                )
+
+    def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
+        cases = (
+            'gh issue list --search "python3 hygiene.py"',
+            'gh issue list --search "hygiene.py scan"',
+            'echo "run python3 hygiene.py"',
+            '"python3 hygiene.py scan"',
+        )
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in cases:
+                with self.subTest(command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                    reason = self._gated_reason(command)
+                    word = next(w for w in command.split('"') if "hygiene.py" in w)
+                    self.assertIn(f"{word!r} holds the engine filename", reason)
+                    self.assertNotIn("not this hook's Python", reason)
+                    self.assertNotIn("word(s)", reason)
+            self.assertFalse(
+                guard._engine_gate_relevant("gh issue list --search hygiene.py", "Bash")
+            )
+
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
 
@@ -10581,6 +11175,13 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(guard.is_exact_readonly_supporting_command("/usr/bin/["))
             self.assertFalse(
                 guard.is_exact_readonly_supporting_command("/usr/bin/[ -d $(pwd) ]")
+            )
+            guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+            self.assertTrue(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d '{guid}' ]")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d {guid} ]")
             )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
@@ -15014,6 +15615,38 @@ class EngineGrammarTests(unittest.TestCase):
                         self.grammar.literal_value_ok(flag, cast(str, flag.example))
                     )
 
+    def test_a_quoted_brace_target_is_classified_like_a_plain_one(self) -> None:
+        guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+        for name in ("scan", "inventory"):
+            spec = self.grammar.subcommand(name)
+            plain = self.words(spec, optionals=False)
+            plain[plain.index("--target") + 1] = "target-dir"
+            braced = [guid if word == "target-dir" else word for word in plain]
+            command = self.command(name, braced)
+            single, double = command, command.replace(f"'{guid}'", f'"{guid}"')
+            self.assertIn(f"'{guid}'", single)
+            self.assertIn(f'"{guid}"', double)
+            expected = self.classify(name, plain)
+            self.assertEqual(name, expected)
+            for label, text in (("single", single), ("double", double)):
+                with self.subTest(subcommand=name, quote=label):
+                    self.assertEqual(
+                        expected,
+                        guard.classify_exact_engine_command(text, self.AUTHORITY),
+                    )
+
+    def test_an_unquoted_or_expanding_brace_target_is_refused(self) -> None:
+        spec = self.grammar.subcommand("scan")
+        words = self.words(spec, optionals=False)
+        head = self.command("scan", words)
+        for target in ("{a,b}", "x{a}", "'{a}'x", '"${x}"', '"$(x)"', "'{a}' '{b'"):
+            with self.subTest(target=target):
+                self.assertIsNone(
+                    guard.classify_exact_engine_command(
+                        f"{head} --policy {target}", self.AUTHORITY
+                    )
+                )
+
     def test_parser_declares_exactly_the_grammar_flags(self) -> None:
         subparsers = self.subparsers()
         self.assertEqual(list(self.grammar.SUBCOMMAND_NAMES), list(subparsers))
@@ -15041,6 +15674,72 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertEqual(flag.required, bool(action.required))
                     if flag.choices is not None:
                         self.assertEqual(sorted(flag.choices), action.choices)
+
+    def _external_checks(self) -> dict[str, object]:
+        return {self.grammar.AUTHORIZED_DATA_ROOT: lambda v: v == self.AUTHORITY}
+
+    def assert_refused(self, name: str, words: list[str], *named: str) -> None:
+        checks = self._external_checks()
+        reason = self.grammar.explain_mismatch(name, words, checks)
+        self.assertIsNotNone(reason, words)
+        self.assertFalse(self.grammar.match_invocation(name, words, checks), words)
+        for word in named:
+            self.assertIn(word, cast(str, reason))
+
+    def test_explainer_and_matcher_agree_on_every_declared_shape(self) -> None:
+        checks = self._external_checks()
+        for spec in self.grammar.SUBCOMMANDS:
+            for optionals in (False, True):
+                words = self.words(spec, optionals=optionals)
+                with self.subTest(subcommand=spec.name, optionals=optionals):
+                    self.assertIsNone(
+                        self.grammar.explain_mismatch(spec.name, words, checks)
+                    )
+                    self.assertTrue(
+                        self.grammar.match_invocation(spec.name, words, checks)
+                    )
+
+    def test_explainer_names_the_offending_word(self) -> None:
+        scan = self.grammar.subcommand("scan")
+        assert scan is not None
+        base = self.words(scan, optionals=False)
+        head = self.head(scan)
+        # wrong order: an optional flag ahead of the required head
+        self.assert_refused(
+            "scan",
+            ["--root-children", *base],
+            "--root-children",
+            "required flags first",
+            "--target, --output",
+        )
+        # unknown flag
+        self.assert_refused("scan", [*base, "--bogus"], "--bogus")
+        # duplicate of a non-repeatable flag
+        self.assert_refused(
+            "scan", [*base, "--policy", "p", "--policy", "q"], "--policy"
+        )
+        # bad value
+        self.assert_refused("scan", [*base, "--max-depth", "0"], "--max-depth", "'0'")
+        self.assert_refused(
+            "scan", [*head, "--data-root", "/other"], "--data-root", "'/other'"
+        )
+        # missing requires
+        self.assert_refused(
+            "scan", [*base, "--root-child", "x"], "--root-child", "--root-children"
+        )
+        # missing required flag
+        self.assert_refused("scan", ["--target", "t"], "--output")
+        # missing one_of member
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                required = [
+                    word for chunk in self.required_chunks(spec) for word in chunk
+                ]
+                self.assert_refused(
+                    spec.name,
+                    [*required, *self.data_root_chunk(spec)],
+                    *group,
+                )
 
     def test_engine_parses_and_guard_admits_every_declared_shape(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:

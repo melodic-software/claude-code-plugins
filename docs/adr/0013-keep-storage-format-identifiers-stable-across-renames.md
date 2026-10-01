@@ -21,7 +21,7 @@ compatibility window, never through a naming-hygiene sweep. Renaming the epic di
 orphans every consumer's committed slices and splits the queue's claims namespace; renaming
 the lock directory silently breaks mutual exclusion across the upgrade boundary (old and new
 versions would lock different directories and acquire concurrently). Source identity therefore
-also never becomes a directory level — it lives in slice metadata (`watch.json` `sourceUrl`),
+also never becomes a directory level: it lives in slice metadata (`watch.json` `sourceUrl`),
 so mixed-source batches share one queue root and the layout never migrates.
 
 The trade-off accepted: permanent naming inconsistency (a `video-digest` skill writing to a

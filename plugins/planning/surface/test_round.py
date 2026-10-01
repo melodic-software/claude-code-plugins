@@ -272,6 +272,41 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
+    def test_bare_issue_ref_warns_without_meta_repo(self):
+        q = question("Q4", title="Does #123 block the release?")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0)
+        self.assertIn("Q4 has a bare #N", err)
+        self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
+
+    def test_bare_issue_ref_is_quiet_with_repo_code_span_or_owner_repo(self):
+        titles = ("Close `#123` first?", "Does o/r#4 block it?", "Does #123 block it?")
+        for n, title in enumerate(titles, start=4):
+            if n == 6:
+                doc = self.doc()
+                doc["meta"]["repo"] = "o/r"
+                self.write_doc(doc)
+            q = question(f"Q{n}", title=title)
+            rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0)
+            self.assertNotIn("bare #N", err, title)
+
+    def test_bare_issue_ref_warns_when_meta_repo_is_not_an_owner_repo_slug(self):
+        for n, repo in enumerate(("https://github.com/o/r", "o/r/"), start=4):
+            doc = self.doc()
+            doc["meta"]["repo"] = repo
+            self.write_doc(doc)
+            q = question(f"Q{n}", title="Does #123 block the release?")
+            rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0)
+            self.assertIn("bare #N", err, repo)
+
+    def test_bare_issue_ref_in_a_reply_op_warns(self):
+        ops = {"ops": [{"op": "note-reply", "text": "See #77 for the thread."}]}
+        rc, _, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0)
+        self.assertIn("note-reply op has a bare #N", err)
+
     def test_basis_over_three_sentences_warns(self):
         q = question("Q4", basis="One. Two. Three. Four.")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
@@ -610,6 +645,37 @@ class TestApply(DirCase):
         self.assertIn("reply: replied on Q1", out)
         self.assertIn("handle: handled 2", out)
 
+    def test_only_a_reply_line_carries_a_reply_kind(self):
+        ops = {
+            "ops": [
+                {"op": "reply", "id": "Q1", "text": "Heads up."},
+                {"op": "reply", "id": "Q1", "text": "Simpler.", "kind": "rephrase"},
+                {"op": "wait", "id": "Q1", "waitsOn": "research"},
+                {"op": "wait", "id": "Q1", "clear": True},
+                {"op": "confirm-commitments", "id": "Q1", "reason": "Said yes"},
+                {"op": "revise", "id": "Q1", "title": "Retitled", "seq": 1},
+            ]
+        }
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(
+            [h.get("kind") for h in self.q("Q1")["history"]],
+            ["reply", "rephrase", None, None, None, "revise"],
+        )
+
+    def test_reply_and_revise_with_seq_mark_that_event_handled(self):
+        ops = {
+            "ops": [
+                {"op": "reply", "id": "Q1", "text": "Because of the lock.", "seq": 1},
+                {"op": "revise", "id": "Q1", "title": "Retitled", "seq": 2},
+            ]
+        }
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        self.assertEqual(doc["handledSeq"], 2)
+        self.assertEqual([h["replyTo"] for h in self.q("Q1")["history"][-2:]], [1, 2])
+
     def test_refused_op_in_position_two_leaves_the_file_byte_identical(self):
         ops = {
             "ops": [
@@ -823,6 +889,12 @@ class TestClaudeActivity(DirCase):
         self.apply({"op": "set-status", "clear": True})
         self.assertNotIn("status", self.doc())
         self.assertEqual(self.entries(), [])
+
+    def test_a_hold_records_when_it_started_and_clearing_it_removes_the_time(self):
+        self.apply({"op": "wait", "id": "Q3", "waitsOn": "research"})
+        self.assertTrue(self.q("Q3")["waitingSince"])
+        self.apply({"op": "wait", "id": "Q3", "clear": True})
+        self.assertNotIn("waitingSince", self.q("Q3"))
 
     def test_a_non_ascii_summary_prints_on_a_legacy_console(self):
         waits = "the \u6771\u4eac benchmark \u2192 done"
@@ -1329,6 +1401,25 @@ class TestRecordTerminal(DirCase):
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
 
+class TestRecordTerminalHedged(DirCase):
+    """record-terminal --decision hedged carries its condition in --text, one line."""
+
+    def test_a_condition_is_required_and_capped_at_a_line(self):
+        for extra in ([], ["--text", "  "], ["--text", "x" * 501]):
+            self.assert_refused("record-terminal", "Q1", "--decision", "hedged", *extra)
+        self.assertNotIn("terminal", self.q("Q1"))
+
+    def test_a_hedged_answer_is_recorded_and_validates(self):
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "hedged", "--text", "if cheap"
+        )
+        self.assertEqual(rc, 0, out + err)
+        t = self.q("Q1")["terminal"]
+        self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
@@ -1719,7 +1810,7 @@ class TestGroupSummaryOf(DirCase):
 
 
 class TestMeta(DirCase):
-    """`add-round` meta and the `meta` op: title, eyebrow, stages, next; nothing else."""
+    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo; nothing else."""
 
     def setUp(self):
         super().setUp()
@@ -1756,6 +1847,12 @@ class TestMeta(DirCase):
         self.assertEqual(meta["title"], "New")
         self.assertIs(meta["emojiMarkers"], True)
         self.assertIn("meta:", out)
+
+    def test_apply_meta_op_sets_repo(self):
+        ops = {"ops": [{"op": "meta", "set": {"repo": "o/r"}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["repo"], "o/r")
 
     def test_apply_meta_op_unknown_key_is_refused(self):
         ops = {"ops": [{"op": "meta", "set": {"displayName": "Kyle"}}]}

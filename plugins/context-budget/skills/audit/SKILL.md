@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language account of where this session's tokens went; this skill for what a session costs before any work starts, per-tool attribution, and whether a settings change saved anything. Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
 argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
 user-invocable: true
 disable-model-invocation: false

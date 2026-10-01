@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "testing",
-  "version": "0.11.9",
+  "version": "0.13.0",
   "description": "Test-stage discipline across all ecosystems: coverage-gap analysis and test planning (`/testing:plan`), TDD test authoring and placement (`/testing:write`), live E2E plus non-UI smoke verification (`/testing:run-e2e`), failing-test root-cause diagnosis with the reproduce → isolate → fix → retest loop (`/testing:diagnose`), a deterministic can't-fail test audit with a fail-closed gate mode and opt-in findings persistence (`/testing:audit`), its configuration (`/testing:setup`), and opt-in hooks that scan each test file Claude writes and question edits that weaken tests.",
   "author": {
     "name": "Melodic Software",
@@ -23,6 +23,36 @@
       "title": "Test guard hooks",
       "description": "Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
       "default": false
+    },
+    "test_judge_enabled": {
+      "type": "boolean",
+      "title": "Task-end test judge",
+      "description": "At the end of each task, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default.",
+      "default": false
+    },
+    "test_judge_model": {
+      "type": "string",
+      "title": "Test judge model",
+      "description": "Model class the judge runs on: fable, opus, sonnet or haiku. When a model of that class wrote the tests, the fallback or another class is used.",
+      "default": "opus"
+    },
+    "test_judge_fallback_model": {
+      "type": "string",
+      "title": "Test judge fallback model",
+      "description": "Model class the judge uses when the main class wrote the tests: fable, opus, sonnet or haiku.",
+      "default": "sonnet"
+    },
+    "test_judge_effort": {
+      "type": "string",
+      "title": "Test judge effort",
+      "description": "Effort level for the judge: low, medium, high, xhigh or max.",
+      "default": "medium"
+    },
+    "test_judge_session_runs": {
+      "type": "number",
+      "title": "Test judge runs per session",
+      "description": "Most judge runs one session may start (one run judges one file). Unset means no limit.",
+      "min": 1
     },
     "stdin_read_timeout": {
       "type": "number",

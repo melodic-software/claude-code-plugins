@@ -21,7 +21,7 @@ async page => {
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
-      if (!["accept", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
+      if (!["accept", "hedged", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
       const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && e.seq <= q.commitsSinceSeq)).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
@@ -44,6 +44,9 @@ async page => {
     // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
     ok("AC17: Q1 renders before Q3 though Q3 was inserted first", order.indexOf("Q1") >= 0 && order.indexOf("Q1") < order.indexOf("Q3"), order.join(","));
+
+    const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
+    ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
 
     // R-J: emoji anchors on
     await pick("Q1");
@@ -105,10 +108,24 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
+    // Hedged: accept with a required condition note; its commitments count like an accept's
+    await pick("Q3"); await page.click("main.detail h3");
+    await page.keyboard.press("h");
+    ok("h arms Hedged and focuses the note", /Hedged/.test(await armed()) && (await focused()) === "note", await armed());
+    ok("Hedged with no condition cannot be saved", await page.$eval("[data-save]", el => el.disabled) && /Hedged needs a condition/.test(await page.textContent("#decideRow")));
+    await page.keyboard.type("only if the migration is reversible"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    const eh = await events(), hd = eh[eh.length - 1];
+    ok("Hedged posts a hedged event with the condition", hd.id === "Q3" && hd.kind === "hedged" && hd.text === "only if the migration is reversible", JSON.stringify(hd));
+    await pick("Q3");
+    ok("the hedged decision shows as Hedged with its condition", /Hedged/.test(await page.textContent("#cur")) && /only if the migration is reversible/.test(await page.textContent("#cur")), await page.textContent("#cur"));
+    s = await state();
+    ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
+    await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
     await pick("Q1"); await page.click("main.detail h3");
+    const nBeforeReopen = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(700);
     const e4 = await events();
-    ok("AC16: r sends Reopen when a decision exists", e4.length === n1 + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
+    ok("AC16: r sends Reopen when a decision exists", e4.length === nBeforeReopen + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
 
     // AC20: archived X1 is greyed, out of the open counts and the meter
     s = await state();
@@ -142,6 +159,26 @@ async page => {
     ok("AC16: n skips answered items to one with an unanswered reply (R1)", await sel() === "R1", await sel());
     await page.keyboard.press("Shift+N");
     ok("AC16: Shift+N goes back (P2)", await sel() === "P2", await sel());
+
+    // R1 holds an accept followed by Claude's reply to an ask: it still needs you, so Show: Open lists it and the group counts it
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const openIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
+    ok("Show: Open lists an accepted question with an unanswered Claude reply", openIds.includes("R1"), openIds.join(","));
+    ok("Show: Open leaves out a settled question", !openIds.includes("P1"), openIds.join(","));
+    ok("Show: Open leaves out a question held for research, whose newest Claude line is the hold", !openIds.includes("H1"), openIds.join(","));
+    ok("no Sent to Claude chip once a reply carries replyTo at or past the last event", !/Sent to Claude/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
+    ok("the group counter counts the unanswered reply", /^1 open \//.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
+    ok("a reply after the accept puts the after-answer chip on the card", /Replied after your answer/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
+    await pick("R1");
+    ok("an accepted question has input:checked on the recommended row, labeled Your answer", await page.$eval("#choices .choice.rec", el => el.querySelector("input:checked") !== null && /Your answer/.test(el.textContent)), await page.textContent("#choices"));
+    ok("only the accepted row is checked", (await page.$$("#choices input:checked")).length === 1);
+    ok("Save starts disabled on an answered question", await page.$eval("[data-save]", el => el.disabled));
+    await page.click("#choices .choice.rec input");
+    ok("clicking the pre-selected Your answer row arms it and enables Save", /Accept/.test(await armed()) && await page.$eval("[data-save]", el => !el.disabled), await armed());
+    ok("the detail says when you answered", /You answered Accepted at /.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
+    ok("the detail shows the after-answer chip", /Replied after your answer/.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("P2");
 
     // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
     const last = async () => { const e = await events(); return e[e.length - 1]; };
@@ -187,8 +224,7 @@ async page => {
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
-    ok("revising chip on the dependent", /Claude is revising/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("revising banner in the detail", /Claude is revising/.test(await page.textContent("#dscroll")));
+    ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));
 
     // shortcuts off: no single key acts
     await page.keyboard.press(","); await page.waitForTimeout(200);

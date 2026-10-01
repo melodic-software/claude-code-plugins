@@ -35,6 +35,7 @@
   "hints": [
     {
       "id": "common-temp-file",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.tmp",
@@ -44,6 +45,7 @@
     },
     {
       "id": "common-temp-directory",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "tmp-*",
@@ -52,6 +54,7 @@
     },
     {
       "id": "common-temp-underscore",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "tmp_*",
@@ -60,6 +63,7 @@
     },
     {
       "id": "scratch-artifact",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "scratch*",
@@ -101,6 +105,7 @@
     },
     {
       "id": "partial-download",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.partial",
@@ -109,6 +114,7 @@
     },
     {
       "id": "chrome-partial-download",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.crdownload",
@@ -117,6 +123,7 @@
     },
     {
       "id": "atomic-write-staging-remnant",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.tmp.*",
@@ -125,6 +132,7 @@
     },
     {
       "id": "claude-json-failed-atomic-write",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": ".claude.json.tmp.*",
@@ -133,6 +141,7 @@
     },
     {
       "id": "agent-temp-git-scratch",
+      "class": "temp",
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "temp_git_*",

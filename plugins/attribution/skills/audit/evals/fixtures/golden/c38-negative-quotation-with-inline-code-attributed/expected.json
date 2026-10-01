@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous on verdict and carve-out",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5.md"
+  },
+  "notes": {
+    "shape": "One inline quotation, with inline code inside it, attributed in the same sentence to the guide, the section and the URL, and followed by local sentences about this file's own tiers.",
+    "carve_outs": "Quotation context applies. The quoted span is presented as a quotation and attributed at the span: document, section and URL sit in the sentence that carries it. The surrounding sentences are local framing about this file's own tier tests.",
+    "rubric": "Not graded. Had it been, C3 would FAIL.",
+    "measured": "fingerprint.mjs at k=5: containment 0.141, jaccard 0.073, longest matched span 17 words at local line 5. The quoted span is stripped before shingling, so the matched words are the attribution's own URL, which repeats the source's canonical location word for word. The span limb fires on that URL, which is why the candidate reaches judgment.",
+    "carries": "This case fails a run that reads a match on an attribution's own URL as a copy. The URL is the pointer, and it matches the source because that is what a pointer does."
+  }
+}

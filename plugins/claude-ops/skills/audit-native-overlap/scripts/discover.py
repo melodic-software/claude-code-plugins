@@ -16,7 +16,9 @@ Scoring, standard library only:
               PLUGIN_NAME_CREDIT of its weight.
   text_score  geometric mean of the TF-IDF cosine between the two weighted
               bags and the share of the native bag the component covers
-              (native name x3, aliases x2, description and argument hint x1;
+              (native name x3 and aliases x2, each split into its words;
+              description, argument hint, search
+              hint and user-facing name x1;
               component name x3, plugin name x1, description x1). Coverage
               keeps a long component description from diluting a one-line
               native one; cosine keeps a long description from matching
@@ -119,6 +121,13 @@ def _bag(*parts: tuple[str, float]) -> Counter:
 
 
 SCORED_FIELDS = ("description", "argument_hint", "search_hint")
+CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+
+def split_words(name: str) -> str:
+    """A native name's words: `ClaudeDesign` is `Claude Design`, so a tool
+    name scores on its words rather than as one token nothing else carries."""
+    return CAMEL_RE.sub(" ", name)
 
 
 def scored_text(registrations: list[dict[str, Any]]) -> str:
@@ -154,8 +163,18 @@ class Surface:
             }
         )
         text = scored_text(registrations)
-        bag = _bag((name, 3.0), (" ".join(aliases), 2.0), (text, 1.0))
-        name_sets = [s for s in (set(tokenize(n)) for n in [name, *aliases]) if s]
+        # A tool's user-facing name ("Claude Design", "Update") is scored but
+        # not fingerprinted: a dismissal resurfaces on the scored_text fields.
+        shown = " ".join(
+            r["user_facing_name"]
+            for r in registrations
+            if isinstance(r.get("user_facing_name"), str)
+        )
+        names = [split_words(n) for n in [name, *aliases]]
+        bag = _bag(
+            (names[0], 3.0), (" ".join(names[1:]), 2.0), (text, 1.0), (shown, 1.0)
+        )
+        name_sets = [s for s in (set(tokenize(n)) for n in names) if s]
         return cls(
             name, klass, lane, registrations, bag, name_sets, bool(tokenize(text))
         )

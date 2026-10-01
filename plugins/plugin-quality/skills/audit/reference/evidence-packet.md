@@ -50,7 +50,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   group, so advance it by one second until it is unused. A same-target re-audit in a later run gets
   its own directory instead of clobbering the first.
 - **Retention (script, not prose):** run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-prune.sh" --root <plugin-data-dir>/evidence --apply`
+  `bash "<plugin-root>/scripts/packet-prune.sh" --root <plugin-data-dir>/evidence --apply`
   **once per audit run**, not once per target, after step 1 has created the first target's
   directory (the root must exist). `--apply` is correct here: routine retention is the whole point,
   and this run's own packets carry today's nonce, so they are never in range. A recursive delete over the tree
@@ -86,7 +86,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   silently become the selection. If the session directory is absent or holds no packet, the
   findings are missing. Say so and stop.
   **Verify each packet before trusting it**:
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
+  `bash "<plugin-root>/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
   evidence below), and read the exit code, the three non-zero cases mean different things and
   must not be collapsed:
   - **1**, a sealed file CHANGED or is MISSING (or `GEN-CHANGED` / `GEN-MISSING`). Altered evidence: weigh it, never treat it as
@@ -196,7 +196,7 @@ Three rules, in force for every packet write:
    `evidence-<n>.md`. That record is the only detector for the first in-place rewrite, because a
    digest taken by any later tool call necessarily covers the already-rewritten bytes.
 3. **Seal.** When a step's packet writes are complete, run
-   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>`. A reader verifies
+   `bash "<plugin-root>/scripts/packet-seal.sh" record <packet-dir>`. A reader verifies
    with the same script before trusting the content. The digest manifest catches every divergence
    *after* the seal, a formatter re-run, a reverted hand-repair, tampering, turning silently
    altered evidence into altered evidence a reader can see.

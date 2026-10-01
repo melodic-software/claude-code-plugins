@@ -43,7 +43,7 @@ optional execution lane. On Windows and macOS a run ends in a report plus the `e
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
+directory. Remaining engine flags (`--output`, `--project-dir`, `--in-flight-refs`, `--data-root` on scan;
 `--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
 `--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
 by the user. `--execute` means "deletion may be offered" on every platform, the gated engine lane
@@ -92,7 +92,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
-  never eligible for this engine, even when a native dry-run calls it eligible.
+  never eligible for this engine, even when a native dry-run calls it eligible. A registry match: §4.
 - Never install a dependency, close another process's handle, or disable a retention mechanism.
 - While the scan output's `elevation` is `never` (the default), never elevate or trigger UAC/sudo.
   Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
@@ -176,11 +176,12 @@ or `${CLAUDE_PLUGIN_ROOT}`. Run:
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
   [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
+  [--in-flight-refs "<run-dir>/in-flight-refs.json"] \
   [--root-children [--root-child <name>]...]
 ```
 
 For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`; [snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
-Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
+Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md). To leave paths that open issues, PRs or handoffs reference unticked, collect them first and pass `--in-flight-refs` ([how](reference/scan-flags.md#--in-flight-refs)).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -263,12 +264,13 @@ module name. The file's entry carries a `stdlib-module-shadow` advisory, and the
 advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
 renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
-For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
+For each hinted or suspicious entry, and each entry the catalog lists as `uncataloged`, first run the required local procedure in [ownership investigation](reference/ownership-investigation.md) (its sources, how evidence is recorded, and the `/discovery:research` escalation when no owner is found).
+Then inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
    tool over an age/name guess.
 2. Is the owner active? Check current process/tool state without killing, pausing, or modifying it.
-3. Does the owning system provide cleanup or retention? Its dry-run result is authoritative.
+3. Does the owning system provide cleanup or retention? Match `reference/owner-registry.json` `path_patterns` first (§4); its dry-run result is authoritative.
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
@@ -338,7 +340,7 @@ was never inventoried, so `logical_size` is `null` rather than `0`, except on th
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
-low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition` or `prior_unresolved` is a hint, never approval; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
+low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition`, `target_prior_disposition` or `prior_unresolved` is a hint, never approval, and an operator answer recorded under another scan target is not asked again while the entry's identity holds; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan
 
@@ -365,9 +367,9 @@ mix tiers:
 }
 ```
 
-For managed state, report the documented native command and its current dry-run result, but do not add
-the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
-non-overlapping, and never globs.
+Managed state never enters an engine plan, whose paths are unmanaged, snapshot-relative, exact, non-overlapping,
+and never globs. A registry match follows only `reference/managed-state-report.md`; its step 4 shows no destructive
+command. Other managed state: report the documented native command and its current dry-run result.
 
 ## 5. Preview, then ask
 
@@ -398,14 +400,13 @@ it is, why removable, risk, whether it is an empty directory, the single tier, a
 Process another tier only with a new plan, preview, and question.
 
 A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
-`hint_id`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
+`hint_id`; a rule matches a hint by id or by the hint's `class`, and then `hint_source` names the layer that supplied the hint: show it when it differs from `source`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
 rows ticked with the rule named beside them. A tick is a policy-file default, not a user message:
 the gate still needs the tier and path list named. Preview unticks a candidate with any blocker but
 `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
 `confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows means a new plan,
-preview, and question. A rule with `min_age_days` (mtime basis) leaves an entry modified inside the
-window unticked, with `in_flight_reason` shown. A directory is as new as its newest inventoried
-descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight.
+preview, and question. A rule with `min_age_days` leaves an entry touched inside the
+window unticked, with `in_flight_reason` shown ([age basis](reference/scan-flags.md#rule-age-window)). A directory is as new as its newest inventoried descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight. An entry named by `--in-flight-refs` is unticked the same way, whether or not a rule matched it.
 
 ## 6. Apply only the confirmed preview
 

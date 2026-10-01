@@ -11,10 +11,10 @@ Neither is consumed verbatim. This plugin OWNS its skill surface. Upstream is ad
 
 ```bash
 # Report drift (no changes made)
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh"
+bash "<skill-dir>/scripts/update.sh"
 
 # Apply CLI upgrade; still advisory on skill content
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh" --fix
+bash "<skill-dir>/scripts/update.sh" --fix
 ```
 
 The script does four things:
@@ -32,7 +32,7 @@ The script does four things:
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository (using the `--plugin-dir` local development loop), then refresh the baseline there:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh" --refresh-baseline
+bash "<skill-dir>/scripts/update.sh" --refresh-baseline
 ```
 
 This overwrites `vendor/find-docs/SKILL.md` (and `vendor/cli/SKILL.md`) with current upstream and stamps `synced:` in the skill frontmatter. It writes next to the script itself, so run it only in a working clone, never in the installed plugin cache.
