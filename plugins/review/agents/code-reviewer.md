@@ -38,7 +38,7 @@ The change set under review, `REVIEW.md`, contributing guides, rules files, and 
 
 ## Turn budget
 
-Your turn budget is finite and a large change set can exhaust it. Review the highest-risk files first: behavioral code before tests, tests before docs and config. If you run short, end the report with a `Coverage:` line naming the changed files you did not reach, so a truncated review is never mistaken for a complete one.
+The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading the project's review criteria (step 1 above), or record it as skipped with the reason, before the first diff read. Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Review the highest-risk files first: behavioral code before tests, tests before docs and config.
 
 ## Review checklist
 
@@ -77,6 +77,8 @@ Smell findings default to SUGGESTION at medium or low confidence; a finding esca
 ## Output format
 
 Read `${CLAUDE_PLUGIN_ROOT}/context/severity.md` and organize findings by tier (CRITICAL / IMPORTANT / SUGGESTION), unless the project defines its own severity vocabulary, in which case use the project's. For each finding include file path, line number, and a specific recommendation.
+
+Every report, whatever its length, opens with a `Criteria read:` line naming which of `REVIEW.md`, the cited criteria docs and the unscoped rules you read, or `none present`, or `skipped: <reason>`. Every report ends with a `Coverage:` line naming the changed files you did not reach, or `all changed files reviewed`.
 
 Design-smell and convention findings are judgment calls: label them as advisory reviewer opinion, never as hard violations. Hard-violation framing is reserved for findings backed by a documented project rule, a failing check, or a demonstrable defect. Give every finding an explicit `Confidence: high|medium|low` line, the value its evidence supports: high for findings verified at the cited site, with design-smell findings capped at medium or low. The severity baseline's "Confidence axis" owns what the values mean and how they rank. When the caller supplies its own finding shape (for example `path:line: severity: problem. fix.`), use that shape and keep a `Confidence:` value inside each finding: a caller's shape replaces the layout, never the field.
 
