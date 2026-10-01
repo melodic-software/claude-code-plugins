@@ -3,6 +3,15 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2] - 2026-10-01
+
+### Fixed
+
+- **`verify` reserves the verifier's final turns for its report**
+  ([#5662](https://github.com/melodic-software/claude-code-plugins/issues/5662)). The dispatch brief
+  now states a turn budget, a turn to stop gathering by, and names what was not reached under
+  `Not covered:`; unreached checks stay NOT MET. New eval for the turn budget.
+
 ## [0.3.1] - 2026-10-01
 
 ### Changed
