@@ -10597,7 +10597,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_mismatch_reason_names_each_early_stage(self) -> None:
         script = guard._display_path(guard._engine_script_path())
         python = self.python_command()
-        root = "/data/root"
+        root = Path("/data/root").resolve().as_posix()
         tail = f'scan --target t --output "{root}/o.json" --data-root "{root}"'
         cases = {
             "wrong interpreter": (
@@ -16505,10 +16505,10 @@ class WindowsEscapingEntryTests(unittest.TestCase):
     """A snapshot-relative path must not leave the target when joined on Windows."""
 
     ESCAPING = (
-        "C:/Users/victim",
-        "C:\\Users\\victim",
+        "C:/Escaped/victim",
+        "C:\\Escaped\\victim",
         "C:victim",
-        "\\Users\\victim",
+        "\\Escaped\\victim",
         "//server/share/victim",
         "\\\\server\\share\\victim",
         "..\\outside\\victim",
@@ -16543,7 +16543,7 @@ class WindowsEscapingEntryTests(unittest.TestCase):
         self,
     ) -> None:
         with mock.patch.object(hygiene, "os_key", return_value="windows"):
-            for value in ("checkout/..\\..\\outside", "checkout/C:\\Users", "checkout/\\x"):
+            for value in ("checkout/..\\..\\outside", "checkout/C:\\Escaped", "checkout/\\x"):
                 with self.subTest(path=value):
                     payload = {
                         "version": 1,
@@ -16556,8 +16556,8 @@ class WindowsEscapingEntryTests(unittest.TestCase):
 
     def test_the_same_names_stay_legal_on_linux(self) -> None:
         with mock.patch.object(hygiene, "os_key", return_value="linux"):
-            entries = hygiene.entry_map(self.snapshot_with("C:\\Users\\victim"))
-        self.assertIn("C:\\Users\\victim", entries)
+            entries = hygiene.entry_map(self.snapshot_with("C:\\Escaped\\victim"))
+        self.assertIn("C:\\Escaped\\victim", entries)
 
 
 class InventoryCommandTests(unittest.TestCase):
