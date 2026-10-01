@@ -160,7 +160,7 @@ arm() {
   local labels="$1" dir="$2" fx id t target s n rows names lines info r tid test ord name kh o v hit
   while IFS= read -r fx; do
     t="$TMPD/repo"
-    rm -rf "$t" "$DATA/verdicts"
+    rm -rf "${t:?}" "$DATA/verdicts"
     mkdir -p "$t"
     git -C "$t" init -q
     id="${fx##*/}" && id="${id%%.*}"
@@ -200,7 +200,7 @@ sweep() {
   dir="$(cd "$(dirname "$labels")" && pwd -P)"
   swdir="$dir/sweep"
   TMPD="$(mktemp -d)" || return 2
-  trap 'rm -rf "$TMPD"' EXIT
+  trap 'rm -rf "${TMPD:?}"' EXIT
   mkdir -p "$swdir" "$TMPD/data"
   HOOK_DIR="$(cd "$HOOKS" && pwd -P)" DATA="$TMPD/data" PKEY=calibration SID=sweep TPATH="$TMPD/none.jsonl"
   # shellcheck source=../../../../hooks/scanner-run.sh
