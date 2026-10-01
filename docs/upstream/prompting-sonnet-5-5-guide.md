@@ -35,7 +35,7 @@ routes to it.
 
 | Guide section | Ours | Verdict |
 |---|---|---|
-| Calibrate effort | The chapter's effort and thinking sections. `audit-instructions` I21 already names the Sonnet 5.5 default. The `effort:` pins on Sonnet-bound agents were set against Sonnet 5, and the guide says to sweep rather than carry a level over | ADOPT (chapter), TRACK #5682 |
+| Calibrate effort | The chapter's effort and thinking sections. `audit-instructions` I21 already covers it generically (models released after Opus 5.5 start at their own default). The `effort:` pins on Sonnet-bound agents were set against Sonnet 5, and the guide says to sweep rather than carry a level over | ADOPT (chapter), TRACK #5682 |
 | Steer initiative and scope | The chapter's low-effort and initiative sections. `AGENTS.md` ("When to stop and when to keep going") already states the keep-going and stop rule. `audit-prompting-postures` P2 and P6 cite the section | ADOPT (chapter, postures), already present (`AGENTS.md`) |
 | Running without up-front thinking | `audit-instructions` I8-c widened to `sonnet-5-5`. I17 is not extended: the disable rejection for this model is sourced on the what's-new page, not the guide, and its remediation differs from I17's "leave thinking on" because `between_tools` exists | ADOPT (audit), KEEP I17 |
 | Reasoning tasks with JSON output | API-side; the chapter carries it. I8-f is deliberately not widened, since the guide prescribes a think-first line for these tasks | ADOPT (chapter only) |
