@@ -2040,6 +2040,7 @@ rdt_judge_pending() {
   while [[ -n "$roots" ]]; do
     c="${roots%%,*}"
     if [[ "$c" == "$roots" ]]; then roots=""; else roots="${roots#*,}"; fi
+    [[ "$c" != *[$'\n\r']* ]] || continue
     c="${c#"${c%%[![:space:]]*}"}"
     c="${c%"${c##*[![:space:]]}"}"
     c="${c//\\//}"
