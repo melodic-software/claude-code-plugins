@@ -12,7 +12,8 @@ only after that version increases.
   Sonnet 5.5 guide's section, the pointer, and only decisions that are ours (the medium effort
   floor, posture P12 at `xhigh` and `max`, the agents' own finish-then-stop sections, which
   surfaces we author as system prompt, which Sonnet 5 sections carry), plus three recorded page
-  disagreements.
+  disagreements and a pointer to the migration guide for API requests carried over from Sonnet 5.
+  It replaces the 0.16.0 chapter, which quoted the guide.
 - A cross-model `reading-dense-images` note in `fable-5`, routed from the trigger table: a value
   read from an image you could not read reliably is recall-grade.
 - Two `fable-5` evals: Sonnet 5.5 routing at arm time, and re-routing after a fallback to

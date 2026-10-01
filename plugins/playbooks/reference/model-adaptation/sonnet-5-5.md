@@ -183,6 +183,20 @@ read the guide's sections at the pointers. `[CC: API-side]`
 - **Recheck trigger**: either section moving, or this repository gaining code that parses model
   output or dispatches tool calls.
 
+## API requests carried over from Sonnet 5
+
+Our decision: this repository ships no code that sends API requests, so it has no Sonnet 5 request
+settings to carry over. `[CC: direct]`
+
+Trigger: before you move an API integration you author from Sonnet 5 to this model, or when a
+request that worked on Sonnet 5 is rejected on this one, read the migration guide at the pointer.
+`[CC: API-side]`
+
+- **Pointer**: see the
+  [Sonnet 5.5 migration guide](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide).
+- **As of**: 2026-10-01
+- **Recheck trigger**: that page moving, or this repository gaining code that sends API requests.
+
 ## Dense images
 
 Trigger: before you answer from a dense chart, a technical drawing, or another image whose answer
