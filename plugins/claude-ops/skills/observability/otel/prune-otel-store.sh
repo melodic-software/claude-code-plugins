@@ -348,6 +348,14 @@ main() {
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
     stamp_last_prune "$store_dir"
+    # A clean scan still earns the marker: hold the sentinel just long enough to write it
+    # (mark_cold_clean rechecks the cold file set). A held sentinel skips it silently. With no
+    # cold/ yet the scan costs nothing, and a no-op run must not create the directory.
+    # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+    if [[ -n "$COLD_CLEAN_SNAPSHOT" && -d "$store_dir/cold" ]] && take_sentinel; then
+      mark_cold_clean "$store_dir" || true
+      release_sentinel
+    fi
     printf 'action=noop-nothing-to-prune\n'
     return 0
   fi

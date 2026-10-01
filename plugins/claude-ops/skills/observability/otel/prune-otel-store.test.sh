@@ -928,6 +928,30 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   out="$(run_prune_real "$S" --scrub-cold)"
   assert_contains "scrub rewrites the dirty file" "$out" "action=scrubbed-cold scrubbed_files=1"
   assert_eq "completed scrub writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+
+  # No-op path (nothing aged out): a clean scan still writes the marker under a brief sentinel.
+  rm -f "$marker"
+  real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  : >"$S/cc-traces.json"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  assert_eq "no-op run exits 0" "0" "$rc"
+  assert_contains "no-op run takes the no-op path" "$out" "action=noop-nothing-to-prune"
+  assert_eq "no-op run writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "no-op run releases the sentinel" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$S" >/dev/null
+  assert_eq "next no-op run makes no duckdb call" "0" "$(duckdb_calls)"
+  rm -f "$marker"
+  mkdir "$S/.prune-in-progress"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  assert_eq "held sentinel: no-op run exits 0" "0" "$rc"
+  assert_contains "held sentinel: still the no-op path" "$out" "action=noop-nothing-to-prune"
+  assert_not_contains "held sentinel: no error" "$out" "prune-otel-store.sh:"
+  assert_eq "held sentinel: no marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "held sentinel left in place" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  rmdir "$S/.prune-in-progress"
 else
   skip_case "duckdb not found — skipping cold marker case"
 fi
