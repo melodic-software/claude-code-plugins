@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-crossing-inject.schema.json",
   "title": "zone-crossing-inject telemetry data",
-  "description": "Per-hook `data` payload for context-guard's zone-crossing injection hook (PostToolBatch + UserPromptSubmit — the envelope `hook_event` distinguishes them). Discovered from the envelope `hook` value \"zone-crossing-inject\". Emitted only on a zone transition (either direction); unchanged-zone and unknown runs emit nothing. Evolves additive-only.",
+  "description": "Per-hook `data` payload for context-guard's zone-crossing injection hook (PostToolBatch + UserPromptSubmit — the envelope `hook_event` distinguishes them). Discovered from the envelope `hook` value \"zone-crossing-inject\". Emitted once per fire that reaches a zone decision: a transition (either direction), an unchanged zone, an unknown zone, or a skipped no-change fire. Evolves additive-only.",
   "type": "object",
-  "required": ["zone", "injected"],
+  "required": ["path"],
   "additionalProperties": true,
   "properties": {
     "zone": {
       "type": "string",
-      "description": "The newly resolved zone word: \"smart\" | \"acceptable\" | \"dumb\" (unknown never emits)."
+      "description": "The resolved zone word: \"smart\" | \"acceptable\" | \"dumb\" | \"unknown\". Absent on a skipped fire that read no zone."
     },
     "previous": {
       "type": "string",
@@ -17,7 +17,12 @@
     },
     "injected": {
       "type": "boolean",
-      "description": "true when guidance was injected (transition into a worse zone); false for a silently recorded improvement."
+      "description": "true when guidance was injected (transition into a worse zone); false for a silently recorded improvement. Absent on fires that record no transition."
+    },
+    "path": {
+      "type": "string",
+      "enum": ["fast", "coalesced", "resolving"],
+      "description": "How the fire reached its decision: \"fast\" (no resolver ran), \"coalesced\" (the last zone reused for a snapshot that only moved captured_at within one band), \"resolving\" (the resolver ran). The share of fires per path, with the envelope duration, shows where the time goes."
     }
   }
 }
