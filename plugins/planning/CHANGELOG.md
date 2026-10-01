@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.1] - 2026-10-01
+
+### Fixed
+
+- **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
+
 ## [0.57.0] - 2026-10-01
 
 ### Added
