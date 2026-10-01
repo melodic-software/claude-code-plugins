@@ -6,7 +6,7 @@ Design judgment and completeness check after implementation, before verification
 
 ## Orchestrator sequence (main thread)
 
-1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's contract slice `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`), falling back to the memory tier `<memory_dir>/<slug>/` (default `.work/`) under `contract_tier: local`; resolve both roots from `.claude/topic-docs.yaml` per the binding ([`reference/topic-docs.md`](../../../reference/topic-docs.md))
+1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`), else the plan pasted in the PR body or linked issue
 2. **Choose the worker**: prefer this plugin's `code-reviewer` agent; else a general read-only subagent
 3. **Dispatch** with the prompt template below
 4. **Verify each finding** (diff read, grep, file assert) before presenting: worker output is synthesis, not evidence
