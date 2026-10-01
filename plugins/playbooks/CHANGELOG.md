@@ -4,12 +4,6 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.4] - 2026-09-30
-
-### Fixed
-
-- **`skill-authoring` spokes name the plugin-root variable as `CLAUDE_PLUGIN_ROOT` without the `${…}` wrapper.** A spoke is read as plain bytes, so the wrapped token in them was never substituted; the guidance lines now state the variable name for use in a `SKILL.md`.
-
 ## [0.15.3] - 2026-09-30
 
 ### Changed

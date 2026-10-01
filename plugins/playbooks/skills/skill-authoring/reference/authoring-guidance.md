@@ -157,7 +157,7 @@ this section does not restate them.
 
 Scripts run through the Bash tool and only their output costs tokens, so a bundled script beats
 generated code for any deterministic operation. Write the pointer as
-`${CLAUDE_SKILL_DIR}/scripts/<name>` (or `CLAUDE_PLUGIN_ROOT` for a plugin's own tree) so
+`${CLAUDE_SKILL_DIR}/scripts/<name>` (or `${CLAUDE_PLUGIN_ROOT}/...` for a plugin's own tree) so
 it resolves at personal, project, and plugin scope, and state the intent with the verb: "Run
 `${CLAUDE_SKILL_DIR}/scripts/validate.sh` to check the plan" (execute, the common case) or "See
 `scripts/validate.sh` for the field rules" (read as reference). Every path uses forward slashes: a

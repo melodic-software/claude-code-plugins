@@ -15,3 +15,9 @@
 # use <skill-dir> instead.
 plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
 plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
+plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
+plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
+plugins/planning/skills/interview/context/loop.md 4 # pinned: all four hits sit inside sections interview-defenses.test.sh pins by digest; replacing them needs an attended digest recompute
+plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1 # justified: the row tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance

@@ -49,7 +49,7 @@ have checked a judgment row is misreporting.
 | Error handling in scripts is explicit and prints what it did | judgment |
 | Every constant carries its justification | judgment |
 | Execute-versus-read intent is stated per script pointer ("Run" or "See") | judgment |
-| Script pointers use `${CLAUDE_SKILL_DIR}` or `CLAUDE_PLUGIN_ROOT` | judgment |
+| Script pointers use `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` | judgment |
 | Dependencies are listed with their install command and checked before use | judgment |
 | MCP tools are named in the harness form (`mcp__<server>__<tool>`) | judgment |
 | Validation steps, loop-backs, and a gate exist for critical operations | judgment |

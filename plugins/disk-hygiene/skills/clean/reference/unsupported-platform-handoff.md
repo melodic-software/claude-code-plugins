@@ -37,7 +37,8 @@ engine plan:
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   In these commands `<skill-dir>` is the directory whose `scripts/` path `SKILL.md`'s engine
+   commands give. `--path` is repeatable: pass it once per approved path to report several paths in one call,
    with no file write. Each path gets its own verdict, and the paths must not overlap. The
    `--paths` file form reports the same way from
    `{"version": 1, "paths": ["relative/exact.tmp"]}` written to

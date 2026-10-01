@@ -9,12 +9,9 @@ This file records only what an `audit-instructions` run does with it.
 
 ## Deriving the key
 
-```bash
-bash "<plugin-root>/lib/state-key.sh"
-```
-
-It prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared
-`lib/state-key.sh` that `audit-prompting-postures` also uses. Run it and use the result.
+Run the `state-key.sh` command in `SKILL.md`'s Phase D, whose path is already resolved there. It
+prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh`
+that `audit-prompting-postures` also uses. Use the result.
 
 Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": that
 placeholder is substituted inline before the skill body reaches you, so the literal token is never

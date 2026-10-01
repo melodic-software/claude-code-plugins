@@ -7,7 +7,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 ### Fixed
 
-- **`sync` update context cites `<skill-dir>/scripts/update.sh` instead of the literal plugin-root token.** The context file reaches the model as plain bytes, so the token was never substituted. `SKILL.md` gains a `## Spoke paths` section defining `<skill-dir>`.
+- **`sync` update context cites `<skill-dir>/scripts/update.sh` instead of the literal plugin-root token.** The context file reaches the model as plain bytes, so the token was never substituted. `SKILL.md` gains a `## Spoke paths` section defining `<skill-dir>`. The sentence in the same file that says what the variable resolves to keeps the token, since it describes the variable and runs nothing.
 
 ## [0.5.0]
 

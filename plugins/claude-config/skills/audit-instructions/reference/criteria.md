@@ -7,8 +7,7 @@ last-updated: 2026-09-28
 
 ## Contents
 
-Look up a specific check by ID:
-`grep -n '^### I<N>:' "<skill-dir>/reference/criteria.md"`.
+Look up a specific check by ID: run `grep -n '^### I<N>:'` over this file.
 
 - [Sources](#sources)
 - Checks

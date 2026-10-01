@@ -296,8 +296,9 @@ under the same `ask`. It deletes on any `clear` verdict, with or without `accept
 the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
 immediately.
 
-The Linux command, one approved standalone checkout per call. Any verdict but `clear` removes
-nothing; confirm the guard's `ask` only for that path.
+The Linux command, one approved standalone checkout per call (`<skill-dir>` is the directory whose
+`scripts/` path `SKILL.md`'s engine commands give). Any verdict but `clear` removes nothing;
+confirm the guard's `ask` only for that path.
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
@@ -346,7 +347,7 @@ shapes. It rejects every Bash expansion family, glob/word-splitting input, redir
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
 is accepted only when it matches the plugin data directory the guard derives from
-`CLAUDE_PLUGIN_ROOT`, the only substitution a skill-frontmatter hook receives, passed to the
+`${CLAUDE_PLUGIN_ROOT}`, the only substitution a skill-frontmatter hook receives, passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 [persistent-data-directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
@@ -384,7 +385,7 @@ rejects any trailing value, so the scan grammar stays exact.
 `--quiet` is admitted because it shapes the engine's stdout only: it reaches no path, and skips no
 check, that the same invocation without it would not already reach.
 
-Deriving the data root from `CLAUDE_PLUGIN_ROOT` couples to the one undocumented part of that
+Deriving the data root from `${CLAUDE_PLUGIN_ROOT}` couples to the one undocumented part of that
 layout: the `cache/<marketplace>/<name>/<version>` shape of the installation root (the install root
 is the version leaf; a directly-linked local install omits it). The guard anchors on the
 `<plugins>/cache` marker rather than a fixed depth, taking the marketplace and name from the two
@@ -397,10 +398,10 @@ processes as environment variables. That page covers plugin `hooks.json` command
 say whether a skill-frontmatter hook receives `CLAUDE_PLUGIN_DATA` or inherits a launch-shell
 export of it. A paid live probe of that question was not run (see the residual below). The
 guard therefore never treats the environment variable as a data-root channel: the derivation
-from `CLAUDE_PLUGIN_ROOT` is the belt that has to hold, and a missing derivation fails closed.
+from `${CLAUDE_PLUGIN_ROOT}` is the belt that has to hold, and a missing derivation fails closed.
 
 **Local-directory marketplace installs.** A plugin loaded in place from a local-directory
-marketplace has a `CLAUDE_PLUGIN_ROOT` that is the source checkout, with no `<plugins>/cache`
+marketplace has a `${CLAUDE_PLUGIN_ROOT}` that is the source checkout, with no `<plugins>/cache`
 segment, while its data directory is still `<config>/plugins/data/<id>`. For such a root the guard
 reads `<config>/plugins/known_marketplaces.json` and requires exactly one entry whose `source.source`
 is `directory` and whose `installLocation` strict-resolves to a directory containing the plugin root.
@@ -542,7 +543,7 @@ local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
 were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
 when a release note names `pluginConfigs` scope. The **user** file is located
-from `CLAUDE_PLUGIN_ROOT` (the plugin's true install path, which a repo cannot forge): the
+from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
 from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A root that
@@ -621,9 +622,9 @@ relay `System32\bash.exe` and `"command": "python3"` resolves to the zero-length
 so those spellings are not used: the launch would die and, a failed hook launch being non-blocking,
 the guard would silently enforce nothing. There is no shell in exec form. The bound is that `args`
 are fixed literals in the plugin's own `hooks.json` or SKILL.md frontmatter, with no model-, repo-,
-or session-supplied text interpolated into them. Claude Code substitutes `CLAUDE_PLUGIN_ROOT` and,
+or session-supplied text interpolated into them. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and,
 on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The belt's bound is the
-tighter of the two: a skill-frontmatter hook receives only `CLAUDE_PLUGIN_ROOT`, so that is the
+tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}`, so that is the
 sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
 `hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
 
@@ -862,7 +863,8 @@ command, or URL), `disposition`, `tier`, `size`, `first_seen_run`, `last_seen_ru
 
 `catalog` merges a findings file (`{"records": [...]}`, `source: engine`) and an operator answers
 file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapshot-relative
-`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence`:
+`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence` (`<skill-dir>` as in
+the `handoff-apply` command above):
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" catalog \

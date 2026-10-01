@@ -32,7 +32,7 @@ frontmatter). The human in the loop decides what to port.
   copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
   (using the `--plugin-dir` local development loop), then refresh the baseline there, from the
-  clone root and by the clone-relative path (`CLAUDE_PLUGIN_ROOT` resolves to the installed
+  clone root and by the clone-relative path (`${CLAUDE_PLUGIN_ROOT}` resolves to the installed
   plugin cache in a normal session, which is exactly where this must not run):
 
   ```bash

@@ -9,7 +9,7 @@ evidence only.
 A worker cannot expand `${...}` tokens (the guard rejects shell expansion), so every value it needs
 must be a literal in its spawn prompt. Before spawning, replace `<hook-python>` and `<data-root>`
 with the literal values from the guard-values note (the probe in `SKILL.md` only when the note is absent). Fill
-`<engine>` with `<skill-dir>/scripts/` plus the engine filename, `<run-dir>`
+`<engine>` with the `scripts/` directory in `SKILL.md`'s engine commands plus the engine filename, `<run-dir>`
 with the run directory you chose, and, when it applies, `<project-dir>` with `${CLAUDE_PROJECT_DIR}`,
 each as a literal absolute path.
 

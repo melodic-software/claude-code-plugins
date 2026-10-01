@@ -153,5 +153,5 @@ explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host,
   `[shell command execution disabled by policy]`. The skill must still make sense when that
   string appears in place of the output. Never make correctness depend on injection succeeding.
 - **Plugin paths.** Reference bundled scripts with `${CLAUDE_SKILL_DIR}` (or
-  `CLAUDE_PLUGIN_ROOT` for a plugin's own tree) and project files with `${CLAUDE_PROJECT_DIR}`
+  `${CLAUDE_PLUGIN_ROOT}` for a plugin's own tree) and project files with `${CLAUDE_PROJECT_DIR}`
   so injection is path-independent; see the substitution table in the docs.
