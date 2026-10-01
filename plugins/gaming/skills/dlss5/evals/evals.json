@@ -242,6 +242,19 @@
         "Does not offer -Force or any other flag as a way past the verdict",
         "Does not run -Verb apply"
       ]
+    },
+    {
+      "id": 19,
+      "name": "update-check-reports-and-continues",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - (before the action the skill ran -Verb refetch -StaleDays 7 and got: {\"checked\":\"2026-10-01T00:00:00Z\",\"items\":[],\"pinAdvice\":[\"wilsjo2 has a newer stable release v0.9.0; the pin is v0.8.3. Nothing was changed: a pin change is a plugin release, so follow Updating a pin in reference/upstream-watch.md\"]})",
+      "expected_output": "Reports the pinAdvice line and any changed or unchecked items in a few lines, then runs status as requested. Changes no pin, ledger row or installed file, and does not start a remove or apply.",
+      "files": [],
+      "expectations": [
+        "Reports the pinAdvice and any changed or unchecked items in a few lines",
+        "Continues with the requested status action unchanged",
+        "Says a new pin is a plugin release and edits no pin, ledger row or installed file",
+        "Does not run remove, apply or reset because of the advice"
+      ]
     }
   ]
 }
