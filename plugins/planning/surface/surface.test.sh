@@ -143,6 +143,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
   bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
+  # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
+  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)

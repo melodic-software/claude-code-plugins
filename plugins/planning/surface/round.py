@@ -5,7 +5,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation, alternatives or commitments
+  revise          change a question's wording, recommendation, alternatives, commitments or dependencies
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      reply in the Notes to Claude thread
   record-terminal record an answer the user gave in the terminal
@@ -73,6 +73,7 @@ from server import (  # noqa: E402
     is_handled,
     load_json,
     rebuild_responses,
+    release_user_holds,
     repo_root,
     save_json,
     write_private,
@@ -264,8 +265,9 @@ def set_aside_own(r, doc, q):
         )
 
 
-def add_question(doc, q):
-    """Validate and append one question; returns the questions whose rev must bump. Exits before any write."""
+def add_question(doc, q, repoint=False):
+    """Validate and append one question; returns (the questions whose rev must bump, notes about
+    the dependents of a question it supersedes). Exits before any write."""
     for req in ("id", "short", "title"):
         if not q.get(req):
             sys.exit(f"missing {req}")
@@ -310,7 +312,7 @@ def add_question(doc, q):
         ),
     )
     q.setdefault("history", []).append({"at": now(), "by": "claude", "text": "Asked."})
-    touched = [q]
+    touched, notes = [q], []
     if q.get("supersedes"):
         old = find(doc, q["supersedes"])
         old["supersededBy"] = q["id"]
@@ -318,8 +320,55 @@ def add_question(doc, q):
             {"at": now(), "by": "claude", "text": f"Superseded by {q['id']}."}
         )
         touched.append(old)
+        notes, moved = repoint_dependents(doc, q, old, repoint)
+        touched += moved
     doc["questions"].append(q)
-    return touched
+    return touched, notes
+
+
+def repoint_dependents(doc, new, old, repoint):
+    """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
+    supersedes. With `repoint` each moves to `new`, unless `new` depends on it (that would make a
+    cycle); without it they are only named."""
+    users = [
+        x
+        for x in doc["questions"]
+        if old["id"] in (x.get("dependsOn") or [])
+        and not x.get("archived")
+        and not x.get("supersededBy")
+    ]
+    if not users:
+        return [], []
+    names = ", ".join(x["id"] for x in users)
+    if not repoint:
+        return [
+            f"{names} still depend on {old['id']}, which {new['id']} supersedes; "
+            "--repoint moves them"
+        ], []
+    moved = [x for x in users if x["id"] not in (new.get("dependsOn") or [])]
+    for x in moved:
+        x["dependsOn"] = list(
+            dict.fromkeys(new["id"] if p == old["id"] else p for p in x["dependsOn"])
+        )
+        x.setdefault("history", []).append(
+            {
+                "at": now(),
+                "by": "claude",
+                "kind": "depends",
+                "text": f"Dependencies: {old['id']} -> {new['id']}.",
+            }
+        )
+    notes = (
+        [
+            f"repointed {', '.join(x['id'] for x in moved)} from {old['id']} to {new['id']}"
+        ]
+        if moved
+        else []
+    )
+    kept = [x["id"] for x in users if x not in moved]
+    if kept:
+        notes.append(f"not repointed, {new['id']} depends on them: {', '.join(kept)}")
+    return notes, moved
 
 
 def strings(v):
@@ -443,10 +492,10 @@ def op_meta(d, doc, a):
 
 
 def op_add(d, doc, a):
-    touched = add_question(doc, a.question)
+    touched, notes = add_question(doc, a.question, a.repoint)
     warn_stale_summaries(doc, [a.question])
     check_primaries(doc)
-    return touched, f"added {a.question['id']}"
+    return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
 def op_add_round(d, doc, a):
@@ -457,11 +506,13 @@ def op_add_round(d, doc, a):
         if not g.get("id"):
             sys.exit("a group needs an id")
         put_group(doc, g)
-    touched = []
+    touched, notes = [], []
     for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
-        touched += add_question(doc, q)
+        t, n = add_question(doc, q, a.repoint)
+        touched += t
+        notes += n
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
@@ -483,7 +534,8 @@ def op_add_round(d, doc, a):
             touched,
             f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
         )
-    return touched, (f"round {a.round} added: " if a.round else "added ") + ids
+    head = (f"round {a.round} added: " if a.round else "added ") + ids
+    return touched, "; ".join([head, *notes])
 
 
 def check_primaries(doc):
@@ -588,7 +640,8 @@ def op_reply(d, doc, a):
     if a.rec:
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
-        set_aside_own(guard_revision(d, doc, a.id, a.seq, a.force), doc, q)
+        snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
+        set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -597,11 +650,36 @@ def op_reply(d, doc, a):
             (a.text + " " if a.text else "") + "Revised recommendation: " + a.rec
         )
         line["affects"] = affects
+        line["pageSeq"] = snapshot.get("seq", 0)
     if a.handled:
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
     q.setdefault("history", []).append(line)
     return [q], f"replied on {a.id}"
+
+
+def checked_depends(doc, qid, deps):
+    """`deps` without repeats, or a refusal: every id must be a known question, none the question
+    itself, and none may already depend on it (a cycle). ["none"] alone is the empty list."""
+    deps = list(dict.fromkeys([] if deps == ["none"] else deps))
+    by_id = {x["id"]: x for x in doc["questions"]}
+    unknown = [p for p in deps if p not in by_id]
+    if unknown:
+        sys.exit(f"unknown reference in {qid}: {', '.join(unknown)}")
+    if qid in deps:
+        sys.exit(f"refused: {qid} cannot depend on itself")
+    for p in deps:
+        seen, todo = set(), [p]
+        while todo:
+            x = todo.pop()
+            if x == qid:
+                sys.exit(
+                    f"refused: {p} already depends on {qid}, so {qid} cannot depend on {p}"
+                )
+            if x not in seen:
+                seen.add(x)
+                todo += by_id.get(x, {}).get("dependsOn") or []
+    return deps
 
 
 def op_revise(d, doc, a):
@@ -623,6 +701,7 @@ def op_revise(d, doc, a):
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
+    deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
@@ -658,20 +737,42 @@ def op_revise(d, doc, a):
             "seq", 0
         )
         changed.append("commitments")
-    if not changed:
+    moved = None
+    if deps is not None and deps != (q.get("dependsOn") or []):
+        moved = f"{', '.join(q.get('dependsOn') or []) or 'none'} -> {', '.join(deps) or 'none'}"
+        if deps:
+            q["dependsOn"] = deps
+        else:
+            q.pop("dependsOn")
+    if not changed and not moved:
         sys.exit("nothing to revise")
-    q["contentRev"] = (q.get("contentRev") or 0) + 1
-    line = {
-        "at": now(),
-        "by": "claude",
-        "kind": "revise",
-        "text": a.text or "Revised " + ", ".join(changed) + ".",
-    }
+    lines = []
+    if changed:
+        q["contentRev"] = (q.get("contentRev") or 0) + 1
+        line = {
+            "at": now(),
+            "by": "claude",
+            "kind": "revise",
+            "text": a.text or "Revised " + ", ".join(changed) + ".",
+        }
+        if affects is not None:
+            line["affects"] = affects
+        if a.rec is not None:
+            line["pageSeq"] = snapshot.get("seq", 0)
+        lines.append(line)
+    if moved:
+        lines.append(
+            {
+                "at": now(),
+                "by": "claude",
+                "kind": "depends",
+                "text": f"Dependencies: {moved}.",
+            }
+        )
+        changed.append(f"dependencies ({moved})")
     if a.seq is not None:
-        line["replyTo"] = a.seq
-    if affects is not None:
-        line["affects"] = affects
-    q.setdefault("history", []).append(line)
+        lines[0]["replyTo"] = a.seq
+    q.setdefault("history", []).extend(lines)
     mark_handled(doc, [a.seq])
     return [q], f"revised {a.id}: {', '.join(changed)}"
 
@@ -1009,12 +1110,13 @@ OP_ARGS = {
             "text": None,
             "alternatives": None,
             "commits": None,
+            "dependsOn": None,
             "seq": None,
             "affects": None,
             "force": False,
         },
     ),
-    "add": (op_add, {"question": None}),
+    "add": (op_add, {"question": None, "repoint": False}),
     "add-round": (
         op_add_round,
         {
@@ -1023,6 +1125,7 @@ OP_ARGS = {
             "groups": None,
             "questions": None,
             "visuals": None,
+            "repoint": False,
         },
     ),
     "group": (
@@ -1121,6 +1224,7 @@ def cmd_status(d, a):
         return print_latency(d)
     doc = load(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    release_user_holds(doc, r)
     resp = r.get("responses", {})
     groups = {g["id"]: g for g in doc["groups"]}
     order = [g["id"] for g in doc["groups"]] + [None]
@@ -1635,6 +1739,11 @@ def main(argv=None):
     s.add_argument("--depends", action="append", help="question id, repeatable")
     s.add_argument("--follow-up-of", dest="followUpOf")
     s.add_argument("--supersedes")
+    s.add_argument(
+        "--repoint",
+        action="store_true",
+        help="with --supersedes: move every live question that depends on the superseded one to this one",
+    )
     s.add_argument("--waiting", action="store_true")
     s.set_defaults(fn=cmd_add)
 
@@ -1647,6 +1756,11 @@ def main(argv=None):
         help='{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}',
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
+    s.add_argument(
+        "--repoint",
+        action="store_true",
+        help="for a question that supersedes another: move the live questions that depend on the superseded one to it",
+    )
     s.set_defaults(fn=cmd_add_round)
 
     s = sub.add_parser("group", help="add or update a group")
@@ -1701,6 +1815,12 @@ def main(argv=None):
         "--commit",
         action="append",
         help="repeatable; replaces all commitments; `--commit none` alone clears them",
+    )
+    s.add_argument(
+        "--depends",
+        dest="dependsOn",
+        action="append",
+        help="question id, repeatable; replaces all dependencies; `--depends none` alone clears them",
     )
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"

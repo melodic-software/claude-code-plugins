@@ -83,6 +83,7 @@ from server import (
     MAX_VISUAL_FILE,
     load_json,
     read_visual_file,
+    release_user_holds,
 )
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
@@ -410,6 +411,7 @@ def read(d):
     d = Path(d)
     doc = load_json(d / "questions.json", {"questions": []})
     resp = load_json(d / "responses.json", EMPTY_RESPONSES)
+    release_user_holds(doc, resp)
     return doc, resp
 
 

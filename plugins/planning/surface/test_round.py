@@ -506,6 +506,159 @@ class TestReviseCommits(DirCase):
         self.assertEqual(rc, 0, out + err)
 
 
+class TestReviseDepends(DirCase):
+    """revise replaces dependsOn, validated like add, and logs the change in the history."""
+
+    def test_the_list_is_replaced_and_logged(self):
+        rc, out, err = self.rp("revise", "Q3", "--depends", "Q1", "--depends", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q3")
+        self.assertEqual(q["dependsOn"], ["Q1", "Q2"])
+        self.assertEqual(
+            (q["history"][-1]["kind"], q["history"][-1]["text"]),
+            ("depends", "Dependencies: none -> Q1, Q2."),
+        )
+        self.assertNotIn(
+            "contentRev", q, "a dependency change leaves what is asked alone"
+        )
+        self.assertIn("dependencies (none -> Q1, Q2)", out)
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_none_clears_and_an_empty_op_list_clears(self):
+        rc, out, err = self.rp("revise", "Q2", "--depends", "none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", self.q("Q2"))
+        for deps in (["Q1"], []):
+            ops = {"ops": [{"op": "revise", "id": "Q2", "dependsOn": deps}]}
+            rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+            self.assertEqual(rc, 0, out + err)
+            self.assertEqual(self.q("Q2").get("dependsOn", []), deps)
+
+    def test_unknown_self_and_cyclic_references_are_refused(self):
+        self.assertIn(
+            "unknown reference in Q3: Q9",
+            self.assert_refused("revise", "Q3", "--depends", "Q9"),
+        )
+        self.assertIn(
+            "cannot depend on itself",
+            self.assert_refused("revise", "Q3", "--depends", "Q3"),
+        )
+        self.assertIn(
+            "already depends on Q1",
+            self.assert_refused("revise", "Q1", "--depends", "Q2"),
+        )
+        ops = {"ops": [{"op": "revise", "id": "Q3", "dependsOn": ["Q1", "Q9"]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_the_same_list_changes_nothing(self):
+        self.assertIn(
+            "nothing to revise", self.assert_refused("revise", "Q2", "--depends", "Q1")
+        )
+
+    def test_alongside_another_field_it_adds_its_own_line(self):
+        rc, out, err = self.rp("revise", "Q3", "--title", "Renamed?", "--depends", "Q1")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q3")
+        self.assertEqual(q["contentRev"], 1)
+        self.assertEqual([h["kind"] for h in q["history"][-2:]], ["revise", "depends"])
+
+
+class TestRecChangeStampsPageSeq(DirCase):
+    """A recommendation change records the page's seq on its history line; the server places the
+    stale marks by it. Other revisions record none."""
+
+    def setUp(self):
+        super().setUp()
+        self.write_events(
+            [{"seq": 4, "id": "Q3", "kind": "accept", "alt": None, "text": "", "at": "2026-09-24T10:00:00Z"}]
+        )  # fmt: skip
+
+    def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "Q3", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "Newer.", "--affects", "none", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp(
+            "revise", "Q1", "--title", "Renamed?", "--affects", "Q3", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        lines = self.q("Q1")["history"][-3:]
+        self.assertEqual([h.get("pageSeq") for h in lines], [4, 4, None])
+        self.assertEqual(lines[0]["affects"], ["Q3"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
+class TestSupersedeRepoint(DirCase):
+    """add --supersedes names the live questions that depend on the superseded one, and moves them
+    behind --repoint."""
+
+    def setUp(self):
+        super().setUp()
+        doc = self.doc()
+        doc["questions"] += [
+            question("Q4", dependsOn=["Q1", "Q3"]),
+            question(
+                "Q5",
+                dependsOn=["Q1"],
+                archived={"why": "Off path.", "at": "2026-09-24T10:00:00Z"},
+            ),
+        ]
+        self.write_doc(doc)
+
+    def add(self, *extra):
+        return self.rp(
+            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1", *extra,
+        )  # fmt: skip
+
+    def test_without_the_flag_it_only_names_the_dependents(self):
+        rc, out, err = self.add()
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q2, Q4 still depend on Q1, which Q6 supersedes", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q1"])
+        self.assertEqual(self.q("Q1")["supersededBy"], "Q6")
+
+    def test_repoint_moves_every_live_dependent_and_lists_them(self):
+        rc, out, err = self.add("--repoint")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q6", "Q3"])
+        self.assertEqual(
+            self.q("Q5")["dependsOn"], ["Q1"], "an archived question stays as it was"
+        )
+        self.assertEqual(self.q("Q2")["history"][-1]["text"], "Dependencies: Q1 -> Q6.")
+        live = [
+            q["id"]
+            for q in self.doc()["questions"]
+            if "Q1" in q.get("dependsOn", []) and not q.get("archived")
+        ]
+        self.assertEqual(live, [])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_dependent_the_new_question_depends_on_is_left_alone(self):
+        rc, out, err = self.add("--repoint", "--depends", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q1"])
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q6", "Q3"])
+        self.assertIn("not repointed, Q6 depends on them: Q2", out)
+
+    def test_the_apply_add_op_takes_repoint(self):
+        new = question("Q6", supersedes="Q1")
+        ops = {"ops": [{"op": "add", "question": new, "repoint": True}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+
+
 class TestStatus(DirCase):
     """status: withdrawn events are not unhandled; event text is quoted data on one line."""
 

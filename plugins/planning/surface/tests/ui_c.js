@@ -48,6 +48,8 @@ async page => {
     const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
     ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
 
+    ok("a question whose only prerequisite is archived is Open, not Blocked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
+
     // R-J: emoji anchors on
     await pick("Q1");
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
@@ -131,7 +133,7 @@ async page => {
     s = await state();
     const baseOpen = s.questions.questions.filter(q => q.group === "base" && !q.archived && !(s.responses.responses[q.id] || {}).decision).length;
     const cnt = await page.textContent('.sec[data-key="g:base"] .cnt');
-    ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 4", cnt + " want " + baseOpen);
+    ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 5", cnt + " want " + baseOpen);
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
@@ -418,6 +420,7 @@ async page => {
     await pick("P2");
     const first = await page.$eval("#choices .choice b", e => e.textContent), dtext = await page.textContent("#dscroll");
     ok("no Reconfirm for a kept alternative a revise removed", p2.state === "stale" && s2.responses.responses.P2.alt === "b" && !p2.alternatives.some(a => a.key === "b") && first === "Accept" && /Pick an answer/.test(dtext), [p2.state, s2.responses.responses.P2.alt, first].join(" ") + " " + dtext.slice(0, 120));
+    ok("a recommendation change on P1 marks P2 Upstream changed in the card and the rail", /Upstream changed: the recommendation of P1.*was revised/.test(dtext) && /Upstream changed/.test(await page.textContent('.qbtn[data-q="P2"]')) && JSON.stringify(p2.upstreamChanged) === '["P1"]', dtext.slice(0, 120) + " " + JSON.stringify(p2.upstreamChanged));
   }
   if (PHASE === 3) {
     await page.waitForTimeout(600); // SSE brings the handle of phase 2's events

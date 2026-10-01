@@ -43,12 +43,12 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | Command | Does |
 |---|---|
 | `ensure-running`, `stop` | Server lifecycle, as above |
-| `add` | One question from `--file` or flags. Refuses a question without `commits` (`--commit none` is an explicit empty list) or with fewer than two alternatives |
+| `add` | One question from `--file` or flags. Refuses a question without `commits` (`--commit none` is an explicit empty list) or with fewer than two alternatives. With `--supersedes X` it prints the live questions that depend on X; `--repoint` moves them to the new question |
 | `add-round --file F [--round N]` | Meta, groups, questions and visuals in one write; any error writes nothing. The file's `meta` object takes `title`, `eyebrow`, `stages`, `next` (what Claude does after wrap-up, shown on the finished screen) and `repo` (`owner/repo`, links a bare `#N` on the page) and refuses other keys |
 | `meta` op | `{"op": "meta", "set": {...}}` merges the same five keys into `meta`; other meta keys, such as `emojiMarkers`, stay |
 | `group <id>` | Add or update a group; `--depends` names prerequisite groups |
 | `reply` op | A Claude line on the question's thread; `seq` marks that event handled; `rec` revises the recommendation and needs `affects`; `resolution` records the accepted reading of the counted `own` answer, which exports give as the answer with the user's words as the note |
-| `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`), alternatives (at least two) or commitments (`--commit`, repeatable; `none` clears). New commitments replace the list and reset its confirmations |
+| `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`), alternatives (at least two) or commitments (`--commit`, repeatable; `none` clears). New commitments replace the list and reset its confirmations. `--depends` (repeatable; `none` clears) replaces the prerequisites: every id known, not itself, no cycle |
 | `handle --seq N [M ...]` | Mark events handled with no reply |
 | `note-reply` op | Reply in the Notes to Claude thread |
 | `record-terminal` op | Mirror an answer the user gave in the terminal, or a decision this session recorded |

@@ -1749,6 +1749,264 @@ class TestAcceptAudit(WaitCase):
         self.assertEqual(rc, 0, out)
 
 
+class OpsCase(WaitCase):
+    """WaitCase with helpers to apply ops and read question states."""
+
+    def apply_ops(self, *ops):
+        path = self.tmp / "ops.json"
+        path.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        rc, out = self.rp("apply", "--file", str(path))
+        self.assertEqual(rc, 0, out)
+        return out
+
+    def decide(self, qid, kind="accept", **extra):
+        code, data = self.post({"id": qid, "kind": kind, **extra})
+        self.assertEqual(code, 200, data)
+        return data["seq"]
+
+    def states(self):
+        return {q["id"]: q.get("state") for q in self.state()["questions"]["questions"]}
+
+
+class TestRecChangeMarksUpstream(OpsCase):
+    """A recommendation change marks each question named in affects, and each direct dependent,
+    that holds a decision: stale, with the revised id as the cause, until it is answered again."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C"),
+            question("D"),
+            question("E", dependsOn=["A"]),
+        )
+
+    def marks(self):
+        return {
+            q["id"]: (q["state"], q.get("upstreamChanged"))
+            for q in self.state()["questions"]["questions"]
+        }
+
+    def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
+        for qid in ("B", "C", "D"):
+            self.decide(qid)
+        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "C")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            self.marks(),
+            {
+                "A": ("open", None),
+                "B": ("stale", ["A"]),
+                "C": ("stale", ["A"]),
+                "D": ("open", None),
+                "E": ("open", None),
+            },
+        )
+
+    def test_2_answering_the_marked_question_again_clears_only_its_mark(self):
+        self.decide("C")
+        marks = self.marks()
+        self.assertEqual((marks["C"], marks["B"]), (("open", None), ("stale", ["A"])))
+
+    def test_3_none_still_marks_the_direct_dependents(self):
+        self.decide("E")
+        self.assertEqual(self.states()["E"], "open")
+        rc, out = self.rp("revise", "A", "--rec", "Once more.", "--affects", "none")
+        self.assertEqual(rc, 0, out)
+        marks = self.marks()
+        self.assertEqual(marks["E"], ("stale", ["A"]))
+        self.assertEqual(marks["C"], ("open", None))
+
+    def test_4_the_mark_is_derived_never_written(self):
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(
+            any("upstreamChanged" in q or "state" in q for q in doc["questions"])
+        )
+
+    def test_5_a_session_terminal_record_clears_it_like_any_stale_question(self):
+        time.sleep(1.1)  # a terminal decision is placed by its one-second timestamp
+        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.marks()["B"], ("open", None))
+
+
+class TestRepointAndRevisedDependencies(OpsCase):
+    """The stale derivation reads dependsOn, so a repoint or a revise changes what goes stale on
+    the next decision."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C", dependsOn=["A"]),
+        )
+
+    def test_1_repointing_after_answers_exist_moves_the_stale_mark_to_the_new_parent(
+        self,
+    ):
+        self.decide("B")
+        rc, out = self.rp(
+            "add", "--id", "N", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later",
+            "--supersedes", "A", "--repoint",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out)
+        self.assertIn("repointed B, C from A to N", out)
+        self.assertEqual(self.states()["B"], "open")
+        self.decide("N")
+        self.assertEqual(self.states()["B"], "stale")
+
+    def test_2_a_revised_dependency_list_changes_what_goes_stale(self):
+        self.decide("C")
+        rc, out = self.rp("revise", "C", "--depends", "none", "--force")
+        self.assertEqual(rc, 0, out)
+        self.decide("N", "alt", alt="a")
+        self.assertEqual(self.states()["C"], "open")
+
+    def test_3_the_history_line_is_served_with_the_change(self):
+        c = next(q for q in self.state()["questions"]["questions"] if q["id"] == "C")
+        self.assertEqual(c["history"][-1]["kind"], "depends")
+
+
+class TestUserHoldClearsOnTheNextAnswer(OpsCase):
+    """A `by: user` hold ends, with no further op, when the user's next accept, alt or own on the
+    question lands after the hold. The stored hold stays; every reader derives the clearing."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, *(question(x) for x in "ABCD"))
+
+    def hold(self, qid):
+        self.apply_ops(
+            {"op": "wait", "id": qid, "waitsOn": "your answer", "by": "user"}
+        )
+
+    def held(self, qid):
+        q = next(x for x in self.state()["questions"]["questions"] if x["id"] == qid)
+        return bool(q.get("waiting"))
+
+    def ledger(self):
+        out = self.tmp / "ledger.md"
+        rc, text = self.rp("export-ledger", "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        return out.read_text(encoding="utf-8")
+
+    def test_1_an_accept_after_the_hold_ends_it_and_an_undo_restores_it(self):
+        self.decide("A")  # before the hold: set aside by it
+        self.hold("A")
+        self.assertTrue(self.held("A"))
+        self.assertIn("awaiting user", self.rp("status")[1])
+        self.assertIn("hold:: user", self.ledger())
+        seq = self.decide("A")
+        self.assertFalse(self.held("A"))
+        self.assertNotIn("awaiting user", self.rp("status")[1])
+        self.assertNotIn("hold::", self.ledger())
+        stored = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertTrue(
+            next(q for q in stored["questions"] if q["id"] == "A")["waiting"]
+        )
+        code, data = self.post({"kind": "undo", "id": "A", "undoSeq": seq})
+        self.assertEqual(code, 200, data)
+        self.assertTrue(self.held("A"))
+
+    def test_2_alt_and_own_end_it_too_and_ask_defer_and_hedged_do_not(self):
+        self.hold("B")
+        self.decide("B", "ask", text="why?")
+        self.decide("B", "defer")
+        self.decide("B", "hedged", text="if it is cheap")
+        self.assertTrue(self.held("B"))
+        self.decide("B", "own", text="Do it my way.")
+        self.assertFalse(self.held("B"))
+        self.hold("C")
+        self.decide("C", "alt", alt="a")
+        self.assertFalse(self.held("C"))
+
+    def test_3_a_hold_by_claude_is_not_touched_by_an_answer(self):
+        self.apply_ops({"op": "wait", "id": "D", "waitsOn": "research"})
+        self.decide("D")
+        self.assertTrue(self.held("D"))
+
+
+class TestDecisionEventsNameTheirContentRev(OpsCase):
+    """A decision event stores the content revision it answered."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir, question("A", contentRev=3), question("B"), question("C")
+        )
+
+    def events(self):
+        return self.state()["responses"]["events"]
+
+    def test_1_an_accept_with_content_rev_3_is_stored_with_it(self):
+        self.decide("A", contentRev=3)
+        self.assertEqual(self.events()[-1]["contentRev"], 3)
+
+    def test_2_every_decision_kind_carries_it_and_a_stale_one_is_refused(self):
+        rev = 0
+        for kind, extra in (
+            ("own", {"text": "mine"}),
+            ("alt", {"alt": "a"}),
+            ("defer", {}),
+            ("hedged", {"text": "if"}),
+            ("reopen", {}),
+        ):
+            self.decide("B", kind, contentRev=rev, **extra)
+            rev += 1
+            self.assertEqual(self.events()[-1]["contentRev"], rev - 1, kind)
+        n = len(self.events())
+        code, data = self.post({"id": "B", "kind": "accept", "contentRev": 0})
+        self.assertEqual((code, data["error"]), (409, "changed"))
+        self.assertEqual(len(self.events()), n)
+
+    def test_3_an_event_sent_without_one_stores_none(self):
+        self.decide("C")
+        self.assertNotIn("contentRev", self.events()[-1])
+
+    def test_4_an_accept_audit_fans_out_accepts_that_carry_their_items_rev(self):
+        seed = {
+            "kind": "accept-audit",
+            "alt": "1",
+            "items": [{"id": "C", "contentRev": 1}],
+        }
+        code, data = self.post(seed)
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.events()[-1]["contentRev"], 1)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
+class TestArchivedPrerequisiteIsMet(OpsCase):
+    """A question whose prerequisite was archived or superseded is eligible for accept-audit; one
+    whose prerequisite is live and undecided still is not."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("P", archived=gone),
+            question("S", supersededBy="N"),
+            question("N"),
+            question("X"),
+            question("B", dependsOn=["P"]),
+            question("C", dependsOn=["S"]),
+            question("D", dependsOn=["X"]),
+        )
+
+    def test_the_audit_accepts_the_dependents_of_a_question_that_left_the_path(self):
+        items = [{"id": i, "contentRev": 0} for i in "BCD"]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["accepted"], ["B", "C"])
+        self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
+
+
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):
     @classmethod
     def prepare(cls):

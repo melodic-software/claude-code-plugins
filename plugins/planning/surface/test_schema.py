@@ -198,6 +198,37 @@ class TestShippedSchemas(unittest.TestCase):
             schema.first_error(op, ops["$defs"]["record-terminal"], "$", ops)
         )
 
+    def test_revise_dependson_add_repoint_and_the_decision_event_content_rev(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": ["Q2"]}))
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": []}))
+        self.assertIn(
+            "dependsOn", check({"op": "revise", "id": "Q1", "dependsOn": "Q2"})
+        )
+        self.assertIsNone(check({"op": "add", "question": {}, "repoint": True}))
+        self.assertIsNotNone(check({"op": "add", "question": {}, "repoint": "yes"}))
+        self.assertIsNone(check({"op": "add-round", "repoint": True}))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "contentRev": 3}
+        self.assertIsNone(schema.first_error(accept, schema.load("event")))
+
+    def test_a_recommendation_history_line_carries_page_seq(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        line = {
+            "at": "t",
+            "by": "claude",
+            "kind": "revise",
+            "affects": [],
+            "pageSeq": 4,
+        }
+        doc["questions"][0]["history"] = [line]
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        line["pageSeq"] = "4"
+        self.assertIn("pageSeq", schema.first_error(doc, schema.load("questions")))
+
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         q = doc["questions"][0]
