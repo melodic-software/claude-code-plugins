@@ -806,6 +806,42 @@ swapped_err="$(stderr_of --ledger "$swapped")"
 if [[ "$swapped_err" == *"line 10: question id out of order: Q1 follows Q2"* && "$swapped_err" != *"gap"* ]]; then pass "a misplaced id reads as out of order"; else fail "a misplaced id reads as out of order (stderr: '$swapped_err')"; fi
 expect_exit "an out-of-order register -> 2" 2 --ledger "$swapped"
 
+# 57. A Brief stamped UNCONFIRMED (export-brief's line for a restatement with no Confirm)
+#     fails the gate with exit 1, with or without retired rows to look up; a confirmed or
+#     unstamped Brief, and a stamp quoted in a fence, do not.
+stamped_brief() {
+  local path
+  path="$(mktemp "$TMP/brief-XXXXXX.md")"
+  printf '## Brief\n\n### TLDR\n\n- 2 questions\n%s\n\n### Deferred questions\n\n- Q2: Moderation model?\n\n## Plan\n' "$1" >"$path"
+  printf '%s' "$path"
+}
+unconfirmed_brief="$(stamped_brief '- Restatement: UNCONFIRMED (latest rev 3); the sections below are from confirmed rev 1')"
+confirmed_brief="$(stamped_brief '- Restatement: confirmed at rev 3, 2026-09-24T11:00:00Z')"
+unstamped_brief="$(stamped_brief '')"
+fenced_brief="$(stamped_brief $'```\n- Restatement: UNCONFIRMED (latest rev 3)\n```')"
+stamp_ledger="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | deferred | round 1 | Moderation model? | later
+EOF
+)"
+expect_exit "an UNCONFIRMED Brief -> 1" 1 --ledger "$stamp_ledger" --brief "$unconfirmed_brief"
+expect_stdout "an UNCONFIRMED Brief reports brief=unconfirmed status=incomplete" "brief=unconfirmed status=incomplete" --ledger "$stamp_ledger" --brief "$unconfirmed_brief"
+expect_exit "an UNCONFIRMED Brief with nothing retired -> 1" 1 --ledger "$clean" --brief "$unconfirmed_brief"
+expect_exit "an UNCONFIRMED Brief with --procedure -> 1" 1 --ledger "$stamp_ledger" --brief "$unconfirmed_brief" --procedure
+expect_exit "a confirmed Brief -> 0" 0 --ledger "$stamp_ledger" --brief "$confirmed_brief"
+expect_stdout "a confirmed Brief reports brief=ok" "brief=ok" --ledger "$stamp_ledger" --brief "$confirmed_brief"
+expect_exit "a Brief with no stamp -> 0" 0 --ledger "$stamp_ledger" --brief "$unstamped_brief"
+expect_exit "a stamp inside a fence is documentation -> 0" 0 --ledger "$stamp_ledger" --brief "$fenced_brief"
+unconfirmed_err="$(stderr_of --ledger "$stamp_ledger" --brief "$unconfirmed_brief")"
+if [[ "$unconfirmed_err" == *"the restatement is unconfirmed (UNCONFIRMED (latest rev 3)"* ]]; then pass "the unconfirmed Brief is named on stderr"; else fail "the unconfirmed Brief is named on stderr (stderr: '$unconfirmed_err')"; fi
+open_ledger="$(
+  mkledger <<'EOF'
+- Q1 | open | round 1 | Who writes? |
+EOF
+)"
+expect_stdout "an open row outranks an UNCONFIRMED Brief" "status=open" --ledger "$open_ledger" --brief "$unconfirmed_brief"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1

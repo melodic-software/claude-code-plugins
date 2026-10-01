@@ -1283,6 +1283,35 @@ class TestClaudeActivity(DirCase):
             (self.entries()[-1]["restate"], self.entries()[-1]["ids"]), (2, ["Q1"])
         )
 
+    def test_restate_keeps_every_rev_and_mirrors_the_latest(self):
+        for text in ("One.", "Two.", "Three."):
+            self.apply({"op": "restate", "sections": {"goal": text}})
+        doc = self.doc()
+        self.assertEqual(
+            [(r["rev"], r["sections"]["goal"]) for r in doc["restatements"]],
+            [(1, "One."), (2, "Two."), (3, "Three.")],
+        )
+        self.assertEqual(doc["restatement"], doc["restatements"][-1])
+
+    def test_restate_continues_the_rev_of_a_file_with_only_a_restatement(self):
+        doc = self.doc()
+        doc["restatement"] = {
+            "rev": 4,
+            "at": "2026-09-24T10:00:00Z",
+            "sections": {"goal": "Old."},
+        }
+        self.write_doc(doc)
+        self.apply({"op": "restate", "sections": {"goal": "New."}})
+        doc = self.doc()
+        self.assertEqual([r["rev"] for r in doc["restatements"]], [4, 5])
+        self.assertEqual(doc["restatement"]["rev"], 5)
+
+    def test_restate_takes_an_out_of_scope_section(self):
+        self.apply({"op": "restate", "sections": {"outOfScope": "- no Windows"}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"], {"outOfScope": "- no Windows"}
+        )
+
     def test_restate_refusals(self):
         for sections in (
             {},
@@ -1418,6 +1447,69 @@ class TestRecordTerminalHedged(DirCase):
         self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestReplyResolution(DirCase):
+    """reply --resolution records the accepted reading of the counted own answer."""
+
+    def answer(self, kind, seq=1, text="YES I AGREE"):
+        self.write_events(
+            [
+                {
+                    "seq": seq,
+                    "id": "Q1",
+                    "kind": kind,
+                    "alt": None,
+                    "text": text,
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def test_the_resolution_is_bound_to_the_answer_it_resolves(self):
+        self.answer("own")
+        rc, out, err = self.rp("reply", "Q1", "--resolution", "2.0 s or less at p75")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(
+            {k: v for k, v in self.q("Q1")["resolution"].items() if k != "at"},
+            {
+                "text": "2.0 s or less at p75",
+                "seq": 1,
+                "decidedAt": "2999-01-01T00:00:00Z",
+            },
+        )
+
+    def test_an_apply_op_takes_it_and_collapses_whitespace(self):
+        self.answer("own")
+        self.apply({"op": "reply", "id": "Q1", "resolution": "  read   as\nB  "})
+        self.assertEqual(self.q("Q1")["resolution"]["text"], "read as B")
+
+    def test_a_question_with_no_counted_own_answer_refuses_it(self):
+        for kind in (None, "accept", "defer"):
+            with self.subTest(kind=kind):
+                if kind:
+                    self.answer(kind)
+                out = self.assert_refused("reply", "Q1", "--resolution", "x")
+                self.assertIn("no counted own answer", out)
+
+    def test_a_revised_recommendation_cannot_carry_one(self):
+        self.answer("own")
+        out = self.assert_refused(
+            "reply", "Q1", "--resolution", "x", "--rec", "y", "--affects", "none"
+        )
+        self.assertIn("not both", out)
+
+    def test_an_empty_resolution_is_refused(self):
+        self.answer("own")
+        self.assertIn(
+            "needs text", self.assert_refused("reply", "Q1", "--resolution", " ")
+        )
 
 
 class TestReviseSetsAsideOwn(DirCase):

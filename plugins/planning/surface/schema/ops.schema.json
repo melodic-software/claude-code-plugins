@@ -61,6 +61,10 @@
         "kind": {"enum": ["reply", "rephrase", "note"]},
         "rec": {"type": "string"},
         "why": {"type": "string"},
+        "resolution": {
+          "description": "The accepted reading of the user's counted `own` answer on this question, one line; refused when no `own` answer counts. Exports and the Brief give it as the answer and keep the user's words as its note.",
+          "type": "string"
+        },
         "affects": {"$ref": "#/$defs/affects"},
         "handled": {"type": "integer"},
         "force": {"type": "boolean"}
@@ -256,7 +260,7 @@
       }
     },
     "restate": {
-      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Replaces the previous restatement and increments `restatement.rev`.",
+      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Appends to `restatements` and mirrors the new one as `restatement`, one rev above the last.",
       "type": "object",
       "required": ["op", "sections"],
       "additionalProperties": false,

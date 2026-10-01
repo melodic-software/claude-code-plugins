@@ -16,7 +16,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   validate        check questions.json and responses.json against the shipped schemas
   export-ledger   write the interview ledger (decision tree and open-question register);
                   --ledger F merges into F's register, --diff F prints what that would change
-  export-brief    write the PLAN.md Brief sections
+  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows
   export-report   write one self-contained HTML report
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
@@ -543,14 +543,40 @@ def op_group(d, doc, a):
     return [], f"group {a.id} saved"
 
 
+def set_resolution(d, q, text):
+    """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
+    one counts."""
+    text = " ".join(text.split())
+    if not text:
+        sys.exit("refused: reply --resolution needs text")
+    snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
+    own = exporters.latest_decision(q, snapshot.get("responses", {}))
+    if not own or own.get("decision") != "own":
+        sys.exit(f"refused: {q['id']} has no counted own answer to resolve")
+    q["resolution"] = {
+        "text": text,
+        "at": now(),
+        **({"seq": own["seq"]} if "seq" in own else {}),
+        "decidedAt": own["updatedAt"],
+    }
+
+
 def op_reply(d, doc, a):
     q = find(doc, a.id)
     for field, val, cap in (
         ("text", a.text, TEXT_CAP),
         ("rec", a.rec, LINE_CAP),
         ("why", a.why, TEXT_CAP),
+        ("resolution", a.resolution, LINE_CAP),
     ):
         capped(f"reply {field}", val, cap)
+    if a.resolution is not None:
+        if a.rec:
+            sys.exit(
+                "refused: reply takes --rec or --resolution, not both (a revised "
+                "recommendation sets the own answer aside)"
+            )
+        set_resolution(d, q, a.resolution)
     line = {
         "at": now(),
         "by": "claude",
@@ -814,13 +840,15 @@ RESTATE_SECTIONS = (
     "constraints",
     "decisions",
     "acceptance",
+    "outOfScope",
     "deferred",
     "planningOwned",
 )
 
 
 def op_restate(d, doc, a):
-    """Replace the shared-understanding restatement; its rev increments so an old confirm is stale."""
+    """Post a new shared-understanding restatement: it joins `restatements` and is mirrored as
+    `restatement`, and its rev increments so an old confirm is stale."""
     s = a.sections
     if not isinstance(s, dict):
         sys.exit("refused: restate needs a sections object")
@@ -833,8 +861,10 @@ def op_restate(d, doc, a):
         sys.exit("refused: restate needs at least one non-empty section")
     for k, v in s.items():
         capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
-    rev = (doc.get("restatement") or {}).get("rev", 0) + 1
+    kept = exporters.restatement_revs(doc)
+    rev = max((r["rev"] for r in kept), default=0) + 1
     doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
+    doc["restatements"] = [*kept, doc["restatement"]]
     return [], "restated the shared understanding"
 
 
@@ -960,6 +990,7 @@ OP_ARGS = {
             "kind": None,
             "rec": None,
             "why": None,
+            "resolution": None,
             "affects": None,
             "handled": None,
             "force": False,
@@ -1217,11 +1248,12 @@ def write_text(path, text):
 
 
 def cmd_export(d, a):
-    fn = {
-        "brief": exporters.export_brief,
-        "report": exporters.export_report,
-    }[a.what]
-    write_text(a.out, fn(d))
+    if a.what == "brief":
+        ledger = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+        text = exporters.export_brief(d, ledger)
+    else:
+        text = exporters.export_report(d)
+    write_text(a.out, text)
     print(f"wrote {a.out}")
 
 
@@ -1634,6 +1666,11 @@ def main(argv=None):
     s.add_argument("--text", default="")
     s.add_argument("--rec", help="revised recommendation")
     s.add_argument("--why", help="one line shown in the Revised banner")
+    s.add_argument(
+        "--resolution",
+        help="the accepted reading of the question's counted own answer; exports give it as "
+        "the answer and keep the user's words as its note",
+    )
     s.add_argument("--affects", help=affects_help)
     s.add_argument("--kind", choices=("reply", "rephrase", "note"))
     s.add_argument(
@@ -1716,10 +1753,18 @@ def main(argv=None):
     add_dir(s)
     s.set_defaults(fn=cmd_validate)
 
-    for what in ("brief", "report"):
-        s = sub.add_parser(f"export-{what}", help=f"write the {what} export")
-        s.add_argument("--out", required=True, help="output file")
-        s.set_defaults(fn=cmd_export, what=what)
+    s = sub.add_parser("export-brief", help="write the brief export")
+    s.add_argument("--out", required=True, help="output file")
+    s.add_argument(
+        "--ledger",
+        help="number the questions as this ledger's register does and carry the deferred and "
+        "blocked rows only the ledger has",
+    )
+    s.set_defaults(fn=cmd_export, what="brief")
+
+    s = sub.add_parser("export-report", help="write the report export")
+    s.add_argument("--out", required=True, help="output file")
+    s.set_defaults(fn=cmd_export, what="report")
 
     s = sub.add_parser("export-ledger", help="write the ledger export")
     s.add_argument("--out", help="output file")

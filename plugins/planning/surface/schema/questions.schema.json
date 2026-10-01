@@ -48,8 +48,16 @@
         }
       }
     },
+    "restatement": {"$ref": "#/$defs/restatement"},
+    "restatements": {
+      "description": "Every restatement the restate op wrote, oldest first; the last is mirrored as `restatement`. A file written before this list existed has only `restatement`.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/restatement"}
+    }
+  },
+  "$defs": {
     "restatement": {
-      "description": "The shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
+      "description": "One shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
       "type": "object",
       "required": ["rev", "at", "sections"],
       "additionalProperties": false,
@@ -58,11 +66,9 @@
         "at": {"type": "string"},
         "sections": {"$ref": "#/$defs/sections"}
       }
-    }
-  },
-  "$defs": {
+    },
     "sections": {
-      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "description": "Restatement sections, each markdown. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -71,6 +77,7 @@
         "decisions": {"type": "string"},
         "acceptance": {"type": "string"},
         "deferred": {"type": "string"},
+        "outOfScope": {"type": "string"},
         "planningOwned": {"type": "string"}
       }
     },
@@ -259,6 +266,18 @@
         },
         "history": {"type": "array", "items": {"$ref": "#/$defs/line"}},
         "terminal": {"$ref": "#/$defs/terminal"},
+        "resolution": {
+          "description": "The accepted reading of a counted `own` answer, written by a reply with `resolution`. It applies only while that answer is the decision that counts: `seq` is its page event seq (absent on a terminal answer) and `decidedAt` its updatedAt.",
+          "type": "object",
+          "required": ["text", "at", "decidedAt"],
+          "additionalProperties": false,
+          "properties": {
+            "text": {"type": "string"},
+            "at": {"type": "string"},
+            "seq": {"type": "integer"},
+            "decidedAt": {"type": "string"}
+          }
+        },
         "previousRecommendation": {"type": "string"},
         "revised": {"type": "string"},
         "archived": {"$ref": "#/$defs/archived"},

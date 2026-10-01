@@ -5,7 +5,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  the row shape scripts/check-open-questions.sh grades, then the deferred questions;
                  given a ledger's text it merges into that ledger's register (merged_register)
   sync_ledger    a ledger's text with only its register rows replaced by the merged rows
-  export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`
+  export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
+                 numbers as that ledger and carries its ledger-only rows. Goal, Constraints, Acceptance
+                 criteria and Out-of-scope come from the newest confirmed restatement rev, and the
+                 TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -37,7 +40,9 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   row's text as a ledger seeded it (written even when empty);
                                   on an open or superseded-by-plan row with no proposal, the
                                   seeded text, but not beside a held row's accept, hedged answer or
-                                  alternative, whose note it is
+                                  alternative, whose note it is; beside a counted free-text answer
+                                  (not a set-aside or superseded-by-plan row's), the user's words
+                                  when the question's resolution is the answer (reply --resolution)
   aside:: E(aside)                the newest decision a user hold set aside, when none counts;
                                   import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
@@ -182,10 +187,11 @@ def split_fields(s):
     return fields
 
 
-def decision_fields(q, rec):
+def decision_fields(q, rec, resolve=True):
     """(answer, note): the decision in the resolution vocabulary, and the note an accept, a hedged
     accept (its condition) or an alternative carries. An alternative whose key the question does
-    not list is `alt <key>`."""
+    not list is `alt <key>`. An `own` answer the question resolved (and `resolve` allows: the held
+    row's note slot is free) is the resolution, with the user's words as its note."""
     decision, text = rec.get("decision"), rec.get("text") or ""
     if decision in ("accept", "hedged"):
         word = "accepted" if decision == "accept" else "hedged"
@@ -202,8 +208,19 @@ def decision_fields(q, rec):
         )
         return f"alt {key}" + ("" if alt is None else f": {alt}"), text
     if decision == "own":
+        if resolve and resolves(q.get("resolution"), rec):
+            return f"free-text: {q['resolution']['text']}", text
         return f"free-text: {text}", ""
     return "deferred" + (f": {text}" if text else ""), ""
+
+
+def resolves(resolution, rec):
+    """True when `resolution` (a question's accepted reading) was written for the decision `rec`."""
+    return bool(
+        resolution
+        and resolution.get("decidedAt") == rec.get("updatedAt")
+        and resolution.get("seq") == rec.get("seq")
+    )
 
 
 def seed_proposal(seed):
@@ -342,7 +359,11 @@ def readable(status, fields, marked):
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
         # A decision's note is labeled; any other note is the row's own seeded text.
-        noted = decided.startswith(("accepted: ", "hedged: ")) or ALT.match(decided)
+        noted = (
+            decided.startswith(("accepted: ", "hedged: "))
+            or ALT.match(decided)
+            or (fields.get("answer") and decided.startswith("free-text: "))
+        )
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
         # A page deferral; a seeded one's arbiter is in its own text.
@@ -363,6 +384,10 @@ def held_terminal(q, answer, note, at):
         decision, key, text = "defer", None, answer[len("deferred: ") :]
     elif answer.startswith("free-text: "):
         decision, key, text = "own", None, answer[len("free-text: ") :]
+        if note:
+            # A resolved own answer: the answer is the accepted reading, the note the user's words.
+            q["resolution"] = {"text": text, "at": at, "decidedAt": at}
+            text = note
     elif alt:
         decision, key, text = "alt", alt.group(1), note
         if not any(a.get("key") == key for a in q["alternatives"]):
@@ -482,7 +507,9 @@ def settle(q, responses, events, seed_rows):
             # since a held row's status reads open and could not tell it from a deferred one.
             fields.update(answer="deferred", note=rec.get("text") or "")
         elif said:
-            fields[kind], note = decision_fields(q, rec)
+            fields[kind], note = decision_fields(
+                q, rec, kind == "answer" and status != "superseded-by-plan"
+            )
             fields["note"] = note or None
         # The seeded text of a row still unsettled once the hold clears rides in note, unless
         # the decision's own note is there.
@@ -545,6 +572,7 @@ def register(doc, resp, extra=()):
                 "status": status,
                 "resolution": res.rstrip(),
                 "display": clean(lead + readable(status, fields, marked)),
+                "readable": clean(readable(status, fields, marked)),
                 "note": note,
                 "reserved": reserved,
                 "confirmed": confirmed,
@@ -736,10 +764,82 @@ def named_risks(rows):
     ]
 
 
-def export_brief(d):
+def restatement_revs(doc):
+    """Every restatement, oldest first: `restatements`, plus the mirrored `restatement` of a file
+    written before that list existed."""
+    kept = list(doc.get("restatements") or [])
+    latest = doc.get("restatement")
+    if latest and not any(r.get("rev") == latest.get("rev") for r in kept):
+        kept.append(latest)
+    return kept
+
+
+def confirmed_restatement(doc, events):
+    """(latest rev, newest confirmed restatement, its Confirm event); a rev counts as confirmed
+    when its newest live confirm-understanding verdict is a Confirm. Each is None when absent."""
+
+    def confirm(r):
+        live = [
+            e
+            for e in events
+            if e.get("kind") == "confirm-understanding"
+            and not e.get("withdrawn")
+            and e.get("contentRev") == r["rev"]
+        ]
+        return live[-1] if live and live[-1].get("alt") == "confirm" else None
+
+    revs = restatement_revs(doc)
+    found = next(((r, confirm(r)) for r in reversed(revs) if confirm(r)), (None, None))
+    return (revs[-1]["rev"] if revs else None), *found
+
+
+def bullets(text):
+    """A restated section as plain bullets that cannot turn into a heading or a fence."""
+    return [
+        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
+        for line in str(text or "").splitlines()
+        if line.strip()
+    ]
+
+
+def ledger_row(n, qid, status, title, res):
+    """A brief row for a question only the ledger has, in the shape register() gives a page one."""
+    lead = LEAD.match(res)
+    body = clean(lead.group(2) if lead else res)
+    return {
+        "n": n,
+        "q": {"id": qid, "short": clean(title), "title": clean(title)},
+        "status": status,
+        "readable": body,
+        "note": body,
+        "reserved": "USER-RESERVED" in body,
+        "confirmed": [],
+        "unconfirmed": [],
+        "carries": False,
+    }
+
+
+def brief_label(r):
+    """A row's Q<N>, with its own id beside it when the register numbers it differently."""
+    qid = r["q"]["id"]
+    return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
+
+
+def export_brief(d, text=None):
+    """The Brief. With a ledger's text it numbers the questions as that ledger's register does
+    and carries the rows only the ledger has, so each Q<N> is the one the gate reads there."""
     doc, resp = read(d)
-    rows = register(doc, resp)
-    title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    old = ledger_register(text) if text is not None else {}
+    page_ids = {q["id"] for q in doc.get("questions") or []}
+    extra = [i for i in old if i not in page_ids]
+    rows = register(doc, resp, extra)
+    pos, _ = numbering(sorted(page_ids) + extra)
+    for i in extra:
+        status, _, title, res = old[i]
+        rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
+    rows.sort(key=lambda r: int(r["n"][1:]))
+    latest, restated, sign = confirmed_restatement(doc, resp.get("events") or [])
+    sections = (restated or {}).get("sections") or {}
     count = {
         s: sum(1 for r in rows if r["status"] == s)
         for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
@@ -747,7 +847,7 @@ def export_brief(d):
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
     risks = named_risks(rows)
-    gated = [r["n"] for r in rows if held_open(r)]
+    gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
@@ -762,45 +862,52 @@ def export_brief(d):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    out += ["", "### Goal", "", para(title), "", "### Constraints", ""]
+    if latest is not None:
+        # The stamp the --brief gate reads. A Brief edited after a Confirm needs a new restate.
+        if restated and restated["rev"] == latest:
+            stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
+        elif restated:
+            stamp = (
+                f"UNCONFIRMED (latest rev {latest}); the sections below are from "
+                f"confirmed rev {restated['rev']}"
+            )
+        else:
+            stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
+        out.append(f"- Restatement: {stamp}")
+    title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
+    out += ["### Constraints", ""]
     out += [
-        f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
+        *bullets(sections.get("constraints")),
+        *(
+            f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
+            for r in answered
+        ),
     ] or ["- none recorded"]
-    restatement = doc.get("restatement") or {}
-    verdicts = [
-        e.get("alt")
-        for e in resp.get("events") or []
-        if e.get("kind") == "confirm-understanding"
-        and e.get("contentRev") == restatement.get("rev")
-    ]
-    restated = (
-        restatement.get("sections", {}).get("acceptance")
-        if verdicts[-1:] == ["confirm"]
-        else None
+    criteria = bullets(sections.get("acceptance"))
+    out += ["", "### Acceptance criteria", ""]
+    out += (
+        [*criteria, ""]
+        if criteria
+        else ["- none recorded in the interview surface", ""]
     )
-    criteria = [
-        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
-        for line in str(restated or "").splitlines()
-        if line.strip()
-    ]
-    out += [
-        "",
-        "### Acceptance criteria",
-        "",
-        *(criteria or ["- none recorded in the interview surface"]),
-        "",
-    ]
     out += ["### Captured assumptions", ""]
     lines = [
-        f"- {clean(c)}: confirmed on {r['n']}; revisit if {r['n']} changes"
+        f"- {clean(c)}: confirmed on {brief_label(r)}; revisit if {r['n']} changes"
         for r, c in confirmed
     ]
-    lines += [f"- risk: {clean(c)} (unconfirmed); from {r['n']}" for r, c in risks]
+    lines += [
+        f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
+    ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]
     archived = [r for r in rows if r["status"] == "withdrawn"]
     out += [
-        f"- {r['n']} {clean(r['q'].get('title'))}: {r['display']}" for r in archived
+        *bullets(sections.get("outOfScope")),
+        *(
+            f"- {brief_label(r)} {clean(r['q'].get('title'))}: {r['readable']}"
+            for r in archived
+        ),
     ] or ["- none"]
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
@@ -808,7 +915,7 @@ def export_brief(d):
         until = r["note"] or "the user revisits it"
         arbiter = ARBITER_USER if r["reserved"] else ARBITER_PLAN
         out.append(
-            f"- {r['n']}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
+            f"- {brief_label(r)}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
         )
     if not retired:
         out.append("- none")
@@ -1223,8 +1330,13 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     seeded_defer = answer == "deferred" and (
         status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
+    # A counted free-text answer's note is the user's words behind its resolution; the note of a
+    # set-aside one, or of a superseded-by-plan row's, is the row's seeded text.
+    own_noted = answer is not None and status != "superseded-by-plan"
     noted = decided is not None and (
-        decided.startswith(("accepted: ", "hedged: ")) or bool(ALT.match(decided))
+        decided.startswith(("accepted: ", "hedged: "))
+        or bool(ALT.match(decided))
+        or (own_noted and decided.startswith("free-text: "))
     )
     if decided is not None and decided.startswith("hedged: ") and not note:
         refuse("a hedged answer with no condition in field 'note'", where)

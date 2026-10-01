@@ -20,9 +20,11 @@
 # Exit 0 = every registered question is resolved (register is clean) and, with
 #          --procedure, the procedure checks below pass
 # Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
-#          contract is not locked), or --procedure found a procedure defect
+#          contract is not locked), --procedure found a procedure defect
 #          (the register is gradeable but the interview did not complete its
-#          own procedure; fix the ledger or Brief and re-run)
+#          own procedure; fix the ledger or Brief and re-run), or the named
+#          Brief is stamped `UNCONFIRMED` (the user has not confirmed the
+#          latest restatement; `brief=unconfirmed`)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate, an
@@ -48,10 +50,15 @@
 # hole this gate exists to refuse. When --brief is omitted the verdict says
 # `brief=unchecked` rather than omitting the field: a check the caller only
 # appeared to get is worse than one it knowingly skipped. The named Brief must
-# exist, but it is only READ when the register retired a row: with nothing to
-# look up the cross-check is satisfied (`brief=ok`), and the Brief's own
+# exist. The deferred cross-check reads it only when the register retired a row:
+# with nothing to look up it is satisfied (`brief=ok`), and the Brief's own
 # headings and fences are not graded, so a stray fence in an unrelated section
 # of a large planning document cannot fail a clean register.
+#
+# --brief also fails (exit 1, `brief=unconfirmed`) on the line
+# `- Restatement: UNCONFIRMED (latest rev <N>)` that `round.sh export-brief` writes
+# while the newest restatement has no Confirm. A Brief without that line is not
+# graded for it. A line inside a fenced block is documentation.
 #
 # --procedure is OPT-IN and adds checks a script can derive from the ledger, so
 # a caller that omits it keeps every verdict and exit code above unchanged:
@@ -81,7 +88,7 @@
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
 
 set -uo pipefail
 
@@ -509,6 +516,21 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
+# export-brief stamps the Brief `- Restatement: UNCONFIRMED (latest rev N)` while the newest
+# restatement has no Confirm. A Brief with no stamp (hand-written, or no restatement posted) is
+# not graded for it; a fenced line is documentation.
+if [[ "$brief_named" -eq 1 ]]; then
+  unconfirmed_stamp="$(awk "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    /^- Restatement: UNCONFIRMED \(latest rev [0-9]+\)/ { sub(/\r$/, ""); print; exit }
+  ' "$brief")"
+  if [[ -n "$unconfirmed_stamp" ]]; then
+    brief_state="unconfirmed"
+    printf 'brief: the restatement is unconfirmed (%s in %s); the user confirms the latest restate, then the Brief is exported again\n' "${unconfirmed_stamp#- Restatement: }" "$brief" >&2
+  fi
+fi
+
 procedure_state="unchecked"
 if [[ "$procedure_on" -eq 1 ]]; then
   # Contiguous rounds never exceed the row count, so bound the walk there: a
@@ -575,8 +597,8 @@ if [[ $((open_count + superseded)) -gt 0 ]]; then
   exit 1
 fi
 
-if [[ "$procedure_state" == "fail" ]]; then
-  echo "$verdict status=incomplete procedure=fail"
+if [[ "$procedure_state" == "fail" || "$brief_state" == "unconfirmed" ]]; then
+  echo "$verdict status=incomplete procedure=$procedure_state"
   exit 1
 fi
 

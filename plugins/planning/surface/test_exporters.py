@@ -61,7 +61,9 @@ class SessionCase(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
 
-    def session(self, questions, events, meta=None, restatement=None):
+    def session(
+        self, questions, events, meta=None, restatement=None, restatements=None
+    ):
         doc = {
             "meta": meta or {"title": "Export test", "eyebrow": "surface eyebrow text"},
             "rev": 1,
@@ -69,6 +71,9 @@ class SessionCase(unittest.TestCase):
             "questions": questions,
             "visuals": [],
         }
+        if restatements:
+            doc["restatements"] = restatements
+            doc["restatement"] = restatements[-1]
         if restatement:
             doc["restatement"] = restatement
         (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -370,6 +375,313 @@ class TestExportBrief(SessionCase):
         self.assertNotIn("risk:", assumptions)
         scope = text.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn("Off the chosen path.", scope)
+
+
+LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"
+
+
+class TestBriefIds(SessionCase):
+    """The Brief numbers questions as the ledger does and carries the ledger's own rows."""
+
+    def gapped(self):
+        """Page ids Q1, Q2 and Q5; the ledger also holds Q3 and Q4, deferred there only."""
+        self.session(
+            [question("Q1"), question("Q2"), question("Q5")],
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q2", "alt", alt="a"),
+                event(3, "Q5", "defer", text="the pilot"),
+            ],
+        )
+        ledger = self.tmp / "hand-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n"
+            "- Q2 | answered | round 1 | Question Q2? | a\n"
+            "- Q3 | deferred | round 1 | Four unclaimed? | deferred to planning\n"
+            "- Q4 | deferred | round 1 | Which cap? | USER-RESERVED until the pilot\n"
+            "- Q5 | deferred | round 1 | Question Q5? | the pilot\n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def brief_with(self, ledger):
+        out = self.tmp / "brief-with.md"
+        rc, text = self.rp("export-brief", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        return out.read_text(encoding="utf-8")
+
+    def test_ledger_only_deferred_rows_reach_the_brief_under_their_real_ids(self):
+        ledger = self.gapped()
+        text = self.brief_with(ledger)
+        deferred = text.split("### Deferred questions")[1].split("##")[0]
+        self.assertRegex(
+            deferred,
+            r"- Q3: Four unclaimed\?, defer until deferred to planning; \*\*arbiter: /planning:plan\*\*",
+        )
+        self.assertRegex(
+            deferred,
+            r"- Q4: Which cap\?, defer until USER-RESERVED until the pilot; \*\*arbiter: USER-RESERVED\*\*",
+        )
+        self.assertRegex(deferred, r"- Q5: Question Q5\?, defer until the pilot;")
+        self.assertIn("- 5 questions: 2 answered, 3 deferred", text)
+        self.assertNotIn("[Q", text)
+        brief = self.tmp / "brief-with.md"
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_constraint_lines_carry_the_real_id_not_a_position(self):
+        text = self.brief_with(self.gapped())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- Q2 Short Q2: alt a:", constraints)
+        self.assertNotIn("Q3 Short Q2", constraints)
+
+    def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
+        self.session(
+            [question("Q1"), question("Q3"), question("Q4")],
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q3", "defer", text="later"),
+                event(3, "Q4", "accept"),
+            ],
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
+        self.assertIn("- Q3 [Q4] Short Q4: accepted:", text)
+        self.assertNotIn("[Q3] [Q3]", text)
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+
+class TestBriefRestatements(SessionCase):
+    """Goal, Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed rev."""
+
+    def rev(self, n, **sections):
+        return {"rev": n, "at": f"2026-09-24T10:0{n}:00Z", "sections": sections}
+
+    def confirm(self, seq, rev, alt="confirm"):
+        return {
+            **event(seq, None, "confirm-understanding", alt),
+            "contentRev": rev,
+            "at": f"2026-09-24T11:0{seq}:00Z",
+        }
+
+    def brief(self, restatements, verdicts):
+        self.session(
+            [question("Q1", archived={"why": "Dropped.", "at": AT}), question("Q2")],
+            [event(1, "Q2", "accept"), *verdicts],
+            restatements=restatements,
+        )
+        return self.export("brief").read_text(encoding="utf-8")
+
+    def section(self, text, name):
+        return text.split(f"### {name}")[1].split("###")[0].strip().splitlines()
+
+    def test_a_confirmed_rev_one_survives_an_unconfirmed_rev_three(self):
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="Cut p75 load time.",
+                    constraints="- stdlib only",
+                    acceptance="- p75 is 2.0 s or less\n- no new dependency",
+                    outOfScope="- mobile layouts",
+                ),
+                self.rev(2, goal="Draft two.", acceptance="- narrowed"),
+                self.rev(3, goal="Draft three.", acceptance="- narrower"),
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertIn(
+            "- Restatement: UNCONFIRMED (latest rev 3); the sections below are from confirmed rev 1",
+            text,
+        )
+        self.assertEqual(self.section(text, "Goal"), ["Cut p75 load time."])
+        self.assertEqual(
+            self.section(text, "Acceptance criteria"),
+            ["- p75 is 2.0 s or less", "- no new dependency"],
+        )
+        self.assertEqual(self.section(text, "Constraints")[0], "- stdlib only")
+        self.assertEqual(self.section(text, "Out-of-scope")[0], "- mobile layouts")
+        self.assertIn("Dropped.", "\n".join(self.section(text, "Out-of-scope")))
+        self.assertNotIn("Draft", text)
+
+    def test_a_confirmed_latest_rev_is_stamped_with_its_time(self):
+        text = self.brief(
+            [self.rev(1, goal="One."), self.rev(2, goal="Two.")],
+            [self.confirm(2, 2)],
+        )
+        self.assertIn("- Restatement: confirmed at rev 2, 2026-09-24T11:02:00Z", text)
+        self.assertNotIn("UNCONFIRMED", text)
+        self.assertEqual(self.section(text, "Goal"), ["Two."])
+
+    def test_no_rev_confirmed_is_stamped_unconfirmed_and_keeps_the_title_goal(self):
+        text = self.brief(
+            [self.rev(1, goal="One.", acceptance="- a")], [self.confirm(2, 1, "off")]
+        )
+        self.assertIn(
+            "- Restatement: UNCONFIRMED (latest rev 1); no rev was confirmed", text
+        )
+        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        self.assertIn("- none recorded in the interview surface", text)
+
+    def test_a_withdrawn_confirm_does_not_count(self):
+        text = self.brief(
+            [self.rev(1, goal="One.")],
+            [{**self.confirm(2, 1), "withdrawn": True}],
+        )
+        self.assertIn("UNCONFIRMED (latest rev 1)", text)
+
+    def test_a_file_with_only_a_restatement_is_still_read(self):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept"), self.confirm(2, 1)],
+            restatement=self.rev(1, goal="Legacy goal."),
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- Restatement: confirmed at rev 1,", text)
+        self.assertEqual(self.section(text, "Goal"), ["Legacy goal."])
+
+    def test_no_restatement_writes_no_stamp(self):
+        self.session([question("Q1")], [event(1, "Q1", "accept")])
+        self.assertNotIn(
+            "Restatement:", self.export("brief").read_text(encoding="utf-8")
+        )
+
+    def test_restated_goal_constraints_and_scope_cannot_add_a_heading_or_fence(self):
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="# Sneaky goal",
+                    constraints="# Sneaky\n```\n~~~",
+                    outOfScope="## Also sneaky",
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertEqual(len(headings), 9, headings)
+        self.assertFalse(
+            any(x.startswith(("```", "~~~", "# Sneaky")) for x in text.splitlines())
+        )
+
+    def test_the_gate_fails_an_unconfirmed_brief_and_passes_a_confirmed_one(self):
+        revs = [self.rev(1, goal="One."), self.rev(2, goal="Two.")]
+        unconfirmed = self.brief(revs, [self.confirm(2, 1)])
+        self.assertIn("UNCONFIRMED", unconfirmed)
+        ledger = self.export("ledger")
+        brief = self.export("brief")
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("brief=unconfirmed status=incomplete", out)
+        self.brief(revs, [self.confirm(2, 2)])
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+
+class TestSupersededCommitments(SessionCase):
+    """A commitment list a later revise replaced never reaches the Brief."""
+
+    def test_only_the_replacing_list_is_a_named_risk(self):
+        self.session(
+            [question("Q1", commits=["PR 1 ships the parser", "PR 6 ships docs"])],
+            [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")],
+        )
+        rc, out = self.rp(
+            "revise", "Q1", "--commit", "One PR ships everything", "--force"
+        )
+        self.assertEqual(rc, 0, out)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("risk: One PR ships everything (unconfirmed); from Q1", text)
+        self.assertNotIn("PR 1", text)
+        self.assertNotIn("PR 6", text)
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", text)
+
+
+class TestResolvedOwnAnswer(SessionCase):
+    """A resolution is the row's answer and the user's words its note, through every export."""
+
+    TYPED = "YES I AGREE DAMMIT"
+    READ = "2.0 s or less at p75"
+
+    def resolved(self):
+        self.session(
+            [question("Q1", commits=["Measure at p75"]), question("Q2")],
+            [event(1, "Q1", "own", text=self.TYPED), event(2, "Q2", "accept")],
+        )
+        rc, out = self.rp("reply", "Q1", "--resolution", self.READ)
+        self.assertEqual(rc, 0, out)
+
+    def row(self, ledger):
+        return register_rows(ledger)[0]
+
+    def test_the_ledger_row_answers_with_the_resolution_and_notes_the_typed_words(self):
+        self.resolved()
+        row = self.row(self.export("ledger"))
+        self.assertIn(
+            f"answer:: free-text: {self.READ}; note:: {self.TYPED}; commitments::", row
+        )
+
+    def test_the_brief_gives_the_resolution_and_labels_the_typed_words_a_note(self):
+        self.resolved()
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn(
+            f"- Q1 Short Q1: free-text: {self.READ}; note: {self.TYPED}", text
+        )
+
+    def test_a_later_answer_does_not_inherit_the_resolution(self):
+        self.resolved()
+        responses = json.loads((self.dir / "responses.json").read_text("utf-8"))
+        events = responses["events"]
+        events.append(
+            {
+                **event(3, "Q1", "own", text="Actually, p95."),
+                "at": "2026-09-25T10:00:00Z",
+            }
+        )
+        doc = json.loads((self.dir / "questions.json").read_text("utf-8"))
+        self.session(doc["questions"], events)
+        row = self.row(self.export("ledger"))
+        self.assertIn("answer:: free-text: Actually, p95.", row)
+        self.assertNotIn(self.READ, row)
+        self.assertNotIn("note::", row)
+
+    def test_an_exported_resolution_round_trips_through_import_ledger(self):
+        self.resolved()
+        first = self.export("ledger")
+        again = self.tmp / "again"
+        again.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=again)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.row(self.export("ledger", d=again)), self.row(first))
+        text = self.export("brief", d=again).read_text(encoding="utf-8")
+        self.assertIn(f"free-text: {self.READ}; note: {self.TYPED}", text)
+
+    def test_a_set_aside_answer_does_not_use_the_resolution(self):
+        self.resolved()
+        ops = self.tmp / "wait.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {"op": "wait", "id": "Q1", "waitsOn": "a figure", "by": "user"}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        row = self.row(self.export("ledger"))
+        self.assertIn(f"aside:: free-text: {self.TYPED}", row)
+        self.assertNotIn(self.READ, row)
 
 
 class TestConfirmsAgainstAnEarlierList(unittest.TestCase):
@@ -1456,7 +1768,7 @@ class TestImportLedger(SessionCase):
                     "contradictory fields 'proposal' and 'status open'",
                 ),
                 (
-                    "answered | round 1 | Who? | answer:: free-text: x; note:: y",
+                    "withdrawn | round 1 | Who? | answer:: archived: x; note:: y",
                     "contradictory fields 'answer' and 'note'",
                 ),
                 (
