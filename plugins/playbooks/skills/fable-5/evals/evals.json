@@ -52,6 +52,19 @@
         "Does not apply an Opus 5.5, Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
         "Does not treat the request as a /playbooks:update drift check"
       ]
+    },
+    {
+      "id": 5,
+      "name": "trigger-sonnet-5-5-adaptation-chapter",
+      "prompt": "sonnet 5.5 adaptation",
+      "expected_output": "Loads the Sonnet 5.5 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Routes to the Sonnet 5.5 adaptation chapter, sonnet-5-5.md, not a generic 'read every adaptation file' dump",
+        "Does not apply the Sonnet 5 chapter, sonnet-5.md, or an Opus chapter in place of the Sonnet 5.5 file",
+        "Does not treat the request as a /playbooks:update drift check"
+      ]
     }
   ]
 }
