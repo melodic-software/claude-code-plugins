@@ -25,7 +25,7 @@ The shims stay until all four cutover conditions hold. They are graded, each wit
 canary, and path detection. `/instruction-placement:migrate remove-shims` takes root and nested
 shims out together once they all hold. The check reruns monthly, and on any Claude Code release
 touching instruction files. The open tracker is
-<https://github.com/melodic-software/claude-code-plugins/issues/5163>.
+<https://github.com/melodic-software/claude-code-plugins/issues/4281>.
 
 ## Why
 
