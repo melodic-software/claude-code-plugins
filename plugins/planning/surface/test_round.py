@@ -1166,6 +1166,38 @@ class TestClaudeActivity(DirCase):
             with self.subTest(extra=extra):
                 self.refused({"op": "set-status", **extra})
 
+    def test_context_sets_percent_and_zone_and_clear_removes_them(self):
+        self.apply({"op": "context", "percent": 0, "zone": "green"})
+        ctx = self.doc()["context"]
+        self.assertEqual((ctx["percent"], ctx["zone"]), (0, "green"))
+        self.assertTrue(ctx["at"])
+        self.assertNotIn("handoff", self.doc())
+        self.apply({"op": "context", "handoff": "continue from .work/handoff.md"})
+        self.assertEqual(
+            self.doc()["handoff"]["text"], "continue from .work/handoff.md"
+        )
+        self.assertEqual(self.doc()["context"]["percent"], 0)
+        self.apply({"op": "context", "clear": True})
+        self.assertNotIn("context", self.doc())
+        self.assertNotIn("handoff", self.doc())
+        self.assertEqual(self.entries(), [])
+
+    def test_context_refuses_bad_shapes(self):
+        for extra in (
+            {},
+            {"percent": 50},
+            {"zone": "amber"},
+            {"percent": 101, "zone": "z"},
+            {"percent": -1, "zone": "z"},
+            {"percent": "5", "zone": "z"},
+            {"percent": 5, "zone": "z" * 41},
+            {"handoff": "h" * 501},
+            {"clear": True, "percent": 5, "zone": "z"},
+            {"clear": True, "handoff": "h"},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "context", **extra})
+
     def test_wait_then_clear(self):
         self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
         q = self.q("Q3")

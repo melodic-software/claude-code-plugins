@@ -25,6 +25,7 @@
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/context"},
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
@@ -242,6 +243,19 @@
       "properties": {
         "op": {"enum": ["set-status"]},
         "text": {"$ref": "#/$defs/line"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "context": {
+      "description": "Record how full the session's context is and where the interview continues. `percent` (0-100) and `zone` (the session's own word for the band, at most 40 characters) go together; `handoff` (one line naming a handoff file or resume instruction) may come alone or with them; `clear` removes both the context and the handoff and takes no other field.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["context"]},
+        "percent": {"type": "integer", "minimum": 0, "maximum": 100},
+        "zone": {"type": "string", "maxLength": 40},
+        "handoff": {"$ref": "#/$defs/line"},
         "clear": {"type": "boolean"}
       }
     },

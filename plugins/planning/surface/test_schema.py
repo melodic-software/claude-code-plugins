@@ -263,6 +263,31 @@ class TestShippedSchemas(unittest.TestCase):
         doc["restatement"]["sections"]["other"] = "o"
         self.assertIn("other", schema.first_error(doc, schema.load("questions")))
 
+    def test_context_op_shapes(self):
+        ops = schema.load("ops")
+
+        def err(op):
+            return schema.first_error(op, ops["$defs"]["context"], "$", ops)
+
+        for ok in (
+            {"op": "context", "percent": 0, "zone": "z"},
+            {"op": "context", "percent": 100, "zone": "z" * 40, "handoff": "h"},
+            {"op": "context", "handoff": "h" * 500},
+            {"op": "context", "clear": True},
+        ):
+            with self.subTest(ok=ok):
+                self.assertIsNone(err(ok))
+        for bad in (
+            {"op": "context", "percent": 101, "zone": "z"},
+            {"op": "context", "percent": -1, "zone": "z"},
+            {"op": "context", "percent": 1.5, "zone": "z"},
+            {"op": "context", "percent": 5, "zone": "z" * 41},
+            {"op": "context", "handoff": "h" * 501},
+            {"op": "context", "extra": 1},
+        ):
+            with self.subTest(bad=bad):
+                self.assertIsNotNone(err(bad))
+
     def test_ops_text_caps_match_round_py(self):
         ops = schema.load("ops")
 
