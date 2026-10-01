@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.14] - 2026-10-01
+
+### Changed
+
+- The `docpage-digest` Anthropic docs queue lists the Sonnet 5.5 prompting guide.
+
 ## [0.14.13] - 2026-09-30
 
 ### Changed

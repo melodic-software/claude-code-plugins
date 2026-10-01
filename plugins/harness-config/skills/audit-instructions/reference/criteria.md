@@ -174,6 +174,8 @@ surfaces its row names.
   post, cited where it adds that reach and otherwise corroborating, so the citing rows keep the
   `ANTHROPIC-DOCS` Authority of the guide above):
   <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
+- Prompting Claude Sonnet 5.5:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
 - Prompting Claude Sonnet 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Prompting Claude Opus 4.8:
@@ -541,7 +543,7 @@ target model.
   guide's raw `.md`: zero occurrences of "nitpick".)
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
-`opus-5-5`.
+`opus-5-5`, `sonnet-5-5`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
 claim (see Source), and it is a model-agnostic feature page, the surface where a wider claim would
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
@@ -581,6 +583,14 @@ choice, on the same reasoning I10 applies to a declined widening.
   2026-09-23** against the guide's raw `.md` (28,311 bytes, MD5
   `fb3bff7f41e20fbbb71be78770edb8cb`). **Recheck trigger:** that section ceasing to prescribe the
   removal.
+- **Widened to `sonnet-5-5` on 2026-10-01:** the Sonnet 5.5 guide, "Running without up-front
+  thinking", says that when a request sends `between_tools` any instruction not to think should go,
+  because it makes internal XML tags in the visible output more likely; "Calibrate effort" adds
+  that asking in the system prompt for less thinking "doesn't reliably reduce its thinking", so
+  lowering effort is the control. The leakage premise applies where `between_tools` is in use;
+  elsewhere on `sonnet-5-5` the finding stands on the second statement. **Verified 2026-10-01**
+  against the guide's raw `.md` (27,412 bytes, MD5 `2bcb67cc9f72b68e8823f197034c06d6`). **Recheck
+  trigger:** either section dropping its statement.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5, fable-5-1`.
 
@@ -699,6 +709,11 @@ unmet by contradiction, not only by absence:** the base row's model-agnostic sou
   names effort as the Claude Code control. **Verified 2026-09-23** against the guide's raw `.md`
   (hash as in I8-c). **Recheck trigger:** a second model guide stating the claim, which re-opens
   the scoping question, or the section dropping it.
+- **Not widened to `sonnet-5-5`:** the Sonnet 5.5 guide does not state this claim. For JSON answers
+  that need a few steps of working out it prescribes a think-first line, "Think the problem through
+  before you answer.", so the removal premise does not carry ("Reasoning tasks with JSON output";
+  verified 2026-10-01, hash as in I8-c's `sonnet-5-5` widening). **Recheck trigger:** that section dropping the line, or a later guide on the model
+  stating the removal claim.
 
 ### I9: Example hygiene
 
@@ -720,7 +735,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 ### I10: Reasoning-echo directives
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`fable-5, fable-5-1, opus-5-5` (the cited refusal category is documented per model; promotion gate
+`fable-5, fable-5-1, opus-5-5, sonnet-5-5` (the cited refusal category is documented per model; promotion gate
 unmet).
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
@@ -763,6 +778,11 @@ unmet).
   retrying them on a fallback model. Remediate there as above, or ask for what the reader needs instead, such
   as the rationale in a few sentences. **Verified 2026-09-23** against the guide's raw `.md` (hash
   as in I8-c). **Recheck trigger:** that section dropping the category.
+- **Widened to `sonnet-5-5` on 2026-10-01:** the Sonnet 5.5 guide, "Safeguard refusals", lists
+  `reasoning_extraction` among the categories a refusal reports: "the request asks the model to
+  reproduce its internal reasoning in the response text." Remediate there as above. **Verified
+  2026-10-01** against the guide's raw `.md` (hash as in I8-c's `sonnet-5-5` widening). **Recheck
+  trigger:** that section dropping the category.
 
 ### I11: CLI over MCP where equivalent
 

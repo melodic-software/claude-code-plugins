@@ -1133,13 +1133,13 @@ model surface, because plugin `userConfig` declares only generic typed options w
 verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
 configuration.
 
-Tier-to-model mapping, dated 2026-09-23 (recheck trigger: a new Claude model family reaches GA, or
+Tier-to-model mapping, dated 2026-10-01 (recheck trigger: a new Claude model family reaches GA, or
 the session default model changes):
 
-| Tier | Model (2026-09-23) |
+| Tier | Model (2026-10-01) |
 |---|---|
 | Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5.5, with Fable 5.1 the rung above |
-| Mechanical prep, one tier down | Sonnet 5 |
+| Mechanical prep, one tier down | Sonnet 5.5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
 Row 1 is relative by construction: the invariant above makes the ladder relative to the active
@@ -1153,8 +1153,11 @@ verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in 
 gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
 id
 ([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
-verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
-unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
+verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Row 2 is Sonnet 5.5: the `sonnet`
+alias resolves to it on the Anthropic API, and Sonnet 5 is listed as a legacy model
+([model-config](https://code.claude.com/docs/en/model-config) and
+[models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
+re-read 2026-10-01). Row 3 re-verifies unchanged: Haiku 4.5 remains the current Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
 customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering
