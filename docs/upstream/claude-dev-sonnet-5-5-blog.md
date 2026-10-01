@@ -58,8 +58,7 @@ records own the decisions:
 - The Sonnet 5.5 prompting-digest session: workload and counting rules, the advisor-pairing
   question (resolved upstream before any change), the Priority Tier and between-tools conflicts
   (recorded in the Sonnet 5.5 adaptation chapter, `plugins/playbooks/reference/model-adaptation/sonnet-5-5.md`),
-  docpage-digest pipeline defects, and the blog-body extractor
-  (`plugins/knowledge/skills/docpage-digest/scripts/extract_blog_body.py`).
+  docpage-digest pipeline defects, and the source of a blog-body extractor for docpage-digest.
 - Interview-page defects on #5569.
 
 ## Correlating later posts
