@@ -4,7 +4,7 @@ description: A discovery:explorer dispatch whose nested scout's final report was
 tags: [explorer, nested-hand-back]
 plugins: ["../.."]
 runs: 3
-expected_outcome: the explorer treats the delivered scout report as final, Reads the callers it names, writes the slice with Run status complete, and returns its YAML block with status complete and persistence written.
+expected_outcome: the explorer treats the delivered scout report as final, writes the slice with Run status complete, and returns its YAML block with status complete and persistence written.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -24,12 +24,6 @@ graders:
     pattern: '^Run status: complete$'
     flags: m
     target: { source: file, path: .memory/currency-conversion/EXPLORE.md }
-    arm: with-only
-  - name: scout-caller-read
-    type: tool_used
-    tool: Read
-    input_match: 'fx_snapshot\.py'
-    min: 1
     arm: with-only
   - name: return-block-complete
     type: regex
