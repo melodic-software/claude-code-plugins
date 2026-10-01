@@ -6443,6 +6443,17 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
         self.assertEqual(entries_under, entries_over)
 
 
+@unittest.skipUnless(os.name == "nt", "real Win32 handle probe")
+class WindowsHandleProbeNativeTests(unittest.TestCase):
+    def test_held_file_probes_open_and_released_file_probes_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "held.tmp"
+            path.write_bytes(b"held")
+            with open(path, "rb"):
+                self.assertEqual("open", hygiene.windows_handle_state(path)[0])
+            self.assertEqual("clear", hygiene.windows_handle_state(path)[0])
+
+
 class LeastObservableEnginePathTests(unittest.TestCase):
     """Direct coverage for the engine paths a consumer can least verify live (F8).
 
@@ -6517,6 +6528,21 @@ class LeastObservableEnginePathTests(unittest.TestCase):
         file_flags = file_dll.CreateFileW.call_args.args[5]
         self.assertEqual(0x02000000, directory_flags)  # FILE_FLAG_BACKUP_SEMANTICS
         self.assertEqual(0x00000080, file_flags)  # FILE_ATTRIBUTE_NORMAL
+
+    def test_windows_handle_probe_requests_delete_access_for_file_and_directory(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            probe = directory / "probe.tmp"
+            probe.write_text("file", encoding="utf-8")
+            _, directory_dll = self.windows_handle_probe(directory, 42)
+            _, file_dll = self.windows_handle_probe(probe, 42)
+        for dll in (directory_dll, file_dll):
+            self.assertEqual(hygiene.DELETE, dll.CreateFileW.call_args.args[1])
+            self.assertEqual(0, dll.CreateFileW.call_args.args[2])  # share mode
+        self.assertEqual(0x00010000, hygiene.DELETE)
 
     @staticmethod
     def lsof_result(returncode: int, stdout: str = "", stderr: str = ""):
