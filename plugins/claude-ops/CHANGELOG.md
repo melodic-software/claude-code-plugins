@@ -3,6 +3,35 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.2] - 2026-10-01
+
+### Fixed
+
+- **The inventory no longer reports a phantom built-in command `string` on Claude Code 2.1.286.**
+  A command, bundled-skill, subagent or tool name held in an identifier now resolves only when the
+  binding that read sees, by the module and scope rule, is that string constant. A name bound to a
+  conditional or a call, or a constant in another module, stays unresolved; before, the nearest
+  string constant anywhere ahead won, so the skill loader's `Vt=$t?smt(e):e` read an unrelated
+  `Vt="string"`. `VALIDATED_AGAINST` is `2.1.286`.
+
+## [0.79.1] - 2026-10-01
+
+### Fixed
+
+- **A local declaration shadows an imported name in the inventory.** A name the module imports
+  but the reader's own enclosing block declares now resolves as a runtime value, not through the
+  import to the exporting module's value.
+- **A `for` head's `let`/`const` shadows outer names in the loop body.** `for (const x of ...)`,
+  `for (let i = 0; ...)` and `for await` bind their names for the body only, so a same-named
+  outer binding no longer supplies the value. This includes an unbraced loop body and a binding
+  named `of` or `in`.
+
+## [0.79.0] - 2026-10-01
+
+### Added
+
+- **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
 ## [0.78.2] - 2026-10-01
 
 ### Fixed
