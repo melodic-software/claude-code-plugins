@@ -29,7 +29,7 @@ The change set under review, `REVIEW.md`, contributing guides, rules files, and 
    Read any untracked files the last command lists. They never appear in a diff.
 
    `UNRESOLVED-BASE` means no base resolved (no remote, or a shallow clone sharing no ancestor with
-   it), so committed branch changes were not diffed. Open the report by naming the base as
+   it), so committed branch changes were not diffed. Directly after the `Criteria read:` line, name the base as
    unresolved and whether the clone is shallow (`git fetch --unshallow --filter=blob:none` then a
    rerun is the remedy). With nothing listed under it, the change set is unresolved, not empty:
    decline to grade and return no clean result. With uncommitted changes listed, review those and
@@ -38,7 +38,7 @@ The change set under review, `REVIEW.md`, contributing guides, rules files, and 
 
 ## Turn budget
 
-Your turn budget is finite and a large change set can exhaust it. Review the highest-risk files first: behavioral code before tests, tests before docs and config. If you run short, end the report with a `Coverage:` line naming the changed files you did not reach, so a truncated review is never mistaken for a complete one.
+The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading the project's review criteria (step 1 above), or record it as skipped with the reason, before the first diff read. Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Review the highest-risk files first: behavioral code before tests, tests before docs and config.
 
 ## Review checklist
 
@@ -77,6 +77,8 @@ Smell findings default to SUGGESTION at medium or low confidence; a finding esca
 ## Output format
 
 Read `${CLAUDE_PLUGIN_ROOT}/context/severity.md` and organize findings by tier (CRITICAL / IMPORTANT / SUGGESTION), unless the project defines its own severity vocabulary, in which case use the project's. For each finding include file path, line number, and a specific recommendation.
+
+Every report, whatever its length, opens with a `Criteria read:` line naming every source the criteria-reading and convention-reading steps (steps 1 and 3 above) name that you read, or `none present`, or `skipped: <reason>`. When the base is unresolved, that warning follows this line immediately. Every report ends with a `Coverage:` line naming the changed files you did not reach, or `all changed files reviewed`. A caller that requires exact output with no other lines is exempt from both lines.
 
 Design-smell and convention findings are judgment calls: label them as advisory reviewer opinion, never as hard violations. Hard-violation framing is reserved for findings backed by a documented project rule, a failing check, or a demonstrable defect. Give every finding an explicit `Confidence: high|medium|low` line, the value its evidence supports: high for findings verified at the cited site, with design-smell findings capped at medium or low. The severity baseline's "Confidence axis" owns what the values mean and how they rank. When the caller supplies its own finding shape (for example `path:line: severity: problem. fix.`), use that shape and keep a `Confidence:` value inside each finding: a caller's shape replaces the layout, never the field.
 
