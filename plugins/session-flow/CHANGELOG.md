@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.43.2] - 2026-10-01
+
+### Changed
+
+- **`reference/gather.md` points to the worktree skill's command-shape record** instead of restating the shapes an isolated session refuses.
+
 ## [0.43.1] - 2026-10-01
 
 ### Changed

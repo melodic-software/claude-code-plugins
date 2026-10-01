@@ -47,7 +47,7 @@ upstream and stands on the worktrees page alone.
 
 Worker skills cite this heading for the Bash forms a worktree-isolated session runs. Every refusal
 below comes from Claude Code's worktree isolation, not from this repository's hooks: no hook here
-emits the refusal text, and a hook block carries the `guardrails@melodic-software` suffix that a
+emits the refusal text, and a hook block names the plugin it comes from, which a
 harness refusal lacks. The check is by design and cannot be turned off, per the Command shape
 bullet of the worktrees page.
 

@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- `repo-sweep` and `skill-authoring/reference/precompute-context.md` point to the worktree skill's command-shape record instead of restating the shapes an isolated session refuses.
+
 ## [0.15.4] - 2026-10-01
 
 ### Fixed
