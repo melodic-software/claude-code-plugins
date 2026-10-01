@@ -459,6 +459,49 @@ class DiffItemsTests(unittest.TestCase):
         )
         self.assertIn("unknown", report["items"][0]["facts"][-1])
 
+    def test_a_newly_unresolved_description_is_an_item(self):
+        def with_unresolved(*names):
+            integrity = {
+                **inventory()["integrity"],
+                "undetermined": {
+                    "description_unresolved": {
+                        "count": len(names),
+                        "names": list(names),
+                    }
+                },
+            }
+            return native_drift.summarize(inventory(integrity=integrity), None)
+
+        prev, cur = with_unresolved("design"), with_unresolved("design", "Projects")
+        report = drift(cur, prev, None, None, 0)
+        self.assertEqual(
+            self.kinds(report),
+            [
+                (
+                    "unresolved-description",
+                    "native-drift:unresolved-description:Projects:inventory",
+                )
+            ],
+        )
+        self.assertEqual(
+            report["unresolved_descriptions"],
+            {"current": ["Projects", "design"], "new": ["Projects"]},
+        )
+        # Unchanged, or resolved since: nothing to file.
+        self.assertEqual(drift(prev, cur, None, None, 0)["items"], [])
+        # A previous summary that never recorded the list files every name once.
+        self.assertEqual(len(drift(cur, self.prev, None, None, 0)["items"]), 2)
+        # A baseline run (no previous summary) files every listed name too.
+        self.assertEqual(
+            [i["kind"] for i in drift(cur, None, None, None, 0)["items"]],
+            ["unresolved-description", "unresolved-description"],
+        )
+        # An inventory without the block knows nothing and files nothing.
+        self.assertIsNone(self.cur["unresolved_descriptions"])
+        self.assertIsNone(
+            drift(self.cur, prev, None, None, 0)["unresolved_descriptions"]
+        )
+
     def test_recheck_and_revalidate_items(self):
         store = {
             "schema": 1,
