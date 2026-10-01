@@ -28,7 +28,8 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   prompt-bearing attribute to `user_prompt`. Cold files written by a prune under Claude Code
   2.1.287 or later with claude-ops before 0.80.2 still carry `prompt_text`: compaction scrubs
   only what it compacts. A normal prune prints a `notice:` line when a cold file still holds
-  prompt content; `prune-otel-store.sh --scrub-cold` rewrites those files in place with the
+  prompt content, and stops scanning once `cold/.prompt-scrub-clean` records a clean scan
+  (a compaction with the keep knob on removes it); `prune-otel-store.sh --scrub-cold` rewrites those files in place with the
   same scrub, keeping every row and every other attribute (`--dry-run` lists them first). If
   the scrub cannot run, deleting the `cold/*.parquet` files written since you installed 2.1.287
   also closes the exposure, at the cost of that span of structure history. Join keys (`session_id`, `prompt_id`,

@@ -62,7 +62,9 @@
 # COPYs to a temp in cold/, verifies the row count is unchanged and no prompt content remains,
 # then mv's over the original. Clean files are untouched. It holds the prune sentinel but does
 # not stop the Collector, which never writes cold/. A normal run prints a one-line notice when
-# a cold file still holds prompt content. CC_OTEL_COLD_KEEP_USER_PROMPTS=1 makes it a no-op.
+# a cold file still holds prompt content; once a scan under the sentinel finds none, it writes
+# cold/.prompt-scrub-clean and later runs skip the scan until a keep-on compaction removes it.
+# CC_OTEL_COLD_KEEP_USER_PROMPTS=1 makes --scrub-cold a no-op.
 #
 # Env overrides:
 #   CC_OTEL_RETENTION_DAYS keep structure records newer than N days (default: 7).
@@ -360,6 +362,7 @@ main() {
   fi
   OWN_SENTINEL=true
   trap cleanup EXIT
+  mark_cold_clean "$store_dir"
 
   # Sweep stale cold temps left by a previous hard-killed run (safe: we hold the lock, so no
   # live compaction can own them). The .tmp suffix never matches the cold *-*.parquet glob.

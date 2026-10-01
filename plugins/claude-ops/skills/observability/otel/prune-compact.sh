@@ -93,6 +93,11 @@ compact_dropped() {
     n=$((n + 1))
   done
   local cold_tmp="$cold_file.tmp"
+  # A keep-on compaction writes prompt content to cold, voiding the clean marker. Removed
+  # before the write so a crash after it never leaves a stale marker.
+  if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" && "$base" != cc-metrics ]]; then
+    rm -f "$cold_dir/$COLD_CLEAN_MARKER"
+  fi
   if [[ -n "${CC_OTEL_COMPACT_CMD:-}" ]]; then
     if ! "$CC_OTEL_COMPACT_CMD" "$dropped" "$cold_tmp"; then
       rm -f "$cold_tmp"
@@ -174,45 +179,94 @@ cold_scrub_select() {
 # Print "<rows>,<dirty rows>" for one cold Parquet file.
 cold_counts() {
   local kind="$1" file="$2" out
-  out="$(duckdb -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind")) FROM read_parquet('$(sql_path "$file")');" 2>&1)" || {
+  out="$(duckdb -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind")) FROM read_parquet('$(sql_path "$file")');" 2>&1 </dev/null)" || {
     err "duckdb could not read $file: $out"
     return 1
   }
   printf '%s\n' "${out//$'\r'/}"
 }
 
-# One-line notice when cold files still hold prompt content. Detection only, best-effort:
-# silent with the keep knob on, without duckdb, or when a count fails.
-cold_prompt_notice() {
-  local store_dir="$1" kind file counts dirty_files=0
-  [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]] && return 0
-  command -v duckdb >/dev/null 2>&1 || return 0
+# Print "<rows>|<dirty rows>|<file name>" for every cold file of one kind, in ONE duckdb call
+# over the kind's glob (cold history is unbounded; a process per file does not scale).
+# Prints nothing when the kind has no cold files.
+cold_glob_counts() {
+  local kind="$1" cold_dir="$2" out
+  compgen -G "$cold_dir/$kind-*.parquet" >/dev/null || return 0
+  out="$(duckdb -list -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind")), parse_filename(filename) FROM read_parquet('$(sql_path "$cold_dir")/$kind-*.parquet', filename = true, union_by_name = true) GROUP BY filename ORDER BY filename;" 2>&1)" || {
+    err "duckdb could not read $cold_dir/$kind-*.parquet: $out"
+    return 1
+  }
+  printf '%s\n' "${out//$'\r'/}"
+}
+
+# Count cold files holding prompt content (one duckdb call per kind).
+cold_dirty_file_count() {
+  local cold_dir="$1" kind counts rows dirty name n=0
   for kind in cc-logs cc-traces; do
-    for file in "$store_dir/cold/$kind"-*.parquet; do
-      [[ -f "$file" ]] || continue
-      counts="$(cold_counts "$kind" "$file" 2>/dev/null)" || continue
-      [[ "${counts#*,}" == 0 ]] || dirty_files=$((dirty_files + 1))
-    done
+    counts="$(cold_glob_counts "$kind" "$cold_dir")" || return 1
+    while IFS='|' read -r rows dirty name; do
+      [[ -n "$name" && "$dirty" != 0 ]] && n=$((n + 1))
+    done <<<"$counts"
   done
+  printf '%s\n' "$n"
+}
+
+# Sorted cold file set; the clean marker is written only if it still matches the clean scan.
+cold_snapshot() {
+  {
+    compgen -G "$1/cc-logs-*.parquet" || true
+    compgen -G "$1/cc-traces-*.parquet" || true
+  } | sort | cksum
+}
+
+# cold/.prompt-scrub-clean asserts no cold file holds prompt content, so routine prunes skip
+# the scan. Keep-off compaction writes clean files, so it stays valid; a keep-on compaction
+# deletes it (compact_dropped). It is only written under the prune sentinel.
+readonly COLD_CLEAN_MARKER=.prompt-scrub-clean
+COLD_CLEAN_SNAPSHOT=""
+
+# One-line notice when cold files still hold prompt content. Detection only, best-effort:
+# silent with the keep knob on, with the clean marker present, without duckdb, or when the
+# scan fails. A clean scan records the cold file set for mark_cold_clean.
+cold_prompt_notice() {
+  local cold_dir="$1/cold" snapshot dirty_files
+  COLD_CLEAN_SNAPSHOT=""
+  [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]] && return 0
+  [[ -e "$cold_dir/$COLD_CLEAN_MARKER" ]] && return 0
+  command -v duckdb >/dev/null 2>&1 || return 0
+  snapshot="$(cold_snapshot "$cold_dir")"
+  dirty_files="$(cold_dirty_file_count "$cold_dir" 2>/dev/null)" || return 0
   if ((dirty_files > 0)); then
     printf 'notice: %s cold file(s) still hold prompt content; run prune-otel-store.sh --scrub-cold\n' "$dirty_files"
+  else
+    COLD_CLEAN_SNAPSHOT="$snapshot"
   fi
+}
+
+# Under the sentinel: write the clean marker when the earlier scan was clean and no cold file
+# has appeared or gone since (a prune that ran between the scan and the lock voids the scan).
+mark_cold_clean() {
+  local cold_dir="$1/cold"
+  [[ -n "$COLD_CLEAN_SNAPSHOT" ]] || return 0
+  [[ "$(cold_snapshot "$cold_dir")" == "$COLD_CLEAN_SNAPSHOT" ]] || return 0
+  mkdir -p "$cold_dir"
+  : >"$cold_dir/$COLD_CLEAN_MARKER"
 }
 
 # Rewrite each dirty cold logs/spans file with the compaction scrub: COPY to a .tmp in cold/,
 # verify the row count is unchanged and no dirty row remains, then mv over the original.
-# Clean files are left untouched. dry_run=true reports only. Returns 1 on the first failure,
-# leaving that file and every later one as they were.
+# Clean files are left untouched. Always scans, whatever the marker says; a completed real
+# run writes the marker. dry_run=true reports only. Returns 1 on the first failure, leaving
+# that file and every later one as they were.
 scrub_cold() {
   local store_dir="$1" dry_run="$2"
-  local kind file name counts rows dirty tmp after affected=0 scrubbed=0
+  local cold_dir="$1/cold" kind file name counts rows dirty base tmp after affected=0 scrubbed=0
   for kind in cc-logs cc-traces; do
-    for file in "$store_dir/cold/$kind"-*.parquet; do
-      [[ -f "$file" ]] || continue
-      name="cold/${file##*/}"
-      counts="$(cold_counts "$kind" "$file")" || return 1
-      rows="${counts%,*}"
-      dirty="${counts#*,}"
+    counts="$(cold_glob_counts "$kind" "$cold_dir")" || return 1
+    while IFS='|' read -r rows dirty base; do
+      [[ -n "$base" ]] || continue
+      file="$cold_dir/$base"
+      name="cold/$base"
       if [[ "$dirty" == 0 ]]; then
         printf '%s: clean rows=%s\n' "$name" "$rows"
         continue
@@ -223,7 +277,7 @@ scrub_cold() {
         continue
       fi
       tmp="$file.scrub.tmp"
-      if ! run_reporting duckdb -c "COPY ($(cold_scrub_select "$kind" "$(sql_path "$file")")) TO '$(sql_path "$tmp")' (FORMAT PARQUET, COMPRESSION ZSTD);"; then
+      if ! run_reporting duckdb -c "COPY ($(cold_scrub_select "$kind" "$(sql_path "$file")")) TO '$(sql_path "$tmp")' (FORMAT PARQUET, COMPRESSION ZSTD);" </dev/null; then
         rm -f "$tmp"
         return 1
       fi
@@ -239,11 +293,13 @@ scrub_cold() {
       mv -f "$tmp" "$file"
       scrubbed=$((scrubbed + 1))
       printf '%s: scrubbed rows=%s prompt_rows=%s\n' "$name" "$rows" "$dirty"
-    done
+    done <<<"$counts"
   done
   if [[ "$dry_run" == true ]]; then
     printf 'action=dry-run-scrub-cold affected_files=%s\n' "$affected"
   else
+    mkdir -p "$cold_dir"
+    : >"$cold_dir/$COLD_CLEAN_MARKER"
     printf 'action=scrubbed-cold scrubbed_files=%s\n' "$scrubbed"
   fi
 }

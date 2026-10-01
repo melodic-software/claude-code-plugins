@@ -881,5 +881,56 @@ else
   skip_case "duckdb not found — skipping --scrub-cold case"
 fi
 
+# --- 30. cold scan: one duckdb call per glob, clean marker skips it, keep-on compaction voids it ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store coldmarker)"
+  marker="$S/cold/.prompt-scrub-clean"
+  # PATH wrapper counting duckdb invocations.
+  WRAP="$TMP/duckdb-wrap"
+  mkdir -p "$WRAP"
+  printf '#!/usr/bin/env bash\nprintf x >>"%s"\nexec "%s" "$@"\n' "$TMP/duckdb-calls" "$(command -v duckdb)" >"$WRAP/duckdb"
+  chmod +x "$WRAP/duckdb"
+  duckdb_calls() { if [[ -f "$TMP/duckdb-calls" ]]; then wc -c <"$TMP/duckdb-calls" | tr -d ' \r'; else printf 0; fi; }
+
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  real_trace_line "$OLD" claude_code.tool "" >"$S/cc-traces.json"
+  run_prune_real "$S" >/dev/null
+  assert_eq "clean scan under the lock writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  run_prune_real "$S" >/dev/null
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  run_prune_real "$S" >/dev/null
+  assert_eq "keep-off compaction keeps the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "three cold logs files" "3" "$(find "$S/cold" -name 'cc-logs-*.parquet' | wc -l | tr -d ' ')"
+
+  rm -f "$marker" "$TMP/duckdb-calls"
+  out="$(PATH="$WRAP:$PATH" run_prune_real "$S" --dry-run)"
+  assert_eq "notice scan is one duckdb call per glob" "2" "$(duckdb_calls)"
+  assert_not_contains "clean cold prints no notice" "$out" "notice:"
+  assert_eq "dry-run writes no marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  : >"$marker"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$S" --dry-run >/dev/null
+  assert_eq "marker skips the notice scan" "0" "$(duckdb_calls)"
+
+  real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA" >"$S/cc-logs.json"
+  CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" >/dev/null
+  assert_eq "keep-on compaction removes the marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  out="$(run_prune_real "$S" --dry-run)"
+  assert_contains "notice returns once the marker is gone" "$out" "notice: 1 cold file(s)"
+
+  : >"$marker"
+  rm -f "$TMP/duckdb-calls"
+  out="$(PATH="$WRAP:$PATH" run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "scrub dry-run ignores the marker" "$out" "action=dry-run-scrub-cold affected_files=1"
+  assert_eq "scrub discovery is one duckdb call per glob" "2" "$(duckdb_calls)"
+  rm -f "$marker"
+  out="$(run_prune_real "$S" --scrub-cold)"
+  assert_contains "scrub rewrites the dirty file" "$out" "action=scrubbed-cold scrubbed_files=1"
+  assert_eq "completed scrub writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+else
+  skip_case "duckdb not found — skipping cold marker case"
+fi
+
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
