@@ -3,7 +3,7 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.3] - 2026-10-01
+## [0.4.0] - 2026-10-01
 
 ### Added
 
