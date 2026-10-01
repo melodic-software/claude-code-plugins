@@ -113,6 +113,9 @@ BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
 VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
+BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
+CODE_SPAN = re.compile(r"`[^`\n]+`")
+REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
 
 if os.name == "nt":
     import msvcrt
@@ -316,10 +319,34 @@ def add_question(doc, q):
     return touched
 
 
+def strings(v):
+    """Every string inside a JSON value."""
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from strings(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from strings(x)
+
+
+def warn_bare_issue_refs(doc, label, value):
+    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is not an owner/repo slug, so the page cannot link it."""
+    if not REPO_SLUG.fullmatch(str(doc["meta"].get("repo") or "")) and any(
+        BARE_ISSUE_REF.search(CODE_SPAN.sub("", s)) for s in strings(value)
+    ):
+        warn(
+            f"{label} has a bare #N; the page links it only when meta.repo is set "
+            "(owner/repo), so set it or write owner/repo#N"
+        )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
+    """Warnings, never refusals: R12 length budget, bare ids (not version labels like V1) that name no question here, and bare #N with no meta.repo."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
+        warn_bare_issue_refs(doc, q["id"], q)
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -394,11 +421,11 @@ def put_group(doc, g):
 # The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
-META_KEYS = ("title", "eyebrow", "stages", "next")
+META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
 
 
 def set_meta(doc, m):
-    """Merge title, eyebrow, stages and next into questions.json meta; any other key is refused."""
+    """Merge title, eyebrow, stages, next and repo into questions.json meta; any other key is refused."""
     if not isinstance(m, dict):
         sys.exit("refused: meta is an object")
     extra = sorted(set(m) - set(META_KEYS))
@@ -728,12 +755,12 @@ def op_wait(d, doc, a):
         sys.exit(f"refused: wait on {a.id} takes no by with clear")
     if a.clear:
         label = HOLD_LABELS[q.get("waitingBy") or "claude"]
-        for key in ("waiting", "waitsOn", "waitingBy"):
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
             q.pop(key, None)
         line, msg = f"No longer {label}.", f"{a.id} no longer {label}"
     else:
         by = a.by or "claude"
-        q.update(waiting=True, waitsOn=waits)
+        q.update(waiting=True, waitsOn=waits, waitingSince=now())
         q.pop("waitingBy", None)
         if by == "user":
             seq = load_json(d / "responses.json", EMPTY_RESPONSES).get("seq", 0)
@@ -1041,6 +1068,9 @@ def cmd_apply(d, a):
                 logged.append((op["op"], msg, t))
         summarize(doc, logged)
         lint_questions(doc, added)
+        for op in spec["ops"]:
+            if op["op"] not in ("add", "add-round", "meta"):
+                warn_bare_issue_refs(doc, f"{op['op']} op", op)
         save(d, doc, touched)
     for line in lines:
         print(line)

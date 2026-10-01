@@ -43,6 +43,8 @@ async page => {
 
   // dictation: plain Enter, digits while typing, Ctrl+Enter unarmed
   await page.click('.qbtn[data-q="N1"]'); await page.waitForTimeout(200);
+  const refs = await page.evaluate(() => [...document.querySelectorAll("#qhead a, .blk a")].map(a => a.textContent + " " + a.getAttribute("href")));
+  ok("bare #N and owner/repo#N in a title and in facts render as issue links", ["#123 https://github.com/o/r/issues/123", "x/y#4 https://github.com/x/y/issues/4"].every(r => refs.filter(x => x === r).length === 2) && !refs.some(r => /#9\b/.test(r)), refs.join(" | "));
   const n0 = (await events()).length;
   await page.click("#note"); await page.keyboard.type("hello"); await page.keyboard.press("Enter"); await page.keyboard.type("world 1");
   await page.waitForTimeout(300);
