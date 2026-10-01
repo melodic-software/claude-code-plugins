@@ -1,5 +1,14 @@
 # Changelog: evals
 
+## [0.3.9] - 2026-10-01
+
+### Changed
+
+- **`plugin-eval` stops and hands off when a worktree-isolated session refuses `claude plugin eval`.**
+  The new Worktree isolation section tells the agent not to retry or bypass the guard, to print the
+  exact command for the user to run outside Claude Code, and to read the result back with the `read`
+  action. The PowerShell fallback now applies only to a guard other than the worktree refusal.
+
 ## [0.3.8] - 2026-09-30
 
 ### Changed
