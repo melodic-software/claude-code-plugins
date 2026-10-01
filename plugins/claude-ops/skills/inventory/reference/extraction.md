@@ -321,9 +321,11 @@ let i=a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"&&!c7r();if(i)L("cc-plugin-diff",â
 
 `load_guards` lists the raw condition text each call runs under, outermost first; `[]` is
 `unconditional`. Every operand of an `if(...)` but the last runs before the test, a `let i=...`
-alias is expanded where `if(i)` reads it, and `if(x)return` adds `!(x)` to what follows unless it
-tests the loader's own latch. A call in any other position, or an `else` anywhere in the body,
-leaves `load` null. The guard text is minified code, kept verbatim: `c7r()` is a runtime check
+alias is expanded where `if(i)` reads it, and an `if(x)` whose body always exits (a lone
+`return`, `return v` or `throw`, or a block whose last statement is one and which holds no other
+exit or loader call) adds `!(x)` to what follows, unless `x` is exactly the loader's own latch. Any
+other exit, a latch test inside a compound condition, a call in any other position, or an `else`
+anywhere in the body leaves `load` null from there on. The guard text is minified code, kept verbatim: `c7r()` is a runtime check
 this reader does not evaluate. `in_loader` is false for a registration the loader never requires
 (listed in `registered_not_loaded`; not proven live, so overlap detection skips it), and null when
 no loader was found.
@@ -333,7 +335,7 @@ Per plugin, from the merged fields:
 | Field | Rule |
 |---|---|
 | `name`, `description`, `version` | `resolve_field`, then a bare identifier as a module constant under the name rule's wider locality (a plugin module's `var K="cc-plugin-agents-md"` sits kilobytes ahead of the call) |
-| `id` | `name@<marketplace>`, the marketplace read from the registrar module's `` `@${_i}` `` with `_i="builtin"` |
+| `id` | `name@<marketplace>`, the marketplace read from the one `` `${t}@${_i}` `` template inside a function of the registrar's module that walks `.builtinPlugins`, with `_i="builtin"` |
 | `aliases` | the short names of the `["diff","cc-plugin-diff"]` pairs the bundle maps |
 | `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is in the bundle (`absent-default`) |
 | `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | as written; absent is false |
@@ -345,21 +347,23 @@ Per plugin, from the merged fields:
 
 Absent by proof stays absent; absent or unknown because a read failed is named in the record's
 `partial`, and any non-empty `partial` degrades the lane. Behind an unresolved spread an absent
-key is unknown, not absent. Per field:
+key is unknown, not absent, and a key written before an unresolved spread is dropped as unknown,
+since the spread may override it (a `name` dropped this way leaves the registration in
+`unresolved_names`). Per field:
 
 | Field | Reported as `partial` when |
 |---|---|
-| `id` | the marketplace id did not resolve |
+| `id` | the marketplace id did not resolve to one value from the registry walk's template |
 | `description`, `version` | the field is present but unresolved, or absent behind an unresolved spread |
-| `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null) |
+| `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null), including any call after an unrecognized exit or a compound latch test |
 | `default_enabled`, `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | not a `!0`/`!1` literal, or absent behind an unresolved spread (`default_enabled` also when the consumer's `??!0` rule is not found) |
 | `gated` | `isAvailable` absent behind an unresolved spread |
 | `gate_flags` | the gate expression did not read (getter, unbound identifier, unsplittable call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
 | `skills` | the field is not an array, an element did not resolve, or a skill's name, description or `user_invocable` did not resolve; also any embedded `skills/*/SKILL.md` problem below |
-| `agents`, `commands`, `skills` (embedded files) | the manifest's `files` value or a path in it is not a literal, a file's text is not a literal, or its frontmatter has no `name` or a `description` `_frontmatter` does not parse (plain and `\|`/`>` block scalars parse) |
+| `agents`, `commands`, `skills` (embedded files) | the manifest's `files` value or a path in it is not a literal, a file's text is not a literal or holds a `${...}` substitution, or its frontmatter has no `name` or a `description` `_frontmatter` does not parse (plain scalars, folded across indented lines, and `\|`/`>` block scalars parse) |
 | `commands` (registered) | the manifest's `calls` is not a literal array, it declares `command.register` and no command resolved, a registered object or its name or description did not resolve |
-| `agents`, `commands`, `hook_events` | a hooks module (or an unresolved spread) with no single readable manifest in the module |
-| `hook_events` | the manifest's `hooks` is not a literal array |
+| `agents`, `commands`, `skills`, `hook_events` | a hooks module (or an unresolved spread) with no single readable manifest in the module |
+| `hook_events`, `commands` | the manifest's `hooks` or `calls` is not a literal array, or the manifest or its `scan`/`shipped` object holds a spread |
 | `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal |
 | `registration` | the name is registered more than once: the registrar is a `Map.set`, run order is not read, so the kept (first) record may not be the live one |
 

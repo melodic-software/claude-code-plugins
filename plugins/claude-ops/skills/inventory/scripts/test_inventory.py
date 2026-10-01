@@ -2432,7 +2432,8 @@ def _plugin_modules(**swap: str) -> list[str]:
         "registrar": 'var _i="builtin";function ro(){return S}'
         "function Z_(e){ro().builtinPlugins.set(e.name,e);let o=e.hooksModule}"
         "function zv(e){return e.endsWith(`@${_i}`)}"
-        "function PQ(n){return n.defaultEnabled??!0}"
+        "function PQ(){for(let[t,n]of ro().builtinPlugins){let s=`${t}@${_i}`,"
+        "a=n.defaultEnabled??!0}}"
         'var A=new Map([["mermaid","cc-plugin-mermaid"],["sec-default","cc-plugin-sec-default"]]);'
         "function Uo(n){for(let r of n)Z_({name:r,description:`${r}, seated`})}"
         "export{Z_,zv,Uo};",
@@ -2624,7 +2625,7 @@ class TestBuiltinPlugins(unittest.TestCase):
 
     def test_an_unresolved_spread_marks_absent_fields_unresolved(self) -> None:
         mermaid = _plugin_modules()[4].replace(
-            "Z_({...h,", 'Z_({name:"cc-plugin-mermaid",...hh,'
+            "Z_({...h,", 'Z_({...hh,name:"cc-plugin-mermaid",'
         )
         rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
         self.assertEqual(rec["description_source"], "unresolved")
@@ -2783,6 +2784,99 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertIn("registration", plugins["cc-plugin-tips"]["partial"])
         lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
         self.assertEqual(lane["status"], "degraded")
+
+    # Final-round verifier repros. Each is the simplest fail-closed reading.
+
+    def _loader(self, before: str) -> dict:
+        """The plugins with `before` inserted ahead of the loader's first call."""
+        loader = _plugin_modules()[1].replace(
+            "if(e.builtinPluginsInitialized=!0,",
+            before + "if(e.builtinPluginsInitialized=!0,",
+        )
+        return _plugins(loader=loader)[0]
+
+    def test_an_early_exit_with_a_value_or_throw_guards_later_calls(self) -> None:
+        for exit_ in ("return!1;", "throw Error();", "{f();return}"):
+            rec = self._loader(f"if(gate()){exit_}")["cc-plugin-sec-default"]
+            self.assertEqual(rec["load"], "conditional", exit_)
+            self.assertEqual(rec["load_guards"], ["!(gate())"], exit_)
+
+    def test_an_unrecognized_exit_leaves_later_loads_partial(self) -> None:
+        rec = self._loader("if(gate()){if(x())return;f()}")["cc-plugin-sec-default"]
+        self.assertIsNone(rec["load"])
+        self.assertIn("load", rec["partial"])
+
+    def test_a_compound_latch_test_leaves_later_loads_partial(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            "if(e.builtinPluginsInitialized)return;",
+            "if(off()||e.builtinPluginsInitialized)return;",
+        )
+        rec = _plugins(loader=loader)[0]["cc-plugin-sec-default"]
+        self.assertIsNone(rec["load"])
+        self.assertIn("load", rec["partial"])
+
+    def test_a_key_before_an_unresolved_spread_is_not_trusted(self) -> None:
+        mermaid = _plugin_modules()[4].replace(
+            "Z_({...h,",
+            'Z_({...h,defaultEnabled:!1,...unk,name:"cc-plugin-mermaid",',
+        )
+        rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
+        # defaultEnabled sits before `...unk`, which may override it.
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("default_enabled", rec["partial"])
+        # hooksModule after the last unresolved spread stays read.
+        self.assertIs(rec["hooks_module"], True)
+
+    def test_a_name_before_an_unresolved_spread_leaves_the_registration_unresolved(
+        self,
+    ) -> None:
+        mermaid = _plugin_modules()[4].replace(
+            "Z_({...h,", 'Z_({name:"cc-plugin-mermaid",...hh,'
+        )
+        plugins, notes = _plugins(mermaid=mermaid)
+        self.assertNotIn("cc-plugin-mermaid", plugins)
+        self.assertTrue(notes["unresolved_names"])
+
+    def test_a_substitution_in_an_embedded_file_leaves_its_kind_partial(self) -> None:
+        rec = self._test_module("name: author\n", "name: ${N}\n")
+        self.assertIn("agents", rec["partial"])
+        self.assertNotIn("…", rec["agents"][0]["name"])
+
+    def test_a_multi_line_plain_scalar_description_is_folded(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n",
+            "description: Writes spec\n  drafts for the app.\n",
+        )
+        self.assertEqual(
+            rec["agents"][0]["description"], "Writes spec drafts for the app."
+        )
+        self.assertNotIn("agents", rec["partial"])
+
+    def test_a_spread_in_the_manifest_declaration_is_unresolved(self) -> None:
+        rec = self._test_module("scan:{hooks:", "scan:{...base,hooks:")
+        self.assertIsNone(rec["hook_events"])
+        self.assertIn("hook_events", rec["partial"])
+        self.assertIn("commands", rec["partial"])
+
+    def test_the_marketplace_comes_from_the_registry_walk_only(self) -> None:
+        registrar = _plugin_modules()[0].replace(
+            "function ro(){return S}",
+            'function ro(){return S}var V="1.0.0";function ver(n){return`${n}@${V}`}',
+        )
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        self.assertEqual(rec["id"], "cc-plugin-tips@builtin")
+        registrar = registrar.replace("`${t}@${_i}`", "t")
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        self.assertIsNone(rec["id"])
+        self.assertIn("id", rec["partial"])
+
+    def test_a_hooks_module_without_a_manifest_leaves_skills_partial(self) -> None:
+        tips = _plugin_modules()[5].replace(
+            'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
+            'calls:["command.register"]},files:{}}});',
+            "",
+        )
+        self.assertIn("skills", _plugins(tips=tips)[0]["cc-plugin-tips"]["partial"])
 
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")

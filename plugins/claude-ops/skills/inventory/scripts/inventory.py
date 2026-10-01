@@ -3764,15 +3764,41 @@ def _loader_guards(
     expression statements that are a bare call or a comma list of them.
 
     In `if(a(),b(),c){...}` every operand but the last runs before the test.
-    An `if(x)return` adds `!(x)` to what follows, except a test of the
-    loader's own once-only latch. An `else` voids the whole walk.
+    An `if(x)` whose body always exits (a lone `return`/`throw`, or a block
+    whose last statement is one and which holds no other exit or loader
+    call) adds `!(x)` to what follows; a test that is exactly the loader's
+    own once-only latch adds nothing. Any other exit, or a latch test inside
+    a compound condition, leaves every later call unresolved. An `else`
+    voids the whole walk.
     """
     out: dict[int, list[str] | None] = {}
     aliases: dict[str, str] = {}
+    state = {"poisoned": False}
+    exit_re = re.compile(r"(?<![\w$.])(?:return|throw)(?![\w$])")
+    latch_re = re.compile(r"[\w$.]+" + re.escape(_PLUGIN_LATCH))
+
+    def always_exits(a: int, b: int) -> bool:
+        """The span's last statement is a return/throw, and nothing before
+        it can exit or require a plugin."""
+        stmts, i = [], a
+        while i < b:
+            while i < b and src[i] in " \t\r\n;":
+                i += 1
+            if i >= b:
+                break
+            end = _statement_end(src, braces, i, b)
+            stmts.append((i, end))
+            i = end + 1
+        if not stmts or not re.match(r"(?:return|throw)(?![\w$])", src[stmts[-1][0] :]):
+            return False
+        head = src[a : stmts[-1][0]]
+        return not exit_re.search(head) and not _PLUGIN_LOADER_CALL_RE.search(head)
 
     def record(a: int, b: int, guards: list[str]) -> None:
         for m in _PLUGIN_LOADER_CALL_RE.finditer(src, a, b):
             out[m.start()] = None
+        if state["poisoned"]:
+            return
         for pa, pb in _split_top(src, braces, a, b):
             pa, pb = _strip_span(src, pa, pb)
             m = _PLUGIN_LOADER_CALL_RE.match(src, pa, pb)
@@ -3802,9 +3828,28 @@ def _loader_guards(
                 else:
                     end = _statement_end(src, braces, body, b)
                     inner, nxt = (body, end), end + 1
-                if re.fullmatch(r"\s*return\s*;?\s*", src[inner[0] : inner[1]]):
+                exits = exit_re.search(src, inner[0], inner[1]) is not None
+                if _PLUGIN_LATCH in cond and not (
+                    latch_re.fullmatch(cond) and always_exits(*inner)
+                ):
+                    # The latch inside a compound test, or in an odd body:
+                    # what the rest of the test gates is not read.
+                    state["poisoned"] = True
+                if exits and always_exits(*inner):
                     if _PLUGIN_LATCH not in cond:
                         guards = [*guards, f"!({cond})"]
+                elif exits and not _PLUGIN_LOADER_CALL_RE.search(
+                    src, inner[0], inner[1]
+                ):
+                    state["poisoned"] = True
+                elif exits:
+                    # Calls before the exit keep their guard; what follows
+                    # depends on whether the exit ran, which is not read.
+                    if src.startswith("{", body):
+                        walk(inner[0], inner[1], [*guards, cond])
+                    else:
+                        record(inner[0], inner[1], [*guards, cond])
+                    state["poisoned"] = True
                 elif src.startswith("{", body):
                     walk(inner[0], inner[1], [*guards, cond])
                 else:
@@ -3824,6 +3869,8 @@ def _loader_guards(
                         out[c.start()] = None
             else:
                 record(i, end, guards)
+                if re.match(r"(?:return|throw)(?![\w$])", src[i:end]):
+                    state["poisoned"] = True
             i = end + 1
 
     walk(lo, hi, [])
@@ -3907,11 +3954,14 @@ def _merged_fields(
     Maps key -> (owning object's `{`, form, value offset). `bound` names
     spreads whose object is already known (a factory's parameter). The flag
     is False when a spread did not resolve: then an absent key may be in it.
+    A key written before an unresolved spread may be overridden by it, so it
+    is dropped and reads as unknown like any key the spread could hold.
     """
     close = braces.pairs.get(open_i)
     if close is None:
         return {}, False
     complete = True
+    last_unresolved = -1
     entries: list[tuple[int, dict[str, tuple[int, str, int]]]] = []
     own = _object_fields(src, braces, open_i)
     for key, (form, pos) in own.items():
@@ -3921,22 +3971,28 @@ def _merged_fields(
         m = re.fullmatch(r"\.\.\.(" + _IDENT + r")", src[a:b])
         if not m:
             if src.startswith("...", a):
-                complete = False
+                complete, last_unresolved = False, a
             continue
         target = bound.get(m.group(1))
         if target is None and depth > 0:
             target = _object_value(src, braces, m.group(1), a, deferred=deferred)
         if target is None:
-            complete = False
+            complete, last_unresolved = False, a
             continue
         inner, ok = _merged_fields(
             src, braces, target, deferred=deferred, depth=depth - 1
         )
-        complete = complete and ok
+        if not ok:
+            complete, last_unresolved = False, a
         entries.append((a, inner))
     merged: dict[str, tuple[int, str, int]] = {}
     for _, fields in sorted(entries, key=lambda e: e[0]):
         merged.update(fields)
+    if last_unresolved >= 0:
+        # An inner incomplete spread's own keys sit at the spread's offset
+        # and survive; keys written before it do not.
+        keep = {k for at, fields in entries if at >= last_unresolved for k in fields}
+        merged = {k: v for k, v in merged.items() if k in keep}
     return merged, complete
 
 
@@ -4247,7 +4303,16 @@ def _frontmatter(text: str) -> dict[str, str]:
             if text_:
                 out[kv.group(1)] = text_
         elif value and not value.startswith(("{", "[", "&", "*", "!")):
-            out[kv.group(1)] = value.strip("\"'")
+            # A plain scalar continues on indented lines, folded with spaces.
+            more: list[str] = []
+            while (
+                i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip()
+            ):
+                more.append(lines[i].strip())
+                i += 1
+            if more and value.startswith(("'", '"')):
+                continue  # a multi-line quoted scalar is not read
+            out[kv.group(1)] = " ".join([value, *more]).strip("\"'")
     return out
 
 
@@ -4265,11 +4330,30 @@ def _plugin_manifest(
         return None, len(found)
     fields = _object_fields(src, braces, found[0])
     decl_key = "scan" if "scan" in fields else "shipped"
-    decl = _object_fields(src, braces, fields[decl_key][1])
+    decl_at = fields[decl_key][1]
+    decl = _object_fields(src, braces, decl_at)
+
+    def has_spread(open_i: int) -> bool:
+        close = braces.pairs.get(open_i)
+        return close is None or any(
+            src.startswith("...", _strip_span(src, a, b)[0])
+            for a, b in _split_top(src, braces, open_i + 1, close)
+        )
+
+    # A spread in the manifest or its declaration can hold or override any key.
+    manifest_spread = has_spread(found[0])
+    decl_spread = (
+        fields[decl_key][0] != "value"
+        or not src.startswith("{", decl_at)
+        or has_spread(decl_at)
+    )
 
     def strings(key: str) -> list[str] | None:
         """[] when the manifest declares no such key; None when it does and
-        the value is not an array of string literals (unresolved)."""
+        the value is not an array of string literals, or a spread could
+        hold or override it (unresolved)."""
+        if manifest_spread or decl_spread:
+            return None
         entry = decl.get(key)
         if entry is None:
             return []
@@ -4288,8 +4372,10 @@ def _plugin_manifest(
     files: dict[str, str | None] = {}
     # False when an entry's path, or the files value itself, is not a literal:
     # a component may then be missing from the lists built from `files`.
-    files_complete = fields["files"][0] == "value" and src.startswith(
-        "{", fields["files"][1]
+    files_complete = (
+        not manifest_spread
+        and fields["files"][0] == "value"
+        and src.startswith("{", fields["files"][1])
     )
     files_at = fields["files"][1]
     if files_complete:
@@ -4302,8 +4388,9 @@ def _plugin_manifest(
             v = a + key.end()
             text = None
             if src[v : v + 1] in _QUOTES:
-                text, end, _ = _read_literal(src, v, b)
-                text = text if end == b else None
+                text, end, subst = _read_literal(src, v, b)
+                # A `${...}` substitution is runtime text: the file is not read.
+                text = text if end == b and not subst else None
             files[_unescape(key.group(1))] = text
     return {
         "hooks": strings("hooks"),
@@ -4426,16 +4513,20 @@ def extract_builtin_plugins(
         )
         return {}, notes
 
-    marketplace = None
+    # The id is built where the registry is walked: a `${name}@${M}` template
+    # inside a function of the registrar's module that reads `.builtinPlugins`.
+    # Any other `@${...}` (a version string) is not it; no single value, no id.
+    found: set[str | None] = set()
     for _, home in registrars:
+        end = _chunk_span(src, home)[1]
         for m in re.finditer(
-            r"@\$\{(" + _IDENT + r")\}", src[home : _chunk_span(src, home)[1]]
+            r"`\$\{" + _IDENT + r"\}@\$\{(" + _IDENT + r")\}`", src[home:end]
         ):
-            marketplace = _string_of(src, braces, m.group(1), home + m.start())
-            if marketplace:
-                break
-        if marketplace:
-            break
+            at = home + m.start()
+            block = _function_block(src, braces, at)
+            if block and ".builtinPlugins" in src[block[0] : block[1]]:
+                found.add(_string_of(src, braces, m.group(1), at))
+    marketplace = found.pop() if len(found) == 1 else None
     notes["marketplace"] = marketplace
     # The consumer's default: `enabled = setting ?? plugin.defaultEnabled ?? true`.
     default_rule = re.search(r"\.defaultEnabled\?\?!0", src) is not None
@@ -4558,7 +4649,7 @@ def extract_builtin_plugins(
         if manifest is None and (hooks_module or not complete):
             # The hooks module's manifest was not read: its embedded agents and
             # commands, and commands it registers, are unknown.
-            partial += ["agents", "commands"]
+            partial += ["agents", "commands", "skills"]
         if manifest is not None:
             rec["hook_events"] = manifest["hooks"]
             if not manifest["files_complete"]:
