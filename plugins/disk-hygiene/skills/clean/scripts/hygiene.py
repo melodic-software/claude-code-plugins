@@ -369,11 +369,10 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Replace ``path`` with a new file, never writing through a hard link."""
     path = state_output_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 DATA_ROOT_OVERRIDE: str | None = None
@@ -409,7 +408,24 @@ def state_input_path(path: Path) -> Path:
     path = path.expanduser().resolve(strict=False)
     if not is_within(path, data_root):
         raise HygieneError("engine inputs must be read from inside the data root")
+    return refuse_engine_owned(path, data_root)
+
+
+def refuse_engine_owned(path: Path, data_root: Path) -> Path:
+    """Refuse a resolved file argument naming the data root or engine-owned state."""
+    relative = os.path.relpath(os.path.normcase(path), os.path.normcase(data_root))
+    if engine_grammar.is_engine_owned(relative):
+        raise HygieneError(
+            "a file argument must not name the data root or engine-owned state"
+        )
     return path
+
+
+def model_output_path(value: str) -> Path:
+    """Resolve --output or --report: inside the data root, off engine-owned state."""
+    path = state_output_path(Path(value))
+    data_root = Path(DATA_ROOT_OVERRIDE or "").expanduser().resolve(strict=False)
+    return refuse_engine_owned(path, data_root)
 
 
 def load_input_json(value: str) -> dict[str, Any]:
@@ -5548,7 +5564,7 @@ def main(argv: list[str] | None = None) -> int:
                 if args.in_flight_refs
                 else []
             )
-            output_path = state_output_path(Path(args.output))
+            output_path = model_output_path(args.output)
             advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
             if root_children_mode:
@@ -5862,7 +5878,7 @@ def main(argv: list[str] | None = None) -> int:
             vcs_evidence = validate_vcs_evidence(
                 load_input_json(args.vcs_evidence), [approved]
             )
-            report_path = state_output_path(Path(args.report))
+            report_path = model_output_path(args.report)
             report = handoff_apply(snapshot, approved, vcs_evidence)
             write_json(report_path, report)
             return emit(
@@ -5881,7 +5897,7 @@ def main(argv: list[str] | None = None) -> int:
             raise HygieneError("--confirm-tier must match the plan's single tier")
         if args.approval_token != checked["approval_token"]:
             raise HygieneError("approval token does not match the fresh preview")
-        report_path = state_output_path(Path(args.report))
+        report_path = model_output_path(args.report)
         report = apply_plan(snapshot, plan)
         write_json(report_path, report)
         return emit(report, 4 if report["skipped"] else 0)

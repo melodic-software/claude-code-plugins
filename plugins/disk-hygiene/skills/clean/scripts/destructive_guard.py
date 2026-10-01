@@ -1324,14 +1324,17 @@ def _is_authorized_data_root_file(value: str, authority: str | None) -> bool:
     """Accept only an absolute path whose real location is inside that data root.
 
     The hook has no shell working directory, so a relative value is refused,
-    and symlinks are resolved so a link inside the root cannot point out of it.
+    and symlinks are resolved so a link inside the root cannot point out of it
+    or onto state the engine and its hooks own there, such as the decision log.
     """
     if not authority or not os.path.isabs(value):
         return False
     try:
         path = os.path.normcase(os.path.realpath(value))
         root = os.path.normcase(os.path.realpath(authority))
-        return os.path.commonpath([path, root]) == root
+        return os.path.commonpath(
+            [path, root]
+        ) == root and not engine_grammar.is_engine_owned(os.path.relpath(path, root))
     except (OSError, ValueError):
         return False
 
