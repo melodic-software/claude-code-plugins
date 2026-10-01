@@ -1158,7 +1158,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + md(r.sections[k])).join("");
     const foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>"
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
-      : wrapSent() ? '<p class="kbd" id="uDone">Not confirmed before wrap-up.</p>'
+      : wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
       : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
         '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
         '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";

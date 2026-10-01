@@ -445,7 +445,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     });
     ok("at 1024 px no Decisions cell breaks inside a word and each id chip stays on one line", sum.n > 5 && sum.broken.length === 0 && sum.chip < 24, JSON.stringify(sum));
     ok("every answered row shows what was decided", sum.empty === 0 && /Pin it to the lock file\./.test(sum.q5) && /^All of them/.test(sum.q9), JSON.stringify(sum));
-    ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed before wrap-up/.test(await text("#uDone")), await text("#restate"));
+    ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed; wrap-up already sent/.test(await text("#uDone")), await text("#restate"));
     ok("only one control is labeled Wrap up, and it sends the event", await page.$$eval("button", bs => bs.filter(b => b.textContent.trim() === "Wrap up").map(b => b.hasAttribute("data-wrapup")).join()) === "true");
     ok("each panel button has a name that is not a number", await page.$$eval(".strip button", bs => bs.every(b => /\D/.test(b.getAttribute("aria-label") || ""))));
     // the header at 420 px
