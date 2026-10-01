@@ -252,8 +252,14 @@ def main(argv: list[str] | None = None) -> int:
     if text is None:
         text = sys.stdin.read()
     try:
-        now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
-        received = _parse_instant(args.received, "--received") if args.received else None
+        now = (
+            datetime.fromisoformat(args.now.replace("Z", "+00:00"))
+            if args.now
+            else None
+        )
+        received = (
+            _parse_instant(args.received, "--received") if args.received else None
+        )
         reset_at = parse_reset(text, now=now, received=received)
     except TimezoneUnavailableError as exc:
         print(f"timezone-unavailable: {exc}", file=sys.stderr)
