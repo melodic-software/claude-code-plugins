@@ -2737,7 +2737,7 @@ hook::data_json_to() {
 # empty, malformed, or cut short mid-document (hook::buffer_stdin_to rc 1, 2
 # and 3 alike — an advisory PostToolUse hook allows all three, since the tool
 # already ran); no path in the payload, or one no <glob> matches; jq absent,
-# after hook::require_jq's once-per-session skip notice; a path
+# after hook::require_jq's once per session and agent skip notice; a path
 # hook::read_file_path rejects.
 #
 # No <glob> means "any payload carrying a path", for a hook whose matcher is
@@ -2825,7 +2825,7 @@ hook::begin() {
 
   [[ -n "$__hu_bg_prejq_fn" ]] && "$__hu_bg_prejq_fn" "$RAW_FILE"
 
-  # jq is load-bearing for input parsing; absent → visible once-per-session
+  # jq is load-bearing for input parsing; absent → visible once per session and agent
   # skip notice instead of a silent no-op (dim-9 doctrine).
   hook::require_jq "$__hu_bg_event" "$__hu_bg_plugin" "$INPUT"
 
