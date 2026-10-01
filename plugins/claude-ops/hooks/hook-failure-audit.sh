@@ -241,7 +241,9 @@ TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 #                           and gives both remedies rather than picking one.
 # #2849's 126/127-OR-signature rule is too loose for the reason above.
 #
-# The signature set stays narrow on purpose — `command not found`, `cannot
+# The signature set covers the exec-family wording and Claude Code's own
+# missing-executable wording (`Executable not found in $PATH`, printed before any
+# hook process exists). It stays narrow on purpose —`command not found`, `cannot
 # execute`, and cmd.exe's `is not recognized as an internal or external command`
 # are all excluded because a hook that launched fine prints them from a command
 # IT ran, which would re-introduce this defect in a new shape. Classification
@@ -395,7 +397,7 @@ SUMMARY=$(printf '%s' "$RECORDS" |
          command: ((.command // "") | .[0:120]),
          exitCode: (.exitCode // null),
          class: (if ((.stderr // "")
-                     | test("execvpe|execve\\(|exec format error"; "i"))
+                     | test("execvpe|execve\\(|exec format error|Executable not found in \\$PATH"; "i"))
                  then "launch"
                  elif (.exitCode == 126 or .exitCode == 127) then "ambiguous"
                  else "completed" end),

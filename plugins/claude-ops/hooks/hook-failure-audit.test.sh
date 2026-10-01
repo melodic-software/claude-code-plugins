@@ -149,6 +149,18 @@ assert_contains "execvpe keeps the fails-to-launch wording" "$OUT_EXECVPE" "fail
 assert_contains "execvpe keeps the restart remedy" "$OUT_EXECVPE" "restart"
 assert_absent "execvpe at exit 1 is not called ambiguous" "$OUT_EXECVPE" "ambiguous"
 
+# Claude Code's own missing-executable wording is printed before any hook process
+# exists, so it is a launch failure at exit 1 with no exec-family text in it.
+T_NOTFOUND="$TEST_TMPDIR/notfound.jsonl"
+# shellcheck disable=SC2016 # literal $PATH and ${CLAUDE_PROJECT_DIR} must not expand
+custom_record "PreToolUse:Bash" 'node ${CLAUDE_PROJECT_DIR}/probe-hook.mjs' \
+  'Failed with non-blocking status code: Error occurred while executing hook command: Executable not found in $PATH: "node"' 1 8 >"$T_NOTFOUND"
+OUT_NOTFOUND=$(run_hook "$T_NOTFOUND" "$TEST_TMPDIR/data-notfound")
+assert_contains "missing executable at exit 1 is a launch failure" "$OUT_NOTFOUND" "launch failure"
+assert_contains "missing executable uses the fails-to-launch wording" "$OUT_NOTFOUND" "fails to launch"
+assert_absent "missing executable is not a completed non-zero exit" "$OUT_NOTFOUND" "completed non-zero exit"
+assert_absent "missing executable is not called ambiguous" "$OUT_NOTFOUND" "ambiguous"
+
 # A signature AT 126/127 is a launch failure outright — the signature decides,
 # so the ambiguity below is only ever about a code with no signature behind it.
 T_SIG127="$TEST_TMPDIR/sig127.jsonl"
