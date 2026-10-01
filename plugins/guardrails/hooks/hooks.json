@@ -7,7 +7,7 @@
           {
             "type": "command",
             "shell": "bash",
-            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"guardrails: node is not on PATH, so its guards cannot launch and enforce nothing. Install Node.js and restart Claude Code.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the guards of the guardrails plugin cannot launch and enforce nothing. Tell the user.\"}}'",
+            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"guardrails: node is not on PATH, so its guards cannot launch and enforce nothing. Install Node.js and restart Claude Code. Run /guardrails:check to verify.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the guards of the guardrails plugin cannot launch and enforce nothing. Tell the user. Run /guardrails:check to verify.\"}}'",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
           }
