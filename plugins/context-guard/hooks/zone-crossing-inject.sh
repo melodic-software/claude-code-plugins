@@ -186,9 +186,10 @@ cg_load_utils() {
 }
 # One telemetry record per fire that reaches a zone decision, carrying how the
 # decision was made: fast (no resolver ran), coalesced (the last word reused
-# for a snapshot that only moved captured_at within one band), or resolving
-# (the resolver ran). With no sink configured nothing is loaded and nothing
-# runs. $1 status, $2 data JSON.
+# because the snapshot body matched, or because only used_percentage moved
+# within one shipped band with no zones.json), or resolving (the resolver ran).
+# With no sink configured nothing is loaded and nothing runs. $1 status, $2
+# data JSON.
 CG_PATH="fast"
 cg_fire_telemetry() {
   [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
@@ -924,10 +925,10 @@ if [[ -z "$degraded" && -n "$SNAP_BODY" ]]; then
 fi
 
 ((new_rank > armed_rank)) || {
-  # Nothing worse than this session has already reported. Three shapes reach
-  # here and only the first two are worth telemetry: a genuine recovery (rank
-  # drop), a re-crossing the armed rank suppressed (the flap this gate exists
-  # for), and an unchanged zone, which is not an event.
+  # Nothing worse than this session has already reported, so nothing is
+  # injected. Every fire here still records its path. A genuine recovery (rank
+  # drop) or a re-crossing the armed rank suppressed (the flap this gate exists
+  # for) also records the transition; any other fire records only path and zone.
   if [[ -n "$last" && "$zone" != "$last" ]]; then
     cg_require_utils
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
