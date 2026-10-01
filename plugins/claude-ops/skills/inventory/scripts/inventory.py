@@ -4625,7 +4625,11 @@ def extract_builtin_plugins(
         rec["commands"] = commands
         rec["partial"] = sorted(set(partial))
         if name in out:
+            # The registrar is a `Map.set`, so whichever call runs last wins,
+            # and run order is not read: the kept record may not be the live
+            # one. Name it partial as a whole and degrade the lane.
             notes.setdefault("duplicate_registrations", []).append(name)
+            out[name]["partial"] = sorted({*out[name]["partial"], "registration"})
             continue
         out[name] = rec
 

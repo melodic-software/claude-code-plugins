@@ -361,6 +361,7 @@ key is unknown, not absent. Per field:
 | `agents`, `commands`, `hook_events` | a hooks module (or an unresolved spread) with no single readable manifest in the module |
 | `hook_events` | the manifest's `hooks` is not a literal array |
 | `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal |
+| `registration` | the name is registered more than once: the registrar is a `Map.set`, run order is not read, so the kept (first) record may not be the live one |
 
 `aliases` and `gate_flags` are floors by construction and are listed in
 `builtin_plugin_notes.floors`. Lane-level gaps are advisories, not record fields: unresolved

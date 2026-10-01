@@ -2707,6 +2707,28 @@ class TestBuiltinPlugins(unittest.TestCase):
         for kind in ("agents", "commands", "skills"):
             self.assertIn(kind, rec["partial"])
 
+    def test_a_non_literal_files_value_leaves_every_file_kind_partial(self) -> None:
+        rec = self._test_module(
+            'files:{"agents/author.md":',
+            'files:F,x:{"agents/author.md":',
+        )
+        self.assertEqual(rec["agents"], [])
+        for kind in ("agents", "commands", "skills"):
+            self.assertIn(kind, rec["partial"])
+
+    def test_an_inline_skill_with_an_unevaluable_description_is_partial(self) -> None:
+        authoring = (
+            'import{Z_}from"/$bunfs/root/chunk-r.js";'
+            'var f=Object.freeze({name:"plugin-authoring",description:helper(),'
+            "userInvocable:!0});"
+            'Z_({name:"cc-plugin-plugin-authoring",description:"Plugin authoring",'
+            "skills:[f]});"
+        )
+        plugins = _plugins(authoring=authoring)[0]
+        rec = plugins["cc-plugin-plugin-authoring"]
+        self.assertEqual(rec["skills"][0]["description_source"], "unresolved")
+        self.assertIn("skills", rec["partial"])
+
     def test_a_hooks_module_without_a_readable_manifest_is_partial(self) -> None:
         tips = _plugin_modules()[5].replace(
             'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
@@ -2747,14 +2769,18 @@ class TestBuiltinPlugins(unittest.TestCase):
 
     def test_an_unresolved_marketplace_leaves_the_id_partial(self) -> None:
         registrar = _plugin_modules()[0].replace('var _i="builtin";', "")
-        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        plugins, notes = _plugins(registrar=registrar)
+        rec = plugins["cc-plugin-tips"]
         self.assertIsNone(rec["id"])
         self.assertIn("id", rec["partial"])
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
 
     def test_a_duplicate_registration_degrades_the_lane(self) -> None:
         tips = _plugin_modules()[5] + 'Z_({name:"cc-plugin-tips",description:"again"});'
         plugins, notes = _plugins(tips=tips)
         self.assertEqual(notes["duplicate_registrations"], ["cc-plugin-tips"])
+        self.assertIn("registration", plugins["cc-plugin-tips"]["partial"])
         lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
         self.assertEqual(lane["status"], "degraded")
 
