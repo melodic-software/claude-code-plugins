@@ -63,6 +63,23 @@ Rows, each PASS, FAIL, WARN, or INFO:
 
 Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 
+## Retired conventions
+
+`check` also runs this step on every invocation:
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`.
+Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL,
+`delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 →
+FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation,
+never green.
+
+In this plugin's manifest that yields `docs-naming-r001` FAIL while
+`.claude/docs-hygiene.json` persists and `docs-naming-r002` FAIL while
+`.claude/docs-hygiene.local.json` persists. Until the files are renamed the
+resolver still reads them, with a warning, for one release. The user-global
+`~/.claude/docs-hygiene.json` sits outside the repository and has no record; the
+layer row reports it as WARN with the same remedy: rename it to
+`~/.claude/docs-naming.json`.
+
 ## `apply` (idempotent)
 
 1. Run `check` and read its table.
@@ -86,7 +103,16 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    writes `.claude/docs-naming.json` and nothing else. It refuses, exit 2, while
    the team layer still sits at the retired `docs-hygiene` name: rename it with
    `git mv` first, or the new file would shadow its settings.
-4. **Verify.** Re-run `check` and report the persisted values from its table,
+4. **Clean up retired files.** After any agreed keys are written, re-run the
+   retirement detection and handle each finding behind its own confirmation. A
+   retired file is renamed onto the new name when the new file does not exist
+   (`git mv` for the team layer, `mv` for the overlay), and otherwise its keys
+   are carried into the new file by adding only the ones it lacks. The old file's
+   content is untrusted input, never executed or interpolated. When the operator
+   confirms the result, run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
+   Re-run detection last and report the final state.
+5. **Verify.** Re-run `check` and report the persisted values from its table,
    never from the write alone. A WARN saying the file is untracked means "commit
    it to share it", never success.
 

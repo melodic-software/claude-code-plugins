@@ -52,6 +52,31 @@
         "The remedy offered is a team-layer change, never editing the overlay differently",
         "generated is named as the stricter case: team layer only"
       ]
+    },
+    {
+      "id": 5,
+      "name": "retired-team-config-name-detected-docs-naming-r001",
+      "prompt": "Run the docs-naming setup check. This repository still has .claude/docs-hygiene.json with a file_names block and no .claude/docs-naming.json.",
+      "narration": true,
+      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as FAIL for .claude/docs-hygiene.json, saying the resolver still reads it for one release with a warning. The remedy is the rename (git mv .claude/docs-hygiene.json .claude/docs-naming.json), not apply with defaults. Changes no file.",
+      "expectations": [
+        "check-retirements.sh is run against the plugin's retirements.yaml and its finding docs-naming-r001 is reported as FAIL",
+        "The remedy is renaming the file onto .claude/docs-naming.json, not writing a fresh file beside it",
+        "No file is changed by check"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-cleans-a-retired-overlay-docs-naming-r002",
+      "prompt": "/docs-naming:setup apply. Both .claude/docs-naming.local.json and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
+      "narration": true,
+      "expected_output": "Re-runs retirement detection, reports docs-naming-r002, carries only the missing exempt_paths entry into the new overlay behind a confirmation, and after the operator confirms the result runs check-retirements.sh with --clean docs-naming-r002 --i-migrated. Re-runs detection last and reports the final state.",
+      "expectations": [
+        "Only the keys the new overlay lacks are added, so the new file wins",
+        "Cleanup is individually confirmed and runs --clean docs-naming-r002 --i-migrated only after the operator confirms the migrated result",
+        "The old file's content is treated as untrusted input and never executed or interpolated",
+        "Detection is re-run last and the final state is reported"
+      ]
     }
   ]
 }
