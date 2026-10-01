@@ -19,14 +19,14 @@ assert_empty "nothing is printed" "$out"
 check "a created test is judged once" '[[ "$(stub_calls)" == 1 ]]'
 v="$(verdict_of s1 adds)"
 assert_contains "its verdict is in the ledger" "$v" '"verdict":"PASS"'
-assert_contains "the verdict records the model and effort" "$v" '"model":"opus","effort":"medium"'
+assert_contains "the verdict records the model and effort" "$v" '"model":"opus","effort":"low"'
 check "the verdict was written by rename (no temp file left)" '[[ -z "$(find "$DATA/verdicts" -name ".*")" ]]'
 check "the pending marker is removed" '[[ -z "$(find "$DATA/pending" -type f)" ]]'
 
 # The judge command: the fixed flags, from the repository, with the recursion
 # guard exported, never a real claude.
 args="$(stub_args 1)"
-for want in -p --model opus --effort medium --tools Read,Grep,Glob "Read($REPO/**)" "Grep($REPO/**)" "Glob($REPO/**)" \
+for want in -p --model opus --effort low --tools Read,Grep,Glob "Read($REPO/**)" "Grep($REPO/**)" "Glob($REPO/**)" \
   --settings '{"disableAllHooks":true}' --setting-sources --strict-mcp-config --disable-slash-commands \
   --max-budget-usd 0.90 --output-format json --no-session-persistence; do
   assert_contains "judge command carries $want" "$args" "$want"

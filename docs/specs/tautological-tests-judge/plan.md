@@ -224,7 +224,8 @@ Shared pieces:
   workloads on Opus 5.5 at its default effort and places Haiku at high-volume work with checkable
   outputs (Haiku 4.5 63% vs Opus 5.5 92% on GPQA Diamond), and says to choose the model from your
   own evals (platform.claude.com optimizing-for-cost-and-intelligence, fetched 2026-09-30). Phase 4
-  replaces these defaults with the eval result. Each value is validated against
+  replaces these defaults with the eval result (done 2026-10-01: `sonnet` at `low`, fallback
+  `opus`; calibration.md, Chosen default). Each value is validated against
   `fable|opus|sonnet|haiku` and `low|medium|high|xhigh|max`. Writer classes, per file judged: the
   class of the last `select(.type=="assistant") | .message.model` other than `<synthetic>` in
   `tail -n 400` of the main transcript, plus the same for each subagent whose `agent_id` a session
@@ -362,7 +363,7 @@ Other files:
   an idle Stop takes under 500 ms and a Stop with 5 in-doubt tests and ready verdicts takes under
   2 s. `grep -cE '^\| R2-P14 \|.*\| holds \|' docs/specs/tautological-tests/probes.md` returns 1.
 
-### Phase 4: Calibration set and first measurement (DT1, DT9, DT13) [TODO]
+### Phase 4: Calibration set and first measurement (DT1, DT9, DT13) [DONE]
 
 - `plugins/testing/skills/audit/evals/judge-calibration/`: `cases/*.fixture`, `labels.tsv` (DT9
   columns plus `stratum` and `split`), `metrics.sh`, `metrics.test.sh` (known-answer kappa, confusion
@@ -381,6 +382,11 @@ Other files:
 - Raters and ground truth (amended 2026-10-01, user; basis: the raters research summarized in
   calibration.md, bias#1-#5: Haiku, Sonnet, Opus and Fable are one family for self-preference bias,
   so independence comes from the human; this supersedes the single model rater above and in DT9):
+  - Amended 2026-10-01 (user): the user, not a domain expert, delegated labeling to a blind
+    three-model panel (Opus `high`, Opus `xhigh`, GPT through `codex exec` at `high`; independent
+    round 1, then deliberation on non-unanimous rows), and its consensus is `reference_label`. This
+    supersedes "the user labels all 78 rows" below; protocol, results and limits are in
+    calibration.md, Reference labels.
   - The user labels all 78 rows blind; those labels are the ground truth (`reference_label`). Labeling
     every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
     scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs
@@ -431,6 +437,8 @@ Other files:
   calibration.md states that n.
 - After the choice, R2-P13's Stop wait (18-28 s with `opus` `medium`) is re-measured with the chosen
   arm and recorded in probes.md; a shorter debounce is considered if the wait stays long.
+  Moved to Phase 5 (2026-10-01): it needs a live interactive session, which the calibration run
+  did not have.
 - Tooling changes (Red first in `metrics.test.sh` for each behavior):
   - `labels.tsv`: `model_label` becomes `opus_label` and `codex_label`; `adjudicated_label` is
     dropped. `sample.sh` and `metrics.sh` read columns by header name, never by position.
@@ -468,6 +476,8 @@ Other files:
 ### Phase 5: Close out [TODO]
 
 - Spec Release 2 outline: judge items `[DONE]`; the mutation scope stays `[TODO]`.
+- R2-P13's Stop wait re-measured with the chosen arm (`sonnet` `low`) and recorded in probes.md;
+  a shorter debounce is considered if the wait stays long (moved from Phase 4, 2026-10-01).
 - All phase tags here `[DONE]`.
 
 **Sanity Check:**
@@ -542,7 +552,8 @@ as a draft, with its own version bump where a plugin changes.
   $0.90 per started ten blocks judged, 10 times probe 7's largest ten-test cost of $0.0900; hang
   timeout; 3 machine slots); 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
   60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready; judge `opus` at `medium`,
-  fallback `sonnet`, until the sweep chooses.
+  fallback `sonnet`, until the sweep chooses. The sweep chose `sonnet` at `low`, fallback `opus`
+  (2026-10-01, Phase 4).
 
 ## Handoff to implementation
 
@@ -553,7 +564,8 @@ Phase 4 amendment (raters, all-row ground truth, UNKNOWN rule, 7-arm sweep, pair
 
 - Phase 1: a failing gating probe routes to `/planning:design`; the Windows probe runs only with the
   user's go-ahead at that time.
-- Phase 4: the user's blind labels and the adjudication.
+- Phase 4: the user's blind labels and the adjudication. Amended 2026-10-01 (user): the user
+  delegated labeling to a model panel, so this gate became the user's approval of that delegation.
 - Every push, PR creation and PR ready flip.
 
 ### Execution shape ([EXEC-SHAPE] tagged)

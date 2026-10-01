@@ -114,6 +114,11 @@ cleaned up safely.
     figure is computed. Two model raters, `opus` and GPT through Codex when it is installed, label
     every case and are scored against the user. Anthropic classes are one family for
     self-preference bias, so a second Anthropic class adds no independence.
+  - Amended 2026-10-01 (user), later the same day: the user, not a domain expert, delegated the
+    labels to a blind three-model panel (two Opus members and GPT through Codex), whose consensus
+    is the ground truth in place of the user's labels. No human has labeled the set, and two of
+    the three members share the judge's family; the limits and the rows a human should spot-check
+    first are in `tautological-tests-judge/calibration.md`, Reference labels.
 - Q13: The release order is:
   1. Prevention plus proof.
   2. The judge and the mutation scope.

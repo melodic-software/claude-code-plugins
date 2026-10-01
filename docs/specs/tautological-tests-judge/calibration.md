@@ -84,6 +84,11 @@ reads.
 
 ### Raters
 
+Amended 2026-10-01 (user): the user, not a domain expert, delegated labeling to a blind panel of
+three models, and the panel's consensus is `reference_label`; see Results, Reference labels. That
+supersedes the user labeling below, and in metric names `user` means `reference_label`. The rest
+of this section is the protocol as planned.
+
 The user labels all 78 rows blind, and those labels (`reference_label`) are the ground truth. Labeling
 every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
 scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs adjudication,
@@ -126,6 +131,8 @@ Why the user, not a model, is the independent rater: LLM judges show self-prefer
 output from their own model family higher. For that bias Haiku, Sonnet, Opus and Fable are one
 family, so an Opus rater is not independent of a Sonnet or Opus judge. Independence comes from the
 user. GPT is outside the family, which is why Codex is the second rater when it is available.
+Since the 2026-10-01 delegation no human labels exist, so this independence is not achieved: two
+of the three panel members are Opus (Results, Reference labels).
 
 There is no separate pilot set. Run-to-run variance is measured on the chosen arm (see the sweep).
 
@@ -204,19 +211,154 @@ once G8 confirms its effort support.
 
 ## Results
 
+### Reference labels
+
+The labels in `reference_label` are not a human's. The user, who is not a domain expert in test
+provenance, delegated labeling on 2026-10-01 to a blind panel of three models: Opus at `high`
+effort, Opus at `xhigh`, and GPT through `codex exec` at reasoning effort `high`. Each member got
+the raters' prompt and isolation (`raters.sh`): one case's files in an empty repository, the test
+file's path, the test name and the changed lines, and nothing else. In round 1 the three labeled
+every row independently. In round 2 each member of a row without a unanimous round-1 label saw the
+other two labels and reasons, anonymized as Reviewer A and B, beside its own, re-read the code and
+gave a final label. The consensus is the round-1 label where it was unanimous, else the round-2
+majority. The Opus members' 368 calls cost $15.10, about 10 minutes wall time. The panel's script,
+log and per-row results are kept untracked in `.work/tautological-tests-judge/panel/`.
+
+Result: 6 FLAG, 56 PASS, 16 UNKNOWN. 42 rows were unanimous, 36 were decided by majority and none
+split. In 35 of the 36 majority rows GPT was the lone dissenter. In 31 of them GPT said UNKNOWN
+where both Opus members said PASS, on tests whose expected value is a hand-written literal with
+no stated source. Those 31 rows are the first a human should spot-check: `seed-g10`, `u01-2`,
+`u02-1`, `u03-2`, `u04-1`, `u05-3`, `u05-4`, `u05-5`, `u07-1`, `u09-1`, `u10-1`, `u12-1`, `u14-2`,
+`u18-1`, `u21-1`, `u26-1`, `u27-1`, `u28-1`, `u28-2`, `u29-1`, `u30-1`, `u31-1`, `u32-1`, `u35-1`,
+`u36-1`, `u37-1`, `u37-2`, `u37-4`, `u38-1`, `u38-3`, `u39-1`.
+
+Limitations:
+
+- Model-family bias. Two of three panel members are Opus, so on every split row the majority is
+  Opus's view, and the judge is Sonnet or Opus. With GPT's round-2 label in place of the
+  consensus on the 35 rows where GPT dissented (31 PASS to UNKNOWN, 2 FLAG to UNKNOWN, 2 UNKNOWN to
+  PASS), every arm's accuracy falls to 0.44-0.54, `sonnet` `low` becomes significantly worse than
+  the most accurate arm (`opus` `high`, McNemar p 0.0215), and the rule would choose `sonnet`
+  `medium`, fallback `opus` `low`. The chosen default therefore depends on the Opus majority on
+  those rows.
+- The `in-use` stratum, the only one the user did not author, holds 0 reference FLAGs. The judge
+  said PASS on all 60 of its rows, so its kappa there is 0.0000, and every FLAG precision and
+  recall figure comes from user-authored seed and adversarial cases.
+- 6 FLAGs cannot separate arms on FLAG precision or recall: every arm's recall interval has a lower
+  bound of 0.61 or less.
+- 78 rows cannot separate accuracy 0.9 from 0.8 (Power above), so close arms tie and the
+  tie-breaks decide.
+- Run-to-run churn: the chosen arm's verdict changed on 10% of rows across three runs (Model
+  sweep), the same size as most accuracy gaps in the table.
+
 ### Rater agreement
 
-TODO: the `kappa user-opus` and `kappa user-codex` lines from `metrics.sh`, after labeling.
+From `metrics.sh`, per stratum and pooled. `user` here is `reference_label`, the panel consensus.
+
+```text
+kappa user-opus in seed 0.8039 (n=10) coverage 1.0000 (3/3) agreement 0.9000 (9/10)
+kappa user-codex in seed 0.6429 (n=10) coverage 1.0000 (3/3) agreement 0.8000 (8/10)
+kappa user-opus in adversarial 0.4839 (n=8) coverage 1.0000 (5/5) agreement 0.7500 (6/8)
+kappa user-codex in adversarial 1.0000 (n=7) coverage 0.8000 (4/5) agreement 1.0000 (7/7)
+kappa user-opus in in-use 0.7059 (n=60) coverage 1.0000 (54/54) agreement 0.9500 (57/60)
+kappa user-codex in in-use 0.9046 (n=31) coverage 0.4630 (25/54) agreement 0.9677 (30/31)
+kappa user-opus in all 0.8176 (n=78) coverage 1.0000 (62/62) agreement 0.9231 (72/78)
+kappa user-codex in all 0.8887 (n=48) coverage 0.5161 (32/62) agreement 0.9375 (45/48)
+```
+
+Neither rater is under 0.6 pooled. The Opus rater's agreement is inflated: Opus is two of the
+three panel members that made the reference. Codex's coverage is low because it abstains
+(UNKNOWN) on hand-written literals with no stated source, the same pattern as GPT on the panel.
 
 ### Judge against the labels
 
-TODO: per-stratum `metrics.sh` output for the chosen arm.
+`metrics.sh` for the chosen arm, `sonnet` `low`, whose verdicts are `labels.tsv`'s
+`judge_verdict` (copied from `sweep/sonnet-low.tsv`):
+
+```text
+stratum seed n=10
+kappa judge-user in seed 0.6429 (n=10) coverage 1.0000 (3/3) agreement 0.8000 (8/10)
+confusion seed judge=FLAG FLAG=1 PASS=0 UNKNOWN=0
+confusion seed judge=PASS FLAG=0 PASS=2 UNKNOWN=2
+confusion seed judge=UNKNOWN FLAG=0 PASS=0 UNKNOWN=5
+flag-precision seed 1.0000 [0.2065, 1.0000] (1/1)
+flag-recall seed 1.0000 [0.2065, 1.0000] (1/1)
+prevalence seed 0.1000 (1/10)
+flag-n seed 1
+unknown seed user=7 correct=5 over-reach=2
+stratum adversarial n=8
+kappa judge-user in adversarial 0.4615 (n=7) coverage 0.8000 (4/5) agreement 0.7143 (5/7)
+confusion adversarial judge=FLAG FLAG=4 PASS=0 UNKNOWN=1
+confusion adversarial judge=PASS FLAG=0 PASS=0 UNKNOWN=1
+confusion adversarial judge=UNKNOWN FLAG=1 PASS=0 UNKNOWN=1
+flag-precision adversarial 0.8000 [0.3755, 0.9638] (4/5)
+flag-recall adversarial 1.0000 [0.5101, 1.0000] (4/4)
+prevalence adversarial 0.6250 (5/8)
+flag-n adversarial 5
+unknown adversarial user=3 correct=1 over-reach=2
+stratum in-use n=60
+kappa judge-user in in-use 0.0000 (n=60) coverage 1.0000 (54/54) agreement 0.9000 (54/60)
+confusion in-use judge=FLAG FLAG=0 PASS=0 UNKNOWN=0
+confusion in-use judge=PASS FLAG=0 PASS=54 UNKNOWN=6
+confusion in-use judge=UNKNOWN FLAG=0 PASS=0 UNKNOWN=0
+flag-precision in-use NA (0/0)
+flag-recall in-use NA (0/0)
+prevalence in-use 0.0000 (0/60)
+flag-n in-use 0
+unknown in-use user=6 correct=0 over-reach=6
+stratum all n=78
+kappa judge-user in all 0.6440 (n=77) coverage 0.9839 (61/62) agreement 0.8701 (67/77)
+confusion all judge=FLAG FLAG=5 PASS=0 UNKNOWN=1
+confusion all judge=PASS FLAG=0 PASS=56 UNKNOWN=9
+confusion all judge=UNKNOWN FLAG=1 PASS=0 UNKNOWN=6
+flag-precision all 0.8333 [0.4365, 0.9699] (5/6)
+flag-recall all 1.0000 [0.5655, 1.0000] (5/5)
+prevalence all 0.0769 (6/78)
+flag-n all 6
+unknown all user=16 correct=6 over-reach=10
+```
+
+The judge went beyond the reference on 10 of the 16 rows labeled UNKNOWN, 9 of them with PASS. It
+abstained on 1 of the 6 FLAG rows and flagged one UNKNOWN row.
 
 ### Model sweep
 
-TODO: the seven-row table from `metrics.sh --sweep`, its chosen and fallback lines, and the
-`--rerun` row for the chosen arm.
+`metrics.sh --table`, from the kept `sweep/` files:
+
+| model | effort | accuracy | FLAG precision [95% CI] | FLAG recall [95% CI] | coverage | cost per row | wall per run, median | wall per run, p95 | wall per arm | McNemar p vs most accurate |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sonnet | low | 0.8590 (67/78) | 0.8333 [0.4365, 0.9699] (5/6) | 1.0000 [0.5655, 1.0000] (5/5) | 0.9839 (61/62) | $0.0155 | 6.7 s | 11.8 s | 428.5 s | 0.3438 |
+| sonnet | medium | 0.8846 (69/78) | 0.8333 [0.4365, 0.9699] (5/6) | 1.0000 [0.5655, 1.0000] (5/5) | 0.9839 (61/62) | $0.0164 | 7.6 s | 12.6 s | 463.5 s | 0.7266 |
+| sonnet | high | 0.8462 (66/78) | 0.8571 [0.4869, 0.9743] (6/7) | 1.0000 [0.6097, 1.0000] (6/6) | 0.9516 (59/62) | $0.0218 | 8.2 s | 17.3 s | 548.1 s | 0.1797 |
+| sonnet | xhigh | 0.8590 (67/78) | 0.8571 [0.4869, 0.9743] (6/7) | 1.0000 [0.6097, 1.0000] (6/6) | 0.9677 (60/62) | $0.0336 | 10.9 s | 29.2 s | 776.6 s | 0.2891 |
+| opus | low | 0.8846 (69/78) | 0.8333 [0.4365, 0.9699] (5/6) | 1.0000 [0.5655, 1.0000] (5/5) | 0.9677 (60/62) | $0.0249 | 7.7 s | 15.3 s | 495.1 s | 0.7266 |
+| opus | medium | 0.9103 (71/78) | 0.8333 [0.4365, 0.9699] (5/6) | 1.0000 [0.5655, 1.0000] (5/5) | 0.9516 (59/62) | $0.0364 | 11.4 s | 26.0 s | 740.3 s | 1.0000 |
+| opus | high | 0.9103 (71/78) | 0.8571 [0.4869, 0.9743] (6/7) | 1.0000 [0.6097, 1.0000] (6/6) | 0.9516 (59/62) | $0.0414 | 11.5 s | 23.8 s | 756.4 s | 1.0000 |
+
+```text
+chosen: sonnet low
+fallback: opus low
+```
+
+Run-to-run variance, `metrics.sh --rerun sonnet low` (the first run and two more):
+
+| run | model | effort | rows whose verdict changed |
+|---|---|---|---|
+| rerun | sonnet | low | 0.1026 (8/78) |
+
+`sweep/sonnet-low.tsv` was emptied by an in-place edit and rebuilt from `labels.tsv`'s
+`judge_verdict`, which had been copied from it in the same edit. Its verdicts are exact (they
+reproduce every figure above and the re-run row) and its rows are in the order the sweep writes
+them; its reason column is empty, losing the one reason it held ("the proposed diff does not
+apply").
 
 ### Chosen default
 
-TODO: the chosen arm and fallback, as written to `plugin.json`.
+`sonnet` at `low`, fallback `opus` at `low`, written to `plugin.json` (`test_judge_model`,
+`test_judge_fallback_model`, `test_judge_effort`) and to `judge-lib.sh`'s in-script defaults.
+The rule as applied: the most accurate arms are `opus` `medium` and `opus` `high` (71/78), and the
+tie-breaks make `opus` `high` the reference (lower p95). No arm differs from it at 0.05 (lowest p
+0.1797), so all seven tie. Among the tied arms `sonnet` wins, and among the four `sonnet` arms
+`low` has the lowest p95 wall time per run (11.8 s). The fallback is the best `opus` arm by the
+same rule: all three tie with `opus` `high`, and `low` has the lowest p95 (15.3 s). Both classes
+run at the one `test_judge_effort`, `low`, which is the fallback arm's effort too.
