@@ -608,8 +608,28 @@ _NUMBER_RE = re.compile(
 )
 
 
-# The head of a function declaration or expression ending right at `{`.
-_NESTED_FUNCTION_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\([^()]*\)\s*\Z")
+_FUNCTION_KEYWORD_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\Z")
+
+
+def _open_paren(src: str, close: int) -> int | None:
+    """The `(` matching the `)` at `close`, within 4 KiB, or None."""
+    depth, k = 0, close
+    while k >= 0 and close - k < 4096:
+        depth += (src[k] == ")") - (src[k] == "(")
+        if depth == 0:
+            return k
+        k -= 1
+    return None
+
+
+def _opens_function(src: str, brace: int) -> bool:
+    """Whether the `{` at `brace` opens a `function` body. The parameter
+    list is matched by depth, so a default holding a call (`a=g()`) counts."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    k = _open_paren(src, j) if j >= 0 and src[j] == ")" else None
+    return k is not None and bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
 
 
 def _mask_strings(text: str) -> str:
@@ -653,7 +673,8 @@ def _primitive_text(text: str, *, joined: bool) -> str | None:
         return "" if joined else ("null" if text == "null" else "undefined")
     if text in ("true", "false"):
         return text
-    if re.fullmatch(r"-?(?:0|[1-9]\d{0,15})", text):
+    # 15 digits stay below 2**53, where a JS double renders them exactly.
+    if re.fullmatch(r"-?(?:0|[1-9]\d{0,14})", text):
         return str(int(text))
     return None
 
@@ -960,7 +981,7 @@ def _scan(
                 and depth == 0
                 and (prev == ")" or prev_word in ("else", "try", "finally"))
                 # A nested function declaration is not a branch of this body.
-                and not _NESTED_FUNCTION_RE.search(src, max(0, i - 400), i)
+                and not _opens_function(src, i)
             ):
                 _scan(
                     src,
@@ -1516,7 +1537,7 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
 
 
 _CONTROL_HEAD_RE = re.compile(r"(?<![\w$.])(?:if|for|while|switch|catch|with)\s*\Z")
-_STATEMENT_START_RE = re.compile(r"[;{}(]\s*var\s(?:[^;{}()]*)\Z")
+_KEYWORD_START_RE = re.compile(r"\s*(var|let|const)\s")
 
 
 def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
@@ -1530,21 +1551,69 @@ def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | N
         if src.startswith("=>", j - 1):
             return block
         if j >= 0 and src[j] == ")":
-            depth, k = 0, j
-            while k >= 0 and j - k < 4096:
-                depth += (src[k] == ")") - (src[k] == "(")
-                if depth == 0:
-                    break
-                k -= 1
-            if not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
+            k = _open_paren(src, j)
+            if k is None or not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
                 return block
         block = braces.enclosing(block[0] - 1) if block[0] > 0 else None
     return None
 
 
+def _statement_keyword(src: str, pos: int) -> str | None:
+    """`var`, `let`, or `const` when the statement holding `pos` starts with
+    it, else None. The walk back skips balanced brackets, so an earlier
+    declarator's initializer (`var a=f(1),x=`) does not hide the keyword."""
+    lo = max(0, pos - 4096)
+    text = _mask_strings(src[lo:pos])
+    depth, k = 0, len(text) - 1
+    while k >= 0:
+        c = text[k]
+        if c in ")]}":
+            depth += 1
+        elif c in "([{":
+            if depth == 0:
+                break
+            depth -= 1
+        elif c == ";" and depth == 0:
+            break
+        k -= 1
+    if k < 0 and lo > 0:
+        return None
+    m = _KEYWORD_START_RE.match(text, k + 1)
+    return m.group(1) if m else None
+
+
 def _is_var(src: str, pos: int) -> bool:
     """Whether the binding at `pos` is declared by a `var` statement."""
-    return bool(_STATEMENT_START_RE.search(src, max(0, pos - 300), pos))
+    return _statement_keyword(src, pos) == "var"
+
+
+def _declares(src: str, pos: int) -> bool:
+    """Whether the name at `pos` is a declarator: right after `var`, `let`,
+    or `const`, or after a `,` in such a statement."""
+    head = src[max(0, pos - 8) : pos]
+    if re.search(r"\b(?:var|let|const)\s+$", head):
+        return True
+    return bool(re.search(r",\s*$", head)) and _statement_keyword(src, pos) is not None
+
+
+def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
+    """Whether the function reading `ident` at `at` declares it again after
+    `at`: a `var` there hoists, and a `let` or `const` in a block holding the
+    read is not yet initialized, so an earlier binding is not what it reads."""
+    reader = _function_block(src, braces, at)
+    if reader is None:
+        return False
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in name.finditer(_mask_strings(src[at : reader[1]])):
+        pos = at + m.start()
+        if not _declares(src, pos):
+            continue
+        if _is_var(src, pos):
+            if _function_block(src, braces, pos) == reader:
+                return True
+        elif _visible(braces, pos, at):
+            return True
+    return False
 
 
 def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> bool:
@@ -1702,6 +1771,8 @@ def _binding_value(
         for m in _binding_pattern(ident).finditer(src, lo, at):
             if _visible(braces, m.start(), at, src):
                 v = m.end()
+        if v is not None and _redeclared_later(src, braces, ident, at):
+            return None
         return v
     m = _declaration(
         src,

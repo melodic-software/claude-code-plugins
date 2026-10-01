@@ -1587,6 +1587,41 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(earlier, "Probe")["description"], "REAL")
 
+    def test_a_var_after_a_call_initializer_still_shadows(self) -> None:
+        src = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function outer(){return xx;if(1){var a=f(1,2),xx="LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_later_local_declaration_shadows_a_one_letter_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var e="WRONG";function ff(){return e;var e="LOCAL"}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_nested_function_with_a_call_default_is_not_a_branch(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){return x;function inner(a=g()){return"WRONG"}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_an_unsafe_integer_in_a_template_stays_unresolved(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`n${9007199254740993}`});'
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "n9007199254740993")
+
+    def test_a_top_level_if_block_reads_no_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "if(flag){$t({name:Qz,maxResultSizeChars:1,description:zz})}"
+            'var zz="later";'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "later")
+
     def test_a_top_level_alias_reads_no_later_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";let tt=later;'
