@@ -15,7 +15,7 @@ Run the read-only check. Do not run `apply`. Do not install Node.js or jq, and d
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only the node row (7) and the jq row (8) of its `check` section. Its pre-computed context lines do not run when the file is read, so run `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash. Do not run setup's path-configuration, guard-file or retired-convention steps. Report the PASS/FAIL table with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` for a missing tool. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only the Node.js row and the jq row of its `check` section. Its pre-computed context lines do not run when the file is read, so run `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash. Do not run setup's path-configuration, guard-file or retired-convention steps. Report the PASS/FAIL table with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` for a missing tool. Stop.
 
 ## Next
 
