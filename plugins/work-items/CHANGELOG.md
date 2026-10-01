@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.5] - 2026-10-01
+
+### Fixed
+
+- **The `list-sub-items` suite binds in a private directory.** It bound through a bare `mktemp`, so the tracker's overlay lookup read the shared `$TMPDIR/.work-item-tracker.local.json`, and a parallel run that touched that path made the suite fail intermittently. The binding now lives in a `mktemp -d` directory, and a case asserts it never sits directly in `$TMPDIR`.
+
 ## [0.43.4] - 2026-10-01
 
 ### Changed
