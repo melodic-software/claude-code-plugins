@@ -127,6 +127,10 @@
         "repoint": {
           "description": "As on `add`, for each question that supersedes another.",
           "type": "boolean"
+        },
+        "replaceTitle": {
+          "description": "Let `meta.title` replace the interview title; without it a different title is dropped with a warning.",
+          "type": "boolean"
         }
       }
     },

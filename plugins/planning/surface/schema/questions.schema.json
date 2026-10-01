@@ -89,6 +89,7 @@
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
         "repo": {"type": "string"},
+        "setInRound": {"type": "integer"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"}

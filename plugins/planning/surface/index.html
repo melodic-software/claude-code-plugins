@@ -556,8 +556,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const now = S.doc.questions.filter(q => q.group === g.id).map(q => q.id).sort();
     return now.join("\n") !== g.summaryOf.join("\n");
   };
-  const stageLabel = s => ((S.doc.meta || {}).stages || {})[s] || (s ? s[0].toUpperCase() + s.slice(1) : "Round");
-  const roundLabel = q => stageLabel(q.stage) + " round " + (q.round ?? 1);
+  const stageLabel = s => ((S.doc.meta || {}).stages || {})[s] || (s ? s[0].toUpperCase() + s.slice(1).replace(/([a-z])(\d)/gi, "$1 $2") : "");
+  const roundLabel = q => "Round " + (q.round ?? 1) + (q.stage ? " \u00b7 " + stageLabel(q.stage) : "");
   function headRound(){ // the highest round among live questions of the newest question's stage
     const qs = S.doc.questions, last = qs[qs.length - 1]; if (!last) return "";
     const same = qs.filter(q => (q.stage || "") === (last.stage || "") && stateOf(q) !== "arch");
@@ -662,7 +662,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (carried.length) secs.push({key: "carry", title: "Still open from earlier rounds", hint: "Pinned.", items: carried, pin: true, lock: []});
       const stages = Object.keys((S.doc.meta || {}).stages || {}), keys = [];
       rest.forEach(q => { const k = (q.stage || "") + ":" + (q.round || 1); if (!keys.includes(k)) keys.push(k); });
-      keys.sort((a, b) => { const [sa, ra] = a.split(":"), [sb, rb] = b.split(":"); return (stages.indexOf(sa) - stages.indexOf(sb)) || (ra - rb); });
+      const seen = [], rank = st => stages.includes(st) ? stages.indexOf(st) : stages.length + seen.indexOf(st);
+      keys.forEach(k => { const st = k.split(":")[0]; if (!stages.includes(st) && !seen.includes(st)) seen.push(st); });
+      keys.sort((a, b) => { const [sa, ra] = a.split(":"), [sb, rb] = b.split(":"); return (rank(sa) - rank(sb)) || (ra - rb); });
       keys.forEach(k => { const items = rest.filter(q => (q.stage || "") + ":" + (q.round || 1) === k); secs.push({key: "r:" + k, round: k, title: roundLabel(items[0]), items, lock: []}); });
     }
     const landed = landedIds();

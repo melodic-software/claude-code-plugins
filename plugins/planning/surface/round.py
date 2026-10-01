@@ -507,13 +507,37 @@ def set_meta(doc, m):
     doc["meta"].update(m)
 
 
+def newest_round(doc):
+    return max([q.get("round", 1) for q in doc["questions"]] or [0])
+
+
+def stamp_meta(doc):
+    doc["meta"]["setInRound"] = newest_round(doc)
+
+
+def warn_stale_meta(doc, before):
+    """Warn when a write opened a round above every earlier one while meta was last set in an older one."""
+    now_round = newest_round(doc)
+    stamp = doc["meta"].get("setInRound", 0)
+    if before and now_round > before and stamp < now_round:
+        warn(
+            f"meta was last set in round {stamp}, but this adds round {now_round}; the header "
+            "(eyebrow) and next still describe the older round; refresh them with "
+            "a meta op (apply) or add-round meta"
+        )
+
+
 def op_meta(d, doc, a):
     set_meta(doc, a.set)
+    stamp_meta(doc)
     return [], f"meta set {', '.join(sorted(a.set))}"
 
 
 def op_add(d, doc, a):
+    before = newest_round(doc)
     touched, notes = add_question(doc, a.question, a.repoint)
+    warn_stage(doc, [a.question])
+    warn_stale_meta(doc, before)
     warn_stale_summaries(doc, [a.question])
     check_primaries(doc)
     return touched, "; ".join([f"added {a.question['id']}", *notes])
@@ -521,8 +545,17 @@ def op_add(d, doc, a):
 
 def op_add_round(d, doc, a):
     """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
-    if a.meta is not None:
-        set_meta(doc, a.meta)
+    before = newest_round(doc)
+    meta = a.meta
+    if meta is not None:
+        old = doc["meta"].get("title")
+        if "title" in meta and old and meta["title"] != old and not a.replaceTitle:
+            warn(
+                f"meta.title {meta['title']!r} differs from the interview title {old!r}; "
+                "kept the existing title (pass --replace-title to replace it)"
+            )
+            meta = {k: v for k, v in meta.items() if k != "title"}
+        set_meta(doc, meta)
     for g in a.groups or []:
         if not g.get("id"):
             sys.exit("a group needs an id")
@@ -538,6 +571,10 @@ def op_add_round(d, doc, a):
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
     warn_stale_summaries(doc, a.questions or [])
+    warn_stage(doc, a.questions or [])
+    if meta is not None:
+        stamp_meta(doc)
+    warn_stale_meta(doc, before)
     known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
         if not v.get("id"):
@@ -557,6 +594,17 @@ def op_add_round(d, doc, a):
         )
     head = (f"round {a.round} added: " if a.round else "added ") + ids
     return touched, "; ".join([head, *notes])
+
+
+def warn_stage(doc, qs):
+    """One warning per stage a new question introduces with no meta.stages label."""
+    labels = doc["meta"].get("stages") or {}
+    for st in dict.fromkeys(q.get("stage") for q in qs):
+        if st and st not in labels and st != "interview":
+            warn(
+                f"stage {st!r} has no meta.stages label, so the page splits its tag into words; "
+                f'label it with a meta op: {{"stages": {{"{st}": "..."}}}}'
+            )
 
 
 def check_primaries(doc):
@@ -650,6 +698,17 @@ def op_reply(d, doc, a):
                 "recommendation sets the own answer aside)"
             )
         set_resolution(d, q, a.resolution)
+    if not a.rec and a.resolution is None:
+        latest = exporters.latest_decision(
+            q, load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+        )
+        if latest and latest.get("decision") == "own":
+            print(
+                f"hint: {a.id} is answered with the user's own text and this reply sets no "
+                "recommendation, so the card still shows the old one; use revise, or "
+                "wait --by user to show that Claude waits on the user's pick",
+                file=sys.stderr,
+            )
     line = {
         "at": now(),
         "by": "claude",
@@ -1147,6 +1206,7 @@ OP_ARGS = {
             "questions": None,
             "visuals": None,
             "repoint": False,
+            "replaceTitle": False,
         },
     ),
     "group": (
@@ -1283,6 +1343,12 @@ def cmd_status(d, a):
         )
         for line in waits:
             print(line)
+    if doc["questions"]:
+        stamp = doc["meta"].get("setInRound")
+        print(
+            f"meta last set in {'round ' + str(stamp) if stamp is not None else 'an unrecorded round'}, "
+            f"newest question in round {newest_round(doc)}"
+        )
     hs = doc.get("handledSeq") or 0
     pending = [
         e
@@ -1777,6 +1843,12 @@ def main(argv=None):
         help='{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}',
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
+    s.add_argument(
+        "--replace-title",
+        dest="replaceTitle",
+        action="store_true",
+        help="let the file's meta.title replace the interview title (otherwise it is kept)",
+    )
     s.add_argument(
         "--repoint",
         action="store_true",

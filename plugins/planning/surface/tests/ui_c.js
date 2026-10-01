@@ -460,7 +460,7 @@ async page => {
     await page.goto(base);
     await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
     const lbl = await page.textContent("#roundLbl");
-    ok("the header round comes from the newest question's stage only", lbl === "Design round 1", lbl);
+    ok("the header round comes from the newest question's stage only", lbl === "Round 1 · Design", lbl);
     const rounds = await page.$$eval(".qbtn", els => els.length);
     ok("both stages' questions are listed", rounds >= 3, String(rounds));
   }

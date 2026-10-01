@@ -2171,5 +2171,81 @@ class TestEmojiMarkersValue(unittest.TestCase):
                 self.assertIs(self.markers_after(value), want)
 
 
+class TestRoundStamp(DirCase):
+    """Meta carries the round it was last set in; a newer round warns, status shows both."""
+
+    def set_meta(self, meta):
+        ops = {"ops": [{"op": "meta", "set": meta}]}
+        return self.rp("apply", "--file", self.file("meta.json", ops))[0]
+
+    def test_add_into_a_newer_round_warns_when_meta_was_set_earlier(self):
+        self.assertEqual(self.set_meta({"eyebrow": "Round one"}), 0)
+        self.assertEqual(self.doc()["meta"]["setInRound"], 1)
+        q = question("Q4", round=2)
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("meta was last set in round 1, but this adds round 2", err)
+
+    def test_add_round_that_sets_meta_stamps_it_and_does_not_warn(self):
+        spec = {"meta": {"eyebrow": "Two"}, "questions": [question("Q4")]}
+        rc, _, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("meta was last set", err)
+        self.assertEqual(self.doc()["meta"]["setInRound"], 2)
+
+    def test_status_prints_the_stamp_and_the_newest_round(self):
+        self.set_meta({"next": "x"})
+        self.rp("add", "--file", self.file("q.json", question("Q4", round=2)))
+        _, out, _ = self.rp("status")
+        self.assertIn("meta last set in round 1, newest question in round 2", out)
+
+    def test_add_round_keeps_a_different_title_unless_replaced(self):
+        spec = {"meta": {"title": "One sub-topic"}, "questions": [question("Q4")]}
+        rc, _, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("kept the existing title", err)
+        self.assertEqual(self.doc()["meta"]["title"], "Test interview")
+        spec["questions"] = [question("Q5")]
+        rc, _, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--replace-title"
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(self.doc()["meta"]["title"], "One sub-topic")
+
+    def test_unlabeled_new_stage_warns_and_a_labeled_one_is_quiet(self):
+        _, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q4", stage="build2"))
+        )
+        self.assertIn("stage 'build2' has no meta.stages label", err)
+        self.set_meta({"stages": {"build2": "Build 2"}})
+        _, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q5", stage="build2"))
+        )
+        self.assertNotIn("no meta.stages label", err)
+
+
+class TestReplyHintOnOwnAnswer(DirCase):
+    def test_reply_without_rec_to_an_own_answer_hints_revise_or_wait(self):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "text": "my words",
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+        rc, _, err = self.rp("reply", "Q1", "--text", "Two readings: 1 or 2.")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("revise", err)
+        self.assertIn("wait --by user", err)
+        _, _, err = self.rp("reply", "Q2", "--text", "plain")
+        self.assertNotIn("hint:", err)
+
+
 if __name__ == "__main__":
     unittest.main()
