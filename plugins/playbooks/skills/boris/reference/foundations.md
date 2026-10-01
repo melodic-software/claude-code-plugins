@@ -90,6 +90,11 @@ Press `shift+tab` to cycle to plan mode. Pour energy into the plan so Claude can
 
 ## 4. CLAUDE.md Best Practices
 
+> **Amended:** adding a line after every correction grows the file without limit. Prune and
+> consolidate as you add: move part-of-the-codebase rules to path-scoped rules and procedures to
+> skills. For current size and review guidance, see
+> [How Claude remembers your project, "Write effective instructions"](https://code.claude.com/docs/en/memory#write-effective-instructions).
+
 ### Invest in Your CLAUDE.md
 
 Share a single CLAUDE.md per repo, checked into git. Whole team should contribute.
