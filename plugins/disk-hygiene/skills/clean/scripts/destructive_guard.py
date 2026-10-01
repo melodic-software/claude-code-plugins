@@ -67,6 +67,15 @@ import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
+# A whole-word quoted span: a quote at a word start, no quote inside, the same
+# quote closing it, then a space or the end. Braces are inert inside one.
+_WHOLE_WORD_QUOTED = re.compile(r"(?<![^ ])(?P<q>['\"])[^'\"]*(?P=q)(?= |$)")
+_BRACES = str.maketrans("", "", "{}")
+
+
+def _without_quoted_braces(command: str) -> str:
+    """``command`` with ``{`` and ``}`` dropped from inside whole-word quotes."""
+    return _WHOLE_WORD_QUOTED.sub(lambda m: m.group().translate(_BRACES), command)
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -181,10 +190,13 @@ def _literal_shell_words(
 
     ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
     path separator rather than an escape character (PowerShell commands); the
-    Bash default keeps rejecting it.
+    Bash default keeps rejecting it. ``{`` and ``}`` are accepted only inside a
+    whole-word quote, where they are literal; every other expansion or operator
+    character is rejected wherever it sits.
     """
     if not command or any(
-        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
+        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS
+        for value in _without_quoted_braces(command)
     ):
         return None
     words: list[str] = []
@@ -2178,7 +2190,7 @@ _OPERATOR_LABELS = {
 
 def _unparsable_reason(command: str) -> str:
     """Name the first thing in ``command`` that ``_literal_shell_words`` rejects."""
-    for char in command:
+    for char in _without_quoted_braces(command):
         if char in _OPERATOR_LABELS:
             culprit = f"{_OPERATOR_LABELS[char]} ({char!r})"
             break
