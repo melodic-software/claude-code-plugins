@@ -1688,6 +1688,22 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
 
+    def test_a_for_head_binding_shadows_a_bound_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){for(const x of ["LOCAL"]){return x}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_for_head_binding_shadows_an_outer_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            "function ff(){for(let xx of a){return xx}}"
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
     def test_a_quoted_paren_in_a_control_head_keeps_a_var_function_scoped(
         self,
     ) -> None:

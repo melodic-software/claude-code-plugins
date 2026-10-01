@@ -650,6 +650,25 @@ def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
     return _param_names(src[k + 1 : j])
 
 
+_FOR_KEYWORD_RE = re.compile(r"(?<![\w$.])for\s*(?:await\s*)?$")
+_FOR_DECL_RE = re.compile(r"\s*(?:let|const)\s+((?:(?!\b(?:of|in)\b)[^;])*)")
+
+
+def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head whose body opens at
+    `brace`, each a runtime value; empty for any other block."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    k = _head_open(src, braces, j)
+    if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
+        return NO_SCOPE
+    decl = _FOR_DECL_RE.match(_mask_strings(src[k + 1 : j]))
+    return _param_names(decl.group(1)) if decl else NO_SCOPE
+
+
 def _head_open(src: str, braces: BraceMap, close: int) -> int:
     """The `(` matching the `)` at `close`, matched with quoted text blanked
     from the enclosing block's start. Raises ValueError when unmatched."""
@@ -1021,7 +1040,9 @@ def _scan(
                     block=True,
                     hops=hops,
                     anchor=anchor,
-                    shadow=shadow | _catch_params(src, braces, i),
+                    shadow=shadow
+                    | _catch_params(src, braces, i)
+                    | _for_params(src, braces, i),
                     deferred=deferred,
                 )
             i, at_value, prev, prev_word = close + 1, False, "}", ""
