@@ -93,6 +93,13 @@ everywhere, so it is trusted only when that nearest binding lies within
 `eo({name:r,...})`) resolves, while a loop variable whose only binding is megabytes away does not.
 No preceding binding is unresolved, never guessed.
 
+The index holds only string bindings, so its nearest entry can sit behind a nearer binding it
+cannot see. Every candidate, for commands, bundled skills, subagents and tools alike, must also be
+the string constant the read sees under the module and scope rule that field resolution uses
+(`_scoped_constant`); otherwise the name stays unresolved. In 2.1.286 the generic skill loader
+builds `{type:"prompt",name:Vt,...}` with `Vt=$t?smt(e):e` in its own scope, and an unrelated
+`Vt="string"` megabytes ahead used to surface as a built-in command `string`.
+
 Two further shapes, both first seen in 2.1.284:
 
 - **Descriptor member.** `let t=c;ps({name:t.name,description:t.description,...})` with
