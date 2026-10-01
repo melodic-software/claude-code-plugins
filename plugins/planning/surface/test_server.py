@@ -601,7 +601,10 @@ class TestFinishAndPort(unittest.TestCase):
 
     def test_a_new_server_drops_the_context_badge_and_handoff(self):
         s = self.start()
-        self.ops({"op": "context", "percent": 72, "zone": "amber"}, {"op": "context", "handoff": "Resume from x"})
+        self.ops(
+            {"op": "context", "percent": 72, "zone": "amber"},
+            {"op": "context", "handoff": "Resume from x"},
+        )
         self.assertIn("context", self.state(s)["questions"])
         run_round(self.dir, "stop")
         second = self.state(self.start())["questions"]
@@ -2861,6 +2864,27 @@ class TestLease(WaitCase):
         self.assertEqual(
             self.state()["settings"]["leaseTimeout"], {"value": 5, "layer": "session"}
         )
+
+    def test_2b_the_stream_pushes_a_frame_when_the_lease_expires(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            leases = []
+            end = (
+                time.monotonic() + 8
+            )  # before the listener state itself goes idle (LISTEN_GRACE, 10 s)
+            while time.monotonic() < end:
+                line = resp.fp.readline()
+                self.assertTrue(line, "the stream closed")
+                if line.startswith(b"data: {") and b'"listener"' in line:
+                    leases.append(json.loads(line[6:])["listener"]["lease"])
+                    if leases[-1] is None:
+                        break
+            self.assertIsNotNone(leases[0])
+            self.assertIsNone(leases[-1])
+        finally:
+            conn.close()
 
     def test_3_expired_lease_is_reclaimed(self):
         time.sleep(5.5)

@@ -935,6 +935,7 @@ class Hub:
             mtime(self.layers.repo_file) if self.layers.repo_file else 0,
             mtime(Path(user)) if user else 0,
             self.listener()["state"],
+            self.lease_view() is not None,
         )
 
     def watched(self):

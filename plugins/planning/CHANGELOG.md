@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Fixed
 
-- **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
+- **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed, and the server pushes a frame when a lease expires so an open page does not keep a dead watcher's lease ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
 
 ## [0.58.0] - 2026-10-01
 
