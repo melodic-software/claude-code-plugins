@@ -1132,6 +1132,10 @@ function Get-StockIni($mj, [switch]$Strict) {
     $stock
 }
 
+# A release tag as a version, or $null when it has no numeric form: v0.8.3 and v0.2.0-patch1 parse
+# as 0.8.3 and 0.2.0.
+function TagVer($tag) { $v = $null; if ([version]::TryParse(($tag -replace '^v' -replace '-.*$'), [ref]$v)) { $v } }
+
 # Whether a manifest's build is its build's current pin. Manifests before 0.5.0 lack tag or buildSha256.
 function Get-PinState($mj) {
     $pin = $BuildPins["$($mj.build)"]
@@ -1139,8 +1143,8 @@ function Get-PinState($mj) {
     if (-not $pin) { return "installed build: $($mj.build) $($mj.tag), which this plugin version no longer pins" }
     if ($mj.tag -eq $pin.Tag -and $mj.buildSha256 -eq $pin.Sha256) { return "installed build: $($mj.build) $($mj.tag), the current pin" }
     # Tags compare as versions (v0.8.3 < v0.9.0); a same-version tag or a changed asset hash is only "differs".
-    $a = $b = $null
-    $ok = [version]::TryParse(($mj.tag -replace '^v' -replace '-.*$'), [ref]$a) -and [version]::TryParse(($pin.Tag -replace '^v' -replace '-.*$'), [ref]$b) -and $a -ne $b
+    $a = TagVer $mj.tag; $b = TagVer $pin.Tag
+    $ok = $a -and $b -and $a -ne $b
     $what = "$($mj.build) $($mj.tag) ($($mj.buildSha256)) installed, $($pin.Tag) ($($pin.Sha256)) pinned"
     if ($ok -and $a -lt $b) { "installed build is older than the current pin: $what. Update steps: reference/upstream-watch.md" }
     elseif ($ok) { "installed build is newer than the current pin: $what. This plugin version is older than the one that applied it" }
@@ -1363,7 +1367,7 @@ function Do-ProvisionRuntime {
     throw ($msg -join "`n")
 }
 
-# Shell-resolvable upstream facts only; page-backed items stay in the skill. The cache MERGES: an
+# Upstream facts a command or a JSON lookup returns; page-backed items stay in the skill. The cache MERGES: an
 # item that fails keeps its previous found/checked and carries the new error, so one offline run
 # never erases the baseline.
 $script:Gh = 'gh'; $script:Smi = 'nvidia-smi'   # selftest points these at missing commands
@@ -1382,15 +1386,42 @@ function GhApi($path, $jq) {
     if ($LASTEXITCODE) { throw "gh api $path failed: $($o | Select-Object -First 1)" }
     @($o | Select-Object -First 5) -join '; '
 }
+# The fork repos behind $BuildPins.
+$ForkRepos = @{ dagherbou = 'Dagherbou/OptiScaler_DLSSNR'; wilsjo2 = 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass' }
+# NVIDIA's driver lookup behind its downloads page: undocumented JSON, newest first. The product
+# series (RTX 50) and OS (Windows 11) are request filters; Game Ready driver versions are shared
+# across series.
+$NvDriverUrl = 'https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup&psid=131&pfid=1066&osID=135&languageCode=1033&beta=0&isWHQL=1&dltype=-1&dch=1&upCRD=0&qnf=0&sort1=1&numberOfResults=5'
+# Report-only. A fork's newest non-prerelease (releases/latest) against its pin: a prerelease never
+# counts, and a failed lookup gives no line.
+function Get-PinAdvice {
+    foreach ($k in $ForkRepos.Keys | Sort-Object) {
+        try { $tag = GhApi "repos/$($ForkRepos[$k])/releases/latest" '.tag_name' } catch { continue }
+        $new = TagVer $tag; $cur = TagVer $BuildPins[$k].Tag
+        if ($new -and $cur -and $new -gt $cur) {
+            "$k has a newer stable release $tag; the pin is $($BuildPins[$k].Tag). Nothing was changed: a pin change is a plugin release, so follow Updating a pin in reference/upstream-watch.md"
+        }
+    }
+}
 function Do-Refetch {
     $cp = Join-Path $script:DataDir 'cache\upstream.json'
     $prev = @{}; foreach ($i in @((LoadJson $cp).items)) { if ($i) { $prev[$i.item] = $i } }
-    $rel = '.[] | "\(.tag_name)\(if .prerelease then " (prerelease)" else "" end)"'
+    $fmt = '"\(.tag_name)\(if .prerelease then " (prerelease)" else "" end)"'
+    $rel = ".[] | $fmt"
     $items = @(
         Probe 'Dagherbou/OptiScaler_DLSSNR' 'gh api releases' { GhApi 'repos/Dagherbou/OptiScaler_DLSSNR/releases' $rel }
         Probe 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass' 'gh api releases' { GhApi 'repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases' $rel }
+        # The repo also publishes renodx-dlss-SF and other tags; only renodx-dlss5- tags belong here.
+        Probe 'renodx-dlss5' 'gh api releases' { GhApi 'repos/RankFTW/rhi-repo/releases?per_page=100' ('.[] | select(.tag_name | startswith("renodx-dlss5-")) | ' + $fmt) }
         Probe 'optiscaler/OptiScaler' 'gh api releases/latest' { GhApi 'repos/optiscaler/OptiScaler/releases/latest' '.tag_name' }
+        foreach ($n in 1116, 1158) {
+            Probe "OptiScaler PR #$n" 'gh api pulls' { GhApi "repos/optiscaler/OptiScaler/pulls/$n" '"\(.state) merged=\(.merged)"' }
+        }
         Probe 'GeForce driver' 'nvidia-smi' { $s = Tool $script:Smi; (& $s --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() }
+        Probe 'GeForce driver (published)' 'NVIDIA driver lookup' {
+            $d = ((& $script:HttpGet $NvDriverUrl) | ConvertFrom-Json).IDS.downloadInfo | Where-Object { $_.IsWHQL -eq '1' -and $_.IsBeta -eq '0' } | Select-Object -First 1
+            if ($d.Version) { "$($d.Version) ($($d.ReleaseDateTime))" }
+        }
         Probe 'Runtime DLL' 'file version' {
             if (-not (Test-Path -LiteralPath $script:RuntimeDll)) { throw "missing: $($script:RuntimeDll)" }
             $v = FileVer $script:RuntimeDll
@@ -1402,7 +1433,7 @@ function Do-Refetch {
         if ($_.error -and $p -and $p.found) { $_.found = $p.found; $_.checked = $p.checked }
         $_
     }
-    $out = [pscustomobject]@{ checked = (Get-Date).ToString('o'); items = $items } | ConvertTo-Json -Depth 4
+    $out = [pscustomobject]@{ checked = (Get-Date).ToString('o'); items = $items; pinAdvice = @(Get-PinAdvice) } | ConvertTo-Json -Depth 4
     New-Item -ItemType Directory -Force -Path (Split-Path $cp -Parent) | Out-Null
     Set-Content -LiteralPath $cp -Value $out -Encoding utf8
     $out
@@ -1469,10 +1500,11 @@ function Do-Selftest {
     $script:Reg = @{}; $script:ProgramData = "$tmp\pd"; $script:EaRoots = @("$tmp\ea"); $script:Drives = @()
     $script:AwacySha = 'a' * 40
     $script:AwacyGames = '[{"name":"EA SPORTS FC™ 26","anticheats":["EA anticheat"],"status":"Denied","storeIds":{}},{"name":"Listed Game","anticheats":["Easy Anti-Cheat"],"status":"Supported","storeIds":{"steam":"333"}},{"name":"Clean Game","anticheats":[],"status":"Supported","storeIds":{"steam":"222"}}]'
-    $script:SteamPages = @{}
+    $script:SteamPages = @{}; $script:NvJson = $null
     $script:HttpGet = {
         param($url, $headers)
         if ($url -like 'https://api.github.com/*') { return "{`"sha`":`"$($script:AwacySha)`"}" }
+        if ($url -like 'https://gfwsl.geforce.com/*' -and $script:NvJson) { return $script:NvJson }
         if ($url -like 'https://raw.githubusercontent.com/*') { return $script:AwacyGames }
         if ($url -match '/app/(\d+)/' -and $script:SteamPages[$Matches[1]] -and $headers.Cookie -eq $SteamCookie) { return $script:SteamPages[$Matches[1]] }
         throw "offline fixture: $url"
@@ -2181,13 +2213,50 @@ public sealed class Dlss5DirHandle : IDisposable {
         Put $uc '{"checked":"x","items":[{"item":"GeForce driver","found":"616.92","source":"nvidia-smi","checked":"2026-09-22T00:00:00Z","error":null}]}'
         Do-Refetch | Out-Null
         $u = LoadJson $uc
-        Assert 'refetch writes a parseable cache without gh' ($u -and @($u.items).Count -eq 5)
+        Assert 'refetch writes a parseable cache without gh' ($u -and @($u.items).Count -eq 9)
         $dg = @($u.items) | Where-Object item -eq 'Dagherbou/OptiScaler_DLSSNR'
         Assert 'refetch records a missing gh as an error, not a failure' ($null -eq $dg.found -and $dg.error -like '*not on PATH*')
         $dr = @($u.items) | Where-Object item -eq 'GeForce driver'
         Assert 'refetch keeps the previous value when a probe fails' ($dr.found -eq '616.92' -and $dr.checked -eq '2026-09-22T00:00:00Z' -and $dr.error)
         $rd = @($u.items) | Where-Object item -eq 'Runtime DLL'
         Assert 'refetch reports an unversioned runtime DLL as an error' ($null -eq $rd.found -and $rd.error -like '*no version resource*')
+        foreach ($n in 'renodx-dlss5', 'OptiScaler PR #1116', 'OptiScaler PR #1158') {
+            $it = @($u.items) | Where-Object item -eq $n
+            Assert "refetch records a missing gh for $n as an error" ($null -eq $it.found -and $it.error -like '*not on PATH*')
+        }
+        $pd = @($u.items) | Where-Object item -eq 'GeForce driver (published)'
+        Assert 'refetch records an unreachable driver lookup as an error' ($null -eq $pd.found -and $pd.error -like '*offline fixture*')
+        Assert 'refetch gives no pin advice without gh' ($null -ne $u.pinAdvice -and @($u.pinAdvice).Count -eq 0)
+
+        # gh answered by a fixture: a stable release newer than a pin gives advice, and a newer
+        # prerelease alone (which releases/latest never returns) gives none.
+        $script:NvJson = '{"Success":"2","IDS":[{"downloadInfo":{"Version":"900.1","IsWHQL":"0","IsBeta":"1","ReleaseDateTime":"beta"}},{"downloadInfo":{"Version":"899.2","IsWHQL":"1","IsBeta":"0","ReleaseDateTime":"Tue Sep 22, 2026"}}]}'
+        $script:GhLatest = 'v9.9.9'
+        function Gh-Fixture {
+            $global:LASTEXITCODE = 0
+            switch -Wildcard ($args[1]) {
+                'repos/RankFTW/*' { 'renodx-dlss5-8.5.0-rc5 (prerelease)'; 'renodx-dlss5-6.5.3' }
+                'repos/optiscaler/OptiScaler/pulls/*' { 'open merged=false' }
+                'repos/optiscaler/OptiScaler/releases/latest' { 'v0.9.4' }
+                'repos/wilsjo2/*/releases/latest' { $script:GhLatest }
+                'repos/Dagherbou/*/releases/latest' { $BuildPins.dagherbou.Tag }
+                'repos/*/releases' { 'v9.9.9 (prerelease)' }
+            }
+        }
+        $script:Gh = 'Gh-Fixture'
+        $pinBefore = $BuildPins.wilsjo2.Tag
+        $u = Do-Refetch | ConvertFrom-Json
+        $rx = @($u.items) | Where-Object item -eq 'renodx-dlss5'
+        Assert 'refetch reads the renodx-dlss5 releases' ($rx.found -eq 'renodx-dlss5-8.5.0-rc5 (prerelease); renodx-dlss5-6.5.3' -and -not $rx.error)
+        $pr = @($u.items) | Where-Object item -eq 'OptiScaler PR #1158'
+        Assert 'refetch reads an OptiScaler pull request state' ($pr.found -eq 'open merged=false' -and -not $pr.error)
+        $pd = @($u.items) | Where-Object item -eq 'GeForce driver (published)'
+        Assert 'refetch reads the newest stable published driver' ($pd.found -eq '899.2 (Tue Sep 22, 2026)' -and -not $pd.error)
+        Assert 'a newer stable release gives pin advice naming the tag, the pin and the pin procedure' (@($u.pinAdvice).Count -eq 1 -and $u.pinAdvice[0] -like "wilsjo2*v9.9.9*$pinBefore*Updating a pin*upstream-watch.md*")
+        Assert 'pin advice leaves the pins alone' ($BuildPins.wilsjo2.Tag -eq $pinBefore)
+        $script:GhLatest = $pinBefore
+        $u = Do-Refetch | ConvertFrom-Json
+        Assert 'a newer prerelease alone gives no pin advice' (@($u.pinAdvice).Count -eq 0 -and (@($u.items) | Where-Object item -eq 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass').found -like '*v9.9.9 (prerelease)*')
     }
     finally {
         Pop-Location
