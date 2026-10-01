@@ -2631,6 +2631,44 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertIn("description", rec["partial"])
         self.assertIn("skills", rec["partial"])
 
+    def test_every_field_an_unresolved_spread_hides_is_partial(self) -> None:
+        # No isAvailable, hooksModule or manifest of its own: each could sit
+        # in the unresolved spread, so each is unknown and named in `partial`.
+        agents = _plugin_modules()[3].replace(
+            "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
+            "Z_({...zz,name:K,description:H})",
+        )
+        plugins, notes = _plugins(agents=agents)
+        rec = plugins["cc-plugin-agents-md"]
+        for key in (
+            "gated",
+            "hook_events",
+            "hooks_module",
+            "user_config",
+            "classic_hooks",
+            "mcp_servers",
+            "default_enabled",
+        ):
+            self.assertIsNone(rec[key], key)
+            self.assertIn(key, rec["partial"], key)
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+        self.assertTrue(any("cc-plugin-agents-md" in a for a in lane["advisories"]))
+
+    def test_a_complete_record_reads_absent_keys_as_absent(self) -> None:
+        rec = _plugins()[0]["cc-plugin-agents-md"]
+        self.assertIs(rec["hooks_module"], False)
+        self.assertIs(rec["gated"], True)
+        self.assertEqual(rec["hook_events"], [])
+        self.assertEqual(rec["partial"], [])
+
+    def test_an_unread_load_position_is_partial(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            '"/$bunfs/root/c5.js"))}', '"/$bunfs/root/c5.js"));else f()}'
+        )
+        rec = _plugins(loader=loader)[0]["cc-plugin-sec-default"]
+        self.assertIn("load", rec["partial"])
+
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")
         plugins, notes = _plugins(registrar=registrar)

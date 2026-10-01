@@ -344,7 +344,9 @@ Per plugin, from the merged fields:
 | `mcp_servers` | the field's form (`getter`, `value`) or null; the server list is decided per session |
 
 Anything a spread or an unread form leaves unknown is null with its name in `partial`, and the lane
-degrades. A registration whose name is a one-letter parameter (a test seating any plugin) is
+degrades. Behind an unresolved spread an absent key is unknown, not absent: `gated`,
+`hook_events`, `hooks_module`, `user_config`, `classic_hooks` and `mcp_servers` each read null and
+are named, and so is a `load` the loader walk could not place. A registration whose name is a one-letter parameter (a test seating any plugin) is
 `factory_registrations`, never guessed. A call of another module's same-named function is not a
 registration: the callee must be the registrar's own name in its module, or a name imported from
 an export of it.

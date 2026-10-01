@@ -4446,6 +4446,8 @@ def extract_builtin_plugins(
         # False: the loader was read and never requires this plugin, so the
         # registration is not proven live. None: no loader was found.
         rec["in_loader"] = (load is not None) if callees else None
+        if rec["in_loader"] and rec["load"] is None:
+            partial.append("load")
 
         default = _merged_flag(src, fields, "defaultEnabled")
         if default is not None:
@@ -4472,6 +4474,8 @@ def extract_builtin_plugins(
             )
         gate = fields.get("isAvailable")
         rec["gated"] = gate is not None if (gate is not None or complete) else None
+        if rec["gated"] is None:
+            partial.append("gated")
         rec["gate_flags"] = (
             _gate_flags(src, braces, gate[2]) if gate and gate[1] == "value" else []
         )
@@ -4522,9 +4526,12 @@ def extract_builtin_plugins(
                 commands.extend(registered)
                 if not ok or not registered:
                     partial.append("commands")
-        elif hooks_module or manifests:
+        if rec["hook_events"] is None:
             partial.append("hook_events")
-        rec["hooks_module"] = hooks_module
+        # An unresolved spread may hold any key the merge did not see: there an
+        # absent key is unknown (None, named in `partial`), not absent.
+        rec["hooks_module"] = hooks_module or (False if complete else None)
+        rec["user_config"] = "userConfig" in fields or (False if complete else None)
         classic = fields.get("hooks")
         rec["classic_hooks"] = (
             sorted(_object_fields(src, braces, classic[2]))
@@ -4533,7 +4540,11 @@ def extract_builtin_plugins(
         )
         mcp = fields.get("mcpServers")
         rec["mcp_servers"] = None if mcp is None else mcp[1]
-        rec["user_config"] = "userConfig" in fields
+        partial += [k for k in ("hooks_module", "user_config") if rec[k] is None]
+        if not complete:
+            partial += [k for k in ("classic_hooks", "mcp_servers") if rec[k] is None]
+        if rec["classic_hooks"] == "unresolved":
+            partial.append("classic_hooks")
         rec["skills"] = skills
         rec["agents"] = agents
         rec["commands"] = commands
