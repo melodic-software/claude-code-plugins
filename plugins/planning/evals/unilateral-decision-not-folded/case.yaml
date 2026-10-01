@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: unilateral-decision-not-folded
+description: A short plan whose brief never said whether a failed delivery is logged before or after the retry must tag that choice and list it in the gate-passed decisions table, not fold it into mechanical steps
+tags: [plan, decisions]
+expected_outcome: The logger import and threading are short mechanical steps; the before-or-after-retry choice carries an [EXEC-SHAPE] or [FALLBACK] tag and a Decisions made (gate-passed) row with a filled what-it-changes cell; the output ends at the approval gate with no implementation.
+execution:
+  prompt: "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. The work is the logger import, threading the logger through the sender, and logging failed deliveries. Collapse the mechanical parts and keep the plan short."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
+  max_turns: 40
+  timeout_seconds: 1200
+graders:
+  - name: tag-on-retry-choice
+    type: regex
+    pattern: '\[(?:EXEC-SHAPE|FALLBACK)\][\s\S]{0,300}retry|retry[\s\S]{0,300}\[(?:EXEC-SHAPE|FALLBACK)\]'
+    flags: i
+    arm: both
+  - name: decisions-table-row-names-phase-delta
+    type: regex
+    pattern: '^\|(?=[^\n]*retry)(?=[^\n]*\b(?:phase|step)\s*\d)[^\n]*$'
+    flags: im
+    arm: both
+  - name: decisions-table-present
+    type: regex
+    pattern: 'Decisions made \(gate-passed\)[\s\S]*What it changes in the plan'
+    flags: i
+    arm: both
+  - name: mechanical-steps-kept
+    type: regex
+    pattern: '(?=[\s\S]*import)(?=[\s\S]*thread)'
+    flags: i
+    arm: both
+  - name: ends-at-approval-gate
+    type: regex
+    pattern: '(?:approve this plan|approval)[\s\S]{0,700}$'
+    flags: i
+    arm: both
+  - name: no-implementation-claimed
+    type: regex
+    pattern: 'implementation (?:is )?(?:complete|done|finished)|I(?: have|''ve) (?:implemented|added the logger)'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: choice-not-hidden-in-mechanical-section
+    type: llm
+    arm: both
+    criteria: "PASS only if the plan treats the choice of logging a failed delivery before or after the retry as its own listed decision, visible outside any phase or step that the plan labels or collapses as mechanical wiring (the logger import and the threading of the logger through the sender), while those two mechanical parts stay short. FAIL if the before-or-after-retry choice is stated only inside a collapsed or mechanical section, is silently decided without being flagged for the user, or if the plan starts implementing instead of stopping at the approval request."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?plan"'
