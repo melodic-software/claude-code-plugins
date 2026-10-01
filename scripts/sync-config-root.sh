@@ -30,7 +30,7 @@ src="plugins/source-control/lib/config-root.sh"
 copies=(
   plugins/ai-slop/lib/config-root.sh
   plugins/attribution/lib/config-root.sh
-  plugins/docs-hygiene/lib/config-root.sh
+  plugins/docs-naming/lib/config-root.sh
 )
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"

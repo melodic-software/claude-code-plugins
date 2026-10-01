@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.4] - 2026-10-01
+
+### Fixed
+
+- The `repo-sweep` hygiene catalog points its file-name lane at `docs-naming:audit-file-names` and
+  `docs-naming:realign-file-names`, which moved out of `docs-hygiene`.
+
 ## [0.15.3] - 2026-09-30
 
 ### Changed

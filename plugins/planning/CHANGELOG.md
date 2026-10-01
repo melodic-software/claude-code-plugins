@@ -20,6 +20,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`add` and `add-round` give a question with no `stage` the newest question's stage and warn, naming the stage and round used** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
 - **Page polish.** The rail preview skips hold bookkeeping, the id column has one width, the Pending filter covers every hold, Activity no longer relists ids its text links, and a note posted with no reply target reads `Claude posted in Notes` ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
 
+## [0.56.3] - 2026-10-01
+
+### Fixed
+
+- **`interview`'s `context/loop.md` no longer cites bundled files through the literal plugin-root token.** The token is not substituted in a `context/` file, so the page-surface Delivery bullet's `reference/topic-docs.md` link resolved to nothing and is now relative to the spoke, and the two register-gate commands now read `bash "<plugin-root>/scripts/check-open-questions.sh"`. `SKILL.md` gains a `## Spoke paths` section that defines `<plugin-root>`. The two `interview-defenses.test.sh` digests over the edited sections are re-pinned ([#5273](https://github.com/melodic-software/claude-code-plugins/issues/5273)).
+
 ## [0.56.2] - 2026-10-01
 
 ### Changed

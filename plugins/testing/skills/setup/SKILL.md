@@ -1,5 +1,5 @@
 ---
-description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved .claude/testing.yaml cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes only .claude/testing.yaml from your answers. Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
+description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes your answers as the config block of docs/conventions/testing.md (or .claude/testing.yaml when that file is in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -9,17 +9,34 @@ disable-model-invocation: true
 
 `/testing:audit` and the opt-in `test-scan` hook find tests by the shipped adapters' filename globs
 and judge them by the shipped rule levels. This skill shows what a repository changed about that
-through `.claude/testing.yaml`, and writes that file. `check` changes nothing; `apply` runs `check`,
+through the testing config, and writes it. `check` changes nothing; `apply` runs `check`,
 asks, writes, and runs `check` again. No argument means `check`.
 
 It never edits `CLAUDE.md` or `AGENTS.md`. The instruction line is printed for you to paste.
 
 ## The config
 
-`.claude/testing.yaml` resolves across the config-cascade layers, in order: `~/.claude/testing.yaml`,
-`<root>/.claude/testing.yaml` (the team file this skill writes) and `<root>/.claude/testing.local.yaml`,
-where `<root>` is the scanned file's git toplevel, else `${CLAUDE_PROJECT_DIR}`. Lists concatenate across layers; a later layer's scalar overrides.
-The format is the adapters' YAML subset; a glob that starts with `*` must be single-quoted.
+The testing config resolves across the config-cascade layers, in order: `~/.claude/testing.yaml`,
+the team layer and `<root>/.claude/testing.local.yaml`, where `<root>` is the scanned file's git
+toplevel, else `${CLAUDE_PROJECT_DIR}`. The team layer is the `yaml config` block in
+`<root>/docs/conventions/testing.md`, the file that holds the team's prose testing rules; when that
+file has no such block it is `<root>/.claude/testing.yaml`, and when both exist the docs block wins
+and the resolver prints a warning naming both. Lists concatenate across layers; a later layer's
+scalar overrides. The format is the adapters' YAML subset (the same in the block and in the
+`.claude` file); a glob that starts with `*` must be single-quoted.
+
+````markdown
+# Testing conventions
+
+Prose rules for the team.
+
+```yaml config
+adapters:
+  disable: [py-unittest]
+```
+````
+
+The keys, shown as the `.claude/testing.yaml` form:
 
 ```yaml
 adapters:
@@ -134,9 +151,12 @@ missing launcher.
    configured is dropped without the user confirming.
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
    shipped globs miss (and which adapter reads them), adapters to turn off, rule levels.
-3. Write the team file with the answers. The script writes `.claude/testing.yaml` whole, keeps it
-   only when it resolves, and writes nothing else; pass every value the file should hold, the
-   existing ones included:
+3. Write the team layer with the answers. The script replaces the body of the `yaml config` block
+   in `docs/conventions/testing.md`, appends a block to a file that has none, or creates the file;
+   the rest of the file stays as it is. When the docs file has no block and `.claude/testing.yaml`
+   exists, that file is the one in use, and the script rewrites it whole instead. It keeps the
+   result only when it resolves and writes nothing else; pass every value the block should hold,
+   the existing ones included:
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply \
@@ -145,9 +165,10 @@ missing launcher.
 
    Flags: `--include`, `--exclude`, `--enable`, `--disable`, `--adapter-dir`,
    `--extend <id>.<field>=<value>`, `--rule <rule>=off|warn|error`, each repeatable.
-4. Run `check` again and show the hook entry if one is printed. Offer `git add .claude/testing.yaml`
-   and a commit, and run each only when the user accepts. Personal overrides go in
-   `.claude/testing.local.yaml`, which should be gitignored.
+4. Run `check` again and show the hook entry if one is printed. Offer `git add` for the file
+   `apply` printed and a commit, and run each only when the user accepts. Personal overrides go in
+   `.claude/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
+   to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md`.
 
 ## Next
 

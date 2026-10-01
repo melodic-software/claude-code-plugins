@@ -3,6 +3,23 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-01
+
+### Changed
+
+- **config:** the team layer is read from the one `yaml config` fenced block in
+  `docs/conventions/testing.md` (a second block is an error), with `.claude/testing.yaml` as the fallback when the docs file has
+  no block. When both exist the docs block wins and `resolve-config.sh` prints one warning naming
+  both paths. Config errors in the block report the `.md` path and line. The user-global and
+  `.local` layers are unchanged.
+- **hooks:** `judge-lib.sh` cache keys include `docs/conventions/testing.md`, so a changed block
+  re-derives; `test-scan` and `test-weaken` messages name whichever source failed.
+- **setup:** `apply` writes the docs block, or `.claude/testing.yaml` when that file is the one in
+  use, and refuses to touch a docs block that does not parse. It rejects a flag value that holds a
+  line break and refuses a symlinked docs file before reading it.
+- **docs:** the README carries the migration steps and the measured `test-scan` timings;
+  `scripts/time-config.sh` reproduces them.
+
 ## [0.14.0] - 2026-10-01
 
 ### Added
