@@ -79,6 +79,14 @@ apply() {
   # The team layer is the docs file's config block, unless it has no block and
   # .claude/testing.yaml is the file in use.
   f="$docs"
+  # Refuse a linked docs file before the loader reads it.
+  for l in "$ROOT/docs" "$ROOT/docs/conventions" "$docs"; do
+    [[ ! -L "$l" ]] || die "refusing to read or write through a symlink: $l"
+  done
+  # A flag value is one line: a newline would end the fenced block early.
+  for e in ${inc[@]+"${inc[@]}"} ${exc[@]+"${exc[@]}"} ${ena[@]+"${ena[@]}"} ${dis[@]+"${dis[@]}"} ${dirs[@]+"${dirs[@]}"} ${ext[@]+"${ext[@]}"} ${rules[@]+"${rules[@]}"}; do
+    [[ "$e" != *[$'\n\r']* ]] || die "a flag value holds a line break"
+  done
   if [[ -f "$docs" ]]; then
     blk="$(awk -v MODE=config -f "$LOADER" "$docs")" || die "$docs does not parse (see above)"
     read -r from to <<<"$(awk -F'\t' '$1 == "block" { print $3, $4 }' <<<"$blk")"
@@ -127,7 +135,7 @@ apply() {
   if [[ ${#rules[@]} -gt 0 ]]; then
     y+=$'rules:\n'
     for r in "${rules[@]}"; do
-      [[ "$r" == *=* ]] || die "--rule takes <rule>=off|warn|error, got: $r"
+      [[ "$r" =~ ^[^=]+=(off|warn|error)$ ]] || die "--rule takes <rule>=off|warn|error, got: $r"
       id="${r%%=*}"
       id="${id#testing/audit/}"
       [[ "$id" == rule-* ]] || id="rule-$id"

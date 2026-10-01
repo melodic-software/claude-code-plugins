@@ -214,6 +214,11 @@ cp "$DOCS" "$T/kept.yaml"
 run apply --rule no-such-rule=off
 assert_eq "apply refuses answers that do not resolve" 2 "$rc"
 assert_eq "and leaves the file as it was" "$(cat "$T/kept.yaml")" "$(cat "$DOCS")"
+run apply --rule $'weak-oracle=off\n```\nInjected prose\n'
+assert_eq "apply refuses a flag value that holds a line break" 2 "$rc"
+assert_eq "and leaves the file as it was after a line break" "$(cat "$T/kept.yaml")" "$(cat "$DOCS")"
+run apply --rule weak-oracle=loud
+assert_eq "apply refuses a rule level other than off, warn or error" 2 "$rc"
 
 # apply never writes through a symlink a repository commits.
 S="$T/sym"
@@ -239,6 +244,14 @@ out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
 assert_eq "apply refuses a symlinked docs directory" 2 "$rc"
 assert_eq "and writes nothing through it" "" "$(ls -A "$S/elsewhere")"
 rm -f "$S/docs"
+mkdir -p "$S/docs/conventions"
+printf '```yaml config\nbad line\n```\n' >"$S/elsewhere/target.md"
+ln -s ../../elsewhere/target.md "$S/docs/conventions/testing.md"
+rc=0
+out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
+assert_eq "apply refuses a symlinked docs file" 2 "$rc"
+assert_eq "and never reads what it points at" 0 "$(grep -c "bad line" <<<"$out")"
+rm -rf "$S/docs" "$S/elsewhere/target.md"
 ln -s elsewhere "$S/.claude"
 printf 'paths:\n  exclude: [a]\n' >"$S/elsewhere/testing.yaml"
 rc=0
