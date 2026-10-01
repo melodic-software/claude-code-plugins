@@ -1,6 +1,6 @@
 # HTML Report Format
 
-Deepening review rendered as self-contained HTML in the ephemeral tier: one file created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file.
+Deepening review rendered as self-contained HTML in the OS temp directory: one file created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file.
 
 **Security baseline.** The report holds to the rendered-views security baseline as stated in Phase 2 of [../../actions/deepening.md](../../actions/deepening.md). Two additions are specific to this report:
 

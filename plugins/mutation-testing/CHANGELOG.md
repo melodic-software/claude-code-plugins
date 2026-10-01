@@ -26,6 +26,12 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 - The `principles` theory reference states that a killed mutant does not clear a copied expected
   value.
 
+## [0.4.3] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.4.2] - 2026-09-27
 
 ### Changed
@@ -274,7 +280,7 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 
 - **The permissive-branch guard rule becomes a pointer.** `--persist-findings` skips the self-ignore
   guard where no checkout is detected as governing the destination; that rule now belongs to the
-  [topic-docs convention](../../docs/conventions/topic-docs/README.md) "Runtime guards", which owns
+  [topic-docs convention](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/conventions/topic-docs/README.md) "Runtime guards", which owns
   the guard, so the spoke cites it instead of deriving it locally. Behavior is unchanged. The rule
   moved to its owner, where it binds every consumer of that guard rather than this plugin alone.
 

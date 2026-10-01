@@ -127,8 +127,8 @@ name the layers actually completed so far.
   and its prior findings are carried forward untouched, while a layer named in `scope` with no
   findings was walked and found empty. Writing a layer into `scope` before its findings are on disk
   inverts that and reads as a retirement of everything in it.
-- The memory root's self-ignore guard runs once per session on the first write, per the topic-docs
-  binding, not once per layer.
+- The memory root's self-ignore guard runs once per session on the first write,
+  not once per layer.
 - In an `unattended` run every one of these writes, the re-read-and-merge included, goes through
   the neutral-filename-then-rename route in SKILL.md's "Writing the artifact from a delegated run".
 

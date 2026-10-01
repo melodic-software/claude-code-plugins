@@ -372,16 +372,15 @@ provenance.
 
 The mechanics are owned by [`context/persist-findings.md`](context/persist-findings.md), which reads
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
-are not optional: the destination comes from the contract's **whole** rung order, taking its
-**non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
+are not optional: the destination is the contract's `<memory_dir>/reviews/<branch-slug>/`, never a hardcoded
+path outside it;
 **each** write this phase makes, the findings file and the self-ignore guard's `.gitignore` where a
 governing checkout was found, is proven outside tracked space before **that** write is made, against
 the checkout that governs the destination rather than the invoking worktree, with the guard's own
 write proven before the guard heals rather than reported afterwards, and with **nothing written at
 all** where a resolved root has no governing checkout, the guard's create-when-absent rule could
 land on a tracked-but-deleted `.gitignore` with no check having been possible, and the findings file
-on a tracked deletion it would modify rather than create, while the contract's
-`${CLAUDE_PLUGIN_DATA}` fallback is written normally, being outside every checkout by construction
+on a tracked deletion it would modify rather than create
 (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
@@ -450,8 +449,8 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   soften it when a survivor is inconvenient.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
-  failure mode of resolving only the documented default on a repo that configured its own memory
-  root, which is why Phase 6 runs the whole rung order rather than its last rung.
+  failure mode of hardcoding `.work` on a repo that declares its own memory root, which is why
+  Phase 6 composes the home from the memory root.
 - **A high mutation score is not a correctness argument.** The coupling effect covers faults composed
   of local errors. It says nothing about a wrong algorithm, a missing requirement, a concurrency
   interleaving, or an unexpressed security property.

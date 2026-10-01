@@ -86,10 +86,13 @@ Hub-and-spoke; read the spoke before the phase that needs it:
 Phases run in order; each gate is hard. `dry-run` stops after D (ledger write included).
 
 **A. Orient.** Resolve scope from the argument, else infer from the conversation, else pick
-the hottest area by commit frequency. Resolve the ledger path per this plugin's topic-docs
-[binding](../../reference/topic-docs.md): memory tier, constant slug, default
-`.work/coupling/coupling-ledger.md`, one ledger per repo regardless of scope. Create or
-resume it. Discover the consuming repo's
+the hottest area by commit frequency. The ledger path is the memory tier's constant slug `coupling`, default
+`.work/coupling/coupling-ledger.md` (`.work/` unless the repo's instructions declare another working-docs root),
+never committed, one ledger per repo regardless of scope. The slug is constant because coupling
+reduction is repo-scoped and spans many scopes and short-lived branches; a scope- or
+branch-derived slug would fragment the one ledger successive runs must resume. On the session's
+first write, verify the memory root contains a `.gitignore` with `*`, creating it (announced) when
+absent, and create the slice directory when absent. Create or resume the ledger. Discover the consuming repo's
 own review/engineering conventions (a review-criteria file such as `REVIEW.md`, a
 `docs/conventions/` or standards directory, CLAUDE.md rules) and align finding vocabulary and
 severity with them; the bundled model is the fallback, never an override of the consumer's

@@ -103,10 +103,8 @@ what this skill needs, in this plugin. Invoke it, or consume its briefing if it 
 session. A separate probe here would duplicate that read.
 
 **Slug selection** for artifact-grounded reads: an explicit argument wins; else the
-most-recently-modified topic slice; else the branch-derived slug. Resolve every path through the
-plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
-the memory and contract roots are configurable, so never hardcode them.
+most-recently-modified topic slice; else the branch-derived slug. Resolve every path from the
+memory root (default `.work/`), which is configurable, so never hardcode it.
 
 **When the memory root is unreadable or empty. Say so; do not infer.** In a worktree, a sibling
 lane, or a fresh clone the memory slice is invisible, so *every* upstream artifact reads "absent".

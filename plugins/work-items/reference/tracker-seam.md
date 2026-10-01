@@ -1,7 +1,7 @@
 # Shared tracker context for every work-items skill
 
 The work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`, `ship`) share one tracker
-seam, one label taxonomy, one canonical-role remap, and one topic-docs binding. Those invariants
+seam, one label taxonomy, one canonical-role remap, and one memory-tier write rule. Those invariants
 live here so each skill states them once by reference rather than restating them. Read this document
 (and the references it links) at the start of any work-items skill invocation.
 
@@ -171,12 +171,18 @@ Recurring items are defined in `.github/recurring-schedule.json` and created as 
 consuming repo's recurring-issues automation when they come due. The `/work-items:track recheck`
 action updates this schedule after completing a periodic check.
 
-## Topic-docs binding
+## Memory-tier writes
 
-Memory-tier writes (checklists, ad-hoc notes) and the tier-selected plan/PRD lookup resolve through
-this plugin's topic-docs binding, documented in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
-Derive `<slug>` per its slug spec and, on the session's first memory-tier write, verify the resolved
-memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
+Memory-tier writes (checklists, ad-hoc notes such as an unfiled item draft) go to `<memory_dir>/<slug>/`:
+`<memory_dir>` is `.work/` unless the project's instructions declare another root, and it is never
+committed. `<slug>` is the topic: the explicit argument, else the Brief or PRD topic, else the current
+branch name, kebab-case `[a-z0-9-]`, at most 40 characters. On the session's first memory-tier write,
+verify the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never
+edit the consumer's root `.gitignore`. Plan and PRD lookups read the same slice.
+
+The tracker is the cross-checkout index: tickets are how sessions in other worktrees, clones, and
+machines discover work state, so ticket bodies point (PR URLs) and never store primary artifacts or a
+memory-slice path.
 
 ## Integration points
 

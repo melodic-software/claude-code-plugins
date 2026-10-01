@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # metrics.sh: the task-end judge's calibration numbers, from labels.tsv, its
-# columns read by header name (docs/specs/tautological-tests-judge/).
+# columns read by header name (calibration.md, beside it).
 #
 #   metrics.sh [labels.tsv]          per stratum, then pooled as "all", against
 #                                    the user's labels (reference_label, the ground
@@ -86,7 +86,7 @@ SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/${BASH_SOURCE[0]##*/}"
 HOOKS="${SELF%/*}/../../../../hooks"
 PROMPT=plugins/testing/hooks/test-judge-prompt.md
 SKILL=plugins/testing/skills/test-value/SKILL.md
-CALMD=docs/specs/tautological-tests-judge/calibration.md
+CALMD=plugins/testing/skills/audit/evals/judge-calibration/calibration.md
 ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high"
 
 # FNR == 1 of the labels: col[] by header name, R[1..nr] the rater columns;

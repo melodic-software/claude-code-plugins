@@ -5,7 +5,7 @@
       "id": 1,
       "name": "bare-invocation-is-read-only",
       "prompt": "/overengineering:audit",
-      "expected_output": "Opens by stating the pass is read-only and naming the one file it will write — the findings artifact at the memory-tier home resolved through the plugin's topic-docs binding. It walks the enforcement surface and reports; it disables nothing, edits no hook, workflow, gate script, or settings file, and deletes nothing. It names overengineering:realign as the skill that executes accepted findings behind an explicit per-item human gate, and does not offer to start executing on its own.",
+      "expected_output": "Opens by stating the pass is read-only and naming the one file it will write — the findings artifact at the memory-tier home for this branch. It walks the enforcement surface and reports; it disables nothing, edits no hook, workflow, gate script, or settings file, and deletes nothing. It names overengineering:realign as the skill that executes accepted findings behind an explicit per-item human gate, and does not offer to start executing on its own.",
       "files": [],
       "expectations": [
         "States up front, before walking, that the pass is read-only and edits nothing on the surface it audits",

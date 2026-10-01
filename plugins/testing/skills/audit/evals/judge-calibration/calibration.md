@@ -1,7 +1,9 @@
 # Judge calibration
 
-The task-end judge stays advisory until this set measures it (`plan.md` Phase 4, design DT1, DT9,
-DT13). Everything lives in `plugins/testing/skills/audit/evals/judge-calibration/`: `cases/`,
+The task-end judge stays advisory until this set measures it
+([`plan.md`](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/tautological-tests-judge/plan.md)
+Phase 4, design DT1, DT9, DT13). Everything lives in
+`plugins/testing/skills/audit/evals/judge-calibration/`: this file, `cases/`,
 `labels.tsv`, `sample.sh` (draws the set), `raters.sh` (the model raters) and `metrics.sh` (scores
 the labels and runs the judge).
 
@@ -207,7 +209,8 @@ Run-to-run variance: `metrics.sh --rerun <model> <effort>` runs the chosen arm t
 row and reports the share of rows whose verdict changed across the three runs.
 
 After the choice, R2-P13's Stop wait (18-28 s with `opus` `medium`) is re-measured with the chosen
-arm and recorded in `probes.md`; a shorter debounce is considered if the wait stays long.
+arm and recorded in
+[`probes.md`](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/tautological-tests/probes.md); a shorter debounce is considered if the wait stays long.
 
 On every new model in a class, re-run `metrics.sh --sweep` and change the default only when the
 sweep says so: the settings hold class aliases, so a new version needs no code change. Add Haiku

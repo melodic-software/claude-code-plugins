@@ -125,9 +125,10 @@ consumes:
    obligations, the self-ignore guard, and what a minimal producer may omit. Where the two disagree,
    the contract wins and this file is the defect. If it cannot be fetched, do not write. Report and
    stop; a guessed destination reports success while the consumer never scans that path.
-2. Resolve the destination per the contract "Where the file goes": run the **whole rung order**, take
-   the **non-interactive collapse** where this context cannot ask or persist config, and honor the
-   **self-ignore guard** including its invalid-root rule.
+2. Resolve the destination per the contract "Where the file goes": the current branch's findings
+   directory in the memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's
+   instructions declare another root), and honor the **self-ignore guard** including its
+   root-equivalent-root rule.
 3. Generate the content with `cant-fail-scan.sh --findings` (it computes `branch:` verbatim from git,
    `date:` at write time, per-rule `Tier`/`Confidence`, repo-relative `Location`, cell escaping, and
    the `## Surfaces` coverage line; it omits `tier:`, `## By dimension`, and `## Unparsed`. No

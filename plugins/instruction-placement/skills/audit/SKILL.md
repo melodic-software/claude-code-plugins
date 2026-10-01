@@ -130,15 +130,10 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the home through the plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
-and write under it. That document owns the rung order, the constant slug, the branch axis, and the
-memory root's self-ignore guard; `findings-artifact.md` owns what the file contains.
+Write under the home `findings-artifact.md` "Where it lives" defines, which also owns the
+constant slug, the branch axis, the self-ignore guard, and what the file contains.
 
-**Resolve the home; never hardcode the default's shape.** A skill that composes the documented
-default itself writes where the consumer's configured root is not, and the reader's failure mode is
-a missing-artifact stop indistinguishable from "the audit was never run". If a prior artifact exists
-at the resolved home, merge per the contract's re-run semantics rather than overwriting. An
+If a prior artifact exists at that home, merge per the contract's re-run semantics rather than overwriting. An
 operator's `declined` decision must survive a re-audit.
 
 ## The suppression surface

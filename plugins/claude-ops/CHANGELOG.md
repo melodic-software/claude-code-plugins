@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.81.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree. The `machine-profile` skill and the README cite its design document by commit permalink.
+
 ## [0.81.0] - 2026-10-01
 
 ### Added

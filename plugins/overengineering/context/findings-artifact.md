@@ -61,13 +61,15 @@ Consequences, so the boundary is not re-litigated one field at a time:
 
 ## Where it lives
 
-**Memory tier, concern-scoped, never committed.** The home is resolved through this plugin's
-`reference/topic-docs.md` binding, which owns the rung order, the slug rule, the non-interactive
-collapse, and the self-ignore guard. This document names that binding and **never restates it**. A
-skill must run the *whole* rung order rather than assuming the documented default's shape, or it
-writes where the other side never looks.
+**Memory tier, concern-scoped, never committed.** `<memory_dir>` is `.work/` unless the project's
+instructions declare another root. The home is `<memory_dir>/overengineering/<branch-slug>/`, holding
+`findings.md` and, beside it, the delta lane's `spine-baseline.md`. `overengineering` is this plugin's
+concern name under the memory root; the axis is the branch, not a topic, because the surface an audit
+walks is whatever this checkout currently enforces. `<branch-slug>` is the branch name lowercased,
+with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. A skill that composes the path
+any other way writes where the other side never looks.
 
-Two properties the contract does fix:
+Properties of the home:
 
 - **Branch-keyed sub-path.** The resolved home carries a branch-derived segment, so concurrent
   branches, worktrees, and clones never clobber each other's runs. What proves an artifact belongs
@@ -80,7 +82,13 @@ Two properties the contract does fix:
 - **One stable filename per home, rewritten in place.** A re-audit merges into the existing file
   (see "Re-run merge semantics") rather than depositing a timestamped sibling. A per-run filename
   would turn the merge into a search problem and make the artifact's history a guess; the run's
-  timestamp lives in frontmatter, where a reader and a diff can both find it.
+  timestamp lives in frontmatter, where a reader and a diff can both find it. A
+  `spine-baseline.md` in a home is not stray: deleting one destroys the delta lane's only baseline.
+- **Guards.** The session's first memory-tier write verifies the memory root contains a `.gitignore`
+  with `*`, creating it (announced) when absent; once per session, not once per layer, and never the
+  consumer's root `.gitignore`. Partial writes are valid: the audit may write per layer as it walks,
+  so an interrupted run leaves a checkpoint at this path rather than nothing.
+- A run outside a checkout has nothing to judge and stops before any write.
 
 The artifact is **ephemeral by design**: a branch switch, a removed worktree, or a reclaimed
 container loses it. That is acceptable for evidence and verdicts, which are recomputed, and
@@ -664,7 +672,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Obligation | `audit` | `justify` | `realign` | `delta` |
 |---|---|---|---|---|
 | Writes the artifact | yes, the walking producer, `mode: walk` | yes, the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes, status and status-bound fields only | **never**: a reader, and no writer of any field here |
-| Mutates anything outside the artifact | the two auxiliary writes its own read-only contract sanctions, and nothing else: the memory-tier self-ignore guard, and the concern-file persistence on the resolution rungs, which happens only on explicit confirmation; **never the surface it walks** | the same two, on the same terms, since it runs the same rung order; **never the artifact it judges** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
+| Mutates anything outside the artifact | the one auxiliary write its own read-only contract sanctions, the memory-tier self-ignore guard, and nothing else; **never the surface it walks** | the same one, on the same terms; **never the artifact it judges** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
 | Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never**: it reports that one moved, which stays realign's alone |
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
@@ -680,8 +688,7 @@ therefore belongs to that mechanic, and the artifact's own writes stay in `audit
 ## External authority
 
 - `docs/plugin-artifact-protocol.md`: the lifecycle profile this artifact conforms to, covering
-  memory-tier placement, resolution through the current plugin's `reference/topic-docs.md` binding,
-  and the missing-prerequisite stop.
+  memory-tier placement and the missing-prerequisite stop.
 - `docs/conventions/finding-suppression/`: the `finding_id` derivation, the required entry keys,
   the constituents-are-authoritative rule, and the policy-floor precedence inversion.
 - `docs/conventions/detector-findings/README.md`: the fix relay's type-only selection, which is why

@@ -6,7 +6,7 @@
       "name": "plans-the-renames-and-touches-nothing",
       "prompt": "Our docs/ tree has a few files that break our lower-kebab naming rule. Audit the file names and tell me what a rename would touch.",
       "narration": true,
-      "expected_output": "Runs inventory.sh, then sweep.sh on its offender pairs, then emit-findings.sh into the home resolved through the plugin's topic-docs binding. Reports the form table per tier, one line per finding with its site count and tier breakdown, every review site individually, and the artifact's path. States that the tree is unchanged and names /docs-naming:realign-file-names as the next step.",
+      "expected_output": "Runs inventory.sh, then sweep.sh on its offender pairs, then emit-findings.sh into the branch's memory-tier home. Reports the form table per tier, one line per finding with its site count and tier breakdown, every review site individually, and the artifact's path. States that the tree is unchanged and names /docs-naming:realign-file-names as the next step.",
       "expectations": [
         "The three bundled scripts are run rather than the tree being read and judged by hand",
         "The findings artifact path is resolved through the binding, never composed as a hardcoded default",

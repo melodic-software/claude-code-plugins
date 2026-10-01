@@ -56,9 +56,7 @@ edits only after confirmation.
   review criteria and engineering conventions (a review-criteria file, a conventions or
   standards directory, CLAUDE.md rules) and aligns finding vocabulary and severity with
   them; the bundled model is the fallback, never an override.
-- **Ledger placement** follows the marketplace topic-docs convention: memory tier, default
-  `.work/<topic-slug>/coupling-ledger.md`, never committed. Deltas in
-  [`reference/topic-docs.md`](reference/topic-docs.md).
+- **Ledger placement**: memory tier, default `.work/coupling/coupling-ledger.md`, never committed.
 - **Optional collaborators** (`architecture`, `work-items`, `toolchain`, `source-control`,
   `docs-hygiene`) are presence-gated with documented fallbacks; the skill works alone.
 

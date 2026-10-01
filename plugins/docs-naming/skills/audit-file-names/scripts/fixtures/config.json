@@ -6,7 +6,7 @@
     "rule": "lower-kebab",
     "regex": "^[a-z0-9]+([.-][a-z0-9]+)*\\.[a-z0-9]+$",
     "exempt_basenames": ["README.md", "CHANGELOG.md", "INDEX.md"],
-    "exempt_paths": ["docs/topics/**"],
+    "exempt_paths": ["docs/frozen/**"],
     "exempt_extensions": ["py", "sh", "mjs", "js", "ps1"],
     "tiers": [
       {
@@ -20,7 +20,7 @@
         "forms": "none"
       }
     ],
-    "sweep_exclude": ["docs/topics/**"],
+    "sweep_exclude": ["docs/frozen/**"],
     "sweep_exclude_sites": [],
     "generated": [
       {

@@ -41,11 +41,11 @@
 #
 #   read_list::into_text <out-array> <text> --comments inline|leading
 #
-# The same parse over a string already in hand. It exists for the one consumer
-# whose list is not a working-tree file: check-contract-slice-prune.sh reads its
-# baseline out of a git rev, so there is no path to open. Reading a rev through
-# a temp file only to reopen it would put the parse back in two places, which is
-# the divergence this library removes.
+# The same parse over a string already in hand. It exists for consumers whose
+# list is not a working-tree file: check-publisher-token-alignment.sh slices
+# the active block out of one file, so there is no path to open. Reading it
+# through a temp file only to reopen it would put the parse back in two places,
+# which is the divergence this library removes.
 #
 # THE STALE-ENTRY GUARD
 #
