@@ -22,7 +22,7 @@
 # settings, MCP servers or slash commands. Codex runs `codex exec` in its
 # read-only sandbox, which does not refuse reads outside the directory, so a
 # row fails, with no label, when its transcript or answer names labels.tsv,
-# judge-calibration or a case or row id. Exits 1 when any row failed.
+# judge-calibration, tautological-tests-judge (where the user labels), LABELS.md or a case or row id. Exits 1 when any row failed.
 #
 # RATER_CLAUDE_CMD and RATER_CODEX_CMD replace `claude` and `codex`.
 set -uo pipefail
@@ -105,8 +105,8 @@ Reply with one JSON object and nothing else: {\"label\": \"FLAG\", \"reason\": \
     [[ -f "$TMPD/answer" ]] && answer="$(<"$TMPD/answer")"
   fi
   printf '%s\n' "$answer" >>"$TMPD/out"
-  if grep -qF -e labels.tsv -e judge-calibration "$TMPD/out" || grep -qwFf "$TMPD/ids" "$TMPD/out"; then
-    printf '%s\t\tfailed: the transcript names labels.tsv, judge-calibration or a case id\n' "$id"
+  if grep -qF -e labels.tsv -e judge-calibration -e tautological-tests-judge -e LABELS.md "$TMPD/out" || grep -qwFf "$TMPD/ids" "$TMPD/out"; then
+    printf '%s\t\tfailed: the transcript names labels.tsv, LABELS.md, the calibration directory or a case id\n' "$id"
     return 1
   fi
   s="$(jq -Rrs '[scan("\\{[^{}]*\\}") | fromjson? | objects | select(.label | IN("FLAG", "PASS", "UNKNOWN"))] | last
