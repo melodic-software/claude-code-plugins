@@ -195,13 +195,13 @@
       "id": 16,
       "name": "self-mode-large-change-set-criteria-and-coverage-lines",
       "prompt": "/review:quality-gate self\n\nI just finished a large change: 11 modified and 6 untracked files across two modules (the api module and the worker module). Self-review it before I open the PR.",
-      "expected_output": "The self lens runs the reviewer worker over the large change set. The worker report opens with a `Criteria read:` line naming the criteria docs it read (or `none present`, or `skipped: <reason>`) and ends with a `Coverage:` line naming the changed files it did not reach, or `all changed files reviewed`. If a worker return lacks either line, or the Criteria read line names unread criteria, the orchestrator labels the gate partial and resumes the worker once or runs the criteria lens itself; it never reports the gate as clean.",
+      "expected_output": "The self lens runs the reviewer worker over the large change set. The worker report opens with a `Criteria read:` line naming the criteria docs it read (or `none present`, or `skipped: <reason>`) and ends with a `Coverage:` line naming the changed files it did not reach, or `all changed files reviewed`. If a worker return lacks either line, the Coverage line names unreached files, or the Criteria read line names unread criteria, the orchestrator labels the gate partial and dispatches the worker once more or runs the criteria lens itself; it never reports the gate as clean.",
       "files": [],
       "expectations": [
         "The worker report opens with a `Criteria read:` line naming the criteria docs read, `none present`, or `skipped: <reason>`",
         "The worker report ends with a `Coverage:` line naming the changed files not reached, or `all changed files reviewed`",
-        "When a worker return lacks the Criteria read line or the Coverage line, or the Criteria read line names unread criteria, the orchestrator labels the gate partial",
-        "On a partial return the orchestrator resumes the worker once or runs the criteria lens itself, rather than accepting the return as is",
+        "When a worker return lacks the Criteria read line or the Coverage line, the Coverage line names unreached files (for example `Coverage: api/foo.ts, worker/bar.ts`), or the Criteria read line names unread criteria, the orchestrator labels the gate partial",
+        "On a partial return the orchestrator dispatches the worker once more or runs the criteria lens itself, rather than accepting the return as is",
         "A partial gate is never presented as a clean pass, and the findings artifact names what was missed"
       ]
     },
@@ -209,11 +209,11 @@
       "id": 17,
       "name": "self-mode-worker-returns-no-report-is-partial-gate",
       "prompt": "/review:quality-gate self\n\nThe reviewer worker for my 17-file change came back with only a short message saying it ran out of turns and no findings table. Finish the self review.",
-      "expected_output": "A worker return with no report is a partial gate. The orchestrator resumes the worker once for the report or runs the criteria lens itself; if the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
+      "expected_output": "A worker return with no report is a partial gate. The orchestrator dispatches the worker once more for the report or runs the criteria lens itself; if the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
       "files": [],
       "expectations": [
         "Treats a worker return with no report as a partial gate, not as a clean pass",
-        "Resumes the worker once for the report or runs the criteria lens itself",
+        "Dispatches the worker once more for the report or runs the criteria lens itself",
         "If still partial, the verdict and findings artifact state the gate is partial and name what was missed",
         "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
