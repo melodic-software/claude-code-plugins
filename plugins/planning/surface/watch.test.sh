@@ -446,7 +446,11 @@ if bash "$here/round.sh" --dir "$fast" ensure-running --port 0 >/dev/null 2>&1; 
   until_waiting "$(sed -n 's/^PORT=//p' "$fast/.interview-session.env" | tr -d '\r')"
   spid=$(sed -n 's/.*"pid": *\([0-9]*\).*/\1/p' "$fast/.interview-session.json")
   rm -f "$fast/.interview-session.env"
-  kill "$spid" 2>/dev/null
+  # On Windows $spid is a native pid, which Git Bash's kill does not know.
+  case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*) taskkill //F //PID "$spid" >/dev/null 2>&1 ;;
+    *) kill "$spid" 2>/dev/null ;;
+  esac
   end=$((SECONDS + 10))
   while kill -0 "$wpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
   if kill -0 "$wpid" 2>/dev/null; then
