@@ -2433,8 +2433,9 @@ def _bash_denial_guidance(
         "denied unless they are "
         + grammar
         + " Other Bash commands, git and gh included, reach this belt only "
-        "when they name the engine, probe or release script, or when Claude "
-        "Code cannot split them into their parts; then they are denied too. "
+        "when they run the engine, probe or release script through an "
+        "interpreter, contain $() or backticks, or cannot be split into their "
+        "parts by Claude Code; then they are denied too. "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )

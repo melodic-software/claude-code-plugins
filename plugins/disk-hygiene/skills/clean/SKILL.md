@@ -21,9 +21,9 @@ hooks:
         - {"if": "Bash(*/mv *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
         - {"if": "Bash(find *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
         - {"if": "Bash(*/find *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
-        - {"if": "Bash(*hygiene.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
-        - {"if": "Bash(*kill_switch_probe.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
-        - {"if": "Bash(*release_belt.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*py* */clean/scripts/hygiene.py *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*py* */setup/scripts/kill_switch_probe.py)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*py* */clean/scripts/release_belt.py *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
     - matcher: "PowerShell"
       hooks:
         - {"type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
@@ -475,8 +475,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   the rest of the session after the skill is invoked. It does not reach subagents, and a wrapped
   deletion (a script, an interpreter, `bash -c`) passes the Bash lane, a deny-list. The Bash belt denies
   `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` except exact engine calls and a
-  read-only allowlist; git reaches it only by naming a bundled script. Run the release lever its
-  denial prints only when the user asks. Gaps: [Session belt](reference/safety-model.md#session-belt).
+  read-only allowlist; git reaches it only through `$()`, backticks or an unsplittable command.
+  Run the release lever its denial prints only when the user asks. Gaps: [Session belt](reference/safety-model.md#session-belt).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

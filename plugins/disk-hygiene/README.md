@@ -43,8 +43,8 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   documented cleanup/GC command. A dry-run result is evidence for the report, never authorization for
   this engine to remove it. A registry match follows `skills/clean/reference/managed-state-report.md`.
 - The skill-scoped belt governs deletion shapes, not every command. On Bash it reaches `rm`,
-  `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` (bare or by absolute path) and any command
-  naming a bundled script. It permits only canonical bundled scan/preview calls made from literal
+  `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` (bare or by absolute path) and interpreter
+  calls of the bundled scripts. It permits only canonical bundled scan/preview calls made from literal
   shell words and a read-only allowlist, returns `ask` for the two exact mutating shapes, `apply` and
   `handoff-apply`, and denies the rest of what reaches it. Brace, tilde, parameter, command,
   arithmetic, process, word-splitting, filename, redirection, and operator syntax is rejected before
@@ -202,8 +202,10 @@ move commands Claude issues in the main session's Bash and PowerShell lanes. It 
 **What is governed.** Both lanes govern deletion shapes.
 
 - Bash: `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, bare or by absolute path, plus
-  any command naming `hygiene.py`, `kill_switch_probe.py` or `release_belt.py`. Other commands (`git`,
-  `gh`, the repo-hygiene scripts) are not denied. What reaches the belt is denied unless it is an
+  an interpreter call of `hygiene.py`, `kill_switch_probe.py` or `release_belt.py` by its bundled
+  path; a command that only mentions one of them does not reach the belt. Other commands (`git`,
+  `gh`, the repo-hygiene scripts) are not denied unless they contain `$()` or backticks, which
+  Claude Code checks against every wildcard-led pattern. What reaches the belt is denied unless it is an
   exact bundled engine call, the argument-free kill-switch probe, a read-only supporting command, or
   the release lever.
 - PowerShell: known deletion spellings get `ask`; engine invocations are denied.

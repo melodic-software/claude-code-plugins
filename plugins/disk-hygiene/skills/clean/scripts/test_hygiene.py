@@ -12616,15 +12616,16 @@ class GuardTests(unittest.TestCase):
         )
 
     # The clean skill's belt `if` list: deletion heads bare and by absolute
-    # path, plus the three bundled scripts whose calls the belt adjudicates.
+    # path, plus interpreter calls of the three bundled scripts by their
+    # plugin-relative path, so a command that only mentions a script skips.
     _BELT_BASH_IFS = [
         f"Bash({form})"
         for head in ("rm", "rmdir", "unlink", "shred", "truncate", "mv", "find")
         for form in (f"{head} *", f"*/{head} *")
     ] + [
-        "Bash(*hygiene.py*)",
-        "Bash(*kill_switch_probe.py*)",
-        "Bash(*release_belt.py*)",
+        "Bash(*py* */clean/scripts/hygiene.py *)",
+        "Bash(*py* */setup/scripts/kill_switch_probe.py)",
+        "Bash(*py* */clean/scripts/release_belt.py *)",
     ]
 
     def test_belt_registers_deletion_shape_filters_on_bash_only(self) -> None:
@@ -12645,25 +12646,48 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(1, len(launches), launches)
         self.assertIn("destructive_guard.py", " ".join(handlers[0][1]["args"]))
 
-    def test_belt_filters_skip_git_gh_and_helper_scripts(self) -> None:
-        """Deletion heads reach the belt; git and gh do not.
+    @classmethod
+    def _belt_if_reaches(cls, command: str) -> bool:
+        """Whether any of the skill's Bash ``if`` globs admits ``command``.
 
-        ``fnmatchcase`` over the whole command stands in for the harness's
-        per-subcommand ``if`` match; it does not model splitting on ``&&``.
+        ``fnmatchcase`` over the shell words joined by single spaces stands in
+        for the harness's per-subcommand match, which sees words with their
+        quotes removed (Claude Code 2.1.286: ``*/x.py *`` matched
+        ``"/usr/bin/python3" "/nx/x.py" --a``, ``*x.py" *`` did not). It does
+        not model splitting on ``&&`` or the run-anyway rule for ``$()``.
         """
-        globs = [
-            hook["if"][len("Bash(") : -1]
-            for matcher, hook in self._skill_hooks()
+        text = " ".join(shlex.split(command))
+        return any(
+            fnmatch.fnmatchcase(text, hook["if"][len("Bash(") : -1])
+            for matcher, hook in cls._skill_hooks()
             if matcher == "Bash"
-        ]
+        )
 
-        def reaches(command: str) -> bool:
-            return any(fnmatch.fnmatchcase(command, glob) for glob in globs)
+    _DELETION_SHAPES = (
+        "rm -f /tmp/x",
+        "/bin/rm -f /tmp/x",
+        "rmdir /tmp/d",
+        "unlink /tmp/x",
+        "shred -u /tmp/x",
+        "truncate -s 0 /tmp/x",
+        "mv /tmp/a /tmp/b",
+        "find /tmp/d -delete",
+        "/usr/bin/find /tmp/d -delete",
+    )
 
+    def test_belt_filters_skip_git_gh_and_helper_scripts(self) -> None:
+        """Deletion heads and interpreter calls of the bundled scripts reach
+        the belt; git, gh and commands that only mention a script do not."""
+        skill = SCRIPT_DIR.parent.resolve().as_posix()
         for command in (
             "git --version",
             "git log --format=%H",
             "git commit -m 'remove the rm handling'",
+            "git commit -m 'hygiene.py'",
+            "git commit -m 'release_belt.py and kill_switch_probe.py'",
+            "git log -- skills/clean/scripts/hygiene.py README.md",
+            f"cat {skill}/../setup/scripts/kill_switch_probe.py",
+            f"ls {skill}/scripts/release_belt.py {skill}/SKILL.md",
             "gh pr merge 5 --delete-branch",
             "gh issue list --state open",
             "bash /p/repo-hygiene/skills/clean/scripts/git-branch-audit.sh",
@@ -12671,20 +12695,47 @@ class GuardTests(unittest.TestCase):
             "npm run format",
         ):
             with self.subTest(command=command):
-                self.assertFalse(reaches(command))
+                self.assertFalse(self._belt_if_reaches(command))
+        for command in self._DELETION_SHAPES:
+            with self.subTest(command=command):
+                self.assertTrue(self._belt_if_reaches(command))
+
+    def test_belt_filters_reach_every_exact_bundled_script_call(self) -> None:
+        """A pattern that stopped matching the exact forms would let the
+        release lever skip its ``ask`` and the probe lose its ``allow``."""
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
         for command in (
-            "rm -rf x",
-            "/bin/rm -rf x",
-            "rmdir x",
-            "unlink x",
-            "shred -u x",
-            "truncate -s 0 x",
-            "mv a b",
-            "find . -delete",
-            "/usr/bin/find . -name x",
+            self._engine_words("scan --target t --output s"),
+            self._engine_words(
+                "apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r"
+            ),
+            self._release_words(),
+            f'"{self.python_command()}" "{probe.resolve().as_posix()}"',
+            '"C:/Windows/py.exe" "C:/p/skills/clean/scripts/release_belt.py" '
+            '--data-root "C:/d" --session-id s',
         ):
             with self.subTest(command=command):
-                self.assertTrue(reaches(command))
+                self.assertTrue(self._belt_if_reaches(command))
+
+    def test_belt_denies_every_deletion_shape_its_filters_admit(self) -> None:
+        self.authorize_data_root()
+        for command in self._DELETION_SHAPES:
+            with self.subTest(command=command):
+                self.assertEqual("deny", self._permission(self._belt(command)))
+        powershell_ifs = [
+            hook.get("if")
+            for matcher, hook in self._skill_hooks()
+            if matcher == "PowerShell"
+        ]
+        self.assertEqual([None], powershell_ifs)
+        for command in ("Remove-Item -Recurse C:/tmp/x", "rm C:/tmp/x", "del C:/tmp/x"):
+            for enabled, expected in ((True, "ask"), (False, "deny")):
+                with self.subTest(command=command, enabled=enabled):
+                    result = self._belt(
+                        command, tool_name="PowerShell", enabled=enabled
+                    )
+                    self.assertEqual(expected, self._permission(result))
 
     _SESSION = "3f9c2a10-belt-session"
 
@@ -12818,7 +12869,7 @@ class GuardTests(unittest.TestCase):
                     self.assertIn(f"Bash({form})", ifs)
         for script in ("hygiene.py", "kill_switch_probe.py", "release_belt.py"):
             with self.subTest(script):
-                self.assertIn(f"Bash(*{script}*)", ifs)
+                self.assertTrue(any(f"/scripts/{script}" in glob for glob in ifs))
 
     def test_belt_lets_the_readonly_allowlist_through(self) -> None:
         self.authorize_data_root()

@@ -827,10 +827,16 @@ call operator; the guard's own PowerShell classifier does the shape matching.
 The clean skill's frontmatter registers the guard in `belt` mode for the rest of the session. On
 Bash it registers one handler per `if` pattern, all running the same guard: `rm`, `rmdir`,
 `unlink`, `shred`, `truncate`, `mv` and `find`, each bare (`Bash(rm *)`) and by absolute path
-(`Bash(*/rm *)`), plus `*hygiene.py*`, `*kill_switch_probe.py*` and `*release_belt.py*`. git, gh,
-the repo-hygiene scripts and other commands reach the guard only when they name one of those three
-scripts (`git diff -- .../hygiene.py`), or when Claude Code cannot split the command, which runs
-every handler.
+(`Bash(*/rm *)`), plus an interpreter call of each bundled script by its plugin-relative path:
+`*py* */clean/scripts/hygiene.py *`, `*py* */setup/scripts/kill_switch_probe.py` and
+`*py* */clean/scripts/release_belt.py *`. A command that only mentions a script
+(`git commit -m 'hygiene.py'`, `git log -- .../hygiene.py README.md`) does not reach the belt; the
+plugin-level engine gate still sees every engine invocation shape. git, gh, the repo-hygiene
+scripts and other commands reach the guard only when they contain `$()` or backticks, which run
+every handler whose pattern starts with a wildcard, or when Claude Code cannot split the command,
+which runs every handler. A non-exact release call that no pattern matches, such as a relative
+`python3 release_belt.py` after `cd`, goes to the normal permission system instead of the guard's
+`ask`; the release marker is a plain file, so the lever's prompt is a visibility aid, not a boundary.
 
 What reaches the guard is denied unless it is one of these:
 
@@ -876,11 +882,18 @@ gate fired there. Widening the plugin gate to subagents is a separate decision.
 **Claim:** `if` is honored per handler on skill-frontmatter hooks, and `Bash(rm *)` matches `rm`
 after `&&`, `;`, `|`, `xargs`, `$( )` and a `VAR=value` prefix but not `/bin/rm`, `command rm`,
 `env`, `timeout`, `nohup`, `bash -c` or `eval`; a command Claude Code cannot split runs every
-handler; and `if` does not match a redirection or the `&` call operator. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
-hooks use the same configuration format as settings hooks) and the `if` field; the page does not
-say whether `if` applies in frontmatter, so the per-handler behavior and the match table rest on a
-probe on Claude Code 2.1.285 (Linux). **As of:** 2026-10-01. **Recheck:** the page starts scoping
-`if` by hook location, or changes how `if` splits or normalizes a Bash command.
+handler; and `if` does not match a redirection or the `&` call operator. A pattern matches the
+command's words with their quotes removed, so `*py* */clean/scripts/release_belt.py *` matches
+`"<python>" "<root>/skills/clean/scripts/release_belt.py" --data-root ...` (with a `python3.14`,
+`python.exe` or `py.exe` head) and not `git commit -m 'release_belt.py'`; a pattern starting with
+a wildcard (`*/rm *`, the three script patterns) also runs on any command containing `$()`, while
+`Bash(rm *)` does not. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
+hooks use the same configuration format as settings hooks), the `if` field and its Bash matching
+table (patterns that specify more than the command name run on `$()`); the page does not say
+whether `if` applies in frontmatter or how quotes are treated, so the per-handler behavior and the
+match table rest on probes on Claude Code 2.1.285 and 2.1.286 (Linux). **As of:** 2026-10-01.
+**Recheck:** the page starts scoping `if` by hook location, or changes how `if` splits, unquotes
+or normalizes a Bash command.
 
 ## Windows hint claims
 
