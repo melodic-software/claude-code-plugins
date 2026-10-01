@@ -230,7 +230,7 @@ prune_task_state() {
   # The provisioning launcher: pwsh reading the plugin index for this plugin's key
   # and running the in-plugin prune script from the install it records.
   if [[ "$command" == *pwsh.exe && "$arguments" == *installed_plugins.json* &&
-    "$arguments" == *claude-ops@* && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
+    ("$arguments" == *harness-ops@* || "$arguments" == *claude-ops@*) && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
     printf 'provisioned'
     return 0
   fi
@@ -288,7 +288,7 @@ case "$MODE" in
   stamp="${stamp%$'\r'}"
   stamp_epoch=""
   if [[ -n "$stamp" ]]; then
-    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)"  # portability-ok: BSD date -j fallback on the same line
+    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)" # portability-ok: BSD date -j fallback on the same line
   fi
   if [[ -n "$stamp_epoch" ]]; then
     age=$(($(date +%s) - stamp_epoch))

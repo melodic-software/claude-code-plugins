@@ -117,7 +117,7 @@ run level `Limited`. The same apply converges the scoped `SERVICE_STOP | SERVICE
 prune needs; the grant includes no service-configuration or ACL-writing rights.
 
 The task runs a launcher, not a fixed path. On every run it reads the user-scope entry for this
-plugin (key `claude-ops@<marketplace>`) in `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`,
+plugin (key `harness-ops@<marketplace>`) in `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`,
 else `~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
 `installPath` through Git Bash (a machine or a user-scope Git for Windows install). A plugin
 update therefore needs no re-registration, and the 14-day orphan sweep of an old version directory
