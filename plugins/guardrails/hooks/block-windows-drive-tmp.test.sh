@@ -538,6 +538,54 @@ run_win_pwsh "PS: python heredoc json.load(open(C:/tmp)) read (allowed)" \
   $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'C:/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
 run_win_pwsh "PS: python heredoc json.dump to the same C:/tmp path, write mode (blocked)" \
   $'python3 - <<\'EOF\'\nimport json\nd = {}\njson.dump(d, open(\'C:/tmp/retro-685.json\', \'w\'))\nEOF' 2
+# The read relief needs python to be what consumes the read-call text. In any
+# other shape a pipeline lifts the literal out of the text and writes it, and a
+# second run in the same command writes elsewhere.
+run_win "echo open(/c/tmp).read() | xargs -d tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" tee" 2
+run_win "echo open(/c/tmp).read() | xargs -d -n1 tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" -n1 tee" 2
+run_win "echo open(/c/tmp).read() | cut | xargs tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win "echo open(/c/tmp).read() | cut | xargs cp a (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs cp a" 2
+run_win "echo json.load(open(/c/tmp)) | cut | xargs tee (blocked)" \
+  "echo \"json.load(open('/c/tmp/x'))\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win "python read, then a second python run on a computed path (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\"; python3 -c \"import sqlite3; sqlite3.connect('/c/t'+'mp/b')\"" 2
+run_win "python -c read with its output piped to xargs tee (blocked)" \
+  "python3 -c \"print('/c/t'+'mp/x'); open('/c/tmp/a').read()\" | xargs tee" 2
+run_win "python -c read with an argument (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\" arg" 2
+run_win "python heredoc read with its output piped to xargs tee (blocked)" \
+  $'python3 - <<\'EOF\' | xargs -n1 tee\nimport json; d = json.load(open(\'/c/tmp/a\'))\nprint(\'/c/t\' + \'mp/x\')\nEOF' 2
+run_win "python heredoc read, then a line piping a computed path to tee (blocked)" \
+  $'python3 - <<\'EOF\'\nprint(open(\'/c/tmp/a\').read())\nEOF\necho /c/t""mp/x | xargs tee' 2
+run_win "script file fed a read as its heredoc (blocked)" \
+  $'python3 ./w.py <<\'EOF\'\nopen(\'/c/tmp/a\').read()\nEOF' 2
+run_win "path-qualified python word with a read (blocked)" \
+  "./python3 -c \"print(open('/c/tmp/a').read())\"" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | xargs -d tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | xargs -d -n1 tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" -n1 tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | cut | xargs tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | cut | xargs cp a (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs cp a" 2
+run_win_pwsh "PS: echo json.load(open(/c/tmp)) | cut | xargs tee (blocked)" \
+  "echo \"json.load(open('/c/tmp/x'))\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win_pwsh "PS: python read, then a second python run on a computed path (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\"; python3 -c \"import sqlite3; sqlite3.connect('/c/t'+'mp/b')\"" 2
+run_win_pwsh "PS: python heredoc read with its output piped to xargs tee (blocked)" \
+  $'python3 - <<\'EOF\' | xargs -n1 tee\nimport json; d = json.load(open(\'/c/tmp/a\'))\nprint(\'/c/t\' + \'mp/x\')\nEOF' 2
+# The one allowed shape is a single plain python run: its -c string, or a heredoc
+# on stdin with nothing after the terminator.
+run_win "python -B -u -c open(/tmp) read (allowed)" "python3 -B -u -c \"print(open('/tmp/x').read())\"" 0
+run_win "py launcher -3 -c open(/c/tmp) read (allowed)" "py -3 -c \"print(open('/c/tmp/x').read())\"" 0
+run_win "python heredoc read, no - operand, blank lines after the tag (allowed)" \
+  $'python3 <<\'EOF\'\nprint(open(\'/c/tmp/a\').read())\nEOF\n\n' 0
+run_win_pwsh "PS: python -c open(C:/tmp) read (allowed)" "python -c \"print(open('C:/tmp/x').read())\"" 0
 # Inline-code text quoted as data to a command that only carries text is a
 # mention (#3951). The relief is an allowlist of whole commands (gh issue/pr
 # create|comment|edit, git commit|tag, echo, printf), so any command not on it,

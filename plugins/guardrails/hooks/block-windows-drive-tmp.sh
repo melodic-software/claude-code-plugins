@@ -647,7 +647,8 @@ segment_writes_drive_root_tmp() {
   # Inline python write opening a drive-root tmp path, counted only when the
   # command can run code (inline_code_can_run). write_text, write_bytes and
   # makedirs are always writes; an `open(` is relieved only when the whole
-  # command is proven read-only (command_opens_only_for_read).
+  # command is one python run (command_is_one_python_run) proven read-only
+  # (command_opens_only_for_read).
   if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
     has_drive_root_tmp "$subject" && inline_code_can_run && return 0
     return 1
@@ -657,11 +658,25 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$subject" && inline_code_can_run || return 1
     if [[ -z "$_DRIVE_TMP_OPEN_RC" ]]; then
       _DRIVE_TMP_OPEN_RC=0
-      command_opens_only_for_read "$NORM" && _DRIVE_TMP_OPEN_RC=1
+      command_is_one_python_run "$NORM" && command_opens_only_for_read "$NORM" && _DRIVE_TMP_OPEN_RC=1
     fi
     return "$_DRIVE_TMP_OPEN_RC"
   fi
   return 1
+}
+
+# <var> <text>: <text> with every quoted string replaced by one `Q` word, set in
+# this shell. Returns 1 for an unterminated quote.
+collapse_quoted_to() {
+  local __dt_dest="$1" __dt_rest="$2" __dt_bare="" __dt_q
+  while [[ "$__dt_rest" =~ ^([^\"\']*)([\"\']) ]]; do
+    __dt_bare+="${BASH_REMATCH[1]}Q"
+    __dt_q="${BASH_REMATCH[2]}"
+    __dt_rest="${__dt_rest:${#BASH_REMATCH[0]}}"
+    [[ "$__dt_rest" == *"$__dt_q"* ]] || return 1
+    __dt_rest="${__dt_rest#*"$__dt_q"}"
+  done
+  printf -v "$__dt_dest" '%s' "$__dt_bare$__dt_rest"
 }
 
 # Inline `open(` / `write_text(` text is code only when something runs it, so a
@@ -684,16 +699,8 @@ inline_code_can_run() {
     _DRIVE_TMP_CODE_RC=0
     if [[ "$TOOL_NAME" == Bash && "$COMMAND" != *[\\\$\`]* ]] &&
       [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]]; then
-      local rest="$COMMAND" bare="" q
-      while [[ "$rest" =~ ^([^\"\']*)([\"\']) ]]; do
-        bare+="${BASH_REMATCH[1]}Q"
-        q="${BASH_REMATCH[2]}"
-        rest="${rest:${#BASH_REMATCH[0]}}"
-        [[ "$rest" == *"$q"* ]] || return "$_DRIVE_TMP_CODE_RC"
-        rest="${rest#*"$q"}"
-      done
-      bare+="$rest"
-      [[ "$bare" =~ $_DRIVE_TMP_DATA_ONLY ]] && _DRIVE_TMP_CODE_RC=1
+      local bare
+      collapse_quoted_to bare "$COMMAND" && [[ "$bare" =~ $_DRIVE_TMP_DATA_ONLY ]] && _DRIVE_TMP_CODE_RC=1
     fi
   fi
   return "$_DRIVE_TMP_CODE_RC"
@@ -776,6 +783,46 @@ command_opens_only_for_read() {
   done
   [[ "$out$rest" == *tmp* ]] && return 1
   return 0
+}
+
+# The read relief needs an interpreter to be what consumes the read-call text:
+# in any other shape a pipeline can lift the literal out of the text and use it
+# as a write operand (`echo "open('/c/tmp/x').read()" | cut -d "'" -f2 | xargs
+# tee`), and a second run in the same command can write elsewhere. So the whole
+# command (already lowercased) must be exactly one bare python run, and the text
+# sits only in that run's code position: the `-c` string, or a heredoc fed to it
+# on stdin. Nothing else may follow: no pipe, `;`, `&&`, redirect, argument or
+# later line, and the run takes only plain flags (no `-m`, `-W`, `-X`), so no
+# module or script file reads the text instead. `py` is the Windows launcher. A
+# path-qualified, wrapped (`env`, `xargs`) or non-python interpreter keeps the
+# block.
+_DRIVE_TMP_PY_RUN="^[[:space:]]*(python([0-9]+(\.[0-9]+)*)?|py)(\.exe)?([[:blank:]]+(-[beiopqrsu]+|-[0-9]+(\.[0-9]+)*))*"
+_DRIVE_TMP_PY_RUN_C="${_DRIVE_TMP_PY_RUN}[[:blank:]]+-c[[:blank:]]+Q[[:blank:]]*\$"
+_DRIVE_TMP_PY_RUN_HEREDOC="${_DRIVE_TMP_PY_RUN}([[:blank:]]+-)?[[:blank:]]*<<[[:blank:]]*('[a-z_][a-z0-9_]*'|\"[a-z_][a-z0-9_]*\"|[a-z_][a-z0-9_]*)[[:blank:]]*\$"
+command_is_one_python_run() {
+  local s="$1" bare first rest line tag ended=0
+  if collapse_quoted_to bare "$s" && [[ "$bare" =~ $_DRIVE_TMP_PY_RUN_C ]]; then
+    return 0
+  fi
+  [[ "$s" == *$'\n'* ]] || return 1
+  first="${s%%$'\n'*}"
+  [[ "$first" =~ $_DRIVE_TMP_PY_RUN_HEREDOC ]] || return 1
+  tag="${first##*<<}"
+  tag="${tag//[[:blank:]\'\"]/}"
+  rest="${s#*$'\n'}"
+  # The heredoc ends at the first line that is exactly the tag; only blank lines
+  # may follow it.
+  while :; do
+    line="${rest%%$'\n'*}"
+    if ((ended)); then
+      [[ -z "${line//[[:space:]]/}" ]] || return 1
+    elif [[ "$line" == "$tag" ]]; then
+      ended=1
+    fi
+    [[ "$rest" == *$'\n'* ]] || break
+    rest="${rest#*$'\n'}"
+  done
+  ((ended))
 }
 
 # Write-shaped signal: a known producer / destination utility whose write
