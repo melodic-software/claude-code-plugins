@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-09-30
+
+### Fixed
+
+- **`audit`'s `discovery-method.md` links the audit checklist by its relative path.** The link text named the file through the literal plugin-root token, which the Read tool does not expand. The link target was already relative. No behavior change.
+
 ## [0.10.2] - 2026-09-27
 
 ### Changed

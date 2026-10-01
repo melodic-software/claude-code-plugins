@@ -16,7 +16,7 @@ Detect runtime conditions where deletion would corrupt active state:
 Run the preflight script. Do not reimplement detection inline:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh [ROOT...]
+bash <skill-dir>/scripts/preflight.sh [ROOT...]
 ```
 
 Pass the repositories about to be cleaned as ROOTs. With no ROOT the scope is the invoking repository.

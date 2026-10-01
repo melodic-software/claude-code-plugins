@@ -60,7 +60,7 @@ after posting, defer the PR until a later snapshot. Use the guarded helper rathe
 directly:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
+python "<skill-dir>/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
 The helper requires all of these conditions:

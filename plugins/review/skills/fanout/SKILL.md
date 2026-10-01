@@ -132,6 +132,16 @@ Two further Claude Code surfaces overlap this skill's job on an open PR: the **b
 
 Neither is dispatched as a normalized fan-out surface and [context/findings-normalization.md](context/findings-normalization.md) carries no parse contract for either, but for different reasons. The managed service posts its findings to the PR instead of returning them to this skill. Bare `/code-review` **is** report-only (findings arrive in the conversation; only `--fix` and `--comment` mutate); it is left out because it is itself a multi-agent review of the same diff, overlapping this skill's own leaf reviewers, and its finding output has no documented schema to write a parse contract against. Run it directly when you want that second orchestration. This skill names the overlap in `## Surfaces` rather than dispatching it. **PR-mutation gate:** `/code-review --comment` and triggering the managed service both post to the PR, which violates the review modes' report-only contract; when the branch has an open PR, invoke either only on explicit user opt-in ("post the review comment"), otherwise note the overlap in `## Surfaces` without invoking it. Not enabled/available → note the skip; a repository's own CI review bot (e.g. the managed service, when enabled) still provides PR coverage independently.
 
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## What this skill does NOT do
 
 - **Review modes do not apply fixes**. Mutation happens only through the explicit `fix` action; it never auto-runs after a review.

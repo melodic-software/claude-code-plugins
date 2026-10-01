@@ -19,7 +19,7 @@ exactly as for the slices.
 **Coordination provider required.** Offer the container only when the bound provider is a
 coordination surface. A `local-markdown` binding is worktree-confined, each worktree sees its
 own store, so a container published there is invisible to exactly the later sessions and worker
-worktrees it exists to brief (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`
+worktrees it exists to brief (`<plugin-root>/tools/work-item-tracker/CONTRACT.md`
 "local-markdown adapter": local-markdown "is never that surface"). On a `local-markdown`
 binding, skip the offer and, if the user asks for a container anyway, surface the redirect to a
 coordination provider instead of publishing a spec that cannot travel.
@@ -34,7 +34,7 @@ coordination provider instead of publishing a spec that cannot travel.
   produced any, and the approved `**Execution shape:** <choice>` line appended after the Brief
   sections, plus the sibling `**Integration branch:** <branch-name>` line when the integration
   shape was chosen and named
-  ([`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)
+  ([`reference/execution-shape.md`](../../../reference/execution-shape.md)
   "The shape line"). No inflation, the Brief as approved is the spec. Exactly three additions
   are admitted beside it and nothing else: the `## Testing decisions` section, the inlined
   design artifact block(s) and their provenance notes specified immediately below, and the shape
@@ -84,9 +84,9 @@ coordination provider instead of publishing a spec that cannot travel.
     the `**Execution shape:**` line, so the shape line and its sibling stay last for
     `/work-items:ship` to read back. Found nothing: emit nothing, no heading and no placeholder.
 - **Labels**: the container label resolved from the binding (`config.container_label`, default
-  `work-map`. [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+  `work-map`. [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
   "Container label") plus the human-gated role label: a container is never claimable and never
-  its own frontier item (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Containers
+  its own frontier item (`<plugin-root>/tools/work-item-tracker/CONTRACT.md` "Containers
   and state").
 - **Slices**: publish per Step 4 with `--parent "<container-id>"`; blockers-first ordering,
   born-triaged, and the `## Parent` body section (`Refs #<container>`) are unchanged.

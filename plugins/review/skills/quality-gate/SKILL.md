@@ -146,6 +146,16 @@ Follow the selected context file. Two hard rules:
 - **Does not write or fix code**. It identifies issues; the implementer fixes them
 - **Does not fan out across many surfaces**. That is this plugin's `fanout` skill
 
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 - **Don't skip self-review for "small" changes**. Small changes have the highest ratio of "obviously fine" to "actually had a bug."

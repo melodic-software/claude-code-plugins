@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.41.2] - 2026-09-30
+
+### Fixed
+
+- **`find-handoff`, `retro` and `running-retro` spokes no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` or `reference/` file, so the `save_point.py` and `parse_transcript.py` commands and the catalog path resolved to nothing. They now read `<plugin-root>/...`, links are relative, and `find-handoff` and `retro` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.41.1] - 2026-09-30
 
 ### Changed

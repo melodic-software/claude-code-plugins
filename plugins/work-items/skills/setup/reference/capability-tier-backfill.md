@@ -8,7 +8,7 @@ live in the reference's "Legacy body stamps" subsection.
 Resolve the script:
 
 ```bash
-BACKFILL="${CLAUDE_PLUGIN_ROOT}/scripts/backfill-capability-tier-labels.sh"
+BACKFILL="<plugin-root>/scripts/backfill-capability-tier-labels.sh"
 [[ -f "$BACKFILL" ]] || BACKFILL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
 ```
 

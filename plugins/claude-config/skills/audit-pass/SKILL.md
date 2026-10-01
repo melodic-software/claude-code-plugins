@@ -458,6 +458,17 @@ software-engineering instructions it names change; re-verify the `memory` doc ci
 `code.claude.com/docs/en/memory` changes its claim that `@path` imports load at launch (and so
 splitting into imports does not defer or reduce context).
 
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put those paths in place of the placeholders before running a command or
+writing one into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 - **A suppression naming a registered cluster copy is a hard error, not a warning.** The copy is

@@ -16,8 +16,8 @@ Quick health snapshot for proactive auto-invocation. Combines registry stats wit
 Use the registry manager script for efficient stats (add `--data-dir` per the SKILL.md registry-location rule when a `registry_dir` is configured):
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" stats
-python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" list --stale 14
+python "<skill-dir>/scripts/registry_manager.py" stats
+python "<skill-dir>/scripts/registry_manager.py" list --stale 14
 ```
 
 **Step 2: Lightweight quality check.** Fetch service health (fast):

@@ -31,9 +31,9 @@ repo's hook manager or CI instead.
    "refreshed".
 
 **Install (on a clean preflight):** copy
-`${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/pre-commit-content-invariants.sh` to
-`<git-dir>/hooks/pre-commit`, and copy `${CLAUDE_PLUGIN_ROOT}/lib/secret-detection/` plus
-`${CLAUDE_PLUGIN_ROOT}/lib/path-detection/` to
+`<plugin-root>/lib/git-hooks/pre-commit-content-invariants.sh` to
+`<git-dir>/hooks/pre-commit`, and copy `<plugin-root>/lib/secret-detection/` plus
+`<plugin-root>/lib/path-detection/` to
 `<git-dir>/hooks/guardrails-content-lib/{secret,path}-detection/` (resolve `<git-dir>` via
 `git rev-parse --absolute-git-dir`), `chmod +x` the hook.
 
