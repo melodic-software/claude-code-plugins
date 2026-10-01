@@ -1,6 +1,11 @@
 {
   "tools": [
     {
+      "name": "node",
+      "check": "/session-flow:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    },
+    {
       "name": "jq",
       "check": "/session-flow:check",
       "install": "install jq from https://jqlang.org/download/"

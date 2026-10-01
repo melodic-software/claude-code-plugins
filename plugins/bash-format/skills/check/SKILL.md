@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook. Use when a hook notice says shfmt or shellcheck is missing, or before assuming shell formatting or lint ran. Does not install."
+description: "Read-only check that shfmt, shellcheck and node resolve for the bash-format hook. Use when a hook notice says shfmt, shellcheck or node is missing, or before assuming shell formatting or lint ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether shfmt and shellcheck are installed. Never installs.
+  summary: Report whether shfmt, shellcheck and node are installed. Never installs.
 ---
 
 ## Purpose

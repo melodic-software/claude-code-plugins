@@ -348,10 +348,10 @@ if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceilin
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
-if jq -e '(.tools | map(.name)) == ["pwsh", "jq"]' "$MANIFEST" >/dev/null 2>&1; then
-  ok "manifest: declares exactly pwsh and jq"
+if jq -e '(.tools | map(.name)) == ["pwsh", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly pwsh, jq and node"
 else
-  fail "manifest: expected tools pwsh and jq: $(cat "$MANIFEST" 2>&1)"
+  fail "manifest: expected tools pwsh, jq and node: $(cat "$MANIFEST" 2>&1)"
 fi
 IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
 if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \

@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.7.0] - 2026-10-01
+
+### Added
+
+- **`/context-budget:check` reads whether `node` resolves for the context-budget hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `node` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
 ## [0.6.48] - 2026-09-30
 
 ### Changed
