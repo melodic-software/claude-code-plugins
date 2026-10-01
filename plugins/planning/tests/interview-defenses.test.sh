@@ -526,7 +526,7 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "eaa8c6b55d29dda018f77717ddc72781a69d83ab541eb01981ae489d65657e1d"
+  "aa394832ccce4a164b025ac0f9953f8cabbdf01b535423f5b17cda38dca31351"
 # The "memory slice is not a durable home" paragraph names where content that outlives the
 # branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
@@ -571,7 +571,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "bbef97ff9bcb1701a68f38388eeb069ec309932e81ba22565683ccc312033048"
+  "7ff2e6d7f618fe5a4c8569761db3c4c6243b730e7648a95c611251054c328de5"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -618,7 +618,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "75dab98255c4204174bf5876bc7eb854e7413c67c89b688af38b5d5141331942"
+  "aec372b1dfa075840ba325cf956e538291cd6de157c9ea1825c854e93b301634"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"

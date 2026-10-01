@@ -13,8 +13,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Changed
 
 - **The question shape states that the alternatives exclude the recommendation** ([#5715](https://github.com/melodic-software/claude-code-plugins/issues/5715)).
-- **A resumed interview resolves the surface through `${CLAUDE_PLUGIN_ROOT}` again and runs `round.sh doctor --ledger <ledger>` before the first resumed round** (SKILL.md Step 1, loop.md Step 1 and the handoff line).
-- **The page writes the register's `open` rows with `round.sh sync-ledger`** instead of by hand, and a forced wrap-up reports each item its `Skipped before wrap-up:` text lists.
+- **A resumed interview resolves the surface through `${CLAUDE_PLUGIN_ROOT}` again and runs `round.sh --dir <data dir> doctor --ledger <ledger>` before the first resumed round** (SKILL.md Step 1, loop.md Step 1 and the handoff line). SKILL.md Step 5's resume line now passes `--dir` too, which `round.py` requires.
+- **The page writes the register's `open` rows with `round.sh --dir <data dir> sync-ledger`** instead of by hand, and a forced wrap-up reports each item its `Skipped before wrap-up:` text lists.
 - **The register gate's text names `brief=unconfirmed`**, and a Brief edited after a Confirm needs a new `restate` and a fresh Confirm (SKILL.md Steps 3 and 4, loop.md).
 - **The page-surface contract names the page's option labels** (`Rec`, `(a)`, `(b)`) instead of numbered alternatives.
 - `interview-defenses.test.sh` re-pins the ten digests these edits move.
