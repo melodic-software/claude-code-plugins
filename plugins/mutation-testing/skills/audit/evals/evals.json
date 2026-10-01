@@ -159,6 +159,38 @@
         "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
+    },
+    {
+      "id": "record_replay_lost_kill",
+      "prompt": "Run /mutation-testing:audit --exercised scenarios/boundary --record-mutants .work/before.tsv on the fixture. Then delete the assertEqual line from scenarios/boundary/test_app.py, leaving the test calling price_with_tax(50) with no assertion, and run /mutation-testing:audit --exercised scenarios/boundary --replay-mutants .work/before.tsv --record-mutants .work/after.tsv.",
+      "expected_output": "The recording run uses the manual protocol with test-command, writes .work/before.tsv after restoration is verified (first line the HEAD sha, one row per mutant for app.py lines 7-10), and reports `Record: .work/before.tsv, 4 mutants, K0 3`. The replay applies exactly those four rows, with no mapping and no regeneration, writes .work/after.tsv, and runs compare-records.sh. The report shows `K0 3  K1 0`, `Gate: block`, and one newly-surviving line each for app.py:7 comparison-inversion, app.py:9 statement-removal and app.py:10 statement-removal. Line 8 survived both runs and is not newly surviving. app.py is byte-identical at the end.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "record_needs_exercised",
+      "prompt": "Run /mutation-testing:audit --paths app.py --record-mutants .work/before.tsv on the fixture.",
+      "expected_output": "Refuses before generating any mutant, naming `--record-mutants` and `--paths`: a record is defined over the exercised scope's mapped-line set, so it runs only with `--exercised`. Writes no record and mutates nothing.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md"
+      ]
+    },
+    {
+      "id": "replay_production_changed",
+      "prompt": "A record .work/before.tsv was taken over scenarios/boundary at the previous commit. Since then app.py line 9 was changed to multiply by 1.25. Run /mutation-testing:audit --exercised scenarios/boundary --replay-mutants .work/before.tsv --record-mutants .work/after.tsv.",
+      "expected_output": "Refuses in Phase 0 before applying any mutant: app.py differs from the recorded sha (`git diff --quiet <sha> -- app.py` fails) and the recorded original text of line 9 no longer matches. Names the changed path. Writes no after record and reports no Gate line, because a replay over different production code compares different mutants.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py"
+      ]
     }
   ]
 }
