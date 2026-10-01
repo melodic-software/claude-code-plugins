@@ -9773,6 +9773,50 @@ class GuardTests(unittest.TestCase):
                     self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 )
 
+    def test_both_guard_modes_deny_a_malformed_inline_path_call(self) -> None:
+        """An inline ``--path`` passes only as one exact literal word (#4225).
+
+        argparse would take ``--path=value`` and a unique prefix such as
+        ``--pa``; the guard is what refuses them, in both registration modes.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        data_root = self.authorize_data_root()
+        verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot s'
+        apply = (
+            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot s'
+        )
+        apply_tail = f" --vcs-evidence e --report r{data_root}"
+        malformed = {
+            "no value": f"{verify} --path{data_root}",
+            "joined value": f"{verify} --path=rel/junk{data_root}",
+            "beside --paths": f"{verify} --path rel/junk --paths p.json{data_root}",
+            "empty quoted value": f'{verify} --path ""{data_root}',
+            "flag-shaped value": f"{verify} --path -rf{data_root}",
+            "variable expansion": f"{verify} --path $HOME/x{data_root}",
+            "glob": f"{verify} --path a/*.tmp{data_root}",
+            "tilde": f"{verify} --path ~/x{data_root}",
+            "backslash": f"{verify} --path a\\b{data_root}",
+            "command substitution": f"{verify} --path 'a/$(id)'{data_root}",
+            "chained command": f"{verify} --path rel/junk{data_root}; rm -rf x",
+            "handoff-apply joined value": f"{apply} --path=rel/junk{apply_tail}",
+            "handoff-apply prefix": f"{apply} --pa rel/junk{apply_tail}",
+        }
+        # Controls first, so each denial below is the malformed word's own.
+        cases = {
+            "one path": (f"{verify} --path rel/junk{data_root}", "allow"),
+            "two paths": (f"{verify} --path a/one --path b/two{data_root}", "allow"),
+            "handoff-apply": (f"{apply} --path rel/junk{apply_tail}", "ask"),
+            **{label: (command, "deny") for label, command in malformed.items()},
+        }
+        for run in (self.run_guard, self.run_guard_engine_gate):
+            for label, (command, expected) in cases.items():
+                with self.subTest(mode=run.__name__, shape=label):
+                    result = run(command)
+                    assert result is not None
+                    self.assertEqual(
+                        expected, result["hookSpecificOutput"]["permissionDecision"]
+                    )
+
     def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
         probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
         command = f'"{self.python_command()}" "{probe}"'
