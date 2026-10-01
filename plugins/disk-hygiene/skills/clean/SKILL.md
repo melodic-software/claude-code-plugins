@@ -473,6 +473,9 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
+- The belt's threat model is ad hoc deletion and move commands issued in this session's Bash and
+  PowerShell lanes after the skill is invoked. It does not reach subagents, and a wrapped deletion
+  (a script, an interpreter, `bash -c`) passes the Bash lane, which is a deny-list.
 - The Bash belt denies deletion shapes (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`)
   for the rest of the session, except exact engine calls and a read-only allowlist; git reaches it only
   by naming a bundled script. Run the release lever its denial prints only when the user asks. Gaps:

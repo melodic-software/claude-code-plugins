@@ -814,6 +814,15 @@ without that lane.
 
 ## Session belt
 
+**Threat model.** The belt guards against ad hoc deletion and move commands that Claude issues in
+the main session's Bash and PowerShell lanes after `/disk-hygiene:clean` is invoked. It is not a
+sandbox: it does not stop a deletion that is wrapped or written by another route (see Accepted
+gaps), and it does not reach subagents.
+
+**Lane position.** Both lanes govern deletion shapes. The Bash lane is a deny-list of command
+heads; the PowerShell lane turns its known deletion spellings into `ask` and hard-denies engine
+calls.
+
 The clean skill's frontmatter registers the guard in `belt` mode for the rest of the session. On
 Bash it registers one handler per `if` pattern, all running the same guard: `rm`, `rmdir`,
 `unlink`, `shred`, `truncate`, `mv` and `find`, each bare (`Bash(rm *)`) and by absolute path
@@ -856,8 +865,12 @@ tool that can write files (the Write tool, `touch`) can create a marker without 
 **Accepted gaps.** The Bash lane is a deny-list of command heads, so a wrapped deletion passes the
 belt: `command rm`, `env`, `timeout`, `nohup`, `sudo`, `bash -c`, `sh -c`, `eval`, an
 interpreter call (`python3 -c "shutil.rmtree(...)"`), `git rm` and `git clean`, and overwrite by
-redirect, `tee`, `dd` or `sed -i`. Subagents do not inherit the belt either. The engine's own
-containment stays the authority for engine work.
+redirect, `tee`, `dd` or `sed -i`. The engine's own containment stays the authority for engine work. The owner accepted the
+deny-list cost.
+
+**Subagents.** The belt does not reach subagents, deliberately and as documented: a subagent's Bash
+call ran unguarded in 2 of 2 probes on Claude Code 2.1.285 (Linux), while the plugin-level engine
+gate fired there. Widening the plugin gate to subagents is a separate decision.
 
 **Claim:** `if` is honored per handler on skill-frontmatter hooks, and `Bash(rm *)` matches `rm`
 after `&&`, `;`, `|`, `xargs`, `$( )` and a `VAR=value` prefix but not `/bin/rm`, `command rm`,

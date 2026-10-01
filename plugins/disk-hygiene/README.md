@@ -42,10 +42,13 @@ contract); it never follows links or recursively deletes an unvalidated tree.
 - Managed state with no registry match is always a report-only handoff to the owning product's
   documented cleanup/GC command. A dry-run result is evidence for the report, never authorization for
   this engine to remove it. A registry match follows `skills/clean/reference/managed-state-report.md`.
-- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
-  calls made from literal shell words, returns `ask` for the two exact mutating shapes, `apply` and
-  `handoff-apply`, and denies every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
-  filename, redirection, and operator syntax is rejected before argument parsing.
+- The skill-scoped belt governs deletion shapes, not every command. On Bash it reaches `rm`,
+  `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` (bare or by absolute path) and any command
+  naming a bundled script. It permits only canonical bundled scan/preview calls made from literal
+  shell words and a read-only allowlist, returns `ask` for the two exact mutating shapes, `apply` and
+  `handoff-apply`, and denies the rest of what reaches it. Brace, tilde, parameter, command,
+  arithmetic, process, word-splitting, filename, redirection, and operator syntax is rejected before
+  argument parsing. See [Session belt](#session-belt).
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
   directory non-empty and therefore skipped. The one exception is Linux `handoff-apply`, which
   empties a verified checkout's `.git` contents, entries the snapshot never inventoried, under the
@@ -121,8 +124,8 @@ resolves Python itself instead (#1504, #3686).
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
 switch and data-root authority; and the skill-scoped **belt** inside the `clean` skill's context,
-which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
-cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
+which governs deletion shapes in the Bash and PowerShell lanes for the rest of the session
+(see [Session belt](#session-belt)). Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only
 from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
 unconditionally, and fail closed to enabled.
@@ -190,6 +193,35 @@ bare `python3` typed by hand still opens the Store. To clear it: disable the `py
 alias (Settings > Apps > Advanced app settings > App execution aliases) or install real Python ahead
 of WindowsApps on `PATH`. A bare `command -v python3` / `where python3` success is not proof the
 interpreter is real, the stub answers to the name too.
+
+## Session belt
+
+**Threat model.** After `/disk-hygiene:clean` is invoked, the belt guards against ad hoc deletion and
+move commands Claude issues in the main session's Bash and PowerShell lanes. It is not a sandbox.
+
+**What is governed.** Both lanes govern deletion shapes.
+
+- Bash: `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, bare or by absolute path, plus
+  any command naming `hygiene.py`, `kill_switch_probe.py` or `release_belt.py`. Other commands (`git`,
+  `gh`, the repo-hygiene scripts) are not denied. What reaches the belt is denied unless it is an
+  exact bundled engine call, the argument-free kill-switch probe, a read-only supporting command, or
+  the release lever.
+- PowerShell: known deletion spellings get `ask`; engine invocations are denied.
+
+**Accepted cost.** The Bash lane is a deny-list, so a wrapped deletion passes it: a script, an
+interpreter call, `bash -c`, `env`, `timeout`, `eval`, `git rm` or `git clean`. The owner accepted
+this. The engine's own containment stays the authority for engine work.
+
+**Release lever.** When the belt blocks a command the user wants run, ask the user. The Bash denial
+prints one command, `release_belt.py --data-root <root> --session-id <id>`. Claude Code asks for
+approval every time, and the guard logs each released command with its text. A release is per
+session, writes a marker under `<data root>/belt-release/`, and does not touch the engine gate: engine
+calls keep their rules. Without the lever, start a new session to clear the belt.
+
+**Subagents.** The belt does not reach subagents, deliberately: a subagent's Bash call ran unguarded
+in 2 of 2 probes on Claude Code 2.1.285. The plugin-level engine gate does fire there. Widening the
+plugin gate to subagents is a separate decision. Detail:
+[the safety model](skills/clean/reference/safety-model.md#session-belt).
 
 ## Reading guard decisions after the fact
 

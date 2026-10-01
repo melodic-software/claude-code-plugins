@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-10-01
+
+### Changed
+
+- **The `clean` session belt governs deletion shapes only** ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The Bash lane registers one handler per deletion-shape `if` (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`, bare or by absolute path) plus the bundled scripts, so `git`, `gh`, the repo-hygiene scripts and other commands are no longer denied for the rest of the session. What reaches the belt is still denied unless it is an exact engine call, the kill-switch probe, a read-only supporting command or the release lever. The Bash lane is now a deny-list, so a wrapped deletion (a script, an interpreter, `bash -c`, `env`, `git rm`) passes it; the owner accepted that cost. The PowerShell lane is unchanged and both lanes govern deletion shapes. Subagents are still not reached, a documented decision: widening the plugin gate to them is separate.
+
+### Added
+
+- **A logged release lever.** The belt's Bash denial prints `release_belt.py --data-root <root> --session-id <id>`. The guard asks the user to confirm it every time. It writes a per-session marker under `<data root>/belt-release/`; while the marker is a regular file, deletion-shaped commands in that session go to the normal permission system, each is recorded in the guard decision log with its command text, and a `systemMessage` says the belt is released. The engine gate is unaffected, and a marker that is a link or directory leaves the belt in force.
+
+### Fixed
+
+- **The README, safety model and `clean` skill state the belt's threat model, governed shapes, accepted gaps and subagent behavior.** An earlier release note called the belt's subagent reach "inconsistent"; the 0.29.0 entry now says it does not reach subagents, as the 2.1.285 probe showed.
+
 ## [0.42.2] - 2026-09-30
 
 ### Fixed
@@ -429,7 +443,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   stop at VCS or protected directories, and has no entry cap
   ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). The README, worker
   brief and safety model separate the plugin engine gate (fires in subagents) from the skill belt
-  (reach inconsistent, [#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)),
+  (does not reach subagents, [#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)),
   describe the no-interpreter launcher behavior without history, and qualify the four-gate statements
   with the `accept_unpublished` acknowledgement. The README's "Relationship to other tools" heading is
   restored. The `engine_context.py` and `destructive_guard.py` docstrings match the code.
