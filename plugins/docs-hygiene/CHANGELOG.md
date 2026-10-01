@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.1] - 2026-10-01
+
+### Changed
+
+- `write-for-agents` points at the Sonnet 5.5 model-adaptation chapter.
+
 ## [0.24.0] - 2026-10-01
 
 ### Changed
