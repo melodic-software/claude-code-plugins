@@ -1732,6 +1732,7 @@ class TestModuleScopedResolution(unittest.TestCase):
             "if(x)return x",
             "for(const y of b)return x",
             "if(t(x,{k:1}))return x",
+            "return c?{k:1}:x",
         ):
             with self.subTest(body=body):
                 src = _modules(
