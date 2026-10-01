@@ -125,9 +125,14 @@ BAKED_FLAGS = (
 # Extraction lanes the sibling extractor reports integrity for, and the
 # native class each one carries. Session-provided and marketplace classes have
 # no lane: nothing about them is derivable from the binary.
-# `bundled_workflows`, `builtin_agents`, and `builtin_tools` are optional: an
-# extraction that predates a lane lacks its key, and the lane is then not
-# scored or reported rather than read as broken.
+# `bundled_workflows`, `builtin_agents`, `builtin_tools`, and `builtin_plugins`
+# are optional: an extraction that predates a lane lacks its key, and the lane
+# is then not scored or reported rather than read as broken.
+# `builtin_plugins` (the `cc-plugin-*@builtin` plugins) is keyed by plugin, not
+# by surface: `_lane_payloads` flattens each plugin and each of its skills,
+# agents and commands into a plugin-backed-builtin surface, scored after every
+# other lane so a name another lane already holds is not scored twice.
+PLUGIN_COMPONENT_LANE = "builtin_plugins"
 LANE_ORDER = (
     "builtin_commands",
     "bundled_skills",
@@ -135,6 +140,7 @@ LANE_ORDER = (
     "plugin_backed",
     "builtin_agents",
     "builtin_tools",
+    PLUGIN_COMPONENT_LANE,
 )
 LANE_OF_CLASS = {
     "builtin-command": "builtin_commands",
@@ -149,6 +155,7 @@ LANE_OF_CLASS = {
 # command, so a component only routes to them.
 ROUTE_ONLY_CLASSES = ("session-skill", "builtin-agent", "builtin-tool")
 CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
+CLASS_OF_LANE[PLUGIN_COMPONENT_LANE] = "plugin-backed-builtin"
 
 
 # Lane order in the generated view: (class, section heading, singular noun used
@@ -456,6 +463,8 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
         if lane == "plugin_backed":
             continue
         for name, entry in payload.items():
+            if lane == PLUGIN_COMPONENT_LANE and name in seen:
+                continue
             seen.add(name)
             registrations = registrations_of(entry)
             if not registrations or any(r.get("internal") for r in registrations):
@@ -1393,6 +1402,7 @@ def build_native_index(
         "builtin_commands",
         "builtin_agents",
         "builtin_tools",
+        PLUGIN_COMPONENT_LANE,
     ):
         for name, entry in (lane_payloads.get(lane) or {}).items():
             native_index.setdefault(
@@ -1411,11 +1421,52 @@ def build_native_index(
     return native_index
 
 
+def plugin_component_payload(
+    plugins: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """The `builtin_plugins` lane as surfaces: each plugin under its own name,
+    and each skill, agent and command under the component's name, every
+    registration carrying the owning plugin as `plugin_name`."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    for plugin, rec in plugins.items():
+        if not isinstance(rec, dict):
+            continue
+        base = {"plugin_name": plugin, "gated": rec.get("gated") is True}
+        out.setdefault(plugin, []).append(
+            {
+                **base,
+                "name": plugin,
+                "component_kind": "plugin",
+                "description": rec.get("description"),
+                "aliases": rec.get("aliases") or [],
+            }
+        )
+        for kind in ("skills", "agents", "commands"):
+            for comp in rec.get(kind) or []:
+                name = comp.get("name") if isinstance(comp, dict) else None
+                if not isinstance(name, str) or not name:
+                    continue
+                reg = {
+                    **base,
+                    "name": name,
+                    "component_kind": kind[:-1],
+                    "description": comp.get("description"),
+                }
+                if kind == "agents":
+                    reg["user_invocable"] = False
+                elif isinstance(comp.get("user_invocable"), bool):
+                    reg["user_invocable"] = comp["user_invocable"]
+                out.setdefault(name, []).append(reg)
+    return out
+
+
 def _lane_payloads(inventory: dict[str, Any]) -> dict[str, Any]:
     # The workflow lane is optional: an extraction that predates it simply
     # has no such lane, which is not a missing consumed key.
     return {
-        lane: inventory.get(lane)
+        lane: plugin_component_payload(inventory[lane])
+        if lane == PLUGIN_COMPONENT_LANE
+        else inventory.get(lane)
         for lane in LANE_ORDER
         if isinstance(inventory.get(lane), dict)
     }

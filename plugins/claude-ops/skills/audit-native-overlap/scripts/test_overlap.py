@@ -2130,6 +2130,59 @@ class PluginBackedSurfaceTests(unittest.TestCase):
         self.assertEqual([s.name for s in surfaces], ["scan"])
 
 
+BUILTIN_PLUGINS = {
+    "cc-plugin-claude-test": {
+        "description": "Claude Test: runs specs in a browser",
+        "aliases": ["claude-test"],
+        "gated": True,
+        "skills": [
+            {
+                "name": "claude-test",
+                "description": "Check the app",
+                "user_invocable": True,
+            }
+        ],
+        "agents": [{"name": "author", "description": "Writes spec drafts"}],
+        "commands": [{"name": "diff", "description": "Toggle the diff panel"}],
+    }
+}
+
+
+class BuiltinPluginSurfaceTests(unittest.TestCase):
+    def test_a_plugin_and_each_component_is_a_plugin_backed_surface(self) -> None:
+        payload = overlap.plugin_component_payload(BUILTIN_PLUGINS)
+        self.assertEqual(
+            sorted(payload), ["author", "cc-plugin-claude-test", "claude-test", "diff"]
+        )
+        [agent] = payload["author"]
+        self.assertEqual(agent["plugin_name"], "cc-plugin-claude-test")
+        self.assertEqual(agent["component_kind"], "agent")
+        self.assertIs(agent["user_invocable"], False)
+        self.assertIs(payload["claude-test"][0]["user_invocable"], True)
+        self.assertIs(payload["cc-plugin-claude-test"][0]["gated"], True)
+        surfaces = overlap.native_surfaces(
+            overlap._lane_payloads({"builtin_plugins": BUILTIN_PLUGINS})
+        )
+        self.assertEqual(
+            {s.klass for s in surfaces}, {overlap.CLASS_OF_LANE["plugin_backed"]}
+        )
+        self.assertEqual({s.lane for s in surfaces}, {"builtin_plugins"})
+
+    def test_a_name_another_lane_holds_is_not_scored_twice(self) -> None:
+        payloads = overlap._lane_payloads(
+            {
+                "builtin_commands": {"diff": {"name": "diff", "description": "Diff"}},
+                "builtin_plugins": BUILTIN_PLUGINS,
+            }
+        )
+        surfaces = overlap.native_surfaces(payloads)
+        diff = [s for s in surfaces if s.name == "diff"]
+        self.assertEqual([s.lane for s in diff], ["builtin_commands"])
+        index = overlap.build_native_index({}, payloads)
+        self.assertEqual(index["diff"]["class"], "builtin-command")
+        self.assertEqual(index["author"]["class"], "plugin-backed-builtin")
+
+
 def make_dismissal(**overrides):
     entry = {
         "native": {"name": "commit", "class": "bundled-skill"},

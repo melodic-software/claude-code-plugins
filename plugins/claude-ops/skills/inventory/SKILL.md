@@ -66,7 +66,7 @@ Both spellings reach the same place. Treat a flag and its sentence as identical 
 | Flag | Sentences that mean it | Show |
 |---|---|---|
 | `--builtin` | "built-in commands", "what ships with Claude Code", "is /foo real" | `builtin_commands` |
-| `--bundled` | "bundled skills", "Anthropic's skills", "bundled workflows" | `bundled_skills`, `bundled_workflows` |
+| `--bundled` | "bundled skills", "Anthropic's skills", "bundled workflows", "built-in plugins", "what `cc-plugin-*` ships" | `bundled_skills`, `bundled_workflows`, `builtin_plugins` |
 | `--docs` | "is /foo documented", "what's undocumented", "was /foo removed" | `docs_crosscheck` |
 | `--plugins` | "only the plugin ones", "what did my plugins add" | `disk.marketplaces` |
 | `--marketplace <name>` | "what does melodic-software give me" | that marketplace only |
@@ -101,6 +101,11 @@ One per line, alphabetical, in the same shape.
 
 ## Bundled workflows (<n>)
 One per line: name, description, phases, Invocable-by marker.
+
+## Built-in plugins (<n>)
+One per plugin: `id`, description, load (`unconditional`, or `conditional` with its guards),
+default enabled, gate flags, then its skills, agents and commands one per line with descriptions,
+and its hook events on one line. Name any plugin whose `partial` is non-empty.
 
 ## Built-in subagents (<n>)
 One per line: name, description (`whenToUse`), roster (`default`, `conditional`, `absent`), model,
@@ -195,6 +200,13 @@ means a getter decides per session. Tools built by a factory at runtime (connect
 artifact family members) have no static name: `builtin_tool_notes.factory_definitions` counts them,
 so say the named list excludes them rather than reporting it as every tool.
 
+**A built-in plugin has three switches, and the inventory reads each separately.** `load` says
+whether this session type requires the plugin at all (`load_guards` is the binary's own condition
+text); `gated` with `gate_flags` says whether a runtime check, often a feature flag with the default
+shown, decides that it is offered; `default_enabled` is what `enabledPlugins` falls back to when no
+setting names `<id>`. A plugin can load, be gated off by its flag, and still read
+`default_enabled: true`. Report all three; never collapse them into "on" or "off".
+
 **A marketplace checkout is not an installation, and neither is enablement.** Three different sets:
 a cached marketplace is a catalog of what is *available*, `disk.installed_plugins` is what is
 *present locally*, and `enabledPlugins` governs what *loads*. They routinely disagree. Report the
@@ -229,6 +241,7 @@ Upstream facts this skill depends on, each with the trigger that obliges re-deri
 | The commands page publishes a partial built-in table, so it is a cross-check and the binary stays the source: its "All commands" table carries rows for commands, aliases, removed commands, and **Skill**/**Workflow** markers, and the binary registers names it omits | `docs/en/commands.md` parsed by `--docs` (115 rows) against a `--binary-only --docs` run on this machine, which classed 39 registered names `undocumented` | The commands page drops or restructures its table (the docs block goes `broken`), or the undocumented count reaches zero | 2026-09-29, Claude Code 2.1.284 |
 | The plugin component set is skills, commands, agents, workflows, output-styles, themes, monitors, hooks, bin, settings.json, .mcp.json, .lsp.json, dependencies; the manifest also declares `channels`, each bound to one of the plugin's MCP servers, which this skill does not scan | `docs/en/plugins-reference.md` manifest schema and standard plugin layout table | The manifest schema gains or drops a component key | 2026-09-29 |
 | A user reaches a built-in or custom subagent by @-mention or `--agent`, and the model by the Agent tool; the page documents Explore, Plan, general-purpose, claude, statusline-setup, and claude-code-guide, and the binary also defines fork, web-fetch, worker, workflow-subagent, and comment-thread-analyst | `docs/en/sub-agents.md` ("Built-in subagents", "Invoke subagents explicitly") against a `--binary-only` run on this machine | The page changes its built-in list or invocation patterns, or a run's `builtin_agents` names change | 2026-09-29, Claude Code 2.1.285 |
+| Claude Code ships built-in plugins as `<name>@builtin`, registered in the binary rather than installed on disk, so only the binary read lists them; the changelog names some (`cc-plugin-you-should-know@builtin`) without a roster | A `--binary-only` run on this machine lists them under `builtin_plugins`, and the 2.1.287 changelog entry announces `cc-plugin-you-should-know@builtin` | A release adds a documented roster of built-in plugins, or the `builtin_plugins` lane goes `broken` | 2026-10-01, Claude Code 2.1.287 |
 | The tools reference table lists tools by exact name and is partial: 45 of 80 statically named tools are in it, and it keeps `TaskOutput`, which the binary only names in a retired-names list | `docs/en/tools-reference.md` parsed by `--docs` (46 rows) against a `--binary-only` run on this machine | The tools table restructures (the nested `tools` block goes `broken`) or the `undocumented` count reaches zero | 2026-09-29, Claude Code 2.1.285 |
 
 The changelog at `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md` is the
@@ -243,7 +256,7 @@ that the build holds still. It is that **drift must never be silent**.
 
 **Read the integrity block before quoting any number, lane by lane.** Every run carries one, and it
 states per lane (`builtin_commands`, `bundled_skills`, `plugin_backed`, `bundled_workflows`,
-`builtin_agents`, `builtin_tools`) whether that lane's counts are verified or merely believed; the top-level status is the worst lane.
+`builtin_agents`, `builtin_tools`, `builtin_plugins`) whether that lane's counts are verified or merely believed; the top-level status is the worst lane.
 `docs_crosscheck` carries its own `status` (`ok`, `degraded`, `broken`, `unavailable`) and never
 changes the integrity status or the self-check exit code:
 

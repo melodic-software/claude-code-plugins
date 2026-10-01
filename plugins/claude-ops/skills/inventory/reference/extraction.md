@@ -299,6 +299,58 @@ description(){return X}`), which often yields the per-call permission text or no
 (absent is false, `!0`/`!1` as written, anything else null and listed in `flag_driven`); `gated`
 when the literal carries `isEnabled`; `aliases`; `user_facing_name` when it differs.
 
+### 11. Find built-in plugins by the registry the binary keeps
+
+Built-in plugins (`cc-plugin-*@builtin`) are function-hooks plugins compiled into the binary. Three
+pieces, each found by a property name or string literal the minifier keeps:
+
+| Piece | Found by | Read |
+|---|---|---|
+| Registrar | a function whose body is `x().builtinPlugins.set(e.name,e)` | its name, and every name its module exports for it |
+| Loader | the function that sets `builtinPluginsInitialized=!0` | each `L("cc-plugin-x",()=>import.meta.require("/$bunfs/root/chunk-….js"))` call and the conditions it runs under |
+| Plugin | each call of the registrar (or an import of it) with an object literal | the plugin's fields, with `...spread` descriptors merged in source order |
+
+The loader in 2.1.287:
+
+```js
+if(e.builtinPluginsInitialized)return;if(e.builtinPluginsInitialized=!0,L("cc-plugin-sec-default",…),
+L("cc-plugin-agents-md",…),L("cc-plugin-telemetry",…),a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"){
+if(L("cc-plugin-plugin-authoring",…),L("cc-plugin-mods-guide",…),!c7r())L("cc-plugin-tips",…),…}
+let i=a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"&&!c7r();if(i)L("cc-plugin-diff",…);…
+```
+
+`load_guards` lists the raw condition text each call runs under, outermost first; `[]` is
+`unconditional`. Every operand of an `if(...)` but the last runs before the test, a `let i=...`
+alias is expanded where `if(i)` reads it, and `if(x)return` adds `!(x)` to what follows unless it
+tests the loader's own latch. A call in any other position, or an `else` anywhere in the body,
+leaves `load` null. The guard text is minified code, kept verbatim: `c7r()` is a runtime check
+this reader does not evaluate.
+
+Per plugin, from the merged fields:
+
+| Field | Rule |
+|---|---|
+| `name`, `description`, `version` | `resolve_field`, then a bare identifier as a module constant under the name rule's wider locality (a plugin module's `var K="cc-plugin-agents-md"` sits kilobytes ahead of the call) |
+| `id` | `name@<marketplace>`, the marketplace read from the registrar module's `` `@${_i}` `` with `_i="builtin"` |
+| `aliases` | the short names of the `["diff","cc-plugin-diff"]` pairs the bundle maps |
+| `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is in the bundle (`absent-default`) |
+| `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | as written; absent is false |
+| `gated`, `gate_flags` | `isAvailable` present; each `f(FLAG,DEFAULT)` call in it whose first argument reads a `tengu_` string, through one identifier or a `()=>"tengu_x"` arrow. Other terms of the gate are runtime state and are not listed |
+| `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument |
+| `agents`, `commands` | the function-hooks manifest's embedded files (`files:{"agents/author.md":`---…`}`), frontmatter `name` and `description`; plus commands passed to `.command.register(obj)` or `.registerCommand(obj)` in the module when the manifest declares `command.register`. An argument that is the enclosing arrow's own parameter is a pass-through and is skipped |
+| `hook_events` | the manifest's `scan.hooks` (or `shipped.hooks`); `[]` without a hooks module |
+| `mcp_servers` | the field's form (`getter`, `value`) or null; the server list is decided per session |
+
+Anything a spread or an unread form leaves unknown is null with its name in `partial`, and the lane
+degrades. A registration whose name is a one-letter parameter (a test seating any plugin) is
+`factory_registrations`, never guessed. A call of another module's same-named function is not a
+registration: the callee must be the registrar's own name in its module, or a name imported from
+an export of it.
+
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`), each with one registration, and only `cc-plugin-claude-test` and `cc-plugin-plugin-authoring` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286 and 2.1.287 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty. Derived per run, so no document restates the roster | 2026-10-01, Claude Code 2.1.287 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+
 ## Known non-commands
 
 Strings that match a naive `name:"…"` search but are not slash commands. Each was verified by
@@ -318,7 +370,7 @@ the remainder that are real registrations but never user-typed.
 ## Integrity, per lane
 
 `check_integrity` returns `lanes` (`builtin_commands`, `bundled_skills`, `plugin_backed`, and
-`bundled_workflows`, `builtin_agents`, `builtin_tools` whenever those were extracted), each with its own `status`, `problems`, and
+`bundled_workflows`, `builtin_agents`, `builtin_tools`, `builtin_plugins` whenever those were extracted), each with its own `status`, `problems`, and
 `advisories`. One rule for one state: the top-level `status` is
 the worst lane. `broken` at the top level means every lane is broken or the binary is unreadable; a
 run with at least one healthy lane is at most `degraded`, with each broken lane's problems restated
@@ -333,6 +385,7 @@ as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `
 | `bundled_workflows` | no `bundledWorkflows.push` registrar; a `WORKFLOW_CANARY` name absent | a registration whose name did not resolve |
 | `builtin_agents` | no definition resolved; an `AGENT_CANARY` name absent | a definition whose `agentType` did not resolve; the roster function not found |
 | `builtin_tools` | no definition resolved; a `TOOL_CANARY` name absent | a definition whose name constant did not resolve (a factory does not degrade: it is counted) |
+| `builtin_plugins` | no `builtinPlugins.set` registrar; no registration resolved; a `PLUGIN_CANARY` name absent | the loader not found; a registration name unresolved; a plugin the loader requires with no registration; a plugin with a non-empty `partial` |
 
 The CLI-version advisory is top-level, not a lane's. `integrity.undetermined` is informational: a
 runtime-decided field is a property of the build, not an extraction failure, so it never degrades
@@ -401,6 +454,9 @@ check failed, and each maps to one edit:
 | `builtin_agents` degraded: roster not found | The roster function changed shape | Find where `general-purpose` is added to the list and adapt `_agent_roster` |
 | `builtin_tools` broken: canary absent | Tools lost `maxResultSizeChars`, or `Bash`'s name constant moved | Read the `Bash` definition and adapt `extract_builtin_tools` or `resolve_tool_ident` |
 | `builtin_tools` or `builtin_agents` degraded: unresolved names | A name constant the index does not see | Read the binding; widen `TOOL_NAME_RE` or `AGENT_NAME_RE` only for a real name shape |
+| `builtin_plugins` broken: no registrar | The plugin map is no longer filled by `builtinPlugins.set(e.name,e)` | Find where `cc-plugin-sec-default` is stored and adapt `_PLUGIN_REGISTRAR_RE` |
+| `builtin_plugins` degraded: loaded with no registration | A plugin module registers through a new shape | Read that plugin's module and adapt `_plugin_registrations` or `_merged_fields` |
+| `builtin_plugins` degraded: a plugin's `partial` is non-empty | A component or field moved behind a form this reader does not follow | Read the named field in that plugin's module; extend `_plugin_skills`, `_plugin_manifest` or `_plugin_commands` |
 | `integrity.undetermined` grows | A field moved behind a getter or a new indirection | Read one such field; extend `_scan` or `_resolve_chain` if the form is static |
 | `docs_crosscheck` broken | The commands page restructured its table | Re-derive `_ROW_RE` and `_SECTION` from the page |
 

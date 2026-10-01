@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.81.0] - 2026-10-01
+
+### Added
+
+- **The inventory lists Claude Code's built-in plugins (`cc-plugin-*@builtin`).** A new
+  `builtin_plugins` lane reads each plugin the binary registers: its id, description, the
+  conditions under which the loader requires it, its default-enabled state, the feature flags its
+  availability gate tests, and its skills, agents, commands and hook events with names and
+  descriptions. Each field carries a `_source`, and anything the read cannot resolve is listed in
+  the plugin's `partial` and degrades the lane. The lane has its own integrity entry, so
+  `--self-check` covers it. On Claude Code 2.1.287 it reads 11 plugins. `audit-native-overlap
+  detect` now scores each built-in plugin and its components as plugin-backed built-ins.
+
 ## [0.80.1] - 2026-10-01
 
 ### Changed
