@@ -1,6 +1,6 @@
 ---
 description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [<test-path>]` (mutate what the changed tests call), `--full`, `--paths <globs>`, `--max <n>`, `--no-suppress`, `--persist-findings`."
-argument-hint: "[scope] [--exercised [<test-path>] | --full | --paths <globs>] [--max <n>] [--record-mutants <file>] [--replay-mutants <file>] [--persist-findings]"
+argument-hint: "[scope] [--exercised [<path>] | --full] [--max <n>] [--record-mutants <f>] [--replay-mutants <f>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

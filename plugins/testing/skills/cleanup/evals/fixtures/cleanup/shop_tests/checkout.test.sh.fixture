@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Hand-rolled harness: runs the checkout total and prints it.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+python3 -c 'from shop.checkout import order_total; print(order_total([50]))'
