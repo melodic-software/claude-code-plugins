@@ -353,6 +353,12 @@ run_win "python rebound Path(/tmp).open().read() (blocked)" \
   "python3 -c \"from logging import FileHandler as Path; Path('/tmp/x').open().read()\"" 2
 run_win "python json rebound by from-import (blocked)" \
   "python3 -c \"from shelf import dump as json; json.load(open('/tmp/x'))\"" 2
+run_win "python wildcard import rebinds open before a /tmp read (blocked)" \
+  "python3 -c \"from dbm.dumb import *; open('C:/tmp/x').read()\"" 2
+run_win "python wildcard import without a space rebinds open (blocked)" \
+  "python3 -c \"from dbm.dumb import*; open('/c/tmp/x').read()\"" 2
+run_win_pwsh "PS: python wildcard import rebinds open (blocked)" \
+  "python -c \"from dbm.dumb import *; open('C:/tmp/x').read()\"" 2
 run_win "python spaced method form d . open(/tmp) creates the file (blocked)" \
   "python3 -c \"import dbm.dumb as d; d . open('/tmp/x').read()\"" 2
 # Every `open(` anywhere in the command must be a provable read, and once those

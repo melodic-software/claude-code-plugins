@@ -742,6 +742,8 @@ command_opens_only_for_read() {
   local rest="$1" before out="" call ws t
   [[ "$COMMAND" == *[\\\$\`]* ]] && return 1
   [[ "$rest" =~ $_DRIVE_TMP_PY_INDIRECTION ]] && return 1
+  # `from x import *` can rebind `open` without another `open` token.
+  [[ "$rest" =~ import[[:space:]]*\* ]] && return 1
   # `json` may appear only as json.load( / json.loads( or a statement-start
   # `import json`; any other spelling could rebind the name.
   t="${rest//json.load(/ }"
