@@ -366,9 +366,9 @@ else
 fi
 rm -f "$TELS"
 
-# --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
+# --- jq-absent -> visible once per session and agent notice (dim-9 doctrine) -----------
 # Without jq the hook cannot parse its input at all; the skip must surface on
-# both channels once per session instead of silently disabling normalization.
+# both channels once per session and agent instead of silently disabling normalization.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do # portability-ok: names in a PATH shim, not an mktemp -p call
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -395,7 +395,7 @@ else
 fi
 OUT_NOJQ2=$(run_nojq "$NOJQ_FILE")
 if [[ -z "$OUT_NOJQ2" ]]; then
-  ok "jq-absent -> second run same session is silent (once-per-session)"
+  ok "jq-absent -> second run same session is silent (once per session and agent)"
 else
   fail "jq-absent second run not silent: $OUT_NOJQ2"
 fi

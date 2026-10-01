@@ -11,6 +11,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
   another skill can ask through the Skill tool which adapter claims a file.
   `/mutation-testing:audit --exercised` uses it to recognize changed test files.
 
+## [0.16.1] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+
 ## [0.16.0] - 2026-10-01
 
 ### Changed

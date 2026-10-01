@@ -176,9 +176,10 @@ claude_ops::ensure_git_exclude() {
 # audit-event-emitter.sh's UserPromptExpansion row): resolve the configured
 # destination, re-verify it after mkdir, keep git status clean in the repo
 # scope, and write the row. Best-effort throughout; every skip is surfaced once
-# per session via hook::notice_once markers keyed "<notice_prefix>-badscope /
-# -badconfig / -nodest" and emitted for <hook_event>. expansion_type is
-# recorded only when non-empty (the tool-path producer passes "").
+# per session and agent via hook::notice_once markers keyed
+# "<notice_prefix>-badscope / -badconfig / -nodest" and emitted for
+# <hook_event>. expansion_type is recorded only when non-empty (the tool-path
+# producer passes "").
 claude_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
   local project_dir="" rel_dir scope log_dir verified_log_dir ts branch line=""

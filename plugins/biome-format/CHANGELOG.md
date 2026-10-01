@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16] - 2026-10-01
+
+### Changed
+
+- **The setup skill's evals describe the missing-`jq` notice as once per session and agent.** The notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
+
 ## [0.7.15] - 2026-10-01
 
 ### Changed
