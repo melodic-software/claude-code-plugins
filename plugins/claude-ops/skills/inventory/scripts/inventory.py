@@ -636,6 +636,20 @@ def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
     return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
 
 
+def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
+    """The parameters of the `catch (...)` whose block opens at `brace`, each
+    a runtime value; empty when the block is not a catch block."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    k = _head_open(src, braces, j)
+    if not re.search(r"(?<![\w$.])catch\s*$", src[max(0, k - 16) : k]):
+        return NO_SCOPE
+    return _param_names(src[k + 1 : j])
+
+
 def _head_open(src: str, braces: BraceMap, close: int) -> int:
     """The `(` matching the `)` at `close`, matched with quoted text blanked
     from the enclosing block's start. Raises ValueError when unmatched."""
@@ -1007,7 +1021,7 @@ def _scan(
                     block=True,
                     hops=hops,
                     anchor=anchor,
-                    shadow=shadow,
+                    shadow=shadow | _catch_params(src, braces, i),
                     deferred=deferred,
                 )
             i, at_value, prev, prev_word = close + 1, False, "}", ""
@@ -1556,8 +1570,11 @@ def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | N
         if src.startswith("=>", j - 1):
             return block
         if j >= 0 and src[j] == ")":
-            k = _open_paren(src, j)
-            if k is None or not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
+            try:
+                k = _head_open(src, braces, j)
+            except ValueError:
+                return block
+            if not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
                 return block
         block = braces.enclosing(block[0] - 1) if block[0] > 0 else None
     return None

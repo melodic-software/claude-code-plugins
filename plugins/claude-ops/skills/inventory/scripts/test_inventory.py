@@ -1671,6 +1671,24 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
 
+    def test_a_catch_parameter_shadows_a_bound_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){try{throw"LOCAL"}catch(x){return x}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_quoted_paren_in_a_control_head_keeps_a_var_function_scoped(
+        self,
+    ) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            'function ff(){if(a==="("){var xx="REAL"}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
     def test_an_unsafe_integer_in_a_template_stays_unresolved(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`n${9007199254740993}`});'
         self.assertNotEqual(_tool(src, "Probe").get("description"), "n9007199254740993")
