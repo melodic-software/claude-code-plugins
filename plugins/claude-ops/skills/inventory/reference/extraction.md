@@ -199,8 +199,9 @@ the else branch of a ternary, the final `return` of a getter, which is the defau
 every 2.1.284 case. An operand is a `+` concatenation whose parts may also be a parenthesized
 expression (`d+(x()?m:c)+p`) or a literal array's `.join(sep)`.
 
-A parameter of the function or method being read is a runtime value: it is shadowed, so it never
-resolves to a same-named binding elsewhere, and what depends on it becomes a condition, an
+A parameter of the function or method being read, a `catch` parameter, a `let`/`const` bound in a
+`for (...)` head, and a declaration in an enclosing block that the reader can see are runtime
+values: each is shadowed, so it never resolves to a same-named import or outer binding, and what depends on it becomes a condition, an
 ellipsis, or nothing. A result whose ellipses leave no static word (`${a}\n\n${b}` with neither
 resolved) is unresolved, not a value.
 

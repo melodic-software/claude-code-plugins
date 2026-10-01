@@ -3,11 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.56.1] - 2026-10-01
+## [0.56.2] - 2026-10-01
 
 ### Changed
 
 - **The interview watcher holds a found event for 3 seconds of quiet, up to 12 seconds in all, before it wakes.** Accepts up to 3 seconds apart now share one wake instead of one each; the hold was 0.3 and 2 seconds. A lone accept waits 3 seconds before Claude wakes, and the hold never outlasts the wait's own timeout ([#5457](https://github.com/melodic-software/claude-code-plugins/issues/5457)).
+## [0.56.1] - 2026-10-01
+
+### Added
+
+- **`planning` ships a plugin eval suite for three skill cases.** Covers `brainstorm` observed-fact evidence bar and disconnected-scan-before-new-work, and `plan` unilateral-decision-not-folded; run with `claude plugin eval`, no skill text changes ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
 
 ## [0.56.0] - 2026-10-01
 
