@@ -3,12 +3,6 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.2] - 2026-09-30
-
-### Fixed
-
-- **`audit`'s `official-sources.md` describes the plugin-root variable in words.** The spoke named the variable in its literal `${...}` form, which the Read tool does not expand. No behavior change.
-
 ## [0.27.1] - 2026-09-30
 
 ### Changed

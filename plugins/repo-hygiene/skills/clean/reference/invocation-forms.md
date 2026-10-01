@@ -33,7 +33,7 @@ Files: `context/action-router.md`, `context/clean-batch.md`, `context/git-branch
 They load on demand when `SKILL.md` routes into a step and reach the model through the Read tool as
 plain bytes, so no `${…}` token in them is substituted. A token there would reach the Bash tool
 unexpanded: `${CLAUDE_SKILL_DIR}` expands from an unset environment variable to `/scripts/x.sh`,
-and the plugin-root variable to a path that resolves against nothing. They write the skill directory as
+and `${CLAUDE_PLUGIN_ROOT}` to a path that resolves against nothing. They write the skill directory as
 the `<skill-dir>` placeholder, which `SKILL.md`'s `## Spoke paths` section defines, and Claude puts
 that path in before running the command.
 

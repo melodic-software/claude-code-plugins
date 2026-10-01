@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `worktree` audit spoke now names the plugin-root variable in words. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
+- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
 
 ## [0.68.0] - 2026-09-30
 

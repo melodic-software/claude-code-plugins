@@ -100,7 +100,7 @@ and the model does the rest below.
 `scripts/check-hook-coverage.sh`, which the engine runs: settings-declared hooks *and* every enabled
 plugin's own hook config, read from the directory the session loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise). That matters for two of the rules below:
-The plugin-root and plugin-data placeholders only ever appear in a plugin-provided hook, so
+`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` only ever appear in a plugin-provided hook, so
 those rules are decidable only against a plugin-inclusive inventory. Where the
 script exited 1, say which sources went unenumerated rather than reporting the inventory as the
 complete set.

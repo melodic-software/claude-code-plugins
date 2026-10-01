@@ -11,7 +11,7 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 - [Create plugins](https://code.claude.com/docs/en/plugins): plugin root/layout, namespaced skills,
   local `--plugin-dir` testing, and reusable plugin boundary.
 - [Plugins reference](https://code.claude.com/docs/en/plugins-reference): manifest fields,
-  the plugin-root path variable, and plugin cache isolation.
+  `${CLAUDE_PLUGIN_ROOT}`, and plugin cache isolation.
 - [Skills](https://code.claude.com/docs/en/skills): skill frontmatter, arguments, and `allowed-tools`
   semantics. `allowed-tools` grants permission but does not remove other tools, so the skill also states
   its report-only behavioral boundary explicitly.

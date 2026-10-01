@@ -353,7 +353,7 @@ Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{r
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
 
 - If yes: delete the session directory recursively with the host shell's remover, `rm -rf "{session_dir}/"` on POSIX/Git Bash, `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell; keep the path quoted, it may contain spaces (`{session_dir}` is the path the temp primitive returned at session start, not a path you recompute here)
-- If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (the plugin root, read-only under cache isolation) or into the consumer's project tree
+- If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`, read-only under cache isolation) or into the consumer's project tree
 
 ---
 

@@ -733,7 +733,7 @@ delta to one step.
 
 **Say when the sweep updated `claude-ops` itself.** Step 3 sweeps every user-scope id, which
 necessarily includes the plugin providing this skill. When it does, the algorithm that ran is the
-**pre-update** one: the plugin-root variable keeps resolving to the version loaded at session start,
+**pre-update** one: `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start,
 so every later `fleet-state.sh` call and every remaining step executes the old copy, and the report
 describes work done by a version the user no longer has installed. Current docs, `plugins-reference`
 (fetched 2026-08-22): "When a plugin updates mid-session, hook commands, monitors, MCP servers, and

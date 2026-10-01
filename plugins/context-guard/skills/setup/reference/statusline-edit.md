@@ -3,7 +3,7 @@
 Reference detail for step 8 of `check` in
 [`../SKILL.md`](../SKILL.md). Step 8 prints the applicable statusline edit for the settings file
 that owns the effective command (resolved in step 4), marked clearly as the operator's to apply.
-The wiring target is always the shim's fixed path, never the plugin directory path, which is
+The wiring target is always the shim's fixed path, never `${CLAUDE_PLUGIN_ROOT}`, which is
 version-pinned and belongs in no operator file. Printing an edit at all is forbidden in the
 branches step 4 already suppressed, because printing it here would recommend the exact
 ineffective remediation those branches exist to withhold.

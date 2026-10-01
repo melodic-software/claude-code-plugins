@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`changelog`, `known-issues`, `lanes`, `observability` and `plugins` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script and data paths inside a skill now read `<skill-dir>/...`, the prose that named the variable says "the plugin-root variable", and the `known-issues` recommendation-basis link text is the relative path. `known-issues`, `lanes`, `observability` and `plugins` gain a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+- **`changelog`, `known-issues`, `lanes`, `observability` and `plugins` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script and data paths inside a skill now read `<skill-dir>/...`, and the `known-issues` recommendation-basis link text is the relative path. Prose that names the variable keeps the token. `known-issues`, `lanes`, `observability` and `plugins` gain a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
 
 ## [0.77.4] - 2026-09-30
 
