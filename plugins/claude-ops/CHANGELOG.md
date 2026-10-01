@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A declined `ask` install gap stays in the report.** Re-entering with zero or partial picks
+  now lists the plugins left uninstalled under `Action needed`, and the plugins skill states that
+  a dismissed or unanswered multi-select re-enters with an empty id list.
+
 ## [0.78.0] - 2026-09-30
 
 ### Added
