@@ -7,7 +7,7 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/go-format:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/go-format:check`, which probes it.
 
 ## [0.4.16] - 2026-10-01
 

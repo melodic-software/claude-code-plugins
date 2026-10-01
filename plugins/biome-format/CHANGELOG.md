@@ -7,7 +7,7 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/biome-format:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/biome-format:check`, which probes it.
 
 ## [0.7.14] - 2026-10-01
 

@@ -7,7 +7,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/desktop-notification:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/desktop-notification:check`, which probes it.
 
 ## [0.7.0] - 2026-10-01
 

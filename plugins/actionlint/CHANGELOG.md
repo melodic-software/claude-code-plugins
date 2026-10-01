@@ -7,7 +7,7 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/actionlint:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/actionlint:check`, which probes it.
 
 ## [0.11.6] - 2026-10-01
 

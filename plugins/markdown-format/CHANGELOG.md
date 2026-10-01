@@ -7,7 +7,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/markdown-format:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/markdown-format:check`, which probes it.
 
 ## [0.11.88] - 2026-10-01
 

@@ -7,7 +7,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/powershell-format:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/powershell-format:check`, which probes it.
 
 ## [0.9.5] - 2026-10-01
 

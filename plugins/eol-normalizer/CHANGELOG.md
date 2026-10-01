@@ -7,7 +7,7 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `node` and name `/eol-normalizer:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/eol-normalizer:check`, which probes it.
 
 ## [0.8.0] - 2026-10-01
 
