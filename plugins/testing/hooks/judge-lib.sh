@@ -509,6 +509,22 @@ judge::label() {
   printf '%s' "$l"
 }
 
+# judge::quoted_in_repo <dir> <quote>...: true when every quote is verbatim in
+# a file under <dir>, the judge's read scope: git grep over its tracked and
+# untracked (not ignored) files, or grep -r where it is not a repository. One
+# process per quote, and only for quotes the test file does not hold.
+judge::quoted_in_repo() {
+  local dir="$1" q rc
+  shift
+  for q in "$@"; do
+    [[ "$q" != *$'\n'* ]] || return 1
+    git -C "$dir" grep --untracked -F -q -e "$q" -- . 2>/dev/null
+    rc=$?
+    ((rc > 1)) && grep -rFq -e "$q" -- "$dir" 2>/dev/null && rc=0
+    ((rc == 0)) || return 1
+  done
+}
+
 # judge::relay_reset: empty the relay set judge::validate fills.
 judge::relay_reset() {
   RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0
@@ -531,21 +547,26 @@ judge::validate() {
     file="${FIELDS[0]}"
   fi
   [[ -f "$file" ]] && text=(--rawfile text "$file")
+  # The quotes, trimmed, that the test file does not hold follow the fixed
+  # fields; each must then be in a file of the repository the judge could
+  # read (an implementation line is a FLAG's best evidence), else it was
+  # made up.
   FIELDS=()
   while IFS= read -r -d '' p; do FIELDS+=("$p"); done < <(jq -j "${text[@]}" '
-    (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
-    ((.evidence // []) as $e | if ($e | length) == 0 then "none"
-      elif all($e[]; . as $q | $text | contains($q)) then "ok" else "missing" end), "\u0000",
-    (.diff // "" | tostring), "\u0000"' <<<"$json" 2>/dev/null)
-  ((${#FIELDS[@]} == 4)) || return 0
+    ((.evidence // []) | map(tostring | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
+    | (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
+      (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | tostring), "\u0000",
+      ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
+  ((${#FIELDS[@]} >= 4)) || return 0
   repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%[/\\]*}"
+  ((JUDGE_WIN)) && repo="${repo//\\//}"
   if [[ ! -f "$file" ]]; then
     why="the test file no longer exists"
   elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
     why="the verdict quotes no evidence"
-  elif [[ "$ev" == missing ]]; then
-    why="a quoted line is not in the file"
+  elif ! judge::quoted_in_repo "$repo" "${FIELDS[@]:4}"; then
+    why="a quoted line is in no file of the repository"
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
     why="the FLAG proposes no diff"
   elif [[ "$verdict" == FLAG ]]; then
@@ -657,7 +678,7 @@ judge::findings() {
       | ($v | map(select(.verdict == "FLAG"))) as $f
       | "---\ntype: review-findings\ndate: \(now | todate)\nbranch: \(if $branch == "" then "none" else $branch end)\n---\n\n## Findings\n\n"
       + "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n"
-      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) (threshold: a FLAG verdict, every quote found in the file, its diff applies to this file alone) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
+      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) (threshold: a FLAG verdict, every quote found in the test file or its repository, its diff applies to the test file alone) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
       + "\n## Surfaces\n\nRan: [testing:test-judge — \($v | length) test block(s) judged; findings: \($rule) \($f | length); declined (judged PASS): \($rule) \($v | map(select(.verdict == "PASS")) | length); UNKNOWN: \($v | map(select(.verdict == "UNKNOWN")) | length)]. Returned no result: [none].\n"
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
       + ([$v[] | "\n### \(.verdict) \(rel) \(tname) (lines \(.start)-\(.end))\n\n"

@@ -303,7 +303,29 @@ done
 f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
 assert_contains "the reason for a diff touching another file is recorded" "$(cat "$f")" "the proposed diff touches another file"
 check "a FLAG that fails validation reaches no findings row" '[[ -z "$(rows "$f")" ]]'
-assert_contains "the reason for a quote not in the file is recorded" "$(cat "$REPO"/.work/reviews/feat-judge-test/*)" "a quoted line is not in the file"
+
+# A provenance FLAG's best evidence is often the implementation line the
+# expected value restates: a quote found in another repository file the judge
+# could read, tracked or not yet, counts; one found nowhere does not.
+printf '%s\n' 'export function add(a, b) {' '  return a + b;' '}' >"$REPO/src/add.ts"
+git -C "$REPO" add src/add.ts
+printf '%s\n' 'export const mul = (a, b) => a * b;' >"$REPO/src/mul.ts"
+n=0
+for q in "return a + b;" "export const mul = (a, b) => a * b;" "return a - b;"; do
+  n=$((n + 1))
+  sid="iq$n"
+  transcript "$sid" claude-sonnet-5
+  IQ="$REPO/src/implq$sid.test.ts"
+  js_file "$IQ" "implq flag"
+  record "$sid" w1 "$IQ" null
+  STUB_MODE=implquote STUB_IMPL_QUOTE="$q" stop "$sid"
+  case "$q" in
+  "return a + b;") check "a quote of a tracked implementation line keeps the FLAG" '[[ "$(field .reason)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
+  *mul*) check "a quote of an untracked repository file keeps the FLAG" '[[ "$(field .reason)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
+  *) check "a quote found in no repository file makes it UNKNOWN" '[[ "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]' ;;
+  esac
+done
+assert_contains "the reason for a quote found nowhere is recorded" "$(cat "$REPO"/.work/reviews/feat-judge-test/*)" "a quoted line is in no file of the repository"
 
 # An untouched test in an edited file is not in doubt; a new cant-fail-ok:
 # marker is.
@@ -629,6 +651,14 @@ jq -cn --arg f "$WF" '{file: $f, repo: "C:/Users/K/repo", name: "w", ordinal: 1,
 loc="$(WV="$TMP/winverdict.json" lib msys 'RELAY="$(<"$WV")"$'"'"'\n'"'"'; RELAY_REPOS=("C:/Users/K/repo"); judge::findings
   grep "^| 1 |" "$FINDINGS" | cut -d"|" -f5')"
 check "msys: the findings Location is repo-relative with forward slashes" '[[ "$loc" == " src/w.test.ts:3 " ]]'
+WD="$TMP/w\\repo"
+mkdir -p "$WD"
+printf 'test body\n' >"$WD/t.test.ts"
+jq -cn --arg f "$WD/t.test.ts" --arg r "$WD" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  evidence: ["an implementation line"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/wd-verdict.json"
+rm -f "$TMP/gitargs"
+TMP="$TMP" lib msys 'git() { printf "%s\n" "$2" >>"$TMP/gitargs"; }; judge::validate "$TMP/wd-verdict.json"'
+check "msys: git grep gets the repository path with forward slashes" '[[ "$(cat "$TMP/gitargs")" == "$TMP/w/repo" ]]'
 check "msys with no jq binary: no jq function hides the missing jq" \
   '! env PATH=/nonexistent TESTING_OSTYPE=msys "$(command -v bash)" -c "source \"$HOOK_DIR/scanner-run.sh\"; command -v jq"'
 out="$(jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", session_id: "wsucc", transcript_path: $t,

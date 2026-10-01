@@ -46,7 +46,11 @@ All notable changes to the `testing` plugin are documented here. Format follows
   verdicts are ready no longer re-runs the scanner: the in-doubt blocks are cached by the file's
   content, the records and the config layers, and the hook reads each record and verdict with one
   `jq`; a ready Stop over one file went from 187 processes to 31 on Linux, over five files from
-  671 to 79. The README and
+  671 to 79. A quote in a verdict is valid when it appears, whitespace trimmed, in the test file or
+  in another file of the repository (`git grep --untracked`), because the implementation line an
+  expected value restates is a FLAG's best evidence; one found nowhere still makes the verdict
+  UNKNOWN. The judge prompt now says so; it changed before any Phase 4 calibration label was read,
+  so the prompt freeze is not broken. The README and
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
 

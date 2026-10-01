@@ -84,7 +84,7 @@ verdicts=()
 while read -r _ ord range name; do
   start="${range%-*}"
   first="$(sed -n "${start}p" "$file")"
-  verdict=PASS diff=""
+  verdict=PASS diff="" second=""
   if [[ "$name" == *flag* ]]; then
     verdict=FLAG
     sed "${start}s/\$/ \/\/ judged/" "$file" >"$STUB_DIR/mod"
@@ -92,10 +92,11 @@ while read -r _ ord range name; do
   fi
   case "${STUB_MODE:-ok}" in
   badquote) first="this line is not in the file" ;;
+  implquote) second="  ${STUB_IMPL_QUOTE:-}  " ;;
   otherfile) diff="$(printf 'other\n' | diff -u --label a/other.txt --label b/other.txt - <(printf 'changed\n'))" ;;
   esac
-  verdicts+=("$(jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg d "$diff" \
-    '{name: $n, ordinal: $o, verdict: $v, evidence: [$q], source: "stub", diff: $d}')")
+  verdicts+=("$(jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
+    '{name: $n, ordinal: $o, verdict: $v, evidence: ([$q] + if $q2 == "" then [] else [$q2] end), source: "stub", diff: $d}')")
 done < <(grep '^block ' <<<"$prompt")
 result="$(printf '%s\n' "${verdicts[@]}" | jq -cs '{verdicts: .}')"
 jq -cn --arg r "Here you go: $result" '{type: "result", subtype: "success", is_error: false, result: $r}'

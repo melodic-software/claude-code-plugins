@@ -79,6 +79,15 @@ the judge's model class always differs from every model that wrote the tests: wh
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
 three wrote them the tests are reported UNKNOWN.
 
+Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
+in another file of the repository (tracked, or untracked and not ignored), since the line of code
+an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
+diff does not apply or touches another file, is shown as UNKNOWN with the reason. The repository
+is the git toplevel of the test file's own directory, whatever the hook's working directory. A
+test file in no git repository is recorded with no repository: its judge reads only the file's
+own directory, quotes are checked there, and the findings go to the plugin data directory
+(`findings/` under it) rather than `.work/reviews/`, since there is no branch to file them under.
+
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in `.claude/testing.yaml`, and a per-test
 `cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn

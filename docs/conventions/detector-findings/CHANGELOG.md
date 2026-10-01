@@ -10,9 +10,9 @@ adopter row is a minor bump; docs-only clarification is a patch.
 `testing/judge/rule-restated-expectation`, SUGGESTION, `Confidence` omitted, not auto-applicable.
 It is argued on the same walk as `testing/audit/rule-recomputed-derived`, and like
 `attribution/audit/rule-restated-upstream-fact` it admits a model judgment through a declared
-outcome: a FLAG reaches the relay only when its quoted lines are in the file and its proposed diff
-applies to that file alone; every other verdict stays on the human report and is counted in
-`## Surfaces`. No producer-owned field's rule, coexistence obligation, or enforceability verdict
+outcome: a FLAG reaches the relay only when its quoted lines are in the test file or another file
+of its repository and its proposed diff applies to the test file alone; every other verdict stays
+on the human report and is counted in `## Surfaces`. No producer-owned field's rule, coexistence obligation, or enforceability verdict
 moves.
 
 ## [3.5.0] - 2026-09-29

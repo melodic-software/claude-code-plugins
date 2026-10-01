@@ -20,8 +20,10 @@ For each block, decide:
 - UNKNOWN: you cannot tell from the text, or the block's weakness is something other than where
   its expected value came from (mocking, naming, structure). Say why.
 
-Quote the evidence exactly as it appears in the file, one line or less per quote, so it can be found
-by an exact substring search. For FLAG, propose the smallest unified diff against that one test file
+Quote the evidence exactly as it appears in the file you read it from, one line or less per quote,
+so an exact search finds it: the test file, or another file in the repository, such as the line of
+the code under test that the expected value restates. A quote that appears in no file of the
+repository is discarded. For FLAG, propose the smallest unified diff against that one test file
 (paths `a/<path>` and `b/<path>` relative to the repository root) that replaces the expected value
 with one from an independent source. Never propose deleting a test, and never touch another file.
 
