@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: unilateral-decision-not-folded
+description: A short plan whose brief never said whether a failed delivery is logged before or after the retry must surface that choice as its own decision, interviewed or gate-passed, not fold it into mechanical steps
+tags: [plan, decisions]
+expected_outcome: The logger import and threading stay short mechanical steps; the before-or-after-retry choice is raised as its own interview question with a recommendation, or, if the plan decides it, carries an [EXEC-SHAPE] or [FALLBACK] tag and a Decisions made (gate-passed) row; no implementation starts.
+execution:
+  prompt: "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. The work is the logger import, threading the logger through the sender, and logging failed deliveries. Collapse the mechanical parts and keep the plan short."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
+  max_turns: 40
+  timeout_seconds: 1200
+graders:
+  - name: mechanical-steps-kept
+    type: regex
+    pattern: '(?=[\s\S]*import)(?=[\s\S]*thread)'
+    flags: i
+    arm: both
+  - name: no-implementation-claimed
+    type: regex
+    pattern: 'implementation (?:is )?(?:complete|done|finished)|I(?: have|''ve) (?:implemented|added the logger)'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: choice-surfaced-not-folded
+    type: llm
+    arm: both
+    criteria: "PASS only if the choice of logging a failed delivery before or after the retry is treated as its own decision, visible outside any phase or step that the plan labels or collapses as mechanical wiring (the logger import and the threading of the logger through the sender). Either surfacing is acceptable: the plan asks it as a question with a recommendation before locking, or it decides it with an [EXEC-SHAPE] or [FALLBACK] tag and a row in a Decisions made (gate-passed) table that names the phase and the concrete delta. FAIL if the choice appears only inside a collapsed or mechanical section, is silently decided without being flagged for the user, or if the plan starts implementing."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?plan"'
