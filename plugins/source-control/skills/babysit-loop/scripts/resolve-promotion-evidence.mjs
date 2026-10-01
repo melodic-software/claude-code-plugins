@@ -12,7 +12,9 @@
 // missing, relative, or unresolvable path; a bootstrap path or checker that is
 // inside the checkout or a worktree root, before or after symlinks resolve; a
 // checker that exits non-zero, times out, or prints no evaluation block; and any
-// line in that block that does not parse. It reports only what the checker
+// line in that block that does not parse. The checker runs with an allowlisted
+// environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH, LD_PRELOAD
+// and GIT_* values from a repository's settings env block never reach it. It reports only what the checker
 // printed and never re-derives the resolution algorithm. It writes no file and
 // reads nothing in the checkout.
 
@@ -26,6 +28,7 @@ const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocki
 const BLOCK_HEADER = "Effective promotion state (evaluation mode):";
 const CELL_LINE = /^- ([A-Za-z0-9][A-Za-z0-9-]*): bound (\S+) -> effective (promoted|unpromoted)(?=$|[\s(])/;
 const TIMEOUT_MS = 60_000;
+const CHECKER_ENV_KEYS = ["PATH", "SystemRoot"];
 
 function emit(source, failClosedReason, printed = {}) {
   const cells = failClosedReason === null ? { ...printed } : {};
@@ -93,10 +96,13 @@ const binding = resolveInput("binding", values.binding, roots);
 const probeRoot = resolveInput("probe-evidence-root", values["probe-evidence-root"], roots);
 const evidence = resolveInput("evidence", values.evidence, roots);
 
+const checkerEnv = Object.fromEntries(
+  CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
+);
 const run = spawnSync(
   process.execPath,
   [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot],
-  { cwd: dirname(checker), encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+  { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
 );
 if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
 if (run.status !== 0) {

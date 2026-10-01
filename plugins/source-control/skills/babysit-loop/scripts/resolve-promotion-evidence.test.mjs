@@ -29,6 +29,7 @@ function stub(stdout, exitCode = 0, dir = ops) {
   writeFileSync(
     path,
     `if (JSON.stringify(process.argv.slice(2)) !== ${JSON.stringify(JSON.stringify(expected))}) process.exit(9);
+if (["NODE_PATH", "LD_PRELOAD", "GIT_DIR", "CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING"].some((key) => key in process.env)) process.exit(8);
 process.stdout.write(${JSON.stringify(stdout)});
 process.exit(${exitCode});
 `,
@@ -46,7 +47,8 @@ function runHelper(checker, overrides = {}) {
     ...overrides,
   };
   const argv = Object.entries(args).flatMap(([key, value]) => [`--${key}`, value]);
-  const run = spawnSync(process.execPath, [HELPER, ...argv], { encoding: "utf8" });
+  const injected = { NODE_PATH: checkout, LD_PRELOAD: checkout, GIT_DIR: checkout, CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING: checkout };
+  const run = spawnSync(process.execPath, [HELPER, ...argv], { encoding: "utf8", env: { ...process.env, ...injected } });
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
 }
