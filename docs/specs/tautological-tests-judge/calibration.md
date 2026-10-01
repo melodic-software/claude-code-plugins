@@ -239,8 +239,8 @@ Limitations:
   consensus on the 35 rows where GPT dissented (31 PASS to UNKNOWN, 2 FLAG to UNKNOWN, 2 UNKNOWN to
   PASS), every arm's accuracy falls to 0.44-0.54, `sonnet` `low` becomes significantly worse than
   the most accurate arm (`opus` `high`, McNemar p 0.0215), and the rule would choose `sonnet`
-  `medium`, fallback `opus` `low`. The chosen default therefore depends on the Opus majority on
-  those rows.
+  `medium`, fallback `opus` `low`. The shipped default, `sonnet` `medium`, is tied-best under
+  both label sets.
 - The `in-use` stratum, the only one the user did not author, holds 0 reference FLAGs. The judge
   said PASS on all 60 of its rows, so its kappa there is 0.0000, and every FLAG precision and
   recall figure comes from user-authored seed and adversarial cases.
@@ -272,7 +272,7 @@ three panel members that made the reference. Codex's coverage is low because it 
 
 ### Judge against the labels
 
-`metrics.sh` for the chosen arm, `sonnet` `low`, whose verdicts are `labels.tsv`'s
+`metrics.sh` for the rule's pick under the consensus labels, `sonnet` `low`, whose verdicts are `labels.tsv`'s
 `judge_verdict` (copied from `sweep/sonnet-low.tsv`):
 
 ```text
@@ -336,8 +336,8 @@ abstained on 1 of the 6 FLAG rows and flagged one UNKNOWN row.
 | opus | high | 0.9103 (71/78) | 0.8571 [0.4869, 0.9743] (6/7) | 1.0000 [0.6097, 1.0000] (6/6) | 0.9516 (59/62) | $0.0414 | 11.5 s | 23.8 s | 756.4 s | 1.0000 |
 
 ```text
-chosen: sonnet low
-fallback: opus low
+chosen: sonnet medium
+fallback: opus medium
 ```
 
 Run-to-run variance, `metrics.sh --rerun sonnet low` (the first run and two more):
@@ -354,11 +354,18 @@ apply").
 
 ### Chosen default
 
-`sonnet` at `low`, fallback `opus` at `low`, written to `plugin.json` (`test_judge_model`,
+`sonnet` at `medium`, fallback `opus` at `medium`, written to `plugin.json` (`test_judge_model`,
 `test_judge_fallback_model`, `test_judge_effort`) and to `judge-lib.sh`'s in-script defaults.
-The rule as applied: the most accurate arms are `opus` `medium` and `opus` `high` (71/78), and the
-tie-breaks make `opus` `high` the reference (lower p95). No arm differs from it at 0.05 (lowest p
-0.1797), so all seven tie. Among the tied arms `sonnet` wins, and among the four `sonnet` arms
-`low` has the lowest p95 wall time per run (11.8 s). The fallback is the best `opus` arm by the
-same rule: all three tie with `opus` `high`, and `low` has the lowest p95 (15.3 s). Both classes
-run at the one `test_judge_effort`, `low`, which is the fallback arm's effort too.
+The rule as applied under the consensus labels: the most accurate arms are `opus` `medium` and
+`opus` `high` (71/78), and the tie-breaks make `opus` `high` the reference (lower p95). No arm
+differs from it at 0.05 (lowest p 0.1797), so all seven tie. Among the tied arms `sonnet` wins, and
+among the four `sonnet` arms `low` has the lowest p95 wall time per run (11.8 s), so the rule's
+pick under the consensus labels is `sonnet` `low`.
+
+The shipped default is `sonnet` `medium` instead. Under GPT's round-2 labels (see Limitations)
+`sonnet` `low` is significantly worse than `opus` `high` (McNemar p 0.0215) and the rule picks
+`sonnet` `medium`. `sonnet` `medium` is tied-best under both label sets, for $0.0164 per row
+against $0.0155 and p95 12.6 s against 11.8 s. The fallback is the best `opus` arm by the same rule
+under the consensus labels: all three tie with `opus` `high`, and `low` has the lowest p95
+(15.3 s). Both classes run at the one `test_judge_effort`, so the fallback runs at `medium`, and
+`opus` `medium` is also tied-best (71/78).

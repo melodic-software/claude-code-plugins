@@ -7,11 +7,11 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
-- **judge:** the task-end judge defaults to `sonnet` at `low` effort, with `opus` as the fallback
+- **judge:** the task-end judge defaults to `sonnet` at `medium` effort, with `opus` as the fallback
   class, in `plugin.json` and in `judge-lib.sh`'s in-script defaults and invalid-value fallbacks.
-  The calibration sweep chose them: all seven arms tied with the most accurate arm by exact McNemar
-  test, and the tie-break (sonnet, then lower p95 wall time, then lower cost) picked `sonnet` `low`.
-  The table is in `docs/specs/tautological-tests-judge/calibration.md`.
+  The calibration sweep chose them: `sonnet` `medium` is tied-best under both the consensus labels
+  and GPT's labels (the tie-break alone picks `sonnet` `low`, which GPT's labels rate significantly
+  worse than `opus` `high`), at about $0.001 more per row. The table is in `docs/specs/tautological-tests-judge/calibration.md`.
 
 ### Added
 

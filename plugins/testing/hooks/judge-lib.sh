@@ -400,8 +400,8 @@ judge::pick() {
   [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=sonnet
   fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}"
   [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=opus
-  EFFORT="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-low}"
-  [[ "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]] || EFFORT=low
+  EFFORT="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-medium}"
+  [[ "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]] || EFFORT=medium
   for c in "$m" "$fb" opus sonnet haiku; do
     if [[ "$writers" != *" $c "* ]]; then
       MODEL="$c"

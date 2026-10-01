@@ -46,7 +46,7 @@
       "type": "string",
       "title": "Test judge effort",
       "description": "Effort level for the judge: low, medium, high, xhigh or max.",
-      "default": "low"
+      "default": "medium"
     },
     "test_judge_session_runs": {
       "type": "number",

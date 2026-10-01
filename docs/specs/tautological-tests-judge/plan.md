@@ -457,6 +457,9 @@ Other files:
   (and to add Haiku once G8 confirms its effort support) and change the default only when the sweep
   says so.
 - `docs/specs/tautological-tests-judge/calibration.md` records protocol and results.
+- Note (2026-10-01, user): the shipped default, `sonnet` `medium` with fallback `opus` `medium`,
+  deviates from the tie-break pick under the consensus labels (`sonnet` `low`), for robustness
+  across the two label sets: `sonnet` `medium` is tied-best under both, `sonnet` `low` is not.
 
 **Sanity Check:**
 
