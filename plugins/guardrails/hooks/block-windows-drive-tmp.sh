@@ -665,29 +665,33 @@ segment_writes_drive_root_tmp() {
 }
 
 # Inline `open(` / `write_text(` text is code only when something runs it, so a
-# quoted mention handed to an unrelated command (`gh issue create --body
-# "open('/tmp/x','w') ..."`) is data (#3951). Judged once on the WHOLE command
-# and fail-closed: the rule still applies on any tool but Bash (PowerShell runs
-# `[IO.File]::Open(` inline), on any `\`, `$`, backtick or process substitution
-# (an expansion or escape can build a runner's name), and when a runner's name
-# appears anywhere, quoted text included, with quotes deleted so `pyth''on3`
-# still reads python3. Runners: python and its launchers, the other
-# interpreters whose `open(` the rule catches, and the string runners (shells,
-# cmd, eval, source, `.`, xargs, parallel). A prose mention of any of them
-# keeps the rule on.
-_DRIVE_TMP_CODE_RUNNER="(^|[^[:alnum:]_.-])(i?python[0-9.]*w?|pyw?|pypy[0-9.]*|jython|uvx?|pipx|poetry|pdm|hatch|conda|mamba|micromamba|pixi|rye|perl[0-9.]*|ruby[0-9.]*|irb|jruby|node|nodejs|deno|bun|php[0-9.]*|lua[0-9.]*|luajit|tclsh[0-9.]*|osascript|rscript|julia|awk|gawk|mawk|nawk|pwsh|powershell|bash|sh|zsh|dash|ksh|mksh|fish|csh|tcsh|busybox|cmd|eval|source|xargs|parallel)(\.exe)?([^[:alnum:]_-]|$)"
-_DRIVE_TMP_DOT_SOURCE="(^|[;&|({[:space:]])\.[[:space:]]"
+# quoted mention handed to a command that only carries text (`gh issue create
+# --body "open('/tmp/x','w') ..."`) is data (#3951). Judged once on the WHOLE
+# command and fail-closed by allowlist: the text is data only on the Bash tool
+# (PowerShell runs `[IO.File]::Open(` inline), with no `\`, `$`, backtick or
+# process substitution (an expansion or escape can build a command's name), and
+# when the command, once every quoted string is deleted, is exactly one of the
+# listed text-carrying commands with plain flag words and no operator, newline,
+# glob or redirect. Any other command could be an interpreter this guard does
+# not know, so it keeps the rule.
+_DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:space:]]+(issue|pr)[[:space:]]+(create|comment|edit)|git[[:space:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
 # Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
 _DRIVE_TMP_CODE_RC=""
 inline_code_can_run() {
   if [[ -z "$_DRIVE_TMP_CODE_RC" ]]; then
     _DRIVE_TMP_CODE_RC=0
-    local flat="${COMMAND,,}"
-    flat="${flat//[\"\']/}"
     if [[ "$TOOL_NAME" == Bash && "$COMMAND" != *[\\\$\`]* ]] &&
-      [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]] &&
-      [[ ! "$flat" =~ $_DRIVE_TMP_CODE_RUNNER && ! "$flat" =~ $_DRIVE_TMP_DOT_SOURCE ]]; then
-      _DRIVE_TMP_CODE_RC=1
+      [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]]; then
+      local rest="$COMMAND" bare="" q
+      while [[ "$rest" =~ ^([^\"\']*)([\"\']) ]]; do
+        bare+="${BASH_REMATCH[1]}"
+        q="${BASH_REMATCH[2]}"
+        rest="${rest:${#BASH_REMATCH[0]}}"
+        [[ "$rest" == *"$q"* ]] || return "$_DRIVE_TMP_CODE_RC"
+        rest="${rest#*"$q"}"
+      done
+      bare+="$rest"
+      [[ "$bare" =~ $_DRIVE_TMP_DATA_ONLY ]] && _DRIVE_TMP_CODE_RC=1
     fi
   fi
   return "$_DRIVE_TMP_CODE_RC"
@@ -749,7 +753,7 @@ command_opens_only_for_read() {
     fi
     # Python allows `x . open(`, so the method dot is judged past whitespace.
     t="${before%"${before##*[![:space:]]}"}"
-    [[ "${before: -1}" == [[:alnum:]_] || "${t: -1}" == . ]] && return 1
+    [[ "${before: -1}" == [[:alnum:]_:] || "${t: -1}" == . ]] && return 1
     rest="${rest:${#ws}+1}"
     [[ "$rest" =~ $_DRIVE_TMP_PY_OPEN_READ ]] || return 1
     call="${BASH_REMATCH[0]}"
@@ -763,7 +767,8 @@ command_opens_only_for_read() {
     fi
     out+="$before"
   done
-  ! has_drive_root_tmp "$out$rest"
+  [[ "$out$rest" == *tmp* ]] && return 1
+  return 0
 }
 
 # Write-shaped signal: a known producer / destination utility whose write

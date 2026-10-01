@@ -506,8 +506,10 @@ run_win_pwsh "PS: python heredoc json.load(open(C:/tmp)) read (allowed)" \
   $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'C:/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
 run_win_pwsh "PS: python heredoc json.dump to the same C:/tmp path, write mode (blocked)" \
   $'python3 - <<\'EOF\'\nimport json\nd = {}\njson.dump(d, open(\'C:/tmp/retro-685.json\', \'w\'))\nEOF' 2
-# Inline-code text quoted as data to a command that runs no code is a mention
-# (#3951). Anything that could run it, or build a runner's name, keeps the rule.
+# Inline-code text quoted as data to a command that only carries text is a
+# mention (#3951). The relief is an allowlist of whole commands (gh issue/pr
+# create|comment|edit, git commit|tag, echo, printf), so any command not on it,
+# including an interpreter this guard has never heard of, keeps the rule.
 run_win "gh body quoting a write-mode open(/tmp) (allowed)" \
   "gh issue create --title t --body \"open('/tmp/x','w').write(1) was refused\"" 0
 run_win "git commit -m quoting open(C:/tmp, 'w') (allowed)" \
@@ -519,8 +521,52 @@ run_win "gh body quoting write_bytes and makedirs on /tmp (allowed)" \
 run_win "gh single-quoted body quoting open(/c/tmp, \"w\") (allowed)" \
   "gh pr comment 2 --body 'open(\"/c/tmp/x\",\"w\") was refused'" 0
 run_win "echo quoting open(/tmp, 'w') (allowed)" "echo \"open('/tmp/x','w')\"" 0
-run_win "gh body naming python3 beside open(/tmp, 'w') (blocked — prose runner name)" \
-  "gh issue create --title t --body \"python3 open('/tmp/x','w')\"" 2
+run_win "gh body naming python3 beside open(/tmp, 'w') (allowed, prose)" \
+  "gh issue create --title t --body \"python3 open('/tmp/x','w')\"" 0
+run_win "git tag -a -m quoting open(/c/tmp, 'w') (allowed)" \
+  "git tag -a v1 -m \"open('/c/tmp/x','w')\"" 0
+run_win "printf quoting open(/tmp, 'w') (allowed)" "printf '%s' \"open('/tmp/x','w')\"" 0
+# An unlisted interpreter must not read as data: the relief is an allowlist, not
+# a list of known runners.
+run_win "R -e open(/c/tmp, 'w') (blocked)" \
+  "R -e \"con<-file('/c/tmp/x');open(con,'w');writeLines('a',con)\"" 2
+run_win "octave fopen(/c/tmp, 'w') (blocked)" \
+  "octave --eval \"fid=fopen('/c/tmp/x','w');fprintf(fid,'a')\"" 2
+run_win "npx tsx fs.open(/c/tmp, 'w') (blocked)" \
+  "npx tsx -e \"require('fs').open('/c/tmp/x','w',()=>{})\"" 2
+run_win "elixir File.open(/c/tmp) (blocked)" "elixir -e 'File.open(\"/c/tmp/x\",[:write])'" 2
+run_win "erl file:open(/c/tmp) (blocked)" "erl -noshell -eval 'file:open(\"/c/tmp/x\",[write]),halt().'" 2
+run_win "tcc -run heredoc fopen(/c/tmp) (blocked)" \
+  $'tcc -run - <<\'EOF\'\nint main(){FILE*f=fopen("/c/tmp/x","w");return 0;}\nEOF' 2
+run_win "gcc heredoc fopen(/c/tmp) then ./a.out (blocked)" \
+  $'gcc -x c - -o a.out <<\'EOF\' && ./a.out\nint main(){FILE*f=fopen("/c/tmp/x","w");return 0;}\nEOF' 2
+run_win "make heredoc recipe running R open(/c/tmp) (blocked)" \
+  $'make -f - <<\'EOF\'\nx:\n\tR -e "open(\'/c/tmp/x\',\'w\')"\nEOF' 2
+run_win "env R open(/c/tmp) (blocked)" "env R -e \"open('/c/tmp/x','w')\"" 2
+run_win "time R open(/c/tmp) (blocked)" "time R -e \"open('/c/tmp/x','w')\"" 2
+run_win "glob-spelled /usr/bin/pyth*3 open(/c/tmp) (blocked)" \
+  "/usr/bin/pyth*3 -c \"open('/c/tmp/x','w')\"" 2
+run_win "glob-spelled p?thon3 open(/c/tmp) (blocked)" "p?thon3 -c \"open('/c/tmp/x','w')\"" 2
+run_win "quoted mention piped to R (blocked)" "echo \"open('/c/tmp/x','w')\" | R --no-save" 2
+run_win "quoted mention piped to an unknown interpreter (blocked)" \
+  "echo \"open('/c/tmp/x','w')\" | ./interp" 2
+run_win "quoted mention, then a script run by path (blocked)" \
+  "cat s.py | grep \"open('/c/tmp/x','w')\" ; ./s.py" 2
+run_win "gh body mention then an unlisted command after && (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w')\" && R -e 1" 2
+run_win "gh body mention with an unquoted glob arg (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w')\" --label *" 2
+run_win "gh body mention with an unterminated quote (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w') --title 'a" 2
+run_win "gh api (not text-carrying) quoting open(/c/tmp) (blocked)" \
+  "gh api repos/o/r/issues -f body=\"open('/c/tmp/x','w')\"" 2
+# A computed path beside a decoy read: the token tmp left outside the read call
+# keeps the block.
+run_win "python read then urlretrieve to a concatenated /c/'+'tmp path (blocked)" \
+  "python3 -c \"import json; json.load(open('/c/tmp/a')); import urllib.request as u; u.urlretrieve('http://x', '/c/'+'tmp/b')\"" 2
+run_win "python read then sqlite3 on a concatenated path (blocked)" \
+  "python3 -c \"d=open('/c/tmp/a').read(); import sqlite3; sqlite3.connect('/c/'+'tmp/b')\"" 2
+run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, 'rb') (blocked)" "[IO.File]::Open('C:/tmp/x','rb')" 2
 run_win "quoted open(/tmp) piped to sh (blocked)" "echo \"open('/tmp/x','w')\" | sh" 2
 run_win "quoted open(/tmp) piped to xargs (blocked)" "echo \"open('/tmp/x','w')\" | xargs echo" 2
 run_win "eval of quoted open(/tmp) (blocked)" "eval \"echo open('/tmp/x','w')\"" 2
