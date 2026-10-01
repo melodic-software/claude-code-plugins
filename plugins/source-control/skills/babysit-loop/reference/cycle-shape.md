@@ -20,9 +20,10 @@ is.
    not a worktree exists there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
    gives. Whether the lane can write a surface is a
    host property this check cannot see, so it never reports one compliant on that ground. The
-   check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke
-   `check-security-binding.mjs`: every promotable cell stays effective-unpromoted whatever it
-   finds, and step 3 reports the result each cycle.
+   check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke the
+   checker; step 3 does, and only when this check found no problem. A problem it finds leaves every
+   promotable cell effective-unpromoted, because step 3 then skips the invocation, and step 3
+   reports the result each cycle.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy, the comment is the source of truth for the counters); classify
    guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot: open PRs with head SHAs,
@@ -59,11 +60,25 @@ is.
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
    `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (never C4/C5). Before
-   work-class comparison resolve each cell through the trusted seam; unqualified evidence fail-closes
-   to effective-unpromoted, operators keep `--merge human-only` on launch lines; report each
-   bound→effective pair at cycle start, followed by one line naming the step 0 bootstrap check's
+   work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
+   effective rung is merge-capable and step 0's bootstrap check found no problem, run
+   `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
+   `--binding`, `--probe-evidence-root` and `--evidence` set to the `promotion_evidence_binding`,
+   `promotion_evidence_root` and `promotion_evidence_source` values from the substituted block in
+   [`../SKILL.md`](../SKILL.md) (never the `CLAUDE_PLUGIN_OPTION_*` mirror), `--checkout` the target
+   checkout, one `--worktree-root` per worktree root step 0 names, and `--checker` the installed
+   autonomy plugin's `skills/setup/scripts/check-security-binding.mjs` (never a copy inside the
+   checkout or a worktree root; the helper refuses one). It prints `{source, failClosedReason, cells}`
+   and exits 0. Decide each cell from `cells` with the resolution table: it is effective-promoted
+   only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
+   skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, no installed
+   checker), or a helper failure (non-zero exit, unparsable output) leaves every cell
+   effective-unpromoted. Operators keep `--merge human-only` on launch lines; lifting it is the
+   owner's call after Phase 3. Report at cycle start the resolution source, each bound→effective
+   pair, and any fail-closed reason, followed by one line naming the step 0 bootstrap check's
    findings (each option and its problem), or that the bootstrap is complete as far as that check
-   can see; a complete bootstrap does not change any pair. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
+   can see. When a cell's `line` reports a demotion, report that line; the escalation it names
+   follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible, no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class, the

@@ -3,9 +3,11 @@
 The operator-supplied surfaces the trusted seam in
 [`promotion-evidence-resolution.md`](promotion-evidence-resolution.md) reads: what each one is,
 where it may live, and why. That file owns the resolution rule and the fail-closed table; this file
-owns what an operator provides. Providing these surfaces does not enable autonomous merge. No cycle
-step invokes `check-security-binding.mjs`, so every promotable cell resolves effective-unpromoted
-with or without them, and operators keep `--merge human-only` on launch lines.
+owns what an operator provides. A compliant set lets the seam return a qualified read: cycle-shape
+step 3 passes the three surfaces to `check-security-binding.mjs` each cycle. A cell then resolves
+promoted only when the binding's ceiling and the in-epoch evidence say so, and every cell stays
+effective-unpromoted when a surface is absent or non-compliant. Operators keep `--merge human-only`
+on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 
 ## Contents
 
@@ -123,9 +125,11 @@ absent. A set value is compliant only when it is:
   back to a weaker read.
 - Reading promotion evidence from `.claude/source-control.md` or any other repo-local or
   agent-writable surface.
-- Autonomous merge on promotion grounds. Operators keep `--merge human-only` on launch lines while
-  the bootstrap is absent, and while it is present until a cycle step consumes it.
-- Invoking `check-security-binding.mjs` from the lane. The phased plan is in
+- Lifting `--merge human-only`. Operators keep it on launch lines whether or not the bootstrap is
+  present; lifting it is the owner's call after Phase 3 of the plan.
+- A `--credential-roots` surface. The lane passes the checker none, so a binding whose L2/L3
+  isolation entries rest on filesystem credential probes is rejected by the checker and every cell
+  resolves effective-unpromoted. The phased plan is in
   [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
 
 ## Verification record
@@ -146,3 +150,15 @@ absent. A set value is compliant only when it is:
 - **As of:** 2026-09-29.
 - **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
   plugin-option read scopes.
+
+- **Claim:** the checker leaves an L2/L3 entry unproven, with a reason beginning
+  `no --credential-roots configured`, when a filesystem credential probe is evaluated and the
+  `--credential-roots` argument is absent. The lane's helper passes the checker the binding,
+  `--evidence`, and `--probe-evidence-root` only, and a checker exit of 1 fails the helper closed.
+- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
+  the `credentialRoots === null` branch of the credential-probe check, `verifyProbeTranscript`);
+  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` (the
+  `spawnSync` argv and the non-zero-exit branch), checked 2026-10-01.
+- **As of:** 2026-10-01.
+- **Recheck:** the checker gaining a default for credential roots, or the helper passing more
+  arguments.

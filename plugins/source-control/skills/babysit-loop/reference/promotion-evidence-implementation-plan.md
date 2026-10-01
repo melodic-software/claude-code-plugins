@@ -1,20 +1,20 @@
 # Promotion-evidence trusted seam. Implementation plan (#4588)
 
-Status: Phase 1 approved by the owner. Phases 2-3 are unapproved and are re-decided after the
-bootstrap contract is reviewed. Phases 2 and 3 are not implemented.
+Status: Phases 1 and 2 approved by the owner; Phase 2 is implemented. Phase 3 is unapproved and is
+decided again after Phase 2 lands. Phase 3 is not implemented.
 
 Each phase needs the owner's approval before its code changes. This document sets scope and phases;
-Phase 1 does not wire the seam.
+Phase 1 does not wire the seam, and Phase 2 does.
 
 ## Problem
 
 The merge lane must resolve each promotable cell's **effective** promotion state through
 `check-security-binding.mjs --evidence` on a **qualified, non-forgeable** read
-([`promotion-evidence-resolution.md`](promotion-evidence-resolution.md)). Today the lane has no
-invocation path that supplies `--probe-evidence-root` (or equivalent bootstrap) outside the target
-repository's blast radius, so evaluation mode fail-closes and every cell stays effective-unpromoted.
-Tracked `babysit_loop_merge: c3-autonomous` therefore does not admit autonomous merge for C2/C3
-classes.
+([`promotion-evidence-resolution.md`](promotion-evidence-resolution.md)). That takes an invocation
+path that supplies `--probe-evidence-root` (or equivalent bootstrap) outside the target
+repository's blast radius; without one, evaluation mode fail-closes and every cell stays
+effective-unpromoted, so tracked `babysit_loop_merge: c3-autonomous` does not admit autonomous
+merge for C2/C3 classes.
 
 ## Decision record
 
@@ -31,8 +31,8 @@ classes.
     resolution" (line 214).
   - `plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.mjs`: builds each
     fixture argv with `--probe-evidence-root` (line 80) and `--evidence` (line 81).
-  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 22), whose promotion gate
-    reads at lines 45-50.
+  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 36), whose promotion gate
+    reads at lines 59-81.
   - `prompts/loops/loop-lane-prompts.md`: `{{MERGE}}` guidance (lines 75-80), "2. Merge lane"
     (line 628), and the "C2 auto-merge may lack its promotion evidence" known gap (line 1248).
 - **As of:** 2026-09-29.
@@ -62,7 +62,8 @@ classes.
 ### Phase 2. Cycle-step invocation
 
 - In babysit-loop cycle-shape step 3, invoke `check-security-binding.mjs` evaluation mode through
-  the documented bootstrap only (never repo-local JSON the lane could forge).
+  the documented bootstrap only (never repo-local JSON the lane could forge), by way of
+  `scripts/resolve-promotion-evidence.mjs`.
 - Map script output to the promotable-cell table already in `promotion-evidence-resolution.md`.
 - Report bound→effective pairs and fail-closed reasons in the cycle-start config report.
 
@@ -71,7 +72,6 @@ classes.
 - Extend `check-security-binding.fixtures.test.mjs` coverage for the invocation argv the lane uses.
 - Add babysit-loop eval or harness case where bootstrap qualifies and C2/C3 PRs enter the
   merge-eligible set.
-- Flip "Current seam state" from present-tense gap to operator instructions once Phase 2 ships.
 
 ## Out of scope
 
