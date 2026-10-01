@@ -45,7 +45,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | `ensure-running`, `stop` | Server lifecycle, as above |
 | `add` | One question from `--file` or flags. Refuses a question without `commits` (`--commit none` is an explicit empty list) or with fewer than two alternatives |
 | `add-round --file F [--round N]` | Meta, groups, questions and visuals in one write; any error writes nothing. The file's `meta` object takes `title`, `eyebrow`, `stages`, `next` (what Claude does after wrap-up, shown on the finished screen) and `repo` (`owner/repo`, links a bare `#N` on the page) and refuses other keys |
-| `meta` op | `{"op": "meta", "set": {...}}` merges the same four keys into `meta`; other meta keys, such as `emojiMarkers`, stay |
+| `meta` op | `{"op": "meta", "set": {...}}` merges the same five keys into `meta`; other meta keys, such as `emojiMarkers`, stay |
 | `group <id>` | Add or update a group; `--depends` names prerequisite groups |
 | `reply` op | A Claude line on the question's thread; `seq` marks that event handled; `rec` revises the recommendation and needs `affects` |
 | `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`), alternatives (at least two) or commitments (`--commit`, repeatable; `none` clears). New commitments replace the list and reset its confirmations |

@@ -3,11 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.53.1] - 2026-09-30
+## [0.54.0] - 2026-09-30
+
+### Added
+
+- **The interview page has Research this and Cancel research buttons.** They post generic `research` and `cancel-research` events that name no skill or plugin; the interviewing session decides how to fulfill them. The `wait` op stamps `waitingSince`, and a held card reads "Research in progress, started <time>". While Claude holds a question, Accept, the alternatives and Own answer stay enabled (Answer anyway, as before); disabling them is not done and is left to the owner ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A question waiting for Claude's reply shows a chip, and Accept asks first.** An ask or rephrase with no later reply from Claude marks the question "Waiting for Claude's reply", and Accept then asks "Accept current recommendation anyway?" ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A bare `#N` in question text links to the issue in the new `meta.repo` key.** `round.py` warns, without blocking, when text carries one and `meta.repo` is unset ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
 
 ### Fixed
 
-- **The interview page finishes the remaining issue #5569 gaps.** A question shows the revising chip only while its own revise event is unhandled. A bare `#N` in question text links to the issue in `meta.repo`, and `round.py` warns, without blocking, when text carries one and `meta.repo` is unset. The summary's Confirm button sits clear of the What-is-off box. A question has Research this and Cancel research buttons that post generic `research` and `cancel-research` events, and a held card reads "Research in progress, started <time>". A question waiting for Claude's reply shows a chip, and Accept asks for confirmation first. The decide area caps at 40% of the viewport height on short screens, and the phone layout no longer scrolls the question rail inside itself. The wake contract says to re-read the events and restate after a stale-read refusal instead of forcing ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The revising chip reads "Answer not handled yet" and shows on a question only while Claude has not handled that question's own decision.** It no longer names an upstream question; a changed prerequisite stays in the Stale and Waiting-on chips ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The summary's Confirm and Something's off buttons sit in one row below the What-is-off box**, clear of it ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The decide area caps at 40% of the viewport height on short screens, and the phone layout wraps the status line and no longer scrolls the question rail inside itself** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The wake contract says to re-read the events and restate after a stale-read refusal instead of forcing** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
 
 ## [0.53.0] - 2026-09-30
 

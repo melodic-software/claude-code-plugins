@@ -424,7 +424,7 @@ META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
 
 
 def set_meta(doc, m):
-    """Merge title, eyebrow, stages and next into questions.json meta; any other key is refused."""
+    """Merge title, eyebrow, stages, next and repo into questions.json meta; any other key is refused."""
     if not isinstance(m, dict):
         sys.exit("refused: meta is an object")
     extra = sorted(set(m) - set(META_KEYS))

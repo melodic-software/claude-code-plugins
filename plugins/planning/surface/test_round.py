@@ -1800,7 +1800,7 @@ class TestGroupSummaryOf(DirCase):
 
 
 class TestMeta(DirCase):
-    """`add-round` meta and the `meta` op: title, eyebrow, stages, next; nothing else."""
+    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo; nothing else."""
 
     def setUp(self):
         super().setUp()
@@ -1837,6 +1837,12 @@ class TestMeta(DirCase):
         self.assertEqual(meta["title"], "New")
         self.assertIs(meta["emojiMarkers"], True)
         self.assertIn("meta:", out)
+
+    def test_apply_meta_op_sets_repo(self):
+        ops = {"ops": [{"op": "meta", "set": {"repo": "o/r"}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["repo"], "o/r")
 
     def test_apply_meta_op_unknown_key_is_refused(self):
         ops = {"ops": [{"op": "meta", "set": {"displayName": "Kyle"}}]}
