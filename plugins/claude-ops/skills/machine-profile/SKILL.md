@@ -6,7 +6,7 @@ disable-model-invocation: false
 metadata:
   workflow-stage: operator
   summary: Discover, store and diff machine facts and per-tree identity domains. Read-only by default.
-  cadence: on-demand
+  cadence: weekly
 ---
 
 ## Purpose
