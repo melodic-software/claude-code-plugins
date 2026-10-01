@@ -37,7 +37,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Advanced (/effort max, remote control, voice, setup scripts, naming, /color, PostCompact, auto mode, /schedule, iMessage, auto-memory) | [reference/advanced.md](reference/advanced.md) | 34–45 | Parts 7–8 |
 | Favorites (mobile app, teleport, Dispatch, Chrome extension, Desktop web testing, session forking, --bare, --add-dir, --agent, /voice) | [reference/favorites.md](reference/favorites.md) | 46–60 | Favorites thread (Mar 29) |
 | Autonomy & Opus 4.7 era (Routines, /rewind, /compact vs /clear, auto-compact window, delegation, full-context briefs, xhigh, auto mode + parallel, /fewer-permission-prompts, recaps, /focus, effort mastery, /go, 4.6→4.7 shifts, task notifications, Agent View `claude agents`, /goal Ralph loop) | [reference/autonomy.md](reference/autonomy.md) | 61–77 | Parts 10–12 |
-| Orchestration & frontier models (Opus 4.8, high-effort default, dynamic workflows, workflow patterns + use cases, /goal + /loop + token budgets, saving workflows + ultracode, auto mode retired plan mode, context minimalism, write-it-down, auto-mode trust, nested subagents, fork: true, "use a workflow" trigger, Fable 5) | [reference/orchestration.md](reference/orchestration.md) | 78–95 | Parts 13–15 + workflows deep-dive + interview |
+| Orchestration & frontier models (Opus 4.8, effort levels, dynamic workflows, workflow patterns + use cases, /goal + /loop + token budgets, saving workflows + ultracode, auto mode retired plan mode, context minimalism, write-it-down, auto-mode trust, nested subagents, fork: true, "use a workflow" trigger, Fable 5) | [reference/orchestration.md](reference/orchestration.md) | 78–95 | Parts 13–15 + workflows deep-dive + interview |
 | Finding your unknowns (the four unknowns, blindspot pass, brainstorms + prototypes, interviews, references, implementation plans, implementation-notes.md, pitches + explainers, quizzes) | [reference/unknowns.md](reference/unknowns.md) | 96–99 | Part 18 |
 | Loops (the four loop types, turn-based + goal-based, time-based + proactive, loop quality + token usage, which loop when) | [reference/loops.md](reference/loops.md) | 100–103 | Part 19 |
 | Setup maintenance & automation as infrastructure (/checkup, safe-by-default, the real run, automation as meta-skill, fixes into code, domain knowledge as infrastructure) | [reference/automation.md](reference/automation.md) | 104–109 | Parts 20–21 |
@@ -50,7 +50,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Parallel work | Use git worktrees, 3-5 sessions |
 | Model | Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync, which predates Fable 5.1; re-sync through `/playbooks:update` once upstream publishes Fable 5.1 tips |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
-| CLAUDE.md | Update after every correction |
+| CLAUDE.md | Add what corrections teach, and prune as you add (Section 4) |
 | Skills | Create for repeated workflows |
 | Subagents | Offload to keep context clean |
 | Hooks | Auto-format, lifecycle hooks, logging |
