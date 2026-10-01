@@ -243,7 +243,7 @@ TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 #
 # The signature set covers the exec-family wording and Claude Code's own
 # missing-executable wording (`Executable not found in $PATH`, printed before any
-# hook process exists). It stays narrow on purpose —`command not found`, `cannot
+# hook process exists). It stays narrow on purpose — `command not found`, `cannot
 # execute`, and cmd.exe's `is not recognized as an internal or external command`
 # are all excluded because a hook that launched fine prints them from a command
 # IT ran, which would re-introduce this defect in a new shape. Classification
