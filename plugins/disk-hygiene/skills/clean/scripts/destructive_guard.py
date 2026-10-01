@@ -1108,9 +1108,9 @@ def resolve_mode() -> str:
     ``belt`` (default) is the skill-frontmatter deployment: the skill's ``if``
     filters send only deletion-shaped Bash commands here, and each one is denied
     unless it is an exact engine call, the small read-only supporting allowlist,
-    the release lever, or the session's belt is released. A command that
-    reaches it only because it carries ``$()`` or a backtick defers when no
-    command in it is a deletion verb (``belt_scan``). PowerShell keeps its
+    the release lever, the session's belt is released, or it is on the
+    ``belt_scan`` allowlist (one plain git, gh, repo-hygiene or dispatch-gate
+    command), which defers. PowerShell keeps its
     deletion-spelling discipline. Claude Code registers skill-frontmatter
     ``PreToolUse`` hooks for the rest of the session after the skill is invoked
     (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
@@ -2435,13 +2435,13 @@ def _bash_denial_guidance(
         "truncate, mv and find, bare or by absolute path, and engine calls) are "
         "denied unless they are "
         + grammar
-        + " Other Bash commands, git and gh included, are not denied. A "
-        "command with $(), backticks or $VAR is read word by word, those "
-        "included, and denied when any word names a deletion verb or a "
-        "bundled script where a command could run it (as the command, behind "
-        "a wrapper such as sudo, env or timeout, or inside bash -c or eval), "
-        "or when it cannot be read to the end (an unterminated quote, $( or "
-        "heredoc, a command name built by expansion). "
+        + " Other Bash commands, git and gh included, reach this belt only "
+        "when they run the engine, probe or release script through an "
+        "interpreter, contain $(), backticks or $VAR, or cannot be split into "
+        "their parts by Claude Code; then they are denied too, except one "
+        "plain git or gh command, repo-hygiene clean script or discovery "
+        "dispatch-gate call with no operator, wrapper or ${ in it, whose only "
+        "$() is a quoted cat heredoc after git -m or gh --body or --title. "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )
@@ -3119,21 +3119,19 @@ def _decide(
         )
     if (
         belt
-        and ("$" in command or "`" in command)
         and belt_scan.defers(command)
         and not _engine_gate_relevant(command, tool_name)
     ):
         # Claude Code runs the wildcard-led `if` filters on `$()`, a backtick or
-        # `$VAR` whatever the command (git, gh and the repo-hygiene scripts use
-        # them); without one, a filter matched a deletion shape and the command
-        # is denied unread. With one, no word names a deletion verb or a
-        # bundled script where a command could run it.
+        # `$VAR` whatever the command, so a git commit with a heredoc message
+        # reaches the belt. Only the allowlist in belt_scan defers; everything
+        # else falls through to the deny below.
         _emit_guard_telemetry(start, tool_name, "ok")
         _record_decision(
             command,
             tool_name,
             guard_decision_log.DECISION_NONE,
-            "belt-no-deletion-shape",
+            "belt-allowlist",
         )
         return 0
     if belt and _RELEASE_MARKER in command:

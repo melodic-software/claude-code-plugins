@@ -16,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import types
@@ -10448,9 +10449,8 @@ class GuardTests(unittest.TestCase):
 
         self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
         self.assertIn("deletion-shaped Bash commands", belt)
-        self.assertIn("git and gh included, are not denied", belt)
-        self.assertIn("$(), backticks or $VAR is read word by word", belt)
-        self.assertIn("behind a wrapper such as sudo", belt)
+        self.assertIn("git and gh included, reach this belt only", belt)
+        self.assertIn("except one plain git or gh command", belt)
         self.assertIn("release lever", belt)
         self.assertNotIn("persists until the session ends", belt)
         self.assertNotIn("start a new session", belt)
@@ -10750,11 +10750,6 @@ class GuardTests(unittest.TestCase):
                     result["hookSpecificOutput"]["permissionDecision"],
                     command,
                 )
-        # An expansion with no deletion verb in it defers (the session belt's
-        # `if` filters run on any `$()`, backtick or `$VAR`).
-        for command in ("ls $(pwd)", "ls `pwd`", "ls ${HOME}"):
-            with self.subTest(command=command):
-                self.assertIsNone(self._invoke_guard(command, enabled=True), command)
         denied = (
             # Bare names are function-shadowable and must not hard-allow.
             "ls -la /tmp/example",
@@ -10774,14 +10769,16 @@ class GuardTests(unittest.TestCase):
             "find /tmp/example -fprint0 /tmp/out",
             "find /tmp/example -fprintf /tmp/out %p",
             "find /tmp/example -fls /tmp/out",
-            # Shell operators and redirections stay denied.
+            # Shell operators, redirections and expansions stay denied.
             "ls /tmp/example; rm -rf /tmp/example",
             "ls /tmp/example && rm -rf /tmp/example",
             "ls /tmp/example || rm -rf /tmp/example",
             "ls /tmp/example | xargs rm",
             "ls /tmp/example > /tmp/out",
-            # Deny-by-default holds for everything off the allowlist that
-            # carries no expansion.
+            "ls $(pwd)",
+            "ls `pwd`",
+            "ls ${HOME}",
+            # Deny-by-default holds for everything off the allowlist.
             "command ls /tmp/example",
             "./ls /tmp/example",
             "true",
@@ -12872,21 +12869,13 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(bash)
         self.assertTrue(all(hook.get("if") for hook in bash), bash)
         ifs = {hook["if"] for hook in bash}
-        for verb in sorted(guard.belt_scan.DELETION_VERBS):
+        for verb in ("rm", "rmdir", "unlink", "shred", "truncate", "mv", "find"):
             for form in (f"{verb} *", f"*/{verb} *"):
                 with self.subTest(form):
                     self.assertIn(f"Bash({form})", ifs)
-        for script in sorted(guard.belt_scan.BUNDLED_SCRIPTS):
+        for script in ("hygiene.py", "kill_switch_probe.py", "release_belt.py"):
             with self.subTest(script):
                 self.assertTrue(any(f"/scripts/{script}" in glob for glob in ifs))
-        self.assertEqual(
-            guard.belt_scan.DELETION_VERBS,
-            {
-                glob[len("Bash(") :].split(" ")[0].rsplit("/", 1)[-1]
-                for glob in ifs
-                if "/scripts/" not in glob
-            },
-        )
 
     def test_belt_lets_the_readonly_allowlist_through(self) -> None:
         self.authorize_data_root()
@@ -12916,156 +12905,40 @@ class GuardTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual("deny", self._permission(self._belt(command)))
 
-    # A heredoc body that names deletion verbs, quotes of both kinds, a bare
-    # `)` and a `$()`: data when a quoted-delimiter heredoc of cat, git or gh
-    # carries it, so a commit message may say anything.
+    # A quoted heredoc body that names deletion verbs and holds `;`, `&`, `|`,
+    # quotes of both kinds, backticks, a bare `)` and a `$()`: data, so a commit
+    # message may say anything.
     _HEREDOC_BODY = (
         "fix: stop the rm -rf x; find -delete handling\n\n"
-        '- a `rm` note, "quoted", don\'t, an unbalanced ) paren\n'
+        '- a `rm` note, "quoted", don\'t, an unbalanced ) paren & a | pipe\n'
         "$(rm y)"
     )
 
-    @classmethod
-    def _heredoc_command(cls, head: str, body: str | None = None) -> str:
-        return f"{head} \"$(cat <<'EOF'\n{body or cls._HEREDOC_BODY}\nEOF\n)\""
-
-    def _deferred_commands(self) -> tuple[str, ...]:
-        """Commands the guard may see for a `$()`, a backtick or `$VAR`, none of
-        which names a deletion verb where a command could run it."""
+    def _allowlisted_commands(self) -> tuple[str, ...]:
+        """The belt allowlist's must-pass set (``lib/belt_scan.py``)."""
         return (
-            self._heredoc_command("git commit -m"),
-            'git commit -m "$(cat <<EOF\nfix: thing\nEOF\n)"',
-            'git commit -m "$(cat <<EOF\nfix: stop the rm -rf and find handling\nEOF\n)"',
-            'git commit -m "$(cat <<-EOF\n\tfix: thing ($HOME) `date`\n\tEOF\n)"',
-            "git commit -F - <<EOF\nmsg $(date) \\$(rm x)\nEOF",
-            'gh pr create --title "fix find handling" --body "$(cat <<EOF\nbody\nEOF\n)"',
-            'gh pr view "$(git branch --show-current)"',
-            'timeout 60 gh pr checks "$(git branch --show-current)"',
-            self._heredoc_command("gh pr create --title t --body"),
-            self._heredoc_command(
-                "git commit -m", "mentions release_belt.py and kill_switch_probe.py"
-            ),
-            f"git commit -F - <<'EOF'\n{self._HEREDOC_BODY}\nEOF",
-            "cd \"$(pwd)\" && git commit -F - <<'EOF'\nmsg rm\nEOF",
-            'echo "$(date +%Y)"',
-            "echo `date`",
-            "echo $HOME",
-            'git log "$REF"',
-            'cd "$(git rev-parse --show-toplevel)" && git status',
-            '"$CLAUDE_PLUGIN_ROOT/scripts/check-dispatch-artifact.sh" "$(pwd)/x"',
-            'bash /p/repo-hygiene/skills/clean/scripts/git-branch-audit.sh "$(pwd)"',
-            'echo "${#arr[@]} ${x:-$(date)}"',
-            "[ -f x ] && echo $(date)",
-            "if true; then echo $(date); fi",
-            "for f in $(ls); do echo $f; done",
-            "echo $((1 + 2))",
-            'echo "it\'s $(date)"',
-            "x=$(date) git status",
-            "docker run --rm img $(date)",
-            "git commit -m 'rm and find' $(date)",
-            "echo $(date) # rm $(x)",
+            f"git commit -m \"$(cat <<'EOF'\n{self._HEREDOC_BODY}\nEOF\n)\"",
+            'git commit -m "$(cat <<EOF\nfix: stop the rm -rf x; find (a | b)\n\n'
+            'body\nEOF\n)"',
+            f"gh pr create --title t --body \"$(cat <<'EOF'\n{self._HEREDOC_BODY}"
+            '\nEOF\n)"',
+            "/p/repo-hygiene/0.9.0/skills/clean/scripts/git-branch-audit.sh "
+            "--read-only",
+            '"/p/discovery/1.2.0/scripts/check-dispatch-artifact.sh" /x/slice '
+            "--index-name EXPLORE.md",
         )
 
-    def test_belt_defers_a_command_with_no_deletion_verb_for_any_kill_switch(
-        self,
-    ) -> None:
+    def test_belt_lets_its_allowlist_through_for_any_kill_switch(self) -> None:
         self.authorize_data_root()
-        for command in self._deferred_commands():
+        for command in self._allowlisted_commands():
             for enabled in (True, False):
                 with self.subTest(command=command, enabled=enabled):
                     self.assertIsNone(self._belt(command, enabled=enabled))
                     record = self.decision_records()[-1]
                     self.assertEqual("none", record["decision"])
-                    self.assertEqual("belt-no-deletion-shape", record["rule"])
+                    self.assertEqual("belt-allowlist", record["rule"])
                     self.assertNotIn("command", record)
                     self.assertEqual(len(command), record["command_chars"])
-
-    def test_belt_denies_a_deletion_verb_inside_an_expansion_or_grouping(self) -> None:
-        self.authorize_data_root()
-        engine = self._engine_words("scan --target t --output s")
-        for command in (
-            'echo "$(date)" && rm -f x',
-            'rm -f "$(mktemp)"',
-            'echo "$(rm x)"',
-            "echo `rm x`",
-            "echo `echo \\`rm x\\``",
-            "x=$(find d -delete)",
-            "$(command -v rm) x",
-            "$RM x",
-            "${x}rm y",
-            'FOO="$(date)" rm x',
-            '\\rm "$(pwd)/x"',
-            '/bin/rm "$(pwd)/x"',
-            '"r""m" "$(pwd)/x"',
-            "'rm' $(date)",
-            "RM $(date)",
-            "rm.exe $(date)",
-            "~/bin/rm $(date)",
-            "r* $(date)",
-            "echo $(date) | xargs rm",
-            "echo $(date) | xargs -I{} rm {}",
-            '( echo "$(date)"; rm x )',
-            '{ echo "$(date)"; rm x; }',
-            'if true; then rm "$(pwd)/x"; fi',
-            'while true; do echo "$(date)"; unlink x; done',
-            "echo $(date) && time rm x",
-            "echo $(date) && ! rm x",
-            "echo $(date)\nrm x",
-            "echo $(date) && >out rm x",
-            "echo $(date) && 2>/dev/null rm x",
-            "echo $(date) && foo() { rm x; }",
-            "echo $(date) && echo ${x:-$(rm y)}",
-            "echo $(date) && diff <(rm x) y",
-            "echo $(date) & shred x",
-            "echo $(date); truncate -s 0 x",
-            "echo $(date) && mv a b",
-            "echo $(date) && /usr/bin/find . -delete",
-            "echo $(date) && case x in x) rm y;; esac",
-            # Not readable to the end: denied, never guessed.
-            "echo $(date) && echo $(",
-            'echo "$(date)',
-            "git commit -m \"$(cat <<'EOF'\nbody\n",
-            "cat <<EOF\n$(rm x)\nEOF",
-            "cat <<EOF\n`rm x`\nEOF",
-            "cat <<EOF\n${x:-$(rm x)}\nEOF",
-            "cat <<EOF\n$(echo\nEOF\nrm x\n)\nEOF",
-            # bash ends a heredoc in $() at `EOF)`, and a trailing backslash
-            # in an unquoted body joins the delimiter line to the one before.
-            "echo \"$(cat <<'EOF'\nbody\nEOF)\"\nrm y\nEOF\n)\"",
-            "x=$(cat <<'EOF'\nbody\nEOF )\nrm y\nEOF\n)",
-            "cat <<EOF\nx\\\nEOF\n' $(rm y) '\nEOF",
-            "bash <<'EOF'\nrm -rf x\nEOF\necho $(date)",
-            "git bisect run sh <<'EOF'\nrm -rf x\nEOF\necho $(date)",
-            "cat <<'EOF' | sh\nrm x\nEOF\necho $(date)",
-            "git commit -F - <<'EOF'x\nmsg\nEOF\necho $(date)",
-            # A quoted `<<'EOF'` is a string, so its `$()` is code.
-            "echo \"<<'EOF'\n$(rm x)\nEOF\"",
-            'echo "it\'s $(rm x)"',
-            # Bundled scripts: an interpreter call or a direct run.
-            f'{engine} "$(pwd)"',
-            'python3 /p/skills/clean/scripts/hygiene.py scan "$(pwd)"',
-            'python3 /p/skills/setup/scripts/kill_switch_probe.py "$(pwd)"',
-            '/p/skills/clean/scripts/release_belt.py "$(pwd)"',
-        ):
-            for enabled in (True, False):
-                with self.subTest(command=command, enabled=enabled):
-                    self.assertEqual(
-                        "deny",
-                        self._permission(self._belt(command, enabled=enabled)),
-                    )
-
-    def test_belt_denies_every_deletion_shape_with_an_expansion_added(self) -> None:
-        self.authorize_data_root()
-        for shape in self._DELETION_SHAPES:
-            for command in (
-                f'{shape} "$(echo x)"',
-                f'echo "$(echo x)" && {shape}',
-                f'echo "$({shape})"',
-                f"echo `{shape}`",
-                f'cd "$(pwd)"; {shape}',
-            ):
-                with self.subTest(command=command):
-                    self.assertEqual("deny", self._permission(self._belt(command)))
 
     # Wrapped absolute-path deletions the `*/rm *` and `*/find *` filters send to
     # the guard.
@@ -13085,41 +12958,237 @@ class GuardTests(unittest.TestCase):
         "sudo /usr/bin/find /x -delete",
     )
 
-    def test_belt_denies_a_deletion_behind_a_wrapper_with_or_without_an_expansion(
-        self,
-    ) -> None:
-        self.authorize_data_root()
-        for shape in self._WRAPPED_DELETIONS:
-            for command in (
+    def _gate_corpus(self) -> list[str]:
+        """Every shape the three verify rounds on #5698 found let through, the
+        commands the scanner-based deferral let through, and the allowlist's
+        own inline-exec vectors."""
+        shapes = [
+            *self._DELETION_SHAPES,
+            *self._WRAPPED_DELETIONS,
+            "eval 'rm -rf /tmp/x'",
+            'eval "$CMD"',
+            "sh -c 'rm -rf /tmp/x'",
+            "bash -c 'rm -rf /tmp/x'",
+            "sudo sh -c 'rm -rf /tmp/x'",
+            "env -S 'rm -rf /tmp/x'",
+            "env -S'rm -rf' /tmp/x",
+            "echo /tmp/x | xargs rm",
+            "echo /tmp/x | xargs -I{} sudo /bin/rm -rf {}",
+            "find /tmp/d -exec rm {} +",
+            "find /tmp/d -execdir rm -rf . ;",
+            "\\rm -rf /tmp/x",
+            "'rm' -rf /tmp/x",
+            '"rm" -rf /tmp/x',
+            "$'\\x72m' -rf /tmp/x",
+            "$'rm' -rf /tmp/x",
+            'sudo "$RM" -rf /tmp/x',
+            "sudo /bin/r[m] -rf /tmp/x",
+            "sudo {rm,-rf} /tmp/x",
+            "python3 -c 'import shutil; shutil.rmtree(\"/tmp/x\")'",
+            'ssh h "rm -rf /tmp/x"',
+            'bash <<< "rm -rf /tmp/x"',
+            "echo rm -rf /tmp/x | sh",
+            'echo "$(echo "$(rm -rf /tmp/x)")"',
+            "echo $(echo $(rm -rf /tmp/x))",
+            "echo `echo \\`rm -rf /tmp/x\\``",
+            "x=$(find /tmp/d -delete)",
+            # The third round: `${x:-...}` behind a wrapper, eval or bash -c.
+            *(
+                f'{wrapper} ${{x:-/bin/rm }} -rf /tmp/x "$(pwd)"'
+                for wrapper in (
+                    "sudo,nohup,timeout 5,exec,env,command,doas,nice,stdbuf -o0,"
+                    "builtin,watch"
+                ).split(",")
+            ),
+            'sudo ${x:-/usr/bin/find } /x -delete "$(pwd)"',
+            'sudo "${x:-/bin/rm}" -rf /tmp/x "$(pwd)"',
+            'eval ${x:-"rm -rf /x"}',
+            'bash -c ${x:-"rm -rf /x"}',
+            'sh -c ${x:-"rm -rf /x"}',
+            "${x:-rm} -rf /tmp/x",
+            "echo ${x:-$(rm -rf /tmp/x)}",
+        ]
+        message = "\"$(cat <<'EOF'\nmsg\nEOF\n)\""
+        corpus = [
+            variant
+            for shape in shapes
+            for variant in (
                 shape,
                 f'{shape} "$(pwd)"',
                 f"{shape} $HOME",
+                f"{shape} `pwd`",
                 f'echo "$(date)" && {shape}',
                 f'echo "$({shape})"',
-                f"echo `{shape}`",
-            ):
-                with self.subTest(command=command):
-                    self.assertEqual("deny", self._permission(self._belt(command)))
-        for command in (
-            # A command that runs a string as code, or a here-string.
-            "bash -c 'rm -rf /tmp/x' \"$(pwd)\"",
-            'sh -c "/bin/rm -rf $(pwd)"',
-            'eval "rm -rf $(pwd)"',
-            'sudo sh -c "rm -rf $(pwd)"',
-            "python3 -c 'import os; os.system(\"rm -rf x\")' \"$(pwd)\"",
-            'ssh h "rm -rf $(pwd)"',
-            'bash <<< "rm -rf $(pwd)"',
-            'echo "$(pwd)" | xargs sudo rm',
-            # Spellings a wrapper might carry.
-            "sudo $'\\x72m' -rf \"$(pwd)\"",
-            "$'\\x72m' -rf \"$(pwd)\"",
-            'sudo {rm,-rf} "$(pwd)"',
-            "sudo -u root \\rm -rf \"$(pwd)\"",
-            "env FOO=1 'rm' -rf \"$(pwd)\"",
-            'setsid /bin/rm -rf "$(pwd)"',
-            'git rm "$(pwd)/x"',
+                f"git commit -m {message} && {shape}",
+                f"git status; {shape}",
+                f"gh pr view 1 | {shape}",
+            )
+        ]
+        return corpus + [
+            # Inline-exec vectors behind an allowlisted head.
+            f"git -c core.pager='rm -rf /tmp/x' commit -m {message}",
+            f"git -c alias.x='!rm -rf /tmp/x' x -m {message}",
+            f"git --config-env=core.pager=RM commit -m {message}",
+            f"git --exec-path=/tmp/evil commit -m {message}",
+            f"git x -m {message}",
+            f"git \"$(cat <<'EOF'\ncommit\nEOF\n)\" -m {message}",
+            "git rebase -x 'rm -rf /tmp/x' HEAD~1",
+            "git rebase -ix 'rm -rf /tmp/x' HEAD~1",
+            "git rebase --exec='rm -rf /tmp/x' HEAD~1",
+            "git rebase --onto -m \"$(cat <<'EOF'\n--exec=rm -rf /tmp/x\nEOF\n)\"",
+            "git log -m \"$(cat <<'EOF'\n--output=/tmp/x\nEOF\n)\"",
+            "git fetch --upload-pack='rm -rf /tmp/x' origin",
+            "git push --receive-pack='rm -rf /tmp/x' origin",
+            "git push --exec='rm -rf /tmp/x' origin",
+            "git clone -u 'rm -rf /tmp/x' /tmp/r",
+            "git clone --template=/tmp/evil /tmp/r",
+            "git rm -rf /tmp/x/rm y",
+            "git mv /tmp/a/rm /tmp/b",
+            "git clean -fdx /tmp/x/rm",
+            "git worktree remove --force /tmp/x/rm",
+            "git submodule foreach 'rm -rf /tmp/x'",
+            "git bisect run rm -rf /tmp/x",
+            "git difftool -x 'rm -rf /tmp/x' HEAD",
+            "git grep -O'rm -rf /tmp/x' x",
+            "git config core.pager 'rm -rf /tmp/x'",
+            'git commit -m "$(rm -rf /tmp/x)"',
+            'git commit -m "${x:-$(rm -rf /tmp/x)}"',
+            'git commit -m "$(cat <<EOF\n$(rm -rf /tmp/x)\nEOF\n)"',
+            'git commit -m "$(cat <<EOF\n`rm -rf /tmp/x`\nEOF\n)"',
+            "git commit -m \"$(cat <<'EOF'\nx\nEOF)\" ; rm -rf /tmp/x ; echo "
+            "\"$(cat <<'EOF'\nEOF\n)\"",
+            'git commit -m "$(cat <<EOF\nx\\\nEOF\n; rm -rf /tmp/x\nEOF\n)"',
+            "git commit -m \"$(cat <<'EOF'\r\nx\r\nEOF\r\n)\"",
+            'git commit -m "$(cat <<-EOF\n\tx\n\tEOF\n)"',
+            f"git commit -m {message} | sh",
+            "git commit -m $(cat <<'EOF'\n-c\ncore.pager=rm\nEOF\n)",
+            "git $(cat <<'EOF'\n-c\ncore.pager=rm\nEOF\n) log",
+            f"sudo git commit -m {message}",
+            f"timeout 60 git commit -m {message}",
+            f"env git commit -m {message}",
+            f"command git commit -m {message}",
+            f"GIT_EDITOR='rm -rf /tmp/x' git commit -m {message}",
+            f"\\git commit -m {message}",
+            f"'git' commit -m {message}",
+            f"/usr/bin/git commit -m {message}",
+            "gh alias set --shell x 'rm -rf /tmp/x'",
+            f"gh x --body {message}",
+            "gh extension exec x",
+            "gh ext install x/y",
+            "gh copilot suggest 'rm -rf /tmp/x'",
+            "gh config set pager 'rm -rf /tmp/x'",
+            "gh api --input /tmp/x repos/a/b",
+            "gh api -F body=@/tmp/x repos/a/b",
+            "gh repo clone a/b -- -u 'rm -rf /tmp/x'",
+            "gh repo clone a/b -- --template=/tmp/evil",
+            f"timeout 60 gh pr create --body {message}",
+            f"gh pr create --body {message} && rm -rf /tmp/x",
+            "/p/repo-hygiene/skills/clean/scripts/evil.sh /tmp/x/rm",
+            "/p/repo-hygiene/skills/clean/scripts/scan.sh; rm -rf /tmp/x",
+            '/p/repo-hygiene/skills/clean/scripts/remove-path.sh "$(pwd)"',
+            "/p/discovery/scripts/check-dispatch-artifact.sh $(rm -rf /tmp/x)",
+            # Commands the scanner-based deferral let through.
+            'echo "$(date +%Y)"',
+            "echo `date`",
+            "echo $HOME",
+            'git log "$REF"',
+            'gh pr view "$(git branch --show-current)"',
+            'timeout 60 gh pr checks "$(git branch --show-current)"',
+            'cd "$(git rev-parse --show-toplevel)" && git status',
+            '"$CLAUDE_PLUGIN_ROOT/scripts/check-dispatch-artifact.sh" "$(pwd)/x"',
+            'bash /p/repo-hygiene/skills/clean/scripts/git-branch-audit.sh "$(pwd)"',
+            "git commit -F - <<'EOF'\nmsg rm\nEOF",
+            'echo "${#arr[@]} ${x:-$(date)}"',
+            "for f in $(ls); do echo $f; done",
+            "x=$(date) git status",
+            "docker run --rm img $(date)",
+            "git commit -m 'rm and find' $(date)",
+            "ls $(pwd)",
+        ]
+
+    def test_belt_denies_every_gate_shape_for_any_kill_switch(self) -> None:
+        self.authorize_data_root()
+        for command in self._gate_corpus():
+            for enabled in (True, False):
+                with self.subTest(command=command, enabled=enabled):
+                    self.assertEqual(
+                        "deny",
+                        self._permission(self._belt(command, enabled=enabled)),
+                    )
+
+    _BASELINE = "27d1e7c1c"
+
+    def test_belt_lets_through_no_gate_shape_the_baseline_denied(self) -> None:
+        """Run the corpus through the baseline commit's own ``GuardTests._belt``
+        (the guard before any deferral) and through this one."""
+        git = shutil.which("git")
+        top = (
+            subprocess.run(
+                [git, "rev-parse", "--show-toplevel"],
+                cwd=SCRIPT_DIR,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if git
+            else None
+        )
+        if (
+            top is None
+            or top.returncode
+            or subprocess.run(
+                [git, "cat-file", "-e", f"{self._BASELINE}^{{commit}}"],
+                cwd=SCRIPT_DIR,
+                capture_output=True,
+                check=False,
+            ).returncode
         ):
+            self.skipTest(f"needs git and commit {self._BASELINE}")
+        tar = subprocess.run(
+            [git, "archive", "--format=tar", self._BASELINE, "plugins/disk-hygiene"],
+            cwd=top.stdout.strip(),
+            capture_output=True,
+            check=True,
+        ).stdout
+        root = tempfile.TemporaryDirectory()
+        self.addCleanup(root.cleanup)
+        with tarfile.open(fileobj=io.BytesIO(tar)) as archive:
+            archive.extractall(root.name, filter="data")
+        scripts = Path(root.name, "plugins/disk-hygiene/skills/clean/scripts")
+        driver = (
+            "import io, json, sys\n"
+            "from contextlib import redirect_stdout\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "import test_hygiene\n"
+            "commands = json.load(sys.stdin)\n"
+            "out = []\n"
+            "with redirect_stdout(io.StringIO()):\n"
+            "    case = test_hygiene.GuardTests("
+            "'test_belt_lets_the_readonly_allowlist_through')\n"
+            "    case.setUp()\n"
+            "    case.authorize_data_root()\n"
+            "    for command in commands:\n"
+            "        out.append(case._permission(case._belt(command)))\n"
+            "    case.doCleanups()\n"
+            "print(json.dumps(out))\n"
+        )
+        commands = self._gate_corpus()
+        completed = subprocess.run(
+            [sys.executable, "-c", driver, os.fspath(scripts)],
+            input=json.dumps(commands),
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+            cwd=scripts,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr[-2000:])
+        baseline = json.loads(completed.stdout.splitlines()[-1])
+        self.assertEqual(len(commands), len(baseline))
+        self.authorize_data_root()
+        for command, before in zip(commands, baseline, strict=True):
             with self.subTest(command=command):
+                self.assertEqual("deny", before)
                 self.assertEqual("deny", self._permission(self._belt(command)))
 
     @unittest.skipUnless(
@@ -13129,7 +13198,7 @@ class GuardTests(unittest.TestCase):
         self,
     ) -> None:
         """Run each command in real bash with the verbs stubbed to echo a marker;
-        whenever the marker prints, the scanner must not have deferred it."""
+        whenever the marker prints, the allowlist must not have deferred it."""
         shapes = (
             "{v} x",
             "/bin/{v} x",
@@ -13177,6 +13246,9 @@ class GuardTests(unittest.TestCase):
             'echo "$(cat <<EOF\nbody ${{x:-$({C})}}\nEOF\n)"',
             "cat <<EOF >/dev/null\nbody\\\nEOF\n' $({C}) '\nEOF",
             "echo \"$(cat <<'EOF'\nbody\nEOF)\"\n{C}\nEOF\n)\"",
+            'git commit -m "$(cat <<EOF\nbody $({C})\nEOF\n)"',
+            "git commit -m \"$(cat <<'EOF'\nbody\nEOF)\" ; {C} ; echo "
+            "\"$(cat <<'EOF'\nEOF\n)\"",
             'eval "{C}"',
             "echo '#' && {C}",
             "echo a # c\n{C}",
@@ -13184,7 +13256,6 @@ class GuardTests(unittest.TestCase):
             'echo "a\\"b" && {C}',
         )
         verbs = ("rm", "mv", "find")
-        self.assertLessEqual(set(verbs), guard.belt_scan.DELETION_VERBS)
         stubs = "; ".join(f"{verb}() {{ echo RAN:{verb}; }}" for verb in verbs) + "\n"
         ran = 0
         # An empty directory: `/bin/{v} x` and `git commit` run for real.
