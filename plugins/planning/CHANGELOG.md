@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.58.4] - 2026-10-01
+## [0.58.5] - 2026-10-01
 
 ### Changed
 
 - Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
+## [0.58.4] - 2026-10-01
+
+### Fixed
+
+- **The `watch.test.sh` clean-stop case kills the server by native pid on Windows Git Bash.** `kill` does not know a native Windows pid, so the server kept answering and the case failed while `watch.sh` was correct; the case now uses `taskkill` on `MINGW*`, `MSYS*` and `CYGWIN*` and `kill` elsewhere. The suite passes 27 of 27 on Windows Git Bash, and after `round.sh stop` the watcher exits 3 with the stop message and no `watch.sh` or curl long-poll is left, which the surface README now states ([#5723](https://github.com/melodic-software/claude-code-plugins/issues/5723)).
 
 ## [0.58.3] - 2026-10-01
 
