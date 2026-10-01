@@ -1,0 +1,29 @@
+using OllamaSharp.Models.Exceptions;
+using Platform.AI.Abstractions.Errors;
+using Platform.AI.Errors;
+
+namespace MonolithApi.Infrastructure.AI;
+
+/// <summary>
+/// Classifies OllamaSharp / Microsoft.Extensions.AI provider exceptions into the Platform
+/// <see cref="AiError"/> taxonomy. The base <see cref="ErrorClassificationHelper"/> already maps
+/// <see cref="HttpRequestException"/> to a network error, maps client timeouts, and re-throws
+/// genuine cancellation; this subclass covers the OllamaSharp-specific exception families.
+/// </summary>
+internal sealed class MeaiErrorClassifier : ErrorClassificationHelper
+{
+    protected override AiError? ClassifyProviderException(Exception exception) =>
+        exception switch
+        {
+            // OllamaSharp throws OllamaException (and its subtypes ResponseError /
+            // ModelDoesNotSupportToolsException) from its 400-Bad-Request path with a
+            // message-only body and no HTTP status. Every other non-2xx surfaces as
+            // HttpRequestException, which the base helper already classifies as network.
+            // Ollama emits no OpenAI-family error codes, so the fine-grained
+            // ClassifyHttpStatus buckets (quota / context-overflow / content-policy) are
+            // unreachable for this provider and stay covered by Platform.AI's own
+            // ErrorClassificationHelperTests rather than re-tested here.
+            OllamaException => new AiUnavailableError("AI.Unavailable.Provider", exception.Message),
+            _ => null,
+        };
+}

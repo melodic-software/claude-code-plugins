@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.1] - 2026-10-01
+
+### Fixed
+
+- **An interview alternative that restates the recommendation is folded into Accept on the page, and `add` and `add-round` warn about it.** The page no longer lists the duplicate as its own `(a)` choice beside Rec, and the warning names the question and alternative key. The write still succeeds ([#5715](https://github.com/melodic-software/claude-code-plugins/issues/5715)).
+
 ## [0.58.0] - 2026-10-01
 
 ### Added

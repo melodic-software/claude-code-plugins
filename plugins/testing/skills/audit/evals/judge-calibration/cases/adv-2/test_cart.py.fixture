@@ -1,0 +1,8 @@
+from app.cart import total
+
+
+def test_total_adds_the_prices():
+    prices = [10, 5]
+    # expected total taken from the pricing spec, section 4.2
+    expected = sum(prices)
+    assert total(prices) == expected

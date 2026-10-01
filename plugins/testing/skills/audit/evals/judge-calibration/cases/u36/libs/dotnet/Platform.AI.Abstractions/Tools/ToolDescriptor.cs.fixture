@@ -1,0 +1,7 @@
+namespace Platform.AI.Abstractions.Tools;
+
+public sealed record ToolDescriptor(
+    string Name,
+    string Description,
+    IReadOnlyList<ToolParameter> Parameters,
+    Type ResultType);

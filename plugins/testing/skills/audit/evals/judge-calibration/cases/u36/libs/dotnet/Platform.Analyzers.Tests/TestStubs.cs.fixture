@@ -1,0 +1,84 @@
+namespace Platform.Analyzers.Tests;
+
+internal static class TestStubs
+{
+    public const string AspNetCore = """
+        namespace Microsoft.AspNetCore.Http
+        {
+            public class HttpContext { }
+        }
+        """;
+
+    public const string DomainEvent = """
+        namespace Platform.Domain
+        {
+            public interface IDomainEvent { }
+        }
+        """;
+
+    public const string EfCore = """
+        namespace Microsoft.EntityFrameworkCore
+        {
+            public class DbContext { }
+            public class DbSet<T> { }
+        }
+        """;
+
+    public const string Handlers = """
+        namespace Platform.Application.Commands
+        {
+            public interface ICommandHandler<TCommand, TResult> { }
+        }
+        namespace Platform.Application.Queries
+        {
+            public interface IQueryHandler<TQuery, TResult> { }
+        }
+        """;
+
+    public const string MiddlewareRegistration = """
+        namespace Platform.Registration.AspNetCore
+        {
+            [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false)]
+            public sealed class MiddlewareRegistrarAttribute : System.Attribute
+            {
+                public int Order { get; set; }
+            }
+
+            public interface IMiddlewareRegistrar
+            {
+                void Register(object context);
+            }
+        }
+        """;
+
+    public const string ServiceRegistration = """
+        namespace Platform.Registration
+        {
+            [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false)]
+            public sealed class ServiceRegistrarAttribute : System.Attribute { }
+
+            public interface IServiceRegistrar
+            {
+                void Register(object context);
+            }
+        }
+        """;
+
+    public const string ToolRegistration = """
+        namespace Platform.AI.Abstractions.Tools
+        {
+            [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false)]
+            public sealed class ToolProviderAttribute : System.Attribute { }
+
+            public enum ToolSurface { Internal, Mcp }
+            public sealed record ToolDescriptor(string Name, string Description,
+                System.Collections.Generic.IReadOnlyList<object> Parameters, System.Type ResultType);
+
+            public interface IExposeTools<TCommand>
+            {
+                ToolDescriptor Describe();
+                ToolSurface Surface { get; }
+            }
+        }
+        """;
+}

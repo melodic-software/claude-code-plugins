@@ -1,0 +1,6 @@
+namespace Platform.Identity;
+
+public readonly record struct UserId(Guid Value)
+{
+    public static UserId Create() => new(Guid.CreateVersion7());
+}

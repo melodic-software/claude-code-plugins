@@ -1,0 +1,10 @@
+using Platform.Core.Results;
+
+namespace Platform.AI.Abstractions.Validation;
+
+public interface IContentValidator
+{
+    Task<Result<ContentValidationOutcome>> ValidateAsync(
+        string content, ContentValidationCriteria criteria,
+        CancellationToken ct = default);
+}
