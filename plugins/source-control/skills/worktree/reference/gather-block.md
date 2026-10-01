@@ -54,16 +54,22 @@ bullet of the worktrees page.
 | Refused shape | Accepted rewrite |
 |---|---|
 | A compound command that contains git (`a && b`, `;`, a pipe into or out of git) | One command per Bash call, so each is screened alone |
-| A path or command built from a variable or expansion (`$VAR`, `${VAR}`, `${!name}`, `${ cmd; }`) | A literal absolute path; a bare `$HOME` is the one expansion observed to pass |
+| When the command can run git: a path or command built from a variable or expansion (`$VAR`, `${VAR}`, `${!name}`, `${ cmd; }`) | A literal absolute path; a bare `$HOME` is the one expansion observed to pass |
 | `bash <script>` or `sh <script>` | The executable path, `<script>` itself |
-| A file read through a shell pipeline | The Read tool |
+| When the command can run git: a file read through a shell pipeline (unprobed) | The Read tool |
 | `--body-file -` or any stdin heredoc whose text mentions git | A body file written first, passed by path |
-| A path containing `github` (the ghq layout `github.com/<org>/<repo>`) | Not a refusal class: the path alone is accepted, and a refusal on such a command came from a compound or expansion shape elsewhere in it |
+| A path containing `github` (the ghq layout `github.com/<org>/<repo>`) | Unverified: no documented rule; not probed; refusals reported on such paths were not attributed. Not an accepted rewrite |
 
-**Claim.** The shapes in the left column are refused by the isolation check, and the right column
-runs. The `bash <script>`, compound-git and stdin-heredoc rows were observed in a live isolated
-session; the variable-path, shell-read and `github` rows were not. No live probe of any row was run
-against the current release.
+The expansion and pipeline rows apply only when the command can run git, because the command-shape
+check is scoped to git. Claude Code 2.1.257 stopped refusing loops, `$VAR` reads, `"$(...)"`, and
+heredocs that never touch git, and 2.1.259 stopped refusing loops, xargs pipelines, and
+launcher-wrapped commands that cannot reach the main checkout. A `$` expansion in a command that
+never runs git is not refused by this check.
+
+**Claim.** The compound-git, `bash <script>` and stdin-heredoc shapes are refused by the isolation
+check, and the right column runs for those three rows; each was observed in a live isolated
+session. The variable-path, shell-pipeline and `github` rows were not observed, and the `github`
+row is unverified. No live probe of any row was run against the current release.
 
 **Basis.** The Command shape bullet of
 <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> (a command is

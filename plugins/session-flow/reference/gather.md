@@ -22,7 +22,8 @@ never an abort. These probes color a report; they are not gates.
 A worktree-isolated agent refuses command shapes it cannot verify, which made these skills fail at
 load, in `handoff`'s case in exactly the isolated sessions that most need a save-point
 (melodic-software/claude-code-plugins#1687). Keep `$`-expansion out of the pre-compute block. The
-accepted forms are in `plugins/source-control/skills/worktree/reference/gather-block.md`, heading
+accepted forms are in the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "Command shapes an isolated session accepts". Prefer a probe that needs no expansion at all.
 
 ## The probes
