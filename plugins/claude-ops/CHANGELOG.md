@@ -3,6 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.2] - 2026-10-01
+
+### Added
+
+- **A harness for proving an inventory reader change alters only the values it means to.**
+  `compare_reports.py` diffs two inventory reports, ignores run metadata, and classifies each
+  changed value as `wrong->unresolved`, `unresolved->resolved`, `value->value`, added or
+  removed; a `value->value` change exits 1 unless an `--allow` file names its JSON pointer
+  with a reason. `test_reader_findings.py` pins the open #5640 findings (array mutation
+  through a method call or call argument, an arrow earlier in the statement leaving a spread
+  partial, and declaration text in a string or comment hiding a write) as expected failures
+  that flip when a reader fix lands. `test_fixture_parse.py` checks every JavaScript fixture
+  the inventory tests feed the reader parses as a module under acorn, when node and acorn
+  resolve, and lists the 39 tests whose fixtures do not yet.
+
 ## [0.80.1] - 2026-10-01
 
 ### Changed
