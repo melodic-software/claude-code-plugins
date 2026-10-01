@@ -204,9 +204,9 @@ move commands Claude issues in the main session's Bash and PowerShell lanes. It 
 - Bash: `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, bare or by absolute path, plus
   an interpreter call of `hygiene.py`, `kill_switch_probe.py` or `release_belt.py` by its bundled
   path; a command that only mentions one of them does not reach the belt. Other commands (`git`,
-  `gh`, the repo-hygiene scripts) are not denied. Claude Code also runs the guard on a command with
-  `$()` or a backtick; the guard reads its words, those included, and lets it through unless
-  one of its commands is a deletion verb or a bundled-script call, or it cannot be read to the end
+  `gh`, the repo-hygiene scripts) are not denied. Claude Code runs the guard on some commands with
+  `$()` or a backtick; the guard reads their words, those included, and lets such a command through
+  unless one of its commands is a deletion verb or a bundled-script call, or it cannot be read to the end
   (an unterminated quote, `$(` or heredoc, an unquoted heredoc, a command name built by expansion).
   The body of a quoted heredoc that `cat`, `git` or `gh` reads is data, so a commit message may name
   `rm`. What is denied is denied unless it is an exact bundled engine call, the argument-free

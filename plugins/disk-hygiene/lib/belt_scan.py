@@ -1,8 +1,8 @@
 """Decide whether a Bash command may skip the disk-hygiene session belt.
 
 The belt's ``if`` filters send a command to the guard when a deletion verb is a
-command in it, and Claude Code also runs every wildcard-led filter on any command
-that contains ``$()`` or a backtick, so ordinary ``git`` and ``gh`` calls
+command in it, and Claude Code also runs every wildcard-led filter on some commands
+that contain ``$()`` or a backtick, so ordinary ``git`` and ``gh`` calls
 reach the guard too. ``defers`` reads the command's words, including what sits
 inside ``$()``, backticks, subshells, ``${}`` and process substitution, and is True
 only when no command in it is a deletion verb or a bundled-script call.

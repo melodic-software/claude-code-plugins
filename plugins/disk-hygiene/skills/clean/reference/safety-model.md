@@ -834,9 +834,10 @@ Bash it registers one handler per `if` pattern, all running the same guard: `rm`
 belt. The plugin-level engine gate still sees every engine invocation shape, and in every session
 it reads a quoted argument whose first word is `hygiene.py` (`git commit -m 'hygiene.py ...'`) as
 an engine call and denies it. git, gh, the repo-hygiene
-scripts and other commands reach the guard only when they contain `$()` or a backtick,
-which run every handler whose pattern starts with a wildcard, or when Claude Code cannot split the
-command, which runs every handler. A non-exact release call that no pattern matches, such as a
+scripts and other commands reach the guard only when Claude Code runs a handler whose pattern
+starts with a wildcard on a command with `$()` or a backtick (it did for `echo "$(date +%Y)"` and a
+backtick command, and not for `echo $HOME` or a `$()` wrapping a quoted heredoc), or when it cannot
+split the command, which runs every handler. A non-exact release call that no pattern matches, such as a
 relative `python3 release_belt.py` after `cd`, goes to the normal permission system instead of the
 guard's `ask`; the release marker is a plain file, so the lever's prompt is a visibility aid, not a
 boundary.
@@ -912,8 +913,9 @@ handler; and `if` does not match a redirection or the `&` call operator. A patte
 command's words with their quotes removed, so `*py* */clean/scripts/release_belt.py *` matches
 `"<python>" "<root>/skills/clean/scripts/release_belt.py" --data-root ...` (with a `python3.14`,
 `python.exe` or `py.exe` head) and not `git commit -m 'release_belt.py'`; a pattern starting with
-a wildcard (`*/rm *`, the three script patterns) also runs on any command containing `$()` or a
-backtick, while `Bash(rm *)` does not and `echo $HOME` ran none of them. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
+a wildcard (`*/rm *`, the three script patterns) also ran on `echo "$(date +%Y)"` and a backtick
+command, while `Bash(rm *)` did not, and `echo $HOME` and a `$()` wrapping a quoted heredoc ran
+none of them. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
 hooks use the same configuration format as settings hooks), the `if` field and its Bash matching
 table (patterns that specify more than the command name run on `$()`); the page does not say
 whether `if` applies in frontmatter or how quotes are treated, so the per-handler behavior and the
