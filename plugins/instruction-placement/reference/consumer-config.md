@@ -20,8 +20,8 @@ overlay carrying one would hide a proposal the team never judged, the hole the a
 names when it says `userConfig` "is not a coordination surface for repository artifacts".
 
 Nor can a decline live in the memory tier beside the findings artifact. A memory document is visible
-only in the checkout that wrote it: the topic-docs contract marks a sibling worktree `invisible` and
-forbids carrying this file class across with `.worktreeinclude` ("never baselines or raw scratch").
+only in the checkout that wrote it: a sibling worktree never sees it, and nothing carries this file
+class across.
 A judgment that has to outlive the checkout has to be **tracked**, and git is the mechanism that
 carries it.
 

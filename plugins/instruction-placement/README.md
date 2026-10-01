@@ -37,8 +37,7 @@ into CI beside the linters.
 
 This plugin is a participant in the marketplace's lifecycle artifact protocol
 ([`reference/artifact-protocol.md`](reference/artifact-protocol.md), byte-identical to the canonical
-copy) and resolves every path through its topic-docs binding
-([`reference/topic-docs.md`](reference/topic-docs.md)). Three homes, and the difference between them
+copy); `context/findings-artifact.md` "Where it lives" defines where each artifact goes. Three homes, and the difference between them
 is what a decline costs to make twice:
 
 | What | Default location | Tier | Crosses checkouts? |

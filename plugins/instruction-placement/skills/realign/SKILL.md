@@ -98,8 +98,7 @@ in the table above. Do not invent a format here. Four rules bind the write:
 
 ## Prerequisites
 
-Read the artifact from the home the plugin's topic-docs binding resolves
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Read the artifact from the home `findings-artifact.md` "Where it lives" defines.
 
 If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall back
 to another path or another branch's artifact: findings cite line ranges, and a range derived
