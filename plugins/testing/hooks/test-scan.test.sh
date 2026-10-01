@@ -274,7 +274,12 @@ mkdir -p "$REPO/docs/conventions"
 printf '# Testing\n\nRules.\n\n```yaml config\nadapters:\n  enable: [js-vitset]\n```\n' >"$REPO/docs/conventions/testing.md"
 run Write "$REPO/src/sum.test.ts"
 assert_contains "docs block config error: named at the .md file and its line" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
-rm -rf "$REPO/docs"
+# With a .claude file too, the resolver's both-exist warning is not the error the agent is told.
+printf 'paths:\n  exclude: [x]\n' >"$REPO/.claude/testing.yaml"
+run Write "$REPO/src/sum.test.ts"
+assert_contains "both locations: the agent is told the block's error, not the warning" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
+assert_empty "and the context does not carry the warning" "$(grep -F 'both exist' <<<"$out")"
+rm -rf "$REPO/docs" "$REPO/.claude/testing.yaml"
 
 # The plugin hook and the consumer settings entry share one marker directory,
 # so the same call through both reports once and notes once.

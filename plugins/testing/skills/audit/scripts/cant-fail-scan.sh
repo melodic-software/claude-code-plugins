@@ -991,7 +991,7 @@ coverage_block() {
     printf '  playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable)\n' \
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
   fi
-  if ((tc_layers)); then
+  if ((tc_read)); then
     printf '  testing config: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
       "$tc_read" "$tc_excluded" "$tc_unclaimed" "$tc_disabled" "$tc_dropped" "$tc_ungate" "$tc_gate"
     if [[ -z "$FILE" && ${#tc_uncovered[@]} -gt 0 ]]; then

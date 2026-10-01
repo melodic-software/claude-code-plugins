@@ -196,7 +196,7 @@ if ((docs)) && [[ "$records" != block$'\t'* ]]; then
   gather 0
   records="$(load)" || exit 2
 elif ((docs)) && [[ -f "$TEAM_YAML" ]]; then
-  printf 'resolve-config: %s and %s both exist; using the docs block, ignoring the .claude file\n' \
+  printf 'resolve-config: warning: %s and %s both exist; using the docs block, ignoring the .claude file\n' \
     "$TEAM_DOCS" "$TEAM_YAML" >&2
 fi
 [[ ${#layers[@]} -gt 0 ]] || exit 0
