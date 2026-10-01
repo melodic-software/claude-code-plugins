@@ -13035,6 +13035,7 @@ class GuardTests(unittest.TestCase):
             "x=$(cat <<'EOF'\nbody\nEOF )\nrm y\nEOF\n)",
             "cat <<EOF\nx\\\nEOF\n' $(rm y) '\nEOF",
             "bash <<'EOF'\nrm -rf x\nEOF\necho $(date)",
+            "git bisect run sh <<'EOF'\nrm -rf x\nEOF\necho $(date)",
             "cat <<'EOF' | sh\nrm x\nEOF\necho $(date)",
             "git commit -F - <<'EOF'x\nmsg\nEOF\necho $(date)",
             # A quoted `<<'EOF'` is a string, so its `$()` is code.

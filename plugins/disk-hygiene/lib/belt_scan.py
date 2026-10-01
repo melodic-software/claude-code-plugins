@@ -129,7 +129,8 @@ class _Scan:
                 if op in ("<(", ">("):
                     i = self.commands(i, ")")
                 elif op in ("<<", "<<-"):
-                    i = self.heredoc(i, head, op == "<<-", pending)
+                    # After a shell word (`git bisect run sh <<EOF`) the body is code.
+                    i = self.heredoc(i, "" if code else head, op == "<<-", pending)
                 elif op == "<<<":
                     while i < n and s[i] in " \t":
                         i += 1

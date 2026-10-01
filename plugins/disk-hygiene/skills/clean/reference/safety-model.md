@@ -868,7 +868,8 @@ defer a command, anywhere inside `$()`, backticks or a group, that:
 - has a command name built by an expansion, `$'..'` with an escape, or a glob, or is `case`;
 - fails the engine gate's relevance check;
 - cannot be read to the end: an unterminated quote, `$(`, backtick or heredoc, an unbalanced `)`, a
-  heredoc read by anything but `cat`, `git` or `gh` or with more on its opening line, a heredoc line
+  heredoc read by anything but `cat`, `git` or `gh`, after a shell word (`git bisect run sh <<EOF`)
+  or with more on its opening line, a heredoc line
   that starts with the delimiter and goes on (bash ends a heredoc inside `$()` at `EOF)`), or an
   unquoted heredoc line ending in a backslash.
 
