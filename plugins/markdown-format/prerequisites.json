@@ -5,6 +5,11 @@
       "local_bin": "node_modules/.bin/markdownlint-cli2",
       "check": "/markdown-format:check",
       "install": "npm i -D markdownlint-cli2"
+    },
+    {
+      "name": "jq",
+      "check": "/markdown-format:check",
+      "install": "install jq from https://jqlang.org/download/"
     }
   ]
 }

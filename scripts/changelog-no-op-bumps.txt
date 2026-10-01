@@ -3,3 +3,4 @@
 # scripts/check-changelog-parity.sh --check-bump, which otherwise fails a bump
 # whose only plugin changes are plugin.json and CHANGELOG.md.
 attribution@0.7.1
+work-items@0.43.4

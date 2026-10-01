@@ -1,0 +1,11 @@
+def to_fact_row(order, customers):
+    customer = [c for c in customers if c["id"] == order["customer_id"]][0]
+    return {
+        "order_id": order["id"],
+        "region": customer["region"],
+        "total_cents": order["total_cents"],
+    }
+
+
+def transform(orders, customers):
+    return [to_fact_row(o, customers) for o in orders]

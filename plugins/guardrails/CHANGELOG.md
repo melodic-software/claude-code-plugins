@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-10-01
+
+### Added
+
+- **`block-root-delete-target` lets a recursive delete strictly under a user-listed root through.** The new `block_root_delete_target_allowed_roots` option takes comma-separated absolute directories, empty by default, and a target whose resolved real path sits strictly under one is allowed on the same rule as a temp root. Only the user sets it: it is read from the hook's own environment, never from the command text, so a `VAR=...` prefix or a flag grants nothing. The listed root itself and its glob stay refused, and so do a name-prefix sibling, a `..` escape and a symlink that points outside the root. Every other refusal runs before the allowlist and ignores it: a filesystem root, `~`, `$HOME`, a drive root, a UNC share, `--no-preserve-root`, an empty or bare-variable operand and a glob escape. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through HOME or a directory holding it. The outside-tree block message names the option.
+
+## [0.45.0] - 2026-09-30
+
+### Added
+
+- **`/guardrails:check` reads whether `node` and `jq` resolve for the guardrails hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, and the SessionStart `node` notice names it. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
 ## [0.44.2] - 2026-09-30
 
 ### Fixed

@@ -410,7 +410,7 @@ findings returned in place of an artifact are a failed dispatch, not a fallback.
 
 ## Harness facts the dispatch design rests on
 
-Eleven harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Twelve harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
@@ -419,8 +419,9 @@ fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the s
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
 Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
+Record 12 is a first-party reproduction run on 2026-10-01, with the sub-agents page fetched the same day.
 
-**One shared recheck trigger covers all eleven:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all twelve:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
 subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
 model resolution, per-invocation subagent parameters, turn-limit output or partial marking, or
@@ -619,8 +620,39 @@ include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (th
 [#4739](https://github.com/melodic-software/claude-code-plugins/pull/4739) merge), reported
 separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
 explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
-ceiling. Samples this small do not settle a number. Whether to size the research lanes to
-finish within one dispatch is the owner's decision, and `maxTurns` stays 40 meanwhile.
+ceiling. Samples this small do not settle a number. Decision: `maxTurns` stays 40 as a
+checkpoint, and research-deep does not size its lanes to finish within one dispatch; a run that
+reaches the limit completes through resume. The recheck triggers above still apply.
+
+### A named `discovery:explorer` dispatch delivers its definition body and its `skills:` preload
+
+*Claim.* A `subagent_type: discovery:explorer` dispatch from a directory-source plugin gives the
+agent its own definition body and resolves the `skills:` preload, so the agent returns the YAML
+block on its first return, with `model:` and `name:` together, with `name:` alone, and with `model:`
+alone. The
+two reported runs where an explorer behaved as if it had neither (no payload block, "I skipped the
+requested skills", a token expected in the dispatch prompt) did not reproduce.
+*Basis.* Four headless dispatches at commit `8f9a939b8`, `claude --version` 2.1.286, with
+`--plugin-dir plugins/discovery` (which overrides the installed 0.25.18 cache): `model: haiku` plus
+`name:`, `name:` alone, `model: haiku` alone, and `model: haiku` plus `name:` with a probe line asking
+the agent to say whether a "Preload liveness" section was in its instructions. Every run logged
+`[Agent: discovery:explorer] Preloaded skill 'discovery:explore'` and no skip warning; the probe run
+confirmed the definition body was in the agent's context; no run Read `SKILL.md`; every first return
+carried the YAML block with the skill's `preload_token` and `preload: fired`. Harness 2.1.286 also
+delivers a child agent's report as a message to its parent, not as a tool result. The
+[sub-agents page](https://code.claude.com/docs/en/sub-agents) states that "a subagent that launches
+background subagents waits for their results before it finishes" and that background results "reach
+Claude as a completion notification in a later turn". *What this does not
+establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
+intermittent harness fault, or a definition text that differed from this commit, is neither
+confirmed nor excluded. The dispatch without `model:` and `name:` was not run. *Consequence.* The
+preload and payload half of this record changes nothing in the dispatch envelope: the definition body loads, and the parent's acceptance gate
+(`check-dispatch-artifact.sh`) stays the detector for a run that ignores it.
+*As of.* 2026-10-01.
+*Recheck trigger.* A dispatched explorer returns no payload block, or a `preload_token` of `none`,
+`MISSING` or absent, while the debug log shows the preload line; or the CLI minor version moves past
+2.1.286; or a release note names agent-definition loading, `skills:` preload or hand-back delivery.
+In the first case capture the debug log and the agent's first message before any resume.
 
 ## Running the acceptance gate
 

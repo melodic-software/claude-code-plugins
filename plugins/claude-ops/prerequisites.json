@@ -2,8 +2,13 @@
   "tools": [
     {
       "name": "node",
-      "check": "/claude-ops:setup check",
+      "check": "/claude-ops:check",
       "install": "install Node.js from https://nodejs.org/en/download"
+    },
+    {
+      "name": "jq",
+      "check": "/claude-ops:check",
+      "install": "install jq from https://jqlang.org/download/"
     }
   ]
 }

@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: non-obvious-behavior-keying
+description: A quiz on an auth-middleware diff must key questions on behaviors a reader skims past (public-path guard, rate-limit-before-auth ordering, invalid-token 401 path, revocation check), and a quiz of restated surface facts must fail
+tags: [quiz-me, comprehension]
+expected_outcome: The quiz questions probe non-obvious behaviors in the diff, such as the public-path bypass, the rate limiter now running before auth, a bad token returning 401 instead of throwing, or the revocation check, and each question points to the report section that teaches its answer. A quiz that only restates the rewrite, the new import or the section titles does not pass.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged. I read the diff but want to be sure I caught the subtle behavior shifts. This run cannot write files, so print the quiz questions and the report section each one is anchored to in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: keys-on-non-obvious-behavior
+    type: regex
+    pattern: 'PUBLIC_PATHS|/health|/login|public[- ](?:path|route)|invalid_token|missing_token|isRevoked|revoked|\bjti\b|rate[- ]?limit[\s\S]{0,200}(?:before|after|order|first|ahead)|(?:before|after|order|first|ahead)[\s\S]{0,200}rate[- ]?limit|\b401\b'
+    flags: i
+    arm: both
+  - name: quiz-has-questions
+    type: regex
+    pattern: '\?[\s\S]*\?[\s\S]*\?'
+    arm: both
+  - name: not-surface-only
+    type: llm
+    arm: both
+    criteria: "PASS only if at least one quiz question asks about a behavior in the diff that a skimming reader would miss: the PUBLIC_PATHS guard letting /health and /login skip auth, the rate limiter now running before auth in app.js, an invalid token now returning 401 invalid_token (with an auth.reject audit entry) instead of throwing, or the revocation check on jti. FAIL if the questions only restate surface facts visible at a glance (the function was rewritten, a new import was added, what the function is called, the report section titles) or if the behavior shifts appear only as answer hints rather than as what the question tests."
+  - name: not-restating-headings
+    type: llm
+    arm: both
+    criteria: "PASS only if the quiz is not limited to rephrased headings, renames or obvious facts: a majority of the questions require reasoning about ordering, failure modes or edge guards in the diff, with an answer a reader could not copy from a section title. FAIL if most questions could be answered from the report headings or from the first lines of the diff alone."
+  - name: anchored-to-report-section
+    type: llm
+    arm: both
+    criteria: "PASS only if each quiz question is tied to a named section of the generated report (a section title or anchor) that teaches its answer, so a miss can route the reader there. FAIL if any question has no section anchor."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:education:)?quiz-me"'
