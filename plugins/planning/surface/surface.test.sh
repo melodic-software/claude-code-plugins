@@ -284,7 +284,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
   # A Notes reply after the restatement: the restate notice outranks it in phase 16.
-  japply n2 '{"ops": [{"op": "note-reply", "text": "Anything else before the Brief?"}]}'
+  japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
   jrun 16
   # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
   # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and

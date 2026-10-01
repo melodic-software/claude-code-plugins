@@ -376,6 +376,16 @@ class TestAffects(DirCase):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
         self.assertEqual(rc, 0, out + err)
 
+    def test_note_without_a_reply_target_says_posted_and_can_need_an_answer(self):
+        rc, out, err = self.rp("note-reply", "--text", "FYI.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Note posted", out)
+        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        self.assertEqual(rc, 0, out + err)
+        notes = self.doc()["notes"]
+        self.assertNotIn("needsAnswer", notes[0])
+        self.assertTrue(notes[1]["needsAnswer"])
+
     def test_newer_user_event_refuses_and_force_overrides(self):
         at = "2026-09-24T10:00:00Z"
         self.write_events(

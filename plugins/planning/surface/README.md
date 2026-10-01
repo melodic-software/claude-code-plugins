@@ -50,7 +50,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | `reply` op | A Claude line on the question's thread; `seq` marks that event handled; `rec` revises the recommendation and needs `affects`; `resolution` records the accepted reading of the counted `own` answer, which exports give as the answer with the user's words as the note |
 | `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`), alternatives (at least two) or commitments (`--commit`, repeatable; `none` clears). New commitments replace the list and reset its confirmations. `--depends` (repeatable; `none` clears) replaces the prerequisites: every id known, not itself, no cycle |
 | `handle --seq N [M ...]` | Mark events handled with no reply |
-| `note-reply` op | Reply in the Notes to Claude thread |
+| `note-reply` op | Post or reply in the Notes to Claude thread; `needsAnswer: true` (`--needs-answer`) pins it on the summary as a loose end with a reply box |
 | `record-terminal` op | Mirror an answer the user gave in the terminal, or a decision this session recorded |
 | `archive` op | Take off-path questions out of the open count; the server derives their state |
 | `set-status` op | `{"op": "set-status", "text": "..."}` sets the page's Claude line (top-level `status`); `"clear": true` removes it |

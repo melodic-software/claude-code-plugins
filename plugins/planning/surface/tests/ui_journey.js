@@ -150,7 +150,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Research this posts kind research for Q4", rr.kind === "research" && rr.id === "Q4", JSON.stringify(rr));
     await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
     const listed = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
-    ok("Show: Pending lists only Q3", listed === "Q3", listed);
+    ok("Show: Pending lists every held question, Claude's and yours", listed === "Q3,Q5", listed);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
 
     // awaiting the user
@@ -425,6 +425,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     const nt16 = await text("#notice"); // before any question is opened: opening one marks the entries naming it seen
     ok("after the wrap-up a restatement to confirm still outranks the later Notes reply in the notice", /restated the shared understanding/i.test(nt16) && !/Claude replied in Notes/.test(nt16) && (await text("#notice [data-go]")) === "Go to the summary", nt16);
     if (await page.$eval("#fly", el => el.classList.contains("open"))) { await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300); }
+    await tap("#sumBtn", 300);
+    const ask = await page.$eval(".loose li:first-child .ask", el => ({ta: !!el.querySelector("textarea"), btn: !!el.querySelector("[data-looseans]"), text: el.innerText})).catch(() => null);
+    ok("a Claude note flagged as needing an answer is the first Loose end, with a reply box", !!ask && ask.ta && ask.btn && /Anything else before the Brief/.test(ask.text), JSON.stringify(ask));
     // one label scheme
     await pick("Q10");
     const rows = await page.$$eval("#choices .choice", rs => rs.map(r => ({b: r.querySelectorAll("b").length, label: r.querySelector("b").textContent, n: !!r.querySelector(".n"), keys: r.querySelector("input").getAttribute("aria-keyshortcuts")})));
@@ -529,6 +532,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("a Needs-you entry that lands while the tab is hidden prefixes the title with a count, and the log entry beside it adds none", await page.title() === "(1) " + base && (await state()).questions.activity.some(e => /again while the tab was hidden/.test(e.text)), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
+    ok("a note with no reply target reads Claude posted in Notes", /Claude posted in Notes/.test(await text("#needToast")), await text("#needToast"));
   }
   if (PHASE === 10) { // Activity panel left open, then the tab is hidden
     await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300);
@@ -552,6 +556,15 @@ async page => { // the user journey in order on one page, no reload after phase 
     const base = await text("#title");
     ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
+    const sent = await post({kind: "note", text: "first note"});
+    await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
+    await page.waitForTimeout(300);
+    ok("the first note posted", sent.ok(), sent.status());
+    await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
+    await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await page.waitForTimeout(300);
+    await page.fill("#noteText", "second note"); await page.click("[data-sendnote]");
+    ok("a save while a wake is in flight says queued, Claude is busy", await until(() => /Queued, Claude is busy/.test((document.getElementById("noteToast") || {}).textContent || ""), 4000), await text("#noteToast"));
+    await page.click("#flyClose").catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16
     await page.setViewportSize({width: 1400, height: 860}); await tap("#sumBtn", 300);

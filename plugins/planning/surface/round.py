@@ -7,7 +7,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   reply           append a Claude line to a question's thread; optional revised recommendation
   revise          change a question's wording, recommendation, alternatives, commitments or dependencies
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
-  note-reply      reply in the Notes to Claude thread
+  note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
   archive         archive off-path questions with a reason (the server derives their state)
   apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
@@ -894,9 +894,11 @@ def op_note_reply(d, doc, a):
     line = {"at": now(), "by": "claude", "text": a.text}
     if a.seq is not None:
         line["replyTo"] = a.seq
+    if a.needsAnswer:
+        line["needsAnswer"] = True
     doc.setdefault("notes", []).append(line)
     mark_handled(doc, [a.seq])
-    return [], "note reply saved"
+    return [], "note reply saved" if a.seq is not None else "Note posted"
 
 
 def op_record_terminal(d, doc, a):
@@ -1257,7 +1259,7 @@ OP_ARGS = {
         {"id": None, "title": None, "summary": None, "dependsOn": None},
     ),
     "meta": (op_meta, {"set": None}),
-    "note-reply": (op_note_reply, {"seq": None, "text": None}),
+    "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
     "replace-visual": (op_replace_visual, {"visual": None}),
@@ -2144,10 +2146,16 @@ def main(argv=None):
     s.add_argument("--seq", type=int, nargs="+", required=True)
     s.set_defaults(fn=write_op(op_handle, "handle"))
 
-    s = sub.add_parser("note-reply", help="reply in the Notes to Claude thread")
+    s = sub.add_parser("note-reply", help="post or reply in the Notes to Claude thread")
     s.add_argument("--text", required=True)
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
+    )
+    s.add_argument(
+        "--needs-answer",
+        dest="needsAnswer",
+        action="store_true",
+        help="flag the note as needing the user's answer; the page pins it as a loose end with a reply box",
     )
     s.set_defaults(fn=write_op(op_note_reply, "note-reply"))
 
