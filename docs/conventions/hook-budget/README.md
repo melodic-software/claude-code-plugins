@@ -160,18 +160,18 @@ Setup:
   enables only that plugin. All 18 runs were valid.
 
 Each figure is the median of the three run medians, in ms. The S figure in the last column is the
-difference divided by the plugin's median S over all six runs. The guardrails `SessionStart` row is
-shell form in both arms, so it is the control.
+difference divided by the plugin's S, the median over all six runs, shown beside its name. The
+guardrails `SessionStart` row is shell form in both arms, so it is the control.
 
-| Plugin (S per arm, ms) | Row | Arm A (`node` launcher) | Arm B (shell form) | A − B, ms (S) |
+| Plugin (S, ms) | Row | Arm A (`node` launcher) | Arm B (shell form) | A − B, ms (S) |
 | --- | --- | ---: | ---: | ---: |
-| eol-normalizer (A 21, B 21) | PostToolUse `Write` | 292 | 257 | 35 (1.7) |
+| eol-normalizer (S 21) | PostToolUse `Write` | 292 | 257 | 35 (1.7) |
 | | PostToolUse `Edit` | 307 | 251 | 56 (2.7) |
-| typos-format (A 22, B 21) | PostToolUse `Write` | 371 | 326 | 45 (2.1) |
+| typos-format (S 21.5) | PostToolUse `Write` | 371 | 326 | 45 (2.1) |
 | | PostToolUse `Edit` | 378 | 313 | 65 (3.0) |
 | | SessionStart `startup` | 182 | 127 | 55 (2.6) |
 | | SessionStart `compact` | 181 | 124 | 57 (2.7) |
-| guardrails (A 23, B 23) | PreToolUse `Bash` | 166 | 114 | 52 (2.3) |
+| guardrails (S 23) | PreToolUse `Bash` | 166 | 114 | 52 (2.3) |
 | | PreToolUse `Bash` (`$(…)` sample) | 164 | 124 | 40 (1.7) |
 | | PreToolUse `Write` | 214 | 172 | 42 (1.8) |
 | | PreToolUse `Edit` | 209 | 188 | 21 (0.9) |
