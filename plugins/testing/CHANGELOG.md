@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **audit:** `[--file <path>]` in the argument hint, forwarded to the script's `--file` mode, so
+  another skill can ask through the Skill tool which adapter claims a file.
+  `/mutation-testing:audit --exercised` uses it to recognize changed test files.
+
 ## [0.16.3] - 2026-10-01
 
 ### Changed

@@ -206,9 +206,16 @@ alongside it rather than leaving it behind unannounced.
   the operator, the before → after fragment, and that the covering tests still passed. Neither
   `Finding` nor `Action` carries the Phase 4 reviewer's reasoning. The row is the artifact, not the
   argument for it.
+  On a productive row the Phase 4 cause comes right after the rule id (`cause=no-assertion`,
+  `cause=input-gap` or `cause=unclassified`), so the cause leads what the row says about the mutant.
+  It is text in `Finding`, never a new rule id or column: the rule stays keyed on the disposition.
 - **`Action` names the covering test file.** Phase 1 already selected and cached the covering tests,
   so this producer *knows* the path, and withholding it is pure information loss. Write the `Action`
-  as the assertion to add **and** the file to add it to.
+  as the assertion to add **and** the file to add it to. On a productive row the cause selects the
+  wording: `no-assertion` is an assertion on the mutated value; `input-gap` is an input case that
+  tells the mutant apart, naming the input; `unclassified` is a review of the test's oracle under
+  `testing/judge/rule-restated-expectation`. Under `--exercised` the covering tests are the test
+  set the run judged.
 - **Cell-escape `Finding` and `Action`** per the shape's rule. Calling it out is not redundant here:
   a mutation is a code fragment, and relational-operator inversion, boolean-connective mutants, and
   shell-pipeline removals all carry literal `|`, so this producer meets the rule on nearly every row

@@ -9,14 +9,20 @@ invented at report time is a section persisted.
 
 Needs you: <n> proposed suppressions to accept, <n> unclassified survivors to classify<, or "none">
 
+<under --exercised only, these four lines:>
+Scope: exercised, <changed tests|tests under <test-path>> as one set
+Mapped: <function (file:lines), one per mapped function>   Runner: <tool option and source, or manual with test-command>
+Skipped: <file: the scanner's adapter: none (...) reason, one per skipped file, or "none">
+Blind spot: a killed mutant does not clear a restated or copied expected value; testing/judge/rule-restated-expectation owns that check.
+
 Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by cap>
 
-| File | Coverage | Covered-code score | Gap | Survivors |
+| File | Coverage< (under --exercised: changed tests only, or tests under <test-path> only)> | Covered-code score | Gap | Survivors |
 |---|---|---|---|---|
 
 ### Survivors
-| File:line | Operator | Mutation | Disposition | Why |
-|---|---|---|---|---|
+| File:line | Operator | Mutation | Disposition | Cause | Why |
+|---|---|---|---|---|---|
 
 ### Suppressed
 | finding_id | Site | check / claim | Reason | Date | Layer |
@@ -38,6 +44,10 @@ user to accept>
 <survivors whose withholding claim could not cite evidence — arid or equivalent, named with which
 was claimed and what was missing>
 ```
+
+`Cause` is `no-assertion`, `input-gap` or `unclassified` on a productive row, written bare
+(no backticks) so the column greps, and empty on the others. Under `--exercised` with the manual protocol, `Coverage` and `Gap` print `unknown` and the
+rows go in path order.
 
 The two suppression sections are obligations of the finding-suppression contract, not report
 garnish: a suppression the operator wrote that the contract **declined to enact** is exactly as

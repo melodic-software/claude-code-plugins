@@ -1,6 +1,6 @@
 ---
 description: "Audit the test suite for tests that cannot fail or check little. A deterministic script detects assertion-free bodies, self-identical or recomputed expectations, mock-only oracles, assertions that never run or sit only in a branch, weak or snapshot-only oracles, and constant or source-text change detectors across JS/TS, Python, C#, Bash, PowerShell and Go, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists findings for the review fix pass. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a Playwright suite that cannot fail found (retries with no `failOnFlakyTests`, an unguarded `test.only`), a CI gate on can't-fail tests, or findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (also gate mock-only-oracle and the Playwright config findings), `--persist-findings`. Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
-argument-hint: "[--check] [--strict] [--persist-findings]"
+argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -88,6 +88,11 @@ a supported operator lever). Ecosystems: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vit
 Playwright), Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`: xUnit,
 NUnit, MSTest), Bash (`*.test.sh` harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go
 (`*_test.go`), each defined by an adapter file in `adapters/`.
+
+When the invocation passes `--file <path>`, forward it to the script's `--file` mode: it scans that
+one file, and its coverage block's `adapter:` line names the adapter that claims it, or `adapter: none (...)`
+with the reason. `/mutation-testing:audit --exercised` reads that line to tell a test file from a
+source file.
 
 Present the script's findings and its coverage block as reported, the denominator is what makes a
 clean report a claim rather than an absence. A run that examined 0 test files says so and is never
