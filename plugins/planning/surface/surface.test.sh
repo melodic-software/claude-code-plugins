@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js
 # (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
@@ -273,7 +273,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     "commits": [], "alternatives": [{"key": "a", "text": "All of them"}, {"key": "b", "text": "None"}]}}]}'
   jrun 14
   read -r -a js <<<"$(unhandled "$j")"
-  bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
+  bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --alt "a:Only the ones in the lock file" --alt "b:Whatever the config names" --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
   jhandle
   jrun 15
   # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
@@ -301,12 +301,40 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
   jrun 20
+
+  # ui_live runs against a sixth server on the journey's first round. One tab stays open with a note
+  # half typed while the shell applies as Claude: reply with rec, revise, record-terminal, handle-only.
+  l="$tmp/live"
+  mkdir -p "$l/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$l/"
+  bash "$here/round.sh" --dir "$l" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
+  bash "$here/round.sh" --dir "$l" ensure-running --port 0 >/dev/null
+  lport=$(sed -n 's/^PORT=//p' "$l/.interview-session.env" | tr -d '\r')
+  for n in 1 2 3 4; do
+    sed "s/__PORT__/$lport/; s/__PHASE__/$n/" tests/ui_live.js >"$tmp/ul$n.js"
+  done
+  lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
+  lrun 1
+  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none"}]}' >"$l/ops/a.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
+  lrun 2
+  bash "$here/round.sh" --dir "$l" revise Q1 --rec "Yes, every push on main and every tag." --alt "a:Only on tags" --alt "b:Only by hand" --affects none --force >/dev/null || bad "live: revise refused"
+  lrun 3
+  printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q2", "decision": "accept"}]}' >"$l/ops/b.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/b.json" >/dev/null || bad "live: record-terminal op refused"
+  read -r -a ls <<<"$(unhandled "$l")"
+  [[ "${#ls[@]}" -gt 0 ]] || bad "live: the page's accept left no event to handle"
+  printf '%s' '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >"$l/ops/c.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
+  lrun 4
+  bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
 else
-  browser=434 journey=214
+  browser=445 journey=214
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

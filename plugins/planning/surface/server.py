@@ -533,10 +533,13 @@ def replace_into(tmp, path):
 
 
 def mtime(path):
+    """A change stamp for path, 0 when missing. Size and inode ride with the mtime: a coarse file
+    clock gives two writes the same time, and each atomic replace is a new inode."""
     try:
-        return path.stat().st_mtime_ns
+        st = path.stat()
     except FileNotFoundError:
         return 0
+    return (st.st_mtime_ns, st.st_size, st.st_ino)
 
 
 def is_handled(doc, seq):
@@ -812,6 +815,7 @@ class Hub:
         self.origins = {f"http://{h}" for h in self.hosts}
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
+        self.stale = False  # the last state() fell back to _last_state
         # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
         self.lease = None
         self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
@@ -976,9 +980,11 @@ class Hub:
                 "settings": settings,
                 "watchSeq": self.watched(),
             }
+            self.stale = False
         except RuntimeError:
             if self._last_state is None:
                 raise
+            self.stale = True
         return {
             **self._last_state,
             "listener": self.listener(),
@@ -1467,8 +1473,13 @@ class Handler(BaseHTTPRequestHandler):
             while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
+                    state = hub.state()
+                    # A failed read keeps last_sig behind so the next pass retries it.
+                    if hub.stale:
+                        time.sleep(0.3)
+                        continue
                     n += 1
-                    data = json.dumps(hub.state(), ensure_ascii=False)
+                    data = json.dumps(state, ensure_ascii=False)
                     self.wfile.write(
                         f"id: {n}\nevent: state\ndata: {data}\n\n".encode("utf-8")
                     )

@@ -1333,6 +1333,64 @@ class TestEventStreamPing(ServerCase):
             conn.close()
 
 
+class TestEventStreamPush(ServerCase):
+    """A rewrite of questions.json reaches an open stream even when the file's mtime did not move."""
+
+    fixtures = True
+
+    def frame(self, resp):
+        """The next state frame's questions doc."""
+        while (line := resp.fp.readline()) != b"event: state\n":
+            self.assertTrue(line, "the stream closed before a state frame")
+        return json.loads(resp.fp.readline().split(b"data: ", 1)[1])["questions"]
+
+    def test_a_same_mtime_rewrite_is_pushed(self):
+        path = self.dir / "questions.json"
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            first = self.frame(resp)
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc["questions"][0]["recommendation"] = "Revised while the tab was open."
+            old = path.stat().st_mtime_ns
+            tmp = path.with_name("questions.json.swap")
+            tmp.write_text(json.dumps(doc), encoding="utf-8")
+            os.utime(tmp, ns=(old, old))
+            os.replace(tmp, path)
+            self.assertEqual(path.stat().st_mtime_ns, old)
+            self.assertEqual(
+                self.frame(resp)["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+            self.assertNotEqual(
+                first["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+        finally:
+            conn.close()
+
+
+class TestStateFallback(unittest.TestCase):
+    """A state read that fails keeps the last good state and says so, so the stream retries."""
+
+    def test_a_failed_read_is_marked_stale_until_a_read_succeeds(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-stale-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        hub.state()
+        self.assertFalse(hub.stale)
+        with unittest.mock.patch.object(
+            server, "load_json", side_effect=RuntimeError("busy")
+        ):
+            hub.state()
+        self.assertTrue(hub.stale)
+        hub.state()
+        self.assertFalse(hub.stale)
+
+
 class TestEventStreamCap(ServerCase):
     """At most MAX_STREAMS event streams at once: one more is 503 until a stream closes."""
 
