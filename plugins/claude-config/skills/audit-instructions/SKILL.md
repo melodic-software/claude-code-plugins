@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I35, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I37, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -36,10 +36,12 @@ Diffs are proposed artifacts. A clean audit is a valid outcome.
 mechanical. `Write` stays for the Phase D persist and for lane reports under
 `runs/<state-key>/<run-id>/lanes/`, and `Bash` for the pre-scans, `lane-runs.sh`, and the
 `run-state.sh` lease writes under `runs/`. Either can mutate a file this skill has already read, so
-this is an instruction-held contract with a narrowed accident surface, not an enforced one. Never describe it to an operator as a guarantee. The restriction clears
-on their next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched
-2026-08-12), so whoever accepts a diff can apply it. `audit-prompting-postures` carries the identical
-declaration and the identical caveat, because the two state the same contract.
+this is an instruction-held contract with a narrowed accident surface, not an enforced one. Never
+describe it to an operator as a guarantee. We treat the restriction as clearing on the operator's
+next message, so whoever accepts a diff can apply it (Pointer: the
+[skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
+As of: 2026-08-12. Recheck trigger: that section changes how long the restriction lasts).
+`audit-prompting-postures` carries the identical declaration and caveat: both state one contract.
 
 ## Scope boundary (route out)
 
@@ -61,7 +63,7 @@ concerns its siblings already cover, so route rather than re-answer:
 
 On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
 `.claude/rules/`, and `rules/` under the user root Phase A resolves), this skill runs only the
-model-era checks I6–I35. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
+model-era checks I6–I37. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
 placement, inferable content, rule-to-hook) on these surfaces; that layer belongs to the
 `claude-memory` plugin. When it is installed, route memory-layer hygiene to its `audit` skill; when
 it is not, emit a single one-line pointer to the official CLAUDE.md include/exclude guidance
@@ -247,23 +249,23 @@ One partition rule sizes lanes, a token budget: no lane cap and no line-count co
 dispatch first**: run `lane-runs.sh partition` over the inventoried files, then dispatch those lanes.
 
 A lane's budget is **0.25 of the lane model's own context window**, leaving the rest for the
-catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per token**
-(Anthropic's glossary: "a token approximately represents 3.5 English characters", fetched
-2026-09-28 from <https://docs.claude.com/en/docs/about-claude/glossary>; recheck when that entry
-changes or a lane overflows its window on a supported model). Non-ASCII text runs more bytes per
-character, so the estimate errs toward smaller lanes. Never state the budget as a line count: the
-line figure is derived per run from the bytes per line measured over the in-scope files.
+catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per token**, our
+setting (Pointer: for the characters-per-token estimate, see the
+[glossary entry for tokens](https://platform.claude.com/docs/en/about-claude/glossary#tokens).
+As of: 2026-09-28. Recheck trigger: that entry changes, or a lane overflows its window on a
+supported model). Non-ASCII text runs more bytes per character, so the estimate errs toward smaller
+lanes. Never state the budget as a line count: the line figure is derived per run from the bytes
+per line measured over the in-scope files.
 
-**Claim:** a subagent's context window is sized by its own model, not the parent's. **Basis:**
-<https://code.claude.com/docs/en/sub-agents> (model field section). **As of:** 2026-09-29.
-**Recheck:** when that page's model or context-window wording changes.
+We size a lane by the context window of the model the lane runs on, never the parent's (Pointer:
+[subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). As of:
+2026-09-29. Recheck trigger: that section changes how a subagent's model or window is set).
 
 `<lane model window>` is the `--window-tokens` value: the context window in tokens of the model the
-lane runs on, per <https://code.claude.com/docs/en/model-config> (fetched 2026-09-29). When the
-lane's model resolves to no documented window, pass 200000, the smaller standard window: a smaller
-budget only adds lanes. **Claim:** 200000 is the smallest documented window. **Basis:** the
-model-config page above. **As of:** 2026-09-29. **Recheck:** when that page documents a smaller
-window for a supported model.
+lane runs on. When the lane's model resolves to no documented window, pass 200000, our setting for
+the smallest standard window: a smaller budget only adds lanes (Pointer:
+[model configuration: extended context](https://code.claude.com/docs/en/model-config#extended-context).
+As of: 2026-09-29. Recheck trigger: that page documents a smaller window for a supported model).
 
 Partition deterministically, feeding every in-scope file as `<group>\t<unit>\t<path>`, where the
 group is its plugin (or the memory layer) and the unit is its skill (or the file itself):
@@ -317,9 +319,9 @@ plugin's `block-hook-bypass` guard exempts by design, never through a shell redi
 carried in a variable or through inline Python, which that guard blocks because it cannot resolve
 the target. A redirect to a literal absolute path under the host temp tree is exempt only when
 `CLAUDE_PROJECT_DIR` names a project root not itself under a temp tree, so in a temp-rooted checkout
-(a CI clone, a test fixture) the Write tool is the only route. Verified 2026-09-12 against `plugins/guardrails/hooks/block-hook-bypass.sh`
-(`_bbh_temp_default_applies` and the scope note in `block_bypass`) and `plugins/guardrails/README.md`
-("`block-hook-bypass` ships two scratch roots exempt"); recheck when the guardrails plugin changes
+(a CI clone, a test fixture) the Write tool is the only route. Pointer:
+`plugins/guardrails/hooks/block-hook-bypass.sh` (`_bbh_temp_default_applies` and the scope note in
+`block_bypass`) and `plugins/guardrails/README.md`. Recheck trigger: the guardrails plugin changes
 that guard's exemption set or its block message.
 
 ## Phase B2: Cross-surface conflict pass

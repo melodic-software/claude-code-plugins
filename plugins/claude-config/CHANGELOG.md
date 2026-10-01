@@ -7,6 +7,18 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ## [0.56.0] - 2026-10-01
 
+### Added
+
+- **`audit-instructions` rows I36 and I37** (`criteria.md` 1.25.0), both scoped to `sonnet-5-5`:
+  I36 flags an instruction that limits tool or search use as a general policy on a component that
+  has a search or retrieval tool; I37 flags model-visible text added after every tool result in an
+  interactive session without a condition.
+- **`audit-prompting-postures` P12, P13 and P14** and an `ideating` purpose: no self-started steps
+  after the run's end at `xhigh` or `max`, a runnable check behind a done claim, and ideas first on
+  an open-ended request, each stated as a check over the component's own text.
+- **The `audit` checklist flags a code-changing or verifying component pinned below `medium`**,
+  the marketplace effort floor.
+
 ### Changed
 
 - **The `audit-instructions` criteria catalog keeps its firing rules in our words and names its
@@ -23,6 +35,18 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   instructions** values and where the setting is honored are stated as what our checks read, each
   with a pointer to its anchored section of the memory page, an as-of date and a recheck trigger,
   and none of the page's wording is stored.
+- **`audit-instructions` widens to Sonnet 5.5 and current models.** I10 fires on `sonnet-5-5`; I17
+  and I17-b cover `between_tools` in API code; the model sets of I17, I17-a, I17-c and I25 cover
+  Opus 5.5, Sonnet 5.5 and Fable 5.1; I17's ultracode count is narrowed to the effort that reaches
+  the request, and the row says so. I8-c records a declined `sonnet-5-5` widening and splits
+  `between_tools` ownership with I17; I17-a's Detect and Must-NOT agree; I17-b leaves the cache cost
+  of an effort change to Claude Code, with a pointer; rows that keep tokens of older models are
+  re-justified, and Fable 5 is treated as current.
+- **`audit-prompting-postures` repoints P2, P5, P6 and P8** to the current model subpages (P5 to the
+  one section that still covers its check), with a Sonnet 5.5 pointer block.
+- **The `audit` checklist's records are links-only**, and its exec-form, plugin-manifest,
+  fallback-model, effort-default and managed-settings rows are reduced to firing rules plus
+  pointers.
 
 ## [0.55.3] - 2026-09-30
 

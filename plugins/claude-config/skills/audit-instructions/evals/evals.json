@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I35 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene (line budget, whether CLAUDE.md is too long, pruning always-loaded content) as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I37 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I35 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I37 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },
@@ -364,6 +364,32 @@
         "Judges the I33 class with one class-batched verifier in Phase C",
         "Excludes the I33 row from every per-lane verifier batch and counts the I33 class verifier as one dispatch in the plan and the ~20-dispatch gate cost line",
         "Gives a lane whose only proposal is the I33 finding no per-lane verifier"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "i36-tool-discouraging-language-fires-on-sonnet-5-5-only",
+      "prompt": "/claude-config:audit-instructions skills --target-model sonnet-5-5. One of my research skills tells the model: \"Keep tool calls to a minimum and answer from what you already know unless a tool is unavoidable.\" The skill has a web search tool. Then run the same audit with --target-model opus-5-5.",
+      "expected_output": "On the sonnet-5-5 run, reports an I36 tool-discouraging-language finding on that line, behavioral tier, with a proposed change that replaces the line with the Sonnet 5.5 guide's targeted search steer, read live at the row's pointer. The finding is a proposal verified in Phase C, not a confident removal, and it is not reported as I28. On the opus-5-5 run, I36 is inert and the report lists it as skipped-for-target, because the row is scoped to sonnet-5-5 by exact token match.",
+      "files": [],
+      "expectations": [
+        "Reports I36 on the sonnet-5-5 run against the tool-discouraging line",
+        "Proposes replacing the line with the guide's targeted search steer from the pointer, not a blanket 'always use the tool' default",
+        "Does not report the line under I28",
+        "Lists I36 as skipped-for-target on the opus-5-5 run instead of reporting it"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "i37-per-tool-result-countdown-versus-narrow-hook",
+      "prompt": "/claude-config:audit-instructions hooks --target-model sonnet-5-5. My interactive setup has two PostToolUse hooks. The first matches every tool and returns additionalContext with the remaining token budget after each call. The second matches only Bash and returns additionalContext only when the command exits non-zero.",
+      "expected_output": "Reports an I37 finding on the first hook: it puts a countdown into the model's context after every tool result in an interactive session, which raises the chance that a real mid-turn user message is taken for an injected one. The proposed change makes the text rarer, for example a narrower matcher or a threshold, or drops the countdown if nothing acts on it. The second hook is not a finding: it fires on a narrow condition. The run does not report the first hook under I23, which is scoped to Fable targets.",
+      "files": [],
+      "expectations": [
+        "Reports I37 on the hook that returns a countdown after every tool call",
+        "Proposes making that text rarer or dropping the countdown, rather than deleting the hook outright",
+        "Does not flag the Bash hook that fires only on a non-zero exit",
+        "Does not report I23 on a sonnet-5-5 target"
       ]
     }
   ]

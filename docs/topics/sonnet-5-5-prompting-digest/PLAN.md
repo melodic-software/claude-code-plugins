@@ -338,7 +338,13 @@ moved ci-log-auditor and doc-drift-detector to `high` (eleven and four; see Plan
 - **Sanity Check:** the tier table rows in `docs/plugin-philosophy.md` (the table under the tier heading near :1098) and the loop-lane alias section in `docs/conventions/loop-lane/README.md` (formerly :379-391; the known-gap note below it may name models by version) contain no `(Sonnet|Opus|Haiku|Fable) [0-9]` match. The worker reports the exact line ranges it checked, and the main session reruns the grep on them.
 - **Sanity Check:** `grep -h '^effort:' plugins/review/agents/ecosystem-specialist.md plugins/review/agents/doc-drift-detector.md plugins/discovery/agents/explorer.md | sort -u` prints only `effort: medium`, and `git grep -nE '^effort: *low' -- 'plugins/*/agents/*.md' 'plugins/*/skills/*/SKILL.md'` prints nothing.
 
-### Phase 4: Audit and posture catalogs [TODO]
+### Phase 4: Audit and posture catalogs [DONE]
+
+Done 2026-10-01. Four fresh-context verifier rounds and three fix rounds. A21 and A22 landed as
+I36 and I37 (the finding-ID scheme needs `I<N>`). The last round's P12 and P13 flags were settled by
+the orchestrator's ruling: a posture that checks for an upstream steer names its topic in the
+shortest condition and points at the steer. The Phase 7 attribution audit remains the criterion-2
+gate. P2 and P6 Present-when lines go to the Phase 7 list.
 
 - [ ] `plugins/claude-config/skills/audit-instructions/reference/criteria.md`:
   - D2.1: add the page to Sources (:171-181) as a pointer.

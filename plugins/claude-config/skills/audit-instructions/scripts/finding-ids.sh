@@ -119,6 +119,8 @@ claim_template() {
   I33) echo "I33.spoke-self-description" ;;
   I34) echo "I34.maintainer-rationale-in-yaml" ;;
   I35) echo "I35.settled-answers-instruction" ;;
+  I36) echo "I36.tool-discouraging-language" ;;
+  I37) echo "I37.harness-text-after-every-tool-result" ;;
   *) return 1 ;;
   esac
 }
@@ -183,16 +185,14 @@ fi
 # Home-directory scope. The user surface is $HOME-wide, not
 # ${CLAUDE_CONFIG_DIR:-~/.claude} alone, because Claude Code reads instruction
 # files that sit outside the config directory and under $HOME.
-#   Claim:   "Claude Code loads `CLAUDE.md` and `CLAUDE.local.md` from your
-#            current working directory and every directory above it", and reads
-#            "every `AGENTS.md` and `.claude/AGENTS.md` in your working directory
-#            and the directories above it" where no CLAUDE.md counts; imports
-#            accept "Both relative and absolute paths", and a user-scope file's
-#            imports load without the approval dialog.
-#   Basis:   https://code.claude.com/docs/en/memory ("How CLAUDE.md files load",
-#            "When Claude Code reads AGENTS.md", "Import additional files").
+#   We treat CLAUDE.md, CLAUDE.local.md and the AGENTS.md files as loading
+#   from the working directory and each ancestor, and an import as able to
+#   name any absolute path, so the surface set reaches past the config dir.
+#   Pointer: https://code.claude.com/docs/en/memory ("How CLAUDE.md files
+#            load", "When Claude Code reads AGENTS.md", "Import additional
+#            files").
 #   As of:   2026-09-29.
-#   Recheck trigger: the ancestor-loading or import-path sentences change, or a
+#   Recheck trigger: the ancestor-loading or import-path sections change, or a
 #            release note adds an instruction file type outside *.md, a skill's
 #            own files and the settings and hooks JSON above.
 instruction_shape() {
