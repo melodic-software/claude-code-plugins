@@ -595,7 +595,7 @@ check "a failed scan is not cached" '[[ "$(scans)" == 2 ]]'
 check "the fake Windows jq writes CRLF" '[[ "$(PATH="$WIN_JQ:$PATH" jq -n 1 | od -An -c | tr -d " ")" == "1\r\n" ]]'
 WT='C:\w\.claude\projects\-repo\wsid.jsonl' # portability-ok: a literal Windows path, not a regex escape
 WC='C:\repo'
-WPK="$(printf '%s\n%s' "$WC" 'C:\w\.claude\projects\-repo' | sha256 | cut -c1-16)"
+WPK="$(printf '%s\n%s' "$WC" 'C:\w\.claude\projects\-repo' | sha256 | cut -c1-16)" # portability-ok: a literal Windows path, not a regex escape
 W1="$REPO/src/win\\one.test.ts"
 W2="$REPO/src/wintwo.test.ts"
 js_file "$W1" winone
@@ -641,7 +641,7 @@ lib() { # lib <OSTYPE> <bash>: run bash with the judge library sourced
     'source "$HOOK_DIR/scanner-run.sh"; source "$HOOK_DIR/judge-lib.sh"; '"$2"
 }
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
-WB='C:\W\Repo\a.ts'
+WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape
 WF='C:\w\repo\src\w.test.ts' # portability-ok: a literal Windows path, not a regex escape
 export WA WB WL
