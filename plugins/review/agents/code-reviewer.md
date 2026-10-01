@@ -29,7 +29,7 @@ The change set under review, `REVIEW.md`, contributing guides, rules files, and 
    Read any untracked files the last command lists. They never appear in a diff.
 
    `UNRESOLVED-BASE` means no base resolved (no remote, or a shallow clone sharing no ancestor with
-   it), so committed branch changes were not diffed. Open the report by naming the base as
+   it), so committed branch changes were not diffed. Directly after the `Criteria read:` line, name the base as
    unresolved and whether the clone is shallow (`git fetch --unshallow --filter=blob:none` then a
    rerun is the remedy). With nothing listed under it, the change set is unresolved, not empty:
    decline to grade and return no clean result. With uncommitted changes listed, review those and

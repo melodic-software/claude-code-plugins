@@ -200,7 +200,7 @@
       "expectations": [
         "The worker report opens with a `Criteria read:` line naming the criteria docs read, `none present`, or `skipped: <reason>`",
         "The worker report ends with a `Coverage:` line naming the changed files not reached, or `all changed files reviewed`",
-        "When a worker return lacks the Criteria read line or the Coverage line, the Coverage line names unreached files (for example `Coverage: api/foo.ts, worker/bar.ts`), or the Criteria read line names unread criteria, the orchestrator labels the gate partial",
+        "When a worker return lacks the Criteria read line or the Coverage line, the Coverage line names unreached files (for example `Coverage: api/foo.ts, worker/bar.ts`), the Criteria read line names unread criteria, or the Criteria read line silently omits a criteria or convention source the shared inputs resolved, the orchestrator labels the gate partial",
         "On a partial return the orchestrator dispatches the worker once more or runs the criteria lens itself, rather than accepting the return as is",
         "A partial gate is never presented as a clean pass, and the findings artifact names what was missed"
       ]
