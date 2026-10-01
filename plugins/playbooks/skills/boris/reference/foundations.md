@@ -57,7 +57,10 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 
 ## 2. Model Selection
 
-> **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94).
+> **Superseded:** this tip names a model and a thinking toggle that no longer apply (Section 94
+> covers a later pick). For which model to run and how thinking works on it now, see
+> [Claude Code model config](https://code.claude.com/docs/en/model-config) and its
+> ["Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking) section.
 
 ### Use Opus 4.5 with Thinking for Everything
 
