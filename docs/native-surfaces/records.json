@@ -515,7 +515,8 @@
         "name": "design",
         "class": "bundled-skill",
         "markers": [
-          "gated"
+          "gated",
+          "model-invocation-disabled"
         ]
       },
       "component": {
@@ -524,11 +525,11 @@
         "kind": "skill"
       },
       "verdict": "complementary",
-      "integration": "route",
-      "reason": "visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.",
+      "integration": "suggest",
+      "reason": "The bundled design skill is model-invocation-disabled, so visualize does not route the model to it. For a hand-tweakable visual layout (UI mockup, poster, one-pager) it renders its own rich page and, where the medium permits publishing, tells the person they can run /design instead of or alongside it. The canvas is a persistent, shareable Artifact whose edits save automatically; this skill's page paths are throwaway or plain-static. The Boundary section carries the suggest sentence, the split, and the mutation gate; the catalog spoke carries the surface facts. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
       "evidence": [
-        "our SKILL.md description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium'; the plugin.json description carries the same gate",
-        "our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check",
+        "binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub",
+        "our SKILL.md Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run it instead of or alongside this skill for a hand-editable design canvas'; the description and plugin.json no longer carry a design clause",
         "catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line",
         "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build",
         "string search of the same binary: a second bundled registration named design is a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login') with disableModelInvocation true, enabled only behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it; so the listed description is the presence check",
@@ -538,27 +539,28 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
-        "date": "2026-09-11"
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "date": "2026-09-29"
       },
       "recheck": {
-        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command)",
-        "verified": "2026-09-11"
+        "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
+        "verified": "2026-09-30"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
         "name": "design",
         "class": "bundled-skill",
         "markers": [
-          "gated"
+          "gated",
+          "model-invocation-disabled"
         ]
       },
       "component": {
@@ -567,10 +569,11 @@
         "kind": "skill"
       },
       "verdict": "complementary",
-      "integration": "route",
-      "reason": "explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description carries the gated routing phrase.",
+      "integration": "suggest",
+      "reason": "The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup by default and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
       "evidence": [
-        "our description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check",
+        "binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub",
+        "our Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas'; the description no longer carries a design clause",
         "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)",
         "commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268",
         "prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on",
@@ -578,20 +581,20 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
-        "date": "2026-09-11"
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "date": "2026-09-29"
       },
       "recheck": {
-        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command)",
-        "verified": "2026-09-11"
+        "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
+        "verified": "2026-09-30"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
@@ -704,7 +707,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -743,7 +746,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -1365,12 +1368,55 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
       },
       "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "context",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "context-budget",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command visualizes the current session's context usage as a colored grid with optimization suggestions; ours measures a fresh headless session's startup payload per item, splitting the built-in tool pools /context reports as lump sums, and ledgers before/after deltas. User-only, so ours offers it to the person for a live look at the current window. Ruled 2026-09-30 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`context` present in the 2.1.285 extraction as builtin-command",
+        "markers: gated",
+        "native description: Visualize current context usage as a colored grid; argument hint `[all]`",
+        "invocation mode (2026-09-30, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.3859 from shared tokens context, usage",
+        "docs cross-check (commands reference, 2026-09-30): the `/context [all]` row documents the grid, optimization suggestions for context-heavy tools, memory bloat and capacity warnings, and `all` to expand the per-item breakdown",
+        "our Boundary: 'If /context is available in your session (gate basis: the verification record below), you can run `/context` to see what fills the current window'; the description carries no /context clause"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/context`, makes it model-invocable, or widens it to a fresh session's startup payload or a before/after comparison",
+        "verified": "2026-09-30"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": true
+      },
+      "budget_caveat": false
     },
     {
       "native": {
@@ -2534,6 +2580,86 @@
     },
     {
       "native": {
+        "name": "ClaudeDesign",
+        "class": "builtin-tool",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants on the real stack or as a local HTML mockup and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.",
+      "evidence": [
+        "`ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'",
+        "description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'",
+        "operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token",
+        "docs cross-check (tools reference, 2026-09-29): undocumented",
+        "our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it",
+        "verified": "2026-09-30"
+      },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "ClaudeDesign",
+        "class": "builtin-tool",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "visualization",
+        "skill": "visualize",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool reads and writes files in an existing claude.ai/design project; ours picks a visual form and medium and renders its own output (inline, a local file, or a published Artifact). When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill renders its own output as today. Same surface as the explore-directions row, sibling component; distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.",
+      "evidence": [
+        "`ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'",
+        "description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'",
+        "operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token",
+        "docs cross-check (tools reference, 2026-09-29): undocumented",
+        "our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it",
+        "verified": "2026-09-30"
+      },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
         "name": "WebSearch",
         "class": "builtin-tool",
         "markers": [
@@ -2572,6 +2698,124 @@
         "suggest_sentence": false
       },
       "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "EnterWorktree",
+        "class": "builtin-tool",
+        "markers": []
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "worktree",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree also goes through ours, which runs its claim check before `EnterWorktree(path:)`: the tool refuses only a lock in Claude Code's own form naming a live process, while the claim check also reads this plugin's session claims and stops on an unclaimed worktree. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`EnterWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Creating worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'create an isolated git worktree and switch into it'",
+        "native description: Creates an isolated worktree (via git or configured hooks) and switches the session into it",
+        "detect: origin discovered, score 0.4339, invocable_by model-only, recommended integration route",
+        "docs cross-check (tools reference, 2026-10-01): documented; 'Pass a `path` to switch into an existing worktree instead of creating a new one'",
+        "our skill already calls the tool: `create` ends with `EnterWorktree(path: \"<printed-path>\")` and never falls back to `EnterWorktree(name:)`"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `EnterWorktree` tool, drops its `path` argument, changes where a named worktree is created, or the tools reference stops documenting it",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "ExitWorktree",
+        "class": "builtin-tool",
+        "markers": []
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "worktree",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool leaves a worktree session and restores the original directory: `action: \"keep\"` leaves the worktree and its branch on disk, `action: \"remove\"` deletes both but is refused for a worktree entered by `path`, which is how ours enters. Leaving a worktree goes to the tool with `action: \"keep\"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action.",
+      "evidence": [
+        "`ExitWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Exiting worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'exit a worktree session and return to the original directory'",
+        "native description: Exits a worktree session created by EnterWorktree and restores the original working directory",
+        "detect: origin discovered, score 0.4063, invocable_by model-only, recommended integration route",
+        "docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory",
+        "our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first",
+        "tool schema in the 2.1.285 binary (string search 2026-10-01): `action` \"keep\" leaves the worktree and branch on disk, \"remove\" deletes both (isDestructive, user-facing name 'Cleaning up worktree') and needs `discard_changes` when work would be lost; the EnterWorktree prompt says ExitWorktree will not remove a worktree entered by `path`"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path`, or the tools reference stops documenting it",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "ProposeGoal",
+        "class": "builtin-tool",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "draft-goal-condition",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool proposes a session goal condition that the person approves with one keypress; ours drafts that condition (lever fit, live shape, length counter). Ours always offers the paste-ready `/goal` line; when the tool resolves in this session and the condition fits the tool's own cap, ours also proposes it through the tool with `ask_user` left true, so the person still approves it. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`ProposeGoal` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: model_invocable true, user_invocable false, gated true, deferred true; search hint 'propose a session goal condition for the user to approve with one keypress'",
+        "native description: Propose a session goal condition, with one-keypress user approval; once set, Claude keeps working until a separate evaluator confirms it is met",
+        "tool prompt in the same binary (string search 2026-10-01): `ask_user` true (the default) asks the user with a one-keypress dialog; `ask_user` false sets the goal directly and is allowed only when the user's own words stated the outcome; the condition is at most 500 characters; the tool cannot clear a goal; it is refused in agent contexts, outside interactive local sessions, and while plan mode is active",
+        "settings key in the same binary: `modelProposedGoals` ('auto' default, 'alwaysAsk', 'disabled'), marked @internal",
+        "detect: origin discovered, score 0.4289, invocable_by model-only, recommended integration route",
+        "docs cross-check (tools reference, 2026-10-01): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors), with a targeted string search of the same binary for the tool prompt",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `ProposeGoal` tool, changes its `ask_user` approval default, its condition limit, or its session restrictions, or the tools reference starts documenting it",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
     }
   ],
   "dismissals": [
@@ -2600,15 +2844,123 @@
       },
       "component": {
         "plugin": "bash-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
+        "component": "3f55bc9bc552095ce98645fab43fdec4"
+      }
+    },
+    {
+      "native": {
+        "name": "Bash",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "bash-format",
         "skill": "setup",
         "kind": "skill"
       },
       "reason": "The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "d7e2debdf01879cf8606b9ebfd12eb3e",
+        "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
         "component": "5ac7b1857920ab401d31da3b719abc26"
+      }
+    },
+    {
+      "native": {
+        "name": "ClaudeDesign",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "evals",
+        "skill": "design",
+        "kind": "skill"
+      },
+      "reason": "The ClaudeDesign tool edits claude.ai/design canvas projects; ours designs an LLM evaluation suite. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "9681c2a5cafd28b41ce161f9a02f78a4",
+        "component": "dbc6066d332a8f42c876cac607378a5b"
+      }
+    },
+    {
+      "native": {
+        "name": "ClaudeDesign",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "design",
+        "kind": "skill"
+      },
+      "reason": "The ClaudeDesign tool edits claude.ai/design canvas projects; ours resolves types, contracts, and module boundaries before planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "9681c2a5cafd28b41ce161f9a02f78a4",
+        "component": "a7d312d5c09f06a655fed49b7e635881"
+      }
+    },
+    {
+      "native": {
+        "name": "ClaudeDesign",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "design-handoff",
+        "kind": "skill"
+      },
+      "reason": "The ClaudeDesign tool edits claude.ai/design canvas projects (decks, prototypes, mockups); ours gates a finished software design for planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "9681c2a5cafd28b41ce161f9a02f78a4",
+        "component": "2768133d95c1692131ff991aae0775cb"
+      }
+    },
+    {
+      "native": {
+        "name": "DesignSync",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "dometrain",
+        "skill": "sync",
+        "kind": "skill"
+      },
+      "reason": "DesignSync syncs a local component library with a claude.ai/design design-system project; ours checks the dometrain grounding skill's vendored content for upstream drift. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "b1369bb52790e1bd680ba754947bb48f",
+        "component": "5b3d22b2a6abfbb09f051eb1a46cff01"
+      }
+    },
+    {
+      "native": {
+        "name": "DesignSync",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "repo-fleet-hygiene",
+        "skill": "sync",
+        "kind": "skill"
+      },
+      "reason": "DesignSync syncs a local component library with a claude.ai/design design-system project; ours syncs repositories across a fleet. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "b1369bb52790e1bd680ba754947bb48f",
+        "component": "e05e47420038074de1e8f90071710308"
       }
     },
     {
@@ -2623,10 +2975,10 @@
       },
       "reason": "The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-09-30",
       "fingerprint": {
         "native": "5fac9fea053bdbf76984411e6472edb1",
-        "component": "b5d35110af24ea23c683993810ca8811"
+        "component": "d090abd0eecc9421aaa6d7c4ed6ae681"
       }
     },
     {
@@ -2672,15 +3024,51 @@
       },
       "component": {
         "plugin": "powershell-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "7e8a83657f5c47a86bcd429dbf18e53e",
+        "component": "f108c4244ee4f411177cd9f8cc0b9b9e"
+      }
+    },
+    {
+      "native": {
+        "name": "PowerShell",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "powershell-format",
         "skill": "setup",
         "kind": "skill"
       },
       "reason": "The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "b8d973375b3761790cd1d387dd34aed7",
+        "native": "7e8a83657f5c47a86bcd429dbf18e53e",
         "component": "dffaf27e9cc00f3743cab750ef41a571"
+      }
+    },
+    {
+      "native": {
+        "name": "ProposeGoal",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "performance",
+        "skill": "goal",
+        "kind": "skill"
+      },
+      "reason": "ProposeGoal proposes a session completion condition; ours sets a measured performance target with its floor. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "4c9f230d3a8ff0f24e2d1a03a03b03c7",
+        "component": "908cdf51a0c92a7645166302651023d0"
       }
     },
     {
@@ -2703,6 +3091,60 @@
     },
     {
       "native": {
+        "name": "ReadNotifications",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "desktop-notification",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e782dd30b656e3a5d75d4859b5a42e64",
+        "component": "e054cb9a1335bc26748207ee81eddd70"
+      }
+    },
+    {
+      "native": {
+        "name": "ReadNotifications",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "desktop-notification",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "ReadNotifications reads queued external notifications (webhooks, triggers); ours verifies the desktop-notification hook's prerequisites and channels. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e782dd30b656e3a5d75d4859b5a42e64",
+        "component": "f7ef67357f9a70f816a2fc6929a5678c"
+      }
+    },
+    {
+      "native": {
+        "name": "ReportFindings",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "improvement",
+        "skill": "find",
+        "kind": "skill"
+      },
+      "reason": "ReportFindings renders code-review findings in the host UI when review instructions ask for it; ours ranks improvement work across a codebase. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "35f8d0fd207c297d1974e2a24277bbee",
+        "component": "26e9b142ab5495e9958222476f6e6485"
+      }
+    },
+    {
+      "native": {
         "name": "SendUserMessage",
         "class": "builtin-tool"
       },
@@ -2721,6 +3163,96 @@
     },
     {
       "native": {
+        "name": "TestingPermission",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-permission-grants",
+        "kind": "skill"
+      },
+      "reason": "TestingPermission is an internal test tool that always asks for permission; ours audits permission rules for portability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e1b2e9ffd172dd46330e8b3d84a8f939",
+        "component": "bc6876d48356f348a33781fe62a9521e"
+      }
+    },
+    {
+      "native": {
+        "name": "TestingPermission",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-permission-state",
+        "kind": "skill"
+      },
+      "reason": "TestingPermission is an internal test tool that always asks for permission; ours reports the effective permission rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e1b2e9ffd172dd46330e8b3d84a8f939",
+        "component": "bee7bc6c84ad33222455e8ee08efb2d5"
+      }
+    },
+    {
+      "native": {
+        "name": "TestingPermission",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "test-value",
+        "kind": "skill"
+      },
+      "reason": "TestingPermission is an internal test tool that always asks for permission; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e1b2e9ffd172dd46330e8b3d84a8f939",
+        "component": "ce076b3ced24d3c7b11594070f416336"
+      }
+    },
+    {
+      "native": {
+        "name": "TodoWrite",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "work-items",
+        "skill": "scan-todos",
+        "kind": "skill"
+      },
+      "reason": "TodoWrite updates the session task checklist; ours sweeps source comments for TODO/FIXME markers. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "055a562e5bcf2ab44e4059d03054cbe2",
+        "component": "5e9b2c6c38856fcaf77ce744686ec8b1"
+      }
+    },
+    {
+      "native": {
+        "name": "WaitForMcpServers",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "discipline",
+        "skill": "wait-what",
+        "kind": "skill"
+      },
+      "reason": "WaitForMcpServers waits for connecting MCP servers; ours re-pitches a message the reader did not follow. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "5588dd9c501d873f044e118203b45c58",
+        "component": "5e5e15be2563638e749d407f40fc43a9"
+      }
+    },
+    {
+      "native": {
         "name": "Workflow",
         "class": "builtin-tool"
       },
@@ -2731,9 +3263,9 @@
       },
       "reason": "The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "f3289abe94172b69cb48e9c94b0025ad",
+        "native": "86670858338495e885e4e00ca595d384",
         "component": "15a9d6185384b83662bf90b63359a9c7"
       }
     },
@@ -2749,9 +3281,9 @@
       },
       "reason": "The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "f3289abe94172b69cb48e9c94b0025ad",
+        "native": "86670858338495e885e4e00ca595d384",
         "component": "57f30812b809930d11e028dada56bb15"
       }
     },
@@ -3036,10 +3568,10 @@
         "kind": "skill"
       },
       "reason": "The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "0ce54d8a089a3c374625b7240819da83",
+        "native": "8598387da809a2243d7352d66d98b8a1",
         "component": "071455025613ebdd302b735cf719f523"
       }
     },
@@ -3072,11 +3604,29 @@
         "kind": "skill"
       },
       "reason": "/config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "0a8452b902a7c193435b2041100be125",
-        "component": "a4762f225fc50c9df77089fd8a46356a"
+        "component": "6a86c0c06e7ba4ad97c6f8f4c8dd1c88"
+      }
+    },
+    {
+      "native": {
+        "name": "config",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-permission-grants",
+        "kind": "skill"
+      },
+      "reason": "/config opens the settings UI; ours audits permission grants for portability and auto-mode durability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "0a8452b902a7c193435b2041100be125",
+        "component": "bc6876d48356f348a33781fe62a9521e"
       }
     },
     {
@@ -3090,11 +3640,11 @@
         "kind": "skill"
       },
       "reason": "/config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "0a8452b902a7c193435b2041100be125",
-        "component": "e10abc79b4bb422727038ff39e0b834d"
+        "component": "bee7bc6c84ad33222455e8ee08efb2d5"
       }
     },
     {
@@ -3266,6 +3816,24 @@
       },
       "component": {
         "plugin": "desktop-notification",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "47f26aa289e2c8339a42d3523417d50f",
+        "component": "e054cb9a1335bc26748207ee81eddd70"
+      }
+    },
+    {
+      "native": {
+        "name": "desktop",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "desktop-notification",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3287,12 +3855,30 @@
         "skill": "setup",
         "kind": "skill"
       },
-      "reason": "Creates a document artifact versus configuring the docs-hygiene file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "Creates a document artifact versus checking that markdownlint-cli2 resolves for /docs-hygiene:compress. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "cd41f53c6aab8b18117d35ccd710e0ef",
+        "component": "78d055fe9abb495d629ebae49eaec227"
+      }
+    },
+    {
+      "native": {
+        "name": "doc",
+        "class": "bundled-skill"
+      },
+      "component": {
+        "plugin": "docs-naming",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "Creates a document artifact versus configuring the docs-naming file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {
         "native": "cd41f53c6aab8b18117d35ccd710e0ef",
-        "component": "7b0d71a725fc37873f40f8c8a1ddb186"
+        "component": "01433380f1a4d342c2a9eb2c5224bd41"
       }
     },
     {
@@ -3523,9 +4109,9 @@
       },
       "reason": "memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.285",
-      "date": "2026-09-29",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "d1ba270c9f14bcf348ad9751e4b8739a",
+        "native": "e758b29b785842748f0888acc018e61f",
         "component": "4551730bb3be32f29ce0809800283145"
       }
     },
@@ -3585,24 +4171,6 @@
     },
     {
       "native": {
-        "name": "plugin-types",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "code-metrics",
-        "skill": "audit-type-debt",
-        "kind": "skill"
-      },
-      "reason": "Writes TypeScript declarations for typing a hooks module versus measuring how much of a codebase is typed. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
-      "fingerprint": {
-        "native": "2815700c8d49b9fd250af8e8e9c1ce93",
-        "component": "9b7f7ee7a81309962e80efff0d8adba9"
-      }
-    },
-    {
-      "native": {
         "name": "pr",
         "class": "bundled-skill"
       },
@@ -3643,7 +4211,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "docs-hygiene",
+        "plugin": "docs-naming",
         "skill": "audit-file-names",
         "kind": "skill"
       },
@@ -3661,7 +4229,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "docs-hygiene",
+        "plugin": "docs-naming",
         "skill": "realign-file-names",
         "kind": "skill"
       },
@@ -3670,7 +4238,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "b7b277e905dba7621cb48e6eef55ae23",
-        "component": "08b7fee0b33e2d80a03a8bb80901bc9f"
+        "component": "4a79f28a4bdea1c28f6432a4d5055360"
       }
     },
     {
@@ -3841,6 +4409,24 @@
         "class": "builtin-agent"
       },
       "component": {
+        "plugin": "session-flow",
+        "skill": "tidy-work",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only ('work'): tidy-work is a user-only skill that tidies the gitignored .work memory tiers; the built-in worker agent executes delegated tasks. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "2b87d7d4252ceb57225021542be8bc5c"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
         "plugin": "work-items",
         "skill": "work",
         "kind": "skill"
@@ -3882,10 +4468,10 @@
         "kind": "skill"
       },
       "reason": "Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "01ec46e4001ffbd56cab9b2d0ff710e8",
+        "native": "8cf8e49eb69e53c15428fd8427e3fe26",
         "component": "66139c7517bcdfb75782ebcb959181f4"
       }
     },
@@ -3900,10 +4486,10 @@
         "kind": "skill"
       },
       "reason": "Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.285",
+      "date": "2026-10-01",
       "fingerprint": {
-        "native": "01ec46e4001ffbd56cab9b2d0ff710e8",
+        "native": "8cf8e49eb69e53c15428fd8427e3fe26",
         "component": "57f30812b809930d11e028dada56bb15"
       }
     },

@@ -1,0 +1,3 @@
+# A trailing tab in a TSV row is an empty last field, not whitespace.
+[*.tsv]
+trim_trailing_whitespace = false

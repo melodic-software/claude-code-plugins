@@ -1,5 +1,50 @@
 # Changelog: session-flow plugin
 
+## [0.43.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/session-flow:check`, which probes it.
+
+## [0.43.0] - 2026-10-01
+
+### Added
+
+- **`/session-flow:check` reads whether `jq` resolves for the observer hook.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.42.0] - 2026-10-01
+
+### Fixed
+
+- **A handoff chain no longer repeats per-hop lines in its cumulative sections** ([#5636](https://github.com/melodic-software/claude-code-plugins/issues/5636)). The constraints re-scan attestation now goes on a `Re-scan:` line in `## This session`, which is rewritten each hop, instead of a Constraints entry that every later hop copied forward. `validate` accepts one such line after the `did/left` line, `new` emits its slot, and attestation entries already carried in Constraints stay ordinary entries. `validate` also warns when a new cumulative entry duplicates a carried one (compared without the `[hN]` tag or `UNVERIFIED` prefix, ignoring spacing and case; the oldest tagged entry stays) and when a handoff file passes 300 lines, the margin under the Read tool's single-read cap. `UNVERIFIED (predecessor failed validation)` entries still do not expire; `reference/structure.md` says so.
+
+## [0.41.2] - 2026-09-30
+
+### Fixed
+
+- **`find-handoff`, `retro` and `running-retro` spokes no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` or `reference/` file, so the `save_point.py` and `parse_transcript.py` commands and the catalog path resolved to nothing. They now read `<plugin-root>/...`, links are relative, and `find-handoff` and `retro` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.41.0] - 2026-09-29
+
+### Added
+
+- **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root (resolved from the concern file's `memory_dir`) and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes a stale known-kind item only when it names at least one issue or PR and every one is closed or merged; an item that names none is kept however old it is, and a slice or checklist, which has no attribution source, is never removed. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, never modify content git tracks (a memory root without a `*` `.gitignore` is refused), and always keep unknown and in-flight items. Every action, `report` included, rejects a memory root that is the repository root and an existing one outside the repository without a `*` `.gitignore`, so a `memory_dir` pointing at an arbitrary directory is never walked. A handoff or running-retro file is that kind wherever it sits (the root, `handoffs/`, `running-retros/`), so `report` and `normalize` agree on it. A slice is in flight unless its `INDEX.md` status is `done`; an item with a `.git` file or directory under it (a clone or worktree) is in flight; a handoff or running retro that names an issue or PR that is not closed or merged is in flight; a handoff that is itself stale does not keep what it names; other skills' concern dirs are reported and kept. A top-level entry whose name carries exactly one issue or PR number (`lint-5371.log`, `measure-4608`) is `scratch`: `report` and the `clean` dry run show the issue or PR and its state, and `clean` removes it only once the issue is closed or the PR merged. A year-like number (1900 to 2099) counts only with a `pr`, `issue`, or `gh` prefix, so `backup-2026.tar` is not attributed. A name with no number or several is unknown and always kept. Opt-in only.
+
+## [0.40.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native commands no longer assert that the command ships with Claude
+  Code.** The `/subtask`, `/fork` and `/background` bullet in `continue-in-background`, the
+  `/recap` bullet in `orient` and the `/insights` bullet in `retro` keep the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
 ## [0.40.2] - 2026-09-29
 
 ### Changed

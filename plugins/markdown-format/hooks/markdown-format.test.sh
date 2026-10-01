@@ -2043,13 +2043,7 @@ if [[ $RC_T -eq 0 ]]; then ok "telemetry/stub-sink: hook exit 0"; else fail "tel
 if [[ -s "$TEL_FILE" ]]; then
   ok "telemetry/stub-sink: envelope received"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL_FILE" >/dev/null 2>&1; then
-      ok "telemetry/envelope: $field present"
-    else
-      fail "telemetry/envelope: $field missing. file=$(cat "$TEL_FILE")"
-    fi
-  done
+  if check_envelope "$TEL_FILE"; then ok "telemetry/envelope: matches envelope schema"; else fail "telemetry/envelope: does not match envelope schema. envelope=$(cat "$TEL_FILE")"; fi
   # status must be "ok"
   TEL_STATUS="$(jq -r '.status' "$TEL_FILE")"
   if [[ "$TEL_STATUS" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status expected ok, got $TEL_STATUS"; fi

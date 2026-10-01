@@ -744,6 +744,24 @@ git -C "$LP" push -q origin main
 git -C "$LP" fetch -q --prune origin
 lp_tip() { git -C "$LP" rev-parse "refs/heads/$1"; }
 lp_refs_before="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
+# --read-only writes nothing under the git dir, objects included: the squash step's
+# commit-tree runs in a throwaway object directory. A copy of the fixture that no
+# audit has touched, because a second run would find the same synthetic commit
+# already stored and write nothing, and the probe is checked against a normal run.
+LPRO="$TEST_TMPDIR/landed-ro"
+cp -a "$LP" "$LPRO"
+ro_mark="$TEST_TMPDIR/ro-mark"
+: >"$ro_mark"
+lpro_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LPRO' && bash '$AUDIT' --read-only")"
+assert_contains "--read-only: a squash-merged branch is still LIKELY-SAFE with its proof" "$lpro_out" "Landed: landed as a squash (tree patch-id)"
+ro_touched="$(find "$LPRO/.git" -newer "$ro_mark")"
+if [[ -z "$ro_touched" ]]; then pass "--read-only writes nothing under the git dir (no object, no file, no index refresh)"; else fail "--read-only writes nothing under the git dir" none "$ro_touched"; fi
+PATH="$STUB_BIN:$PATH" bash -c "cd '$LPRO' && bash '$AUDIT'" >/dev/null
+if [[ -n "$(find "$LPRO/.git/objects" -type f -newer "$ro_mark")" ]]; then pass "a normal audit writes objects there (the read-only probe can see a write)"; else fail "a normal audit writes objects there" "a new object" none; fi
+# Without a throwaway directory (mktemp fails) the whole landed proof is skipped.
+lpro_nt="$(TMPDIR="$TEST_TMPDIR/no-such-dir" PATH="$STUB_BIN:$PATH" bash -c "cd '$LPRO' && bash '$AUDIT' --read-only")"
+assert_not_contains "--read-only without a throwaway directory gives no landed proof" "$lpro_nt" "Landed:"
+assert_contains "--read-only without a throwaway directory still audits the branches" "$lpro_nt" "Branch: feat/squashed"
 lp_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
 check_facts "landed repo" "$LP" "$lp_out"
 check_loss_invariants "landed repo" "$lp_out"
@@ -1744,6 +1762,198 @@ assert_exit "an empty repo list exits 2" 2 "$rc"
 help_out="$(bash "$AUDIT" --help)"
 assert_contains "--help documents --repo" "$help_out" "--repo DIR..."
 assert_contains "--help documents the capture rule" "$help_out" "--capture-file with more than one repo"
+
+# --- --read-only: no capture file, no .part, no directory ----------------------
+# capture_state prints every path under the repository's git dir that belongs to
+# the capture location, so a before/after comparison catches a file, a `.part`,
+# or a directory.
+capture_state() { find "$1/.git" -path '*repo-hygiene*' 2>/dev/null | sort; }
+normal_out="$(fleet_audit --repo "$FL/two")"
+assert_contains "read-only setup: a normal audit writes a capture" "$normal_out" "TipCapture: $FL/two/.git/repo-hygiene/branch-tips/"
+before_state="$(capture_state "$FL/two")"
+ro_out="$(PATH="$FL_BIN:$PATH" bash -c "cd '$FL/two' && bash '$AUDIT' --read-only")"
+assert_contains "--read-only says no capture was written" "$ro_out" "TipCaptureSkipped: --read-only, no capture was written"
+assert_not_contains "--read-only prints no capture path" "$ro_out" "TipCapture: "
+assert_not_contains "--read-only reports no capture error" "$ro_out" "TipCaptureError:"
+assert_contains "--read-only still reports every branch" "$ro_out" "Branch: main"
+assert_contains "--read-only still prints the summary" "$ro_out" "Summary:"
+after_state="$(capture_state "$FL/two")"
+if [[ -n "$before_state" && "$before_state" == "$after_state" ]]; then pass "--read-only leaves the capture dir unchanged"; else fail "--read-only leaves the capture dir unchanged" "$before_state" "$after_state"; fi
+if ! find "$FL/two/.git" -name '*.part' | grep -q .; then pass "--read-only leaves no .part file"; else fail "--read-only leaves no .part file" none present; fi
+# A repo that has never been audited gains no capture directory either.
+git init -q -b main "$FL/fresh"
+git -C "$FL/fresh" config user.email "t@example.com"
+git -C "$FL/fresh" config user.name "Test"
+git -C "$FL/fresh" commit -q --allow-empty -m init
+PATH="$FL_BIN:$PATH" bash -c "cd '$FL/fresh' && bash '$AUDIT' --read-only" >/dev/null
+if [[ -z "$(capture_state "$FL/fresh")" ]]; then pass "--read-only creates no capture dir in a never-audited repo"; else fail "--read-only creates no capture dir in a never-audited repo" none "$(capture_state "$FL/fresh")"; fi
+# Deletion still needs a capture: nothing here produced one.
+git -C "$FL/fresh" branch feat/orphan
+rc=0
+del_out="$(PATH="$FL_BIN:$PATH" bash -c "cd '$FL/fresh' && bash '$SCRIPT_DIR/git-branch-delete.sh' --dry-run feat/orphan" 2>&1)" || rc=$?
+assert_exit "delete after a --read-only audit exits 3" 3 "$rc"
+assert_contains "delete after a --read-only audit names the missing capture" "$del_out" "Refused: no --capture given"
+# Fleet form forwards --read-only to every repo.
+ro_fleet="$(fleet_audit --repo "$FL/one" "$FL/two" --read-only)"
+skipped_lines="$(grep -c '^TipCaptureSkipped: ' <<<"$ro_fleet")"
+if [[ "$skipped_lines" == 2 ]]; then pass "fleet --read-only: every audited repo skips its capture"; else fail "fleet --read-only: every audited repo skips its capture" 2 "$skipped_lines"; fi
+assert_not_contains "fleet --read-only: no capture path anywhere" "$ro_fleet" "TipCapture: "
+# --read-only and --remote take no capture path.
+rc=0
+PATH="$FL_BIN:$PATH" bash -c "cd '$FL/two' && bash '$AUDIT' --read-only --capture-file '$FL/x.tsv'" >/dev/null 2>&1 || rc=$?
+assert_exit "--read-only with --capture-file exits 2" 2 "$rc"
+rc=0
+PATH="$FL_BIN:$PATH" bash -c "cd '$FL/two' && bash '$AUDIT' --remote --capture-file '$FL/x.tsv'" >/dev/null 2>&1 || rc=$?
+assert_exit "--remote with --capture-file exits 2" 2 "$rc"
+rc=0
+PATH="$FL_BIN:$PATH" bash -c "cd '$FL/two' && bash '$AUDIT' --remote --remote-families" >/dev/null 2>&1 || rc=$?
+assert_exit "--remote with --remote-families exits 2" 2 "$rc"
+
+# --- --remote: the live origin branch list against merged PRs ------------------
+# A bare origin, a working clone, and a second clone that pushes a branch the
+# first never fetches. The gh shim answers only `pr list --state merged --head X`.
+if command -v jq >/dev/null 2>&1; then
+  RM="$TEST_TMPDIR/remote"
+  mkdir -p "$RM"
+  git init -q --bare -b main "$RM/origin.git"
+  git clone -q "$RM/origin.git" "$RM/work" 2>/dev/null
+  git clone -q "$RM/origin.git" "$RM/other" 2>/dev/null
+  for c in work other; do
+    git -C "$RM/$c" config user.email "t@example.com"
+    git -C "$RM/$c" config user.name "Test"
+  done
+  git -C "$RM/work" commit -q --allow-empty -m init
+  git -C "$RM/work" push -q origin main 2>/dev/null
+  push_branch() { # <branch> <n commits> from work
+    git -C "$RM/work" checkout -q -b "$1" main
+    for ((k = 1; k <= $2; k++)); do git -C "$RM/work" commit -q --allow-empty -m "$1 c$k"; done
+    git -C "$RM/work" push -q origin "$1" 2>/dev/null
+    git -C "$RM/work" checkout -q main
+  }
+  push_branch feat/current 1
+  push_branch feat/nopr 1
+  push_branch release/1 1
+  push_branch feat/drift 1
+  drift_old="$(git -C "$RM/work" rev-parse feat/drift)"
+  git -C "$RM/work" checkout -q feat/drift
+  git -C "$RM/work" commit -q --allow-empty -m "after the merge 1"
+  git -C "$RM/work" commit -q --allow-empty -m "after the merge 2"
+  git -C "$RM/work" push -q origin feat/drift 2>/dev/null
+  git -C "$RM/work" checkout -q main
+  drift_tip="$(git -C "$RM/work" rev-parse feat/drift)"
+  # A branch rewritten after its PR merged: the PR head is no ancestor of the live tip.
+  push_branch feat/rewritten 1
+  rewritten_old="$(git -C "$RM/work" rev-parse feat/rewritten)"
+  git -C "$RM/work" checkout -q feat/rewritten
+  git -C "$RM/work" reset -q --hard main
+  git -C "$RM/work" commit -q --allow-empty -m "rewritten"
+  git -C "$RM/work" push -q --force origin feat/rewritten 2>/dev/null
+  git -C "$RM/work" checkout -q main
+  # The tracking ref goes stale: it still says the PR head is the tip.
+  git -C "$RM/work" update-ref refs/remotes/origin/feat/drift "$drift_old"
+  # A branch pushed by another clone: no tracking ref and no objects here.
+  git -C "$RM/other" checkout -q -b feat/unfetched
+  git -C "$RM/other" commit -q --allow-empty -m "unfetched"
+  git -C "$RM/other" push -q origin feat/unfetched 2>/dev/null
+  unfetched_tip="$(git -C "$RM/other" rev-parse feat/unfetched)"
+  if ! git -C "$RM/work" rev-parse --verify --quiet refs/remotes/origin/feat/unfetched >/dev/null; then pass "remote setup: the unfetched branch has no tracking ref"; else fail "remote setup: the unfetched branch has no tracking ref" absent present; fi
+  current_tip="$(git -C "$RM/work" rev-parse feat/current)"
+  release_tip="$(git -C "$RM/work" rev-parse release/1)"
+
+  RM_BIN="$TEST_TMPDIR/remote-bin"
+  mkdir -p "$RM_BIN"
+  cat >"$RM_BIN/gh" <<GH
+#!/usr/bin/env bash
+[[ "\$*" == *"pr list"* && "\$*" == *"--state merged"* ]] || exit 1
+head="" prev=""
+for a in "\$@"; do [[ "\$prev" == --head ]] && head="\$a"; [[ "\$prev" == --repo ]] && echo "\$a" >>"$RM/gh-repos.log"; prev="\$a"; done
+echo "\$head" >>"$RM/gh-heads.log"
+case "\$head" in
+  feat/current) printf '[{"number":11,"headRefOid":"$current_tip"}]\n' ;;
+  feat/drift) printf '[{"number":5,"headRefOid":"0000000000000000000000000000000000000005"},{"number":7,"headRefOid":"$drift_old"}]\n' ;;
+  feat/rewritten) printf '[{"number":13,"headRefOid":"$rewritten_old"}]\n' ;;
+  feat/unfetched) printf '[{"number":9,"headRefOid":"1111111111111111111111111111111111111111"}]\n' ;;
+  *) printf '[]\n' ;;
+esac
+GH
+  chmod +x "$RM_BIN/gh"
+  remote_run() { PATH="$RM_BIN:$PATH" bash -c "cd '$RM/work' && bash '$AUDIT' --remote" 2>/dev/null; }
+  # rec <output> <branch> <key>: one RemoteBranch record's field.
+  rec() { awk -v b="$2" -v k="$3" '$0 == "RemoteBranch: " b { on = 1; next } /^RemoteBranch: / { on = 0 } on && index($0, k ": ") == 1 { print substr($0, length(k) + 3) }' <<<"$1"; }
+
+  before_remote="$(capture_state "$RM/work")"
+  rout="$(remote_run)"
+  assert_contains "remote: counts the live branches" "$rout" "RemoteBranches: 7"
+  assert_no_line "remote: no local records" "$rout" "^Branch: "
+  assert_not_contains "remote: no capture line" "$rout" "TipCapture"
+  assert_contains "remote: summary counts each tier" "$rout" "RemoteSummary: protected=2 merged=1 merged-drift=3 no-merged-pr=1 unknown=0"
+  assert_contains "remote: a rewritten branch reports divergence, not a commit count" "$(rec "$rout" feat/rewritten RemoteAhead)" "diverged"
+  assert_not_contains "remote: a rewritten branch gives no commits-past claim" "$(rec "$rout" feat/rewritten RemoteAhead)" "commits past"
+  if [[ "$(rec "$rout" feat/current RemoteTier)" == MERGED ]]; then pass "remote: tip equal to the merged PR head is MERGED"; else fail "remote: tip equal to the merged PR head is MERGED" MERGED "$(rec "$rout" feat/current RemoteTier)"; fi
+  if [[ "$(rec "$rout" feat/current RemotePR)" == "#11 MERGED" ]]; then pass "remote: MERGED names its PR"; else fail "remote: MERGED names its PR" "#11 MERGED" "$(rec "$rout" feat/current RemotePR)"; fi
+  # The stale tracking ref says feat/drift is at the PR head; the live tip is two commits past it.
+  if [[ "$(rec "$rout" feat/drift RemoteTier)" == MERGED-DRIFT ]]; then pass "remote: a tip that differs from the merged PR head is flagged MERGED-DRIFT"; else fail "remote: a tip that differs from the merged PR head is flagged MERGED-DRIFT" MERGED-DRIFT "$(rec "$rout" feat/drift RemoteTier)"; fi
+  if [[ "$(rec "$rout" feat/drift RemoteTip)" == "$drift_tip" ]]; then pass "remote: the tip is the live one, not the stale tracking ref"; else fail "remote: the tip is the live one, not the stale tracking ref" "$drift_tip" "$(rec "$rout" feat/drift RemoteTip)"; fi
+  if [[ "$(rec "$rout" feat/drift RemoteAhead)" == "2 commits past the PR head" ]]; then pass "remote: drift reports the commits past the PR head"; else fail "remote: drift reports the commits past the PR head" "2 commits past the PR head" "$(rec "$rout" feat/drift RemoteAhead)"; fi
+  if [[ "$(rec "$rout" feat/drift RemotePR)" == "#7 MERGED (head $drift_old)" ]]; then pass "remote: drift compares with the merged PR whose head the branch had"; else fail "remote: drift compares with the merged PR whose head the branch had" "#7 MERGED (head $drift_old)" "$(rec "$rout" feat/drift RemotePR)"; fi
+  if [[ "$(rec "$rout" feat/unfetched RemoteTier)" == MERGED-DRIFT && "$(rec "$rout" feat/unfetched RemoteTip)" == "$unfetched_tip" ]]; then pass "remote: a never-fetched branch is judged against its live tip"; else fail "remote: a never-fetched branch is judged against its live tip" "MERGED-DRIFT $unfetched_tip" "$(rec "$rout" feat/unfetched RemoteTier) $(rec "$rout" feat/unfetched RemoteTip)"; fi
+  assert_contains "remote: an unfetched tip has no computable ahead count" "$(rec "$rout" feat/unfetched RemoteAhead)" "not computable"
+  if [[ "$(rec "$rout" feat/nopr RemoteTier)" == NO-MERGED-PR ]]; then pass "remote: no merged PR is NO-MERGED-PR"; else fail "remote: no merged PR is NO-MERGED-PR" NO-MERGED-PR "$(rec "$rout" feat/nopr RemoteTier)"; fi
+  if [[ "$(rec "$rout" main RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTip)" == "$release_tip" ]]; then pass "remote: default and protected-pattern branches are PROTECTED"; else fail "remote: default and protected-pattern branches are PROTECTED" PROTECTED "$(rec "$rout" main RemoteTier) $(rec "$rout" release/1 RemoteTier)"; fi
+  if ! grep -qx 'main\|release/1' "$RM/gh-heads.log"; then pass "remote: protected branches trigger no PR lookup"; else fail "remote: protected branches trigger no PR lookup" none "$(cat "$RM/gh-heads.log")"; fi
+  # The lookup names origin's repository, so an `upstream` remote cannot redirect it.
+  if [[ "$(sort -u "$RM/gh-repos.log")" == "$RM/origin.git" && "$(wc -l <"$RM/gh-repos.log")" -eq "$(wc -l <"$RM/gh-heads.log")" ]]; then pass "remote: every PR lookup targets origin's repository"; else fail "remote: every PR lookup targets origin's repository" "$RM/origin.git on each lookup" "$(sort -u "$RM/gh-repos.log")"; fi
+  if [[ "$(capture_state "$RM/work")" == "$before_remote" ]]; then pass "remote: writes no capture"; else fail "remote: writes no capture" "$before_remote" "$(capture_state "$RM/work")"; fi
+
+  # gh absent: still listed with the live tip, every checked branch UNKNOWN.
+  # PATH holds only the tools the script needs (no gh).
+  NOGH_BIN="$TEST_TMPDIR/nogh-bin"
+  mkdir -p "$NOGH_BIN"
+  for t in git jq awk grep sed tr cat mktemp date dirname rm mv mkdir sort find basename head tail cut wc uname ls; do
+    src="$(command -v "$t" 2>/dev/null)" && ln -sf "$src" "$NOGH_BIN/$t"
+  done
+  nogh_out="$(PATH="$NOGH_BIN" "$BASH" -c "cd '$RM/work' && \"$BASH\" '$AUDIT' --remote" 2>/dev/null)"
+  assert_contains "remote without gh: says why" "$nogh_out" "merged-PR lookup unavailable (gh not on PATH)"
+  assert_contains "remote without gh: still lists the live tip" "$nogh_out" "RemoteTip: $unfetched_tip"
+  assert_contains "remote without gh: summary" "$nogh_out" "RemoteSummary: protected=2 merged=0 merged-drift=0 no-merged-pr=0 unknown=5"
+
+  # A failing gh is UNKNOWN too, and a remote that cannot be read is an error.
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$RM/failgh"
+  mkdir -p "$RM/fail-bin"
+  cp "$RM/failgh" "$RM/fail-bin/gh"
+  chmod +x "$RM/fail-bin/gh"
+  fail_out="$(PATH="$RM/fail-bin:$PATH" bash -c "cd '$RM/work' && bash '$AUDIT' --remote" 2>/dev/null)"
+  assert_contains "remote with a failing gh: UNKNOWN, not NO-MERGED-PR" "$fail_out" "RemoteTier: UNKNOWN"
+  assert_not_contains "remote with a failing gh: never claims no merged PR" "$fail_out" "RemoteTier: NO-MERGED-PR"
+  noorigin_out="$(PATH="$FL_BIN:$PATH" bash -c "cd '$FL/fresh' && bash '$AUDIT' --remote" 2>/dev/null)"
+  assert_contains "remote without an origin: RemoteError" "$noorigin_out" "RemoteError: git ls-remote --heads origin failed"
+
+  # Fleet form: --repos-from and --remote reach every repo; no capture anywhere.
+  printf '%s\n%s\n' "$RM/work" "$FL/fresh" >"$RM/repos.txt"
+  rfleet="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repos-from "$RM/repos.txt" --remote 2>/dev/null)"
+  assert_contains "remote fleet: the origin repo is a block with its summary" "$rfleet" "Repo: $RM/work
+RemoteBranches: 7"
+  assert_contains "remote fleet: a repo without origin reports its error and the fleet goes on" "$rfleet" "RemoteError: git ls-remote --heads origin failed"
+  assert_contains "remote fleet: summary" "$rfleet" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
+  assert_not_contains "remote fleet: no capture" "$rfleet" "TipCapture"
+
+  # Two clones of one origin list the same remote branches: --remote audits the
+  # first only. A local audit reads each clone's own branches, so it audits both.
+  rdup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote 2>/dev/null)"
+  assert_contains "remote fleet: the first clone of an origin is audited" "$rdup" "Repo: $RM/work
+RemoteBranches: 7"
+  assert_contains "remote fleet: another clone of that origin is a duplicate" "$rdup" "Repo: $RM/other
+Outcome: skipped
+Reason: skipped duplicate of $RM/work"
+  assert_contains "remote fleet: summary counts the clone duplicate" "$rdup" "FleetSummary: repos=2 audited=1 skipped=0 duplicate=1 blocked=0 failed=0"
+  rdup_skip="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote --skip "$RM/work" 2>/dev/null)"
+  assert_contains "remote fleet: skipping one clone leaves the other audited" "$rdup_skip" "Repo: $RM/other
+RemoteBranches: 7"
+  ldup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --read-only 2>/dev/null)"
+  assert_contains "local fleet: clones of one origin are both audited" "$ldup" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
+else
+  skip_case "--remote tests need jq"
+fi
 
 # --remote-families: report-only read of refs/remotes/origin/*. A bare origin and
 # a clone whose remote-tracking branches cover every family, each landed case,

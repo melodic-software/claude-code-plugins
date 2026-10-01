@@ -4,6 +4,33 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.4] - 2026-10-01
+
+### Fixed
+
+- The `repo-sweep` hygiene catalog points its file-name lane at `docs-naming:audit-file-names` and
+  `docs-naming:realign-file-names`, which moved out of `docs-hygiene`.
+
+## [0.15.3] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.15.2] - 2026-09-29
+
+### Changed
+
+- **`fable-5`'s description opens with a presence-gated routing clause for the bundled
+  `claude-api` skill.** It routes current model, price, and API facts and the cost audit to
+  `claude-api` and keeps the judgment and lasting mechanisms around them, the split its Boundary
+  section states. The opening sentence is shortened ("standing instructions that arm the session
+  at once") to keep the description under the 1,024-character spec field maximum; every trigger
+  phrase is kept.
+- **The `claude-api` Boundary bullet no longer asserts that the skill ships with Claude Code.** It
+  keeps the provenance class, what the skill does and how it is invoked, in the native-references
+  template form.
+
 ## [0.15.1] - 2026-09-29
 
 ### Fixed

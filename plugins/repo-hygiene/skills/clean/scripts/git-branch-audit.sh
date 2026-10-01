@@ -21,7 +21,8 @@
 # dir was already audited (a linked worktree) is reported skipped, and a repo
 # that fails is reported without stopping the rest. It deletes no branch and
 # moves no ref or working-tree file; what it writes is the tip capture and the
-# landed proof's loose objects (below). git-branch-delete.sh is never batched.
+# landed proof's loose objects (below), neither under --read-only. git-branch-delete.sh
+# is never batched.
 #
 # REMOTE FAMILIES. --remote-families replaces the local audit with a report-only
 # read of refs/remotes/origin/*: family, landed proof from the PR map, and a
@@ -46,7 +47,7 @@
 # keeps the verdict, so it can only narrow what an operator must review. A
 # landed branch is no longer REVIEW, so the LOSSY tier below never sees it.
 # The squash step's `git commit-tree` writes one loose commit object, referenced
-# by nothing, for each branch that reaches it; `git gc` prunes it. And each
+# by nothing, for each branch that reaches it (see READ-ONLY); `git gc` prunes it. And each
 # `git cherry` patch-ids every commit on origin/<default> since the merge-base,
 # so a REVIEW branch costs up to two of them: slow for an old branch in a large
 # repository, and a fleet audit multiplies it.
@@ -83,6 +84,32 @@
 # one LossBranch line per branch with the commits that would be lost, so the
 # operator confronts it as a separate decision before any deletion is
 # confirmed: a prose flag beside a verdict column is easy to skim past.
+#
+# REMOTE MODE. --remote audits origin's branches instead of the local ones. The
+# branch list and tips come from `git ls-remote --heads origin`, the live remote,
+# never from remote-tracking refs, which go stale and miss branches never fetched.
+# Each branch (default and protected-pattern ones are reported PROTECTED without a
+# lookup) is looked up with `gh pr list --repo <origin url> --state merged --head
+# <branch> --json number,headRefOid`, so the PRs come from the repository the branch
+# list came from, not from whichever repository gh resolves for the directory (an
+# `upstream` remote can win that). A tip equal to a merged PR's headRefOid is MERGED;
+# a tip that differs from every merged PR's headRefOid is MERGED-DRIFT (commits landed on the
+# branch after the merge, so deleting it loses them) and reports the commits past
+# the PR head when both objects exist locally (the audit never fetches); a branch
+# with no merged PR is NO-MERGED-PR; UNKNOWN when gh or jq is absent or the lookup
+# failed (the branch is still listed with its live tip). Remote mode writes no
+# capture and deletes nothing: git-branch-delete.sh handles local branches only.
+#
+# READ-ONLY. --read-only leaves the repository as it found it: no capture (no file,
+# no `.part`, no directory) and no object. The landed proof's squash step, which
+# writes a loose commit object per branch that reaches it, runs in a throwaway
+# object directory (GIT_OBJECT_DIRECTORY, with the repository's objects as its
+# alternate) removed on exit, and MainCheckoutDirty reads `git status` without
+# refreshing the index, so the verdicts match a normal run. Where that directory
+# cannot be made the landed proof is skipped altogether: no proof, and a branch
+# the chain left in REVIEW stays there. The audit prints `TipCaptureSkipped:`
+# instead of `TipCapture:`, and git-branch-delete.sh, which requires a capture,
+# refuses to act on that run.
 #
 # MAIN CHECKOUT. Before the branch records, `MainCheckout:` names what the audit
 # runs from: the branch or `detached at <short sha>`, then `MainCheckoutDirty:`
@@ -124,15 +151,23 @@ usage() {
 git-branch-audit.sh - emit branch audit facts for the clean git tier.
 
 Usage:
-  git-branch-audit.sh [--capture-file PATH]
+  git-branch-audit.sh [--capture-file PATH | --read-only]
+  git-branch-audit.sh --remote
   git-branch-audit.sh [--repo DIR...]... [--repos-from FILE|-]...
-                      [--skip ENTRY]... [--skip-from FILE]... [--capture-file PATH]
+                      [--skip ENTRY]... [--skip-from FILE]...
+                      [--capture-file PATH | --read-only] [--remote]
   git-branch-audit.sh --remote-families [--repo DIR...]... [--repos-from FILE|-]...
                       [--skip ENTRY]... [--skip-from FILE]...
   git-branch-audit.sh --help
 
   --capture-file PATH  write the branch-tip capture to PATH instead of the
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
+  --read-only          write no capture and no object (no file, no .part, no loose
+                       object from the landed proof); git-branch-delete.sh will
+                       refuse to act on this run
+  --remote             audit origin's branches from `git ls-remote --heads origin`
+                       against merged PRs (`gh pr list --state merged --head`);
+                       writes no capture
   --remote-families    report refs/remotes/origin/* by branch family with a retention
                        verdict, instead of the local audit (see below)
   --repo DIR...        audit these repositories instead of the current one
@@ -149,7 +184,10 @@ skipped`; a skip-listed, unresolvable, or failing repo is reported without
 stopping the rest; `FleetSummary: repos=N audited=A skipped=S duplicate=D
 blocked=B failed=F` closes the run (exit 0). Each repo writes its own default
 capture and prints its own `TipCapture:`; --capture-file with more than one repo
-is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
+is a usage error (exit 2). With --remote, a second clone of one origin is reported
+`skipped duplicate of <path>` and counted in duplicate=, since it would list the
+same remote branches; a local audit reads each clone's own branches, so it audits
+every clone. Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated. Then
@@ -167,7 +205,7 @@ Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. A branch whose wor
 origin/<default> already holds, by patch-id (`git cherry`), by tree equality, or
 as one squashed diff, is LIKELY-SAFE with a `Landed:` line, unless its PR is OPEN
 or CLOSED. The squash check writes one unreferenced loose commit object per
-branch that reaches it (`git gc` prunes it).
+branch that reaches it (`git gc` prunes it), and none under --read-only.
 LOSSY is a branch that is deletable but whose deletion loses commits present on
 no remote ref and no tag; its `Loss:` line carries the count. A loss that cannot be determined is
 `Loss: undetermined (<why>)` and the branch stays REVIEW.
@@ -179,6 +217,18 @@ before any deletion is confirmed; git-branch-delete.sh admits LOSSY only under
 Then `TipCapture: <path>` (the durable tip record git-branch-delete.sh requires)
 or `TipCaptureError: <why>` when it could not be written completely.
 Restore a branch from a captured tip: git branch <branch> <tip>
+
+--read-only replaces the capture line with `TipCaptureSkipped: <why>`.
+
+--remote prints `RemoteBranches: <n>` (or `RemoteError: <why>` when the live list
+could not be read), then per origin branch RemoteBranch, RemoteTip, RemoteTier,
+RemotePR, RemoteReason, and RemoteAhead for a drift, then `RemoteSummary:`.
+RemoteTier: PROTECTED, MERGED (tip is a merged PR's head), MERGED-DRIFT (tip
+differs from every merged PR head: commits landed after the merge),
+NO-MERGED-PR, or UNKNOWN (gh or jq absent, or the lookup failed). RemoteAhead
+counts commits past the PR head, says diverged when the PR head is not an ancestor of the tip, or says why it cannot (an unfetched object; the
+audit never fetches). In the fleet form --remote and --read-only apply to every repo.
+--remote and --remote-families are separate reports and cannot combine.
 
 --remote-families is report only and takes the place of everything above: it reads
 refs/remotes/origin/* as last fetched (no fetch is run), skips origin/HEAD, the
@@ -212,6 +262,8 @@ EOF
 
 CAPTURE_ARG=""
 FLEET=0
+READ_ONLY=0
+REMOTE=0
 REMOTE_FAMILIES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -231,6 +283,14 @@ while [[ $# -gt 0 ]]; do
     CAPTURE_ARG="$2"
     shift 2
     ;;
+  --read-only)
+    READ_ONLY=1
+    shift
+    ;;
+  --remote)
+    REMOTE=1
+    shift
+    ;;
   --repo | --repos-from | --skip | --skip-from)
     if ! batch_take_selection_arg "$@"; then
       echo "git-branch-audit.sh: $BATCH_ARG_ERROR" >&2
@@ -247,8 +307,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$CAPTURE_ARG" && ($READ_ONLY -eq 1 || $REMOTE -eq 1) ]]; then
+  echo "git-branch-audit.sh: --capture-file cannot combine with --read-only or --remote (neither writes a capture)" >&2
+  exit 2
+fi
 if [[ $REMOTE_FAMILIES -eq 1 && -n "$CAPTURE_ARG" ]]; then
   echo "git-branch-audit.sh: --remote-families writes no capture; drop --capture-file" >&2
+  exit 2
+fi
+if [[ $REMOTE -eq 1 && $REMOTE_FAMILIES -eq 1 ]]; then
+  echo "git-branch-audit.sh: --remote and --remote-families are separate reports; pick one" >&2
   exit 2
 fi
 if [[ $FLEET -eq 0 && ${#BATCH_SKIP_INPUTS[@]} -gt 0 ]]; then
@@ -261,12 +329,17 @@ if [[ $FLEET -eq 1 ]]; then
     exit 2
   fi
   batch_resolve_repos "${BATCH_REPO_INPUTS[@]}"
+  # Clones of one origin list the same remote branches, so --remote audits one.
+  # A local audit reads each clone's own branches and captures, so it audits all.
+  [[ $REMOTE -eq 1 ]] && batch_dedupe_clones
   if [[ -n "$CAPTURE_ARG" && ${#BATCH_TOPS[@]} -gt 1 ]]; then
     echo "git-branch-audit.sh: --capture-file names one file and cannot serve ${#BATCH_TOPS[@]} repos; omit it so each repo writes its own default capture" >&2
     exit 2
   fi
   child_args=()
-  [[ -n "$CAPTURE_ARG" ]] && child_args=(--capture-file "$CAPTURE_ARG")
+  [[ -n "$CAPTURE_ARG" ]] && child_args+=(--capture-file "$CAPTURE_ARG")
+  [[ $READ_ONLY -eq 1 ]] && child_args+=(--read-only)
+  [[ $REMOTE -eq 1 ]] && child_args+=(--remote)
   [[ $REMOTE_FAMILIES -eq 1 ]] && child_args+=(--remote-families)
   batch_run_fleet "$SCRIPT_DIR/git-branch-audit.sh" ${child_args[@]+"${child_args[@]}"}
   exit 0
@@ -282,6 +355,77 @@ DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
 
+# remote_audit: see REMOTE MODE above.
+remote_audit() {
+  local heads tip ref name tier reason pr_line ahead_line raw rows pick pr oid n origin_url
+  local prot=0 merged=0 drift=0 nomerge=0 unknown=0 why=""
+  if ! heads="$(GIT_TERMINAL_PROMPT=0 git -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null </dev/null)"; then
+    printf 'RemoteError: git ls-remote --heads origin failed (no origin remote, unreachable, or unauthenticated)\n'
+    return
+  fi
+  heads="${heads//$'\r'/}"
+  origin_url="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null | tr -d '\r')"
+  command -v gh >/dev/null 2>&1 || why="gh not on PATH"
+  if [[ -z "$why" ]] && ! command -v jq >/dev/null 2>&1; then why="jq not on PATH"; fi
+  printf 'RemoteBranches: %s\n' "$(grep -c . <<<"$heads")"
+  while IFS=$'\t' read -r tip ref; do
+    [[ "$ref" == refs/heads/* ]] || continue
+    name="${ref#refs/heads/}"
+    pr_line="none" ahead_line=""
+    if [[ "$name" == "$DEFAULT_BRANCH" ]]; then
+      tier=PROTECTED reason="default branch"
+    elif clean_branch_matches_protected_pattern "$name"; then
+      tier=PROTECTED reason="protected pattern"
+    elif [[ -n "$why" ]]; then
+      tier=UNKNOWN reason="merged-PR lookup unavailable ($why)"
+    elif ! raw="$(gh pr list --repo "$origin_url" --state merged --head "$name" --json number,headRefOid --limit 100 2>/dev/null </dev/null)" ||
+      ! rows="$(printf '%s' "$raw" | jq -r 'if type == "array" then .[] | [.number, .headRefOid] | @tsv else error("not an array") end' 2>/dev/null | tr -d '\r')"; then
+      tier=UNKNOWN reason="merged-PR lookup failed (unauthenticated, no GitHub remote, or API error)"
+    else
+      # A tip equal to any merged PR's head is current; otherwise compare with the newest merged PR.
+      pick="$(awk -F'\t' -v tip="$tip" '$2 == tip { print $1 "\t" $2; found = 1; exit } $1 + 0 > best { best = $1 + 0; bo = $2 } END { if (!found && best) print best "\t" bo }' <<<"$rows")"
+      if [[ -z "$pick" ]]; then
+        tier=NO-MERGED-PR reason="no merged PR has this branch as its head"
+      else
+        IFS=$'\t' read -r pr oid <<<"$pick"
+        if [[ "$oid" == "$tip" ]]; then
+          tier=MERGED reason="tip is the merged PR's head"
+          pr_line="#$pr MERGED"
+        else
+          tier=MERGED-DRIFT reason="tip differs from the merged PR's head (commits since the merge)"
+          pr_line="#$pr MERGED (head $oid)"
+          if git -C "$REPO_ROOT" cat-file -e "$oid^{commit}" 2>/dev/null && git -C "$REPO_ROOT" cat-file -e "$tip^{commit}" 2>/dev/null; then
+            if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$oid" "$tip" 2>/dev/null; then
+              reason="tip differs from the merged PR's head and does not descend from it (branch rewritten after the merge)"
+              ahead_line="diverged (the PR head is not an ancestor of the tip)"
+            elif n="$(git -C "$REPO_ROOT" rev-list --count "$oid..$tip" 2>/dev/null | tr -d '\r')" && [[ -n "$n" ]]; then
+              ahead_line="$n commits past the PR head"
+            else
+              ahead_line="not computable"
+            fi
+          else
+            ahead_line="not computable (tip or PR head not fetched locally; this audit never fetches)"
+          fi
+        fi
+      fi
+    fi
+    case "$tier" in
+    PROTECTED) prot=$((prot + 1)) ;;
+    MERGED) merged=$((merged + 1)) ;;
+    MERGED-DRIFT) drift=$((drift + 1)) ;;
+    NO-MERGED-PR) nomerge=$((nomerge + 1)) ;;
+    *) unknown=$((unknown + 1)) ;;
+    esac
+    printf 'RemoteBranch: %s\nRemoteTip: %s\nRemoteTier: %s\nRemotePR: %s\nRemoteReason: %s\n' "$name" "$tip" "$tier" "$pr_line" "$reason"
+    [[ -n "$ahead_line" ]] && printf 'RemoteAhead: %s\n' "$ahead_line"
+  done <<<"$heads"
+  printf 'RemoteSummary: protected=%s merged=%s merged-drift=%s no-merged-pr=%s unknown=%s\n' "$prot" "$merged" "$drift" "$nomerge" "$unknown"
+}
+if [[ $REMOTE -eq 1 ]]; then
+  remote_audit
+  exit 0
+fi
+
 # PR map: branch → state, the mitigation for squash merges that `git --merged`
 # cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
 # onto this script's stdout, so a short or missing map is visible to the reader
@@ -290,7 +434,27 @@ declare -A PR_STATE=()
 declare -A PR_NUM=()
 declare -A PR_REFOID=()
 PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
-trap 'rm -f "$PR_MAP_FILE"' EXIT
+# Under --read-only the landed proof's squash step writes into PROOF_OBJDIR, a
+# throwaway object directory, so the repository gets no new object.
+PROOF_OBJDIR="" REAL_OBJDIR=""
+if [[ $READ_ONLY -eq 1 ]]; then
+  PROOF_OBJDIR="$(mktemp -d 2>/dev/null)"
+  REAL_OBJDIR="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path objects 2>/dev/null | tr -d '\r')"
+fi
+trap 'rm -f "$PR_MAP_FILE"; [[ -z "$PROOF_OBJDIR" ]] || rm -rf "$PROOF_OBJDIR"' EXIT
+
+# landed_proof <branch>: clean_landed_proof, with the squash step's loose object
+# kept out of the repository under --read-only. No throwaway directory, no proof.
+landed_proof() {
+  if [[ $READ_ONLY -eq 0 ]]; then
+    clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$1"
+  elif [[ -n "$PROOF_OBJDIR" && -n "$REAL_OBJDIR" ]]; then
+    GIT_OBJECT_DIRECTORY="$PROOF_OBJDIR" GIT_ALTERNATE_OBJECT_DIRECTORIES="$REAL_OBJDIR" \
+      clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$1"
+  else
+    return 1
+  fi
+}
 PR_MAP_STATUS="$(clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid')"
 [[ -n "$PR_MAP_STATUS" ]] && printf '%s\n' "$PR_MAP_STATUS"
 PR_MAP_INCOMPLETE=0
@@ -460,7 +624,9 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 COMMON_DIR="$(clean_git_common_dir "$REPO_ROOT")" || COMMON_DIR=""
 CAPTURE_ERROR=""
 CAPTURE_ROWS=0
-if [[ -n "$CAPTURE_ARG" ]]; then
+if [[ $READ_ONLY -eq 1 ]]; then
+  CAPTURE_PATH=""
+elif [[ -n "$CAPTURE_ARG" ]]; then
   CAPTURE_PATH="$CAPTURE_ARG"
 elif [[ -n "$COMMON_DIR" ]]; then
   CAPTURE_PATH="$COMMON_DIR/repo-hygiene/branch-tips/$(date -u +%Y%m%dT%H%M%SZ)-$$.tsv"
@@ -470,7 +636,7 @@ else
 fi
 CAPTURE_TMP="${CAPTURE_PATH}.part"
 CAPTURE_TMP_OWNED=0
-if [[ -z "$CAPTURE_ERROR" ]]; then
+if [[ $READ_ONLY -eq 0 && -z "$CAPTURE_ERROR" ]]; then
   # noclobber makes the create exclusive: a `.part` left by another run (a
   # <stamp>-<pid> collision across PID namespaces sharing the mount, or an
   # interrupted audit) is refused rather than appended to, so two runs can
@@ -489,7 +655,7 @@ if [[ -z "$CAPTURE_ERROR" ]]; then
 fi
 
 capture_line() {
-  [[ -n "$CAPTURE_ERROR" ]] && return 0
+  [[ $READ_ONLY -eq 1 || -n "$CAPTURE_ERROR" ]] && return 0
   if ! printf '%s\n' "$1" >>"$CAPTURE_TMP" 2>/dev/null; then
     CAPTURE_ERROR="write failed: $CAPTURE_TMP"
   fi
@@ -507,7 +673,7 @@ capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on
 MAIN_HEAD_LINE="$CURRENT_BRANCH"
 [[ -n "$MAIN_HEAD_LINE" ]] || MAIN_HEAD_LINE="detached at $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null | tr -d '\r')"
 printf 'MainCheckout: %s\n' "$MAIN_HEAD_LINE"
-printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all 2>/dev/null | wc -l | tr -d ' \r')"
+printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" --no-optional-locks status --porcelain --untracked-files=all 2>/dev/null | wc -l | tr -d ' \r')"
 OP_PATH=""
 for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
   op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
@@ -818,7 +984,7 @@ classify_branch() {
     case "${PR_STATE[$branch]:-}" in
     MERGED | CLOSED | OPEN) ;;
     *)
-      if landed_reason="$(clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$branch")"; then
+      if landed_reason="$(landed_proof "$branch")"; then
         tier="LIKELY-SAFE"
         reason="$landed_reason"
       fi
@@ -972,7 +1138,7 @@ printf 'LossBlockEnd: %s\n' "${#LOSSY_BRANCHES[@]}"
 # counted by shape: ten columns, a commit id in the second, this run's stamp in
 # the last (a truncated row fails that test); a branch name beginning with `#`
 # is a row like any other.
-if [[ -z "$CAPTURE_ERROR" ]]; then
+if [[ $READ_ONLY -eq 0 && -z "$CAPTURE_ERROR" ]]; then
   written="$(awk -F'\t' -v at="$CAPTURED_AT" \
     'NF == 10 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 && $10 == at { n++ } END { print n + 0 }' \
     "$CAPTURE_TMP" 2>/dev/null | tr -d '\r')"
@@ -982,7 +1148,9 @@ if [[ -z "$CAPTURE_ERROR" ]]; then
     CAPTURE_ERROR="cannot rename $CAPTURE_TMP into place"
   fi
 fi
-if [[ -n "$CAPTURE_ERROR" ]]; then
+if [[ $READ_ONLY -eq 1 ]]; then
+  printf 'TipCaptureSkipped: --read-only, no capture was written; git-branch-delete.sh refuses without one, so re-run without --read-only before deleting\n'
+elif [[ -n "$CAPTURE_ERROR" ]]; then
   [[ $CAPTURE_TMP_OWNED -eq 1 ]] && rm -f "$CAPTURE_TMP" 2>/dev/null
   printf 'TipCaptureError: %s\n' "$CAPTURE_ERROR"
 else

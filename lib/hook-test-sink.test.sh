@@ -65,13 +65,13 @@ emit_with_sink() {
 # single process spawn has been measured at 3.2 s on a loaded host.
 BOUND_MS=5000
 
-# --- Sourcing defines the two functions and nothing else --------------------
+# --- Sourcing defines the three functions and nothing else ------------------
 # shellcheck disable=SC2016  # $1 expands in the child shell, not here
 funcs=$(env -i "$BASH" -c 'source "$1" && declare -F' _ "$LIB_DIR/hook-test-sink.sh" 2>&1 | sed 's/^declare -f //')
-if [[ "$funcs" == $'make_sink\nwait_for_sink' ]]; then
-  ok "source: defines make_sink and wait_for_sink and prints nothing"
+if [[ "$funcs" == $'check_envelope\nmake_sink\nwait_for_sink' ]]; then
+  ok "source: defines check_envelope, make_sink and wait_for_sink and prints nothing"
 else
-  fail "source: expected exactly make_sink and wait_for_sink, got: $funcs"
+  fail "source: expected exactly check_envelope, make_sink and wait_for_sink, got: $funcs"
 fi
 
 # --- make_sink refuses to run without a $WORK directory ---------------------
@@ -224,6 +224,90 @@ if [[ $WAIT_RC -eq 0 && $WAIT_MS -lt $BOUND_MS ]]; then
 else
   fail "wait_for_sink tries=1: status $WAIT_RC after $WAIT_MS ms for a written file"
 fi
+
+# --- check_envelope: schema-driven envelope conformance ---------------------
+SCHEMA="$LIB_DIR/../docs/conventions/hook-telemetry/envelope.schema.json"
+CAP_E="$WORK/cap-e"
+sink_e=$(make_sink "cat >\"$CAP_E\"")
+emit_with_sink "$sink_e" "$WORK"
+if ! wait_for_sink "$CAP_E"; then
+  fail "check_envelope: the real hook::emit_telemetry envelope never arrived"
+fi
+ENV_GOOD="$WORK/env-good.json"
+cp "$CAP_E" "$ENV_GOOD"
+
+# expect_envelope <pass|fail> <label> <envelope-file> [schema-file] -> run
+# check_envelope and assert its status; a failure also needs one stderr line.
+expect_envelope() {
+  local want="$1" label="$2" err="$WORK/env.err" rc
+  check_envelope "${@:3}" 2>"$err"
+  rc=$?
+  if [[ $want == pass && $rc -eq 0 && ! -s "$err" ]]; then
+    ok "check_envelope: $label passes"
+  elif [[ $want == fail && $rc -ne 0 && $(wc -l <"$err") -eq 1 ]]; then
+    ok "check_envelope: $label fails ($(<"$err"))"
+  else
+    fail "check_envelope: $label: wanted $want, got status $rc, stderr [$(<"$err")]"
+  fi
+}
+
+# mutate <name> <jq-filter> -> write the good envelope through <jq-filter> to
+# $WORK/<name>.json and print that path.
+mutate() {
+  jq -c "$2" "$ENV_GOOD" >"$WORK/$1.json"
+  printf '%s' "$WORK/$1.json"
+}
+
+expect_envelope pass "the real hook::emit_telemetry envelope against the real schema" "$ENV_GOOD"
+expect_envelope pass "an explicit schema-file argument" "$ENV_GOOD" "$SCHEMA"
+HOOK_ENVELOPE_SCHEMA="$SCHEMA" expect_envelope pass "the HOOK_ENVELOPE_SCHEMA override" "$ENV_GOOD"
+
+mapfile -t REQUIRED < <(jq -r '.required[]' "$SCHEMA")
+if ((${#REQUIRED[@]} > 0)); then
+  ok "the real schema lists ${#REQUIRED[@]} required fields"
+else
+  fail "the real schema lists no required fields"
+fi
+for field in "${REQUIRED[@]}"; do
+  expect_envelope fail "missing $field" "$(mutate "no-$field" "del(.$field)")"
+done
+expect_envelope fail "duration_ms as a string" "$(mutate dur-str '.duration_ms = "12"')"
+expect_envelope fail "duration_ms negative" "$(mutate dur-neg '.duration_ms = -1')"
+expect_envelope fail "duration_ms a float" "$(mutate dur-float '.duration_ms = 1.5')"
+expect_envelope pass "duration_ms a whole number written as a float" "$(mutate dur-whole '.duration_ms = 3.0')"
+expect_envelope fail "status as a number" "$(mutate status-num '.status = 1')"
+expect_envelope fail "data as an array" "$(mutate data-arr '.data = []')"
+expect_envelope fail "an optional property with the wrong type" "$(mutate sid-num '.session_id = 5')"
+expect_envelope pass "an unknown extra property" "$(mutate extra '.extra = true')"
+printf 'not json\n' >"$WORK/env-text.json"
+expect_envelope fail "non-JSON text" "$WORK/env-text.json"
+printf '[]\n' >"$WORK/env-array.json"
+expect_envelope fail "a JSON array" "$WORK/env-array.json"
+: >"$WORK/env-empty.json"
+expect_envelope fail "an empty envelope file" "$WORK/env-empty.json"
+expect_envelope fail "a missing envelope file" "$WORK/env-absent.json"
+expect_envelope fail "no envelope argument"
+
+# A missing or unusable schema fails rather than passing vacuously.
+expect_envelope fail "a missing schema path" "$ENV_GOOD" "$WORK/no-such.schema.json"
+: >"$WORK/empty.schema.json"
+expect_envelope fail "an empty schema file" "$ENV_GOOD" "$WORK/empty.schema.json"
+jq '.required = []' "$SCHEMA" >"$WORK/norequired.schema.json"
+expect_envelope fail "a schema with an empty required list" "$ENV_GOOD" "$WORK/norequired.schema.json"
+jq 'del(.required)' "$SCHEMA" >"$WORK/nokey.schema.json"
+expect_envelope fail "a schema with no required list" "$ENV_GOOD" "$WORK/nokey.schema.json"
+
+# Consumer test: the field list comes from the schema file. Add a required
+# field to a copy and the envelope that passed against the original now fails;
+# tighten a type on a copy and the same holds.
+jq '.required += ["added_field"] | .properties.added_field = {type: "string"}' "$SCHEMA" >"$WORK/added.schema.json"
+expect_envelope fail "the good envelope against a schema copy that requires a new field" "$ENV_GOOD" "$WORK/added.schema.json"
+jq '.properties.hook.type = "integer"' "$SCHEMA" >"$WORK/retyped.schema.json"
+expect_envelope fail "the good envelope against a schema copy that retypes hook" "$ENV_GOOD" "$WORK/retyped.schema.json"
+jq '.properties.duration_ms.minimum = 1000000' "$SCHEMA" >"$WORK/minimum.schema.json"
+expect_envelope fail "the good envelope against a schema copy that raises the duration_ms minimum" "$ENV_GOOD" "$WORK/minimum.schema.json"
+jq 'del(.required[] | select(. == "data"))' "$SCHEMA" >"$WORK/relaxed.schema.json"
+expect_envelope pass "an envelope without data against a schema copy that no longer requires it" "$(mutate no-data-relaxed 'del(.data)')" "$WORK/relaxed.schema.json"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

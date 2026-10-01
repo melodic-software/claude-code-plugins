@@ -38,10 +38,10 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
 ## Script
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+bash <skill-dir>/scripts/clean-batch.sh \
   --tier <scan|caches|build|git|all> \
   [--dry-run|--apply] \
-  [--repo DIR]... [--repos-from FILE|-]... \
+  [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
   [--skip ENTRY]... [--skip-from FILE]... \
   [--batch-plan FILE] [--list-paths-max N]
 ```
@@ -70,12 +70,24 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 | explicit list | `--repo DIR` (repeatable) |
 | shell glob | the shell expands it into repeated `--repo DIR` |
 | `ghq list` | `ghq list -p \| … --repos-from -` (or `--repos-from FILE`) |
+| fleet discovery | `--fleet`: every `ghq list -p` repo when `ghq` resolves, plus `chezmoi source-path` when `chezmoi` resolves and that path is in a git repo. A missing tool adds nothing; no repos at all is a usage error. `--fleet` also dedupes clones (below). |
 
 Backslash paths from `ghq list -p` (`<drive>:\repos\...`) are normalized once to the
 git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical toplevel
 (`git rev-parse --show-toplevel`) and deduped, so the same repo named two ways is
 processed once. A non-directory or non-git input is reported as a `blocked`
 outcome, never silently dropped.
+
+`--fleet` dedupes clones by origin remote across the whole set; `--repo` and
+`--repos-from` alone never do. Two clones of one remote each hold their own working-tree
+caches, build output and object store, so a repo you name is always planned. To clean every
+clone, leave `--fleet` off. With `--fleet`, the URL is compared with the scheme, `user@` and a
+trailing `.git` or `/` removed, the host lowercased (on `github.com` the owner and repo too),
+and scp form (`git@host:o/r`) read as `host/o/r`. The first clone that is not skip-listed
+stays; each other is one `skipped duplicate of <path>` record, counted in `skipped=` and not
+in `repos=`. A skip-listed clone is neither kept nor a duplicate, so skipping one clone never
+drops its sibling. Linked worktrees of one repository are not clones and are left to the git
+tier's shared-object-store dedup. A repo with no `origin` is never deduped.
 
 ### Skip list (separator-agnostic)
 
@@ -91,7 +103,33 @@ Linked worktrees share the main clone's objects, so `git gc` / prune must run on
 per unique `git rev-parse --git-common-dir`, not once per worktree. The `git` and
 `all` tiers group repos by common dir and record each store once (as a `GITDIR`
 plan line with a representative worktree to `cd` into); `gitdirs=N` in the summary
-reports the deduped count.
+reports the deduped count. The dry-run counts each store once, and only what the apply
+ops act on, into `planned=` and `bytes=`: the worktrees `git worktree prune --dry-run`
+would remove, plus the loose objects and garbage of `git count-objects -v` when
+`git gc --auto` would run, meaning loose objects above `gc.auto` or packs
+above `gc.autoPackLimit`, neither check running when `gc.auto` is 0 or less.
+Below those limits `gc --auto` removes nothing, so a store with nothing else to prune
+counts 0 items and 0 bytes yet stays `would-clean`, because apply still runs
+`git remote prune origin`. Git samples one fan-out directory for its own trigger, so
+the trigger here is approximate, and the bytes above it are an upper bound: `gc` packs
+reachable loose objects instead of deleting them. Remote-prune candidates are not
+counted because finding them needs a network call. The git and all tiers end the summary with
+`git_bytes=B`; `all` also adds `caches_bytes=C build_bytes=D`, split by manifest class.
+These fields come after the existing ones.
+
+Verification of the `gc.auto` and `gc.autoPackLimit` statements above:
+
+- Claim: `git gc --auto` packs loose objects only above `gc.auto` (default 6700) and consolidates
+  packs only above `gc.autoPackLimit` (default 50, packs without a `.keep` file); `gc.auto=0`
+  turns both checks off. The script also treats a negative `gc.auto` as off and calls the
+  loose-object trigger approximate; the page states neither exactly.
+- Basis: <https://git-scm.com/docs/git-gc>, Configuration: `gc.auto` ("When there are
+  approximately more than this many loose objects in the repository, git gc --auto will pack
+  them ... The default value is 6700.") and `gc.autoPackLimit` ("The default value is 50 ...
+  Setting gc.auto to 0 will also disable this.").
+- As of: 2026-09-30.
+- Recheck trigger: a Git release note that changes the `gc --auto` heuristics or either default,
+  or a `git-gc` page whose two entries no longer match the quotes above.
 
 **Known limitation.** The plan stores only the first-seen worktree as each store's
 representative. If that specific worktree vanishes before apply while a live
@@ -181,10 +219,10 @@ Dry-run a caches sweep of the whole `ghq` tree, skipping one repo, then apply th
 gated plan after confirming:
 
 ```bash
-ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+ghq list -p | bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
 # → BatchPlan: <plan-path>  — confirm, then:
-CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan <plan-path>
 ```
 
@@ -192,6 +230,6 @@ Dry-run a git prune across an explicit set including worktrees (each shared stor
 pruned once):
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+bash <skill-dir>/scripts/clean-batch.sh \
   --tier git --repo ~/repos/a --repo ~/repos/a-worktree --repo ~/repos/b
 ```

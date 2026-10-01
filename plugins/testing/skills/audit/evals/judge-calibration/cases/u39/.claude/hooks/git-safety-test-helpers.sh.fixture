@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Shared fixture + assertion helpers for the git-safety-*.test.sh shards.
+#
+# Sourced (NOT *.test.sh-named, so tools/run-shell-tests.sh ignores it) by each
+# concern shard AFTER the shard sets its own TEST_TMPDIR + cleanup trap. Each
+# shard owns its TEST_TMPDIR, so the SHARED_REPO computed below is per-shard —
+# parallel runner workers (JOBS=8) never race the same fixture repo.
+#
+# Black-box: invokes the hook as a subprocess against a throwaway git repo
+# (CLAUDE_PROJECT_DIR points there) so we can control the current branch
+# without touching the real repo. The hook only blocks on main/master, so
+# every "should-block" case runs against a fixture on main.
+
+set -uo pipefail
+
+HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK="$HELPER_DIR/git-safety.sh"
+
+# Shared fixture: a single git repo created once (at source time) per shard,
+# reused across every case in that shard. Branches are created lazily via
+# `update-ref` against the same initial commit (no per-case git init /
+# write-tree / commit-tree forks). Cuts ~150 git forks across the suite on
+# Windows (~30ms each).
+#
+# Uses git plumbing (commit-tree + update-ref + symbolic-ref) instead of
+# `git commit` porcelain — Claude Code cloud sessions install an
+# `environment-runner code-sign` wrapper that intercepts `git commit` and
+# rejects /tmp fixture repos. Plumbing bypasses both the hook system and
+# external commit-signing wrappers. See .lefthook/pre-push/branch-name-check.test.sh
+# for the same pattern and bash/conventions.md "git init -b" gotcha for
+# rationale.
+#
+# TEST_TMPDIR is a required input — the sourcing shard sets it (its own
+# mktemp -d) before sourcing this file, so SHARED_REPO is per-shard
+# (parallel-safe under JOBS=8).
+# shellcheck disable=SC2154  # set by the sourcing shard, not in this file
+SHARED_REPO="$TEST_TMPDIR/shared-repo"
+mkdir -p "$SHARED_REPO"
+# Capture the base commit SHA in a shell var (outside the working tree) so
+# `git status --porcelain` stays empty — the hook reads `git status --porcelain`
+# as the WIP signal, and any untracked file inside $SHARED_REPO would trigger
+# the wip_present branch and break clean-tree cases.
+SHARED_BASE_COMMIT=$(
+  cd "$SHARED_REPO" || exit 99
+  git init --quiet . >/dev/null
+  tree=$(git write-tree)
+  GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com \
+    GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com \
+    git commit-tree "$tree" -m init
+)
+
+# Switch HEAD to $branch, creating the ref at SHARED_BASE_COMMIT if it doesn't
+# exist yet. Idempotent.
+ensure_branch() {
+  local branch="$1"
+  git -C "$SHARED_REPO" update-ref "refs/heads/$branch" "$SHARED_BASE_COMMIT" 2>/dev/null
+  git -C "$SHARED_REPO" symbolic-ref HEAD "refs/heads/$branch"
+}
+
+# $1 = branch name, $2 = command JSON value (the bash command being checked).
+# $3 = working-tree state, optional: "clean" (default) or "dirty" (creates an
+#      untracked wip.txt — the broadest WIP signal: `git status --porcelain`
+#      reports `?? path` for untracked).
+# Returns the hook's exit code; stdout+stderr go to the caller's captured output.
+#
+# NOTE: don't increment CASE_NUM here — `output=$(run_hook ...)` is a
+# command substitution subshell, so any change is lost. Counter is incremented
+# in pass/fail (which run in the parent shell).
+run_hook() {
+  local branch="$1"
+  local command="$2"
+  local state="${3:-clean}"
+  local transcript_path="${4:-}"
+  ensure_branch "$branch"
+  if [[ "$state" == "dirty" ]]; then
+    printf 'wip\n' >"$SHARED_REPO/wip.txt"
+  else
+    rm -f "$SHARED_REPO/wip.txt"
+  fi
+  # jq -n --arg correctly escapes any character in $command (quotes,
+  # backslashes, newlines). Avoids the printf/JSON backslash gotcha
+  # documented in bash/conventions.md.
+  local input
+  if [[ -n "$transcript_path" ]]; then
+    input=$(jq -n --arg cmd "$command" --arg tp "$transcript_path" \
+      '{tool_input:{command:$cmd}, transcript_path:$tp}')
+  else
+    input=$(jq -n --arg cmd "$command" '{tool_input:{command:$cmd}}')
+  fi
+  # Disable observability writes to avoid polluting SHARED_REPO/.claude/
+  # which would trip wip_present on subsequent cases.
+  CLAUDE_PROJECT_DIR="$SHARED_REPO" HOOK_OBSERVABILITY_LOG_ENABLED=false \
+    bash "$HOOK" <<<"$input"
+}
+
+# shellcheck source=../../tests/shell/lib.sh
+source "${TEST_REPO_ROOT:-$(git rev-parse --show-toplevel)}/tests/shell/lib.sh"
+
+# Caller-scope counters (lib also initializes these; harmless to repeat).
+: "${FAILED:=0}"
+: "${CASE_NUM:=0}"
+
+# Workflow wrapper: invoke hook, then delegate to lib's assert_exit.
+# $1 label, $2 branch, $3 command, $4 expected exit code, $5 state (optional, default "clean")
+run_assert_exit() {
+  local label="$1" branch="$2" command="$3" expected="$4" state="${5:-clean}" transcript_path="${6:-}"
+  local rc
+  run_hook "$branch" "$command" "$state" "$transcript_path" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
+# Print the summary line and exit per failure count. Each shard calls this last.
+report() {
+  printf '\n=== %d test case(s), %d failed ===\n' "$CASE_NUM" "$FAILED"
+  [[ $FAILED -eq 0 ]] || exit 1
+  exit 0
+}

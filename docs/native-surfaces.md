@@ -17,12 +17,12 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 23 | 22 | route 4, suggest 19 | complementary 22, defer 1 |
-| Bundled skills | 29 | 22 | route 20, suggest 7, wrap 2 | complementary 23, defer 6 |
+| Built-in CLI commands | 24 | 23 | route 4, suggest 20 | complementary 23, defer 1 |
+| Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
-| Built-in tools | 2 | 2 | route 2 | complementary 2 |
+| Built-in tools | 7 | 7 | route 7 | complementary 7 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -156,6 +156,24 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release renames or removes `/commit-push-pr`, changes its command type or invocability, or the commands reference starts documenting it (verified 2026-09-29)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `context` → `context-budget:audit`
+
+- **Verdict:** `complementary`: The built-in command visualizes the current session's context usage as a colored grid with optimization suggestions; ours measures a fresh headless session's startup payload per item, splitting the built-in tool pools /context reports as lump sums, and ledgers before/after deltas. User-only, so ours offers it to the person for a live look at the current window. Ruled 2026-09-30 by operator direction on the orchestrator's recommendation.
+- **Integration:** `suggest`
+- **Native surface:** `context` (built-in command; markers: gated, model-invocation-disabled)
+- **Our component:** `context-budget:audit` (skill)
+- **Evidence:**
+  - `context` present in the 2.1.285 extraction as builtin-command
+  - markers: gated
+  - native description: Visualize current context usage as a colored grid; argument hint `[all]`
+  - invocation mode (2026-09-30, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
+  - detect: origin discovered, score 0.3859 from shared tokens context, usage
+  - docs cross-check (commands reference, 2026-09-30): the `/context [all]` row documents the grid, optimization suggestions for context-heavy tools, memory bloat and capacity warnings, and `all` to expand the per-item breakdown
+  - our Boundary: 'If /context is available in your session (gate basis: the verification record below), you can run `/context` to see what fills the current window'; the description carries no /context clause
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes `/context`, makes it model-invocable, or widens it to a fresh session's startup payload or a before/after comparison (verified 2026-09-30)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `export` → `session-flow:clean-stop`
 
@@ -536,7 +554,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `claude-api` → `playbooks:fable-5`
@@ -552,7 +570,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `code-review` → `review:code-review`
@@ -631,40 +649,39 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description carries the gated routing phrase.
-- **Integration:** `route`
-- **Native surface:** `design` (bundled skill; markers: gated)
+- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup by default and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
+- **Integration:** `suggest`
+- **Native surface:** `design` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
-  - our description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
+  - binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub
+  - our Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas'; the description no longer carries a design clause
   - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)
   - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on
   - name collision (2026-09-11, Claude Code 2.1.263): the canvas registration (`registerDesignCanvasSkill`, model-invocable, no invocation-control field) is the surface this row describes; the claude.ai/design hub is a separate model-invocation-disabled registration this row does not describe; a `local` access command shares the name
-- **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
-- **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command) (verified 2026-09-11)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
+- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-30)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `design` → `visualization:visualize`
 
-- **Verdict:** `complementary`: visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.
-- **Integration:** `route`
-- **Native surface:** `design` (bundled skill; markers: gated)
+- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so visualize does not route the model to it. For a hand-tweakable visual layout (UI mockup, poster, one-pager) it renders its own rich page and, where the medium permits publishing, tells the person they can run /design instead of or alongside it. The canvas is a persistent, shareable Artifact whose edits save automatically; this skill's page paths are throwaway or plain-static. The Boundary section carries the suggest sentence, the split, and the mutation gate; the catalog spoke carries the surface facts. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
+- **Integration:** `suggest`
+- **Native surface:** `design` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `visualization:visualize` (skill)
 - **Evidence:**
-  - our SKILL.md description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium'; the plugin.json description carries the same gate
-  - our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check
+  - binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub
+  - our SKILL.md Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run it instead of or alongside this skill for a hand-editable design canvas'; the description and plugin.json no longer carry a design clause
   - catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line
   - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build
   - string search of the same binary: a second bundled registration named design is a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login') with disableModelInvocation true, enabled only behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it; so the listed description is the presence check
   - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas (artboards on one canvas published as an artifact running a research preview of Claude Design's editor; requires artifacts availability and v2.1.234+); the artifacts page's 'Draft a design canvas' shows /design <brief>; the changelog names no design-family surface through v2.1.268
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on
   - name collision (2026-09-11, Claude Code 2.1.263): the canvas registration (`registerDesignCanvasSkill`, model-invocable, no invocation-control field) is the surface this row describes; the claude.ai/design hub is a separate model-invocation-disabled registration this row does not describe; a `local` access command shares the name
-- **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
-- **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command) (verified 2026-09-11)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
+- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-30)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `design-sync` → `visualization:visualize`
 
@@ -802,7 +819,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `explain-usage` skill, adds startup or per-tool attribution to it, or changes its gating (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `fewer-permission-prompts` → `claude-config:audit-permission-state`
@@ -1024,7 +1041,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `Explore` present in the extraction as builtin-agent
   - markers: gated
-  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions. <!-- ai-slop-ignore: verbatim native text -->
   - disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md
   - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
   - detect: origin discovered, score 0.5706, invocable_by model+user, recommended integration route
@@ -1043,7 +1060,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `Explore` present in the extraction as builtin-agent
   - markers: gated
-  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions. <!-- ai-slop-ignore: verbatim native text -->
   - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
   - detect: origin discovered, score 0.6029, invocable_by model+user, recommended integration route
   - docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent
@@ -1072,6 +1089,93 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Built-in tools
+
+### `ClaudeDesign` → `prototype:explore-directions`
+
+- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants on the real stack or as a local HTML mockup and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
+- **Integration:** `route`
+- **Native surface:** `ClaudeDesign` (built-in tool; markers: gated)
+- **Our component:** `prototype:explore-directions` (skill)
+- **Evidence:**
+  - `ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'
+  - description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'
+  - operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token
+  - docs cross-check (tools reference, 2026-09-29): undocumented
+  - our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it (verified 2026-09-30)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ClaudeDesign` → `visualization:visualize`
+
+- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours picks a visual form and medium and renders its own output (inline, a local file, or a published Artifact). When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill renders its own output as today. Same surface as the explore-directions row, sibling component; distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
+- **Integration:** `route`
+- **Native surface:** `ClaudeDesign` (built-in tool; markers: gated)
+- **Our component:** `visualization:visualize` (skill)
+- **Evidence:**
+  - `ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'
+  - description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'
+  - operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token
+  - docs cross-check (tools reference, 2026-09-29): undocumented
+  - our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it (verified 2026-09-30)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `EnterWorktree` → `source-control:worktree`
+
+- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree also goes through ours, which runs its claim check before `EnterWorktree(path:)`: the tool refuses only a lock in Claude Code's own form naming a live process, while the claim check also reads this plugin's session claims and stops on an unclaimed worktree. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `EnterWorktree` (built-in tool; markers: none)
+- **Our component:** `source-control:worktree` (skill)
+- **Evidence:**
+  - `EnterWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Creating worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'create an isolated git worktree and switch into it'
+  - native description: Creates an isolated worktree (via git or configured hooks) and switches the session into it
+  - detect: origin discovered, score 0.4339, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): documented; 'Pass a `path` to switch into an existing worktree instead of creating a new one'
+  - our skill already calls the tool: `create` ends with `EnterWorktree(path: "<printed-path>")` and never falls back to `EnterWorktree(name:)`
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `EnterWorktree` tool, drops its `path` argument, changes where a named worktree is created, or the tools reference stops documenting it (verified 2026-10-01)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ExitWorktree` → `source-control:worktree`
+
+- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action.
+- **Integration:** `route`
+- **Native surface:** `ExitWorktree` (built-in tool; markers: none)
+- **Our component:** `source-control:worktree` (skill)
+- **Evidence:**
+  - `ExitWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Exiting worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'exit a worktree session and return to the original directory'
+  - native description: Exits a worktree session created by EnterWorktree and restores the original working directory
+  - detect: origin discovered, score 0.4063, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory
+  - our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first
+  - tool schema in the 2.1.285 binary (string search 2026-10-01): `action` "keep" leaves the worktree and branch on disk, "remove" deletes both (isDestructive, user-facing name 'Cleaning up worktree') and needs `discard_changes` when work would be lost; the EnterWorktree prompt says ExitWorktree will not remove a worktree entered by `path`
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path`, or the tools reference stops documenting it (verified 2026-10-01)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ProposeGoal` → `planning:draft-goal-condition`
+
+- **Verdict:** `complementary`: The built-in tool proposes a session goal condition that the person approves with one keypress; ours drafts that condition (lever fit, live shape, length counter). Ours always offers the paste-ready `/goal` line; when the tool resolves in this session and the condition fits the tool's own cap, ours also proposes it through the tool with `ask_user` left true, so the person still approves it. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `ProposeGoal` (built-in tool; markers: gated)
+- **Our component:** `planning:draft-goal-condition` (skill)
+- **Evidence:**
+  - `ProposeGoal` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: model_invocable true, user_invocable false, gated true, deferred true; search hint 'propose a session goal condition for the user to approve with one keypress'
+  - native description: Propose a session goal condition, with one-keypress user approval; once set, Claude keeps working until a separate evaluator confirms it is met
+  - tool prompt in the same binary (string search 2026-10-01): `ask_user` true (the default) asks the user with a one-keypress dialog; `ask_user` false sets the goal directly and is allowed only when the user's own words stated the outcome; the condition is at most 500 characters; the tool cannot clear a goal; it is refused in agent contexts, outside interactive local sessions, and while plan mode is active
+  - settings key in the same binary: `modelProposedGoals` ('auto' default, 'alwaysAsk', 'disabled'), marked @internal
+  - detect: origin discovered, score 0.4289, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): undocumented
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors), with a targeted string search of the same binary for the tool prompt (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ProposeGoal` tool, changes its `ask_user` approval default, its condition limit, or its session restrictions, or the tools reference starts documenting it (verified 2026-10-01)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `WebFetch` → `firecrawl:firecrawl`
 
@@ -1166,15 +1270,31 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|
 | `Agent` | builtin-tool | `docs-hygiene:write-for-agents` | The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Bash` | builtin-tool | `bash-format:check` | Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing. | 2.1.285 | 2026-10-01 |
+| `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `evals:design` | The ClaudeDesign tool edits claude.ai/design canvas projects; ours designs an LLM evaluation suite. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `planning:design` | The ClaudeDesign tool edits claude.ai/design canvas projects; ours resolves types, contracts, and module boundaries before planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `planning:design-handoff` | The ClaudeDesign tool edits claude.ai/design canvas projects (decks, prototypes, mockups); ours gates a finished software design for planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `DesignSync` | builtin-tool | `dometrain:sync` | DesignSync syncs a local component library with a claude.ai/design design-system project; ours checks the dometrain grounding skill's vendored content for upstream drift. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `DesignSync` | builtin-tool | `repo-fleet-hygiene:sync` | DesignSync syncs a local component library with a claude.ai/design design-system project; ours syncs repositories across a fleet. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-30 |
 | `Plan` | builtin-agent | `planning:plan-reviewer (agent)` | The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Plan` | builtin-agent | `testing:plan` | The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `PowerShell` | builtin-tool | `powershell-format:check` | Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing. | 2.1.285 | 2026-10-01 |
+| `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ProposeGoal` | builtin-tool | `performance:goal` | ProposeGoal proposes a session completion condition; ours sets a measured performance target with its floor. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `Read` | builtin-tool | `x:read` | The Read tool reads a local file; ours reads an X post through third-party converters. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `ReadNotifications` | builtin-tool | `desktop-notification:check` | Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing. | 2.1.287 | 2026-10-01 |
+| `ReadNotifications` | builtin-tool | `desktop-notification:setup` | ReadNotifications reads queued external notifications (webhooks, triggers); ours verifies the desktop-notification hook's prerequisites and channels. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ReportFindings` | builtin-tool | `improvement:find` | ReportFindings renders code-review findings in the host UI when review instructions ask for it; ours ranks improvement work across a codebase. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `SendUserMessage` | builtin-tool | `claude-ops:morning-brief` | SendUserMessage (alias Brief) sends the user a message; ours prints a repo's morning ops view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Workflow` | builtin-tool | `session-flow:workflow` | The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Workflow` | builtin-tool | `songwriting:workflow` | The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `TestingPermission` | builtin-tool | `claude-config:audit-permission-grants` | TestingPermission is an internal test tool that always asks for permission; ours audits permission rules for portability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TestingPermission` | builtin-tool | `claude-config:audit-permission-state` | TestingPermission is an internal test tool that always asks for permission; ours reports the effective permission rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TestingPermission` | builtin-tool | `testing:test-value` | TestingPermission is an internal test tool that always asks for permission; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TodoWrite` | builtin-tool | `work-items:scan-todos` | TodoWrite updates the session task checklist; ours sweeps source comments for TODO/FIXME markers. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `WaitForMcpServers` | builtin-tool | `discipline:wait-what` | WaitForMcpServers waits for connecting MCP servers; ours re-pitches a message the reader did not follow. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `Workflow` | builtin-tool | `session-flow:workflow` | The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `Workflow` | builtin-tool | `songwriting:workflow` | The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `Write` | builtin-tool | `bugs:write` | The Write tool writes a file; ours drafts a structured bug report. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-agents` | The Write tool writes a file; ours authors agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-humans` | The Write tool writes a file; ours authors human-facing prose. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
@@ -1190,10 +1310,11 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `brief` | builtin-command | `claude-ops:morning-brief` | /brief toggles brief-only output mode; ours prints a repository's morning operator view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `bug` | builtin-command | `bugs:setup` | /bug reports a Claude Code bug to Anthropic; ours configures the bugs plugin for a repository. The reporting overlap is recorded against bugs:write. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `claude-code-docs` | bundled-skill | `review:doc-drift-detector (agent)` | Answers questions about Claude Code features versus an agent that finds stale documentation in a repository. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `code-review` | bundled-skill | `review:security-review` | The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -\> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `code-review` | bundled-skill | `review:security-review` | The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -\> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `commit-push-pr` | builtin-command | `review:pr-explainer` | Commits, pushes, and opens a PR versus explaining an existing PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `config` | builtin-command | `claude-config:audit` | /config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `config` | builtin-command | `claude-config:audit-permission-state` | /config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `config` | builtin-command | `claude-config:audit` | /config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `config` | builtin-command | `claude-config:audit-permission-grants` | /config opens the settings UI; ours audits permission grants for portability and auto-mode durability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `config` | builtin-command | `claude-config:audit-permission-state` | /config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `config` | builtin-command | `claude-config:draft-auto-mode-rules` | /config opens the preferences UI; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `context` | builtin-command | `architecture:map-context` | /context shows context-window usage; ours charts a C4 system context from configuration. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `copy` | builtin-command | `discipline:point-dont-copy` | /copy puts the last response on the clipboard; ours is a pointer-over-copy writing discipline. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1203,8 +1324,10 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `design` | bundled-skill | `planning:design` | The bundled skill drafts UI mockups on a Claude Design canvas; ours resolves types, contracts, and module boundaries. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `design` | bundled-skill | `planning:design-handoff` | The bundled skill drafts UI mockups on a Claude Design canvas; ours gates a finished code design for planning. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `design-sync` | bundled-skill | `repo-fleet-hygiene:sync` | Uploads a React design system to Claude Design versus fast-forwarding a fleet of repository checkouts. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `desktop` | builtin-command | `desktop-notification:check` | Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing. | 2.1.287 | 2026-10-01 |
 | `desktop` | builtin-command | `desktop-notification:setup` | /desktop moves the session to the Desktop app; ours checks the desktop-notification hook's prerequisites. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `doc` | bundled-skill | `docs-hygiene:setup` | Creates a document artifact versus configuring the docs-hygiene file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `doc` | bundled-skill | `docs-hygiene:setup` | Creates a document artifact versus checking that markdownlint-cli2 resolves for /docs-hygiene:compress. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
+| `doc` | bundled-skill | `docs-naming:setup` | Creates a document artifact versus configuring the docs-naming file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `doc` | bundled-skill | `review:doc-drift-detector (agent)` | Creates a document artifact versus an agent that finds stale documentation in a repository. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `explain-usage` | bundled-skill | `education:explain` | Explains where this session's tokens went versus a plain-language explainer of any concept. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `goal` | builtin-command | `performance:goal` | /goal sets a session completion condition; ours constructs a measurable performance target. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1217,15 +1340,14 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `mcp` | builtin-command | `mcp-tools:audit` | /mcp manages server connections and OAuth; ours audits MCP tool definition quality in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `mcp` | builtin-command | `mcp-tools:audit-posture` | /mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `memory` | builtin-command | `claude-memory:audit` | /memory opens CLAUDE.md files for editing; ours audits the instruction layer against a checklist. The auto-memory toggle overlap is recorded against claude-memory:stateless. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `memory_read` | builtin-tool | `claude-memory:audit` | memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `memory_read` | builtin-tool | `claude-memory:audit` | memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `output-style` | builtin-command | `animation:learn-style` | Shared word only: /output-style switches Claude Code's response style; learn-style studies an art style for the animation plugin. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `plan` | builtin-command | `planning:plan-reviewer (agent)` | /plan enters plan mode; the agent stress-tests a written plan for /planning:plan. The plan-mode pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plan` | builtin-command | `testing:plan` | /plan enters plan mode; ours writes a test plan for a change. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `plugin-types` | builtin-command | `code-metrics:audit-type-debt` | Writes TypeScript declarations for typing a hooks module versus measuring how much of a codebase is typed. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `pr` | bundled-skill | `review:pr-explainer` | Creates a pull request versus explaining an existing one. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `pr` | bundled-skill | `source-control:babysit-prs` | Creates one pull request versus a loop that advances already-open ones. The creation pair is recorded against source-control:pull-request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `rename` | builtin-command | `docs-hygiene:audit-file-names` | /rename renames the conversation; ours audits a docs tree's file names. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `rename` | builtin-command | `docs-hygiene:realign-file-names` | /rename renames the conversation; ours applies a file rename plan. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `rename` | builtin-command | `docs-naming:audit-file-names` | /rename renames the conversation; ours audits a docs tree's file names. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `rename` | builtin-command | `docs-naming:realign-file-names` | /rename renames the conversation; ours applies a file rename plan. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `rename` | builtin-command | `naming:name-it-better` | /rename renames the conversation; ours generates names for code and domain terms. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `resume` | builtin-command | `session-flow:continue-in-background` | /resume reopens a previous conversation; ours launches a new detached session to carry the current work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `security-review` | plugin-backed-builtin | `review:code-reviewer (agent)` | The code-reviewer agent leaves security to security-reviewer by its own description. The security pair is recorded against review:security-reviewer. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1235,10 +1357,11 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `update-config` | bundled-skill | `firecrawl:update` | Edits Claude Code settings.json versus drift-checking the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `verify` | bundled-skill | `performance:verify` | Exercises a code change end to end versus re-deriving a performance measurement in a fresh context. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `worker` | builtin-agent | `discipline:script-the-deterministic-work` | The worker agent executes a delegated task; ours is a scripting discipline corrector. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `worker` | builtin-agent | `session-flow:tidy-work` | Name overlap only ('work'): tidy-work is a user-only skill that tidies the gitignored .work memory tiers; the built-in worker agent executes delegated tasks. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
 | `worker` | builtin-agent | `work-items:work` | The worker agent executes a delegated task; ours picks and executes a tracker item end to end. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `worker` | builtin-agent | `work-items:work-loop` | The worker agent executes a delegated task; ours drains a tracker backlog as a loop. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `workflow-authoring` | bundled-skill | `playbooks:skill-authoring` | Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `workflow-authoring` | bundled-skill | `songwriting:workflow` | Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `workflow-authoring` | bundled-skill | `playbooks:skill-authoring` | Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `workflow-authoring` | bundled-skill | `songwriting:workflow` | Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `workflows` | builtin-command | `session-flow:workflow` | /workflows browses Workflow tool runs; ours navigates staged engineering work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `workflows` | builtin-command | `songwriting:workflow` | /workflows browses Workflow tool runs; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 

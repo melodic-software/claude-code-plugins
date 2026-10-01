@@ -11,6 +11,9 @@
 # one failing test if it is ever dropped again.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=changed-files.sh
@@ -24,7 +27,7 @@ SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # mk_repo -> prints the path of a fresh repo with one committed base tree.
 mk_repo() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   git_init_test_repo "$dir" >/dev/null || return 1
   mkdir -p "$dir/plugins/p1/skills/alpha" "$dir/docs"
   printf 'seed\n' >"$dir/plugins/p1/skills/alpha/SKILL.md"
@@ -97,7 +100,7 @@ else
   fail "resolve_base returned an unresolvable ref"
 fi
 # A repo with no main/master and no origin/ has nothing to fall back to.
-bare="$(mktemp -d)"
+bare="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 git_init_test_repo "$bare" >/dev/null
 printf 'seed\n' >"$bare/f.txt"
 git_test_config "$bare" add -A >/dev/null

@@ -2,7 +2,7 @@
 # setup.sh — the deterministic half of /testing:setup.
 #
 # check prints four sections and changes nothing:
-#   config        the resolved .claude/testing.yaml (scripts/resolve-config.sh)
+#   config        the resolved testing config cascade (scripts/resolve-config.sh)
 #   lint          per language the repository's tracked test files use, whether
 #                 its lint config turns on the rules that catch can't-fail tests.
 #                 A missing rule is a FINDING; Bash, PowerShell and Go have no
@@ -12,9 +12,12 @@
 #                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
 #   hook-entry    for each consumer glob no shipped hook row matches, a
 #                 .claude/settings.json entry that runs test-scan on it
-# apply writes <root>/.claude/testing.yaml from the answer flags, whole, and
-# keeps it only when it resolves; it writes no other file, and refuses when
-# .claude or .claude/testing.yaml is a symlink.
+# apply writes the answer flags as the config block of
+# <root>/docs/conventions/testing.md (its other text stays; a missing file is
+# created, a file with no block gets one appended), or, when that file has no
+# block and <root>/.claude/testing.yaml exists, as that whole file. It keeps
+# the result only when it resolves, writes no other file, and refuses when the
+# target or its directory is a symlink.
 #
 # Usage:
 #   setup.sh check [--root <dir>]
@@ -71,9 +74,30 @@ flow() {
 }
 
 apply() {
-  local d="$ROOT/.claude" f="$ROOT/.claude/testing.yaml" bak="" tmp y="" e id field r
+  local docs="$ROOT/docs/conventions/testing.md" yaml="$ROOT/.claude/testing.yaml"
+  local d f bak="" tmp y="" e id field r blk from="" to="" l
+  # The team layer is the docs file's config block, unless it has no block and
+  # .claude/testing.yaml is the file in use.
+  f="$docs"
+  # Refuse a linked docs file before the loader reads it.
+  for l in "$ROOT/docs" "$ROOT/docs/conventions" "$docs"; do
+    [[ ! -L "$l" ]] || die "refusing to read or write through a symlink: $l"
+  done
+  # A flag value is one line: a newline would end the fenced block early.
+  for e in ${inc[@]+"${inc[@]}"} ${exc[@]+"${exc[@]}"} ${ena[@]+"${ena[@]}"} ${dis[@]+"${dis[@]}"} ${dirs[@]+"${dirs[@]}"} ${ext[@]+"${ext[@]}"} ${rules[@]+"${rules[@]}"}; do
+    [[ "$e" != *[$'\n\r']* ]] || die "a flag value holds a line break"
+  done
+  if [[ -f "$docs" ]]; then
+    blk="$(awk -v MODE=config -f "$LOADER" "$docs")" || die "$docs does not parse (see above)"
+    read -r from to <<<"$(awk -F'\t' '$1 == "block" { print $3, $4 }' <<<"$blk")"
+  fi
+  [[ -n "$from" || ! -f "$yaml" ]] || f="$yaml"
+  d="${f%/*}"
   # A committed symlink would turn the write into one on the file it names.
-  [[ ! -L "$d" && ! -L "$f" ]] || die "refusing to write through a symlink: $d or $f"
+  for l in "$d" "$f"; do
+    [[ ! -L "$l" ]] || die "refusing to write through a symlink: $l"
+  done
+  [[ "$f" != "$docs" || ! -L "$ROOT/docs" ]] || die "refusing to write through a symlink: $ROOT/docs"
   [[ ! -e "$f" || -f "$f" ]] || die "$f is not a regular file"
   if [[ ${#ena[@]} -gt 0 || ${#dis[@]} -gt 0 ]]; then
     y+=$'adapters:\n'
@@ -111,7 +135,7 @@ apply() {
   if [[ ${#rules[@]} -gt 0 ]]; then
     y+=$'rules:\n'
     for r in "${rules[@]}"; do
-      [[ "$r" == *=* ]] || die "--rule takes <rule>=off|warn|error, got: $r"
+      [[ "$r" =~ ^[^=]+=(off|warn|error)$ ]] || die "--rule takes <rule>=off|warn|error, got: $r"
       id="${r%%=*}"
       id="${id#testing/audit/}"
       [[ "$id" == rule-* ]] || id="rule-$id"
@@ -122,30 +146,49 @@ apply() {
   [[ "$(cd "$d" && pwd -P)" == "$(cd "$ROOT" && pwd -P)"/* ]] || die "$d resolves outside $ROOT"
   # Write beside the target and rename over it, so no write follows a link.
   if [[ -f "$f" ]]; then
-    bak="$(mktemp "$d/.testing.yaml.XXXXXX")" || die "cannot create a temporary file in $d"
+    bak="$(mktemp "$d/.${f##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
     cp -p "$f" "$bak" || die "cannot back up $f"
   fi
-  tmp="$(mktemp "$d/.testing.yaml.XXXXXX")" || die "cannot create a temporary file in $d"
+  tmp="$(mktemp "$d/.${f##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
   # mktemp creates the file 0600; give it the mode a plain write would.
   chmod "$(printf '%o' $((0666 & ~0$(umask))))" "$tmp"
-  printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s' "$y" >"$tmp"
+  # shellcheck disable=SC2016 # the fence lines are literal text
+  if [[ "$f" != "$docs" ]]; then
+    printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s' "$y" >"$tmp"
+  elif [[ ! -f "$f" ]]; then
+    printf '# Testing conventions\n\nTest-file scope and rule levels for the testing plugin (/testing:setup).\n\n```yaml config\n%s```\n' "$y" >"$tmp"
+  elif [[ -n "$from" ]]; then
+    # Replace the block's body; the rest of the file stays as it is.
+    {
+      sed -n "1,$((from - 1))p" "$f"
+      printf '%s' "$y"
+      sed -n "$((to + 1)),\$p" "$f"
+    } >"$tmp"
+  else
+    {
+      cat "$f"
+      [[ -z "$(tail -c1 "$f")" ]] || echo
+      printf '\n```yaml config\n%s```\n' "$y"
+    } >"$tmp"
+  fi
   mv -f "$tmp" "$f" || die "cannot write $f"
-  if ! env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home" >/dev/null; then
+  if ! got="$(env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home")" ||
+    ! grep -qxF "layer"$'\t'"$f" <<<"$got"; then
     if [[ -n "$bak" ]]; then mv -f "$bak" "$f"; else rm -f "$f"; fi
-    die "the answers do not resolve (see above); $f is unchanged"
+    die "the answers do not resolve as a layer (see above, or an unclosed code fence hides the block); $f is unchanged"
   fi
   [[ -z "$bak" ]] || rm -f "$bak"
   printf 'wrote %s\n' "$f"
-  cat "$f"
+  if [[ "$f" == "$docs" ]]; then printf '%s' "$y"; else cat "$f"; fi
 }
 
 # --- check --------------------------------------------------------------------
 check() {
   local cfg findings=0 langs tracked lint_files f
   printf '== config ==\n'
-  cfg="$(bash "$RESOLVER" --root "$ROOT")" || die "the .claude/testing.yaml layers do not resolve (see above)"
+  cfg="$(bash "$RESOLVER" --root "$ROOT")" || die "the testing config layers do not resolve (see above)"
   if [[ -z "$cfg" ]]; then
-    printf 'no .claude/testing.yaml layer; the shipped adapters, globs and rule levels apply\n'
+    printf 'no testing config layer; the shipped adapters, globs and rule levels apply\n'
   else
     printf '%s\n' "$cfg"
   fi
@@ -291,6 +334,8 @@ check() {
   fi
   printf 'Optional. CLAUDE.md and AGENTS.md are yours; /testing:setup never edits them. Paste this into %s yourself%s:\n' "$file" "$note"
   printf '  Tests must be able to fail: take every expected value from a spec, a bug report or a hand-computed literal, never from running the code under test; load the testing:test-value skill before writing or reviewing tests.\n'
+  [[ ! -f "$ROOT/docs/conventions/testing.md" ]] ||
+    printf '  If testing, read docs/conventions/testing.md (the testing conventions and the plugin'"'"'s config block).\n'
 
   printf '\n== hook-entry ==\n'
   local globs=() g

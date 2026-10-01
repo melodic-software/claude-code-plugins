@@ -205,7 +205,8 @@ End every run with this block, in this order, filled from the record and the scr
   `{"from_role":` object per line, or the array is `[]` on its key's line. `render-flow.sh`
   exits 1 on any other shape and writes nothing.
 - **Tracked C# only.** `git ls-files` is the file set. The adapter does not read project files,
-  configuration, or other languages. A comment is not a call. A declaration line is not a hop.
+  configuration, or other languages. Read: C#. Declined: Node, Go, Python, Rust, JVM, Ruby, and
+  PHP; their files are never read, and a tree with no C# file is refused. A comment is not a call. A declaration line is not a hop.
 - **ASP.NET route attributes are the entry grammar.** `[Route("...")]` and `[HttpGet("...")]`
   (and the Post, Put, Delete, and Patch attribute forms) match a route entry, as do the same
   quoted strings on `MapGet`/`MapPost` and the other `Map*` methods. Verified 2026-09-28 against

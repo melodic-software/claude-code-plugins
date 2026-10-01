@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of
+A Claude Code plugin bundling sixteen skills for one cohesive capability: managing the lifecycle of
 a working session. The skills answer where you are in the work, how to pause and resume it, how to
 recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
@@ -21,8 +21,10 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
+| `/session-flow:check` | Do node and jq resolve for the observer hook? Read-only; never installs. |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
+| `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |
 
 ## Contents
 
@@ -326,9 +328,32 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 /session-flow:show-options my-topic   # scope the artifact-grounded reads to a topic slice
 ```
 
+### tidy-work
+
+Inventories the gitignored `.work` memory tiers (the repo's memory root, resolved from the concern
+file's `memory_dir`, and `~/.work`) that no other skill prunes. `report` (default, read-only) lists
+each first-level item with age, size, kind, and whether it is in flight. `normalize` moves misplaced
+handoffs and running-retro ledgers into their standard directories. `clean` removes a stale item of
+a known kind only when it names at least one issue or PR and every one is closed or merged. A
+top-level entry whose name carries one issue or PR number (`lint-5371.log`, `measure-4608`; a year
+such as `2026` needs a `pr`, `issue`, or `gh` prefix) is scratch: `report` shows that issue or PR
+and its state, and `clean` removes it only once that issue is closed or that PR is merged. Both
+actions are dry runs that list exact paths and ask one confirmation before `--apply`, and neither
+modifies anything git tracks. Unattributed items are always kept: unknown items (a name with no
+number or several, or a tool's own folder), handoffs and running retros whose text names no issue
+or PR, every slice and checklist, and the entries of other skills' concern dirs (`reviews/`,
+`exports/`). So are in-flight items (a slice whose `INDEX.md` status is not `done`, a recent change,
+a clone or worktree inside it, a handoff or scratch entry naming an open issue or PR).
+Opt-in only: nothing runs unless invoked.
+
+```shell
+/session-flow:tidy-work                  # report
+/session-flow:tidy-work clean --days 30  # dry run, then one confirmation
+```
+
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other thirteen skills are zero-config.
+A check-centric setup for the **observer substrate only**. The other fifteen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;

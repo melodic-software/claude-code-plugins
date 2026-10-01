@@ -3,7 +3,7 @@
 The full bundled-provider detail behind step 2 of the provider-binding interview in `SKILL.md`.
 Read it when choosing or re-binding a provider; the skill's own list is the summary.
 
-The seam's contract for each is `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`, and
+The seam's contract for each is `<plugin-root>/tools/work-item-tracker/CONTRACT.md`, and
 each adapter carries its own README beside it.
 
 ## `github`: RECOMMENDED

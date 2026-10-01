@@ -3,6 +3,324 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.3] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks launch through it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/disk-hygiene:check`, which already probes it.
+
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands each say the engine sits in the `scripts/` directory that `SKILL.md`'s engine commands give; the handoff and the safety model call that directory `<skill-dir>` where they use it. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
+
+## [0.42.1] - 2026-09-30
+
+### Fixed
+
+- **The engine gate accepts braces inside a quoted word** ([#5641](https://github.com/melodic-software/claude-code-plugins/issues/5641)). A `--target` such as `'D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}'` now forms an exact engine call, so the WSL distro folders can be snapshotted. `{` and `}` are literal inside a whole-word single or double quote and are accepted only there; every other expansion or operator character, `$` included, is still refused wherever it sits, and an unquoted brace is still refused. The denial no longer names a quoted brace as the culprit.
+
+## [0.42.0] - 2026-09-30
+
+### Added
+
+- **Catalog scope and an `uncataloged` report**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). `catalog` now
+  accounts for every immediate child of the target, every hinted or empty entry at any depth, and,
+  at a user-home or `--root-children` target, every out-of-place immediate child. Entries with no
+  record and no owner-level ancestor are listed under `uncataloged`; a record marked
+  `owner_level` covers everything below its path while its identity holds.
+- **Required ownership investigation** (`reference/ownership-investigation.md`). Each entry is
+  checked against nine local sources, each evidence item names its source, `/discovery:research`
+  is used only when no owner is found and only when it resolves, and the report ends with one
+  question per entry whose owner is unknown, which stays `keep` until answered.
+
+### Changed
+
+- **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
+  and descendant set still hold is reused when another scan target reaches the same entry, so it is
+  not asked again, even where this target holds an engine record with an open question. The scan
+  sets `target_prior_disposition` when the scan target itself was answered, and the `catalog`
+  report lists a reused entry under `unchanged` as `answered under <target>`. A new answer replaces
+  older answers for the same entry recorded under other targets, an owner-level answer reached from
+  another target covers its descendants, and `catalog` refuses a `--sizes-only` snapshot, which has
+  no entries to account for.
+
+## [0.41.3] - 2026-09-30
+
+### Changed
+
+- **A Windows `detached` answer does not mean unused for WSL and Docker disks** ([#5642](https://github.com/melodic-software/claude-code-plugins/issues/5642)). `Get-DiskImage` reads a running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx` and WSL's `swap.vhdx` as `detached`, because WSL2 and Docker hold them open through their own virtual machine. The image keeps `virtual-disk` and the block, so nothing becomes deletable and reclaimable bytes stay 0. The `Get-DiskImage` record in `skills/clean/reference/safety-model.md` is now observed on Windows: `attached` plus the drive letter for a host-mounted VHDX, `detached` for those disks, and an error for an `initrd.img`. No code changes.
+
+## [0.41.2] - 2026-09-30
+
+### Changed
+
+- **The deep inventory's `plugin-cache-version` rows come from a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `claude-ops`, so the install-state audit and the deep inventory apply one rule for which cache versions are unreferenced, including the guarded read of `installed_plugins.json`. `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge.
+
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work, adding that a relative path or bare name which resolves to the installed engine from the current directory is still gated. A quoted word the gate reads as an engine call, such as a `gh --search` query naming an interpreter and the engine, is named as the gated word. The message is the only change: the guard matches and denies exactly as before.
+
+## [0.41.0] - 2026-09-30
+
+### Added
+
+- **Class-matched policy rules, atime/ctime age basis, and a reference in-flight input**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A schema v2 rule
+  can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
+  `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
+  `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
+
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
+## [0.38.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:check`, a model-invocable probe**
+  ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
+  `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
+
+### Changed
+
+- **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
+  `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
+  `disable-model-invocation: true`.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
+
+## [0.36.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:audit`, a model-invocable read-only scan**
+  ([#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516)). A delegated or
+  orchestrated session can run the probe and one engine `scan` and report the snapshot with its
+  coverage gaps. It runs no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`,
+  which stays manual-only.
+
+## [0.35.2] - 2026-09-30
+
+### Fixed
+
+- **The engine gate probes half as many files on commands that do not name the engine**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Without the
+  `hygiene.py` marker, `_engine_gate_relevant` now deduplicates its candidates, so each distinct
+  word is probed once as written and once joined to the engine's own directory:
+  `git log --oneline --graph --decorate origin/main` drops from 24 probes to 12. The
+  engine-directory reading skips a word qualified with a drive other than the engine's, such as
+  `D:foo`: Windows joins it onto that drive and drops the engine's directory, so the reading only
+  repeated the as-written probe of the same path. A bare `alias` and `C:alias` beside an engine on
+  `C:` still read against the engine's directory. The as-written reading stays unconditional,
+  because a bare name reaches a link in the working directory (`python3 alias`) and a separator
+  filter would have stopped gating it. Flags and other non-path words are therefore still probed
+  against the working directory, so an unreachable path given as a word can still stall the hook.
+  A link invoked with another drive's qualifier (`D:alias` beside an engine on `C:`) still does not
+  gate; the other accepted residuals are unchanged.
+
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
+
+## [0.35.0] - 2026-09-30
+
+### Added
+
+- **`handoff-apply`, a Linux route for a standalone Git checkout**
+  ([#5178](https://github.com/melodic-software/claude-code-plugins/issues/5178)). For one exact
+  approved path, `handoff-apply --execute` re-runs `handoff-verify` in the same process and deletes
+  on any `clear` verdict: one that passes every evidence gate, or one where `accept_unpublished` with
+  the operator's reason in `vcs-evidence.json` waives the first two, so a contested throwaway
+  checkout no longer has to be removed outside the engine. Preview and token apply keep VCS
+  protection categorical; the acknowledgement is evaluated only in the handoff verification path.
+  The Bash guard asks for the exact `handoff-apply` shape. Windows and macOS keep `handoff-verify`
+  and the manual handoff lane.
+- **`handoff-apply` is the one lane that removes entries outside the snapshot.** The snapshot
+  records a repository's `.git` directory without its descendants, so the engine empties that
+  uninventoried metadata fd-relative before removing it. The purge refuses on a mount point at or
+  under the metadata directory, on any consumer protection glob match over a live `os.walk`, and on
+  a directory it cannot read (fail closed); it requires every directory to stay on the metadata
+  directory's device and unlinks links rather than following them. Each child is matched against
+  the consumer protection globs again as the purge reaches it. The hard-protection name check
+  is not applied to those contents.
+
+### Changed
+
+- **clean docs:** `safety-model.md` carries the `handoff-apply` command block and `SKILL.md` names the Linux
+  route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits
+  and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
+  and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
+  for `apply`, or that the engine removes only snapshot entries.
+
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`scan --sizes-only` asks the large-scan question and keeps no per-path entries**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). `--sizes-only`
+  no longer skips the `--confirmed-large-scan` gate: a large root without `--max-depth` or the flag
+  returns `large-target-confirmation-required`, as an ordinary unbounded walk does, on both the
+  plain-target and `--root-children` paths. The walk still enters VCS and protected directories
+  (exact totals need it) and now sums sizes straight into the per-child rollup and the target total
+  without retaining one entry per path; the empty-directory count stays exact and the
+  `empty_directory_paths` sample stays capped and sorted. The payload, `inventory_mode: sizes-only` and
+  `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
+  and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
+  `--sizes-only` skips the question.
+
+## [0.34.3] - 2026-09-30
+
+### Fixed
+
+- **`/disk-hygiene:clean` docs match the engine**
+  ([#5520](https://github.com/melodic-software/claude-code-plugins/issues/5520)). Section 1 says the
+  engine creates the run directory instead of telling the agent to create it. The fan-out worker
+  brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
+  optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
+  tokens, and states that `--project-dir` is optional.
+
+## [0.34.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. The hints match regular files only and apply on Linux only.
+- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
+
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
+
+## [0.34.0] - 2026-09-30
+
+### Added
+
+- **`handoff-verify --path` is repeatable.** Pass `--path` once per approved path to report several paths in one call without writing a paths file. Each path gets the same validation as a `--paths` entry, and `--path` stays mutually exclusive with `--paths` in the parser and the guard.
+- **The apply and PowerShell deletion prompts list what they will delete.** The exact-engine apply prompt renders the plan's tier, path count, and every path; the PowerShell mutation prompt lists the path-shaped literals its command contains, noting the list may not be every path it acts on. Both prompts escape control characters in the listed text. Text only: every allow and ask verdict is unchanged, and an unreadable plan keeps the generic reason.
+
+### Changed
+
+- **`clean` gotcha: an allow rule cannot remove the deletion prompts.** The deletions are hook `ask` verdicts, which force a prompt, and the engine's read-only calls already get hook `allow`. The unsupported-platform handoff text names the repeatable `--path`.
+
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
+## [0.33.0] - 2026-09-30
+
+### Added
+
+- **Partial totals are labeled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  A scan that left any subtree unwalked, and every `--root-children` scan, sets `totals_are_lower_bounds`, and `truncation_reasons`
+  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`, `scan-error` or
+  `root-child-unselected` (a sibling a `--root-children` run left unselected). A directory
+  whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
+- **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  The snapshot carries up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`.
+- **A hint may set `entry_types`** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)):
+  `file`, `directory`, `link` (a symlink or reparse point) or `other`. A hint that sets none matches
+  every kind. The overlay schema lists the key, so an overlay that uses it validates.
+- **Windows hints** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233))
+  cover a Visual Studio layout cache, Docker `bsdiff` leftovers and Electron updater downloads.
+- **A protected shell-folder refusal carries a `hint`**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)) naming which
+  targets are allowed.
+
+### Changed
+
+- **The skill states the Windows and macOS outcome up front**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)): a run ends in a
+  report plus the `execution-platform-unsupported` handoff.
+
+### Fixed
+
+- **The audit no longer double-counts a standing policy overlay**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)). When the project
+  directory is the home directory, the user and project overlay resolve to one file; it now applies
+  once and appears once in `policy_sources`.
+- **The baseline `*.tmp` and `*.lock` hints no longer match directories**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
+  such as `~/.codex/.tmp` is not hinted. They match files and links.
+
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
+## [0.32.0] - 2026-09-30
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img`
+  (WSL's `ext4.vhdx` included) are the baseline `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
+
 ## [0.31.1] - 2026-09-30
 
 ### Fixed

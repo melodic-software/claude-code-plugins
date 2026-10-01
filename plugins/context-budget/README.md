@@ -21,6 +21,8 @@ saving.
 
 ## Skills
 
+- `/context-budget:check`. Read-only check that `node` resolves for the hook and the engine, so
+  it can run unprompted when a hook notice says `node` is missing. Installs nothing.
 - `/context-budget:setup`. Read-only prerequisite check: `node` (the hook launches it by bare
   name, and a launch failure is non-blocking, so the checkpoint can be configured on yet never
   fire), the `claude` CLI the engine measures against, the optional Agent SDK that enables exact

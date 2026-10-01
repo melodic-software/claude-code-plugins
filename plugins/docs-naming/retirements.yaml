@@ -1,0 +1,25 @@
+# Retired consumer-facing conventions for the docs-naming plugin.
+# Append-only: records are never deleted and their detection fields are never
+# edited once published (demote with `status: report-only` instead). Schema and
+# helper contract: docs/conventions/retired-conventions/README.md in the
+# consuming marketplace; evaluated by lib/check-retirements.sh from setup.
+---
+id: docs-naming-r001
+retired: 2026-10-01
+plugin_version: 0.1.0
+kind: file
+path: .claude/docs-hygiene.json
+content_match: '"file_names"'
+action: migrate
+successor: "the team layer is now .claude/docs-naming.json with the same schema: when that file does not exist, git mv the old one onto it (setup apply refuses to write the team layer while the old name stands); when it exists, add only the keys it lacks so the new file wins; have the operator confirm the result, then clean"
+note: "retired team config name; the file-name skills moved to docs-naming, which reads this file for one release and warns"
+---
+id: docs-naming-r002
+retired: 2026-10-01
+plugin_version: 0.1.0
+kind: file
+path: .claude/docs-hygiene.local.json
+content_match: '"file_names"'
+action: migrate
+successor: "the personal overlay is now .claude/docs-naming.local.json with the same schema: when that file does not exist, move the old one onto it; when it exists, add only the keys it lacks so the new file wins; have the operator confirm the result, then clean"
+note: "retired personal overlay name; the file-name skills moved to docs-naming, which reads this file for one release and warns"

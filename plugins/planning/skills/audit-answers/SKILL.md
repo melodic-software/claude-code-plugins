@@ -44,6 +44,8 @@ A completed `/planning:interview` for the topic. The skill validates whatever an
 
 The answer set to validate is the resolved decisions in whichever of these exists: the ledger when present, else the Brief's decisions, else the general summary. A **Brief-only** interview (an `auto`/`lock` session with no checklist) and a **summary-only** general interview are both valid inputs, not a reason to stop. Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars; shared with `/planning:interview`); resolve the slices per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). If the topic has NO persisted interview output at all, STOP with a message pointing at `/planning:interview`. There is nothing to validate. If output exists but has open consequential branches, Step 1 fills them under the never-auto floor before validating.
 
+When the caller names the question ids to audit (the interview page's `accept-audit` event lists them), the answer set is exactly those answers: do not fill or validate any other open branch, and leave the rest of the interview open.
+
 ## The validation loop
 
 ### Step 1. Assemble the answer set, holding the never-auto floor
@@ -53,7 +55,7 @@ Validation needs a complete answer set. If the interview is already fully answer
 - a Deferred question tagged **`USER-RESERVED`** stays **deferred**. It is a carry-forward item whose arbiter re-confirms at the `/planning:plan` approval gate *with plan-time context*, so it is not auto-accepted, not validated, and **not turned into an audit question here**; it passes through untouched, arbiter tag intact.
 - a decision the interview's **auto-guard** class covers, a genuine user choice with real tradeoffs and no codebase answer, is held out of the auto-accept and routed to the human as a real question in the confirm round (Step 4).
 - a register row at **`superseded-by-plan`** (a plan change displaced the user's answer) is held out of the auto-accept, never validated into `answered`, and routed to the human as a real question showing both the proposed and the displaced answer. Only the user's reply to that row moves it.
-- a register row whose resolution carries `hedged:` anywhere (including the page's `free-text: hedged:` export) is validated, but it never closes on a CONFIRMED verdict: it is routed to the human in the Step 4 confirm round whatever the validators return. Its `open` commitment rows are held out of the auto-accept like any other floor item.
+- a register row whose resolution carries `hedged:` anywhere (including the page's `hedged:` answer and the legacy `free-text: hedged:` export) is validated, but it never closes on a CONFIRMED verdict: it is routed to the human in the Step 4 confirm round whatever the validators return. Its `open` commitment rows are held out of the auto-accept like any other floor item.
 
 A `free-text:` row is validated like any answer and flagged in its verdict, so the human sees which answers were given in the user's own words rather than picked from the authored options.
 

@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 CLEAN="$SCRIPT_DIR/clean-caches.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+export TMPDIR="$TEST_TMPDIR" # default dry-run manifests (mktemp) land inside the cleaned dir
 FAILED=0
 
 git init "$TEST_TMPDIR/repo" >/dev/null 2>&1

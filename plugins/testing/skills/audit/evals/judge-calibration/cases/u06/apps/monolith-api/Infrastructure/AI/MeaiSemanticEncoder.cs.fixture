@@ -1,0 +1,84 @@
+using System.Runtime.InteropServices;
+
+using Microsoft.Extensions.AI;
+
+using Platform.AI.Abstractions.Semantics;
+using Platform.Core.Results;
+
+namespace MonolithApi.Infrastructure.AI;
+
+/// <summary>
+/// Adapts a Microsoft.Extensions.AI <see cref="IEmbeddingGenerator{TInput, TEmbedding}"/> to the
+/// Platform <see cref="ISemanticEncoder"/> contract: turns text into a
+/// <see cref="SemanticRepresentation"/> (embedding bytes + model identity) and classifies provider
+/// exceptions into a typed <c>AiError</c> via <see cref="MeaiErrorClassifier"/>.
+/// </summary>
+/// <remarks>
+/// No store implementation lives here — persistence over Microsoft.Extensions.VectorData is the
+/// deferred MEVD-1 slice. This encoder only produces representations.
+/// </remarks>
+internal sealed class MeaiSemanticEncoder(
+    IEmbeddingGenerator<string, Embedding<float>> generator,
+    MeaiErrorClassifier errorClassifier,
+    int version = MeaiSemanticEncoder.DefaultVersion) : ISemanticEncoder
+{
+    // M.E.AI exposes no embedding-schema version on Embedding<float>; the contract's Version is
+    // adapter-supplied. Recorded as ABSTR-1 evidence (SemanticRepresentation.Version has no
+    // provider source). Override per call site when an embedding model is re-versioned.
+    private const int DefaultVersion = 1;
+
+    // SemanticRepresentation requires a non-null model id, but Embedding.ModelId may be null when a
+    // provider (e.g. Ollama) doesn't populate it. Fallback keeps the representation constructible;
+    // real wiring should pass the configured model id when the provider leaves ModelId null.
+    private const string UnknownModelId = "unknown";
+
+    public async Task<Result<SemanticRepresentation>> EncodeAsync(
+        string content, CancellationToken ct = default)
+    {
+        try
+        {
+            // GenerateAsync (not GenerateVectorAsync) so the produced Embedding carries ModelId.
+            GeneratedEmbeddings<Embedding<float>> generated =
+                await generator.GenerateAsync([content], cancellationToken: ct);
+
+            return Result.Success(MapRepresentation(generated[0]));
+        }
+#pragma warning disable CA1031 // Adapter boundary: every provider exception is classified into a typed AiError via Result<T>; ClassifyException re-throws genuine cancellation.
+        catch (Exception exception)
+        {
+            return errorClassifier.ClassifyException<SemanticRepresentation>(exception);
+        }
+#pragma warning restore CA1031
+    }
+
+    public async Task<Result<IReadOnlyList<SemanticRepresentation>>> EncodeBatchAsync(
+        IReadOnlyList<string> contents, CancellationToken ct = default)
+    {
+        try
+        {
+            GeneratedEmbeddings<Embedding<float>> generated =
+                await generator.GenerateAsync(contents, cancellationToken: ct);
+
+            IReadOnlyList<SemanticRepresentation> representations =
+                [.. generated.Select(MapRepresentation)];
+
+            return Result.Success(representations);
+        }
+#pragma warning disable CA1031 // Adapter boundary: every provider exception is classified into a typed AiError via Result<T>; ClassifyException re-throws genuine cancellation.
+        catch (Exception exception)
+        {
+            return errorClassifier.ClassifyException<IReadOnlyList<SemanticRepresentation>>(exception);
+        }
+#pragma warning restore CA1031
+    }
+
+    // Embedding<float>.Vector is ReadOnlyMemory<float>; reinterpret the float span as bytes
+    // (little-endian, lossless). SemanticRepresentation copies the array defensively, so the
+    // transient byte[] is safe to hand off. The byte layout is an implicit contract for the
+    // deferred MEVD store, which must read back the same little-endian float encoding.
+    private SemanticRepresentation MapRepresentation(Embedding<float> embedding) =>
+        new(
+            MemoryMarshal.AsBytes(embedding.Vector.Span).ToArray(),
+            embedding.ModelId ?? UnknownModelId,
+            version);
+}

@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.5] - 2026-10-01
+
+### Fixed
+
+- **The `list-sub-items` suite binds in a private directory.** It bound through a bare `mktemp`, so the tracker's overlay lookup read the shared `$TMPDIR/.work-item-tracker.local.json`, and a parallel run that touched that path made the suite fail intermittently. The binding now lives in a `mktemp -d` directory, and a case asserts it never sits directly in `$TMPDIR`.
+
+## [0.43.4] - 2026-10-01
+
+### Changed
+
+- **The jira conformance binding suite no longer runs serially under `run-plugin-tests`.** Concurrent conformance runs no longer share an overlay file (0.39.59), so the suite is safe to run in parallel.
+
+## [0.43.3] - 2026-09-30
+
+### Fixed
+
+- **`attend-queue`, `decompose`, `setup`, `triage`, `work` and `work-loop` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/*.md` are now relative to the spoke, and script and tool paths read `<plugin-root>/...`. `attend-queue`, `decompose`, `setup` and `work` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory. `work-loop` is at the `SKILL.md` line cap, so its `telemetry-upsert.md` points at the script path `SKILL.md` already gives, resolved, instead of adding a section.
+
+## [0.43.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.43.1] - 2026-09-30
 
 ### Fixed

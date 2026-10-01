@@ -7,20 +7,20 @@ instead of this runbook.
 
 1. Acquire the deterministic lease for this run (queue scope for a full cycle, worker scope with
    `--pr` for a single PR), retain the token, and heartbeat it on a bounded cadence:
-   `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py" acquire
+   `python "<skill-dir>/scripts/manage_babysit_lease.py" acquire
    --scope queue --state-dir <state-dir>` (add `--repo <owner/repo>` when sharding sessions per
    repo). On exit 3 either reclaim a provably dead holder with `--steal-stale` or skip; treat a
    token-mismatch heartbeat as lost ownership ([orchestration.md](orchestration.md)).
 
 2. In queue mode only, while holding the queue lease, prune unleased clean merged/closed worktrees
    and reap expired worker leases:
-   `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/prune_babysit_worktrees.py"
+   `python "<skill-dir>/scripts/prune_babysit_worktrees.py"
    --apply --root <worktree-root> --state-dir <state-dir>` and
-   `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py" reap
+   `python "<skill-dir>/scripts/manage_babysit_lease.py" reap
    --apply --state-dir <state-dir>`.
 
 3. Run the snapshot with the tier's scope:
-   `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue
+   `python "<skill-dir>/scripts/pr_queue_snapshot.py" --queue
    --author @me --owners <watched-owners> --state-dir <state-dir> --write-state`
    (the `@me` scopes discovery to your own gh login; when `babysit_self_logins` is non-empty and not a
    literal unexpanded token, append `--extra-self <self-logins>`, so those extra posting identities join

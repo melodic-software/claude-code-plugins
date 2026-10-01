@@ -27,7 +27,8 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/block-root-delete-target.sh"
 GUARD_UNDER_TEST="$HOOK"
 TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+RDT_AB=""
+trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -1440,6 +1441,153 @@ EOF
 # portability-ok: a literal backslash pair in a command string fed to the guard, not a grep -E escape
 expect_both 'with cwd: rm -rf \\server\share' 2 "${RDT_CWD[@]}" --command 'rm -rf \\server\share'
 
+# --- 2d. block_root_delete_target_allowed_roots -------------------------------
+# A user-owned userConfig key adds roots on the temp-root rule. The fixture sits
+# under the checkout's gitignored .work, outside every temp root, and every case
+# runs from cwd `/`, outside any tree, so only the key can let a delete through:
+# each allow is paired with the same command blocking while the key is unset.
+# HOME is a fake directory beside the roots.
+mkdir -p "$RDT_TOP/.work"
+RDT_AB=$(mktemp -d "$RDT_TOP/.work/rdt-allowed-roots.XXXXXX")
+RDT_AR="$RDT_AB/root"
+RDT_AR2="$RDT_AB/root2"
+RDT_AL="$RDT_AB/linkroot"
+RDT_AO="$RDT_AB/elsewhere"
+RDT_AH="$RDT_AB/home"
+mkdir -p "$RDT_AR/child" "$RDT_AR2/child" "$RDT_AL/child" "$RDT_AO/x" "$RDT_AH" "$RDT_AB/root-x/child"
+RDT_KEY=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS
+# rdt_ar <label> <want> <command> [roots [home]]: the command from `/`, HOME a
+# fake directory, the key set to <roots> when one is given.
+rdt_ar() {
+  local -a env=("HOME=${5:-$RDT_AH}")
+  [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
+  expect_both "allowed roots: $1" "$2" --cwd / --command "$3" -- "${env[@]}"
+}
+
+rdt_ar 'unset key: a path under the root blocks' 2 "rm -rf '$RDT_AR/child'"
+rdt_ar 'a path under the root allowed' 0 "rm -rf '$RDT_AR/child'" "$RDT_AR"
+rdt_ar 'a deeper nonexistent path allowed' 0 "rm -rf '$RDT_AR/a/b/c'" "$RDT_AR"
+rdt_ar 'unset key: a glob below a subdirectory blocks' 2 "rm -rf '$RDT_AR/child'/*"
+rdt_ar 'a glob below a subdirectory allowed' 0 "rm -rf '$RDT_AR/child'/*" "$RDT_AR"
+rdt_ar 'unset key: */x under the root blocks' 2 "rm -rf '$RDT_AR'/*/x"
+rdt_ar '*/x under the root allowed' 0 "rm -rf '$RDT_AR'/*/x" "$RDT_AR"
+rdt_ar 'unset key: a second root blocks' 2 "rm -rf '$RDT_AR2/child'"
+rdt_ar 'a second root alone blocks the first root' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR2"
+rdt_ar 'a second comma-separated root allowed' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AR,$RDT_AR2"
+rdt_ar 'the first of two roots allowed' 0 "rm -rf '$RDT_AR/child'" "$RDT_AR,$RDT_AR2"
+rdt_ar 'entries are trimmed' 0 "rm -rf '$RDT_AR2/child'" " $RDT_AR , $RDT_AR2 "
+if MSYS=winsymlinks:lnk ln -s "$RDT_AR" "$RDT_AB/rootlink" 2>/dev/null && [[ -L "$RDT_AB/rootlink" ]]; then
+  rdt_ar 'a symlinked root compares by real path' 0 "rm -rf '$RDT_AR/child'" "$RDT_AB/rootlink"
+  rdt_ar 'a path through a symlinked root' 0 "rm -rf '$RDT_AB/rootlink/child'" "$RDT_AR"
+  rdt_ar 'a symlinked root itself blocks' 2 "rm -rf '$RDT_AB/rootlink'" "$RDT_AB/rootlink"
+else
+  rdt_skip "ln -s makes no real symlink on this host (3 cases)"
+fi
+
+# Refused whatever is listed: the root, its glob, siblings, and every earlier
+# refusal in the guard.
+rdt_ar 'the root itself blocks' 2 "rm -rf '$RDT_AR'" "$RDT_AR"
+rdt_ar 'the root with a trailing slash blocks' 2 "rm -rf '$RDT_AR/'" "$RDT_AR"
+rdt_ar 'the root dot blocks' 2 "rm -rf '$RDT_AR/.'" "$RDT_AR"
+rdt_ar 'the root glob blocks' 2 "rm -rf '$RDT_AR'/*" "$RDT_AR"
+rdt_ar 'a child reached back to the root blocks' 2 "rm -rf '$RDT_AR/child/..'" "$RDT_AR"
+rdt_ar 'a name-prefix sibling blocks' 2 "rm -rf '$RDT_AR-x/child'" "$RDT_AR"
+rdt_ar 'a .. escape to a sibling blocks' 2 "rm -rf '$RDT_AR/../elsewhere'" "$RDT_AR"
+rdt_ar 'a .. escape through a child blocks' 2 "rm -rf '$RDT_AR/child/../../elsewhere/x'" "$RDT_AR"
+rdt_ar 'a sibling directory blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_AR"
+rdt_ar 'rm -rf / blocks' 2 'rm -rf /' "$RDT_AR"
+rdt_ar 'rm -rf ~ blocks' 2 'rm -rf ~' "$RDT_AR"
+rdt_ar "rm -rf '\$HOME' blocks" 2 "rm -rf '\$HOME'" "$RDT_AR"
+rdt_ar 'rm -rf "$HOME" blocks' 2 'rm -rf "$HOME"' "$RDT_AR"
+rdt_ar 'rm -rf ${HOME} blocks' 2 'rm -rf ${HOME}' "$RDT_AR"
+rdt_ar 'rm -rf ~/x blocks' 2 'rm -rf ~/x' "$RDT_AR"
+rdt_ar '--no-preserve-root under the root blocks' 2 "rm -rf --no-preserve-root '$RDT_AR/child'" "$RDT_AR"
+rdt_ar 'an empty operand blocks' 2 'rm -rf ""' "$RDT_AR"
+rdt_ar 'a bare variable blocks' 2 'rm -rf $X' "$RDT_AR"
+rdt_ar 'a bare variable beside an allowed path blocks' 2 "rm -rf '$RDT_AR/child' \$X" "$RDT_AR"
+rdt_ar 'a root beside an allowed path blocks' 2 "rm -rf '$RDT_AR/child' /" "$RDT_AR"
+rdt_ar 'a path outside beside an allowed one blocks' 2 "rm -rf '$RDT_AR/child' '$RDT_AO/x'" "$RDT_AR"
+rdt_ar 'a drive root blocks' 2 'rm -rf C:/' "$RDT_AR"
+rdt_ar 'a UNC share root blocks' 2 'rm -rf //server/share' "$RDT_AR"
+rdt_ar 'a child shell outside the root blocks' 2 "bash -c 'rm -rf $RDT_AO/x'" "$RDT_AR"
+rdt_ar 'a child shell under the root allowed' 0 "bash -c 'rm -rf $RDT_AR/child'" "$RDT_AR"
+rdt_ar 'a cd out of the root then a relative delete blocks' 2 "cd '$RDT_AO' && rm -rf x" "$RDT_AR"
+
+# HOME inside or above a listed root is never deletable through it.
+rdt_ar 'HOME under the root blocks' 2 "rm -rf '$RDT_AR/h'" "$RDT_AR" "$RDT_AR/h"
+rdt_ar 'a directory holding HOME blocks' 2 "rm -rf '$RDT_AR/h'" "$RDT_AR" "$RDT_AR/h/deep"
+rdt_ar 'the root as HOME grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR" "$RDT_AR"
+rdt_ar 'a sibling of HOME under a listed root allowed' 0 "rm -rf '$RDT_AR/child'" "$RDT_AR" "$RDT_AR/h"
+
+# A symlink inside a root that points outside is judged by where it points.
+if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_AL/link" 2>/dev/null && [[ -L "$RDT_AL/link" ]]; then
+  rdt_ar 'a real directory beside the link allowed' 0 "rm -rf '$RDT_AL/child'" "$RDT_AL"
+  rdt_ar 'the link itself is unlinked, allowed' 0 "rm -rf '$RDT_AL/link'" "$RDT_AL"
+  rdt_ar 'link/ out of the root blocks' 2 "rm -rf '$RDT_AL/link/'" "$RDT_AL"
+  rdt_ar 'link/. out of the root blocks' 2 "rm -rf '$RDT_AL/link/.'" "$RDT_AL"
+  rdt_ar 'a path through the link blocks' 2 "rm -rf '$RDT_AL/link/x'" "$RDT_AL"
+  rdt_ar 'a */ glob matching the link blocks' 2 "rm -rf '$RDT_AL'/*/" "$RDT_AL"
+  rdt_ar 'a */x glob through the link blocks' 2 "rm -rf '$RDT_AL'/*/x" "$RDT_AL"
+  rdt_ar 'a cd into the link then a relative delete blocks' 2 "cd '$RDT_AL/link' && rm -rf x" "$RDT_AL"
+else
+  rdt_skip "ln -s makes no real symlink on this host (8 cases)"
+fi
+
+# An entry that grants nothing is ignored; the rest of the list still works.
+rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "${RDT_AR#/}"
+rdt_ar "the root '/' grants nothing" 2 "rm -rf '$RDT_AR/child'" /
+rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
+rdt_ar 'an empty entry grants nothing' 2 "rm -rf '$RDT_AR/child'" ","
+rdt_ar 'a root equal to HOME grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH"
+rdt_ar 'HOME with a trailing slash grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH/"
+rdt_ar 'a root holding HOME still refuses HOME itself' 2 "rm -rf '$RDT_AH'" "$RDT_AB"
+rdt_ar 'a root holding HOME allows a sibling of HOME' 0 "rm -rf '$RDT_AO/x'" "$RDT_AB"
+rdt_ar 'a trailing line break grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR"$'\n'
+rdt_ar 'a leading line break grants nothing' 2 "rm -rf '$RDT_AR/child'" $'\n'"$RDT_AR"
+rdt_ar 'a line break entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AR"$'\n'",$RDT_AR2"
+rdt_ar 'a .. root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR/../root"
+rdt_ar 'a .. root above the fixture grants nothing' 2 "rm -rf '$RDT_AO/x'" "$RDT_AR/.."
+rdt_ar 'a * root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/ro*"
+rdt_ar 'a bare * root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/*"
+rdt_ar 'a ? root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/roo?"
+rdt_ar 'a [ root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/roo[t]"
+rdt_ar 'a UNC root grants nothing' 2 "rm -rf '$RDT_AR/child'" '//server/share'
+rdt_ar 'a relative entry beside a good one is skipped' 0 "rm -rf '$RDT_AR/child'" "rel/root,$RDT_AR"
+rdt_ar 'a .. entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AR/../root,$RDT_AR2"
+rdt_ar 'a * entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AB/*,$RDT_AR2"
+rdt_ar 'a root entry does not allow its sibling by prefix' 2 "rm -rf '$RDT_AB/root2/child'" "$RDT_AB/roo"
+
+# The key is read from the hook's own environment only. Naming it in the
+# command text, as a prefix, an env launcher or an export, grants nothing.
+rdt_ar 'a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_AR' rm -rf '$RDT_AR/child'"
+rdt_ar 'an env launcher in the command grants nothing' 2 "env $RDT_KEY='$RDT_AR' rm -rf '$RDT_AR/child'"
+rdt_ar 'an export in the command grants nothing' 2 "export $RDT_KEY='$RDT_AR'; rm -rf '$RDT_AR/child'"
+rdt_ar 'a VAR= segment in the command grants nothing' 2 "$RDT_KEY='$RDT_AR'; rm -rf '$RDT_AR/child'"
+rdt_ar 'a prefix cannot widen the listed roots' 2 "$RDT_KEY='$RDT_AR,$RDT_AO' rm -rf '$RDT_AO/x'" "$RDT_AR"
+
+# The block message names the key and says the agent cannot set it.
+guard_invoke --cwd / --command "rm -rf '$RDT_AO/x'" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR"
+assert_exit 'allowed roots: a delete outside every root blocks' 2 "$GUARD_RC"
+assert_contains 'allowed roots: the message names the key' "$GUARD_ERR" 'block_root_delete_target_allowed_roots'
+assert_contains 'allowed roots: the message says the agent cannot set it' "$GUARD_ERR" 'the agent cannot set it'
+
+# PowerShell judges the same targets through the same arm.
+rdt_arp() { # <label> <want> <command> [roots]
+  local -a env=("HOME=$RDT_AH")
+  [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
+  expect_both "allowed roots: PS $1" "$2" --tool PowerShell --cwd / --command "$3" -- "${env[@]}"
+}
+rdt_arp 'unset key: Remove-Item under the root blocks' 2 "Remove-Item -Recurse -Force '$RDT_AR/child'"
+rdt_arp 'Remove-Item under the root allowed' 0 "Remove-Item -Recurse -Force '$RDT_AR/child'" "$RDT_AR"
+rdt_arp 'Remove-Item -LiteralPath under the root allowed' 0 "Remove-Item -LiteralPath '$RDT_AR/child' -Recurse" "$RDT_AR"
+rdt_arp 'Remove-Item outside the root blocks' 2 "Remove-Item -Recurse -Force '$RDT_AO/x'" "$RDT_AR"
+rdt_arp 'Remove-Item on the root itself blocks' 2 "Remove-Item -Recurse -Force '$RDT_AR'" "$RDT_AR"
+rdt_arp 'Remove-Item on a sibling by prefix blocks' 2 "Remove-Item -Recurse -Force '$RDT_AR-x/child'" "$RDT_AR"
+rdt_arp 'Remove-Item on a .. escape blocks' 2 "Remove-Item -Recurse -Force '$RDT_AR/../elsewhere'" "$RDT_AR"
+rdt_arp 'Remove-Item on a drive root blocks' 2 'Remove-Item -Recurse -Force C:\' "$RDT_AR"
+rdt_arp 'Remove-Item on $env:USERPROFILE blocks' 2 'Remove-Item -Recurse -Force $env:USERPROFILE' "$RDT_AR"
+rdt_arp 'a $env: assignment in the command grants nothing' 2 "\$env:$RDT_KEY = '$RDT_AR'; Remove-Item -Recurse '$RDT_AR/child'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
@@ -1818,6 +1966,18 @@ done <<'EOF'
 0|runuser -u bob -- ls /
 0|chroot /mnt ls /
 EOF
+
+# A -match regex is text, not a path. It is allowed beside a literal-target delete,
+# and a refusal for some other reason never names the regex as a system path.
+PS_RX="-match '^[a-z0-9]{8}\.[a-z0-9]{3}\$'"
+expect_both 'PS regex pipeline with -LiteralPath $_.FullName delete allowed' 0 --tool PowerShell \
+  --command "Get-ChildItem C:\\Temp\\x | Where-Object { \$_.Name $PS_RX } | ForEach-Object { Remove-Item -LiteralPath \$_.FullName -Recurse -Force }"
+expect_both 'PS literal safe Remove-Item -Recurse beside the regex allowed' 0 --tool PowerShell \
+  --command "Remove-Item -Recurse -Force ./build; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+guard_invoke --tool PowerShell \
+  --command "Remove-Item -Recurse -Force C:\\; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+assert_exit "PS regex beside a root delete still blocks" 2 "$GUARD_RC"
+assert_absent "PS block message does not name the regex as a path" "$GUARD_ERR" '^[a-z0-9]'
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

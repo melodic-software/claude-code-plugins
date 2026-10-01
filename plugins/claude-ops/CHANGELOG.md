@@ -3,6 +3,226 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.1] - 2026-10-01
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.287.** Every lane extracts ok on that
+  build, so `VALIDATED_AGAINST` is now `2.1.287` and the self-check reports `ok` instead of
+  `degraded`. The one surface change is the hidden built-in command `/plugin-types`, which the
+  2.1.287 build no longer ships; its dismissed overlap with `code-metrics:audit-type-debt` is
+  removed from the native-surfaces store.
+
+## [0.80.0] - 2026-10-01
+
+### Added
+
+- **`/claude-ops:machine-profile` records what this machine has and reports when it changes.** It discovers machine facts and per-tree identity domains, stores them as a profile with the observation behind every value, and diffs the stored profile against the host. Read-only unless the operator confirms: `record --confirm` writes the profile and `apply --confirm` prints what to hand to each setup. It never installs and never reapplies a stored value on its own.
+
+## [0.79.4] - 2026-10-01
+
+### Fixed
+
+- **The inventory reads the Explore and Plan agents' full disallowed-tools list on Claude Code
+  2.1.286.** A `...spread` inside `tools` or `disallowedTools` now resolves to the binding its own
+  module and scope see, by the same rule name and field resolution use. Before, it took the
+  nearest same-name binding in the bundle, an unrelated call on 2.1.286, so the shared entries
+  (the Artifact tools among them) were dropped and the field read `partial`. A spread whose
+  binding is not an array literal, or is assigned anywhere else (a conditional write in the same
+  block, a nested block, another function, or an expression-bodied arrow), still reads `partial`.
+
+## [0.79.3] - 2026-10-01
+
+### Fixed
+
+- **A missing executable is classed as a hook launch failure.** Claude Code 2.1.285 reports a
+  hook whose command is not on `PATH` as `Executable not found in $PATH`; the unsurfaced hook
+  failure audit now classes that record as a launch failure instead of a completed non-zero exit.
+
+## [0.79.2] - 2026-10-01
+
+### Fixed
+
+- **The inventory no longer reports a phantom built-in command `string` on Claude Code 2.1.286.**
+  A command, bundled-skill, subagent or tool name held in an identifier now resolves only when the
+  binding that read sees, by the module and scope rule, is that string constant. A name bound to a
+  conditional or a call, or a constant in another module, stays unresolved; before, the nearest
+  string constant anywhere ahead won, so the skill loader's `Vt=$t?smt(e):e` read an unrelated
+  `Vt="string"`. `VALIDATED_AGAINST` is `2.1.286`.
+
+## [0.79.1] - 2026-10-01
+
+### Fixed
+
+- **A local declaration shadows an imported name in the inventory.** A name the module imports
+  but the reader's own enclosing block declares now resolves as a runtime value, not through the
+  import to the exporting module's value.
+- **A `for` head's `let`/`const` shadows outer names in the loop body.** `for (const x of ...)`,
+  `for (let i = 0; ...)` and `for await` bind their names for the body only, so a same-named
+  outer binding no longer supplies the value. This includes an unbraced loop body and a binding
+  named `of` or `in`.
+
+## [0.79.0] - 2026-10-01
+
+### Added
+
+- **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
+## [0.78.2] - 2026-10-01
+
+### Fixed
+
+- **`changelog`, `known-issues`, `lanes`, `observability` and `plugins` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script and data paths inside a skill now read `<skill-dir>/...`, and the `known-issues` recommendation-basis link text is the relative path. Prose that names the variable keeps the token. `known-issues`, `lanes`, `observability` and `plugins` gain a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A declined `ask` install gap stays in the report.** Re-entering with zero or partial picks
+  now lists the plugins left uninstalled under `Action needed`, and the plugins skill states that
+  a dismissed or unanswered multi-select re-enters with an empty id list.
+
+## [0.78.0] - 2026-09-30
+
+### Added
+
+- **Native drift files unresolved descriptions.** `native_drift.py summarize` records the
+  extraction's `integrity.undetermined.description_unresolved` names, and `diff` adds an
+  `unresolved-description` item for each name the previous summary did not list, so a release
+  that adds a description shape the inventory cannot read is filed instead of absorbed.
+
+### Fixed
+
+- **The inventory resolves built-in descriptions built by a call with arguments.** A tool's
+  `description()` method that passes a runtime value into a function (`kbr(RTe())`,
+  `gLr(void 0)`) is followed into that function, each plain parameter bound to its resolvable
+  argument and every other one a runtime value, and template
+  substitutions, `||`/`??` fallbacks, parenthesized parts and `[...].join()` arrays now resolve.
+  On Claude Code 2.1.285 the unresolved descriptions drop from 14 to 1 (`design`, whose text
+  reads a table keyed by a runtime mode, stays unresolved).
+- **Identifiers resolve by module.** The bytecode bundle repeats minified names from module to
+  module, so a name resolves through its import to the exporting module, or inside its own module;
+  a substitution such as `workflow-authoring`'s `${jd}` now reads `Workflow`, never a foreign
+  `host_exit`.
+- **Detect scores a tool's words and user-facing name.** A PascalCase native name
+  (`ClaudeDesign`, `EnterWorktree`) is scored as its words, and `user_facing_name` is scored
+  beside the description (it does not join the dismissal fingerprint), so a surface without a
+  resolvable description is still paired on its name, user-facing name and search hint.
+
+## [0.77.4] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` reads unreferenced plugin-cache versions through a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `disk-hygiene`, and `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge. The report is unchanged.
+
+## [0.77.3] - 2026-09-30
+
+### Changed
+
+- **`observability` and `inventory` descriptions fit the 500-character listing budget.** `observability` keeps its `explain-usage` route phrase and its sibling boundaries ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.77.2] - 2026-09-30
+
+### Fixed
+
+- **`audit-native-overlap generate` marks a `native description:` evidence line that carries an
+  em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
+  and the ai-slop audit skips that line instead of reporting it. A multi-line description is marked
+  on each physical line that carries a dash. Authored evidence lines are never marked.
+
+## [0.77.1] - 2026-09-30
+
+### Changed
+
+- **The `hook-failure-audit` Stop row runs in shell form.** The detector that reports unsurfaced hook failures no longer depends on `node`, the launcher whose absence it must report. The README and `/claude-ops:setup` name the exception.
+
+## [0.77.0] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` caps `unreferenced_versions` in the JSON report.** The report lists at
+  most 25 entries and adds `unreferenced_versions_total` and `unreferenced_versions_truncated`;
+  `--versions-out <file>` writes the full list. The schema is `claude-install-state/4`, and
+  `SKILL.md` documents the capped contract.
+
+## [0.76.0] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` hands decisions off instead of implementing them.** After the scope gate, a
+  row that fits the session goes through `/planning:plan`, `/implementation:implement` and
+  `/verification:confirm`, one PR per owner plugin. A row too large for the session is filed
+  through `/work-items:track` and worked later in its own PR. A stage whose plugin is missing is
+  reported as not executed, not done by hand. The phases are now ingest, explore, research, scope
+  gate, hand off, native-surface drift.
+- **The description, router and README describe `apply` as in-scope execution plus handoff**, not
+  a full integrate pipeline.
+- **Filing and the read marker are gated.** Rows too large are filed only after the user confirms the
+  batch. The ledger PR advances the marker only past releases whose rows are all applied in a merged
+  PR, nominated, recorded as declined or deferred, or filed.
+- **Eval 2 checks the handoff**: `apply` scopes the range and hands off, and does not plan,
+  implement or close issues itself.
+
+### Removed
+
+- **The plan, implement, verify and close-issues phases of `changelog apply`.** Planning and
+  implementing a change belongs to the stage skills, and closing issues by matching a title
+  to a changelog item is gone with them.
+
+## [0.75.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.75.1] - 2026-09-30
+
+### Changed
+
+- **Hook event log budget records Windows Git Bash figures.** `reference/hook-log-budget.md` and
+  the README replace the unmeasured Windows placeholder with the captured spawn floor, parallel
+  wall time, append integrity and `ls -t` tie. The switch stays off by default.
+- **`measure-hook-log-budget.sh` times S through the bash the launcher spawns** and records
+  `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
+  bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
+  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
+  paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
+  shell-portability gate does not read as a GNU `\b` regex escape.
+
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
+
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.74.0] - 2026-09-30
+
+### Added
+
+- **`changelog` has a surface-discovery script**, `scripts/discover-surfaces.sh [root]`. It prints
+  `repo-shape: marketplace|consumer`, then one line per surface class present with its count and
+  glob, and reports how many vendored skill files it excluded. It recognizes marketplace,
+  standalone-plugin and consumer repos, and counts skills and conventions by their `SKILL.md` and
+  `README.md` files. Covered by
+  `scripts/discover-surfaces.test.sh` and a consumer fixture.
+- **`changelog` has an eval that runs discovery on both repo shapes**: the marketplace shape on this
+  repo and the consumer shape on the fixture.
+
+### Changed
+
+- **`changelog` explore runs the discovery script** and greps only the classes it prints, where it
+  read a fixed surface list.
+- **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
+  not a checklist. A class the script does not print does not exist in the repo.
+
 ## [0.73.1] - 2026-09-30
 
 ### Changed

@@ -1,0 +1,23 @@
+{
+  "Q1": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "defer",
+      "alt": null,
+      "text": "waiting on legal",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "blocked",
+      "round": 1,
+      "resolution": "waiting on legal"
+    }
+  }
+}

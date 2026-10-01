@@ -82,11 +82,14 @@ const MEDIA_ID = String(BigInt(TWID) - (60_000n << 22n));
 let workRoot;
 /** @type {string} */
 let fixtureDir;
+let previousTmpdir;
 
 describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "watch-degradation-root-"));
     fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-degradation-fix-"));
+    previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = fixtureDir; // run-watch keeps its temp dirs, so they land in a dir removed below
     process.env.YOUTUBE_WORK_ROOT = workRoot;
     captured.stderr.length = 0;
     captured.stdout.length = 0;
@@ -94,6 +97,8 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
   });
 
   afterEach(async () => {
+    if (previousTmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTmpdir;
     delete process.env.YOUTUBE_WORK_ROOT;
     await fs.rm(workRoot, { recursive: true, force: true });
     await fs.rm(fixtureDir, { recursive: true, force: true });

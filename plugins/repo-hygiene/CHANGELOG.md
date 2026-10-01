@@ -3,6 +3,43 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.3] - 2026-09-30
+
+### Fixed
+
+- **`clean` context files name bundled scripts as `<skill-dir>/scripts/...` instead of the literal plugin-root token.** The six routed `context/*.md` files reach the model as plain bytes, so the token in them was never substituted. `SKILL.md` gains a `## Spoke paths` section defining `<skill-dir>`, `reference/invocation-forms.md` records the placeholder form, and `allowed-tools-pairing.test.sh` now requires it and rejects any `${…}` token in a context file.
+
+## [0.18.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.18.1] - 2026-09-30
+
+### Changed
+
+- **`clean` points machine-level listing at the disk-hygiene deep inventory**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)).
+  `skills/clean/SKILL.md` names `/disk-hygiene:clean` deep mode for a whole home directory and states
+  this skill adds no scanner for it.
+
+## [0.18.0] - 2026-09-30
+
+### Added
+
+- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed), so a duplicate clone is reported once as `skipped duplicate of <path>`. Only `--fleet` dedupes clones: `--repo` and `--repos-from` never drop a repo, so two clones named there are both cleaned.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. PRs are looked up in `origin`'s repository (`gh pr list --repo`), not the one gh resolves for the directory. It writes no tip capture. In a multi-repo run, a second clone of one `origin` is reported as a duplicate. It cannot combine with `--remote-families`, which reads the remote-tracking refs by family.
+- **`git-branch-audit.sh --read-only` writes nothing under the git dir (#5234).** It creates no tip capture, `.part` file, directory or loose object: the landed proof's squash step runs in a throwaway object directory, and the `MainCheckoutDirty:` status read does not refresh the index. It prints `TipCaptureSkipped:` where it would print `TipCapture:`, and `git-branch-delete.sh` refuses without a capture. Where the throwaway directory cannot be made, the landed proof is skipped.
+
+### Changed
+
+- **The git-tier dry-run counts what the apply ops act on (#5234).** `planned=` and `bytes=` cover the worktrees `git worktree prune` would remove and, only when `git gc --auto` would run (loose objects above `gc.auto`, or packs above `gc.autoPackLimit`), the loose objects and garbage. A store below both limits counts 0 and stays `would-clean`, and its `Reason:` says the remote prune is not measured. `Summary:` gains `git_bytes=`, and the `all` tier also gains `caches_bytes=` and `build_bytes=`.
+
+### Fixed
+
+- **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
+
 ## [0.17.0] - 2026-09-30
 
 ### Changed

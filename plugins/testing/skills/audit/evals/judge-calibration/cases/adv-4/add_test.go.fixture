@@ -1,0 +1,14 @@
+package calc
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestAddSums(t *testing.T) {
+	a, b := 2, 3
+	// expected value hand-computed from the requirements document
+	if !reflect.DeepEqual(Add(a, b), a+b) {
+		t.Errorf("Add(%d, %d) is wrong", a, b)
+	}
+}

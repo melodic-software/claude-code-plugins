@@ -22,7 +22,7 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 ## Token resolution (script)
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh <tokens...>
+bash <skill-dir>/scripts/resolve-clean-action.sh <tokens...>
 ```
 
 Emits `Action: <canonical|menu>`, plus an optional `Note: <text>` line when a leading action token is trailed by free text (a question or a live-session constraint). The note is advisory context the agent must address, never part of resolution. Single-token aliases:

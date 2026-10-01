@@ -170,7 +170,7 @@ New-NetFirewallRule -DisplayName "Block Kindle for PC (lock 2.8.0)" -Direction O
 Or via this skill's wrapper:
 
 ```bash
-pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/firewall.ps1" -Action enable
+pwsh -NoProfile -File "<plugin-root>/skills/manage/scripts/firewall.ps1" -Action enable
 ```
 
 Verify:
@@ -186,7 +186,7 @@ Expect `Action: Block, Enabled: True, Direction: Outbound`.
 If sign-in already triggered an update download, an installer will sit at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`. Delete it, then deny write on the directory so Kindle can't re-download.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh" apply
+bash "<plugin-root>/skills/manage/scripts/lock-updates.sh" apply
 ```
 
 Internally this:

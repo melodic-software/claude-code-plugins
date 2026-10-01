@@ -332,6 +332,381 @@ run_win "python open ( C:/tmp write (blocked)" "python3 -c \"open ('C:/tmp/x','w
 run_win "python getattr open C:/tmp write (blocked)" "python3 -c \"getattr(__builtins__,'open')('C:/tmp/x','w')\"" 2
 run_win "python open C:/tmp write (blocked)" "python3 -c \"open('C:/tmp/x','w').write('a')\"" 2
 run_win "python open C:/Temp write (allowed — tmp-only scope, twin of C:/tmp)" "python3 -c \"open('C:/Temp/x','w').write('a')\"" 0
+# A provable READ is relieved only when the WHOLE unsplit command proves it
+# (#3951): a heredoc body splits at each `;`, so a per-segment relief let a decoy
+# read clear its segment while the write in the next segment matched nothing.
+run_win "python heredoc json.load(open(/tmp)) read (allowed)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
+run_win "python -c open(/tmp,'rb').read() (allowed)" "python3 -c \"print(open('/tmp/x', 'rb').read())\"" 0
+run_win "python heredoc decoy read then os.system to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); import os; os.system(\'echo pwned > /tmp/evil\')\nEOF' 2
+run_win "python heredoc decoy read then shutil.copy to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); import shutil; shutil.copy(\'a\',\'/tmp/y\')\nEOF' 2
+run_win "python heredoc read then write open in the next segment (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); open(\'/tmp/y\', \'w\').write(d)\nEOF' 2
+# A shell expansion can splice a write mode into a quoted literal.
+# shellcheck disable=SC2016
+run_win "python read with \$m spliced into the literal (blocked)" \
+  'm="'"'"', '"'"'w"; python3 -c "open('"'"'/tmp/x$m'"'"').read()"' 2
+# A rebound receiver can create the file before .open fails.
+run_win "python rebound Path(/tmp).open().read() (blocked)" \
+  "python3 -c \"from logging import FileHandler as Path; Path('/tmp/x').open().read()\"" 2
+run_win "python json rebound by from-import (blocked)" \
+  "python3 -c \"from shelf import dump as json; json.load(open('/tmp/x'))\"" 2
+run_win "python wildcard import rebinds open before a /tmp read (blocked)" \
+  "python3 -c \"from dbm.dumb import *; open('C:/tmp/x').read()\"" 2
+run_win "python wildcard import without a space rebinds open (blocked)" \
+  "python3 -c \"from dbm.dumb import*; open('/c/tmp/x').read()\"" 2
+run_win_pwsh "PS: python wildcard import rebinds open (blocked)" \
+  "python -c \"from dbm.dumb import *; open('C:/tmp/x').read()\"" 2
+run_win "python spaced method form d . open(/tmp) creates the file (blocked)" \
+  "python3 -c \"import dbm.dumb as d; d . open('/tmp/x').read()\"" 2
+# Every `open(` anywhere in the command must be a provable read, and once those
+# read calls are cut out no drive-root tmp path may be left.
+run_win "python -c open(/tmp,'r') explicit read mode (allowed)" \
+  "python3 -c \"print(open('/tmp/x','r').read())\"" 0
+run_win "python open(/tmp) read with dict subscript (allowed)" \
+  "python3 -c \"import json; print(json.load(open('/tmp/x.json'))['a'])\"" 0
+run_win "python open(/tmp) read with encoding= (allowed)" \
+  "python3 -c \"print(open('/tmp/x', encoding='utf-8').read())\"" 0
+run_win "python open(/tmp,'r',encoding=) read (allowed)" \
+  "python3 -c \"print(open('/tmp/x', 'r', encoding='utf-8').read())\"" 0
+run_win "python open(sys.argv[1]) read beside open(/tmp) read (allowed)" \
+  "python3 -c \"import sys; print(open(sys.argv[1]).read(), open('/tmp/x').read())\"" 0
+run_win "python open(/tmp) read beside a spaced path read (allowed)" \
+  "python3 -c \"print(open('/tmp/x').read(), open('/c/Users/a b/y.txt').read())\"" 0
+# A read call's argument must be a plain path. Ruby's Kernel#open runs an argument
+# that starts with `|` as a subprocess, and `%x[...]` and `"#{...}"` run code. The
+# drive-root path sits inside the accepted call, where neither the leftover-tmp
+# check nor the redirect check (the `>` is quoted) sees it.
+run_win "ruby open('|echo hi > /c/tmp/x').read() runs a subprocess (blocked)" \
+  "ruby -e \"open('|echo hi > /c/tmp/x').read()\"" 2
+run_win "ruby JSON.load(open('|echo hi > /c/tmp/x')) (blocked)" \
+  "ruby -e \"JSON.load(open('|echo hi > /c/tmp/x'))\"" 2
+run_win "ruby open('|cp a /c/tmp/x').readlines() (blocked)" \
+  "ruby -e \"open('|cp a /c/tmp/x').readlines()\"" 2
+run_win "ruby open(' |echo hi > /c/tmp/x') leading space before the pipe (blocked)" \
+  "ruby -e \"open(' |echo hi > /c/tmp/x').read()\"" 2
+run_win "ruby open(%q[|echo hi > /c/tmp/x]) unquoted operand (blocked)" \
+  "ruby -e \"open(%q[|echo hi > /c/tmp/x]).read()\"" 2
+run_win "ruby open(%x[echo hi > /c/tmp/x]) command literal (blocked)" \
+  "ruby -e \"open(%x[echo hi > /c/tmp/x]).read()\"" 2
+run_win "ruby open(\"#{%x(...)}\") interpolation (blocked)" \
+  "ruby -e 'open(\"#{%x(echo hi > /c/tmp/x)}\").read()'" 2
+run_win "ruby open(/c/tmp, encoding=\"#{...}\") interpolated kwarg (blocked)" \
+  "ruby -e 'open(\"/c/tmp/x\", encoding=\"#{%x(echo hi > /c/tmp/y)}\").read()'" 2
+run_win "ruby pipe command held in a variable, path outside the call (blocked)" \
+  "ruby -e \"x='|echo hi > /c/tmp/x'; open(x).read()\"" 2
+run_win_pwsh "PS: ruby open('|echo hi > /c/tmp/x').read() (blocked)" \
+  "ruby -e \"open('|echo hi > /c/tmp/x').read()\"" 2
+run_win_pwsh "PS: ruby open(%q[|echo hi > /c/tmp/x]) unquoted operand (blocked)" \
+  "ruby -e \"open(%q[|echo hi > /c/tmp/x]).read()\"" 2
+run_win_pwsh "PS: ruby open(%x[echo hi > /c/tmp/x]) command literal (blocked)" \
+  "ruby -e \"open(%x[echo hi > /c/tmp/x]).read()\"" 2
+# The method form is not provable: its receiver can be rebound, so it stays blocked.
+run_win "python Path(/tmp).open() method read (blocked)" \
+  "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open().read())\"" 2
+run_win "python Path(/tmp).open('rb') method read (blocked)" \
+  "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open('rb').read())\"" 2
+# Fail closed: the path sits outside the read call, so nothing ties it to the read.
+run_win "python heredoc /tmp argv operand, path outside the call (blocked)" \
+  $'python3 - /tmp/retro-685.json <<\'EOF\'\nimport json, sys\nprint(json.load(open(sys.argv[1])))\nEOF' 2
+# Fail closed: prose quoting open(...) beside a /tmp path outside the call. Without
+# the open( the same body is allowed (next case).
+run_win "gh body quoting open(...) beside /tmp (blocked)" \
+  $'gh issue create --title x --body "$(cat <<\'EOF\'\na `python3 - <<\'EOF\'` heredoc whose only use of the path was\n`json.load(open(...))` on a `/tmp/retro-685.json` argument was blocked\nEOF\n)"' 2
+run_win "gh body mentioning /tmp without open( (allowed)" \
+  'gh issue create --title x --body "a heredoc reading /tmp/retro-685.json was blocked"' 0
+
+# --- Inline python: every write spelling still blocks ------------------------
+run_win "python heredoc open(/tmp,'w') write (blocked)" \
+  $'python3 - <<\'EOF\'\nwith open(\'/tmp/x\', \'w\') as f:\n    f.write(\'a\')\nEOF' 2
+run_win "python open(/tmp, mode='a') (blocked)" "python3 -c \"open('/tmp/x', mode='a').write('a')\"" 2
+run_win "python open(/tmp,'r+') update mode (blocked)" "python3 -c \"open('/tmp/x','r+').write('a')\"" 2
+run_win "python open(/tmp,'xb') exclusive create (blocked)" "python3 -c \"open('/tmp/x','xb')\"" 2
+run_win "python open(join(/tmp,x),'w') nested call (blocked)" \
+  "python3 -c \"import os; open(os.path.join('/tmp','x'),'w')\"" 2
+run_win "python Path(/tmp).open('w') method form (blocked)" \
+  "python3 -c \"from pathlib import Path; Path('/tmp/x').open('w').write('a')\"" 2
+run_win "python Path(/tmp).write_text (blocked)" \
+  "python3 -c \"from pathlib import Path; Path('/tmp/x').write_text('a')\"" 2
+run_win "python os.makedirs(/tmp/x) (blocked)" "python3 -c \"import os; os.makedirs('/tmp/x')\"" 2
+run_win "python os.open(/tmp, O_WRONLY|O_CREAT) (blocked)" \
+  "python3 -c \"import os; os.open('/tmp/x', os.O_WRONLY | os.O_CREAT)\"" 2
+run_win "python open(C:\\tmp,'w') drive-letter (blocked)" "python3 -c \"open(r'C:\\tmp\\x','w')\"" 2
+# Anything not provably a read fails closed.
+run_win "python open(/tmp, m) variable mode (blocked)" "python3 -c \"open('/tmp/x', m).write('a')\"" 2
+run_win "python open(/tmp, mode=m) variable mode (blocked)" "python3 -c \"open('/tmp/x', mode=m)\"" 2
+run_win "python read then write open in one segment (blocked)" \
+  "python3 -c \"open('/tmp/x').read(); open('/tmp/y', 'w')\"" 2
+run_win "python heredoc read then write open (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read()\nopen(\'/tmp/y\', \'a\').write(d)\nEOF' 2
+run_win "python os.popen writing /tmp (blocked)" "python3 -c \"import os; os.popen('echo a > /tmp/x')\"" 2
+run_win "python os.fdopen beside /tmp (blocked)" \
+  "python3 -c \"import os; os.fdopen(os.open('/tmp/x', 1), 'w')\"" 2
+run_win "python os.open(/tmp, O_RDONLY) unproven (blocked)" \
+  "python3 -c \"import os; os.open('/tmp/x', os.O_RDONLY)\"" 2
+run_win "python ')' inside the quoted path, write mode (blocked)" "python3 -c \"open('/tmp/x)y','w').write('a')\"" 2
+run_win "python ')' inside a comment, write mode (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\' # )\n, \'w\').write(\'a\')\nEOF' 2
+run_win "python triple-quoted path hiding ')' (blocked)" "python3 -c \"open('''/tmp/x')''', 'w')\"" 2
+run_win "python mixed-quote kwarg hiding mode='w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', encoding="a\')", mode=\'w\')\nEOF' 2
+# An escaped quote ends the literal for a regex but not for python.
+run_win "python heredoc escaped-quote path, 'w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\\\')\', \'w\').write(\'a\')\nEOF' 2
+run_win "python heredoc escaped double-quote path, 'w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen("/tmp/x\\")", "w").write("a")\nEOF' 2
+run_win "python heredoc escaped-quote C:/tmp, 'w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'C:/tmp/x\\\')\', \'w\').write(\'a\')\nEOF' 2
+run_win "python -c escaped-quote /c/tmp, 'a' (blocked)" "python3 -c \"open('/c/tmp/x\\')', 'a')\"" 2
+run_win_pwsh "PS: python escaped-quote C:\\tmp, 'w' (blocked)" "python -c \"open('C:\\tmp\\x\\')', 'w').write('a')\"" 2
+run_win "python heredoc escaped-quote kwarg hiding mode='w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', encoding=\'utf-8\\\')\', mode=\'w\')\nEOF' 2
+# Star unpacking smuggles the mode past an unquoted argument.
+run_win "python open(*a) with a /tmp,'w' tuple (blocked)" "python3 -c \"a=('/tmp/x','w'); open(*a).write('a')\"" 2
+run_win_pwsh "PS: python open(*a) with a C:/tmp,'w' tuple (blocked)" "python -c \"a=('C:/tmp/x','w'); open(*a).write('a')\"" 2
+run_win "python open(**k) dict literal (blocked)" "python3 -c \"k={'file':'/tmp/x','mode':'w'}; open(**k)\"" 2
+run_win "python open(**k) dict() C:/tmp (blocked)" "python3 -c \"k=dict(file='C:/tmp/x',mode='a'); open(**k)\"" 2
+# An f-string runs code inside its braces, so it never proves a read.
+run_win "python open(f-string running os.system to /tmp) (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(f\'/tmp/x{__import__("os").system("echo a > /tmp/y")}\')\nEOF' 2
+# Only a read call's CONTENT may leave it; its path (.name, a call argument) or exec keeps it blocked.
+run_win "python shutil.copy to open(/tmp).name (blocked)" \
+  "python3 -c \"import shutil; shutil.copy('/etc/hosts', open('/tmp/x').name)\"" 2
+run_win "python os.system cp to open(/tmp).name (blocked)" \
+  "python3 -c \"import os; os.system('cp /etc/hosts ' + open('/tmp/x').name)\"" 2
+run_win "python os.rename to open(/tmp).name (blocked)" \
+  "python3 -c \"import os; os.rename('a', open('/tmp/x').name)\"" 2
+run_win "python shutil.copy to Path(/tmp).open().name (blocked)" \
+  "python3 -c \"from pathlib import Path; import shutil; shutil.copy('/etc/hosts', Path('/tmp/x').open().name)\"" 2
+run_win_pwsh "PS: python shutil.copy to open(C:/tmp).name (blocked)" \
+  "python -c \"import shutil; shutil.copy('a', open('C:/tmp/x').name)\"" 2
+run_win "python exec(open(/tmp).read()) (blocked)" "python3 -c \"exec(open('/tmp/x').read())\"" 2
+run_win "python os.remove(open(/tmp).name) (blocked)" "python3 -c \"import os; os.remove(open('/tmp/x').name)\"" 2
+# A proven read must not whitelist a sibling write in the same segment.
+run_win "python read + os.system redirect to /tmp (blocked)" \
+  "python3 -c \"open('/etc/hosts').read(); __import__('os').system('echo a > /tmp/y')\"" 2
+run_win "python read + shutil.copy to /tmp (blocked)" \
+  "python3 -c \"import shutil; open('/etc/hosts').read(); shutil.copy('/etc/hosts','/tmp/y')\"" 2
+run_win_pwsh "PS: python read + shutil.copy to C:/tmp (blocked)" \
+  "python -c \"import shutil; open('/etc/hosts').read(); shutil.copy('/etc/hosts','C:/tmp/y')\"" 2
+run_win "python read + os.rename to /tmp (blocked)" \
+  "python3 -c \"import os; open('/etc/hosts').read(); os.rename('a','/tmp/y')\"" 2
+run_win "python read + subprocess cp to /tmp (blocked)" \
+  "python3 -c \"import subprocess; open('/etc/hosts').read(); subprocess.run(['cp','/etc/hosts','/tmp/y'])\"" 2
+run_win "python read /tmp + os.mknod /tmp (blocked)" "python3 -c \"open('/tmp/x'); import os; os.mknod('/tmp/y')\"" 2
+
+# --- Heredoc decoy read, then a write in a later segment ----------------------
+# The decoy read is a proven read on its own. The write that follows a `;` or a
+# newline lands in another segment and must still block.
+run_win "python heredoc decoy read, newline, os.system to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read()\nimport os; os.system(\'echo pwned > /tmp/evil\')\nEOF' 2
+run_win "python heredoc decoy read; os.system to /tmp on one line (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read(); import os; os.system(\'echo pwned > /tmp/evil\')\nEOF' 2
+run_win "python heredoc decoy read, newline, shutil.copy to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read()\nimport shutil\nshutil.copy(\'a\', \'/tmp/y\')\nEOF' 2
+run_win "python heredoc decoy read; shutil.copy to /tmp on one line (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read(); import shutil; shutil.copy(\'a\', \'/tmp/y\')\nEOF' 2
+run_win "python heredoc decoy read, newline, open(/tmp,'w') (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read()\nopen(\'/tmp/b\', \'w\').write(d)\nEOF' 2
+run_win "python heredoc decoy read; open(/tmp,'w') on one line (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read(); open(\'/tmp/b\', \'w\').write(d)\nEOF' 2
+run_win "python heredoc decoy read, newline, Path(/tmp).write_text (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read()\nfrom pathlib import Path\nPath(\'/tmp/b\').write_text(d)\nEOF' 2
+run_win "python heredoc read .name fed to shutil.copy (blocked)" \
+  $'python3 - <<\'EOF\'\nimport shutil\nn = open(\'/tmp/a\').name\nshutil.copy(\'x\', n)\nEOF' 2
+run_win "python heredoc open(/tmp).read() beside open(/tmp).name fed to a write (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read(); import shutil; shutil.copy(\'x\', open(\'/tmp/a\').name)\nEOF' 2
+# The same decoys on PowerShell: the hook reads the command text, so a here-string
+# fed to python and an inline -c run through the same rule.
+run_win_pwsh "PS: python heredoc decoy read; os.system to C:/tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'C:/tmp/a\').read(); import os; os.system(\'echo pwned > C:/tmp/evil\')\nEOF' 2
+run_win_pwsh "PS: python heredoc decoy read, newline, shutil.copy to C:/tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'C:/tmp/a\').read()\nimport shutil; shutil.copy(\'a\', \'C:/tmp/y\')\nEOF' 2
+run_win_pwsh "PS: python heredoc decoy read; open(C:/tmp,'w') (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'C:/tmp/a\').read(); open(\'C:/tmp/b\', \'w\').write(d)\nEOF' 2
+run_win_pwsh "PS: here-string decoy read; os.system to C:/tmp (blocked)" \
+  $'@\'\nd = open(\'C:/tmp/a\').read(); import os; os.system(\'echo pwned > C:/tmp/evil\')\n\'@ | python -' 2
+run_win_pwsh "PS: python -c decoy read; shutil.copy to C:/tmp (blocked)" \
+  "python -c \"import shutil; d = open('C:/tmp/a').read(); shutil.copy('a', 'C:/tmp/y')\"" 2
+run_win_pwsh "PS: python heredoc read .name fed to shutil.copy (blocked)" \
+  $'python3 - <<\'EOF\'\nimport shutil\nn = open(\'C:/tmp/a\').name\nshutil.copy(\'x\', n)\nEOF' 2
+# The heredoc whose only reference to the path is a read is allowed; the same
+# heredoc rewritten to write that path is blocked.
+run_win "python heredoc json.load(open(/tmp)) then print (allowed)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nprint(len(d))\nEOF' 0
+run_win "python heredoc json.dump to the same /tmp path, write mode (blocked)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = {}\njson.dump(d, open(\'/tmp/retro-685.json\', \'w\'))\nEOF' 2
+run_win "python heredoc Path(/tmp/retro-685.json).write_text (blocked)" \
+  $'python3 - <<\'EOF\'\nfrom pathlib import Path\nPath(\'/tmp/retro-685.json\').write_text(\'{}\')\nEOF' 2
+run_win_pwsh "PS: python heredoc json.load(open(C:/tmp)) read (allowed)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'C:/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
+run_win_pwsh "PS: python heredoc json.dump to the same C:/tmp path, write mode (blocked)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = {}\njson.dump(d, open(\'C:/tmp/retro-685.json\', \'w\'))\nEOF' 2
+# The read relief needs python to be what consumes the read-call text. In any
+# other shape a pipeline lifts the literal out of the text and writes it, and a
+# second run in the same command writes elsewhere.
+run_win "echo open(/c/tmp).read() | xargs -d tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" tee" 2
+run_win "echo open(/c/tmp).read() | xargs -d -n1 tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" -n1 tee" 2
+run_win "echo open(/c/tmp).read() | cut | xargs tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win "echo open(/c/tmp).read() | cut | xargs cp a (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs cp a" 2
+run_win "echo json.load(open(/c/tmp)) | cut | xargs tee (blocked)" \
+  "echo \"json.load(open('/c/tmp/x'))\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win "python read, then a second python run on a computed path (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\"; python3 -c \"import sqlite3; sqlite3.connect('/c/t'+'mp/b')\"" 2
+run_win "python -c read with its output piped to xargs tee (blocked)" \
+  "python3 -c \"print('/c/t'+'mp/x'); open('/c/tmp/a').read()\" | xargs tee" 2
+run_win "python -c read with an argument (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\" arg" 2
+run_win "python heredoc read with its output piped to xargs tee (blocked)" \
+  $'python3 - <<\'EOF\' | xargs -n1 tee\nimport json; d = json.load(open(\'/c/tmp/a\'))\nprint(\'/c/t\' + \'mp/x\')\nEOF' 2
+run_win "python heredoc read, then a line piping a computed path to tee (blocked)" \
+  $'python3 - <<\'EOF\'\nprint(open(\'/c/tmp/a\').read())\nEOF\necho /c/t""mp/x | xargs tee' 2
+run_win "script file fed a read as its heredoc (blocked)" \
+  $'python3 ./w.py <<\'EOF\'\nopen(\'/c/tmp/a\').read()\nEOF' 2
+run_win "path-qualified python word with a read (blocked)" \
+  "./python3 -c \"print(open('/c/tmp/a').read())\"" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | xargs -d tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | xargs -d -n1 tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" -n1 tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | cut | xargs tee (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win_pwsh "PS: echo open(/c/tmp).read() | cut | xargs cp a (blocked)" \
+  "echo \"open('/c/tmp/x').read()\" | cut -d \"'\" -f2 | xargs cp a" 2
+run_win_pwsh "PS: echo json.load(open(/c/tmp)) | cut | xargs tee (blocked)" \
+  "echo \"json.load(open('/c/tmp/x'))\" | cut -d \"'\" -f2 | xargs tee" 2
+run_win_pwsh "PS: python read, then a second python run on a computed path (blocked)" \
+  "python3 -c \"print(open('/c/tmp/a').read())\"; python3 -c \"import sqlite3; sqlite3.connect('/c/t'+'mp/b')\"" 2
+run_win_pwsh "PS: python heredoc read with its output piped to xargs tee (blocked)" \
+  $'python3 - <<\'EOF\' | xargs -n1 tee\nimport json; d = json.load(open(\'/c/tmp/a\'))\nprint(\'/c/t\' + \'mp/x\')\nEOF' 2
+# The one allowed shape is a single plain python run: its -c string, or a heredoc
+# on stdin with nothing after the terminator.
+run_win "python -B -u -c open(/tmp) read (allowed)" "python3 -B -u -c \"print(open('/tmp/x').read())\"" 0
+run_win "py launcher -3 -c open(/c/tmp) read (allowed)" "py -3 -c \"print(open('/c/tmp/x').read())\"" 0
+run_win "python heredoc read, no - operand, blank lines after the tag (allowed)" \
+  $'python3 <<\'EOF\'\nprint(open(\'/c/tmp/a\').read())\nEOF\n\n' 0
+run_win_pwsh "PS: python -c open(C:/tmp) read (allowed)" "python -c \"print(open('C:/tmp/x').read())\"" 0
+# Inline-code text quoted as data to a command that only carries text is a
+# mention (#3951). The relief is an allowlist of whole commands (gh issue/pr
+# create|comment|edit, git commit|tag, echo, printf), so any command not on it,
+# including an interpreter this guard has never heard of, keeps the rule.
+run_win "gh body quoting a write-mode open(/tmp) (allowed)" \
+  "gh issue create --title t --body \"open('/tmp/x','w').write(1) was refused\"" 0
+run_win "git commit -m quoting open(C:/tmp, 'w') (allowed)" \
+  "git commit -m \"fix: open('C:/tmp/x','w') no longer refused\"" 0
+run_win "gh body quoting write_text on /tmp (allowed)" \
+  "gh issue comment 1 --body \"Path('/tmp/x').write_text('a') in the snippet\"" 0
+run_win "gh body quoting write_bytes and makedirs on /tmp (allowed)" \
+  "gh issue comment 1 --body \"Path('/tmp/x').write_bytes(b); os.makedirs('/tmp/d')\"" 0
+run_win "gh single-quoted body quoting open(/c/tmp, \"w\") (allowed)" \
+  "gh pr comment 2 --body 'open(\"/c/tmp/x\",\"w\") was refused'" 0
+run_win "echo quoting open(/tmp, 'w') (allowed)" "echo \"open('/tmp/x','w')\"" 0
+run_win "gh body naming python3 beside open(/tmp, 'w') (allowed, prose)" \
+  "gh issue create --title t --body \"python3 open('/tmp/x','w')\"" 0
+run_win "git tag -a -m quoting open(/c/tmp, 'w') (allowed)" \
+  "git tag -a v1 -m \"open('/c/tmp/x','w')\"" 0
+run_win "printf quoting open(/tmp, 'w') (allowed)" "printf '%s' \"open('/tmp/x','w')\"" 0
+# An unlisted interpreter must not read as data: the relief is an allowlist, not
+# a list of known runners.
+run_win "R -e open(/c/tmp, 'w') (blocked)" \
+  "R -e \"con<-file('/c/tmp/x');open(con,'w');writeLines('a',con)\"" 2
+run_win "octave fopen(/c/tmp, 'w') (blocked)" \
+  "octave --eval \"fid=fopen('/c/tmp/x','w');fprintf(fid,'a')\"" 2
+run_win "npx tsx fs.open(/c/tmp, 'w') (blocked)" \
+  "npx tsx -e \"require('fs').open('/c/tmp/x','w',()=>{})\"" 2
+run_win "elixir File.open(/c/tmp) (blocked)" "elixir -e 'File.open(\"/c/tmp/x\",[:write])'" 2
+run_win "erl file:open(/c/tmp) (blocked)" "erl -noshell -eval 'file:open(\"/c/tmp/x\",[write]),halt().'" 2
+run_win "tcc -run heredoc fopen(/c/tmp) (blocked)" \
+  $'tcc -run - <<\'EOF\'\nint main(){FILE*f=fopen("/c/tmp/x","w");return 0;}\nEOF' 2
+run_win "gcc heredoc fopen(/c/tmp) then ./a.out (blocked)" \
+  $'gcc -x c - -o a.out <<\'EOF\' && ./a.out\nint main(){FILE*f=fopen("/c/tmp/x","w");return 0;}\nEOF' 2
+run_win "make heredoc recipe running R open(/c/tmp) (blocked)" \
+  $'make -f - <<\'EOF\'\nx:\n\tR -e "open(\'/c/tmp/x\',\'w\')"\nEOF' 2
+run_win "env R open(/c/tmp) (blocked)" "env R -e \"open('/c/tmp/x','w')\"" 2
+run_win "time R open(/c/tmp) (blocked)" "time R -e \"open('/c/tmp/x','w')\"" 2
+run_win "glob-spelled /usr/bin/pyth*3 open(/c/tmp) (blocked)" \
+  "/usr/bin/pyth*3 -c \"open('/c/tmp/x','w')\"" 2
+run_win "glob-spelled p?thon3 open(/c/tmp) (blocked)" "p?thon3 -c \"open('/c/tmp/x','w')\"" 2
+run_win "quoted mention piped to R (blocked)" "echo \"open('/c/tmp/x','w')\" | R --no-save" 2
+run_win "quoted mention piped to an unknown interpreter (blocked)" \
+  "echo \"open('/c/tmp/x','w')\" | ./interp" 2
+run_win "quoted mention, then a script run by path (blocked)" \
+  "cat s.py \"open('/c/tmp/x','w')\" ; ./s.py" 2
+run_win "gh body mention then an unlisted command after && (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w')\" && R -e 1" 2
+run_win "gh body mention with an unquoted glob arg (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w')\" --label *" 2
+run_win "gh body mention with an unterminated quote (blocked)" \
+  "gh issue create --body \"open('/c/tmp/x','w') --title 'a" 2
+run_win "gh api (not text-carrying) quoting open(/c/tmp) (blocked)" \
+  "gh api repos/o/r/issues -f body=\"open('/c/tmp/x','w')\"" 2
+# A quoted command word must not vanish and leave a trailing listed word in its
+# place: bash runs python3 here with echo/printf/git as arguments.
+run_win "quoted \"python3\" \"-c\" open(/c/tmp) then echo (blocked)" \
+  "\"python3\" \"-c\" \"open('/c/tmp/x','w').write('a')\" echo" 2
+run_win "quoted 'python3' '-c' open(/c/tmp) then printf (blocked)" \
+  "'python3' '-c' \"open('/c/tmp/x','w').write('a')\" printf x" 2
+run_win "quoted \"python3\" \"-c\" open(/c/tmp) then git commit (blocked)" \
+  "\"python3\" \"-c\" \"open('/c/tmp/x','w')\" git commit -m x" 2
+run_win "quoted 'python3' '-c' write_text(/c/tmp) then gh issue create (blocked)" \
+  "'python3' '-c' \"import pathlib; pathlib.Path('/c/tmp/x').write_text('a')\" gh issue create" 2
+run_win "quoted \"python3\" \"-c\" open(/tmp) then git tag (blocked)" \
+  "\"python3\" \"-c\" \"open('/tmp/x','w')\" git tag v1" 2
+run_win "gh, newline, pr create quoting open(/c/tmp) (blocked)" \
+  $'gh\npr create --body "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "git, newline, commit quoting open(/c/tmp) (blocked)" \
+  $'git\ncommit -m "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "gh issue, newline, create quoting open(/c/tmp) (blocked)" \
+  $'gh issue\ncreate --body "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "quoted \"echo\" word with open(/c/tmp) (blocked, fail-closed)" \
+  "\"echo\" \"open('/c/tmp/x','w')\"" 2
+run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then echo (blocked)" \
+  "\"python3\" \"-c\" \"open('C:/tmp/x','w').write('a')\" echo" 2
+run_win_pwsh "PS: quoted 'python3' '-c' open(C:/tmp) then printf (blocked)" \
+  "'python3' '-c' \"open('C:/tmp/x','w').write('a')\" printf x" 2
+run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then git commit (blocked)" \
+  "\"python3\" \"-c\" \"open('C:/tmp/x','w')\" git commit -m x" 2
+# A computed path beside a decoy read: the token tmp left outside the read call
+# keeps the block.
+run_win "python read then urlretrieve to a concatenated /c/'+'tmp path (blocked)" \
+  "python3 -c \"import json; json.load(open('/c/tmp/a')); import urllib.request as u; u.urlretrieve('http://x', '/c/'+'tmp/b')\"" 2
+run_win "python read then sqlite3 on a concatenated path (blocked)" \
+  "python3 -c \"d=open('/c/tmp/a').read(); import sqlite3; sqlite3.connect('/c/'+'tmp/b')\"" 2
+run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, 'rb') (blocked)" "[IO.File]::Open('C:/tmp/x','rb')" 2
+run_win "quoted open(/tmp) piped to sh (blocked)" "echo \"open('/tmp/x','w')\" | sh" 2
+run_win "quoted open(/tmp) piped to xargs (blocked)" "echo \"open('/tmp/x','w')\" | xargs echo" 2
+run_win "eval of quoted open(/tmp) (blocked)" "eval \"echo open('/tmp/x','w')\"" 2
+run_win "bash -c of quoted open(/tmp) (blocked)" "bash -c \"echo open('/tmp/x','w')\"" 2
+run_win "sh -c of quoted open(/tmp) (blocked)" "sh -c \"echo open('/tmp/x','w')\"" 2
+# shellcheck disable=SC2016
+run_win "variable-held command runs open(/tmp) (blocked)" '$P -c "open('"'"'/tmp/x'"'"','"'"'w'"'"')"' 2
+# shellcheck disable=SC2016
+run_win "backtick command word runs open(/tmp) (blocked)" '`which python3` -c "open('"'"'/tmp/x'"'"','"'"'w'"'"')"' 2
+run_win "quote-spliced pyth''on3 runs open(/tmp) (blocked)" "pyth''on3 -c \"open('/tmp/x','w')\"" 2
+run_win "sudo python3 open(/tmp) (blocked)" "sudo python3 -c \"open('/tmp/x','w')\"" 2
+run_win "env python3 open(/tmp) (blocked)" "env python3 -c \"open('/tmp/x','w')\"" 2
+run_win "exec python3 open(/tmp) (blocked)" "exec python3 -c \"open('/tmp/x','w')\"" 2
+run_win "/usr/bin/python3 open(/tmp) (blocked)" "/usr/bin/python3 -c \"open('/tmp/x','w')\"" 2
+run_win "python.exe open(/tmp) (blocked)" "python.exe -c \"open('/tmp/x','w')\"" 2
+run_win "py.exe open(/tmp) (blocked)" "py.exe -3 -c \"open('/tmp/x','w')\"" 2
+run_win "perl open(/tmp) (blocked)" "perl -e \"open(F, '>/tmp/x')\"" 2
+run_win "ruby File.open(/tmp) (blocked)" "ruby -e \"File.open('/tmp/x','w')\"" 2
+run_win "process substitution feeding open(/tmp) (blocked)" "cat <(echo \"open('/tmp/x','w')\")" 2
+run_win "dot-sourced script beside open(/tmp) (blocked)" ". ./s.sh; echo \"open('/tmp/x','w')\"" 2
+run_win "gh body then python3 on the next line (blocked)" \
+  $'gh issue create --title t --body "x"\npython3 -c "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "heredoc fed to python3 writes /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', \'w\').write(\'a\')\nEOF' 2
+run_win "gh body mention with a real redirect to /tmp (blocked)" \
+  "gh issue create --body \"open('/tmp/x','w')\" > /tmp/out" 2
+run_win "gh body mention with tee to /tmp (blocked)" \
+  "gh issue create --body \"open('/tmp/x','w')\" | tee /tmp/x" 2
 # Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
 # The verb regex stops at a space, so neither spelling matched and the write
 # was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
@@ -349,6 +724,8 @@ run_win_pwsh "PS: Out-File \\tmp\\x (blocked)" "'hi' | Out-File \tmp\x" 2
 run_win_pwsh "PS: redirect >/tmp/x (blocked)" "'hi' > /tmp/x" 2
 run_win_pwsh "PS: New-Item /c/tmp/x (blocked)" 'New-Item -Path /c/tmp/x -ItemType File' 2
 run_win_pwsh "PS: Add-Content C:/tmp/x (blocked)" 'Add-Content -Path C:/tmp/x -Value hi' 2
+# PowerShell runs .NET inline, so the inline-code rule keeps its tool-wide reach.
+run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, Create) (blocked)" "[IO.File]::Open('C:/tmp/x', 'Create')" 2
 
 # --- Legitimate platform temp / POSIX variants (allowed) ---------------------
 # Literal $TEMP / $env:TEMP in fixture strings must not expand in this test process.
@@ -362,7 +739,7 @@ run_win "redirect >%TEMP%/x literal (allowed)" 'echo x > %TEMP%/x' 0
 run_win "redirect >/var/tmp/x (allowed)" 'echo x > /var/tmp/x' 0
 run_win "mkdir /var/tmp/x (allowed)" 'mkdir -p /var/tmp/x' 0
 # shellcheck disable=SC2016
-run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0
+run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0 # portability-ok: payload data for the hook, not a mktemp call
 # shellcheck disable=SC2016
 run_win_pwsh "PS: Set-Content \$env:TEMP (allowed)" 'Set-Content -Path $env:TEMP\x -Value hi' 0
 # shellcheck disable=SC2016
@@ -476,6 +853,14 @@ run_win "usertemp: redirect >foo\\tmp\\x path component (allowed)" 'echo x > foo
   "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\tmpdir\\x sibling (allowed)" 'echo x > \tmpdir\x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\TMP\\x upper case (blocked)" 'echo x > "\TMP\x"' 2 "${USERTEMP_ENV[@]}"
+
+# The usertemp probe forks cygpath, and a Windows Bash hook pays a process
+# creation per fork. A command with no `tmp` in it must not reach the probe.
+usertemp_trace() {
+  env OSTYPE=msys "${USERTEMP_ENV[@]}" bash -x "$HOOK" <<<"$(msys_command_json "$1")" 2>&1 >/dev/null
+}
+assert_absent "usertemp: a benign command never probes cygpath" "$(usertemp_trace 'git status --short')" "cygpath"
+assert_contains "usertemp: a /tmp command does probe cygpath" "$(usertemp_trace 'mkdir -p /tmp/x')" "cygpath"
 
 # Mount-table fallback: with no usable cygpath the guard reads `mount`, and the
 # usertemp flag only counts on the /tmp mount's own line. The stub cygpath always

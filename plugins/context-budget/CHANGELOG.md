@@ -7,6 +7,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.7.0] - 2026-10-01
+
+### Added
+
+- **`/context-budget:check` reads whether `node` resolves for the context-budget hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `node` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.6.48] - 2026-09-30
+
+### Changed
+
+- **`audit`'s description fits the 500-character listing budget.** It keeps the `explain-usage` route phrase and the trigger phrases, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.6.47] - 2026-09-29
+
+### Changed
+
+- **`audit`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a plain-language account of where this session's tokens went
+  to `explain-usage` and keeps what a session costs before any work starts, per-tool attribution,
+  and whether a settings change saved anything, the split its Boundary section states.
+- **The `explain-usage` Boundary bullet no longer asserts that the skill ships with Claude Code.**
+  It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
+### Added
+
+- **`audit` carries a Boundary section for the built-in `/context` command.** `/context` is
+  user-only, so the section offers it to the person for a live look at the current window and keeps
+  startup cost, per-tool attribution, and before/after deltas here. Its four-part records live in
+  `reference/native-context.md`.
+
 ## [0.6.46] - 2026-09-29
 
 ### Added

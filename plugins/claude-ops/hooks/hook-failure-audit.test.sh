@@ -149,6 +149,27 @@ assert_contains "execvpe keeps the fails-to-launch wording" "$OUT_EXECVPE" "fail
 assert_contains "execvpe keeps the restart remedy" "$OUT_EXECVPE" "restart"
 assert_absent "execvpe at exit 1 is not called ambiguous" "$OUT_EXECVPE" "ambiguous"
 
+# Claude Code's own missing-executable wording is printed before any hook process
+# exists, so it is a launch failure at exit 1 with no exec-family text in it.
+T_NOTFOUND="$TEST_TMPDIR/notfound.jsonl"
+# shellcheck disable=SC2016 # literal $PATH and ${CLAUDE_PROJECT_DIR} must not expand
+custom_record "PreToolUse:Bash" 'node ${CLAUDE_PROJECT_DIR}/probe-hook.mjs' \
+  'Failed with non-blocking status code: Error occurred while executing hook command: Executable not found in $PATH: "node"' 1 8 >"$T_NOTFOUND"
+OUT_NOTFOUND=$(run_hook "$T_NOTFOUND" "$TEST_TMPDIR/data-notfound")
+assert_contains "missing executable at exit 1 is a launch failure" "$OUT_NOTFOUND" "launch failure"
+assert_contains "missing executable uses the fails-to-launch wording" "$OUT_NOTFOUND" "fails to launch"
+assert_absent "missing executable is not a completed non-zero exit" "$OUT_NOTFOUND" "completed non-zero exit"
+assert_absent "missing executable is not called ambiguous" "$OUT_NOTFOUND" "ambiguous"
+
+# A launched hook that relays the phrase from a child of its own carries no launcher
+# prefix, so it stays a completed non-zero exit.
+T_RELAY="$TEST_TMPDIR/relay.jsonl"
+# shellcheck disable=SC2016 # literal $PATH must not expand
+custom_record "PreToolUse:Bash" 'bash ${CLAUDE_PROJECT_DIR}/wrapper.sh' \
+  'wrapper: Executable not found in $PATH: "jq"' 1 8 >"$T_RELAY"
+OUT_RELAY=$(run_hook "$T_RELAY" "$TEST_TMPDIR/data-relay")
+assert_absent "a relayed phrase without the launcher prefix is not a launch failure" "$OUT_RELAY" "launch failure"
+
 # A signature AT 126/127 is a launch failure outright — the signature decides,
 # so the ambiguity below is only ever about a code with no signature behind it.
 T_SIG127="$TEST_TMPDIR/sig127.jsonl"
@@ -663,5 +684,17 @@ assert_contains "injected failure names the hook on stderr" "$abort_err" \
   "hook-failure-audit: did not run (status 3); fail-open"
 abort_lines=$(printf '%s\n' "$abort_err" | grep -c . || true)
 assert_eq "injected failure writes one stderr line" "1" "$abort_lines"
+
+# --- the Stop row is shell form: a launcher through node could not report a missing node ---
+row="$(jq -c '[.hooks.Stop[].hooks[] | select((.command // "") | contains("hook-failure-audit.sh"))]' "$HOOK_DIR/hooks.json")"
+assert_eq "one hook-failure-audit Stop row" "1" "$(jq 'length' <<<"$row")"
+assert_eq "the row is shell-form bash with no args and no node" "true" \
+  "$(jq '.[0] | .type == "command" and .shell == "bash" and (has("args") | not) and (.command | contains("node") | not)' <<<"$row")"
+row_cmd="$(jq -r '.[0].command' <<<"$row")"
+row_rc=0
+printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \
+  | CLAUDE_PLUGIN_ROOT="$(dirname "$HOOK_DIR")" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/row-data" \
+    bash -c "$row_cmd" >/dev/null 2>&1 || row_rc=$?
+assert_exit "the registered command line runs the hook and exits 0" 0 "$row_rc"
 
 report

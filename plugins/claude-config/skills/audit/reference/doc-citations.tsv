@@ -29,6 +29,7 @@ permissions	are fragile
 permissions	The space before a trailing `*` is part of the rule
 permissions	such as `cat`
 permissions	arbitrary subprocesses
+permissions	Use PreToolUse hooks
 hooks	Seconds before canceling
 hooks	exec form requires
 env-vars	`SLASH_COMMAND_TOOL_CHAR_BUDGET`
@@ -41,6 +42,28 @@ skills	Plugin skills are not affected by
 model-config	ultracode
 cli-reference	`--debug-file
 deep-links	disableDeepLinkRegistration
-deep-links	user-level locations
 plugins/install	Claude Code refuses and prints a chained command
 plugins/dependencies	your plugin is disabled at the next plugin load
+hooks	Defaults: 600 for
+hooks	wrap each placeholder in double quotes
+settings-reference	at most three distinct allowed models
+settings-reference	### `bashOutputMaxChars`
+settings-reference	taskOutputMaxChars
+settings-reference	This key has no effect when `availableModels` is unset or empty
+model-config	a notice naming both
+model-config	disables that family's wildcard
+model-config	a model family alias, `opus`, `sonnet`, `haiku`, or `fable`
+deep-links	doesn't register the handler
+deep-links	To prevent registration entirely
+server-managed-settings	to see which managed source is active
+plugins/marketplace-reference	### Strict mode
+plugins/marketplace-reference	The entry is the manifest
+plugins/marketplace-reference	Plugin <name> has conflicting manifests
+sub-agents	Overrides the session effort level
+skills	When the listing exceeds its budget
+tools-reference	On Windows, sandboxing is not supported
+tools-reference	Read, Grep, Glob, LSP
+changelog	Reverted the 2.1.259 change applying
+plugins/install	### Plugins with dependencies
+deep-links	registers the `claude-cli://` handler with your operating system
+deep-links	writes to user-level locations only

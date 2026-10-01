@@ -3,6 +3,20 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7] - 2026-09-30
+
+### Fixed
+
+- **`scan` context links read as the relative paths they point to.** The link text in `findings-report.md` and `lenses.md` no longer carries the literal plugin-root token, which is not substituted in a context file.
+
+## [0.11.6] - 2026-09-30
+
+### Changed
+
+- **The `/bug` Boundary bullet in `write` no longer asserts that the command ships with Claude
+  Code.** It keeps the provenance class, what the command does and how it is invoked, in the
+  native-references template form.
+
 ## [0.11.5] - 2026-09-29
 
 ### Added
