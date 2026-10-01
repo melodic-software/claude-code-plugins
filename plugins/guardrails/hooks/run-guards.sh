@@ -113,7 +113,8 @@
 #     closes; a span after `\$`, or after `((`, `[` or `{` (arithmetic, where
 #     bash expands `$(` in quotes); past 1024 scan steps. The whole command counts when it names a command a
 #     guard re-parses an argument of (`eval`, a shell, `su`, `runuser`, `sg`,
-#     `env`, `flock`, `wsl`) or holds `alias`. A command past
+#     `env`, `flock`, `wsl`), runs a file as shell (`source`, `. file`) or
+#     holds `alias`. A command past
 #     --max-command-len is not scanned; the guards refuse it unread.
 #     PowerShell commands are counted as text, quotes and here-strings
 #     included.
@@ -341,7 +342,9 @@ run_guards::counted_text() { # <command> -> _rg_counted
   local re_hd="^<<(-?)[ $tab]*(($w|'$w*'|\"$w*\"|\\\\$w)+)([ $tab;&|>][^'\"\`\\\$#<()$nl]*)?$nl"
   # The words hook::shell_c_operand, eval and the root-delete guard's
   # launcher arms (su, runuser, sg, env -S, flock -c) re-parse an argument of.
-  local re_reparse='(^|[^a-z0-9_.-])(eval|bash|sh|zsh|dash|ksh|mksh|wsl|su|runuser|sg|env|flock)([^a-z0-9_-]|$)'
+  local re_reparse='(^|[^a-z0-9_.-])(eval|source|bash|sh|zsh|dash|ksh|mksh|wsl|su|runuser|sg|env|flock)([^a-z0-9_-]|$)'
+  # `. file` runs `file` (`. /dev/stdin <<'EOF'`) as `source` does.
+  local re_dot="(^|[^a-z0-9_.-])\\.[ $tab]"
   _rg_counted=$1
   # A git alias definition (`-c alias.x='!…'`) is re-parsed by the git guards.
   m=${1,,}
@@ -489,7 +492,7 @@ run_guards::counted_text() { # <command> -> _rg_counted
   m=$out$rest
   m=${m//\"/}
   m=${m,,}
-  [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse ]] || _rg_counted=$out$rest
+  [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse || $m =~ $re_dot ]] || _rg_counted=$out$rest
 }
 
 if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then

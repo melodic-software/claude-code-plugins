@@ -55,8 +55,8 @@ delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`): bash expands nothing there
 spelling. For a body that gives it nothing to judge (`$(: rm)`) its 25-second deadline never
 starts, so the 16384-character command ceiling bounds the cost: 2.6 to 3.7 s measured.
 Unquoted, double-quoted and unquoted-heredoc-body substitutions still
-count. A command that names a shell, `eval`, `su`, `env` or
-`alias`, or that has quoting the scan does not model, counts whole. PowerShell commands
+count. A command that names a shell, `eval`, `su`, `env`, `source`,
+`. file` or `alias`, or that has quoting the scan does not model, counts whole. PowerShell commands
 count as text, quotes included.
 It also tokenizes the event's command once and hands every guard that parses it
 the same segments. One exception to "every guard still runs": on the Bash/PowerShell
