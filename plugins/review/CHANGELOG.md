@@ -14,6 +14,9 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`ecosystem-specialist` pins `effort: medium`**, the marketplace effort floor for code-changing
   or verifying work. It and `doc-drift-detector` gain a "When you are done" section naming the
   artifact that ends the run; work beyond scope goes into the return as a named suggestion.
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: high`**: verification work where edge
+  cases are likely. `ci-log-auditor`'s GitHub API and `gh` pagination notes point at the live docs
+  and the recorded probe instead of restating them.
 
 ## [0.34.4] - 2026-09-30
 

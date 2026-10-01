@@ -113,6 +113,9 @@ The user approved each change below explicitly in this session (2026-09-30), aft
 | Q22, Q44 | No upstream text in repo files, not even one line | One named exception in upstream-drift 2.0.0, "Old-patterns mapping tables": an old-to-current name table inside a skill's "Old patterns" section where the skill-authoring guidance recommends one (peer session's topic exception, adopted by the user 2026-10-01) | none | user decision in session |
 | Q45 | Whole retrofit | The two `docs/specs/context-engineering-*` files stay untouched as dated research records (their purpose is to digest upstream articles) and go to #5684 for an owner decision; the blog-pointer sanity check excludes `docs/specs/` | comment on #5684 | user decision in session |
 | Q45, criterion 2 | Every file the PR changes holds no copied upstream text | Two named exceptions in the PR body: the generated plugin-options block that `scripts/sync-plugin-options-docs.py` writes into 41 plugin READMEs (generator left to #5684), and main's compaction paragraph in `context-guard/reference/reader-contract.md`, which the blog-digest branch replaces on rebase | comment on #5684 | user decision in session |
+| Q10 (again) | ci-log-auditor stays `medium` (row above) | Reversed later the same day: ci-log-auditor and doc-drift-detector pin `high` (verification work where edge cases are likely, per model-config "Choose an effort level" and the Sonnet 5.5 guide's harder-or-longer row); ecosystem-specialist and explorer stay `medium` (well-specified multistep tool use). Pins: eleven `high`, four `medium`. A peer branch moves phase-verifier to `high` | none | user decision in session, after a live re-read of both sources |
+| Q19, Q35 | Retire Fable 5 from "current" everywhere; "current" means Claude Code's model page | Fable 5 is current: the model page lists it as selectable by model ID and as the `fable` alias target in gateway sessions. Opus 5, Opus 4.8 and Sonnet 5 stay fallback-only. Criterion 1's triage no longer counts a Fable 5 hit as calling a retiring model current | none | user decision in session |
+| U3 | (new) | Default to what Anthropic prescribes upstream; deviate only with a stated reason, surfaced in the PR body. The one protected variant is the plugin philosophy: extensible and configurable | PR body lists each departure | user rule, relayed from a peer session |
 | Q38-Q41 | Deferred to planning | Q38 and Q39 dissolve with the hook and the drift check. Q40: nothing needs to detect unattended runs, since nothing asks or blocks. Q41: see Execution shape | none | plan |
 
 ### Standards grounding
@@ -307,7 +310,8 @@ main-side.
 
 Done 2026-10-01. Fresh-context verifier: 9/10, then the pointer criterion re-verified over 49
 records and 67 anchors. Its last record gaps, the probe pointers and the agents' finish sections
-were fixed and re-read main-side. Pins: nine `high`, six `medium`.
+were fixed and re-read main-side. Pins at commit: nine `high`, six `medium`; a later user decision
+moved ci-log-auditor and doc-drift-detector to `high` (eleven and four; see Plan changes).
 
 - [ ] `docs/plugin-philosophy.md`:
   - :1098-1105: the tier table names aliases (`sonnet`, `haiku`; session model for consequential verdicts), points at Claude Code's model page, and documents the override points (Q11).

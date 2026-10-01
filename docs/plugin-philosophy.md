@@ -1285,11 +1285,8 @@ same depth on two models):
   As of: 2026-07-29. Recheck trigger: the Agent tool gains an effort parameter), so it
   structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
-  effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar); `implementation:phase-verifier`,
-  `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
-  against binary criteria; and `review:ecosystem-specialist` and `discovery:explorer` pin `medium`
-  because their work is mechanical ([pinned agents](#effort-tiers)). An orchestrator skill
+  effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
+  instead, and why, are listed under [pinned agents](#effort-tiers). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
@@ -1307,12 +1304,21 @@ same depth on two models):
   for what a lower level trades away, see
   [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
   As of: 2026-10-01. Recheck trigger: a Haiku model appears among the models that support effort).
-- **Every other lane omits the pin** and inherits the session level: effort is a general
-  preference, not a task-by-task decision (Pointer: for choosing a level, see
-  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
-  correlate with <https://claude.com/blog/claude-model-and-effort-level-in-claude-code>.
-  As of: 2026-10-01. Recheck trigger: that section starts recommending a level per task rather
-  than a session default).
+- **Every other lane omits the pin** and inherits the session level. A lane's pin is a
+  design-time choice made once for that lane; the session level belongs to the user, who may change
+  it per task or per phase.
+  - **Pointer:** for which level fits which kind of work, see
+    [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+    the two posts under the source conflict below are correlate notes only.
+  - **As of:** 2026-10-01.
+  - **Recheck trigger:** that section stops matching levels to kinds of work, or starts naming one
+    level for every task.
+  - **Source conflict:** the older effort post,
+    <https://claude.com/blog/claude-model-and-effort-level-in-claude-code> (correlate only), and
+    model config's choose-an-effort-level section, joined by the newer effort post,
+    <https://claude.dev/blog/spending-your-effort/> (correlate only), disagree on whether effort is
+    a general preference or a per-task choice. As of: 2026-10-01. Recheck trigger: either post or
+    that section is revised on that point.
 - **No lane pins `max` without eval evidence.** We treat it as the costliest level, whose gain a
   lane must measure before using it. A pin above `high` (e.g. `xhigh`) is a deliberate per-lane
   choice grounded in the target model's own recommended levels, never a reflex. We watch for
@@ -1341,57 +1347,92 @@ same depth on two models):
   comparing a sample of runs with and without it, because wording moves the result less
   predictably than a level does. Authoring a lane's prose against its own pin, in either
   direction, is the inversion this rule exists to catch.
-- **Cache caveat.** We treat an effort change between requests as costing the cached prefix: a
-  skill pin firing mid-session is expected to cost the main conversation's cache (how the harness
-  assembles that request is unconfirmed), while a subagent pin touches only the subagent's own
-  requests, so skill-lane pins count as cache-costly in cost-sensitive loops. We state the outcome
-  and not the mechanism, because the platform page and the harness page explain it differently.
-  Two corollaries we rely on: pinning a lane to the model's own default is a no-op that keeps the
-  cache, so a pin that only documents the default costs nothing; and **per-message steering is the
-  cache-safe escape hatch**, because steering added to the latest user turn keeps the prefix while
-  an effort or configuration change does not, which makes a skill's invocation-time instructions
-  cheaper than a mid-session pin. So a lane pin is a design-time choice, not a per-task one: pick
-  the level once and keep it, steer per message when one turn needs more or less, and move
-  configuration only between tasks. In an interactive session Claude Code may confirm a
-  cache-invalidating effort change with a dialog, and for some models, auth routes and versions it
-  applies the change without one and keeps the cache; read which at the pointer, and do not design
-  a lane around the dialog-free path.
-  - **Pointer:** for the API side, see
-    [steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching);
-    for Claude Code's handling, including which models, providers and versions skip the dialog,
-    see [prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
+- **Cache caveat.** For whether an effort change keeps the cache on a given model and route, read
+  [prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level)
+  first. Where that section says the cache is lost, we pick a lane's level once and keep it, steer
+  per message when one turn needs more or less, and move configuration only between tasks. Where
+  it says the cache is kept, that rule does not apply, but we design no lane that depends on that
+  path. Two expectations hold either way: a skill pin firing mid-session counts as cache-costly
+  for the main conversation, since how the harness assembles that request is unconfirmed, while a
+  subagent pin touches only the subagent's own requests; and a pin equal to the model's own
+  default changes nothing, so a pin that only documents the default costs nothing.
+  - **Pointer:** for Claude Code's handling, see the section above; for the API side, see
+    [steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching).
   - **As of:** 2026-10-01.
   - **Recheck trigger:** either section changes what an effort change does to the cache, or which
     models, providers or versions keep the cache across one.
 
 **Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
-cost does not silently cheapen a worker. Nine pin `effort: high`: `implementation` `implementer`;
+cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
+kind of work, and never below `medium` for work that changes code or verifies a change (the
+[effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `implementer`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
-`architecture-guardian`, and `security-reviewer`; `plugin-quality` `auditor`; `songwriting`
-`object-writer`. Six pin `effort: medium`, the [effort floor](#effort-floor): `planning`
-`plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`
-and `review` `ci-log-auditor` and `doc-drift-detector` because each checks against binary
-criteria; `review` `ecosystem-specialist` and `discovery` `explorer` because their work is
-mechanical, running a repository's declared commands and reading and indexing a scope. The
-lowering is owner-decided, narrow, and stops at `medium`, never `low`, because a low-effort
-executor stops detecting that it is stuck. A frontmatter pin is what holds a named agent's lane,
-since an Agent-tool dispatch passes no effort. Two session-wide controls still act on every pin at
-once: the `CLAUDE_CODE_EFFORT_LEVEL` variable replaces it, and a `maxEffortLevel` or organization
-effort cap limits it. We know of no per-lane or per-plugin lever.
+`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
+`plugin-quality` `auditor`; `songwriting` `object-writer`. Four pin `effort: medium`: `planning`
+`plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`,
+because it checks one phase against acceptance criteria fixed before it runs; and `review`
+`ecosystem-specialist` and `discovery` `explorer`, because their work is clearly scoped tool use,
+running a repository's declared commands and reading and indexing a scope. No pin goes below
+`medium`, because a low-effort executor stops detecting that it is stuck. A frontmatter pin is what
+holds a named agent's lane, since an Agent-tool dispatch passes no effort.
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) for the filed pin
-  list and the `medium` lowering; for how a frontmatter pin ranks against the variable and a cap,
-  see [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
+  list; for the task rows, see
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  for how a frontmatter pin ranks against the session, see
+  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
 - **As of:** 2026-10-01.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
-  changes, since a level name means a different depth on each model; a checker pinned `medium`
-  misses a defect a `high` pin caught; the Agent tool gains a per-invocation `effort` parameter; a
-  maintainer changes or drops a named pin; or a plugin ships a `userConfig` effort key that reaches
-  the worker.
+  changes, since a level name means a different depth on each model; the task rows change; a
+  checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
+  named pin.
+- **Source conflict:** the newer effort post,
+  <https://claude.dev/blog/spending-your-effort/> (correlate only), and model config's
+  choose-an-effort-level section disagree on which level fits implementation work. We follow model
+  config, because a docs section outranks a blog post under the
+  [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
+  2026-10-01. Recheck trigger: either page is revised on that point.
+
+**Override levers.** We name two levers for a user who wants a pinned agent at another level.
+`CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin. A Workflow
+script's `agent()` call passes `opts.effort`, and `opts.model`, for that call alone. A
+`maxEffortLevel` setting or an organization effort cap also limits every pin.
+
+- **Pointer:** for the variable, see
+  [environment variables](https://code.claude.com/docs/en/env-vars#variables); for how a pin ranks
+  against the variable and a cap, see
+  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** the variable stops replacing a frontmatter pin, or the Agent tool gains a
+  per-invocation `effort` parameter.
+
+Our Workflow probe: an explicit `opts.effort` or `opts.model` on an `agent()` call overrode the
+named agent's frontmatter pin for that call, and omitting them kept the pin. No docs section
+covers per-call effort for `agent()`; for the call itself, see
+[workflows: what the saved script looks like](https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like).
+
+- **Pointer:** probes `wf_1a471686-8a2` and `wf_5196f26b-e1f`, run on Claude Code 2.1.284 and
+  2.1.285; no artifact is stored in this repository.
+- **As of:** 2026-10-01.
+- **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call or
+  for the Agent tool.
+
+**Configurability gap.** No per-agent user setting exists: a user cannot move one named agent's pin
+without editing its definition, and we have not confirmed that a plugin `userConfig` value can
+reach an agent's `effort` field. We record this as a gap against
+[configuration ownership](#configuration-ownership-and-scope), not as a design choice.
+
+- **Pointer:** for plugin options, see
+  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+  for the agent field, see
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** Claude Code adds a per-agent effort setting, or a docs page or a probe shows
+  a `userConfig` value reaching a subagent's `effort`.
 
 **Effort is one dial of two, and the other is not an effort value.** We keep the `thinking` mode and
 the `effort` level apart: `adaptive` is a thinking mode, never an `effort` value, and a frontmatter
@@ -1416,9 +1457,13 @@ Checking the value set mechanically stays deferred: a lint rule's source of trut
 own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own knob, out of plugin scope: plugins never set session
-effort. For how a consumer persists a level, and how the ultracode setting relates to it, see
-[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
-(As of: 2026-10-01. Recheck trigger: any new model on Claude Code's model page).
+effort. A plugin may advise a session level for a phase of work, but it never changes the user's
+session level or saved level (Pointer: for how a level is set and saved, see
+[model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
+for the ultracode setting, see
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+As of: 2026-10-01. Recheck trigger: any new model on Claude Code's model page, or a new way to set
+or save a level).
 
 ### Effort floor
 
