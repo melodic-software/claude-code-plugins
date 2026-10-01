@@ -1,5 +1,16 @@
 # Changelog: discovery plugin
 
+## [0.25.20] - 2026-10-01
+
+### Added
+
+- **`reference/parent-contract.md` records a first-party reproduction of the named `discovery:explorer` dispatch as harness fact 12.** Four headless dispatches on Claude Code 2.1.286 (`model:` and `name:` in each combination, plus a probe run) delivered the definition body and resolved the `skills:` preload, and every first return was the YAML block. The two reported runs that behaved as if both were missing did not reproduce; the record states what that does not establish and its recheck trigger.
+- **Two `explore` evals cover the failure shapes.** Eval 14 covers an explorer whose skill body is absent: the first return stays the payload block, with `preload: fallback` after a disk read, or `preload_token: MISSING` and `status: truncated` when nothing arrives. Eval 15 covers a delivered nested scout hand-back.
+
+### Changed
+
+- **`agents/explorer.md` says a nested child's delivered hand-back is its final report.** The explorer uses it and continues instead of idling for a report it already holds.
+
 ## [0.25.19] - 2026-10-01
 
 ### Changed
