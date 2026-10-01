@@ -86,10 +86,13 @@ removed from the session and reported on stderr as `not granted`.
 
 When the session runs isolated in a git worktree, the Bash guard refuses any command containing the
 word `eval`, `claude plugin eval --help` included, and refuses the user's own `!` command in that
-session the same way. Do not retry, wrap the command in a script, route it through another tool, or
-bypass the guard in any other way. Stop, print the exact `claude plugin eval <target> ...` command
-this skill would have run, and tell the user to paste it into a terminal outside Claude Code. Then
-read the result back, for example the `--json` file, with the `read` action.
+session the same way. This applies only when `run` or `init` is about to invoke `claude plugin eval`;
+`preflight`, `validate`, `read`, and `ci` never invoke it and proceed as usual. Do not retry, wrap
+the command in a script, route it through another tool, or bypass the guard in any other way. Stop,
+print the exact `claude plugin eval <target> ...` command this skill would have run, with an
+absolute `<target>` and an absolute `--json` path inside the isolated worktree so the command gives
+the same result from any directory, and tell the user to paste it into a terminal outside Claude
+Code. Then read the result back, for example the `--json` file, with the `read` action.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
