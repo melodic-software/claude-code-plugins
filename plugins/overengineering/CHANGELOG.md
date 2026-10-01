@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.20] - 2026-09-30
+
+### Fixed
+
+- **`audit` and `delta` context files no longer cite `context/findings-artifact.md`, `context/scrutiny-method.md` and `reference/topic-docs.md` through the literal plugin-root token.** The token is not substituted in a `context/` file, so those paths resolved to nothing. They now read `<plugin-root>/...`, and both SKILL.md files gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.4.19] - 2026-09-29
 
 ### Fixed

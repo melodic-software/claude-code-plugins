@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.1] - 2026-09-30
+
+### Fixed
+
+- **`interview` and `plan` spokes no longer cite bundled files through the literal plugin-root token in the surface and close-out pages.** The token is not substituted in a `context/` file, so the `reference/topic-docs.md` link in `plan`'s `context/close-out.md` resolved to nothing and is now relative to the spoke. The wake command in `interview`'s `context/surface.md` now reads `bash '<surface_dir>/wake.sh' '<data_dir>'`, matching the other commands on that page, and `watch.test.sh` substitutes `<surface_dir>` when it runs it.
+
 ## [0.54.0] - 2026-09-30
 
 ### Added

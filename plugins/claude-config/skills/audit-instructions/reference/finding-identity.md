@@ -38,11 +38,12 @@ change prose are presentation. None of them enters the hash.
 
 `scripts/finding-ids.sh` derives every constituent from a scan-shaped row, reading the flagged line
 and its heading path from the file and delegating the hashing to `audit-pass`'s
-`finding-identity.sh`, so a lane never computes an anchor by hand:
+`finding-identity.sh`, so a lane never computes an anchor by hand. `<scripts-dir>` is the `scripts/`
+directory whose absolute path `SKILL.md`'s script commands give:
 
 ```shell
 printf '%s\n' 'reference/spoke.md:3:I33' 'a.md:4|b.md:9|I15' |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/finding-ids.sh"
+  bash "<scripts-dir>/finding-ids.sh"
 ```
 
 A single-site row is `<path>:<line>:<id>`; the pairwise row is `<pathA>:<lineA>|<pathB>:<lineB>|I15`.

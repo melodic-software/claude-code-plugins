@@ -11,7 +11,7 @@
 - [5.6 Performance notes](#56-performance-notes)
 
 Multi-PR iteration layer wrapping the per-PR review discipline defined in the plugin-scope reference
-([`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../../reference/review-discipline.md)).
+([`../../../reference/review-discipline.md`](../../../reference/review-discipline.md)).
 Designed for `/loop /source-control:babysit-prs` (dynamic, self-pacing via ScheduleWakeup).
 This is the safe tier's core loop and the Python-free degrade path for every tier: discover the
 in-scope PRs, check out, monitor, fix, move to next. This loop never merges; merge authority
@@ -89,7 +89,7 @@ not model memory, not prior-iteration state, not comment counts (why:
    `runs-on` labels) per that file's "Waiting on a pending check", never waited on with
    `gh pr checks --watch`
 3. **Fetch ALL comments:** run
-   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
+   `bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
    from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
    script derives owner/repo from the current directory via `gh repo view`; from a cwd that is not
    a checkout of the target repo (e.g. a targeted-recheck pass), export `FETCH_COMMENTS_OWNER` and
@@ -331,7 +331,7 @@ maintenance is forbidden, safety.md and orchestration.md). Then:
   Resolve via `/source-control:resolve-conflicts` discipline (understand both sides' intent;
   compose, don't side-pick). A plugin version-bump collision (`.claude-plugin/plugin.json`,
   `CHANGELOG.md`) is mechanical, not intent judgment: run
-  `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first; exit 0 resolved and
+  `<plugin-root>/scripts/resolve-version-bump-conflict.sh` first; exit 0 resolved and
   staged every such pair
 - **Complex conflicts** (>3 files, `INTEGRATION_STATUS=conflict-aborted`): abort the merge,
   post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
@@ -364,7 +364,7 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
 - [ ] **A:** Terminal state check (`gh pr view <N> --json state`)
 - [ ] **B:** CI checks. Classify every non-pending check (pass/fail/skipped)
 - [ ] **C:** Fetch ALL comments and extract findings:
-  - [ ] C1: Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` (all 3 API
+  - [ ] C1: Run `bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <N>` (all 3 API
     surfaces)
   - [ ] C2: Read every comment body in full
   - [ ] C3: Extract individual findings per
@@ -376,7 +376,7 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   thread resolution, each verified on GitHub)
 - [ ] **E:** Finding-classification gate (**not** a merge-readiness check, see
   [safety.md](safety.md) "Two Gates, One Merge-Ready Authority"). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>`. When the
+  `bash "<plugin-root>/scripts/babysit-readiness-gate.sh" <N>`. When the
   `${user_config.babysit_self_logins}` option is non-empty (and not a literal unexpanded token),
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means

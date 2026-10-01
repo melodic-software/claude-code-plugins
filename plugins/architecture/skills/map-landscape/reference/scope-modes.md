@@ -10,7 +10,7 @@ Repeatable. Discovers repositories under each root, then charts them.
 ### When the `repo-fleet-hygiene` plugin is installed
 
 That plugin owns bounded fleet discovery and canonical-checkout resolution, so delegate rather than
-walking. Resolve the memory slice per `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, `mkdir -p` it,
+walking. Resolve the memory slice per [`reference/topic-docs.md`](../../../reference/topic-docs.md), `mkdir -p` it,
 then invoke via the Skill tool:
 
 ```text

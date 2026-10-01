@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.78.1] - 2026-10-01
+## [0.78.3] - 2026-10-01
 
 ### Fixed
 
@@ -12,7 +12,22 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   import to the exporting module's value.
 - **A `for` head's `let`/`const` shadows outer names in the loop body.** `for (const x of ...)`,
   `for (let i = 0; ...)` and `for await` bind their names for the body only, so a same-named
-  outer binding no longer supplies the value.
+  outer binding no longer supplies the value. This includes an unbraced loop body and a binding
+  named `of` or `in`.
+
+## [0.78.2] - 2026-10-01
+
+### Fixed
+
+- **`changelog`, `known-issues`, `lanes`, `observability` and `plugins` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script and data paths inside a skill now read `<skill-dir>/...`, and the `known-issues` recommendation-basis link text is the relative path. Prose that names the variable keeps the token. `known-issues`, `lanes`, `observability` and `plugins` gain a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A declined `ask` install gap stays in the report.** Re-entering with zero or partial picks
+  now lists the plugins left uninstalled under `Action needed`, and the plugins skill states that
+  a dismissed or unanswered multi-select re-enters with an empty id list.
 
 ## [0.78.0] - 2026-09-30
 

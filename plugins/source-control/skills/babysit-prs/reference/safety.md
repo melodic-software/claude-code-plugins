@@ -180,7 +180,7 @@ loop's own escalation contract is not outside it.
   (c) a self-inflicted finding: new and distinct, but against text this lane's own prior fix on
   this PR introduced. Provenance decides (c), never severity. <!-- contract-restatement-begin: D4.6-deferral-provenance -->
 - Fix (c) like any other in-scope defect, but count it. It is never deferrable, because it is a
-  defect this change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`,
+  defect this change is shipping (`<plugin-root>/reference/review-discipline.md`,
   D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A (b) finding follows D4.6's
   scope test: a small or medium one is fixed in this PR in a review-fix commit, even when unrelated
   to the task, and only a structural, urgent-but-cannot-land, or fix-blocked-on-research one is filed and
@@ -231,7 +231,7 @@ They answer different questions and are not interchangeable:
 
 | Script | Question it answers | What it never checks |
 | --- | --- | --- |
-| `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh`, the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match. Nothing about GitHub's merge state |
+| `<plugin-root>/scripts/babysit-readiness-gate.sh`, the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match. Nothing about GitHub's merge state |
 | `source-control-babysit-merge`, the **merge gate** | May this PR be merged right now under the plugin's full merge policy, where GitHub's own mergeability *and* the plugin's policy both hold? | Nothing about finding decomposition |
 
 `ready` is the plugin's **merge-policy** verdict, not a readout of GitHub's mergeability alone.
@@ -374,11 +374,11 @@ raw Python behind them (`python … babysit_merge.py`), which would bypass the w
 deterministic authorization layer: they encode exactly what worker and autopilot are allowed to do.
 
 Invoke each wrapper **by its bundled path**, the same form the read-only sibling scripts under
-`${CLAUDE_PLUGIN_ROOT}/scripts/` use:
+`<plugin-root>/scripts/` use:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" <args>
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" <args>
+bash "<plugin-root>/bin/source-control-babysit-merge" <args>
+bash "<plugin-root>/bin/source-control-babysit-resolve-thread" <args>
 ```
 
 Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact.
@@ -454,8 +454,8 @@ stands unfixed and the path form below stays the safe one. Recheck when either d
 carrying the quoted spans, when a release note names permission modes, `classifyAllShell`, plugin
 `bin/` PATH handling, or the wrapper-strip list, or when that issue reopens or closes as completed.
 
-The `${CLAUDE_PLUGIN_ROOT}/bin/` path, resolved exactly as the sibling
-`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are, is nonetheless the form to use: it is the only
+The `<plugin-root>/bin/` path, resolved exactly as the sibling
+`<plugin-root>/scripts/` invocations are, is nonetheless the form to use: it is the only
 one that runs in both `PATH` states. Every command spelled below as `source-control-babysit-<x> …`
 is launched this way.
 
@@ -745,7 +745,7 @@ announced operator step.
   never the four-flagless base command, which would ignore every tier criterion:
 
   ```text
-  bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
+  bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
@@ -864,7 +864,7 @@ paths only.
 
 **What this prerequisite rests on.** With `autoMode.classifyAllShell` enabled, every narrow Bash
 allow rule is suspended, including grants purpose-built for this lane's scripts, so under that
-configuration even the compliant `bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier
+configuration even the compliant `bash "<plugin-root>/bin/…"` form reaches the classifier
 like any other command. Reachability is therefore a property of the operator's configuration, never
 of the path form alone. A denial of a raw interpreter invocation (`python …/babysit_merge.py …`)
 says nothing about the sanctioned form; that spelling is forbidden by this file regardless.
@@ -922,7 +922,7 @@ narrow allow rule.
 For a merge:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
+bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
@@ -937,13 +937,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
@@ -1014,7 +1014,7 @@ as done and re-running the gate.
 ## Human Comments
 
 Classify every human comment, reply with evidence per the shared review discipline
-(`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`), and surface it in the report. Never
+(`<plugin-root>/reference/review-discipline.md`), and surface it in the report. Never
 auto-fix human feedback, and never resolve a human-authored thread, outside autopilot's
 addressed-thread widening. `CHANGES_REQUESTED`, explicit blocking language, and unresolved inline
 human threads are stop-and-ask conditions until GitHub state resolves them (`feedback.md`).

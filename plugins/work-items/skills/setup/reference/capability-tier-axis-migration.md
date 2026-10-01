@@ -3,7 +3,7 @@
 `apply` runs this pass at **step 4** of its numbered flow, after the work-class pass and before the
 legacy backfill. Triage's capability-tier stamp and the work-loop frontier quota guard require
 `capability-tier: frontier` from
-[`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md).
+[`reference/capability-tier-labels.md`](../../../reference/capability-tier-labels.md).
 
 1. **Skip when `.work-item-tracker.json` is absent.** Nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`). Report
