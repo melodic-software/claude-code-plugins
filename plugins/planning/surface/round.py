@@ -21,6 +21,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
+                  exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
                   posted, and clear its session files but the port
@@ -167,9 +169,20 @@ def load(d):
     return doc
 
 
+def plugin_version():
+    """The planning plugin's version from its manifest, or None when the manifest is not beside this file."""
+    try:
+        manifest = HERE.parent / ".claude-plugin" / "plugin.json"
+        return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError):
+        return None
+
+
 def save(d, doc, touched=()):
-    """Bump rev, stamp the schema version, validate, then write; a schema failure writes nothing."""
+    """Bump rev, stamp the schema version and, on a file's first write, the plugin version that wrote it, validate, then write; a schema failure writes nothing."""
     doc["schemaVersion"] = SCHEMA_VERSION
+    if not doc.get("rev") and plugin_version():
+        doc["meta"]["pluginVersion"] = plugin_version()
     doc["rev"] = doc.get("rev", 0) + 1
     for q in touched:
         q["rev"] = doc["rev"]
@@ -1423,6 +1436,58 @@ def print_latency(d):
             print(f"{name} n=0 p50=- p95=-")
 
 
+LEDGER_VERSION = re.compile(r"^Planning version: *(\d+\.\d+\.\d+\S*)", re.M)
+
+
+def cmd_doctor(d, a):
+    """Report what the running version needs and the ledger or page lacks; write nothing. Exit 1 on any missing element."""
+    running = plugin_version() or "unknown"
+    text = Path(a.ledger).read_text(encoding="utf-8")
+    missing = [
+        f"{a.ledger} has no `{heading}` section"
+        for heading in ("## Constraint ledger", "## Open-question register")
+        if not re.search(rf"^{re.escape(heading)}\s*$", text, re.M)
+    ]
+    has_page = (d / "questions.json").is_file()
+    doc = load(d) if has_page else {"questions": [], "meta": {}}
+    resp = load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+    live = [
+        q
+        for q in doc["questions"]
+        if not q.get("archived")
+        and not q.get("supersededBy")
+        and not effective(q, resp)
+    ]
+    for label, absent in (
+        ("a Basis", lambda q: not (q.get("basis") or "").strip()),
+        (
+            "a `Checked against:` line",
+            lambda q: "Checked against:" not in (q.get("facts") or ""),
+        ),
+    ):
+        ids = [q["id"] for q in live if absent(q)]
+        if ids:
+            missing.append(f"open questions without {label}: {', '.join(ids)}")
+    for line in missing:
+        print(f"missing: {line}")
+    m = LEDGER_VERSION.search(text)
+    wrote = {"ledger": m and m.group(1)}
+    if doc["questions"]:
+        wrote["page"] = doc["meta"].get("pluginVersion")
+    for where, version in wrote.items():
+        if version != running:
+            print(
+                f"note: the {where} was written by planning "
+                f"{version or 'an unrecorded version'}; running {running}"
+            )
+    print(
+        "not checked (no file records it): the mechanism-tripwire question and "
+        "whether the assumption sweep ran"
+    )
+    if missing:
+        sys.exit(1)
+
+
 def cmd_validate(d, a):
     """Both files against the shipped schemas, then the event-log rebuild check; exit 1 on the first error."""
     checks = (
@@ -2099,6 +2164,14 @@ def main(argv=None):
     add_dir(s)
     s.set_defaults(fn=cmd_stop)
 
+    s = sub.add_parser(
+        "doctor",
+        help="report what the running version needs and a ledger or the page lacks; "
+        "writes nothing, exits 1 on any missing element",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.set_defaults(fn=cmd_doctor)
+
     s = sub.add_parser("lease", help="print the watcher holding the lease")
     add_dir(s)
     s.add_argument(
@@ -2114,7 +2187,7 @@ def main(argv=None):
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()
-    if not d.is_dir() and a.fn not in (cmd_ensure_running, cmd_stop):
+    if not d.is_dir() and a.fn not in (cmd_ensure_running, cmd_stop, cmd_doctor):
         sys.exit(f"no such data dir: {d}")
     a.fn(d, a)
 

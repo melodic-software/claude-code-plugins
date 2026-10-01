@@ -2257,5 +2257,78 @@ class TestReplyHintOnOwnAnswer(DirCase):
         self.assertNotIn("hint:", err)
 
 
+class TestDoctor(DirCase):
+    """doctor reports what the running version needs and the ledger or page lacks, and writes nothing."""
+
+    def running(self):
+        return json.loads(
+            (HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["version"]
+
+    def ledger(self, text):
+        path = self.tmp / "interview-checklist.md"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def test_an_old_shape_ledger_and_page_print_one_line_per_missing_element(self):
+        old = self.ledger(
+            "# Interview ledger\n\n## Open-question register\n\n- Q1 | open | round 1 | x? |\n"
+        )
+        doc = self.doc()
+        doc["questions"][0]["basis"] = ""
+        self.write_doc(doc)
+        before = self.raw()
+        rc, out, err = self.rp("doctor", "--ledger", old)
+        self.assertEqual(rc, 1, out + err)
+        missing = [line for line in out.splitlines() if line.startswith("missing: ")]
+        self.assertEqual(len(missing), 3, out)
+        self.assertIn("## Constraint ledger", missing[0])
+        self.assertIn("without a Basis: Q1", missing[1])
+        self.assertIn("`Checked against:` line: Q1, Q2, Q3", missing[2])
+        self.assertIn("an unrecorded version", out)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_current_ledger_and_page_exit_zero(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none\n\nWhat the code does."
+        doc["meta"]["pluginVersion"] = self.running()
+        self.write_doc(doc)
+        current = self.ledger(
+            f"# Interview ledger\n\nPlanning version: {self.running()}\n\n"
+            "## Constraint ledger\n\n- C1 | confirmed | x | user, round 1\n\n"
+            "## Open-question register\n\n- Q1 | open | round 1 | x? |\n"
+        )
+        rc, out, err = self.rp("doctor", "--ledger", current)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("missing:", out)
+        self.assertNotIn("note:", out)
+
+    def test_an_answered_question_is_not_checked(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none"
+        doc["questions"][0].pop("facts")
+        self.write_doc(doc)
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "accept", "at": "2026-01-01T00:00:00Z"}]
+        )
+        ledger = self.ledger("## Constraint ledger\n\n## Open-question register\n")
+        rc, out, err = self.rp("doctor", "--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_new_file_records_the_plugin_version_once(self):
+        shutil.rmtree(self.dir)
+        self.dir.mkdir()
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q1")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["pluginVersion"], self.running())
+        doc = self.doc()
+        doc["meta"]["pluginVersion"] = "0.1.0"
+        self.write_doc(doc)
+        self.rp("add", "--file", self.file("q2.json", question("Q2")))
+        self.assertEqual(self.doc()["meta"]["pluginVersion"], "0.1.0")
+
+
 if __name__ == "__main__":
     unittest.main()

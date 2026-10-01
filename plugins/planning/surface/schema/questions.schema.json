@@ -104,6 +104,7 @@
         "next": {"type": "string"},
         "repo": {"type": "string"},
         "setInRound": {"type": "integer"},
+        "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"}

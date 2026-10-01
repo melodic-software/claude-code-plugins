@@ -280,6 +280,20 @@ class TestExportBrief(SessionCase):
         self.assertEqual(rc, 0, out + brief.read_text(encoding="utf-8"))
         self.assertIn("brief=ok", out)
 
+    def test_a_source_quote_in_facts_stays_out_of_the_brief_and_report(self):
+        quote = "Exact words the decision rests on."
+        self.session(
+            [
+                question(
+                    "Q1", facts=f"> {quote}\n\n[section](https://example.com/doc#s)"
+                )
+            ],
+            [event(1, "Q1", "accept")],
+        )
+        for what in ("brief", "report"):
+            text = self.export(what).read_text(encoding="utf-8")
+            self.assertNotIn(quote, text, what)
+
     def test_brief_shape(self):
         self.deferred_session()
         text = self.export("brief").read_text(encoding="utf-8")
