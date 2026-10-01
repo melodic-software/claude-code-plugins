@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.3] - 2026-10-01
+## [0.79.4] - 2026-10-01
 
 ### Fixed
 
@@ -14,6 +14,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   (the Artifact tools among them) were dropped and the field read `partial`. A spread whose
   binding is not an array literal, or is assigned in a nested block, another function, or an
   expression-bodied arrow, still reads `partial`.
+
+## [0.79.3] - 2026-10-01
+
+### Fixed
+
+- **A missing executable is classed as a hook launch failure.** Claude Code 2.1.285 reports a
+  hook whose command is not on `PATH` as `Executable not found in $PATH`; the unsurfaced hook
+  failure audit now classes that record as a launch failure instead of a completed non-zero exit.
 
 ## [0.79.2] - 2026-10-01
 

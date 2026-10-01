@@ -132,6 +132,12 @@ Supply `subject_pattern=` to write it non-interactively, and
 `layer=user|team|local` to pick which layer receives it (default: the tracked
 team file). Re-runnable to reconfigure.
 
+### `/source-control:check`
+
+Read-only and model-invocable. Reports whether `jq` resolves for the plugin's
+hooks, with the install route from `prerequisites.json` when it does not. It
+never installs.
+
 ### `/source-control:resolve-conflicts`
 
 Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
