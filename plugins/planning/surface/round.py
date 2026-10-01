@@ -39,7 +39,9 @@ reply --rec and revise --rec need --affects <id,...>|none, and refuse when the q
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
 question's counted `own` answer; record-terminal --decision own records the resolved decision.
-revise --alt keeps at least two alternatives.
+revise --alt keeps at least two alternatives. reply --rec and revise --rec or --alt refuse when an
+alternative, case and trailing punctuation folded, equals or contains (as whole words) the recommendation or is
+contained by it; pass revised alternatives in the same revise (--alt).
 revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
 changes, the recorded confirmations are dropped and confirm events at or below the question's
 commitsSinceSeq no longer count.
@@ -216,6 +218,28 @@ def split_alt(s):
     if not sep:
         sys.exit(f"--alt needs key:text, got {s!r}")
     return {"key": key.strip(), "text": text.strip()}
+
+
+def norm_text(s):
+    return re.sub(r"\s+", " ", str(s or "")).strip().casefold().rstrip(".,;:!?")
+
+
+def within(needle, hay):
+    """Whole-word containment, so the alternative `no` does not match `now`."""
+    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", hay) is not None
+
+
+def check_rec_alts(qid, rec, alts, fix):
+    """Refuse a recommendation that an alternative equals, contains or is contained by."""
+    r = norm_text(rec)
+    for i, alt in enumerate(alts or [], 1):
+        key = alt.get("key") if isinstance(alt, dict) else None
+        text = norm_text(alt.get("text") if isinstance(alt, dict) else alt)
+        if r and text and (within(r, text) or within(text, r)):
+            sys.exit(
+                f"refused: {qid} alternative ({key or i}) repeats or contains the "
+                f"recommendation, or the recommendation contains it; {fix}"
+            )
 
 
 def parse_affects(v):
@@ -743,6 +767,12 @@ def op_reply(d, doc, a):
     if a.seq is not None:
         line["replyTo"] = a.seq
     if a.rec:
+        check_rec_alts(
+            a.id,
+            a.rec,
+            q.get("alternatives"),
+            "reply cannot change alternatives; use revise --rec with --alt in one op",
+        )
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
@@ -808,6 +838,13 @@ def op_revise(d, doc, a):
     if a.rec is not None:
         require_affects(a.id, affects)
     deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
+    if a.rec is not None or a.alt is not None:
+        check_rec_alts(
+            a.id,
+            q.get("recommendation") if a.rec is None else a.rec,
+            q.get("alternatives") if a.alt is None else [split_alt(s) for s in a.alt],
+            "pass revised alternatives in the same op (revise --alt)",
+        )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
