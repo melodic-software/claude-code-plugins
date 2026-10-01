@@ -3,6 +3,28 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-01
+
+### Added
+
+- **`audit --exercised [<test-path>]`.** Mutates the production code the changed tests call
+  (committed range plus working tree), or the tests under `<test-path>`, and runs each mutant
+  against those tests as one set. Test files are recognized through `/testing:audit --file <path>`;
+  without the `testing` plugin the scope refuses. A run with no mapped function ends as
+  `no mapping: scope empty`. The report adds a scope line, the mapped functions, skipped files and a
+  blind-spot line naming `testing/judge/rule-restated-expectation`; coverage and gap print `unknown`
+  under the manual protocol.
+- **Survivor causes.** Every productive survivor gets `no-assertion` or `input-gap` with a quoted
+  line, or `unclassified` when there is no quote or its expected value comes from the code under
+  test. The Survivors table gains a `Cause` column; a persisted row carries the cause in `Finding`
+  and words `Action` from it. No rule id changes.
+- **`test-command` config key.** Optional, with a `{tests}` placeholder for path-list runners.
+  `setup apply` proposes it and `setup check` fails one without `{tests}`.
+- `audit/context/tool-test-restriction.md`: whether StrykerJS, Stryker.NET and mutmut can restrict a
+  run to named tests while keeping their no-coverage state, with sources.
+- The `principles` theory reference states that a killed mutant does not clear a copied expected
+  value.
+
 ## [0.4.2] - 2026-09-27
 
 ### Changed
