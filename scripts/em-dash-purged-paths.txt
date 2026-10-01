@@ -256,6 +256,7 @@ plugins/docs-hygiene/skills/*/reference/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
+plugins/docs-naming/*.md
 plugins/docs-naming/context/*.md
 plugins/docs-naming/reference/*.md
 plugins/docs-naming/skills/*/SKILL.md

@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "resolves-and-runs-the-binary",
+      "prompt": "Set up docs-hygiene for this repo. /docs-hygiene:setup",
+      "expected_output": "Resolves markdownlint-cli2 from PATH or the repository's node_modules/.bin, runs it with --version, and reports a PASS row naming which one resolved. Installs nothing and writes nothing.",
+      "files": [],
+      "expectations": [
+        "Probes PATH first and node_modules/.bin under the repository root second",
+        "Runs the resolved binary with --version rather than treating resolution alone as a pass",
+        "Writes no file and runs no install command"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-binary-reports-remediation",
+      "prompt": "compress stopped and said markdownlint-cli2 is missing. Run the docs-hygiene setup and fix it for me.",
+      "expected_output": "Reports FAIL for the missing binary with the explicit install remediation, names that compress stops at its entry point without it, and does not install anything itself.",
+      "files": [],
+      "expectations": [
+        "Reports a FAIL row with the install remediation (npm install --save-dev markdownlint-cli2 or a global install)",
+        "Does not run npm, npx, or any download on the operator's behalf",
+        "Offers no apply action"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "broken-shim-is-a-fail",
+      "prompt": "/docs-hygiene:setup check. node_modules/.bin/markdownlint-cli2 exists but our Node install was removed.",
+      "expected_output": "Reports FAIL because the resolved shim exits non-zero under --version, carries the execution error in the remediation line, and does not claim the prerequisite is met.",
+      "files": [],
+      "expectations": [
+        "Treats a resolved shim that fails --version as FAIL",
+        "Includes the execution error text in the remediation line",
+        "Does not claim success from resolution alone"
+      ]
+    }
+  ]
+}
