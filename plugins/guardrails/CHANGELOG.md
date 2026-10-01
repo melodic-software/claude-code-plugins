@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-10-01
+
+### Fixed
+
+- **`block-windows-drive-tmp` lets a provable read of a drive-root temp path and a quoted mention through.** A heredoc or `-c` string whose every `open(` is a bare read (`.read(`, `.readline(`, `.readlines(` or wrapped whole in `json.load(`) no longer blocks, and neither does a `gh issue|pr create|comment|edit`, `git commit`, `git tag`, `echo` or `printf` command that only quotes `open('/tmp/x','w')` or `write_text(` as text. Both reliefs judge the whole unsplit command, so a decoy read followed by `os.system` or `shutil.copy` still blocks, and any backslash, `$`, backtick, indirection or unlisted command keeps the block. The differential against `origin/main` shows 17 commands newly allowed and none newly blocked.
+
 ## [0.45.0] - 2026-09-30
 
 ### Added
