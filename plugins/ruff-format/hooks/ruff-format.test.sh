@@ -47,7 +47,7 @@ ok() {
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.tools | map(.name)) == ["ruff", "jq", "node"] and .tools[0].local_bin == ".venv/bin/ruff"' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: declares exactly ruff (at .venv/bin/ruff) and jq"
+    ok "manifest: declares exactly ruff (at .venv/bin/ruff), jq and node"
   else
     fail "manifest: expected tools ruff, jq and node with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
   fi

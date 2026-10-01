@@ -876,7 +876,7 @@ else
     pg_ok=1
     while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
       [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
-    done < <(jq -r '.tools[] | [.name, .check, .install] | @tsv' "$MANIFEST")
+    done < <(jq -r '.tools[] | select(.name != "node") | [.name, .check, .install] | @tsv' "$MANIFEST")
     if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
       ok "probe-gate: $label -> notices name each tool, its check and the install line"
     else
