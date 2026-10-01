@@ -120,6 +120,12 @@ state of now).
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that
   itself failed validation has every carried entry prefixed
   `UNVERIFIED (predecessor failed validation):` after its tag.
+- **Size.** `validate` warns when the file passes 300 lines. The Read tool returns at most 25k
+  tokens per call and a measured chain ran about 70 tokens a line (425 lines, ~29.6k tokens), so 25k
+  tokens is about 355 lines and 300 leaves margin. The warning does not fail the file.
+- **`UNVERIFIED (predecessor failed validation)` entries do not expire for now.** Each hop carries
+  them forward until the writer re-verifies and re-tags them or moves them under `Superseded:`;
+  automatic expiry is deferred.
 - **A hop's re-scan attestation is not an entry.** It describes how THIS hop closed §4, so it
   lives in §15's `Re-scan:` line (see "Constraints that must hold" and "This session") and is
   never appended to a cumulative section. An attestation entry that an earlier chain wrote into

@@ -425,6 +425,18 @@ def test_validate_rejects_a_read_at_naming_a_different_basename(tmp_path):
     assert "FAIL" in out(result)
 
 
+def test_validate_warns_on_an_oversized_file_only(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    normal = run("validate", str(target), "--strict-transcript")
+    assert normal.returncode == 0 and "size:" not in out(normal), out(normal)
+    text = target.read_text(encoding="utf-8")
+    target.write_text(text + "\n" * 300, encoding="utf-8", newline="\n")
+    big = run("validate", str(target), "--strict-transcript")
+    assert big.returncode == 0, out(big)
+    assert "WARN" in out(big) and "size:" in out(big)
+
+
 def test_validate_secret_shape_is_warn_only(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP1

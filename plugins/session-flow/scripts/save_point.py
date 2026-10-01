@@ -179,6 +179,9 @@ HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
+# The Read tool returns at most 25k tokens per call. The issue measured 425 lines
+# at about 29.6k tokens (~70 tokens a line), so 25k tokens is ~355 lines; 300 leaves margin.
+MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 H2_RE = re.compile(r"^## (.+?)\s*$")
@@ -1104,6 +1107,11 @@ def validate_doc(
                 f.warn(f"transcript: {transcript}{located}")
         elif not Path(transcript).is_file():
             f.fail(f"transcript: stated path does not exist: {transcript}")
+
+    if len(doc.lines) > MAX_READABLE_LINES:
+        f.warn(
+            f"size: {len(doc.lines)} lines exceeds {MAX_READABLE_LINES}; a single Read may truncate it (cumulative sections are carried verbatim, so trim by moving resolved entries under Superseded or promoting them to a committed doc)"
+        )
 
     for i, line in enumerate(doc.lines, 1):
         for pattern, marker in SECRET_SHAPES:
