@@ -22,7 +22,16 @@
 # default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner.
 # shellcheck disable=SC2034,SC2154 # globals shared with the sourcing hook
 
-JUDGE_RUN_TIMEOUT="${TEST_JUDGE_RUN_TIMEOUT:-150}"
+# judge::num <var> <value> <default>: set var to the value when it is a plain
+# number, else to the default, so no setting is evaluated as shell arithmetic.
+judge::num() {
+  if [[ "$2" =~ ^[0-9]{1,6}$ ]]; then printf -v "$1" '%d' "$((10#$2))"; else printf -v "$1" '%d' "$3"; fi
+}
+JUDGE_RUN_TIMEOUT="" JUDGE_DEBOUNCE="" JUDGE_TIMEOUT="" JUDGE_SCAN_TIMEOUT=""
+judge::num JUDGE_RUN_TIMEOUT "${TEST_JUDGE_RUN_TIMEOUT:-}" 150
+judge::num JUDGE_DEBOUNCE "${TEST_JUDGE_DEBOUNCE:-}" 20
+judge::num JUDGE_TIMEOUT "${TEST_JUDGE_TIMEOUT:-}" 180
+judge::num JUDGE_SCAN_TIMEOUT "${TEST_SCAN_TIMEOUT:-}" 8
 JUDGE_STALE=$((JUDGE_RUN_TIMEOUT + 30))
 JUDGE_SLOTS=3
 JUDGE_HOST="${HOSTNAME:-localhost}"
@@ -51,7 +60,7 @@ judge::same_path() {
 
 judge::log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$JUDGE_LOG" 2>/dev/null; }
 judge::now() { NOW="${EPOCHSECONDS:-$(date +%s)}"; }
-judge::sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+judge::sha() { if command -v sha256sum >/dev/null; then sha256sum -- "$@"; else shasum -a 256 -- "$@"; fi; }
 
 # judge::records_json <file>...: one JSON array of the state records, each with
 # .sid (the session directory it sits in); a malformed file is skipped.
@@ -160,7 +169,7 @@ judge::derive() {
     return 0
   fi
   tmpd="$(mktemp -d)" || return 0
-  testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$tmpd/scan" --file "$file" --blocks
+  testing::run_scanner "$JUDGE_SCAN_TIMEOUT" "$tmpd/scan" --file "$file" --blocks
   rc=$SCAN_RC
   mapfile -t text <"$file"
   re=':([0-9]+)-([0-9]+) ([0-9]+) (.*)$'
@@ -326,7 +335,7 @@ judge::busy() {
       [[ -f "$p" ]] || continue
       f=""
       { read -r _ && IFS= read -r f; } <"$p"
-      [[ "$f" == "$1" ]] && ! judge::stale "$p" "$((${TEST_JUDGE_DEBOUNCE:-20} + JUDGE_STALE + 60))" && return 0
+      [[ "$f" == "$1" ]] && ! judge::stale "$p" "$((JUDGE_DEBOUNCE + JUDGE_STALE + 60))" && return 0
     done
   done
   [[ -e "$DATA/locks/$2" ]] && ! judge::stale "$DATA/locks/$2" "$JUDGE_STALE"
@@ -367,8 +376,10 @@ judge::pick() {
   local tdir="${TPATH%[/\\]*}" writers=" " sid agent c m fb
   writers+="$(judge::transcript_class "$TPATH") "
   while IFS= read -r sid && IFS= read -r agent; do
+    # Ids become path parts, so only the shape session and agent ids have.
+    [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || continue
     writers+="$(judge::transcript_class "$tdir/$sid.jsonl") "
-    [[ -z "$agent" ]] || writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
+    [[ "$agent" =~ ^[A-Za-z0-9_-]+$ ]] && writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
   done < <(jq -r '.[] | (.sid, .agent) | tostring | gsub("[\r\n]"; "")' <<<"$1")
   m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-opus}"
   [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=opus
@@ -452,7 +463,9 @@ judge::run() {
   testing::fields "$info" .file .repo .owner '.writers | tojson' || return 0
   file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
-  [[ -n "$repo" && -d "$repo" ]] || repo="${file%[/\\]*}"
+  # The judge's reads are scoped to the repository; a test file in none is
+  # not judged rather than given its directory as the scope.
+  [[ -n "$repo" && -d "$repo" ]] || repo=""
   n=0
   while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
@@ -463,9 +476,12 @@ judge::run() {
     {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget,
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
        | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber]}' <<<"$keys" >"$raw.keys"
-  if [[ -z "$MODEL" ]]; then
+  rc=""
+  [[ -n "$MODEL" ]] || rc="no judge class differs from the writers"
+  [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none"
+  if [[ -n "$rc" ]]; then
     : >"$raw"
-    judge::harvest "$raw" "no judge class differs from the writers"
+    judge::harvest "$raw" "$rc"
     rm -f "$raw" "$raw.keys"
     return 0
   fi
@@ -509,19 +525,16 @@ judge::label() {
   printf '%s' "$l"
 }
 
-# judge::quoted_in_repo <dir> <quote>...: true when every quote is verbatim in
-# a file under <dir>, the judge's read scope: git grep over its tracked and
-# untracked (not ignored) files, or grep -r where it is not a repository. One
-# process per quote, and only for quotes the test file does not hold.
+# judge::quoted_in_repo <repo> <quote>...: true when every quote is verbatim
+# in a file of the repository, the judge's read scope: git grep over its
+# tracked and untracked (not ignored) files. One process per quote, and only
+# for quotes the test file does not hold; with no repository, none passes.
 judge::quoted_in_repo() {
-  local dir="$1" q rc
+  local dir="$1" q
   shift
   for q in "$@"; do
-    [[ "$q" != *$'\n'* ]] || return 1
-    git -C "$dir" grep --untracked -F -q -e "$q" -- . 2>/dev/null
-    rc=$?
-    ((rc > 1)) && grep -rFq -e "$q" -- "$dir" 2>/dev/null && rc=0
-    ((rc == 0)) || return 1
+    [[ -n "$dir" && "$q" != *$'\n'* ]] || return 1
+    git -C "$dir" grep --untracked -F -q -e "$q" -- . 2>/dev/null || return 1
   done
 }
 
@@ -559,7 +572,7 @@ judge::validate() {
       ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
   ((${#FIELDS[@]} >= 4)) || return 0
   repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
-  [[ -n "$repo" && -d "$repo" ]] || repo="${file%[/\\]*}"
+  [[ -n "$repo" && -d "$repo" ]] || repo=""
   ((JUDGE_WIN)) && repo="${repo//\\//}"
   if [[ ! -f "$file" ]]; then
     why="the test file no longer exists"
@@ -569,6 +582,8 @@ judge::validate() {
     why="a quoted line is in no file of the repository"
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
     why="the FLAG proposes no diff"
+  elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
+    why="no repository to check the proposed diff against"
   elif [[ "$verdict" == FLAG ]]; then
     # --check with --numstat -z: whether it applies and which files it
     # touches (paths unquoted), in one call that writes nothing.
@@ -581,7 +596,8 @@ judge::validate() {
   fi
   if [[ -n "$why" ]]; then
     verdict=UNKNOWN
-    json="$(jq -c --arg why "$why" '.verdict = "UNKNOWN" | .reason = $why' <<<"$json")" || return 0
+    # Only the reason is shown: the evidence, source and diff failed.
+    json="$(jq -c --arg why "$why" '.verdict = "UNKNOWN" | .reason = $why | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
   fi
   RELAY+="$json"$'\n'
   RELAY_N=$((RELAY_N + 1))
@@ -610,15 +626,17 @@ judge::slug() {
   SLUG="${s:-detached}"
 }
 
-# judge::findings_dir <repo> <branch>: set FDIR, created, to the findings
+# judge::findings_dir <repo> <branch>: set FDIR to the findings
 # directory the detector-findings contract resolves for a headless producer:
 # .claude/topic-docs.yaml's memory_dir, else .work, then reviews/<branch-slug>/,
-# with the memory root's self-ignoring .gitignore. No branch, no repository, or
-# a memory root not strictly inside the checkout (by its path, with no
-# symbolic link on the way down, so the self-ignore write cannot land in
-# another tree): the plugin data directory.
+# with the memory root's self-ignoring .gitignore. memory_dir is taken only
+# when it matches [A-Za-z0-9._/-]+ with no `..` component, else .work. The
+# directory must resolve physically (symbolic links followed) strictly inside
+# the checkout, before and after it is created, and the .gitignore is created
+# exclusively, never through an existing link. No branch, or a check that
+# fails: the plugin data directory.
 judge::findings_dir() {
-  local repo="$1" branch="$2" mem="" line p c parts=()
+  local repo="$1" branch="$2" mem="" line target
   FDIR="$DATA/findings"
   if [[ -n "$branch" ]]; then
     if [[ -f "$repo/.claude/topic-docs.yaml" ]]; then
@@ -628,24 +646,61 @@ judge::findings_dir() {
         break
       done <"$repo/.claude/topic-docs.yaml"
     fi
-    mem="${mem%%#*}" && mem="${mem//[\"\'$'\r']/}"
+    mem="${mem%%#*}" && mem="${mem//$'\r'/}"
     mem="${mem#"${mem%%[![:space:]]*}"}" && mem="${mem%"${mem##*[![:space:]]}"}"
-    mem="${mem:-.work}"
-    case "$mem" in /* | ?:*) ;; *) mem="$repo/${mem#./}" ;; esac
+    [[ "$mem" =~ ^\"(.*)\"$ || "$mem" =~ ^\'(.*)\'$ ]] && mem="${BASH_REMATCH[1]}"
+    [[ "$mem" =~ ^[A-Za-z0-9._/-]+$ && "/$mem/" != */../* ]] || mem=.work
+    case "$mem" in /*) ;; *) mem="$repo/${mem#./}" ;; esac
     mem="${mem%/}"
-    if [[ "$mem" == "$repo/"?* && "/$mem/" != */../* && "/$mem/" != */./* ]]; then
-      p="$repo"
-      IFS=/ read -ra parts <<<"${mem#"$repo"/}"
-      for c in "${parts[@]}"; do
-        p+="/$c"
-        [[ -L "$p" ]] && p="" && break
-      done
-      judge::slug "$branch"
-      [[ -n "$p" ]] && FDIR="$mem/reviews/$SLUG"
+    judge::slug "$branch"
+    target="$mem/reviews/$SLUG"
+    if [[ "$mem" == "$repo/"?* && "/$mem/" != */./* ]] && judge::inside "$repo" "$target" &&
+      { [[ -d "$target" ]] || mkdir -p "$target"; } && judge::inside "$repo" "$target" && judge::self_ignore "$mem"; then
+      FDIR="$target"
     fi
   fi
-  mkdir -p "$FDIR" || return 1
-  [[ "$FDIR" == "$DATA/findings" || -f "$mem/.gitignore" ]] || printf '*\n' >"$mem/.gitignore"
+}
+
+# judge::inside <repo> <path>: true when the path resolves physically strictly
+# inside the repository, or, while it does not exist yet, when its nearest
+# existing ancestor resolves to the repository or inside it. A dangling link
+# on the way counts as existing and fails to resolve.
+judge::inside() {
+  local top r p="$2"
+  while [[ ! -e "$p" && ! -L "$p" && "$p" == */* ]]; do p="${p%/*}"; done
+  judge::phys top "$1" && judge::phys r "$p" || return 1
+  [[ "$r" == "$top/"?* ]] || [[ "$p" != "$2" && "$r" == "$top" ]]
+}
+
+# judge::phys <var> <dir>: set var to the directory's physical path (every
+# link resolved), with cd -P in this shell rather than a subshell.
+judge::phys() {
+  local here="$PWD" rc=0
+  cd -P -- "$2" 2>/dev/null || return 1
+  printf -v "$1" '%s' "$PWD"
+  cd -- "$here" 2>/dev/null || rc=1
+  return "$rc"
+}
+
+# judge::excl <file> <text>: write the text to a new file, created
+# exclusively (noclobber opens with O_EXCL), so an existing file or link at
+# that name, dangling or not, is refused.
+judge::excl() {
+  local rc
+  set -o noclobber
+  { printf '%s\n' "$2" >"$1"; } 2>/dev/null
+  rc=$?
+  set +o noclobber
+  return "$rc"
+}
+
+# judge::self_ignore <memory root>: make sure the root holds a .gitignore of
+# its own: one already there as a file, or one created exclusively (O_EXCL),
+# so a link at that name, dangling or not, is refused rather than followed.
+judge::self_ignore() {
+  [[ -L "$1/.gitignore" ]] && return 1
+  [[ -f "$1/.gitignore" ]] && return 0
+  judge::excl "$1/.gitignore" '*'
 }
 
 # judge::findings <validated verdict lines>: write one findings file per
@@ -653,22 +708,19 @@ judge::findings_dir() {
 # verdict, its quoted evidence and proposed diff under ## Verdicts) and set
 # FINDINGS to their paths, comma-separated.
 judge::findings() {
-  local all="$RELAY" repo dir ts path i branch
+  local all="$RELAY" repo dir ts path i branch content
   FINDINGS=""
   TZ=UTC0 printf -v ts '%(%Y%m%dT%H%M%SZ)T' -1
   for repo in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do
     branch=""
     [[ -z "$repo" || ! -d "$repo" ]] || branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
-    judge::findings_dir "$repo" "$branch" || continue
-    dir="$FDIR"
-    path="$dir/$ts-test-judge.md"
-    i=2
-    while [[ -e "$path" ]]; do
-      path="$dir/$ts-test-judge-$i.md"
-      i=$((i + 1))
-    done
-    jq -rs --arg win "$JUDGE_WIN" --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
-      def esc: tostring | gsub("\\|"; "\\|") | gsub("[\r\n]+"; " ");
+    judge::findings_dir "$repo" "$branch"
+    # Judge text is data: every field is capped and kept on one line, so it
+    # cannot open a heading, a table row or a fence of its own, and the diff's
+    # fence is one backtick longer than any run of backticks inside it.
+    content="$(jq -rs --arg win "$JUDGE_WIN" --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
+      def cap($n): tostring | if length > $n then .[:$n] + " [cut at \($n) characters]" else . end;
+      def esc: tostring | gsub("\\|"; "\\|") | gsub("[\r\n]+"; " ") | cap(500);
       def slash: if $win == "1" then gsub("\\\\"; "/") else . end;
       def norm: slash | if $win == "1" then ascii_downcase | sub("^/(?<d>[a-z])/"; "\(.d):/") else . end;
       def rel: (.file | slash) as $f
@@ -678,17 +730,33 @@ judge::findings() {
       | ($v | map(select(.verdict == "FLAG"))) as $f
       | "---\ntype: review-findings\ndate: \(now | todate)\nbranch: \(if $branch == "" then "none" else $branch end)\n---\n\n## Findings\n\n"
       + "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n"
-      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) (threshold: a FLAG verdict, every quote found in the test file or its repository, its diff applies to the test file alone) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
+      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel | esc):\(.value.start | esc) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) (threshold: a FLAG verdict, every quote found in the test file or its repository, its diff applies to the test file alone) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel | esc) \(.value | tname | esc) |\n"] | join(""))
       + "\n## Surfaces\n\nRan: [testing:test-judge — \($v | length) test block(s) judged; findings: \($rule) \($f | length); declined (judged PASS): \($rule) \($v | map(select(.verdict == "PASS")) | length); UNKNOWN: \($v | map(select(.verdict == "UNKNOWN")) | length)]. Returned no result: [none].\n"
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
-      + ([$v[] | "\n### \(.verdict) \(rel) \(tname) (lines \(.start)-\(.end))\n\n"
-        + (if .reason != "" then "Reason: \(.reason)\n\n" else "" end)
-        + "Judge: \(.model) at \(.effort) effort.\n\n"
-        + (if .source != "" then "Where the expected value came from: \(.source)\n\n" else "" end)
-        + ([.evidence[] | "> " + gsub("[\r\n]+"; " ") + "\n"] | join(""))
-        + (if .verdict == "FLAG" and .diff != "" then "\nProposed diff, not applied:\n\n````diff\n\(.diff | rtrimstr("\n"))\n````\n" else "" end)] | join(""))
-      ' <<<"$all" >"$path" 2>/dev/null || continue
-    FINDINGS+="${FINDINGS:+, }$path"
+      + ([$v[] | "\n### \(.verdict | esc) \(rel | esc) \(tname | esc) (lines \(.start | esc)-\(.end | esc))\n\n"
+        + (if (.reason // "") != "" then "Reason: \(.reason | esc)\n\n" else "" end)
+        + "Judge: \(.model | esc) at \(.effort | esc) effort.\n\n"
+        + (if (.source // "") != "" then "Where the expected value came from: \(.source | esc)\n\n" else "" end)
+        + ([(.evidence // [])[:20][] | "> " + esc + "\n"] | join(""))
+        + (if .verdict == "FLAG" and (.diff // "") != "" then
+            (.diff | cap(20000) | rtrimstr("\n")) as $d
+            | ("`" * ([4, ([$d | scan("`+") | length] | max // 0) + 1] | max)) as $fence
+            | "\nProposed diff, not applied:\n\n\($fence)diff\n\($d)\n\($fence)\n" else "" end)] | join(""))
+      ' <<<"$all" 2>/dev/null)" || continue
+    # Created exclusively: a name already taken, by a file or a link, moves to
+    # the next suffix, and a directory that refuses every name falls back to
+    # the plugin data directory.
+    for dir in "$FDIR" "$DATA/findings"; do
+      [[ -d "$dir" ]] || mkdir -p "$dir" || continue
+      path="$dir/$ts-test-judge.md"
+      for ((i = 2; i <= 20; i++)); do
+        judge::excl "$path" "$content" && break
+        path="$dir/$ts-test-judge-$i.md"
+      done
+      ((i <= 20)) && break
+      path=""
+    done
+    [[ -n "$path" ]] && FINDINGS+="${FINDINGS:+, }$path"
   done
 }
 

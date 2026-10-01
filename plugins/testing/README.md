@@ -82,11 +82,15 @@ three wrote them the tests are reported UNKNOWN.
 Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
-diff does not apply or touches another file, is shown as UNKNOWN with the reason. The repository
-is the git toplevel of the test file's own directory, whatever the hook's working directory. A
-test file in no git repository is recorded with no repository: its judge reads only the file's
-own directory, quotes are checked there, and the findings go to the plugin data directory
-(`findings/` under it) rather than `.work/reviews/`, since there is no branch to file them under.
+diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
+evidence, source or diff. The repository is the git toplevel of the test file's own directory,
+whatever the hook's working directory. In the findings file each judge field is kept on one line
+and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
+the diff's fence is longer than any run of backticks inside it, so judge text cannot add a heading,
+a table row or a fence. The findings directory must resolve, symbolic links followed, inside the
+checkout, and its `.gitignore` and the findings file are created exclusively, never through an
+existing link; otherwise the file goes to `findings/` in the plugin data directory. A
+`memory_dir` with characters outside `[A-Za-z0-9._/-]` or a `..` component is ignored for `.work`.
 
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in `.claude/testing.yaml`, and a per-test
@@ -104,6 +108,9 @@ and judged when Claude Code records the call's changed files (`bashEditDiffEnabl
 user, `--settings` or managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`, and within the Bash
 route's limits below); no background job starts for a Bash call, so the Stop hook judges those
 tests itself. Test files written through an MCP tool are not recorded, so they are not judged. A
+test file in no git repository is not judged: the judge's reads are scoped to the repository, so
+it is reported UNKNOWN, "no repository". Open: whether a symbolic link inside the repository that
+points outside it lets the judge's scoped Read follow it out is not yet probed. A
 glob added only through the consumer settings entry `/testing:setup check` prints
 (`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
 judges those tests at the task end, again with no background job ahead of it.

@@ -49,7 +49,7 @@ printf '%s %s %s\n%s\n' "$$" "$JUDGE_HOST" "$NOW" "$file" >"$pend"
 trap 'rm -f "$pend" ${HELD[@]+"${HELD[@]}"}' EXIT
 
 h0="$(judge::sha "$file" 2>/dev/null)"
-sleep "${TEST_JUDGE_DEBOUNCE:-20}"
+sleep "$JUDGE_DEBOUNCE"
 [[ "$(judge::sha "$file" 2>/dev/null)" == "$h0" ]] || exit 0
 
 own="$DATA/sessions/$PKEY/$SID/$call.json"

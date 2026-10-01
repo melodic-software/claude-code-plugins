@@ -50,7 +50,14 @@ All notable changes to the `testing` plugin are documented here. Format follows
   in another file of the repository (`git grep --untracked`), because the implementation line an
   expected value restates is a FLAG's best evidence; one found nowhere still makes the verdict
   UNKNOWN. The judge prompt now says so; it changed before any Phase 4 calibration label was read,
-  so the prompt freeze is not broken. The README and
+  so the prompt freeze is not broken. Hardened after a security review: the findings directory
+  must resolve, symbolic links followed, inside the checkout before and after it is created, and
+  the `.gitignore` and findings file are created exclusively, so a link in the repository cannot
+  carry the write elsewhere (it falls back to the plugin data directory); `memory_dir` is used only
+  when it matches `[A-Za-z0-9._/-]` with no `..`; judge text in the findings file is capped, kept
+  on one line and fenced past its own backticks, and a verdict that failed validation shows only
+  its reason; a test file in no repository is not judged ("no repository"); and every numeric
+  setting is checked as a number before any arithmetic. The README and
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
 

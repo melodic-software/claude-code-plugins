@@ -69,7 +69,7 @@ if [[ "$active" == true ]]; then
   waiting=""
   for s in "${SESSIONS[@]}"; do
     for p in "$DATA/pending/$PKEY/$s"/*; do
-      [[ -f "$p" ]] && ! judge::stale "$p" $((${TEST_JUDGE_DEBOUNCE:-20} + JUDGE_STALE + 60)) &&
+      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) &&
         waiting+="${waiting:+, }$(sed -n '2{s|.*/||;p;}' "$p")"
     done
   done
@@ -79,7 +79,7 @@ fi
 
 judge::now
 began=$NOW
-deadline=$((NOW + ${TEST_JUDGE_TIMEOUT:-180}))
+deadline=$((NOW + JUDGE_TIMEOUT))
 judge::harvest_orphans
 judge::load
 KF=() KH=() KR=() KFILE=() ST=() HINTS=() RUNPID=()
