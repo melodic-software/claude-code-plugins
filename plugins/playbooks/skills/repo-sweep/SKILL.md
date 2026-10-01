@@ -28,9 +28,9 @@ means `next`. Say which you chose.
 Read the matching procedure file before acting. Each action runs in a fresh session: `next` and
 `review` rebuild all state from the PR body and the branch, never from the conversation.
 
-Sweeps run in worktree-isolated sessions. In procedures, call scripts by path (`S/state.sh`, not
-`bash S/state.sh`; they are executable) and run each git command as its own Bash invocation.
-File issue bodies from a path, not from stdin.
+Sweeps run in worktree-isolated sessions; follow `plugins/source-control/skills/worktree/reference/gather-block.md`,
+heading "Command shapes an isolated session accepts". Here, call scripts by path (`S/state.sh`,
+not `bash S/state.sh`; they are executable).
 
 **Record.** Claim: a worktree-isolated session refused `bash <script>`, a chained
 `git fetch ... && git merge --ff-only ...`, and `gh issue create --body-file -` fed from a

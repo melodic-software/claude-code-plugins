@@ -42,3 +42,37 @@ or `check-skill-precompute-compose.sh` stops refusing the git-plus-multiple-line
 
 **Scope.** The composition claim is the load-bearing half. The isolation half is documented
 upstream and stands on the worktrees page alone.
+
+## Command shapes an isolated session accepts
+
+Worker skills cite this heading for the Bash forms a worktree-isolated session runs. Every refusal
+below comes from Claude Code's worktree isolation, not from this repository's hooks: no hook here
+emits the refusal text, and a hook block carries the `guardrails@melodic-software` suffix that a
+harness refusal lacks. The check is by design and cannot be turned off, per the Command shape
+bullet of the worktrees page.
+
+| Refused shape | Accepted rewrite |
+|---|---|
+| A compound command that contains git (`a && b`, `;`, a pipe into or out of git) | One command per Bash call, so each is screened alone |
+| A path or command built from a variable or expansion (`$VAR`, `${VAR}`, `${!name}`, `${ cmd; }`) | A literal absolute path; a bare `$HOME` is the one expansion observed to pass |
+| `bash <script>` or `sh <script>` | The executable path, `<script>` itself |
+| A file read through a shell pipeline | The Read tool |
+| `--body-file -` or any stdin heredoc whose text mentions git | A body file written first, passed by path |
+| A path containing `github` (the ghq layout `github.com/<org>/<repo>`) | Not a refusal class: the path alone is accepted, and a refusal on such a command came from a compound or expansion shape elsewhere in it |
+
+**Claim.** The shapes in the left column are refused by the isolation check, and the right column
+runs. The `bash <script>`, compound-git and stdin-heredoc rows were observed in a live isolated
+session; the variable-path, shell-read and `github` rows were not. No live probe of any row was run
+against the current release.
+
+**Basis.** The Command shape bullet of
+<https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> (a command is
+blocked when the text cannot show that its git stays in the worktree: a computed command name,
+unparseable syntax, or an expansion that could run an unspelled command), and the observed sweep
+refusals in [#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). The docs
+do not name `github` paths, so that row rests on the absence of any such rule, not on a probe.
+
+**As of.** 2026-10-01, Claude Code 2.1.287.
+
+**Recheck.** The Command shape bullet changes, a release note changes which Bash forms an isolated
+session accepts, or a live `isolation: "worktree"` agent runs any row, which settles it.

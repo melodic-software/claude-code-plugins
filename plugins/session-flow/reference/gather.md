@@ -19,13 +19,11 @@ never an abort. These probes color a report; they are not gates.
 
 ## Why these are gathered at run time, never pre-computed
 
-A worktree-isolated agent **refuses any command carrying a `$`-expansion**, which made these skills
-fail at load, in `handoff`'s case in exactly the isolated sessions that most need a save-point.
-Keep `$`-expansion out of the pre-compute block
-(melodic-software/claude-code-plugins#1687).
-
-Bare `$HOME` is the one form observed to survive that guard; anything else, including `${HOME}`, is
-refused. Prefer a probe that needs no expansion at all.
+A worktree-isolated agent refuses command shapes it cannot verify, which made these skills fail at
+load, in `handoff`'s case in exactly the isolated sessions that most need a save-point
+(melodic-software/claude-code-plugins#1687). Keep `$`-expansion out of the pre-compute block. The
+accepted forms are in `plugins/source-control/skills/worktree/reference/gather-block.md`, heading
+"Command shapes an isolated session accepts". Prefer a probe that needs no expansion at all.
 
 ## The probes
 
