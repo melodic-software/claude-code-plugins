@@ -1,0 +1,35 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the row count is asserted before the loop, the total is
+// a literal, the snapshot sits beside a literal, and the error is named.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { exportRows } from '../src/export.mjs';
+import { total } from '../src/cart.mjs';
+import { renderInvoice } from '../src/invoice.mjs';
+import { parse } from '../src/parse.mjs';
+
+test('exports every row with an id', () => {
+  const rows = exportRows([{ id: 1 }, { id: 2 }]);
+  assert.equal(rows.length, 2);
+  rows.forEach((row) => {
+    assert.ok(row.id > 0);
+  });
+});
+
+test('totals the items', () => {
+  const items = [{ price: 10 }, { price: 5 }];
+  assert.equal(total(items), 15);
+});
+
+test('renders the invoice header', (t) => {
+  const out = renderInvoice({ id: 42, total: 1999 });
+  assert.match(out, /Invoice 42/);
+  t.assert.snapshot(out);
+});
+
+test('rejects an empty document', () => {
+  assert.throws(() => parse(''), { message: 'empty document' });
+});

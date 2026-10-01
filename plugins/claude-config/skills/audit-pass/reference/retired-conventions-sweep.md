@@ -48,7 +48,7 @@ determinism property rather than looking like an improvement.
 For each manifest, one invocation of **this plugin's** copy, never the owning plugin's:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "<root>/retirements.yaml" --root "<target>"
+bash "<plugin-root>/lib/check-retirements.sh" --manifest "<root>/retirements.yaml" --root "<target>"
 ```
 
 The owning plugin's synced copy is byte-identical by CI contract, but the pass never reaches into

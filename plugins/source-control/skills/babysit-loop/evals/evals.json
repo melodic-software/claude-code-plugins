@@ -169,6 +169,80 @@
         "Never reads bound promotion_state alone as sufficient for merge eligibility",
         "Notes that a contrary demotion event in qualified telemetry would exclude the affected class on the next cycle without config change"
       ]
+    },
+    {
+      "id": 11,
+      "name": "babysit-loop-bootstrap-preflight-unset",
+      "prompt": "/source-control:babysit-loop melodic-software/example-repo worker\n\nThe team-tracked .claude/source-control.md carries loop-lane keys with babysit_loop_merge at c3-autonomous. The plugin options promotion_evidence_binding, promotion_evidence_root, promotion_evidence_source and promotion_evidence_checker are all unset in user and managed settings. Snapshot: PR #41 is quiet, green, gate-provable, close-linked item classifies C3 scoped; PR #42 is identical except the item classifies C2 mechanical. No --merge human-only argument on the invocation line.",
+      "expected_output": "At lane start the resolved rung is merge-capable, so the bootstrap preflight runs once and names each missing surface by option name (promotion_evidence_binding, promotion_evidence_root, promotion_evidence_source, promotion_evidence_checker) with a pointer to the bootstrap contract. The preflight is report-only: the rung is unchanged, every promotable cell stays effective-unpromoted, and PR #41 and PR #42 both route to the safe per-PR pass. No promotion evidence is read from .claude/source-control.md or any repo-local file, and check-security-binding.mjs is not invoked. The cycle-start report carries the bound-to-effective pairs plus one line naming the missing bootstrap options.",
+      "files": [],
+      "expectations": [
+        "Runs the bootstrap preflight once at lane start because the resolved rung is merge-capable",
+        "Names each missing surface by its option name: promotion_evidence_binding, promotion_evidence_root, promotion_evidence_source and promotion_evidence_checker",
+        "Treats the preflight as report-only: the rung is unchanged and every promotable cell stays effective-unpromoted",
+        "Routes both the C3 PR and the C2 PR to the safe per-PR pass, so fail-closed behavior is unchanged",
+        "Reads no promotion evidence from .claude/source-control.md or any other repo-local file",
+        "Does not invoke check-security-binding.mjs",
+        "Includes one line in the cycle-start report naming the missing bootstrap options"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "babysit-loop-paused-lane-relatches-or-drops-on-account-switch",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nThe lane is paused after a 92% seven-day trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. On a wake, ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a different .oauthAccount.emailAddress. The tee file's only snapshot is 25 minutes old and attributes the old account.",
+      "expected_output": "The lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser and compares fingerprints, never printing the address. The fingerprint differs, but no fresh tee snapshot attributes the new account, so the new account's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, resumes on the normal schedule in reactive-only mode, and adds an account-switch: unknown line to the cycle report without the address or fingerprint. It does not reuse the old account's stale resets_at as the new account's pause end.",
+      "files": [],
+      "expectations": [
+        "Reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, not from the tee file",
+        "Never prints, logs, or interpolates the address; compares fingerprints against latched_account",
+        "Treats the windows as unknown when no fresh tee snapshot attributes the new account, and falls back to reactive-only",
+        "Clears rate_limit_latch, paused_until, and latched_account together on resume rather than leaving a future paused_until behind",
+        "Does not carry the old account's resets_at over as the new account's pause end",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "babysit-loop-pause-entry-latches-the-tripping-snapshot-account",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose account.email names account A and whose seven-day window reads 92%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other tee snapshot exists. Durable state carries no latched_account.",
+      "expected_output": "The 92% reading trips the pause threshold. At pause entry the lane records latched_account as the fingerprint of the tripping snapshot's account.email (account A), never the fingerprint of the account .claude.json names now (account B), and writes it in the same write as paused_until. It then reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, finds that account B differs from the latched account A, and re-evaluates at once instead of waiting for a later wake. No fresh tee snapshot attributes account B, so B's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, resumes on the normal schedule in reactive-only mode, and adds an account-switch: unknown line to the cycle report without the address or the fingerprint. It does not sleep until account A's resets_at.",
+      "files": [],
+      "expectations": [
+        "Records latched_account at pause entry as the fingerprint of the tripping snapshot's account.email, not of the account .claude.json names now",
+        "Compares the .claude.json account against the latched account at pause entry and re-evaluates at once when they differ, without waiting for a wake",
+        "Takes account B's windows only from a fresh tee snapshot attributed to B and, finding none, treats them as unknown and falls back to reactive-only",
+        "Does not pause until account A's resets_at and leaves no future paused_until, rate_limit_latch, or latched_account behind",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "babysit-loop-unattributed-trip-stays-paused",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose seven-day window reads 92% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account.",
+      "expected_output": "The 92% reading trips the pause threshold. The snapshot has no account.email, so the pause entry is unattributed: latched_account stays null, and with no latched account there is nothing for the .claude.json account to differ from, so the lane does not treat it as a switch and does not re-evaluate at entry. It stays paused with paused_until set to the seven-day window's resets_at and rate_limit_latch set, and stops mutating work. On its first later wake it reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, records the fingerprint as latched_account, and continues the ordinary re-evaluation.",
+      "files": [],
+      "expectations": [
+        "Leaves latched_account null at pause entry because the tripping snapshot has no account.email",
+        "Does not treat the readable .claude.json account as a switch at pause entry and does not drop the pause through the unknown-windows branch",
+        "Stays paused until the tripped window's resets_at with rate_limit_latch set, and stops mutating work",
+        "On the first later wake records the .claude.json fingerprint as latched_account and continues the ordinary re-evaluation",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "babysit-loop-switch-with-one-plausible-window-resumes",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The tee file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window.",
+      "expected_output": "The fingerprint differs, so the lane re-evaluates against the new account using the fresh snapshot, read once and used for both the fingerprint and the windows. Only the five-hour window is plausible and it is below 90, so it resumes: it clears rate_limit_latch, paused_until, and latched_account together and resumes mutating work on the normal schedule. It does not treat the absent seven-day window as blocking the resume, does not fall to reactive-only, and does not keep the old account's paused_until. It adds an account-switch: resumed line to the cycle report without the address or fingerprint.",
+      "files": [],
+      "expectations": [
+        "Resumes because every plausible window is below 90, treating the absent seven-day window as unknown rather than as a reason to stay paused",
+        "Does not fall back to reactive-only, since one window is plausible",
+        "Clears rate_limit_latch, paused_until, and latched_account together",
+        "Derives the snapshot's fingerprint and its windows from one read of the tee file, not from two reads",
+        "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
+      ]
     }
   ]
 }

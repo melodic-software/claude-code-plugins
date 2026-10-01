@@ -32,40 +32,18 @@ engine plan:
    the path inline so no file write sits between the check and the deletion:
 
    ```text
-   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+   "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-verify \
      --snapshot "<run-dir>/snapshot.json" --path "relative/exact.tmp" \
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
-   approved list to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
-   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
-
-   **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
-   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/` in the default configuration,
-   and `.claude` is a protected directory. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root
-   under that directory; the protected list names `.claude`, so a directory not named that is
-   outside what this paragraph asserts. A Write of `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default`
-   and `acceptEdits`, costs a classifier round trip in `auto`, and is denied in `dontAsk`. No
-   `permissions.allow` rule pre-approves it. Inline `--path` writes nothing, which is one more
-   reason it is the per-deletion form. When the prompt offers "Yes, and allow Claude to edit files
-   in its ~/.claude folder for this session", that option approves every later write anywhere
-   under `~/.claude/` for the rest of the session: settings, memory, and every plugin's data, not
-   just this run directory. Answer the single prompt instead unless the operator wants that
-   breadth. In `dontAsk` the evidence file cannot be written, so the standalone-checkout exception
-   below is unavailable there, while inline `--path` verification still runs.
-   **Claim:** `.claude` is a protected directory, whose writes are prompted in `default` and
-   `acceptEdits`, routed to the classifier in `auto`, and denied in `dontAsk`; settings allow rules
-   do not pre-approve them; and the `~/.claude/` prompt carries the session-scoped option quoted
-   above. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`. **Basis:**
-   [protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
-   ("`permissions.allow` rules in settings files do not pre-approve protected-path writes"; the
-   per-mode table; "`.claude`, except for `.claude/worktrees`") and
-   [environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
-   ("`~/.claude/plugins/data/<id>/`"). **As of:** 2026-09-28, Claude Code 2.1.280. **Recheck:**
-   when the protected-paths section changes its directory list, its per-mode table, or its
-   session-scoped options, or when the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
+   In these commands `<skill-dir>` is the directory whose `scripts/` path `SKILL.md`'s engine
+   commands give. `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   with no file write. Each path gets its own verdict, and the paths must not overlap. The
+   `--paths` file form reports the same way from
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` written to
+   `<run-dir>/handoff-paths.json` and passed as `--paths "<run-dir>/handoff-paths.json"`. The
+   engine takes exactly one of `--path` and `--paths`, never both.
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
@@ -77,6 +55,31 @@ engine plan:
    in `not_clear`. Invalid input exits 2.
    Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
    evidence is still absent, that evidence is report-level, outside the engine's checks.
+
+   **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
+   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/` in the default configuration,
+   and `.claude` is a protected directory. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root, and
+   a directory not named `.claude` is not covered by the protected list. A Write of
+   `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default` and `acceptEdits`,
+   costs a classifier round trip in `auto`, and is denied in `dontAsk`. No `permissions.allow` rule
+   pre-approves it. Inline `--path` writes nothing, which is one more reason it is the
+   per-deletion form. When the prompt offers "Yes, and allow Claude to edit files in its ~/.claude
+   folder for this session", that option approves every later write anywhere under `~/.claude/` for
+   the rest of the session: settings, memory, and every plugin's data, not just this run directory.
+   Answer the single prompt instead unless the operator wants that breadth. In `dontAsk` the
+   evidence file cannot be written, so the standalone-checkout exception below is unavailable
+   there, while inline `--path` verification still runs.
+   **Claim:** `.claude` is a protected directory, whose writes are prompted in `default` and
+   `acceptEdits`, routed to the classifier in `auto`, and denied in `dontAsk`; settings allow rules
+   do not pre-approve them; and the `~/.claude/` prompt carries the session-scoped option quoted
+   above. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`. **Basis:**
+   [protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
+   ("`permissions.allow` rules in settings files do not pre-approve protected-path writes"; the
+   per-mode table; "`.claude`, except for `.claude/worktrees`") and
+   [environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+   ("`~/.claude/plugins/data/<id>/`"). **As of:** 2026-09-28. **Recheck:** when the protected-paths
+   section changes its directory list, its per-mode table, or its session-scoped options, or when
+   the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
 
    A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
    Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
@@ -108,10 +111,12 @@ engine plan:
    `"accept_unpublished": true` and the operator's `"reason"` to the entry whose `path` is the
    exact approved path, and tell the operator that unpushed commits and untracked or ignored files
    in it will be lost. The acknowledgement relaxes only those two gates; see
-   [the safety model](safety-model.md#standalone-git-checkout-evidence). Then run:
+   [the safety model](safety-model.md#standalone-git-checkout-evidence). This lane is for Windows
+   and macOS; on Linux the engine's `handoff-apply` (command in `safety-model.md`) reads the same evidence
+   file and does the verify and the deletion in one process. Then run:
 
    ```text
-   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+   "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-verify \
      --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
      --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
@@ -131,9 +136,10 @@ engine plan:
    `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the scan's opaque `.git` truncation.
    Every other protected name, mount/link/reparse check, identity/descendant check, handle check, and
    consumer protection remains categorical. The emitted `vcs_evidence.gates` object records all four
-   required gates: empty porcelain status; all local heads present on the configured remote; all
+   gates: empty porcelain status; all local heads present on the configured remote; all
    stashes duplicated elsewhere (or none); and the exact approved path supplied by the existing
-   operator-confirmation lane.
+   operator-confirmation lane. Under `accept_unpublished`, the first two report
+   `accepted-unpublished` instead of passing; the stash gate and the exact-path gate still apply.
 
    **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
    path's check ages while every later path is still being walked and probed, so its `clear`
@@ -154,6 +160,8 @@ engine plan:
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
+   After a recycle, do not empty the Recycle Bin or Trash: emptying it would make any recycled
+   removal permanent and is the container-wide operation step 3 forbids.
 
    **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
    caveats all describe a reversible operation quietly turning permanent. A path longer than the
@@ -177,7 +185,9 @@ engine plan:
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
    in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
-   around a lock, or delete under a stale verdict.
+   around a lock, or delete under a stale verdict. The one exception is a `contested` verdict
+   whose only reason is `needs-elevation` while the effective `elevation` is `uac-prompt`: that
+   path may go through the [opt-in elevated script](safety-model.md#opt-in-elevation).
 
 ## The PowerShell guard lane
 
@@ -188,6 +198,16 @@ hooks and settings pages treat as forcing a prompt in `auto` and `bypassPermissi
 `dontAsk` it is denied instead. Add one if the handoff must not depend on hook-`ask`
 surfacing, and leave `dontAsk` first when the operator needs the confirm prompt. Engine
 invocations from PowerShell stay hard-denied.
+
+A deletion word inside a quoted literal (a commit message, a search term, an issue body) does
+not prompt when every command in the line is on a short list of commands that never run their
+string arguments: `git log`/`show`/`status`/`diff`/`commit`, `gh issue`/`pr`/`search`,
+`Write-Output`, `Get-ChildItem`, `Where-Object`, `Select-String`, `Get-Content` and similar
+readers and formatters. Any other command, a comment, a `$(...)` subexpression, a here-string, a
+backtick, a call operator `&`, a static or member call, or a non-ASCII character sends the whole
+line back to the plain word match, so a quoted word prompts again. Single-quoted literals are
+the safest form for message text. To keep prose out of the command line entirely, pass `gh`
+bodies through `--body-file <path>` or `-F <path>`.
 
 ## Hook registration outlives the cleanup
 

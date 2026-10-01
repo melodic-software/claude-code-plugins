@@ -3,6 +3,28 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-09-30
+
+### Fixed
+
+- **The Windows foreground helper command in `windows-quirks.md` resolves.** It cited the script through the literal plugin-root token, which does not expand in a reference file. It now reads `<skill-dir>/scripts/force-chrome-foreground.ps1`, and `SKILL.md` gains a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
+## [0.8.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- **`/playwright:check`, a model-invocable read-only check.** It runs the `playwright-cli` probes from `/playwright:setup check` and installs nothing, so Claude can run it when a prerequisites report lists `playwright-cli` as missing. `disable-model-invocation` is a whole-skill flag, which keeps `/playwright:setup` manual.
+
+### Changed
+
+- `prerequisites.json` points at `/playwright:check` instead of the human-only `/playwright:setup check`, and the README names the check.
+
 ## [0.7.3] - 2026-09-28
 
 ### Changed

@@ -62,7 +62,9 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude
 4. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
    `.venv`-style per-repo convention). Report the resolved path and `goimports -h`'s first line
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
-   when absent. The hook then emits a visible once-per-session skip notice instead of running.
+   when absent. The hook then emits a visible once-per-session skip notice instead of running,
+   and the `SessionStart` probe reports the same absence in every repository where the plugin is
+   enabled, with or without `.go` files.
 5. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
 6. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
@@ -78,10 +80,11 @@ no consumer-config gate by design; report that plainly as INFO, not as a gap.
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL print remediation guidance. Never install anything. There is
-no `apply install-goimports`-style write path: `go install golang.org/x/tools/cmd/goimports@latest`
-writes to the machine-global `$GOPATH/bin` (not project-scoped) and `@latest` is not
-idempotent-pinned, so the only responsible action is pointing at the command and letting the
-consumer run it themselves.
+no `apply install-goimports` write path. This skill follows the refusal template in
+[docs/plugin-philosophy.md](../../../../docs/plugin-philosophy.md) `### Install subactions and refusal`
+and prints the consumer-run command instead. Reason 1 applies: the hook resolves `goimports` on `PATH` only, so the install it can use,
+`go install golang.org/x/tools/cmd/goimports@latest`, writes to the machine-global `$GOPATH/bin`;
+a `go.mod` tool line is not one the hook finds.
 
 After the consumer installs `goimports` themselves, re-run `check` with live Bash probes (the
 pre-computed rows predate the install) and report its actual result. Never claim resolved without
@@ -96,15 +99,17 @@ re-verifying. For everything else `apply` only points:
   writes the value) and its verification record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
   Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
-  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
+  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
   (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
   - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
     resets every option to its manifest default.
-  - Scope. Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option value
-    always lands in user settings. Do not copy a scope from `claude plugin list`: a rerun at
-    another scope adds an install record at that scope and enables the plugin there. When the
-    working directory is the home directory, project scope and user scope are the same settings
-    file, so the list can label that one file as both `user` and `project`.
+  - Scope. Pass the scope `claude plugin list` reports for this plugin, and for a `project` or
+    `local` scope run from that project's directory, so the rerun matches the existing install
+    record. `-s` places the install record and `enabledPlugins`; the option value always lands in
+    user settings, and a rerun at another scope adds an install record at that scope and enables
+    the plugin there. When the working directory is the home directory, project scope and user
+    scope are the same settings file, so the list can label that one file as both `user` and
+    `project`: pass `user`.
   - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
     `check` in a **fresh session** and report the observed effective value, never an unobserved
     change.

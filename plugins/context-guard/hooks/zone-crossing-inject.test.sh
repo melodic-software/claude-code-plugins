@@ -35,6 +35,9 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
+# shellcheck source=hook-test-sink.sh
+source "$SCRIPT_DIR/hook-test-sink.sh"
+
 CTX_REL=".claude/context-guard/context"
 
 # write_snapshot <home> <sid> <used_percentage>
@@ -419,30 +422,11 @@ fi
 # swallowed twice. Simulated portably (no chmod/permission dependence): a
 # directory sitting at the exact state-file path makes the write fail on
 # every platform, including Git Bash on Windows.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'cat >%q\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-wait_for_sink() {
-  local f="$1" tries=150
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
-
 write_snapshot "$H" spersist 90
 mkdir -p "$D/state"
 mkdir -p "$D/state/spersist.zone" # a directory blocks the write, not a permission bit
 TEL="$WORK/tel-persist.json"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >\"$TEL\"")"
 OUT=$(printf '{"session_id":"spersist","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" 2>/dev/null)
 RC=$?
@@ -468,7 +452,7 @@ write_snapshot "$H" sretryz 90
 mkdir -p "$D/state"
 mkdir -p "$D/state/sretryz.zone" # same portable obstruction as 12
 TELZ="$WORK/tel-retry-zone.json"
-SINKZ="$(make_sink "$TELZ")"
+SINKZ="$(make_sink "cat >\"$TELZ\"")"
 OUT=$(printf '{"session_id":"sretryz","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKZ" bash "$HOOK" 2>/dev/null)
 RC=$?
@@ -506,7 +490,7 @@ rm -f "$D/state/sretrya.armed"
 mkdir -p "$D/state/sretrya.armed" # now the GATE file is the blocked one
 write_snapshot "$H" sretrya 90    # dumb — a real worsening, owed an injection
 TELA="$WORK/tel-retry-armed.json"
-SINKA="$(make_sink "$TELA")"
+SINKA="$(make_sink "cat >\"$TELA\"")"
 OUT=$(printf '{"session_id":"sretrya","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKA" bash "$HOOK" 2>/dev/null)
 RC=$?
@@ -1467,6 +1451,104 @@ for pct in 0 49 50 51 74 75 76 100; do
     fail "parity: used_percentage $pct: resolver=$res_word, hook cg_shipped_band=$hook_band"
   fi
 done
+
+# 14. One telemetry record per fire, tagged with how the decision was made.
+# fire_tel <sid>: run one fire against a log-appending sink, wait for the first
+# record, then give a second one time to show up. Sets TEL_LINES (the
+# records written) and TEL_PATH (the first record's data.path).
+FTH="$WORK/fire-tel-home"
+FTD="$WORK/fire-tel-data"
+FT_LOG="$WORK/fire-tel.log"
+FT_SINK="$(make_sink "{ cat; echo; } >>\"$FT_LOG\"")"
+TEL_LINES=0
+TEL_PATH=""
+fire_tel() {
+  : >"$FT_LOG"
+  printf '{"session_id":"%s","hook_event_name":"PostToolBatch"}' "$1" |
+    HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+  wait_for_sink "$FT_LOG"
+  sleep 0.2
+  TEL_LINES=$(grep -c . "$FT_LOG")
+  TEL_PATH=$(head -n1 "$FT_LOG" | jq -r '.data.path // ""' 2>/dev/null)
+}
+
+write_snapshot "$FTH" sfire 10
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "resolving" ]]; then
+  ok "fire telemetry: a fire that resolves writes one record with path=resolving"
+else
+  fail "fire telemetry resolving: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "fast" ]]; then
+  ok "fire telemetry: a repeat fire with unchanged inputs writes one record with path=fast"
+else
+  fail "fire telemetry fast: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+sleep 0.05 # the rewrite must land on a later mtime than the mark
+write_snapshot "$FTH" sfire 10
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "coalesced" ]]; then
+  ok "fire telemetry: a refresh inside one band writes one record with path=coalesced"
+else
+  fail "fire telemetry coalesced: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+# A crossing is also one record, and it keeps its own fields beside the path.
+sleep 0.05
+write_snapshot "$FTH" sfire 90
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "resolving" &&
+  "$(head -n1 "$FT_LOG" | jq -r '.data.injected' 2>/dev/null)" == "true" ]]; then
+  ok "fire telemetry: a crossing writes one record carrying path and injected"
+else
+  fail "fire telemetry crossing: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+# No sink: no record is written and the fast path still sources nothing extra.
+rm -f "$FT_LOG"
+write_snapshot "$FTH" snosink 10
+printf '{"session_id":"snosink","hook_event_name":"PostToolBatch"}' |
+  env -u HOOK_TELEMETRY_SINK HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" bash "$HOOK" >/dev/null 2>&1
+FT_TRACE="$WORK/fire-tel-trace.log"
+printf '{"session_id":"snosink","hook_event_name":"PostToolBatch"}' |
+  env -u HOOK_TELEMETRY_SINK HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>&1 9>"$FT_TRACE"
+if [[ ! -e "$FT_LOG" ]] && ! grep -q 'hook-utils.sh' "$FT_TRACE"; then
+  ok "fire telemetry: with no sink a fast fire writes nothing and sources no hook-utils"
+else
+  fail "fire telemetry with no sink: log=$(cat "$FT_LOG" 2>/dev/null) utils=$(grep -c 'hook-utils.sh' "$FT_TRACE")"
+fi
+
+# The two exits after a zone is decided but before any state is written still
+# record the fire, as an error with a reason.
+write_snapshot "$FTH" sjq 10
+: >"$FTH/$CTX_REL/sjq.compacted"
+: >"$FT_LOG"
+printf '{"session_id":"sjq","hook_event_name":"PostToolBatch","cwd":"/tmp"}' |
+  PATH="$NJ" HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+wait_for_sink "$FT_LOG"
+if [[ "$(head -n1 "$FT_LOG" | jq -r '[.status, .data.reason, .data.path] | join(",")' 2>/dev/null)" == "error,jq_missing,fast" ]]; then
+  ok "fire telemetry: a fire with no jq records error/jq_missing"
+else
+  fail "fire telemetry no jq: log=$(cat "$FT_LOG")"
+fi
+
+BD="$WORK/fire-tel-baddata"
+mkdir -p "$BD"
+: >"$BD/state" # a file where the state directory belongs: mkdir -p fails on every platform
+write_snapshot "$FTH" sbd 10
+: >"$FT_LOG"
+printf '{"session_id":"sbd","hook_event_name":"PostToolBatch"}' |
+  HOME="$FTH" CLAUDE_PLUGIN_DATA="$BD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+wait_for_sink "$FT_LOG"
+if [[ "$(head -n1 "$FT_LOG" | jq -r '[.status, .data.reason, .data.path] | join(",")' 2>/dev/null)" == "error,state_dir_unavailable,resolving" ]]; then
+  ok "fire telemetry: an unusable state directory records error/state_dir_unavailable"
+else
+  fail "fire telemetry state dir: log=$(cat "$FT_LOG")"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -58,6 +58,7 @@ from claude_cli import (  # noqa: E402,F401  (claude_cli.py in the parent dir; r
 from io_streams import utf8_streams  # noqa: E402  (io_streams.py in the parent dir)
 
 RAIL_RE = re.compile("^─{10,}$")
+COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 FILL_RE = re.compile(r"<!-- FILL: ([a-z0-9-]+) .*?-->")
 HANDOFF_GLOB = "*-handoff-*.md"
 # What counts as touching the save-point surface before the skill was invoked.
@@ -135,6 +136,8 @@ SHAPE1_MEDIAN_LINES = 154
 SHAPE1_MEDIAN_TOKENS = 3200
 BUDGET_HOPS = 20
 BUDGET_REPORT_HOPS = (1, 5, 20)
+ATTESTATION_CHECK_HOPS = 9
+ATTESTATION_MARK = "Re-scan"
 CUMULATIVE_ENTRIES_PER_HOP = 2
 BUDGET_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 BUDGET_EPOCH = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -230,13 +233,19 @@ def rail_lines(text: str) -> list[int]:
 
 
 def between_rails(text: str) -> str | None:
-    """The bytes between the first two rails, CRLF-normalized. None unless the
-    text carries exactly two rails."""
+    """The resume region's bytes, CRLF-normalized: the rail pair headed by the
+    copy-instruction line. None unless the text carries two rails, or four with
+    a COPY_LINE-headed pair."""
     rails = rail_lines(text)
-    if len(rails) != 2:
+    if len(rails) not in (2, 4):
         return None
     lines = text.replace("\r\n", "\n").split("\n")
-    return "\n".join(lines[rails[0] + 1 : rails[1]])
+    prev_end = 0
+    for top, bottom in zip(rails[::2], rails[1::2], strict=True):
+        if COPY_LINE in "\n".join(lines[prev_end:top]):
+            return "\n".join(lines[top + 1 : bottom])
+        prev_end = bottom + 1
+    return None
 
 
 def token_estimate(text: str) -> int:
@@ -302,7 +311,7 @@ def parse_iso(stamp: str) -> float | None:
 # 20-hop chain and what lets `--dry-run` hand `emit` and `validate` a real file.
 
 
-DELETED_SLOTS = ("goal-rearm", "below-rail")
+DELETED_SLOTS = ("goal-first", "goal-after", "below-rail")
 CUMULATIVE_SLOTS = ("constraints", "side-effects", "decisions", "abandoned", "findings")
 PADDED_SLOTS = (
     "brief",
@@ -382,6 +391,12 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             continue
         if slot == "left":
             out.append(prefix + f"hops after {hop} still to generate")
+            continue
+        if slot == "rescan":
+            out.append(
+                prefix
+                + "the re-scan read the lossless on-disk transcript; no compaction occurred."
+            )
             continue
         if slot == "goal":
             out.append(
@@ -1207,6 +1222,12 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
             )
         files.append(path)
         previous = path
+    if hops >= ATTESTATION_CHECK_HOPS:
+        found = files[-1].read_text(encoding="utf-8").count(ATTESTATION_MARK)
+        if found != 1:
+            raise SystemExit(
+                f"budget: newest of {hops} hops carries {found} re-scan attestation lines, expected 1"
+            )
     return files
 
 

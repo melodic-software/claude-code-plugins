@@ -41,9 +41,15 @@ Evidence tiers are discrete and evidence-gated, never verbalized probabilities:
 | Tier | Evidence | Fix-eligible |
 |---|---|---|
 | `fingerprint-confirmed` | matched span above the separation rule against an identity-checked source | yes |
+| `vendored-snapshot` | source read from a committed snapshot because the live fetch failed | no, human report |
 | `source-fetched-similar` | source fetched, below the deterministic rule, judges unanimous | no, human report |
 | `llm-suspected` | no lexical evidence is possible (paraphrase, summary) | no, human report |
 | `not-found` | budgets exhausted; every searched surface is named | no, human report |
+
+A passage that states a checkable external fact in its own words (a default, a limit) is judged
+against a second rubric, restated fact, and is never fix-eligible. A unanimous verdict that
+survives a refutation pass is relayed to the detector-findings report; anything else stays in the
+human report.
 
 `not-found` is a first-class neutral outcome. Absence of a located source is never read as
 evidence of a copy.
@@ -122,10 +128,11 @@ prints one warning naming it and the `attribution` file name to rename it to.
 ## Prerequisites
 
 - **bash** for `list-corpus.sh`, `extract-breadcrumbs.sh`, `check-stamps.sh`,
-  `emit-findings.sh`, and `score-golden.sh`.
+  `emit-findings.sh`, `score-golden.sh`, and `sweep-ledger.sh`.
 - **Node** for `fingerprint.mjs`, the one module with real data structures.
 - **Web fetch** for source confirmation. Without it, the audit still runs and reports, but every
-  finding that would have been verified stops at `llm-suspected` and nothing is fix-eligible.
+  finding that would have been verified stops at `llm-suspected`, or at `vendored-snapshot` where
+  an in-repo snapshot is the only basis, and nothing is fix-eligible.
 - **Web search**, optional. It is the enrichment branch used only when no breadcrumb names a
   candidate source. Without it the audit degrades to breadcrumb-only resolution: passages whose
   source is already cited nearby still reach `fingerprint-confirmed`, and the rest land on

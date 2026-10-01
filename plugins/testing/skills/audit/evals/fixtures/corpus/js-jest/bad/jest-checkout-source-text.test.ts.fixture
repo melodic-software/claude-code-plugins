@@ -1,0 +1,13 @@
+// expect: rule-source-text-read
+// reads: src/checkout.ts
+// Reads the module's source and searches it, so a rename fails the test and a
+// broken checkout does not.
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+describe('checkout', () => {
+  it('validates the cart before charging', () => {
+    const src = readFileSync(join(__dirname, '../src/checkout.ts'), 'utf8');
+    expect(src.indexOf('validateCart')).toBeLessThan(src.indexOf('charge('));
+  });
+});

@@ -3,6 +3,103 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.5] - 2026-10-01
+
+### Fixed
+
+- **`code-reviewer` reserves its report turns and emits `Criteria read:` and `Coverage:`
+  lines.** A review that runs out of turns still reports what it read and what it covered. A caller that requires exact output with no other lines is exempt.
+- **`quality-gate` self mode detects a partial gate and labels it.** A self-review that did not
+  cover every criterion says so instead of reporting a full pass.
+
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`fanout` and `quality-gate` context files no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` file, which the model reads as plain bytes. Links to `context/severity.md`, `reference/topic-docs.md` and `reference/standards-contract.md` are now relative to the spoke, and the remaining paths read `<plugin-root>/...`. Both skills gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
+## [0.34.3] - 2026-09-30
+
+### Changed
+
+- **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
+  drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
+  contract, so the consuming skills report it and ask for a `setup` re-run.
+
+## [0.34.2] - 2026-09-30
+
+### Changed
+
+- **`audit-enforceability` crosswalk has a row for `attribution/audit/rule-restated-upstream-fact`.**
+  The row maps it to `design-judgment` and `llm-only`: a panel's judgment selects the finding, so no
+  deterministic rung catches it.
+
+## [0.34.1] - 2026-09-30
+
+### Changed
+
+- **Boundary text for native surfaces no longer asserts that the surface ships with Claude
+  Code.** The `code-review` bullet in `code-review` and the `security-review` bullet in
+  `security-review` keep the provenance class, what the surface does and how it is invoked, in the
+  native-references template form; `fanout`'s Boundary says the bundled command and the managed
+  service are not marketplace plugins.
+
+## [0.34.0] - 2026-09-29
+
+### Changed
+
+- **`security-reviewer` applies the instruction-surface deletion lens.** The agent behind
+  `/review:quality-gate` security mode and `/review:fanout` now judges a deleted, narrowed or
+  softened standing instruction by consequence and reads the instruction exception register, as the
+  CI `security-review` skill already did, so wherever the agent is dispatched local and CI review
+  judge such a diff the same way.
+
+## [0.33.9] - 2026-09-29
+
+### Changed
+
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: medium`, down from `high`.** Both check
+  against binary criteria, so the extra effort bought cost without changing the verdict.
+  `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` stay at
+  `high`.
+
+## [0.33.8] - 2026-09-29
+
+### Security
+
+- **`pr-explainer` page validator rejects resource-loading CSS.** Inside `<style>`, `url(`,
+  `@import`, `expression(` and any backslash escape now fail the page; before, a page could load
+  a remote stylesheet or image with no HTML-significant character. The module comment no longer
+  claims the generator marker proves a page came from the builder: anyone can recompute the digest,
+  so a stamped page is judged by the structural scan alone.
+
+## [0.33.7] - 2026-09-29
+
+### Changed
+
+- **`ecosystem-specialist` no longer triggers proactively.** Its description scopes the trigger to
+  an explicit 'build', 'test', 'lint', or 'check' request and says not after every edit, matching
+  `code-reviewer`.
+
+## [0.33.6] - 2026-09-29
+
+### Changed
+
+- **`code-reviewer` preloads `testing:test-value`.** Its tautological-expectation criterion keeps
+  the scan-deference logic and points to that skill for the list of independent oracle sources.
+
+## [0.33.5] - 2026-09-29
+
+### Added
+
+- **`audit-enforceability` crosswalk rows for nine `testing:audit` rules.** The rule-id table now
+  names a rung for `rule-inert-assertion` (the test-framework analyzer pack: xUnit2021,
+  `valid-expect`, SC2314, F631), `rule-only-not-forbidden` (the project's ESLint config, through
+  eslint-plugin-playwright `no-focused-test`), and seven rules the `testing:audit` detector
+  already checks deterministically: `rule-constant-restatement`, `rule-source-text-read`,
+  `rule-conditional-assertion`, `rule-recomputed-derived`, `rule-snapshot-only`,
+  `rule-weak-oracle` and `rule-flaky-passes-suite`.
+
 ## [0.33.4] - 2026-09-29
 
 ### Changed

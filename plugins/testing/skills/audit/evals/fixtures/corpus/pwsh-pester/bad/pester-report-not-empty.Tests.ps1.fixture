@@ -1,0 +1,8 @@
+# expect: rule-weak-oracle
+# Any non-empty report passes, one with the wrong totals included.
+Describe 'Get-Report' {
+    It 'builds the report' {
+        $report = Get-Report -Month 9
+        $report | Should -Not -BeNullOrEmpty
+    }
+}

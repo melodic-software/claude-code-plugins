@@ -1,0 +1,88 @@
+{
+  "J1": {
+    "title": "Question J1?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "One writer",
+        "confirmed": true
+      },
+      {
+        "text": "Third",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "fine",
+      "seeded": false
+    },
+    "recommendation": "Rec J1",
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "vendor quote",
+      "by": "claude"
+    },
+    "setAside": [],
+    "seed": null
+  },
+  "J2": {
+    "title": "Question J2?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "No network",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": null
+  },
+  "J3": {
+    "title": "Question J3?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine"
+    }
+  },
+  "K1": {
+    "title": "Question K1?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": {
+      "why": "Pruned.",
+      "seeded": true
+    },
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "withdrawn",
+      "round": 1,
+      "resolution": "archived: Pruned."
+    }
+  }
+}

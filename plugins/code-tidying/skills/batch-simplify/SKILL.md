@@ -228,7 +228,7 @@ For each group:
 
 1. **Mark the task in_progress** via `TaskUpdate`
 
-2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
+2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Ladder record: the first two ids match the `name` field of each plugin's `agents/code-simplifier.md` (`code-simplifier` 1.0.0 in `claude-plugins-official`, and `pr-review-toolkit` in the same marketplace), read in the local plugin caches and marketplace clone on 2026-09-29; upstream: [`code-simplifier`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md) and [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md); recheck when either plugin is renamed or a marketplace lists another simplifier. The third rung is a fallback, not a sourced fact. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities
@@ -280,9 +280,9 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 One native Claude Code surface does this skill's job at single-target scale, and the two get
 conflated whenever the request is "run simplify":
 
-- **`simplify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. One
-  run takes one target, the changed code or a path or PR reference, reviews it for reuse,
-  simplification, efficiency, and altitude cleanups, and applies the fixes.
+- **`simplify` (bundled skill)**: one run takes one target, the changed code or a path or PR
+  reference, reviews it for reuse, simplification, efficiency, and altitude cleanups, and applies
+  the fixes.
 - **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
   and a docs mode for factual staleness.

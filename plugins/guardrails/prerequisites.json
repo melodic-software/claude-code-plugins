@@ -1,0 +1,14 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/guardrails:check",
+      "install": "Install Node.js from https://nodejs.org and put node on PATH"
+    },
+    {
+      "name": "jq",
+      "check": "/guardrails:check",
+      "install": "install jq from https://jqlang.org/download/"
+    }
+  ]
+}

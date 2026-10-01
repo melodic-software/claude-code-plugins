@@ -3,6 +3,33 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-30
+
+### Added
+
+- **`validate-evals` warns on undefined evaluative qualifiers (Q10)** ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)). An eval criterion that relies on `good`, `appropriate`, `reasonable`, `properly`, `correctly`, `useful`, `helpful`, `adequate` or `sensible` without saying what a grader must find now draws an advisory WARN. Items the whole-item hedge check (Q7) already flags are skipped. Like Q5-Q9 it never fails the run.
+
+## [0.24.15] - 2026-09-29
+
+### Fixed
+
+- **Bundled scripts follow the Agent Skills scripts checklist more closely**
+  ([#5293](https://github.com/melodic-software/claude-code-plugins/issues/5293)).
+  `check-skill.sh` check 7 runs each skill test with stdin closed, replays only the last 100 lines
+  of a failing test, prints a usage message for a missing skill name, and `--help` names
+  `CHECK_SKILL_SKIP_MARKDOWNLINT`. `check-listing-budget.sh` and `check-evals-quality.sh` reject an
+  option-shaped argument as an unknown option, and the usage errors point at `--help`.
+  `measure-invocation.sh score` rejects `--method` with no value and removes its temp directory on
+  every exit path; `compare` and `emit-plugin-eval` exit 2 (the documented usage/environment code)
+  instead of 1 for an input or write failure. No other exit code or output line changes.
+
+## [0.24.14] - 2026-09-29
+
+### Changed
+
+- **`check`: `validate-evals` states its scope.** It checks structure and lint only; `/evals:design`
+  says when a no-skill baseline arm is required and `/evals:plugin-eval` runs it.
+
 ## [0.24.13] - 2026-09-29
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; when the bundled doctor skill resolves in this session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
+description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
 argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
 user-invocable: true
 disable-model-invocation: false
@@ -384,8 +384,8 @@ fix-me, not a removal candidate.
 Two native Claude Code surfaces answer the question this skill starts from, and the three get
 conflated whenever a fleet looks unused:
 
-- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
-  marketplace plugin. Among its checks it finds unused skills, MCP servers, and plugins against
+- **`doctor` (bundled skill, alias `/checkup`)**: among its checks, finds unused skills, MCP
+  servers, and plugins against
   their context cost, groups them with a benefit estimate, and offers to disable the groups the
   user selects. It reports first and asks before changing anything.
 - **`/skill-doctor` (built-in command).** Shows which loaded skills go unused and what they cost in

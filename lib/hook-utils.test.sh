@@ -28,36 +28,16 @@ ok() {
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# make_sink <outfile> → prints the path to a single-executable stub sink that
-# copies its stdin to <outfile>. The contract requires HOOK_TELEMETRY_SINK to be
-# a single executable path (not a command-with-args), so tests point it at a
-# stub script rather than `tee FILE`.
-make_sink() {
-  local s
-  s="$(mktemp)"
-  cat >"$s" <<EOF
-#!/usr/bin/env bash
-cat >"$1"
-EOF
-  chmod +x "$s"
-  printf '%s' "$s"
-}
+WORK="$(mktemp -d)"
+cleanup_work() { rm -rf "$WORK"; }
+trap cleanup_work EXIT
 
-# wait_for_sink <file> [max_polls] → block until <file> is non-empty (the
-# fire-and-forget sink has flushed) or the bound elapses. Polls in 20ms steps so
-# the assertion fires as soon as the write lands instead of racing a fixed sleep
-# (sink dispatch is a freshly-spawned process; spawn latency varies, especially
-# on Windows Git Bash). The default bound is 750 polls (15 s), the same as
-# fin_arm's, since a single spawn has been measured at 3.2 s on a loaded host.
-# Returns non-zero on timeout so negative cases can assert.
-wait_for_sink() {
-  local f="$1" tries="${2:-750}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
+
+# Poll bound passed to every wait_for_sink: 750 polls of 20 ms (15 s), the same
+# as fin_arm's, since a single spawn has been measured at 3.2 s on a loaded host.
+SINK_POLLS=750
 
 # make_logging_shim <dir> <tool> → write an executable <dir>/<tool> that appends
 # one line to <dir>/log per invocation and then execs the real tool, for the
@@ -117,7 +97,7 @@ out_nojq=$(
   wait
 )
 rc_nojq=$?
-wait_for_sink "$SINK_FILE2" || true
+wait_for_sink "$SINK_FILE2" "$SINK_POLLS" || true
 rmdir "$EMPTY_BIN" 2>/dev/null || true
 if [[ $rc_nojq -eq 0 ]]; then
   ok "jq absent: returns 0"
@@ -145,7 +125,7 @@ fi
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}'
   wait
 ) 2>"$SINK_FILE2.err"
-wait_for_sink "$SINK_FILE2" || true
+wait_for_sink "$SINK_FILE2" "$SINK_POLLS" || true
 if [[ -s "$SINK_FILE2" ]] && ! grep -q 'jq was invoked' "$SINK_FILE2.err"; then
   ok "jq shadowed: envelope delivered without invoking jq"
 else
@@ -155,29 +135,26 @@ rm -f "$SINK_FILE2" "$SINK_FILE2.err" "$STUB2"
 
 # --- Test 3: envelope shape matches schema (7 required common fields + data) --
 SINK_FILE="$(mktemp)"
-cleanup_t3() { rm -f "$SINK_FILE"; }
+cleanup_t3() {
+  rm -f "$SINK_FILE"
+  cleanup_work
+}
 trap cleanup_t3 EXIT
 
 # Use a file-writing sink to capture the envelope.
 # shellcheck disable=SC2031  # prior subshell export is intentionally scoped there
-HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE")"
+HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$SINK_FILE\"")"
 export HOOK_TELEMETRY_SINK
 data_json='{"tool":"Write","file":"src/foo.py","findings":["src/foo.py:1:8: F401 os imported but unused"]}'
 start=$EPOCHREALTIME
 hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
-wait_for_sink "$SINK_FILE"
+wait_for_sink "$SINK_FILE" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 
 if [[ -s "$SINK_FILE" ]]; then
   ok "envelope shape: sink received data"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$SINK_FILE" >/dev/null 2>&1; then
-      ok "envelope shape: field '$field' present"
-    else
-      fail "envelope shape: field '$field' missing. envelope=$(cat "$SINK_FILE")"
-    fi
-  done
+  if check_envelope "$SINK_FILE"; then ok "envelope shape: matches envelope schema"; else fail "envelope shape: does not match envelope schema. envelope=$(cat "$SINK_FILE")"; fi
   # Validate data sub-fields
   for subfield in tool file findings; do
     if jq -e ".data | has(\"$subfield\")" "$SINK_FILE" >/dev/null 2>&1; then
@@ -216,9 +193,7 @@ if [[ -s "$SINK_FILE" ]]; then
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    fail "envelope shape: field '$field' not verifiable (no envelope)"
-  done
+  fail "envelope shape: envelope not verifiable (no envelope)"
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
   done
@@ -267,14 +242,14 @@ else
 fi
 
 rm -f "$SINK_FILE"
-trap - EXIT
+trap cleanup_work EXIT
 
 # --- Test 6: status "skipped" passes through ---------------------------------
 SINK_FILE2="$(mktemp)"
-HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE2")"
+HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$SINK_FILE2\"")"
 export HOOK_TELEMETRY_SINK
 hook::emit_telemetry "sample-hook" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
-wait_for_sink "$SINK_FILE2"
+wait_for_sink "$SINK_FILE2" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 
 if [[ -s "$SINK_FILE2" ]]; then
@@ -303,7 +278,7 @@ EOF
 chmod +x "$ROOT7/$REL7"
 export HOOK_TELEMETRY_SINK="$REL7"
 hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "$ROOT7" 2>/dev/null
-wait_for_sink "$OUT7"
+wait_for_sink "$OUT7" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT7" ]] && [[ "$(jq -r '.hook' "$OUT7")" == "sample-hook" ]]; then
   ok "relative sink: resolved against repo_root arg, envelope delivered"
@@ -323,7 +298,7 @@ EOF
 chmod +x "$ROOT8/.claude/hooks/sink.sh"
 export HOOK_TELEMETRY_SINK=".claude/hooks/sink.sh"
 CLAUDE_PROJECT_DIR="$ROOT8" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' 2>/dev/null
-wait_for_sink "$OUT8"
+wait_for_sink "$OUT8" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT8" ]]; then
   ok "relative sink: resolved against CLAUDE_PROJECT_DIR fallback"
@@ -352,10 +327,10 @@ rm -f "$OUT9"
 
 # --- Test 10: ABSOLUTE sink passes through unchanged --------------------------
 OUT10="$(mktemp)"
-ABS10="$(make_sink "$OUT10")" # mktemp path is absolute
+ABS10="$(make_sink "cat >\"$OUT10\"")" # mktemp path is absolute
 export HOOK_TELEMETRY_SINK="$ABS10"
 hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "/some/ignored/root" 2>/dev/null
-wait_for_sink "$OUT10"
+wait_for_sink "$OUT10" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT10" ]] && [[ "$(jq -r '.hook' "$OUT10")" == "sample-hook" ]]; then
   ok "absolute sink: passes through unchanged (repo_root ignored)"
@@ -825,6 +800,120 @@ else
   ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
 fi
 
+# --- Test 12f: temp-root candidates gain cygpath drive spellings -------------
+# Cygwin bash reports TEMP and TMP as /tmp, so on a Windows bash the drive
+# spellings come from cygpath. A stub cygpath maps the POSIX candidate to real
+# directories outside every temp tree and logs each call, so this runs on any
+# host. Each case is a fresh bash, so no case inherits another's cache.
+TW_DIR="$(cd "$HOOK_DIR/.." && pwd -P)/.work/hu-tempwin-$$"
+case "$TW_DIR" in
+/tmp/* | /var/tmp/*)
+  ok "temp_root_candidates: cygpath drive spellings SKIPPED (the checkout sits under temp at $TW_DIR; no coverage here, not a pass)"
+  ;;
+*)
+  mkdir -p "$TW_DIR/bin" "$TW_DIR/posix" "$TW_DIR/long" "$TW_DIR/short~1" "$TW_DIR/mixed"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'TWEOF'
+printf '%s\n' "$*" >>"$TW_LOG"
+[[ -z "${TW_FAIL:-}" ]] || exit 1
+long=0
+for a in "$@"; do
+  case "$a" in
+  -l) long=1 ;;
+  -m | --) ;;
+  *)
+    if ((long)); then
+      [[ "$a" == "$TW_SHORT" ]] && a=$TW_LONG
+    else
+      [[ "$a" == "$TW_FROM" ]] && a=$TW_TO
+    fi
+    printf '%s\n' "$a"
+    ;;
+  esac
+done
+TWEOF
+  } >"$TW_DIR/bin/cygpath"
+  chmod +x "$TW_DIR/bin/cygpath"
+  TW_POSIX="$TW_DIR/posix|/tmp"
+  [[ -d /var/tmp ]] && TW_POSIX="$TW_POSIX|/var/tmp"
+  # tw_run <ostype> [NAME=value...]: prints the candidates of two calls in one
+  # shell, then the number of cygpath calls, one per line.
+  tw_run() {
+    local ostype="$1"
+    shift
+    : >"$TW_DIR/log"
+    # shellcheck disable=SC2016 # $1..$3 are the child's own positional parameters
+    env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" \
+      TW_SHORT="$TW_DIR/short~1" TW_LONG="$TW_DIR/long" "$@" \
+      PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+        OSTYPE="$1"
+        source "$2"
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        _HOOK_UTR_TARGET_PHYSICAL=0
+        if hook::under_temp_root "$3"; then echo in; else echo out; fi
+      ' _ "$ostype" "$HOOK_DIR/hook-utils.sh" "$TW_DIR/long/f"
+    local calls=0 line
+    while IFS= read -r line; do calls=$((calls + 1)); done <"$TW_DIR/log"
+    printf '%s\n' "$calls"
+  }
+  tw_case() {
+    local label="$1" want="$2" got
+    shift 2
+    got=$(tw_run "$@")
+    got=${got//$'\n'/ }
+    if [[ "$got" == "$want" ]]; then
+      ok "temp_root_candidates: $label"
+    else
+      fail "temp_root_candidates: $label: want '$want', got '$got'"
+    fi
+  }
+  # 8.3 answer: the long form comes first, two cygpath calls, none on the second
+  # call, and a target under the long form is under a temp root.
+  TW_83="$TW_POSIX|$TW_DIR/long|$TW_DIR/short~1"
+  tw_case "8.3 mixed answer adds long then short, 2 calls then 0" \
+    "$TW_83 $TW_83 in 2" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  tw_case "cygwin OSTYPE takes the same arm" \
+    "$TW_83 $TW_83 in 2" cygwin TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  # No `~` in the answer: one call.
+  tw_case "mixed answer without ~ adds it with 1 call" \
+    "$TW_POSIX|$TW_DIR/mixed $TW_POSIX|$TW_DIR/mixed out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/mixed"
+  # A spelling already in the list is not added twice.
+  tw_case "a spelling equal to a POSIX candidate is deduped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO=/tmp
+  # A spelling that is not a directory is dropped, like any candidate.
+  tw_case "a spelling that is not a directory is dropped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="C:/no/such/dir"
+  # A failing cygpath leaves the POSIX candidates. The failure is not cached, so
+  # each of the three candidate lookups (two direct, one in under_temp_root)
+  # asks again, one call each.
+  tw_case "a failing cygpath adds nothing" \
+    "$TW_POSIX $TW_POSIX out 3" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" TW_FAIL=1
+  # POSIX hosts never call cygpath, even with one on PATH.
+  tw_case "a Linux OSTYPE never calls cygpath" \
+    "$TW_POSIX $TW_POSIX out 0" linux-gnu TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long"
+  # --no-drive stops before cygpath even on a Windows OSTYPE.
+  : >"$TW_DIR/log"
+  # shellcheck disable=SC2016 # $1 is the child's own positional parameter
+  tw_nodrive=$(env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" \
+    PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+      OSTYPE=msys
+      source "$1"
+      hook::_temp_root_candidates --no-drive
+      (IFS="|"; printf "%s" "${_HOOK_TEMP_CANDS[*]}")
+    ' _ "$HOOK_DIR/hook-utils.sh")
+  if [[ "$tw_nodrive" == "$TW_POSIX" && ! -s "$TW_DIR/log" ]]; then
+    ok "temp_root_candidates: --no-drive adds no spelling and calls no cygpath"
+  else
+    fail "temp_root_candidates: --no-drive: want '$TW_POSIX' and no call, got '$tw_nodrive' and '$(<"$TW_DIR/log")'"
+  fi
+  rm -rf "$TW_DIR"
+  ;;
+esac
+
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
 # track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any
@@ -966,7 +1055,7 @@ compact_refuses "structure past the grammar cap" "{\"a\":[${big14c}0]}"
 # same bytes: field order, spacing and escapes are jq's. Also: the fallback
 # fires (and delivers, through jq) for a data object the compactor refuses.
 SINK3B="$(mktemp)"
-STUB3B="$(make_sink "$SINK3B")"
+STUB3B="$(make_sink "cat >\"$SINK3B\"")"
 hook_event3b=$'Post\tTool\001Use'
 # shellcheck disable=SC2030,SC2031  # subshell-local by design
 (
@@ -974,7 +1063,7 @@ hook_event3b=$'Post\tTool\001Use'
   hook::emit_telemetry "sam\"ple" "$hook_event3b" 'ok é' "$EPOCHREALTIME" "$pretty14c" 2>/dev/null
   wait
 )
-wait_for_sink "$SINK3B" || true
+wait_for_sink "$SINK3B" "$SINK_POLLS" || true
 if [[ -s "$SINK3B" ]]; then
   lines3b=$(wc -l <"$SINK3B" | tr -d ' ')
   rerender=$(jq -c . "$SINK3B" 2>/dev/null | tr -d '\r')
@@ -1018,7 +1107,7 @@ fi
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
   wait
 )
-wait_for_sink "$SINK3B" || true
+wait_for_sink "$SINK3B" "$SINK_POLLS" || true
 if [[ "$(jq -r '.data.a' "$SINK3B" 2>/dev/null)" == "é" ]]; then
   ok "envelope: the jq fallback delivers the decoded data"
 else
@@ -1449,7 +1538,7 @@ fi
 FAKEBIN17="$(make_stub_bin)"
 run17b() {
   local args="$1"
-  CLAUDE_PLUGIN_DATA="$(mktemp -d)" "$BASH" -c '
+  CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/data17b.XXXXXX")" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
     source "'"$HOOK_DIR"'/hook-utils.sh"
     hook::require_jq_blocking '"$args"'
@@ -2725,7 +2814,7 @@ rm -f "$bs_release_fifo"
 # not leak into the rest of the suite. A wired sink proves nothing is dispatched.
 tel19="$(mktemp)"
 : >"$tel19"
-sink19="$(make_sink "$tel19")"
+sink19="$(make_sink "cat >\"$tel19\"")"
 rc19=$(
   unset EPOCHREALTIME
   start=${EPOCHREALTIME:-}
@@ -2747,7 +2836,7 @@ rm -f "$tel19" "$sink19"
 # so the size is not limited by the host's argv cap (Windows Git Bash truncates
 # multi-KB function arguments). Assert the sink receives the full envelope.
 tel19b="$(mktemp)"
-sink19b="$(make_sink "$tel19b")"
+sink19b="$(make_sink "cat >\"$tel19b\"")"
 driver19b="$(mktemp)"
 blob19b="$(mktemp)"
 printf 'x%.0s' {1..35000} >"$blob19b"
@@ -2760,7 +2849,7 @@ HOOK_TELEMETRY_SINK="$sink19b" hook::emit_telemetry \
   "sample-hook" "PostToolUse" "ok" "\$EPOCHREALTIME" "\$data_json" 2>/dev/null
 DRIVER
 bash "$driver19b"
-wait_for_sink "$tel19b"
+wait_for_sink "$tel19b" "$SINK_POLLS"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$tel19b" ]]; then
   blob_len=$(jq -r '.data.findings[0] | length' "$tel19b" 2>/dev/null || echo 0)
@@ -4012,9 +4101,9 @@ rm -rf "$tr_shim"
 corr_sink="$(mktemp)"
 corr_payload='{"session_id":"sess-20","prompt_id":"p-20","tool_use_id":"toolu_01ABC","agent_id":"agent-7","cwd":"/x","tool_input":{"file_path":"a.md","content":"{\"session_id\":\"decoy\"}"}}'
 # Builtin path: a data object the compactor proves.
-INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   for pair in session_id=sess-20 prompt_id=p-20 tool_use_id=toolu_01ABC agent_id=agent-7; do
     key="${pair%%=*}" want="${pair#*=}"
@@ -4038,9 +4127,9 @@ fi
 rm -f "$corr_sink"
 # jq path: pretty-printed data the compactor declines, same keys.
 corr_sink="$(mktemp)"
-INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" $'{\n  "tool": "Write",\n  "file": "a.md",\n  "findings": []\n}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "sess-20 p-20 toolu_01ABC agent-7" ]]; then
     ok "corr (jq path): all four keys carried"
@@ -4060,9 +4149,9 @@ rm -f "$corr_sink"
 # Partial and malformed: only well-formed keys appear; a value with a quote,
 # a space or a path separator is not an id and is dropped, not escaped.
 corr_sink="$(mktemp)"
-INPUT='{"session_id":"../escape","prompt_id":"p 1","tool_use_id":"toolu_ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"session_id":"../escape","prompt_id":"p 1","tool_use_id":"toolu_ok"}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[has("session_id"), has("prompt_id"), has("tool_use_id"), has("agent_id")] | join(" ")' "$corr_sink")" == "false false true false" ]]; then
     ok "corr: malformed ids dropped, well-formed one kept"
@@ -4079,9 +4168,9 @@ rm -f "$corr_sink"
 # ahead of the real one files the row under the WRONG session. Both are pinned
 # here in the direction that matters — the nested value must never appear.
 corr_sink="$(mktemp)"
-INPUT='{"session_id":"sess-root","tool_input":{"options":{"prompt_id":"NESTED"}}}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"session_id":"sess-root","tool_input":{"options":{"prompt_id":"NESTED"}}}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, (.prompt_id // "absent")] | join(" ")' "$corr_sink")" == "sess-root absent" ]]; then
     ok "corr: a nested prompt_id is not captured, the root session_id is"
@@ -4096,9 +4185,9 @@ rm -f "$corr_sink"
 # still the value that lands: selecting by depth beats truncating at the first
 # container, which would have dropped this key entirely.
 corr_sink="$(mktemp)"
-INPUT='{"tool_input":{"n":{"session_id":"NESTED"}},"session_id":"sess-root"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"tool_input":{"n":{"session_id":"NESTED"}},"session_id":"sess-root"}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '.session_id // "absent"' "$corr_sink")" == "sess-root" ]]; then
     ok "corr: the root session_id wins over one nested ahead of it"
@@ -4116,9 +4205,9 @@ rm -f "$corr_sink"
 # silently lost tool_use_id on every tool event, so the order here is the point
 # of the case, not incidental.
 corr_sink="$(mktemp)"
-INPUT='{"session_id":"s-1","prompt_id":"p-1","cwd":"/x","tool_name":"Bash","tool_input":{"command":"npm test","timeout":120000},"tool_response":{"ok":true},"tool_use_id":"toolu_1","agent_id":"a-1"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"session_id":"s-1","prompt_id":"p-1","cwd":"/x","tool_name":"Bash","tool_input":{"command":"npm test","timeout":120000},"tool_response":{"ok":true},"tool_use_id":"toolu_1","agent_id":"a-1"}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-1 p-1 toolu_1 a-1" ]]; then
     ok "corr: all four ids captured with tool_use_id after tool_input"
@@ -4131,9 +4220,9 @@ fi
 rm -f "$corr_sink"
 # A decoy inside an array of objects is nested too, and must not be reached.
 corr_sink="$(mktemp)"
-INPUT='{"items":[{"session_id":"BAD"},{"agent_id":"BAD"}],"session_id":"good","agent_id":"ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"items":[{"session_id":"BAD"},{"agent_id":"BAD"}],"session_id":"good","agent_id":"ok"}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, .agent_id] | join(" ")' "$corr_sink")" == "good ok" ]]; then
     ok "corr: decoys inside a root array are not reached"
@@ -4154,10 +4243,10 @@ corr_sink="$(mktemp)"
 (
   corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
   INPUT='{"session_id":"s-big","prompt_id":"p-big","tool_input":{"content":"'"$corr_big"'","prompt_id":"NESTED"}}'
-  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
     hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
 )
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, .prompt_id] | join(" ")' "$corr_sink")" == "s-big p-big" ]]; then
     ok "corr: a multi-megabyte payload still yields the root ids"
@@ -4176,10 +4265,10 @@ corr_sink="$(mktemp)"
 (
   corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
   INPUT='{"session_id":"s-big","tool_input":{"content":"'"$corr_big"'","session_id":"NESTED"},"tool_use_id":"toolu_past_gate"}'
-  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
     hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
 )
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big omitted" ]]; then
     ok "corr: past the size gate the root id holds and no nested one is taken"
@@ -4194,10 +4283,10 @@ rm -f "$corr_sink"
 corr_sink="$(mktemp)"
 (
   unset INPUT HOOK_TELEMETRY_PAYLOAD
-  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
     hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
 )
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,data" ]]; then
     ok "corr: no payload, no correlation keys"
@@ -4210,9 +4299,9 @@ fi
 rm -f "$corr_sink"
 # HOOK_TELEMETRY_PAYLOAD wins over INPUT for a producer that buffers under another name.
 corr_sink="$(mktemp)"
-INPUT='{"session_id":"from-input"}' HOOK_TELEMETRY_PAYLOAD='{"session_id":"from-payload"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"session_id":"from-input"}' HOOK_TELEMETRY_PAYLOAD='{"session_id":"from-payload"}' HOOK_TELEMETRY_SINK="$(make_sink "cat >\"$corr_sink\"")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
-wait_for_sink "$corr_sink"
+wait_for_sink "$corr_sink" "$SINK_POLLS"
 if [[ "$(jq -r '.session_id' "$corr_sink" 2>/dev/null)" == "from-payload" ]]; then
   ok "corr: HOOK_TELEMETRY_PAYLOAD overrides INPUT"
 else
@@ -4706,7 +4795,7 @@ fin_check() {
 }
 
 fin_tel="$FIN_WORK/tel.json"
-fin_sink="$(make_sink "$fin_tel")"
+fin_sink="$(make_sink "cat >\"$fin_tel\"")"
 
 # Clean: the tool ran to judgment, nothing changed, nothing to say.
 : >"$fin_tel"
@@ -5148,6 +5237,92 @@ es_to=""
 hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
 if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
 unset es_case es_tool es_cmd es_to es_print
+
+# --- gitignore scope gate (#4671) ---------------------------------------------
+# A fixture repository with an ignored scratch tier, a tracked file matching an
+# ignore pattern, and an ordinary file. Global excludes are neutralized so a
+# developer's own ignore rules cannot decide what the suite sees.
+if command -v git >/dev/null 2>&1; then
+  GI_ROOT="$(mktemp -d)"
+  GREPO="$GI_ROOT/grepo"
+  mkdir -p "$GREPO/.work" "$GREPO/src"
+  git -C "$GREPO" init -q
+  git -C "$GREPO" config core.excludesFile /dev/null
+  git -C "$GREPO" config user.email t@t.t
+  git -C "$GREPO" config user.name t
+  printf '.work/\n*.gen.sh\n' >"$GREPO/.gitignore"
+  printf 'x\n' >"$GREPO/.work/scratch.sh"
+  printf 'x\n' >"$GREPO/src/plain.sh"
+  printf 'x\n' >"$GREPO/src/tracked.gen.sh"
+  git -C "$GREPO" add -f src/tracked.gen.sh
+  git -C "$GREPO" commit -q -m init
+
+  if hook::file_is_gitignored "$GREPO/.work/scratch.sh"; then
+    ok "gitignored: an ignored untracked file reads as ignored"
+  else
+    fail "gitignored: .work/scratch.sh did not read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/tracked.gen.sh"; then
+    ok "gitignored: a tracked file matching an ignore pattern reads as not ignored"
+  else
+    fail "gitignored: a tracked file read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/plain.sh"; then
+    ok "gitignored: an ordinary file reads as not ignored"
+  else
+    fail "gitignored: src/plain.sh read as ignored"
+  fi
+
+  NOREPO="$GI_ROOT/norepo"
+  mkdir -p "$NOREPO"
+  printf 'x\n' >"$NOREPO/loose.sh"
+  if ! hook::file_is_gitignored "$NOREPO/loose.sh"; then
+    ok "gitignored: a file in no repository reads as not ignored"
+  else
+    fail "gitignored: a file in no repository read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GI_ROOT/missing-dir/gone.sh"; then
+    ok "gitignored: a vanished directory fails toward acting (not ignored)"
+  else
+    fail "gitignored: a vanished directory read as ignored"
+  fi
+
+  # An inherited GIT_DIR naming ANOTHER repository must not answer: the
+  # other repository ignores nothing, so honoring it would lint the file.
+  OTHER="$GI_ROOT/other"
+  mkdir -p "$OTHER"
+  git -C "$OTHER" init -q
+  if (GIT_DIR="$OTHER/.git" GIT_WORK_TREE="$OTHER" hook::file_is_gitignored "$GREPO/.work/scratch.sh"); then
+    ok "gitignored: an inherited GIT_DIR/GIT_WORK_TREE is cleared (still ignored)"
+  else
+    fail "gitignored: an inherited GIT_DIR/GIT_WORK_TREE decided the answer"
+  fi
+
+  if hook::gitignored_out_of_scope "false" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: ignored file with the opt-in off is out of scope"
+  else
+    fail "out_of_scope: ignored file with the opt-in off stayed in scope"
+  fi
+  if ! hook::gitignored_out_of_scope "true" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: the opt-in 'true' keeps an ignored file in scope"
+  else
+    fail "out_of_scope: the opt-in 'true' did not keep the file in scope"
+  fi
+  if hook::gitignored_out_of_scope "yes; rm -rf /" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: a garbage opt-in value reads as the default (off)"
+  else
+    fail "out_of_scope: a garbage opt-in value opened the gate"
+  fi
+  if ! hook::gitignored_out_of_scope "false" "$GREPO/src/plain.sh"; then
+    ok "out_of_scope: an ordinary file stays in scope with the opt-in off"
+  else
+    fail "out_of_scope: an ordinary file was put out of scope"
+  fi
+  rm -rf "$GI_ROOT"
+  unset GI_ROOT GREPO NOREPO OTHER
+else
+  ok "gitignore scope checks skipped (git absent)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -1,0 +1,20 @@
+{
+  "tools": [
+    {
+      "name": "ruff",
+      "local_bin": ".venv/bin/ruff",
+      "check": "/ruff-format:check",
+      "install": "pip install ruff in the project .venv, https://docs.astral.sh/ruff/installation/"
+    },
+    {
+      "name": "jq",
+      "check": "/ruff-format:check",
+      "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/ruff-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    }
+  ]
+}

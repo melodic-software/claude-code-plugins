@@ -6,6 +6,103 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.6] - 2026-09-30
+
+Patch: clarification.
+
+- **The Adopters table records `/prototype:explore-directions`'s and `/visualization:visualize`'s
+  `## Boundary` sections and description phrases for the built-in `ClaudeDesign` tool**
+  (integration `route`).
+
+## [3.3.5] - 2026-09-30
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/context-budget:audit`,
+  `/evals:methodology` and `/playbooks:fable-5`** for the bundled `explain-usage` skill, the bundled
+  `claude-api` skill's `hillclimb` subcommand, and the bundled `claude-api` skill.
+- **The Adopters table records `/prototype:explore-directions`'s and `/visualization:visualize`'s
+  switch from a description phrase to a suggest sentence** for the bundled `design` skill, which a
+  2.1.285 extraction reads as model-invocation-disabled.
+- **The Adopters table records `/context-budget:audit`'s `## Boundary` section for `/context`**
+  (integration `suggest`), beside its `explain-usage` section.
+
+## [3.3.4] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table records the description phrase baked in `/claude-ops:observability`** for
+  the bundled `explain-usage` skill.
+
+## [3.3.3] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/claude-config:audit-instructions`,
+  `/claude-config:audit-permission-state` and `/claude-config:audit`** for the bundled `claude-api`,
+  `fewer-permission-prompts` and `update-config` skills.
+
+## [3.3.2] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the first `builtin-agent` and `builtin-tool` Boundary sections**, from
+  the 2026-09-29 triage of those lanes: the `Explore` agent in `discovery:explore`, the `Plan`
+  agent in `planning:plan`, and `WebFetch` and `WebSearch` in `firecrawl:firecrawl`.
+
+## [3.3.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/source-control:commit` and
+  `/source-control:pull-request`** for the bundled `commit` and `pr` skills and `/commit-push-pr`.
+
+## [3.3.0] - 2026-09-29
+
+Minor: additive guidance.
+
+- **`builtin-agent` and `builtin-tool` are provenance classes.** The inventory now extracts
+  Claude Code's built-in subagent types and built-in tools, and the overlap store can record a row
+  against either. Their runtime relationship is `route` only: the model reaches them through the
+  Agent tool or by tool name, never the Skill tool, and no person types them as a command.
+
+## [3.2.2] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections from the 2026-09-29 triage of every remaining
+  discovered candidate**: `/autofix-pr` in `babysit-prs`, `/commit-push-pr` in `commit`,
+  `/permissions` in `audit-permission-grants`, and new rows for `/bug` in `bugs:write`,
+  `/install-github-app` in `github:advise`, and `/memory` in `claude-memory:stateless`.
+
+## [3.2.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections recorded against Claude Code 2.1.284**, across
+  source-control, claude-config, verification, implementation, debugging, discovery, claude-ops,
+  context-budget, session-flow, planning, and prototype. A stray blank line that split the table in
+  two is removed.
+
+## [3.2.0] - 2026-09-29
+
+Minor: additive guidance.
+
+- **`bundled-workflow` is a provenance class.** Claude Code bundles workflows (`deep-research`)
+  beside its skills, and the overlap store can now record a row against one. Its runtime
+  relationship is `route` or `suggest`, never `wrap`, because the Native step invokes through the
+  Skill tool and a workflow is not a skill.
+
+## [3.1.0] - 2026-09-29
+
+Minor: additive guidance in the Runtime relationship section.
+
+- **A model-disabled `suggest` row carries no description phrase.** The model never lists a
+  `bundled-skill` carrying `model-invocation-disabled`, so a phrase in the component's description
+  is dead text; the body's suggest sentence is the only baked line. The overlap self-check fails a
+  row that sets `baked.description_phrase` on that combination
+  ([#5303](https://github.com/melodic-software/claude-code-plugins/issues/5303)).
+
 ## [3.0.0] - 2026-09-28
 
 Major: the canonical route-gate token changes, which the Versioning section names as a major change.

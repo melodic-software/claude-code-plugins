@@ -144,7 +144,7 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "states", "portfolio", "adr", "decision-record", "skill"]
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",
@@ -194,6 +194,12 @@
       "source": "./plugins/docs-hygiene",
       "category": "maintenance",
       "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit", "progressive-disclosure", "context-engineering"]
+    },
+    {
+      "name": "docs-naming",
+      "source": "./plugins/docs-naming",
+      "category": "maintenance",
+      "tags": ["maintenance", "documentation", "skill", "file-names", "naming", "rename", "audit", "gate"]
     },
     {
       "name": "firecrawl",

@@ -31,7 +31,7 @@ destructive git command itself.
 ## Script
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh \
+bash <skill-dir>/scripts/git-tree-reset-batch.sh \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... \
   [--skip ENTRY]... [--skip-from FILE]... \
@@ -116,7 +116,7 @@ Dry-run the whole ghq tree, skipping one repo, keeping the batch on feature
 branches only:
 
 ```bash
-ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh \
+ghq list -p | bash <skill-dir>/scripts/git-tree-reset-batch.sh \
   --repos-from - --skip melodic-software/standards
 ```
 
@@ -124,13 +124,13 @@ Apply across an explicit set that is on default branches (fresh-clone reset),
 after confirming the dry-run:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh --apply \
+bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
   --force-default-branch --repo ~/repos/a --repo ~/repos/b
 ```
 
 Include dirty repos (discards their uncommitted changes, confirm separately):
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh --apply \
+bash <skill-dir>/scripts/git-tree-reset-batch.sh --apply \
   --include-dirty --repos-from repos.txt
 ```

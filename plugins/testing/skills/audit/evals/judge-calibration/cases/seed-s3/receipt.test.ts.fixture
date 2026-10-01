@@ -1,0 +1,14 @@
+import { expect, it } from 'vitest';
+import { renderReceipt } from './receipt';
+
+it('renders the receipt', () => {
+  const items = [
+    { name: 'Tea', price: 0.1 },
+    { name: 'Cake', price: 0.2 },
+  ];
+  expect(renderReceipt(items)).toMatchInlineSnapshot(`
+    "Tea 0.1
+    Cake 0.2
+    Total 0.30000000000000004"
+  `);
+});

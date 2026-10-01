@@ -13,11 +13,26 @@ async page => {
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
 
-  ok("first open question selected on load", await sel() === "N1", await sel());
+  ok("first question that needs you is selected on load: stale Q9 comes before open N1", await sel() === "Q9" && /Stale/.test(await page.textContent('.qbtn[data-q="Q9"]')), await sel());
   const lock = await page.textContent('.sec[data-key="g:g10"] .lock').catch(() => "");
   ok("dependent group shows locked", /opens after New group/.test(lock), lock);
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
+  ok("only the group whose summary predates a question shows Stale", (await page.$$('.sec[data-key="g:ordering"] .sec-hint .chip.hot')).length === 1 && !(await page.$('.sec[data-key="g:content"] .sec-hint .chip.hot')));
   ok("needs connector on N2", /needs N1/.test(await page.textContent('.qbtn[data-q="N2"]')));
+  await page.setViewportSize({width: 510, height: 860});
+  if (!(await page.isVisible('.qbtn[data-q="Q7"]'))) await page.click('.sec[data-key="g:realtime"] .sec-h');
+  const n4 = await page.evaluate(() => { const b = document.querySelector('.qbtn[data-q="Q7"]'), q = b.querySelector(".qid"), r = document.createRange(); r.selectNodeContents(q); return {idW: q.getBoundingClientRect().width, textW: r.getBoundingClientRect().width, idRight: q.getBoundingClientRect().right, tLeft: b.querySelector(".qtitle").getBoundingClientRect().left}; });
+  const w4 = await page.$$eval(".qbtn .qid", els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().width)));
+  ok("every rail card has the same fixed id column, wide enough for its id", new Set(w4).size === 1 && n4.idW >= n4.textW && n4.tLeft >= n4.idRight, JSON.stringify([w4, n4]));
+  for (const id of ["Q8", "Q9", "Q7", "Q11"]) if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
+  const lay = await page.evaluate(() => ["Q8", "Q9", "Q7", "Q11"].map(id => {
+    const b = document.querySelector('.qbtn[data-q="' + id + '"]'), t = b.querySelector(".qtitle").getBoundingClientRect(), qid = b.querySelector(".qid").getBoundingClientRect(), ns = [...b.querySelectorAll(".needs")];
+    return {id, n: ns.length, col2: t.left >= qid.right && t.top < qid.bottom, xs: ns.map(n => Math.round(n.getBoundingClientRect().left)), below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), over: [b, ...b.querySelectorAll("*")].filter(e => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow !== "ellipsis").map(e => e.className || e.tagName)};
+  }));
+  ok("cards with 0, 1, 2 and 4 dependsOn put the title in column 2 on row 1", lay.map(l => l.n).join() === "0,1,2,4" && lay.every(l => l.col2), JSON.stringify(lay));
+  ok("every needs line sits at one x, below the title", lay.every(l => new Set(l.xs).size <= 1 && l.below), JSON.stringify(lay.map(l => l.xs)));
+  ok("no card element overflows its own width at 510px", lay.every(l => !l.over.length), JSON.stringify(lay.map(l => l.over)));
+  await page.setViewportSize({width: 1400, height: 860});
 
   // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
@@ -29,6 +44,8 @@ async page => {
 
   // dictation: plain Enter, digits while typing, Ctrl+Enter unarmed
   await page.click('.qbtn[data-q="N1"]'); await page.waitForTimeout(200);
+  const refs = await page.evaluate(() => [...document.querySelectorAll("#qhead a, .blk a")].map(a => a.textContent + " " + a.getAttribute("href")));
+  ok("bare #N and owner/repo#N in a title and in facts render as issue links", ["#123 https://github.com/o/r/issues/123", "x/y#4 https://github.com/x/y/issues/4"].every(r => refs.filter(x => x === r).length === 2) && !refs.some(r => /#9\b/.test(r)), refs.join(" | "));
   const n0 = (await events()).length;
   await page.click("#note"); await page.keyboard.type("hello"); await page.keyboard.press("Enter"); await page.keyboard.type("world 1");
   await page.waitForTimeout(300);
@@ -44,7 +61,7 @@ async page => {
   await page.keyboard.press("Escape");
   ok("Esc blurs the note", await page.evaluate(() => document.activeElement.id !== "note"));
   await page.keyboard.press("1");
-  ok("digit 1 arms Accept outside the note", /Accept/.test(await page.textContent(".choice.armed").catch(() => "")));
+  ok("digit 1 arms Rec outside the note", /Rec/.test(await page.textContent(".choice.armed").catch(() => "")));
   // save from inside the note: no auto-advance
   await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   const ev1 = await events();
@@ -58,7 +75,7 @@ async page => {
   ok("note restored after undo", /hello/.test(await page.inputValue("#note")));
 
   // Enter on a focused Save button never submits
-  await page.keyboard.press("Escape"); await page.keyboard.press("2");
+  await page.keyboard.press("Escape"); await page.keyboard.press("3");
   const n2 = (await events()).length;
   await page.focus("[data-save]"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   ok("plain Enter on a focused Save button does not submit", (await events()).length === n2);
@@ -122,6 +139,24 @@ async page => {
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   ok("Esc closes full screen", await page.evaluate(() => document.getElementById("fs").hidden));
   await page.keyboard.press("Escape");
+
+  // medium widths: the agrid is one column, the rail cut is marked, nothing widens the page
+  await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
+  for (const w of [1024, 820]) {
+    await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
+    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
+    ok("at " + w + " px the answer grid is one column and the page does not widen", m.cols === 1 && m.wide <= 1, JSON.stringify(m));
+    if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
+    ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
+    await page.click(".sumbtn"); await page.waitForTimeout(250);
+    ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
+    await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
+  }
+  await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
+  ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
+  await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
+  ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
+  await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
   // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);

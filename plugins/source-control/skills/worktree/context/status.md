@@ -1,10 +1,12 @@
 # Worktree `status`: data collection, classification, presentation
 
+`<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
+
 Full detail for the `/source-control:worktree status` action. SKILL.md carries the headline; this file carries the porcelain-parse fields, the staleness math, the stranded-work axis, the classification table, and the output schema.
 
 ## Data collection
 
-1. **Worktree list**: Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>`. Do not parse porcelain by hand. It prints a header and one TSV row per worktree: `path head branch bare linked locked lock_reason prunable`, with `-` for an empty column. `locked` is `yes` for a lock with no reason too.
+1. **Worktree list**: Run `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>`. Do not parse porcelain by hand. It prints a header and one TSV row per worktree: `path head branch bare linked locked lock_reason prunable`, with `-` for an empty column. `locked` is `yes` for a lock with no reason too.
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 
@@ -18,10 +20,12 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
 4. **Staleness**: Compare last commit date to today. Default threshold: **14 days**. The configured override is `${user_config.worktree_stale_days}`. Use that value when it is a positive number, falling back to 14 when it is empty, invalid, or a literal unexpanded `${user_config.worktree_stale_days}` token.
 
+   **Reap age** (consumed by `cleanup`): hours since the last commit, `(now - %ct) / 3600` with `git log -1 --format=%ct <branch>` (epoch seconds; a detached worktree uses `git -C <worktree-path> log -1 --format=%ct HEAD`, since a bare `HEAD` resolves in the caller's checkout). The threshold is `${user_config.worktree_reap_after_hours}`. Use that value when it is a positive number, falling back to **48** when it is empty, invalid, or a literal unexpanded `${user_config.worktree_reap_after_hours}` token. An age that cannot be read counts as not past the threshold.
+
 5. **Stranded-work record**: age and PR state answer *is anyone still working here*; neither answers *would removing this destroy a commit*. Run the detection engine once per repository. It enumerates the worktrees itself and emits one TSV row per registered worktree:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file>
+   bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file>
    ```
 
    Write the merged `headRefName` values from step 2 to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable.
@@ -78,4 +82,4 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 
 Report the at-risk commit total in the summary whenever it is non-zero; a stranded row that reads as one line among many is how the commits get swept.
 
-If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `git worktree unlock` for locked. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgment call.
+If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `/source-control:worktree cleanup` also for a locked worktree whose PR is merged or whose work has landed (`worktree-claim.sh stale <path>` exits 0), which cleanup treats as a stale lock; a locked worktree without that evidence is left alone. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgment call.

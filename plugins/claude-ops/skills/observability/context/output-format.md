@@ -110,7 +110,7 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
 root: .observability/claude (default)
 guard: ok
 sessions: 12 file(s), newest <session_id>
-shared: 340 event(s) in hook-events.jsonl
+shared: 340 event(s) in hook-events.jsonl (rotated .1 included)
 prune-pending: none
 envelope: 1210 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
 ```
@@ -200,7 +200,7 @@ Stripped when `--write` (markdown file persists clean).
 Path: resolve it, do not compose it. Run, in the project being reported on:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/report-path.sh" --mkdir
+bash "<skill-dir>/scripts/report-path.sh" --mkdir
 ```
 
 That prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md` and creates the parent directory. Same content. After write, print that path on stdout (only) for the user to pick up.

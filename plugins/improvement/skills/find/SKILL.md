@@ -1,5 +1,5 @@
 ---
-description: "Evidence-first improvement finder: scans code/architecture, performance, product-level behavior, config/automation outside the codebase (GitHub labels, Actions), and Claude Code operational setup, returns a ranked candidate list. Every candidate cites its evidence and carries an S/M/L size with a value-to-effort rationale; an unmeasured target makes 'instrument this' the top candidate. Interactive by default; caller-declared unattended mode persists the report and files top candidates as work items. Never edits; execution goes to the pipeline. Use when: 'what should we improve', 'find improvements', 'improvement sweep', 'improve <X>', 'highest-impact improvement', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip when: architecture deepening (`architecture:improve`), small safe edits (`code-tidying:tidy`), doc/config drift (`codebase-health:audit`), diff review (`review:fanout`), TODO markers (`work-items:scan-todos`)."
+description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'improve <X>', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path]"
 user-invocable: true
 disable-model-invocation: false
@@ -226,6 +226,16 @@ aside for. It re-implements none of them.
 caller's unattended declaration IS the explicit mutation override that authorizes work-item filing, the same shape as the `audit` verb's autofix override, and it authorizes exactly that: report
 persistence and presence-gated filing. No other mutation exists in any mode; there is no flag,
 prompt, or mode that makes this skill edit the target.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

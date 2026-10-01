@@ -1,5 +1,121 @@
 # Changelog: discovery plugin
 
+## [0.25.21] - 2026-10-01
+
+### Added
+
+- **`evals/explorer-uses-delivered-scout-hand-back` is the plugin's first `claude plugin eval` case.** It dispatches `discovery:explorer` with a nested scout's final report already delivered in the dispatch prompt, and grades that the explorer uses the report and runs on to its own return block: the slice index reaches `Run status: complete`, and the relayed block carries `status: complete` and `persistence: written`. The delivery is simulated, so the case grades the explorer's reaction and not the harness. A run needs `--scaffold --allow-tools Bash,Write --ablation none`.
+
+## [0.25.20] - 2026-10-01
+
+### Added
+
+- **`reference/parent-contract.md` records a first-party reproduction of the named `discovery:explorer` dispatch as harness fact 12.** Four headless dispatches on Claude Code 2.1.286 (`model:` with `name:`, `name:` alone, and `model:` alone, plus a probe run) delivered the definition body and resolved the `skills:` preload, and every first return was the YAML block. The two reported runs that behaved as if both were missing did not reproduce; the record states what that does not establish and its recheck trigger.
+- **Two `explore` evals cover the parent side of the failure shapes.** Eval 14 grades a prose-only explorer return with no payload block as a failed dispatch. Eval 15 grades an explorer's final report delivered as a message: the parent runs the acceptance gate instead of waiting.
+
+### Changed
+
+- **`agents/explorer.md` says a nested child's delivered hand-back is its final report.** The explorer uses it and continues instead of idling for a report it already holds.
+
+## [0.25.19] - 2026-10-01
+
+### Changed
+
+- **The `maxTurns` record in `reference/parent-contract.md` now states the decision to keep 40 as a checkpoint and not size research-deep lanes to it.** A run that reaches the limit completes through resume; the recheck triggers are unchanged.
+
+## [0.25.18] - 2026-09-30
+
+### Fixed
+
+- **Dropped the filler "in order to" from the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+
+## [0.25.17] - 2026-09-30
+
+### Added
+
+- **`tests/count-rereads.py` counts rereads in a subagent transcript.** It reads one
+  `subagents/agent-*.jsonl`, prints `REREAD:` for a second full read of a file with no edit between,
+  `SCAN->READ:` for a `Grep` or `ls` of a file followed on a later turn by a full read of it, the
+  handback turn, and the two totals. Paths and counts only, never transcript content.
+  `tests/count-rereads.test.sh` covers it with synthetic transcripts.
+
+### Changed
+
+- **The parent contract's read-once rule says never to `Grep` a file you mean to read in full.** A
+  measured `discovery:explorer` run scanned a rule file with `Grep` and then read it whole; the rule
+  now names that shape. A re-run on the tightened rule counted 0 rereads and 0 scan-then-read
+  pairs, with the handback at turn 20 of a 30-turn budget
+  ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
+
+## [0.25.16] - 2026-09-30
+
+### Changed
+
+- **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
+  ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
+  invoked, in the native-references template form.
+
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
+
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Skill spokes no longer cite bundled files with the literal `${CLAUDE_PLUGIN_ROOT}` token.** The
+  token is substituted in SKILL.md bodies, not in spoke files read on demand, so a spoke path
+  resolved to nothing. Markdown links in the `explore`, `research` and `trace-intent` spokes are now
+  relative to the spoke, and the script and brief paths cite the plugin root as rendered in the
+  SKILL.md body.
+
+## [0.25.13] - 2026-09-30
+
+### Changed
+
+- **`/discovery:setup` no longer writes the gate allow rules into user settings.** `check` prints
+  the rules resolved to the installed plugin version, ready to paste into `permissions.allow`, and
+  says they pin this version's cache directory, so a plugin update invalidates them again. The
+  parent contract, the `research` skill and the setup eval cases describe check-only setup. A
+  version-wildcard rule stays rejected: the `..` traversal probe showed it matches paths outside
+  the plugin root
+  ([#4233](https://github.com/melodic-software/claude-code-plugins/issues/4233)).
+
+## [0.25.12] - 2026-09-29
+
+### Added
+
+- **`scripts/turns-to-complete.py` measures how many turns a discovery subagent takes.** It reads
+  `subagents/agent-*.jsonl` session transcripts, counts distinct assistant message ids per
+  finished dispatch (running or aborted ones are excluded), and reports per-agent-type n, min, p50,
+  p90, max and runs at the turn ceiling, as a
+  table or `--json`. The parent contract's `maxTurns` record names the command and one machine's
+  measured distribution; whether to resize the research lanes stays the owner's decision
+  ([#5304](https://github.com/melodic-software/claude-code-plugins/issues/5304)).
+
+## [0.25.11] - 2026-09-29
+
+### Added
+
+- **`explore` carries a Boundary section for the built-in `Explore` agent.** A bare locate
+  dispatches the built-in agent directly; a persisted exploration stays with this skill, which
+  keeps `Explore` as its locate-tier scout. The four-part record is in the skill's
+  `reference/native-explore.md`. The section's bullets follow the native-references template and
+  describe the built-in without asserting it is available.
+
+## [0.25.10] - 2026-09-29
+
+### Added
+
+- **`research-deep` carries a Boundary section for the bundled workflow `deep-research`.** The
+  workflow is reserved for the person to run, so the model offers `/deep-research` for a
+  single-topic deep report instead of or alongside this skill, and keeps multi-topic dispatch here.
+  Tier 1 no longer names the bundled workflow as a dispatch target.
+
 ## [0.25.9] - 2026-09-29
 
 ### Fixed

@@ -152,6 +152,12 @@ run "a backslash drive path fails portable-paths" 1 "$TMP/backslash.md" 'path-hi
 { good_plan; printf '\n```\ncd %s\n```\n' "$HOME_PATH"; } >"$TMP/home.md"
 run "a home path fails even inside a code fence" 1 "$TMP/home.md" 'criterion=portable-paths status=fail'
 
+{ good_plan; for _ in $(seq 25); do printf 'Clone into %s\n' "$HOME_PATH"; done; } >"$TMP/manyhits.md"
+run "many path hits are counted in full" 1 "$TMP/manyhits.md" 'criterion=portable-paths status=fail hits=25'
+run "the truncation line names the remainder" 1 "$TMP/manyhits.md" '^path-hit-truncated=5$'
+shown="$(bash "$SUT" "$TMP/manyhits.md" 2>&1 | grep -c '^path-hit=')"
+if [[ "$shown" -eq 20 ]]; then pass "exactly 20 path-hit lines are printed"; else fail "exactly 20 path-hit lines are printed (got $shown)"; fi
+
 { good_plan; printf '\nFor example %s <!-- path-example -->\n' "$DRIVE_PATH"; } >"$TMP/annotated.md"
 run "an annotated example path passes" 0 "$TMP/annotated.md" 'criterion=portable-paths status=pass hits=0'
 
@@ -160,6 +166,86 @@ run "URLs and portable forms do not trip the path check" 0 "$TMP/portable.md" 'c
 
 { good_plan; printf '\n```markdown\n### Phase 9: quoted template\n```\n'; } >"$TMP/fenced.md"
 run "a phase heading inside a code fence is not counted" 0 "$TMP/fenced.md" '^phases=3 status=ok$'
+
+{ good_plan; printf '\nThe folders %s and %s are repo paths.\n' "Domain/Us""ers/User.cs" "src/ho""me/index.ts"; } >"$TMP/repodirs.md"
+run "repo folders named Users and home mid-path pass portable-paths" 0 "$TMP/repodirs.md" 'criterion=portable-paths status=pass hits=0'
+
+U_ROOT="/Us""ers/alice/x"
+{
+  good_plan
+  printf '%s\n' "$HOME_PATH"
+  printf 'in ticks `%s` here\n' "$HOME_PATH"
+  printf 'in quotes "%s" here\n' "$HOME_PATH"
+  printf 'in parens (%s) here\n' "$HOME_PATH"
+  printf 'assigned ROOT=%s here\n' "$U_ROOT"
+  printf 'colon ROOT:%s here\n' "$U_ROOT"
+  printf 'cell |%s| here\n' "$U_ROOT"
+  printf 'list a,%s here\n' "$U_ROOT"
+} >"$TMP/rooted.md"
+run "a /home or /Users path at line start or after any non-path character fails" 1 "$TMP/rooted.md" 'criterion=portable-paths status=fail hits=8'
+
+# A three-backtick block quoted inside a four-backtick block must not count as
+# real structure: its Phase heading and Sanity Check line are text.
+{
+  good_plan | sed 's/^- \*\*Sanity Check:\*\* `grep -c source ~\/.bashrc` returns 1\.$//'
+  printf '\n````markdown\n```\n### Phase 9: quoted\n- **Sanity Check:** quoted.\n```\n### Phase 8: still quoted\n````\n'
+} >"$TMP/nested.md"
+run "a nested three-backtick fence adds no phantom phase and no false sanity pass" 1 "$TMP/nested.md" 'criterion=sanity-checks status=fail missing=Phase-2$'
+out="$(bash "$SUT" "$TMP/nested.md" 2>&1)"
+if grep -q 'Phase-9\|Phase-8' <<<"$out"; then fail "nested fence content leaked into a criterion"; else pass "nested fence content is not graded"; fi
+
+{ good_plan; printf '\n~~~~\n~~~\n### Phase 7: quoted\n~~~\n### Phase 6: quoted\n~~~~\n'; } >"$TMP/nestedtilde.md"
+run "a nested tilde fence stays inside its longer outer fence" 0 "$TMP/nestedtilde.md" '^phases=3 status=ok$'
+
+{ good_plan; printf '\n```\n~~~\n### Phase 5: quoted\n```\n'; } >"$TMP/mixedfence.md"
+run "a tilde line does not close a backtick fence" 0 "$TMP/mixedfence.md" '^phases=3 status=ok$'
+
+{ good_plan; printf '\n```\n```markdown\n### Phase 4: quoted\n```\n'; } >"$TMP/infostring.md"
+run "a fence with an info string does not close an open fence" 0 "$TMP/infostring.md" '^phases=3 status=ok$'
+
+# --approval-only: one criterion, graded after the Approval: line is written.
+with_approval() { good_plan | sed "s|^Sequential\.\$|Approval: $1\nSequential.|"; }
+approval_run() { # <label> <want_exit> <file> [pattern]
+  local label="$1" want="$2" file="$3" pattern="${4-}" out got
+  out="$(bash "$SUT" --approval-only "$file" 2>&1)"
+  got=$?
+  if [[ "$got" -ne "$want" ]]; then
+    fail "$label (want exit $want, got $got)"
+    printf '%s\n' "$out" | sed 's/^/       /' >&2
+  elif [[ -n "$pattern" ]] && ! grep -qE -- "$pattern" <<<"$out"; then
+    fail "$label (no /$pattern/ in output)"
+    printf '%s\n' "$out" | sed 's/^/       /' >&2
+  else
+    pass "$label"
+  fi
+}
+
+with_approval 'attended: approved by Kyle on 2026-09-29' >"$TMP/ap-attended.md"
+approval_run "an attended Approval line passes" 0 "$TMP/ap-attended.md" '^criterion=approval status=pass$'
+
+with_approval 'unattended: standing mandate work-loop lane, granted by Kyle in issue 12, review surface the PR' >"$TMP/ap-unattended.md"
+approval_run "an unattended Approval line naming mandate, who, where and review surface passes" 0 "$TMP/ap-unattended.md" '^criterion=approval status=pass$'
+
+approval_run "a plan with no Approval line fails" 1 "$TMP/good.md" '^criterion=approval status=fail'
+
+with_approval '' | sed 's/^Approval: $/Approval:/' >"$TMP/ap-empty.md"
+approval_run "an empty Approval value fails" 1 "$TMP/ap-empty.md" '^criterion=approval status=fail'
+
+with_approval '<attended: approved by <who> on <date>; unattended: standing mandate <which>, granted by <who> in <where>, review surface <e.g. the PR>>' >"$TMP/ap-template.md"
+approval_run "the template placeholder fails" 1 "$TMP/ap-template.md" '^criterion=approval status=fail'
+
+with_approval 'TBD' >"$TMP/ap-tbd.md"
+approval_run "a TBD value fails" 1 "$TMP/ap-tbd.md" '^criterion=approval status=fail'
+
+{ good_plan; printf '\n```\nApproval: approved by Kyle on 2026-09-29\n```\n'; } >"$TMP/ap-fenced.md"
+approval_run "an Approval line inside a code fence does not count" 1 "$TMP/ap-fenced.md" '^criterion=approval status=fail'
+
+run "the default run does not require an Approval line" 0 "$TMP/good.md" '^phases=3 status=ok$'
+run "the default run ignores an unapproved placeholder line" 0 "$TMP/ap-template.md" '^phases=3 status=ok$'
+
+out="$(bash "$SUT" --approval-only 2>&1)"
+if [[ $? -eq 2 ]]; then pass "--approval-only with no file exits 2"; else fail "--approval-only with no file exits 2"; fi
+run "--help documents --approval-only" 0 --help '--approval-only'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

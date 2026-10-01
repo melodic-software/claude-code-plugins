@@ -127,7 +127,11 @@ section() {
   printf '### `enforceAvailableModels`\n\nThis key closes that gap. Requires Claude Code v2.1.175 or later.\n\n'
   printf '* **Scope**: [`Any file`](#scopes)\n* **Type**: Boolean\n  * `true`: Default resolves to the first available model\n* **Default**: `false`\n\n'
   printf 'This key has no effect when `availableModels` is unset or empty. Requires Claude Code v2.1.999 or later.\n\n'
-  section fallbackModel '* **Type**: array of strings'
+  section fallbackModel '* **Type**: array of strings' 'Claude Code keeps at most three distinct allowed models from the list and ignores the rest.'
+  printf '### `editorMode`\n\nSet the prompt input key bindings.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
+  printf '  * `"normal"`: standard key bindings\n  * `"vim"`: vim-style editing\n* **Default**: `"normal"`\n\n'
+  printf '### `theme`\n\nPick the color theme.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
+  printf '  * `"dark"`: the dark theme\n  * `"custom:<slug>"` or `"custom:<plugin-name>:<slug>"`: a custom theme\n* **Default**: `"dark"`\n\n'
   printf '## Permission settings\n\n'
   section permissions '* **Type**: object with `allow`, `ask`, `deny`, `additionalDirectories`, `defaultMode`, and `disableAutoMode`'
   for k in permissions.allow permissions.ask permissions.deny; do section "$k" '* **Type**: array of strings'; done
@@ -141,6 +145,38 @@ section() {
   section fastMode '* **Type**: Boolean' '#### Fields for `fastMode`' '' 'Deprecated since v2.1.1 as a note that belongs to the subheading, not the key.'
   section codeFenced '* **Type**: Boolean' '```bash' '# a comment inside a fence, not a heading' '```' '' 'Deprecated since v2.1.100, after a fenced comment.'
 } >"$DOCS/settings-reference.md"
+
+# The hooks page in the shape the published one uses: an Event table under the
+# lifecycle heading, then a later table whose first column is not events.
+HOOKS_MD="$TEST_TMPDIR/hooks.md"
+cat >"$HOOKS_MD" <<'EOF'
+# Hooks reference
+
+## Hook lifecycle
+
+| Event | When it fires |
+| :- | :- |
+| `SessionStart` | When a session begins or resumes |
+| `PreToolUse` | Before a tool call executes |
+
+## Matcher patterns
+
+| Tool | Meaning |
+| :- | :- |
+| `Bash` | A tool name, not an event |
+EOF
+# docs_with_link <dir> <slug>...: a docs directory whose settings-reference links each slug.
+docs_with_link() {
+  local d="$1" s
+  shift
+  mkdir -p "$d"
+  cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$d/"
+  {
+    cat "$DOCS/settings-reference.md"
+    printf '\n'
+    for s in "$@"; do printf 'See [%s](/docs/en/%s#top) for more.\n' "$s" "$s"; done
+  } >"$d/settings-reference.md"
+}
 
 # make_cli <path> <version line> [literal...]: a stand-in claude CLI that prints
 # the version line for --version and carries each literal in its own text, the
@@ -175,7 +211,7 @@ run() {
     SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$1/debug" \
     SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 \
-    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="${DOCS_FIXTURE:-$DOCS}" \
+    FETCH_DOCS_FIXTURE_DIR="${DOCS_FIXTURE:-$DOCS}" \
     SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="${CLI_BIN:-$CLI}" \
     CLAUDE_CODE_DEBUG_LOGS_DIR="" \
     bash "$SCRIPT" "${@:2}"
@@ -450,7 +486,8 @@ rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 10: exit 1" 1 "$rc"
 assert_eq "case 10: effortLevel max is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:max") | .severity' <<<"$out")"
-assert_eq "case 10: raw fallback length flagged" "1" "$(jq '[.findings[] | select(.identity.claim=="fallbackModel-raw-length:5")] | length' <<<"$out")"
+assert_eq "case 10: raw fallback length is not decided from the page" "skip" "$(jq -r '.rows[] | select(.claim=="fallbackModel-raw-length:5") | .status' <<<"$out")"
+assert_eq "case 10: raw fallback length is not a finding" "0" "$(jq '[.findings[] | select(.identity.claim=="fallbackModel-raw-length:5")] | length' <<<"$out")"
 assert_eq "case 10: dedup length under the cap not flagged" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("fallbackModel-dedup-length:"))] | length' <<<"$out")"
 assert_eq "case 10: wildcard mix flagged" "1" "$(jq '[.findings[] | select(.identity.claim=="availableModels-wildcard-mix:sonnet")] | length' <<<"$out")"
 assert_eq "case 10: project enforce with a list is not flagged" "0" "$(jq '[.findings[] | select(.identity.claim=="enforceAvailableModels-without-list" and .identity.sites[0].surface==".claude/settings.json")] | length' <<<"$out")"
@@ -490,7 +527,7 @@ rc=0
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || rc=$?
 assert_exit "case 12: unknown marketplace exits 1" 1 "$rc"
 assert_eq "case 12: unknown marketplace is an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:x@nowhere") | .severity' <<<"$out")"
@@ -569,7 +606,7 @@ rc=0
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$m/baseline-renamed.md" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || rc=$?
 assert_exit "case 17: an unparsed baseline is not an error" 0 "$rc"
 assert_eq "case 17: the reference is reported unparsed" "skip" "$(jq -r '.rows[] | select(.claim=="reference-unparsed") | .status' <<<"$out")"
@@ -760,6 +797,31 @@ assert_eq "case 27: a key named only in the permissions Type bullet is documente
 assert_eq "case 27: a key with its own heading is documented" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.deny") | .status' <<<"$out")"
 assert_eq "case 27: the local scope is checked too" ".claude/settings.local.json" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:zzLocalKey") | .identity.sites[0].surface' <<<"$out")"
 assert_eq "case 27: \$schema is never a key row" "0" "$(jq '[.rows[] | select(.claim | test("key:\\$schema$"))] | length' <<<"$out")"
+printf '%s\n' '{"describedKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-desc" "2.1.281 (Claude Code)" enabledPlugins permissions 'describedKey:z.boolean().optional().describe("@internal Whether the user has accepted it")'
+out=$(CLI_BIN="$m/claude-desc" run "$m" --json 2>&1) || true
+assert_contains "case 27: the binary's describe string is quoted" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:describedKey") | .detail' <<<"$out")" '"@internal Whether the user has accepted it"'
+printf '%s\n' '{"ownKey":1,"bareKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-neighbor" "2.1.281 (Claude Code)" enabledPlugins permissions \
+  'paths:[{path:["bareKey"]},{path:["ownKey"]}],other:z.string().describe("Elsewhere text")' \
+  'ownKey:z.boolean().describe("Own text"),bareKey:z.boolean().optional(),neighborKey:z.string().describe("Neighbor text")'
+out=$(CLI_BIN="$m/claude-neighbor" run "$m" --json 2>&1) || true
+own_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ownKey") | .detail' <<<"$out")"
+bare_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:bareKey") | .detail' <<<"$out")"
+assert_contains "case 27: a key is described by its own entry" "$own_detail" '"Own text"'
+assert_eq "case 27: a key's describe is not a neighbor's or another site's string" "0" "$(grep -c -e 'Neighbor text' -e 'Elsewhere text' <<<"$own_detail")"
+assert_eq "case 27: a key with no describe of its own is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'Neighbor text' -e 'Elsewhere text' <<<"$bare_detail")"
+printf '%s\n' '{"sharedKey":1,"repeatKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-shared" "2.1.281 (Claude Code)" enabledPlugins permissions \
+  'sharedKey:z.number().describe("A tool input text")' \
+  'sharedKey:z.number().optional().describe("Another schema text")' \
+  'repeatKey:z.boolean().describe("Same text")' \
+  'repeatKey:z.boolean().optional().describe("Same text")'
+out=$(CLI_BIN="$m/claude-shared" run "$m" --json 2>&1) || true
+shared_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:sharedKey") | .detail' <<<"$out")"
+repeat_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:repeatKey") | .detail' <<<"$out")"
+assert_eq "case 27: a name declared in two schemas with different describes is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'A tool input text' -e 'Another schema text' <<<"$shared_detail")"
+assert_contains "case 27: a name whose declarations all carry one describe is quoted" "$repeat_detail" '"Same text"'
 make_cli "$m/claude-shim" "2.1.281 (Claude Code)" internalOnlyKey
 out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
 assert_eq "case 27: a file without the control literals was not searched" "not-searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"
@@ -818,24 +880,35 @@ while [[ $# -gt 0 ]]; do
   *) url="$1"; shift ;;
   esac
 done
-[[ -f "$CURL_SHIM_SRC/${url##*/}" ]] || exit 22
-cp "$CURL_SHIM_SRC/${url##*/}" "$out"
-# -w '%{url_effective}': where the body came from, after any redirect.
+name="${url##*/}"
+src="$CURL_SHIM_SRC/$name"
+[[ -f "$src" ]] || exit 22
+cp "$src" "$out"
+# A <name>.status or <name>.ctype sidecar overrides the HTTP status or content type.
+status=200
+[[ -f "$src.status" ]] && status="$(cat "$src.status")"
+ctype="text/markdown; charset=utf-8"
+[[ "$name" == llms.txt ]] && ctype="text/plain; charset=utf-8"
+[[ -f "$src.ctype" ]] && ctype="$(cat "$src.ctype")"
+# The final URL, after any redirect.
 effective="$url"
 [[ -n "${CURL_SHIM_REDIRECT:-}" && "$url" == *settings-reference.md ]] && effective="$CURL_SHIM_REDIRECT"
-[[ "$wfmt" == '%{url_effective}' ]] && printf '%s' "$effective"
+wfmt="${wfmt//%\{http_code\}/$status}"
+wfmt="${wfmt//%\{url_effective\}/$effective}"
+wfmt="${wfmt//%\{content_type\}/$ctype}"
+printf '%s' "$wfmt"
 exit 0
 EOF
 chmod +x "$m/shim/curl"
 cp "$DOCS/settings-reference.md" "$DOCS/env-vars.md" "$m/served/"
 printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Environment variables](https://other.test/docs/en/env-vars.md): vars' >"$m/served/llms.txt"
 fetch_run() {
-  env -u SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
     CURL_SHIM_REDIRECT="${CURL_SHIM_REDIRECT:-}" \
     SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL="https://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    FETCH_DOCS_INDEX_URL="https://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
     bash "$SCRIPT" --json 2>&1
 }
 out=$(fetch_run) || true
@@ -852,6 +925,50 @@ rm -f "$m/curl.log" "$m/served/llms.txt"
 out=$(fetch_run) || true
 assert_eq "case 31: an index that fails to fetch is unread" "unread fetch-failed" "$(jq -r '.docs.index | "\(.state) \(.reason)"' <<<"$out")"
 assert_eq "case 31: and no page is requested after it" "1" "$(wc -l <"$m/curl.log" | tr -d ' ')"
+
+# The fetcher's manifest fields ride into the --json record of a fetched page.
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' >"$m/served/llms.txt"
+rm -f "$m/curl.log"
+out=$(fetch_run) || true
+page_json="$(jq -c '.docs.pages[] | select(.slug=="settings-reference")' <<<"$out")"
+assert_eq "case 31: a fetched page records its sha256" "$(sha256sum <"$m/served/settings-reference.md" | cut -d" " -f1)" "$(jq -r '.sha256' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its content type" "text/markdown; charset=utf-8" "$(jq -r '.content_type' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its line count" "$(awk 'END { print NR }' "$m/served/settings-reference.md")" "$(jq -r '.lines' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its byte count" "$(wc -c <"$m/served/settings-reference.md" | tr -d ' ')" "$(jq -r '.bytes' <<<"$page_json")"
+assert_eq "case 31: a fetched page records when it was read" "1" "$(jq -r '.retrieved | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$") | if . then 1 else 0 end' <<<"$page_json")"
+assert_eq "case 31: a fetched page carries no failure reason" "" "$(jq -r '.reason' <<<"$page_json")"
+assert_eq "case 31: the index records its sha256 too" "$(sha256sum <"$m/served/llms.txt" | cut -d" " -f1)" "$(jq -r '.docs.index.sha256' <<<"$out")"
+
+# A 404 or a text/html body is unread, and every row resting on the page stays
+# not-inspectable.
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"max",zzBogusKey:1}' >"$m/project/.claude/settings.json"
+for bad in status ctype; do
+  rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
+  if [[ $bad == status ]]; then
+    printf '404' >"$m/served/settings-reference.md.status"
+    want="http-404"
+  else
+    printf 'text/html; charset=utf-8' >"$m/served/settings-reference.md.ctype"
+    want="unexpected-content-type"
+  fi
+  out=$(fetch_run) || true
+  assert_eq "case 31 ($bad): the page is unread with the reason" "unread $want" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
+  assert_eq "case 31 ($bad): the page has no hash" "null" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | .sha256' <<<"$out")"
+  assert_eq "case 31 ($bad): the key row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .status' <<<"$out")"
+  assert_eq "case 31 ($bad): the value row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
+done
+rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
+
+# A page settings-reference links to is a second fetcher call: the index again,
+# then that page, from the URL the index gives it.
+docs_with_link "$m/linked" hooks
+cp "$m/linked/settings-reference.md" "$m/served/settings-reference.md"
+cp "$HOOKS_MD" "$m/served/hooks.md"
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Hooks](https://docs.test/docs/en/hooks.md): hooks' >"$m/served/llms.txt"
+rm -f "$m/curl.log"
+out=$(fetch_run) || true
+assert_eq "case 31: a linked page is fetched from the URL the index gives it" "read fetch https://docs.test/docs/en/hooks.md" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
+assert_eq "case 31: the linked page costs one more index read and one page read" "https://docs.test/docs/llms.txt https://docs.test/docs/en/settings-reference.md https://docs.test/docs/llms.txt https://docs.test/docs/en/hooks.md" "$(awk '{print $NF}' "$m/curl.log" | paste -sd' ' -)"
 
 # --- Case 32: a read page that does not parse fails closed --------------------
 # A soft 404 arrives as a page with a body and no key headings. Read at face
@@ -1033,7 +1150,7 @@ printf '%s\n' '{"name":"mkt","plugins":[{"name":"ren\txy"}]}' >"$m/fixtures/mkt.
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || true
 assert_eq "case 44: a tab in an orphan key is kept" "info" "$(jq -r '.rows[] | select(.claim=="orphan-disabled:a\tb@mkt") | .severity' <<<"$out")"
 assert_eq "case 44: a backslash in an orphan key is kept" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-enabled:c\\d@mkt") | .severity' <<<"$out")"
@@ -1220,7 +1337,7 @@ for ud in "$m/home/.claude" "${spellings[@]}"; do
   out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/home" SETTINGS_AUDIT_ENGINE_USER_DIR="$ud" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
     bash "$SCRIPT" --json 2>&1) || rc=$?
   assert_exit "case 48 ($ud): home-rooted run exits 0" 0 "$rc"
   assert_eq "case 48 ($ud): the user file is read" "ok" "$(jq -r '.scopes[] | select(.label == "user") | .state' <<<"$out")"
@@ -1293,6 +1410,184 @@ for impl in gawk mawk; do
   assert_eq "case 49 ($impl): ask row is info" "info" "$(ask_row "$out" severity)"
   assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
 done
+
+# --- Case 50: engine defects: a key holding U+0000, and the section index ---------
+# jq -j writes U+0000 as a NUL byte, which would split the key into two rows.
+m="$(make_machine nulkey)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"ab\u0000cd":1} | .permissions += {"xy\u0000zw":1}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 50: a top-level key holding U+0000 is one row" "1" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:ab"))] | length' <<<"$out")"
+assert_eq "case 50: the row spells U+0000 as text" 'undocumented-key:ab\u0000cd' "$(jq -r '.rows[] | select(.claim | startswith("undocumented-key:ab")) | .claim' <<<"$out")"
+assert_eq "case 50: a permissions key holding U+0000 is one row" "1" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:permissions.xy"))] | length' <<<"$out")"
+assert_eq "case 50: no row carries the key's second half" "0" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:cd") or startswith("undocumented-key:zw"))] | length' <<<"$out")"
+# A repeated heading keeps its first section, so the value set is the first list only.
+m="$(make_machine dupsection)"
+mkdir -p "$m/docs"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/docs/"
+{
+  cat "$DOCS/settings-reference.md"
+  printf '### `effortLevel`\n\nAgain.\n\n* **Type**: string, one of:\n  * `"later"`: from the second section\n\n'
+} >"$m/docs/settings-reference.md"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"bogus"}' >"$m/project/.claude/settings.json"
+out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
+assert_contains "case 50: a repeated heading keeps the first value set" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:bogus") | .detail' <<<"$out")" "low, medium, high, xhigh"
+assert_eq "case 50: and not the second" "0" "$(jq '[.findings[] | select(.identity.claim=="effortLevel:bogus") | select(.detail | contains("later"))] | length' <<<"$out")"
+
+# --- Case 51: a page settings-reference links to is acquired and feeds a check ----
+m="$(make_machine linked)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"true"}]}],Bash:[{hooks:[{type:"command",command:"true"}]}]}}' >"$m/project/.claude/settings.json"
+pages() { jq -r '[.docs.pages[] | .slug] | join(" ")' <<<"$1"; }
+hook_row() { jq -r --arg c "$2" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$1"; }
+
+# --docs-dir supplies the linked page; an unlinked sandboxing page is not acquired.
+docs_with_link "$m/docs" hooks sandboxing
+cp "$HOOKS_MD" "$m/docs/hooks.md"
+cp "$HOOKS_MD" "$m/docs/sandboxing.md"
+out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
+assert_eq "case 51: the linked page joins the docs pages, one no check reads does not" "settings-reference env-vars hooks" "$(pages "$out")"
+assert_eq "case 51: it is read from --docs-dir" "read docs-dir true" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path | endswith("/docs/hooks.md"))"' <<<"$out")"
+assert_eq "case 51: an event in the Event table is ok" "ok none" "$(hook_row "$out" documented-hook-event:PreToolUse)"
+assert_eq "case 51: a name from another table is not an event" "finding error" "$(hook_row "$out" undocumented-hook-event:Bash)"
+
+# The fixture seam supplies it through the index, the route a fetched page takes.
+docs_with_link "$m/fx" hooks
+cp "$HOOKS_MD" "$m/fx/hooks.md"
+printf '%s\n' '- [Hooks](https://code.claude.com/docs/en/hooks.md): hooks' >>"$m/fx/llms.txt"
+out=$(DOCS_FIXTURE="$m/fx" run "$m" --json 2>&1) || true
+assert_eq "case 51: the linked page resolves through the index" "read fixture https://code.claude.com/docs/en/hooks.md" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
+assert_eq "case 51: and feeds the same check" "ok none" "$(hook_row "$out" documented-hook-event:PreToolUse)"
+
+# The index does not list it: unread, and the event rows are not decided.
+rm -f "$m/fx/hooks.md"
+grep -v 'hooks.md' "$m/fx/llms.txt" >"$m/fx/llms.new" && mv "$m/fx/llms.new" "$m/fx/llms.txt"
+out=$(DOCS_FIXTURE="$m/fx" run "$m" --json 2>&1) || true
+assert_eq "case 51: a linked page the index lacks is unread" "unread not-in-index" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 51: its event rows are not inspectable" "not-inspectable none" "$(hook_row "$out" hook-event-page-not-read:PreToolUse)"
+
+# A read page with no Event table is unparsed, never a run of unknown events.
+docs_with_link "$m/bad" hooks
+printf '%s\n' '# Hooks reference' 'A soft 404 body.' >"$m/bad/hooks.md"
+out=$(run "$m" --json --docs-dir "$m/bad" 2>&1) || true
+assert_eq "case 51: a page with no Event table is unparsed" "unparsed no-event-table" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 51: no event is called unknown on it" "not-inspectable none" "$(hook_row "$out" hook-event-page-not-read:Bash)"
+
+# No link, no request: a lookalike slug does not count, whatever --docs-dir holds.
+docs_with_link "$m/nolink" hooks-guide
+cp "$HOOKS_MD" "$m/nolink/hooks.md"
+out=$(run "$m" --json --docs-dir "$m/nolink" 2>&1) || true
+assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars" "$(pages "$out")"
+
+# --- Case 52: the fallbackModel cap and enum values come from the page ----------
+m="$(make_machine caps)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c"]}' >"$m/project/.claude/settings.json"
+fb_rows() { jq -r --arg c "$2" '[.rows[] | select(.claim | startswith($c)) | "\(.status) \(.claim)"] | join(",")' <<<"$1"; }
+# A page stating a cap of two, as a word and as a digit: three distinct is above it.
+mkdir -p "$m/two" "$m/nine"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/two/"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nine/"
+sed 's/at most three distinct/at most two distinct/' "$DOCS/settings-reference.md" >"$m/two/settings-reference.md"
+sed 's/at most three distinct/up to 9 distinct/' "$DOCS/settings-reference.md" >"$m/nine/settings-reference.md"
+out=$(run "$m" --json --docs-dir "$m/two" 2>&1) || true
+assert_eq "case 52: three distinct entries above a stated cap of two are flagged" "finding fallbackModel-dedup-length:3" "$(fb_rows "$out" fallbackModel-dedup)"
+assert_contains "case 52: the finding names the page's cap" "$(jq -r '.findings[] | select(.identity.claim=="fallbackModel-dedup-length:3") | .detail' <<<"$out")" "at most 2 distinct"
+out=$(run "$m" --json --docs-dir "$m/nine" 2>&1) || true
+assert_eq "case 52: a digit cap of nine leaves three distinct entries clean" "" "$(fb_rows "$out" fallbackModel)"
+# A page stating three: at the cap, not above it.
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: three distinct entries at a stated cap of three are clean" "" "$(fb_rows "$out" fallbackModel)"
+# A page that states no cap: one skip row, and no finding is invented from a number.
+mkdir -p "$m/nocap"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nocap/"
+grep -v 'keeps at most three distinct' "$DOCS/settings-reference.md" >"$m/nocap/settings-reference.md"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c","d","e","f"]}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json --docs-dir "$m/nocap" 2>&1) || true
+assert_eq "case 52: a page with no cap gives one skip row" "skip fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
+assert_eq "case 52: and no fallbackModel finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("fallbackModel"))] | length' <<<"$out")"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: six distinct entries above the cap are flagged" "finding fallbackModel-dedup-length:6" "$(fb_rows "$out" fallbackModel-dedup)"
+assert_eq "case 52: six raw entries above the cap are not decided from the page" "skip fallbackModel-raw-length:6" "$(fb_rows "$out" fallbackModel-raw)"
+
+# Enum keys the page lists values for: a value outside the set is flagged, one inside is not.
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {editorMode:"emacs",theme:"custom:mine",promptCacheTtl:"1h"}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"editorMode":"vim"}' >"$m/user/settings.json"
+printf '%s\n' '{"editorMode":"secret-value"}' >"$m/project/.claude/settings.local.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: an enum value outside the documented set is flagged" "warning" "$(jq -r '.findings[] | select(.identity.claim=="editorMode:emacs") | .severity' <<<"$out")"
+assert_contains "case 52: the finding lists the documented values" "$(jq -r '.findings[] | select(.identity.claim=="editorMode:emacs") | .detail' <<<"$out")" "normal, vim"
+assert_eq "case 52: an in-set value in the user file is ok" "ok" "$(jq -r '.rows[] | select(.claim=="editorMode:vim") | .status' <<<"$out")"
+assert_eq "case 52: a custom:<slug> theme matches its placeholder entry" "ok" "$(jq -r '.rows[] | select(.claim=="theme:custom:mine") | .status' <<<"$out")"
+assert_eq "case 52: a key the fixture page does not document has no row" "0" "$(jq '[.rows[] | select(.claim | startswith("promptCacheTtl:"))] | length' <<<"$out")"
+assert_eq "case 52: settings.local.json values are never echoed" "0" "$(jq '[.rows[] | select(.claim=="editorMode:secret-value")] | length' <<<"$out")"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {theme:"custom:"}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: an empty placeholder match is flagged" "finding" "$(jq -r '.rows[] | select(.claim=="theme:custom:") | .status' <<<"$out")"
+
+# A list with a bullet that is not a literal value (a pattern) is open: the literals are
+# not the whole set, so a value outside them is not flagged. The same list without that
+# bullet is closed and flags the value.
+time_docs() {
+  mkdir -p "$m/$1"
+  cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/$1/"
+  {
+    cat "$DOCS/settings-reference.md"
+    printf '%s\n' '### `timeFormat`' '' 'Choose how times are written.' '' '* **Scope**: [`Any file`](#scopes)' '* **Type**: string, one of:' \
+      '  * `"auto"`: the same as unset' '  * `"24-hour"`: a 24-hour clock' "${@:2}" '* **Default**: `"auto"`' ''
+  } >"$m/$1/settings-reference.md"
+}
+time_docs open '  * A strftime pattern such as `"%H:%M"`: any value that contains a `%` is a pattern'
+time_docs closed
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {timeFormat:"%H:%M"}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json --docs-dir "$m/closed" 2>&1) || true
+assert_eq "case 52: a value outside a closed list is flagged" "warning" "$(jq -r '.findings[] | select(.identity.claim=="timeFormat:%H:%M") | .severity' <<<"$out")"
+out=$(run "$m" --json --docs-dir "$m/open" 2>&1) || true
+assert_eq "case 52: a list with a pattern bullet is open, so a pattern value has no row" "0" "$(jq '[.rows[] | select(.claim | startswith("timeFormat:"))] | length' <<<"$out")"
+
+# --- Case 53: nested keys are checked inside objects the page documents children of ----
+m="$(make_machine nested)"
+mkdir -p "$m/docs"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/docs/"
+{
+  cat "$DOCS/settings-reference.md"
+  printf '## Sandbox settings\n\n'
+  section sandbox '* **Type**: object with `enabled` and `network`'
+  section sandbox.enabled
+  section sandbox.network '* **Type**: object with the sub-keys below'
+  section sandbox.network.allowedDomains '* **Type**: array of strings'
+  section statusLine '* **Type**: object with `type` set to `"command"` and a `command` string, plus optional `padding` as a number'
+} >"$m/docs/settings-reference.md"
+make_cli "$m/claude-nested" "2.1.281 (Claude Code)" enabledPlugins permissions zzBinaryOnly
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {sandbox:{enabled:true,zzBinaryOnly:1,zzMissing:1,network:{allowedDomains:[],zzNetMissing:1}},statusLine:{type:"command",command:"x",padding:1,zzStatusMissing:1},env:{ANY_VARIABLE:"1"}}' >"$m/project/.claude/settings.json"
+out=$(CLI_BIN="$m/claude-nested" DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
+nested_status() { jq -r --arg c "$1" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$out"; }
+assert_eq "case 53: a nested key with its own heading is documented" "ok none" "$(nested_status documented-key:sandbox.enabled)"
+assert_eq "case 53: a key two objects deep is documented" "ok none" "$(nested_status documented-key:sandbox.network.allowedDomains)"
+assert_eq "case 53: a key named only in the Type bullet is documented" "ok none" "$(nested_status documented-key:statusLine.padding)"
+assert_eq "case 53: the object itself is still a documented key" "ok none" "$(nested_status documented-key:sandbox.network)"
+assert_eq "case 53: an unknown nested key the binary carries is info" "finding info" "$(nested_status undocumented-key:sandbox.zzBinaryOnly)"
+assert_eq "case 53: an unknown nested key in neither is a warning" "finding warning" "$(nested_status undocumented-key:sandbox.zzMissing)"
+assert_eq "case 53: an unknown key two objects deep is a warning" "finding warning" "$(nested_status undocumented-key:sandbox.network.zzNetMissing)"
+assert_eq "case 53: an unknown key of a Type-bullet object is a warning" "finding warning" "$(nested_status undocumented-key:statusLine.zzStatusMissing)"
+assert_eq "case 53: the anchor is the nested JSON pointer's" "$(bash "$SCRIPT" anchor --excerpt "/sandbox/network/zzNetMissing")" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:sandbox.network.zzNetMissing") | .identity.sites[0]["anchor/v1"]' <<<"$out")"
+assert_eq "case 53: an object the page documents no child of is not descended into" "0" "$(jq '[.rows[] | select(.claim | test("key:env\\."))] | length' <<<"$out")"
+
+# --- Case 54: known-issues fix versions are compared with the installed version
+# The fixture is the shipped table with the documented `Fixed in vX.Y.Z` start of the third column
+# added to two rows, so the test reads the same layout the reference file describes.
+ki_real="$SCRIPT_DIR/../reference/known-issues.md"
+ki="$TEST_TMPDIR/known-issues.md"
+sed -e '/#8961\]/s/| Place all/| Fixed in v2.1.270. Place all/' \
+  -e '/#36808\]/s/| Wrap npx/| Fixed in 2.1.290. Wrap npx/' "$ki_real" >"$ki"
+assert_eq "case 54: the fixture edits landed on the two table rows" "2" "$(grep -cE '^\| \[#(8961|36808)\].*Fixed in v?[0-9]' "$ki")"
+m="$(make_machine known-issues)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" run "$m" --json 2>&1) || true
+ki_status() { jq -r --arg c "$1" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$out"; }
+assert_eq "case 54: an issue fixed in an older version is info" "finding info" "$(ki_status 'fix-version:#8961')"
+assert_eq "case 54: an issue fixed in a newer version is ok" "ok none" "$(ki_status 'fix-version:#36808')"
+assert_eq "case 54: a row with no fix version has no row" "" "$(ki_status 'fix-version:#23869')"
+make_cli "$m/claude-none" ""
+out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" CLI_BIN="$m/claude-none" run "$m" --json 2>&1) || true
+assert_eq "case 54: an unreadable version skips" "skip none" "$(ki_status 'fix-version:#8961')"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

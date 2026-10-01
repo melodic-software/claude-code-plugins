@@ -1,0 +1,9 @@
+# adapter: py-pytest
+# expect: rule-recomputed-derived
+# Planted #8: sum() over the same input the call under test receives.
+from app import total
+
+
+def test_sum_recomputed():
+    xs = [1, 2]
+    assert total(xs) == sum(xs)

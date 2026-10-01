@@ -42,6 +42,15 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `testing/audit/rule-zero-assertion` | `defined-diagnostic` | `analyzer-pack-rule` | the test-framework analyzer pack already in the project | an assertion-free test body is a whole-method syntactic shape, which is what a test-framework analyzer pack is for; the work is enabling or raising a diagnostic, not writing one |
 | `testing/audit/rule-recomputed-expectation` | `dotnet-invariant` | `custom-analyzer` | Microsoft Learn analyzer tutorial (see the class table) | deciding an expected value was recomputed from the code under test needs the semantic model to resolve both sides to the same symbol, which no pack diagnostic states |
 | `testing/audit/rule-mock-only-oracle` | `dotnet-invariant` | `custom-analyzer` | Microsoft Learn analyzer tutorial (see the class table) | whether the oracle reaches only mocks is a property of which symbols the assertions touch, again a semantic-model question, and over the project's own mocking library |
+| `testing/audit/rule-inert-assertion` | `defined-diagnostic` | `analyzer-pack-rule` | the test-framework analyzer pack already in the project | an assertion that never evaluates is the shape the packs already diagnose: xUnit2021 (unawaited async assertion), eslint-plugin-jest `valid-expect`, ShellCheck SC2314 (bats `!`), ruff F631 (tuple assert) |
+| `testing/audit/rule-constant-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | the producing detector is itself the deterministic check, a pattern over the equality's two sides, so the cheapest rung is the one already running |
+| `testing/audit/rule-source-text-read` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | as above |
+| `testing/audit/rule-conditional-assertion` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | as above |
+| `testing/audit/rule-recomputed-derived` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | as above |
+| `testing/audit/rule-snapshot-only` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | as above |
+| `testing/audit/rule-weak-oracle` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | as above |
+| `testing/audit/rule-flaky-passes-suite` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `testing:audit` detector | no analyzer pack reads Playwright `retries` against `failOnFlakyTests` (judgment), so the detector's config read stays the check |
+| `testing/audit/rule-only-not-forbidden` | `defined-diagnostic` | `analyzer-pack-rule` | the project's ESLint config | eslint-plugin-playwright `no-focused-test` flags a committed `test.only` and `test.describe.only` (rule doc fetched 2026-09-29: https://github.com/playwright-community/eslint-plugin-playwright/blob/main/docs/rules/no-focused-test.md) |
 | `ai-slop/audit/rule-em-dash` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | the producing detector is itself the deterministic check, so the cheapest rung is the one already running; hold its severity rather than rebuild it |
 | `ai-slop/audit/rule-emoji-formatting` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | as above: the detector fires this rule from a pattern, not a judgment |
 | `ai-slop/audit/rule-curly-artifacts` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | as above |
@@ -65,6 +74,7 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `attribution/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
 | `attribution/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | expiry is a date comparison the producing script performs |
 | `attribution/audit/rule-trigger-less-stamp` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | a missing recheck trigger is a structural absence the producing script observes |
+| `attribution/audit/rule-restated-upstream-fact` | `design-judgment` | `llm-only` | none | whether a passage states a fact an external source owns is a panel's judgment, so the family default of "already deterministic" would claim a check the producer does not compute |
 
 ### Rule-family rows (prefix match on `<plugin>/<skill>/`)
 
@@ -101,7 +111,7 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
   cross-checked against each producer's own emitter script for the ids it constructs at run time.
   The `attribution:audit` producer holds crosswalk rows in that contract without an adopters-table
   row, which is why its ids appear here and its adoption status does not.
-- **As of.** 2026-09-27.
+- **As of.** 2026-09-29.
 - **Recheck trigger.** A new producer row lands in that contract's crosswalk, or an existing
   producer's emitter starts constructing an id this table does not list. Either shows up as a
   finding whose id reaches the rule-family step instead of the rule-id step.

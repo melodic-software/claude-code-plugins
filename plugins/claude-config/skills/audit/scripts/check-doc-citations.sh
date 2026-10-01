@@ -5,11 +5,12 @@
 # docs pages. Those pages move: a key migrates to another page, a sentence is
 # reworded, and the row that cited it then points at text that is not there.
 # This script reads the manifest of citations (reference/doc-citations.tsv,
-# one <page slug><TAB><literal span> per row), fetches each page verbatim over
-# the raw-markdown channel, and greps the span in the fetched file. A page that
-# lost a span is a failure naming the row; a page that could not be fetched is
-# a visible SKIP, never a pass and never a failure, because a truncated or
-# absent read supports no claim in either direction.
+# one <page slug><TAB><literal span> per row), has the plugin's shared fetcher
+# (scripts/fetch-docs.sh) read each page verbatim, and greps the span in the
+# fetched file. A page that lost a span is a failure naming the row; a page the
+# fetcher reports unread (including a slug the docs index does not list) is a
+# visible SKIP with the reason, never a pass and never a failure, because a
+# truncated, foreign or absent read supports no claim in either direction.
 #
 # Pages already fetched this run can be reused: --docs-dir names a directory
 # holding <slug>.md files, and a page present there is read from disk instead
@@ -19,10 +20,11 @@
 #   0  every fetched page carries every span it is cited for (skips allowed)
 #   1  at least one fetched page lacks a cited span
 #   2  fatal (manifest missing, a row whose slug is not lower-case `/`-joined
-#      segments, curl missing with nothing on disk, bad arguments)
+#      segments, the shared fetcher missing or failing, bad arguments)
 #
 # Env overrides (the test seam):
-#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of <slug>.md files; when set no fetch happens
+#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and <slug>.md files; when set no fetch happens
+#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh
 
 set -uo pipefail
 
@@ -33,7 +35,7 @@ check-doc-citations.sh — verify the docs pages the audit cites still carry the
 Usage:
   check-doc-citations.sh [--docs-dir <dir>] [--manifest <file>] [--help]
 
-  --docs-dir <dir>   read <slug>.md from <dir> when present, fetch the rest
+  --docs-dir <dir>   read <slug>.md from <dir> when present, fetch the rest through the docs index
   --manifest <file>  citation manifest (default: reference/doc-citations.tsv beside this skill)
 
 Exit: 0 all cited spans present on every page that could be read; 1 a span is missing;
@@ -42,6 +44,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
 MANIFEST="$SCRIPT_DIR/../reference/doc-citations.tsv"
 DOCS_DIR=""
 while [[ $# -gt 0 ]]; do
@@ -72,35 +76,48 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 FIXTURE_DIR="${SETTINGS_AUDIT_DOCS_FIXTURE_DIR:-}"
-if [[ -z "$FIXTURE_DIR" && -z "$DOCS_DIR" ]] && ! command -v curl >/dev/null 2>&1; then
-  echo "ERROR: curl required to fetch pages (or pass --docs-dir with the pages on disk)" >&2
-  exit 2
-fi
+[[ -z "$FIXTURE_DIR" ]] || DOCS_DIR=""
 
 FETCH_DIR="$(mktemp -d)"
 trap 'rm -rf "$FETCH_DIR"' EXIT
 
+# PAGE_FILE[slug] is the verbatim markdown of a page the fetcher read;
+# PAGE_REASON[slug] is why it did not.
+declare -A PAGE_FILE=() PAGE_REASON=()
+
 # page_file <slug>: echo the path of the page's verbatim markdown, or nothing
 # when it cannot be read this run.
-declare -A PAGE_STATE=()
 page_file() {
-  local slug="$1" f
-  if [[ -n "$FIXTURE_DIR" ]]; then
-    f="$FIXTURE_DIR/$slug.md"
-    [[ -s "$f" ]] && printf '%s' "$f"
-    return 0
+  if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$1.md" ]]; then
+    printf '%s' "$DOCS_DIR/$1.md"
+  else
+    printf '%s' "${PAGE_FILE[$1]:-}"
   fi
-  if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
-    printf '%s' "$DOCS_DIR/$slug.md"
-    return 0
-  fi
-  f="$FETCH_DIR/$slug.md"
-  if [[ ! -s "$f" ]] && command -v curl >/dev/null 2>&1; then
-    mkdir -p "$(dirname "$f")"
-    curl -fsSL --max-time 60 -o "$f" "https://code.claude.com/docs/en/$slug.md" 2>/dev/null || rm -f "$f"
-  fi
-  [[ -s "$f" ]] && printf '%s' "$f"
-  return 0
+}
+
+# fetch_pages <slug>...: one fetcher call for every page not already on disk.
+# The fetcher resolves each slug through the docs index, so a page the index
+# does not list comes back unread without a request for it.
+fetch_pages() {
+  local slug state reason
+  [[ -f "$FETCH_DOCS" ]] || {
+    echo "ERROR: shared fetcher not found: $FETCH_DOCS" >&2
+    exit 2
+  }
+  # The manifest's claude_version is unused here, so the fetcher runs no claude.
+  local fetch_env=(-u FETCH_DOCS_FIXTURE_DIR FETCH_DOCS_CLAUDE_BIN='')
+  [[ -z "$FIXTURE_DIR" ]] || fetch_env=(FETCH_DOCS_FIXTURE_DIR="$FIXTURE_DIR" FETCH_DOCS_CLAUDE_BIN='')
+  env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$FETCH_DIR" --manifest "$FETCH_DIR/manifest.json" --mode search "$@" >/dev/null || {
+    echo "ERROR: the shared fetcher failed" >&2
+    exit 2
+  }
+  while IFS=$'\t' read -r slug state reason; do
+    if [[ "$state" == read ]]; then
+      PAGE_FILE[$slug]="$FETCH_DIR/$slug.md"
+    else
+      PAGE_REASON[$slug]="$reason"
+    fi
+  done < <(jq -r '.pages[] | [.slug, .state, (.reason // "unread")] | @tsv' "$FETCH_DIR/manifest.json")
 }
 
 # Every slug becomes a path under the fetch, docs and fixture directories, so
@@ -112,6 +129,8 @@ slug_ok() {
   [[ "$1" =~ $re ]]
 }
 row=0
+NEED=()
+declare -A NEED_SEEN=()
 while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
   row=$((row + 1))
   [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue
@@ -119,7 +138,13 @@ while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
     printf 'ERROR: manifest row %d has an invalid page slug: %s\n' "$row" "${slug//[[:cntrl:]]/?}" >&2
     exit 2
   fi
+  [[ -z "${NEED_SEEN[$slug]:-}" ]] || continue
+  NEED_SEEN[$slug]=1
+  [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]] || NEED+=("$slug")
 done <"$MANIFEST"
+[[ ${#NEED[@]} -eq 0 ]] || fetch_pages "${NEED[@]}"
+
+declare -A PAGE_STATE=()
 
 MISSING=0
 SKIPPED=0
@@ -135,7 +160,7 @@ while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
       PAGE_STATE[$slug]="$pf"
     else
       PAGE_STATE[$slug]="SKIP"
-      printf 'SKIP  %s: page could not be read this run; no claim about its rows\n' "$slug"
+      printf 'SKIP  %s: page could not be read this run (%s); no claim about its rows\n' "$slug" "${PAGE_REASON[$slug]:-unread}"
     fi
   fi
   pf="${PAGE_STATE[$slug]}"

@@ -3,6 +3,27 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-01
+
+### Added
+
+- `/gaming:dlss5` runs `refetch -StaleDays 7` before every action. It reports upstream changes and
+  stable-release pin advice, skips the network when the last check is under seven days old, and
+  prints `update check skipped: <reason>` on failure instead of blocking the action.
+- `refetch` also reads the `renodx-dlss5` releases, OptiScaler PRs #1116 and #1158, and the
+  published NVIDIA driver, and emits a report-only `pinAdvice` when a fork has a newer stable tag
+  than its pin. Prereleases never produce advice, and nothing edits a pin or an installed file.
+
+## [0.8.4] - 2026-09-29
+
+### Removed
+
+- The DLSS5-Feeder pointers from `SKILL.md`, `candidate-selection.md` and
+  `reference/feeder-route.md`; the reference file is deleted.
+- `assess` guidance for a no-upscaler or 32-bit game no longer names an alternative route.
+- The Feeder route is not built: `apply`, `remove` and `status` cover the in-process OptiScaler
+  route only. The bitness and dx12 fixes from 0.8.0 stand.
+
 ## [0.8.3] - 2026-09-29
 
 ### Fixed

@@ -10,7 +10,7 @@ usage surface. Upstream is advisory: watch for changes, evaluate, port anything 
 
 ```bash
 # Report drift (no changes made) — the only mode /dometrain:sync ever runs
-bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh"
+bash "<skill-dir>/scripts/update.sh"
 ```
 
 The script does three things:

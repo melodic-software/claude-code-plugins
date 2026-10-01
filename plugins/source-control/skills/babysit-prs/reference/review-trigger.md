@@ -6,10 +6,17 @@ exact comment body that summons the reviewer), `<review-bot-logins>` (the review
 login or logins), `<review-gate-context>` (the commit-status context that reports reviewer
 engagement), and `<ci-gateway-context>` (the aggregate CI gateway context, where the repo has
 one). Slots are filled from the effective-configuration block in this skill's `SKILL.md`, which
-renders every key's resolved value and its unset fallback; `<state-dir>` is the
-`state/babysit-prs` subdirectory of the plugin data directory.
+renders every key's `userConfig` value and its unset fallback; a target repository's default-branch
+`.claude/source-control.md` can declare `<review-gate-context>` and `<ci-gateway-context>` itself,
+and the snapshot reads that value first (see
+[config-resolution.md](../../../reference/config-resolution.md#babysit-prs-repository-policy-keys)).
+`<review-trigger-phrase>` and `<review-bot-logins>` are `userConfig`-only: a repository's
+declaration of either is ignored, so the posted comment text is never repository-chosen.
+`<state-dir>` is the `state/babysit-prs` subdirectory of the plugin data directory.
 
-**All four slots are absent by default, and this module is dormant until they are configured:**
+**All four slots are absent by default, and this module is dormant until they are configured, the
+phrase and reviewer logins in `userConfig` and the two contexts in `userConfig` or in the target
+repository:**
 no trigger comments are ever posted, the engagement gate is treated as absent (the snapshot
 degrades to `gate_state == "absent"` and never reports a pending-engagement blocker), and nothing
 else in this file activates. Configure the slots only for repositories that actually wire such a
@@ -53,7 +60,7 @@ after posting, defer the PR until a later snapshot. Use the guarded helper rathe
 directly:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
+python "<skill-dir>/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
 The helper requires all of these conditions:

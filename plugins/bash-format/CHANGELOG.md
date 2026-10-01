@@ -3,6 +3,60 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/bash-format:check`, which probes it.
+
+## [0.9.5] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/bash-format:check`, which probes it.
+
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
+## [0.9.4] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.9.3] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.9.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.9.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/bash-format:check` reports whether the binaries resolve without installing.
+
+### Changed
+
+- The missing `shfmt` and `shellcheck` notices latch once per session, shared by all agents, instead of once per session and agent, and keep the install route when they renew every eighth skip. The SessionStart probe uses the same latch key as the PostToolUse notice (`bash-format-shfmt`, `bash-format-shellcheck`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The `jq` notice is unchanged.
+
+## [0.8.8] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.8.7] - 2026-09-29
 
 ### Fixed

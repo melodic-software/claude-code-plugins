@@ -5,8 +5,8 @@ Init file: [../otel/cc-otel.sql](../otel/cc-otel.sql). Read routing: [read-routi
 ## DuckDB (default for agents)
 
 ```bash
-duckdb -init ${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/cc-otel.sql -c "SELECT count(*) FROM cc_logs;"
-duckdb -init ${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/cc-otel.sql -c "SELECT count(*) FROM cc_spans;"
+duckdb -init <skill-dir>/otel/cc-otel.sql -c "SELECT count(*) FROM cc_logs;"
+duckdb -init <skill-dir>/otel/cc-otel.sql -c "SELECT count(*) FROM cc_spans;"
 ```
 
 ### Views

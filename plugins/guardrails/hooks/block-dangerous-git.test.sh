@@ -772,6 +772,12 @@ run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: wsl.exe -e git reset --hard (launcher sink, blocked — #4242)" "wsl.exe -e git reset --hard" 2
 run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: call operator on a quoted exe path, no git (allowed)" '& "C:\tools\tool.exe" arg' 0
+run_pwsh "PS: function definition and call, no git (allowed)" 'function f { Get-ChildItem }; f' 0
+run_pwsh "PS: call operator beside git status (blocked)" '& "C:\tools\tool.exe" arg; git status' 2
+assert_contains "PS: call operator refusal names dynamic invocation" "$GUARD_ERR" "Trigger: a dynamic invocation"
+run_pwsh "PS: function body carrying git (blocked)" 'function f { git status }; f' 2
+assert_contains "PS: function body refusal names {}/() grouping" "$GUARD_ERR" "{}/() grouping"
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
 
@@ -951,6 +957,139 @@ run_pwsh "PS: grouping + computed launcher (still blocked)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + interpolating-string call target (still blocked)" \
   "foreach (\$x in @('a')) { & \"\$tool\" reset --hard }" 2
+# Read-only git inside grouping (`interrogation-ok` sink scope): a `{}`/`()`
+# command in which every git invocation is a built-in interrogator passes; any
+# other git use, and every non-grouping sink trigger, still blocks.
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only foreach loop with remote and stash (allowed)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p remote -v; git -C \$p status --short --branch | Select-Object -First 8; git -C \$p log --oneline -3; git -C \$p stash list }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git reset --hard (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p remote -v; git -C \$p reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git stash drop (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p stash list; git -C \$p stash drop }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git push --force (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p status; git -C \$p push --force }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop then git reset --hard outside the group (blocked)" \
+  "foreach (\$d in 'a') { git -C \$d status }; git reset --hard" 2
+run_pwsh "PS: obscured subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git ('re'+'set') --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: computed subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git \$sub -fdx }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: git -c core.pager inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git -c core.pager=./x log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: git --exec-path inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git --exec-path=. status }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced GIT_EXTERNAL_DIFF beside a read-only git group (blocked)" \
+  "\${env:GIT_EXTERNAL_DIFF}='C:\\t\\m.exe'; & { git diff --ext-diff }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Env: drive GIT_PAGER beside a read-only git group (blocked)" \
+  "Set-Item Env:\\GIT_PAGER 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: SetEnvironmentVariable beside a read-only git group (blocked)" \
+  "[Environment]::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: concatenated Env: path beside a read-only git group (blocked)" \
+  "Set-Item -Path ('Env:' + 'GIT_PAGER') -Value 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Env: path from a variable beside a read-only git group (blocked)" \
+  "\$v = 'X'; Set-Item \"env:\$v\" 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: PATH assignment beside a read-only git group (blocked)" \
+  "\$env:PATH = 'C:\\evil;' + \$env:PATH; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: provider-qualified Environment:: path beside a read-only git group (blocked)" \
+  "Set-Item -Path 'Microsoft.PowerShell.Core\\Environment::X' 'v'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reflection SetEnvironmentVariable with a split name beside a read-only git group (blocked)" \
+  "\$m = [Environment].GetMethod(('Set'+'EnvironmentVariable'), [Type[]]@([string],[string])); \$m.Invoke(\$null, [object[]]@(('GI'+'T_PAGER'), 'C:\\evil.exe')); & { git log }" 2
+# Each of these sets GIT_PAGER, or rebinds `git`, through a target that no text
+# search contains whole: a name split in pieces, a path held in a variable or
+# splat or piped in, a computed call or member name, reflection, a drive made at
+# run time. The refusal comes from the syntax of the write, so none of them keeps
+# a contiguous `env:` or `git_` for a substring test to find. Format:
+# label|command.
+mapfile -t env_write_cases <<'CASES'
+split Env: token in a parenthesized path|$n = "GI"+"T_PAGER"; New-Item -Path ("E"+"nv:") -Name $n -Value "C:\evil.exe"; & { git log }
+Env: path held in a variable|$p = "E"+"nv:\GI"+"T_PAGER"; Set-Item $p "C:\evil.exe"; & { git log }
+Set-Content with a computed Env: path|Set-Content -Path ("E"+"nv:" + $e) -Value x; & { git log }
+Type.InvokeMember on System.Environment|$m=[type]"System.Environment"; $m.InvokeMember(("Set"+"EnvironmentVariable"), [Reflection.BindingFlags]::InvokeMethod, $null, $null, @(("GI"+"T_PAGER"),"C:\evil.exe")); & { git log }
+splatted Set-Item path|$a=@{Path=('E'+'nv:\GI'+'T_PAGER');Value='x'}; Set-Item @a; & { git log }
+Set-Item path arriving on the pipeline|('E'+'nv:\GI'+'T_PAGER') | Set-Item -Value x; & { git log }
+Set-Item named through a variable|$c='Set-Item'; & $c ('E'+'nv:\GI'+'T_PAGER') x; & { git log }
+alias of Set-Item|Set-Alias q Set-Item; q ('E'+'nv:\GI'+'T_PAGER') x; & { git log }
+function named git|function git { 'x' }; & { git log }
+function: drive assignment|${function:git} = { 'x' }; & { git log }
+Set-Item into the Function: drive|Set-Item -Path Function:\git -Value { 'x' }; & { git log }
+ForEach-Object -MemberName InvokeMember|$t=[type]'System.Environment'; $t | ForEach-Object -MemberName InvokeMember -ArgumentList @('SetEnvironmentVariable',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@('GIT_PAGER','x')); & { git log }
+ForEach-Object with a positional member name|$t=[type]'System.Environment'; $t | % InvokeMember @('SetEnvironmentVariable',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@('GIT_PAGER','x')); & { git log }
+subexpression inside an expandable string|"$(Set-Item ('E'+'nv:GIT_PAGER') x)"; & { git log }
+New-PSDrive on the Environment provider|New-PSDrive -Name E -PSProvider Environment -Root ''; Set-Item E:\GIT_PAGER x; & { git log }
+Add-Type compiling an environment write|Add-Type -TypeDefinition 'public class X{public static void S(){System.Environment.SetEnvironmentVariable("GIT_PAGER","x");}}'; [X]::S(); & { git log }
+native env wrapper setting GIT_EXTERNAL_DIFF|& { env GIT_EXTERNAL_DIFF=C:\tools\mutator.exe git diff --ext-diff }
+native env wrapper setting GIT_PAGER|& { env GIT_PAGER=C:\evil.exe git log }
+native env by path|& { /usr/bin/env GIT_PAGER=x git log }
+native env.exe by Windows path|& { C:\Tools\env.exe GIT_PAGER=x git log }
+Invoke-Command of a script block variable|Invoke-Command $sb; & { git log }
+Set-Location to a computed drive, then a relative write|Set-Location ('E'+'nv:'); Set-Content GIT_PAGER x; & { git log }
+Set-Location -Path with a computed drive, then a relative write|$d = 'Env' + ':'; Set-Location -Path $d; Set-Item GIT_PAGER 'C:\evil.exe'; & { git log }
+Set-Location path arriving on the pipeline, then a relative write|$d | Set-Location; Set-Content GIT_PAGER x; & { git log }
+Push-Location with a colon-form computed path, then a relative write|Push-Location -LiteralPath:$d; Set-Content GIT_PAGER x; & { git log }
+mkdir with a computed path and a value|mkdir $p -Value x; & { git log }
+static call through a computed type|$e = [Environment]; $e::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }
+method call with a computed name|$o.$m('GIT_PAGER','x'); & { git log }
+target list with an $env: name first|$env:GIT_PAGER, $x = 'C:\evil.exe', 1; & { git log }
+parenthesized target list|($x, $env:GIT_PAGER) = 'a','C:\evil.exe'; & { git log }
+foreach variable|foreach ($env:GIT_PAGER in 'C:\evil.exe') { }; & { git log }
+null-coalescing assignment|$env:GIT_PAGER ??= 'x'; & { git log }
+[ref] of an $env: name|$r = [ref]$env:GIT_PAGER; & { git log }
+drive name spliced from a bareword and a quoted part|Set-Item E'nv':GIT_PAGER x; & { git log }
+drive name with an empty quote inside it|Set-Item E''nv:GIT_PAGER x; & { git log }
+command word spliced from quoted parts|S"et"-Item $p x; & { git log }
+CASES
+for env_write_case in "${env_write_cases[@]}"; do
+  run_pwsh "PS: ${env_write_case%%|*} beside a read-only git group (blocked)" \
+    "${env_write_case#*|}" 2
+done
+# PowerShell accepts a line break or a tab between the dot and the member name.
+run_pwsh "PS: a member call split after the dot beside a read-only git group (blocked)" \
+  $'$t=[type]\'System.Environment\'; $t.\n  InvokeMember(\'SetEnvironmentVariable\',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@(\'GIT_PAGER\',\'x\')); & { git log }' 2
+# A write whose target is a plain literal, and ordinary loops, are not refused.
+# shellcheck disable=SC2016
+run_pwsh "PS: a literal-path write beside a read-only git group (allowed)" \
+  "Set-Content -Path out.txt -Value \$x; & { git log }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a read-only git group piped into a literal-path write (allowed)" \
+  "& { git log } | Set-Content -Path out.txt" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: ForEach-Object with a script block and a read-only git call (allowed)" \
+  "Get-ChildItem | ForEach-Object { git -C \$_.FullName status }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a computed Set-Location with no write (allowed)" \
+  "foreach (\$d in Get-ChildItem) { Set-Location \$d; git status }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a literal Set-Location beside a literal-path write (allowed)" \
+  "Set-Location -Path C:\\repos; Set-Content out.txt -Value x; & { git log }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a \$env: read inside a read-only git group (allowed)" \
+  "foreach (\$d in 'a') { git -C \"\$env:USERPROFILE\\\$d\" status }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: an alias-shaped subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git co main }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: iex beside a read-only git group (blocked)" \
+  "iex \$x; { }; git status" 2
+run_pwsh "PS: nested pwsh with a read-only git group (blocked)" \
+  "pwsh -c { git status }" 2
+run_pwsh "PS: launcher alone still blocked" \
+  "Start-Process git -ArgumentList status" 2
 
 # --- PowerShell token separators bash does not honor (#2928) ----------------
 # PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
@@ -1185,6 +1324,58 @@ pwsh_stderr() {
   printf '%s' "$GUARD_ERR"
   return "$GUARD_RC"
 }
+# The commit-form paragraph is commit advice, and the special-construct line names
+# the PowerShell rewrite before the Bash-tool escape.
+# shellcheck disable=SC2016  # literal PowerShell variables
+grp_out="$(pwsh_stderr 'foreach ($b in $x) { git reset --hard $b }')"
+assert_absent "PS msg: blocked grouping with no commit token omits the commit form" \
+  "$grp_out" "canonical PowerShell commit form"
+assert_contains "PS msg: unroll comes before the Bash tool option" \
+  "${grp_out%%Bash tool*}" "unroll"
+# A trigger the printer has no line for falls back to a generic one, which also
+# leads with the PowerShell rewrite.
+fallback_out="$(PS_SINK_TRIGGER=unknown ps::print_sink_trigger_line 2>&1)"
+assert_contains "PS msg: the fallback trigger line names the PowerShell rewrite first" \
+  "${fallback_out%%Bash tool*}" "Rewrite the command in PowerShell"
+
+# --- Environment-write scan, judged on its own ---------------------------------
+# rc 0 = the text can write the environment through a target that is not a plain
+# literal; rc 1 = it cannot. These pin the predicate itself, so a refusal that
+# another gate would also give cannot stand in for it.
+pin_predicate "ps::has_unprovable_env_write: Set-Item path held in a variable" \
+  ps::has_unprovable_env_write $'$p = \'x\'; Set-Item $p \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: New-Item path and name computed" \
+  ps::has_unprovable_env_write $'New-Item -Path ("E"+"nv:") -Name $n -Value v' 0
+pin_predicate "ps::has_unprovable_env_write: a path splatted from a hashtable" \
+  ps::has_unprovable_env_write $'Set-Item @a' 0
+pin_predicate "ps::has_unprovable_env_write: a path piped in with only -Value" \
+  ps::has_unprovable_env_write $'$p | Set-Item -Value v' 0
+pin_predicate "ps::has_unprovable_env_write: a call through a variable" \
+  ps::has_unprovable_env_write $'& $c \'x\' \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: InvokeMember with a computed name" \
+  ps::has_unprovable_env_write $'$m.InvokeMember((\'Set\'+\'EnvironmentVariable\'), $f)' 0
+pin_predicate "ps::has_unprovable_env_write: a named computed location, then a relative write" \
+  ps::has_unprovable_env_write $'Set-Location -Path $d; Set-Content a x' 0
+pin_predicate "ps::has_unprovable_env_write: a named literal location, then a relative write" \
+  ps::has_unprovable_env_write $'Set-Location -Path C:\\repos; Set-Content a x' 1
+pin_predicate "ps::has_unprovable_env_write: a member call split after the dot" \
+  ps::has_unprovable_env_write $'$t.\n  InvokeMember(\'x\')' 0
+pin_predicate "ps::has_unprovable_env_write: a command word spliced from quoted parts" \
+  ps::has_unprovable_env_write $'S"et"-Item $p \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: a static call through a variable type" \
+  ps::has_unprovable_env_write $'$t::SetEnvironmentVariable($n, $v)' 0
+pin_predicate "ps::has_unprovable_env_write: an \$env: name first in a target list" \
+  ps::has_unprovable_env_write $'$env:X, $y = 1, 2' 0
+pin_predicate "ps::has_unprovable_env_write: a positional value is judged as a target" \
+  ps::has_unprovable_env_write $'Set-Content out.txt $text' 0
+pin_predicate "ps::has_unprovable_env_write: a literal path with a computed -Value" \
+  ps::has_unprovable_env_write $'Set-Content -Path out.txt -Value $text' 1
+pin_predicate "ps::has_unprovable_env_write: a module-qualified literal path" \
+  ps::has_unprovable_env_write $'Microsoft.PowerShell.Management\\Set-Content out.txt -Value (Get-Date)' 1 # portability-ok: a Windows module-path separator in the command under test, not a GNU grep word boundary
+pin_predicate "ps::has_unprovable_env_write: an \$env: read is not a write" \
+  ps::has_unprovable_env_write $'$x = $env:USERPROFILE; git -C $x status' 1
+pin_predicate "ps::has_unprovable_env_write: ForEach-Object with a script block" \
+  ps::has_unprovable_env_write $'Get-ChildItem | ForEach-Object { $_.FullName }' 1
 # shellcheck disable=SC2016
 iex_rc=0
 # shellcheck disable=SC2016  # intentional literal $cmd in the PowerShell payload
@@ -1272,8 +1463,8 @@ run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
   "Get-ChildItem C:\\code\\proj | Where-Object { \$_.PSIsContainer }" 0
 
 # Counterexamples: every one keeps the quote-intact probe and stays blocked.
-run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
-  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: bare mutating git beside a comparison (blocked)" \
+  "git reset --hard; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
 run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
   "Start-Process 'git' reset --hard; Get-Process | Where-Object { \$_.Name -eq 'x' }" 2
 run_pwsh "PS cmp: saps 'git' is a call target, not an operand (blocked)" \
@@ -1697,38 +1888,60 @@ run_pwsh "PS hs: the removed token string does not open the expandable-body sink
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
 # THE BUDGET REFUSES (#4682). Once the loop has blanked five granted sink shapes
 # and the remainder, re-classified once more, still cannot be read, the guard
-# refuses. It used to exit 0 there with the destructive text still visible: a
-# here-string opener with trailing whitespace is a special construct whose
-# region walk makes no progress, so under that one token every round was spent
-# on it and the `git reset --hard` beside it was never read.
+# refuses; it does not exit 0 with the destructive text still visible.
 #
-# #4683: a trailing-space opener is not confirmed, so `"@` at column zero is
-# herestring-orphan-closer (no allow token). PS_BUDGET_NOPROGRESS and
-# PS_BUDGET_FIVE_TRIGGERS still exit 2, now as that shape, which is the
-# monotone over-block. The budget-exhausted *message* is pinned on the
-# quoted-call no-progress shape, which still spends five granted rounds on
-# itself without acquiring an untrusted flag.
-PS_BUDGET_NOPROGRESS="$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')"
-PS_BUDGET_FIVE_TRIGGERS="$(printf '%s\n%s\n%s' 'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard; Write-Output @" ' "\$(y)" '"@')"
+# Few shapes reach that cap. A here-string opener with trailing whitespace, or an
+# opener on a closer line, is refused earlier as an untrusted reduction, so a case
+# built on one exits 2 whether or not the budget holds. A case that claims the
+# budget is therefore pinned on the MESSAGE only the exhaustion refusal prints.
+#
+# Five distinct triggers fill the budget exactly and the command is still read.
+# The rounds are special-construct, dynamic-invocation, launcher,
+# herestring-subexpr, and herestring-unbalanced: the closer line `"@ @"` carries a
+# second opener, which the subexpr round joins onto the prefix and the next round
+# finds hanging. The remainder then settles, so `git status` is allowed and
+# `git reset --hard` is refused by the reset check rather than by the budget.
 PS_SINK_TOKENS_5=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
-run_pwsh "PS budget: a no-progress special construct beside reset --hard is blocked under its token" \
-  "$PS_BUDGET_NOPROGRESS" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-run_pwsh "PS budget: five sink triggers plus reset --hard are blocked under all five sink tokens" \
-  "$PS_BUDGET_FIVE_TRIGGERS" 2 \
+ps_budget_five() { printf '%s\n%s\n%s' "Write-Host {a}; iex b; pwsh -File c.ps1; git $1; x @\"" "\$(y)" '"@ @"'; }
+run_pwsh "PS budget: five distinct sink triggers fill the budget and git status is still allowed" \
+  "$(ps_budget_five status)" 0 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+run_pwsh "PS budget: five distinct sink triggers then reset --hard are blocked by the reset check" \
+  "$(ps_budget_five 'reset --hard')" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+assert_absent "PS budget: and that refusal is not the budget's" "$GUARD_ERR" "sink-attempt budget is exhausted"
 run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
-  "$PS_BUDGET_FIVE_TRIGGERS" 2
+  "$(ps_budget_five 'reset --hard')" 2
+# A sixth round cannot follow those five: an opener stacked on the hanging one
+# puts a quote in its prefix and is refused as untrusted. The budget is reached
+# the other way. Three distinct triggers (herestring-unbalanced, special-construct,
+# dynamic-invocation) take three rounds and the launcher is the fourth. `$o=pwsh x`
+# is a launcher in assignment-glued form, which the statement blanker leaves
+# alone, so the launcher round and every later one read the same text: the fifth
+# round is spent and the sixth is refused.
+PS_BUDGET_EXHAUSTED="$(printf '%s\n%s' "Write-Host {a}; iex b; \$o=pwsh x; git reset --hard" "Write-Output @'")"
+run_pwsh "PS budget: four distinct triggers, the last one stuck, are blocked under all five sink tokens" \
+  "$PS_BUDGET_EXHAUSTED" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+assert_contains "PS budget: the refusal names the exhausted budget (four triggers)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: and says no allow token clears it (four triggers)" "$GUARD_ERR" "No allow token clears this"
+assert_absent "PS budget: it does not point at an allow token (four triggers)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+# Without the launcher token the same payload stops at the fourth round, on the
+# launcher. That the refusal names it, and not the budget, shows the three rounds
+# before it were spent on three different triggers.
+run_pwsh "PS budget: without the launcher token the same payload is refused at the launcher" \
+  "$PS_BUDGET_EXHAUSTED" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced,ps-unparsable-special-construct,ps-unparsable-dynamic-invocation
+assert_contains "PS budget: the refusal names the launcher" "$GUARD_ERR" "process launcher or nested shell"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
 # The same no-progress round from a call operator whose quoted target stays
 # opaque: the differential found it allowed under its one token.
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-guard_invoke --tool PowerShell --command "\$a=& 'git reset --hard'" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
-  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-assert_contains "PS budget: the refusal names the exhausted budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
-assert_contains "PS budget: and says no allow token clears it" "$GUARD_ERR" "No allow token clears this"
-assert_absent "PS budget: it does not point at an allow token" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+assert_contains "PS budget: the refusal names the exhausted budget (quoted call)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: and says no allow token clears it (quoted call)" "$GUARD_ERR" "No allow token clears this"
+assert_absent "PS budget: it does not point at an allow token (quoted call)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
 # A command that settles inside the budget is still read, not refused.
 run_pwsh "PS budget: three granted triggers then git status are still allowed" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git status' 0 \
@@ -1736,9 +1949,16 @@ run_pwsh "PS budget: three granted triggers then git status are still allowed" \
 run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-# Trailing-space opener is unconfirmed, so `"@` at column zero is orphan closer
-# even with no git and even with the special-construct token (#4683).
-run_pwsh "PS budget: a no-progress construct beside a harmless line is refused as orphan closer (git-free)" \
+# Trailing-space opener is unconfirmed, so `"@` at column zero is an orphan
+# closer: refused by shape, with or without git beside it and with the
+# special-construct token granted, never read and never by the budget. The
+# git-free case is an over-block: a command with no git in it is refused too.
+run_pwsh "PS budget: a trailing-space opener beside reset --hard is refused as an orphan closer" \
+  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+assert_contains "PS budget: the refusal names the orphan closer" "$GUARD_ERR" "closer ('@ or \"@) at column zero"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
+run_pwsh "PS budget: a trailing-space opener beside a harmless line is refused as an orphan closer (git-free)" \
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 
@@ -1831,6 +2051,14 @@ pin_predicate "ps::payload_has_bare_cr: JSON \\r is a bare CR" \
   ps::payload_has_bare_cr '{"tool_input":{"command":"hi\rgit push"}}' 0
 pin_predicate "ps::payload_has_bare_cr: JSON \\r\\n is CRLF" \
   ps::payload_has_bare_cr '{"tool_input":{"command":"hi\r\nlo"}}' 1
+pin_predicate "ps::has_bare_cr: no CR at all is not bare" \
+  ps::has_bare_cr $'hi\nlo' 1
+pin_predicate "ps::has_bare_cr: a CR ending the text is bare" \
+  ps::has_bare_cr $'hi\r' 0
+pin_predicate "ps::payload_has_bare_cr: no CR and no \\r escape is not bare" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\nlo"}}' 1
+pin_predicate "ps::payload_has_bare_cr: an escaped backslash before r is not a CR" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\\rlo"}}' 1
 assert_contains "PS hs: the hook names opener-untrusted when a quote holds the command" \
   "$(pwsh_stderr "$ps_hs_quote_prefix" || true)" \
   "quote, backslash, or backtick"

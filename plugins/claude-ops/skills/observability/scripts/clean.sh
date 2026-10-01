@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # /observability clean — prune local observability data by age.
 # Four layers, each with its own retention:
-#   1. JSONL metadata — the hook log root's hook-events.jsonl (the reference
-#      sink's shared file, default root .observability/claude, --hook-root moves
-#      it) and, while a consumer still carries it, the retired
+#   1. JSONL metadata — the hook log root's hook-events.jsonl and the
+#      hook-events.jsonl.1 the sink rotates it to at its size cap (the reference
+#      sink's shared files, default root .observability/claude, --hook-root moves
+#      them) and, while a consumer still carries it, the retired
 #      .claude/observability/hook-events.jsonl — path-only, pruned in place to
 #      the --keep-days window (default 30). The root's per-session files
 #      (sessions/<id>.jsonl) are removed whole once older than the same window,
@@ -40,7 +41,10 @@
 # Behavior (JSONL layer):
 #   - Atomic temp+rename per file (POSIX rename atomicity)
 #   - flock with 5s timeout — on contention, skips the file and reports
-#   - Exits 0 on success or skip-on-contention; non-zero only on jq/IO failure
+#   - Exit 0 on success or skip-on-contention; 1 when a file could not be pruned
+#     (jq or IO failure, e.g. a line that is not valid JSON) or the OTEL prune
+#     failed, after every other target was still processed; 2 on a bad argument
+#     or no resolvable repository root
 #   - Reports before/after byte + line counts
 #   - Empty/missing files: skipped silently
 #
@@ -67,58 +71,70 @@ SKILL_USAGE_DATA_ROOT=""
 # the store is the input to a starvation report that WANTS long history, and its
 # rows carry names and branches only, not content.
 KEEP_SKILL_USAGE_DAYS=365
+# Files a prune could not process (jq or IO failure, not writer contention) and
+# a failed OTEL delegate; either makes the run exit 1.
+FAILURES=0
+
+# A flag at the end of the line with no value is an error, not a silent default:
+# a truncated command must not prune under a window the caller never chose.
+need_value() { # <flag> <remaining args...>
+  [[ $# -ge 2 ]] || {
+    echo "ERROR: $1 needs a value (see --help)" >&2
+    exit 2
+  }
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --keep-days)
-    shift
-    KEEP_DAYS="${1:-30}"
-    shift
+    need_value "$@"
+    KEEP_DAYS="$2"
+    shift 2
     ;;
   --keep-days=*)
     KEEP_DAYS="${1#*=}"
     shift
     ;;
   --hook-root)
-    shift
-    HOOK_ROOT_REL="${1:-}"
-    shift
+    need_value "$@"
+    HOOK_ROOT_REL="$2"
+    shift 2
     ;;
   --hook-root=*)
     HOOK_ROOT_REL="${1#*=}"
     shift
     ;;
   --skill-usage-scope)
-    shift
-    SKILL_USAGE_SCOPE="${1:-}"
-    shift
+    need_value "$@"
+    SKILL_USAGE_SCOPE="$2"
+    shift 2
     ;;
   --skill-usage-scope=*)
     SKILL_USAGE_SCOPE="${1#*=}"
     shift
     ;;
   --skill-usage-dir)
-    shift
-    SKILL_USAGE_DIR="${1:-}"
-    shift
+    need_value "$@"
+    SKILL_USAGE_DIR="$2"
+    shift 2
     ;;
   --skill-usage-dir=*)
     SKILL_USAGE_DIR="${1#*=}"
     shift
     ;;
   --skill-usage-data-root)
-    shift
-    SKILL_USAGE_DATA_ROOT="${1:-}"
-    shift
+    need_value "$@"
+    SKILL_USAGE_DATA_ROOT="$2"
+    shift 2
     ;;
   --skill-usage-data-root=*)
     SKILL_USAGE_DATA_ROOT="${1#*=}"
     shift
     ;;
   --keep-skill-usage-days)
-    shift
-    KEEP_SKILL_USAGE_DAYS="${1:-365}"
-    shift
+    need_value "$@"
+    KEEP_SKILL_USAGE_DAYS="$2"
+    shift 2
     ;;
   --keep-skill-usage-days=*)
     KEEP_SKILL_USAGE_DAYS="${1#*=}"
@@ -137,7 +153,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   *)
-    echo "ERROR: unknown flag: $1" >&2
+    echo "ERROR: unknown flag: $1 (see --help)" >&2
     echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--keep-skill-usage-days N]" >&2
     exit 2
     ;;
@@ -146,9 +162,11 @@ done
 
 # Both retention windows are validated the same way, each naming its own flag.
 require_nonneg_int() { # <flag> <value>
+  # An empty value is rejected too: it would reach `-mmin +0` below and remove
+  # every session file.
   case "$2" in
-  *[!0-9]*)
-    echo "ERROR: $1 must be a non-negative integer (got: $2)" >&2
+  "" | *[!0-9]*)
+    echo "ERROR: $1 must be a non-negative integer (got: '$2')" >&2
     exit 2
     ;;
   *) ;;
@@ -210,6 +228,8 @@ prune_file() {
   # Third arg is an optional per-target cutoff. Absent, the caller's global
   # window applies -- so the hook-events call site is byte-for-byte unchanged.
   local CUTOFF_ISO="${3:-$CUTOFF_ISO}"
+  # Fourth arg is an optional lock file. Absent, the file's own <file>.lock.
+  local lock_override="${4:-}"
   local label
   label=$(basename "$file")
 
@@ -234,6 +254,13 @@ prune_file() {
   local pruned=$((before_lines - kept_count))
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
+    # A real run skips a file jq cannot read to the end (see run_jq), so the
+    # dry run says so instead of predicting a prune that would not happen.
+    if ! jq empty "$file" >/dev/null 2>&1; then
+      printf '  %s: %d lines, %d bytes → would skip (a line is not valid JSON)\n' \
+        "$label" "$before_lines" "$before_bytes"
+      return 0
+    fi
     printf '  %s: %d lines, %d bytes → would keep %d, prune %d\n' \
       "$label" "$before_lines" "$before_bytes" "$kept_count" "$pruned"
     return 0
@@ -245,7 +272,7 @@ prune_file() {
   fi
 
   local tmp="${file}.tmp.$$"
-  local lock="${file}.lock"
+  local lock="${lock_override:-${file}.lock}"
 
   # Only a fully clean jq pass may replace the file: on a malformed line jq
   # STOPS reading the stream, so $tmp holds only the records before the bad
@@ -256,26 +283,28 @@ prune_file() {
       'select(.[$ts] >= $cutoff)' "$file" >"$tmp" 2>/dev/null
   }
 
+  # 75 (EX_TEMPFAIL) is writer contention, a skip; any other nonzero is a jq or
+  # IO failure and counts against the run's exit code.
   local rc=0
   if command -v flock >/dev/null 2>&1; then
     (
       flock -x -w 5 9 || {
         echo "  ${label}: flock timeout — skip (active writer)" >&2
-        exit 1
+        exit 75
       }
       run_jq && mv -f "$tmp" "$file"
     ) 9>"$lock"
     rc=$?
   else
-    if run_jq; then
-      mv -f "$tmp" "$file" || rc=$?
-    else
-      rc=$?
-      echo "  ${label}: jq failed — skip" >&2
-    fi
+    run_jq && mv -f "$tmp" "$file"
+    rc=$?
   fi
   if [[ "$rc" -ne 0 ]]; then
     rm -f "$tmp" 2>/dev/null
+    if [[ "$rc" -ne 75 ]]; then
+      echo "  ${label}: jq or mv failed (a line may not be valid JSON) — left unchanged" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
     return 0
   fi
 
@@ -304,6 +333,9 @@ prune_file "$HOOK_LOG" "ts"
 # `clean` sweeps the stale ones whether or not the hooks still run.
 log "clean: hook log root $HOOK_ROOT"
 prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
+# The sink rotates the live file into .1 under the live file's lock, so pruning
+# .1 takes that same lock.
+prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts" "" "$HOOK_ROOT/hook-events.jsonl.lock"
 if [[ -d "$HOOK_ROOT/sessions" ]]; then
   OLD_SESSIONS=()
   while IFS= read -r f; do OLD_SESSIONS+=("$f"); done < <(
@@ -422,13 +454,18 @@ PRUNE_OTEL="${SKILL_DIR}/otel/prune-otel-store.sh"
 if [[ -f "$PRUNE_OTEL" ]]; then
   log "clean: OTEL store (CC_OTEL_RETENTION_DAYS=${CC_OTEL_RETENTION_DAYS:-7}, CC_OTEL_BODY_RETENTION_DAYS=${CC_OTEL_BODY_RETENTION_DAYS:-2}; stops Collector only if records exceed a window)"
   export CC_OTEL_STORE="${CC_OTEL_STORE:-$REPO_ROOT/.claude/observability/otel}"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    bash "$PRUNE_OTEL" --dry-run || log "  prune-otel-store.sh: dry-run returned non-zero"
-  else
-    bash "$PRUNE_OTEL" || log "  prune-otel-store.sh: returned non-zero (OTEL store may be unchanged)"
-  fi
+  otel_args=()
+  [[ "$DRY_RUN" -eq 1 ]] && otel_args=(--dry-run)
+  bash "$PRUNE_OTEL" "${otel_args[@]}" || {
+    echo "  prune-otel-store.sh: returned non-zero (OTEL store may be unchanged)" >&2
+    FAILURES=$((FAILURES + 1))
+  }
 else
   log "  prune-otel-store.sh: not found — skipping OTEL store"
 fi
 
+if ((FAILURES > 0)); then
+  echo "clean: done with $FAILURES failure(s); see the messages above" >&2
+  exit 1
+fi
 log "clean: done"

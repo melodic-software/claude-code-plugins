@@ -25,7 +25,7 @@ MCP availability: check your own tool list. If `mcp__context7__resolve-library-i
 
 A primary source of up-to-date library documentation. Two equivalent interfaces: CLI (`ctx7`) via npm, and the Context7 HTTP MCP server (`mcp__context7__*`) when the consuming project has it configured. Both read the same backend. Pick by workflow (see [When to use CLI vs MCP](#when-to-use-cli-vs-mcp)).
 
-**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7, even for libraries you "know."
+**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7.
 
 ## Actions
 
@@ -90,6 +90,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh" --fix  # apply CLI 
 Script (a) reports installed vs latest `ctx7` version, (b) fetches latest upstream `find-docs/SKILL.md` and `context7-cli/SKILL.md` from `upstash/context7`, (c) diffs against the `vendor/` baselines, (d) if different, reports NEW upstream guidance for manual integration into this skill. The script does NOT auto-overwrite this `SKILL.md`. Customizations (Windows gotcha, CLI-vs-MCP guidance, action dispatch) must be preserved.
 
 Full protocol (merge strategy, what to preserve, maintainer-only baseline refresh) → [context/update.md](context/update.md)
+
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## What this skill does NOT do
 

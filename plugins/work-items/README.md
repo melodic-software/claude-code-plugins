@@ -68,7 +68,7 @@ bundled with this plugin. The skills resolve the seam dispatcher plugin-dir
 canonical with a project-root fallback (`"$TRACKER" <verb>`) and the bound
 provider adapter executes it (contract + resolution:
 `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). Coordination operations use
-seam verbs directly: create, claim (assignee + lease), renew/reclaim lease,
+seam verbs directly: create, claim (assignee + lease), renew/release/reclaim lease,
 dependency links, sub-items, frontier selection, and single-item fetch. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
@@ -141,14 +141,21 @@ enough that one skill no longer predicts its contents.
 `work_dispatch_concurrency_cap` caps how many worker rows of one plan phase, one
 dispatch wave, autonomous `/work-items:work` runs at once per item. When set, `/work-items:work` threads it into
 `/implementation:implement-dispatch` as that skill's `--wave-cap` ceiling; left
-unset (its default state, the key declares no manifest default), it lets
-`/implementation:implement-dispatch` apply its own internal 3–5 wave default.
+unset (its default state, the key declares no manifest default),
+`/implementation:implement-dispatch` applies its `implement_dispatch_wave_cap` operator option, else its internal
+default (its precedence list owns the order). Rows that share a worktree under
+worker authority run one at a time. `/implementation:implement-dispatch` sets the authority from the
+consuming plan, so the cap changes behavior only under commit authority `orchestrator` with several
+rows sharing a worktree.
 The autonomous per-cycle item budget is a separate, driving-loop concern, the
 `work-loop` lane's adaptive item cap (`work_loop_item_cap_start` / `_ceiling` /
 `_floor`, plus `work_loop_frontier_item_cap_ceiling`), enforced by the loop
 body's own arithmetic. `work_loop_no_progress_threshold` (default 3) sets how
 many consecutive no-progress cycles the lane tolerates before raising its
 stall escalation. It escalates and keeps looping, never stops on a stall.
+`work_loop_in_flight_stale_days` (default 14) is the age, from the PR's
+`createdAt`, past which an open closing PR stops silently excluding its
+candidate: the lane escalates it and the drain report names it.
 
 `lane_instance` is this machine's writer identity for loop-lane telemetry. It
 suffixes each lane's telemetry sentinel marker
@@ -180,12 +187,13 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the lane's telemetry sentinel marker (`work-items:work-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state, including first_drain_complete, whose loss would end one machine's earn-trust ratification gate because a different machine finished a drain. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments. Set an opaque id if a machine name should not be published in a public tracker. |
 | `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns (the Brief published as a container item carrying the binding-resolved container label, default work-map, with slices as native sub-items). The approval gate itself is unchanged and mandatory. This key changes the offered default answer, never bypasses approval. Leave unset (or false) for the default plain ask with a default answer of no; this key declares no default so an unset value stays distinguishable from a configured one. |
-| `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once within one plan phase, the size of one dispatch wave (it runs exactly one item per invocation). Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under the default worker commit authority still run one at a time. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap). |
+| `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once within one plan phase, the size of one dispatch wave (it runs exactly one item per invocation). Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under worker commit authority run one at a time, and /implementation:implement-dispatch sets the authority from the consuming plan, so the cap changes behavior only under commit authority orchestrator with several rows sharing a worktree. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset and implement-dispatch applies its implement_dispatch_wave_cap operator option, else its internal default (its precedence list owns the order). This key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap). |
 | `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
 | `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_CEILING` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |
 | `work_loop_item_cap_floor` | number<br>*min 1* | `1` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_FLOOR` | Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. |
 | `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_FRONTIER_ITEM_CAP_CEILING` | Quota guard for frontier-capability-tier items in the work-loop lane: items carrying capability-tier: frontier run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the provider-permissioned label only; absent label = general tier (fail-closed). |
 | `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_NO_PROGRESS_THRESHOLD` | Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset. |
+| `work_loop_in_flight_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_IN_FLIGHT_STALE_DAYS` | A candidate whose open closing PR (draft or ready) was created more than this many days ago stops being silently excluded: the work-loop lane escalates it to the attended queue with the escalation marker, and the drain report names it. The value is an age taken from the PR's createdAt; the lane stores no state for it. |
 
 ### How to set these
 

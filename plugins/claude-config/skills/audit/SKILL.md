@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+description: "When the bundled update-config skill resolves in this session, prefer it to make a requested settings change; this skill to audit what is configured. Audit settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and env vars for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
 user-invocable: true
 disable-model-invocation: false
@@ -48,7 +48,7 @@ Parse `$ARGUMENTS` for:
   - `mcp`: MCP server definitions, commands, env vars, connectivity
   - `hooks`: hook scripts exist, timeouts, matchers
   - `plugins`: enabled/disabled status, marketplace availability
-  - `issues`: recheck known GitHub issues only
+  - `issues`: recheck known GitHub issues only (Category J and Phase 3.2)
   - `all`: run everything (default)
 
 ## Division of labor: the engine decides, the model judges
@@ -59,14 +59,15 @@ the document and does only what needs judgment:
 
 | Engine (deterministic, emitted once) | Model (judgment, on the engine's output) |
 | --- | --- |
-| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
+| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level key and each key inside an object the page documents children of (such as `permissions`, `sandbox`, `worktree` or `statusLine`) is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
 | B: presence of each baseline pattern, deny rules in the local file, blanket `Bash(git *)`, the allow-completeness rows at `info`, narrowing 3 where a hook plugin ships a coverage manifest, suppression-record matching | B: narrowings 1 and 2 (a documented exemption, a documented hook convention), narrowing 3 for hooks with no manifest, the consuming repo's extra required patterns |
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
-| D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
+| D: path resolution and readability, event names against the fetched `hooks` page, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo |
 | E: marketplace membership, every `false` key as an inventory row (a finding only when an enabled plugin depends on it), ORPHAN / RENAME drift, catalog plugins with no entry in any scope as one inventory row per marketplace, keys the drift check did not diff, `strict` versus `plugin.json` | E: the fix for a disabled dependency, orphan-`true` review, rename confirmation |
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
-| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values and the version `enforceAvailableModels` requires come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values, the version `enforceAvailableModels` requires, the `fallbackModel` cap and the values of every other string key whose Type bullet lists them come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version") | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
 
@@ -123,14 +124,17 @@ The engine records the installed Claude Code version itself (`claude --version`,
 versions against it. An unreadable version turns those rows into `skip`, never clean.
 
 It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
-It fetches the docs index (`llms.txt`), resolves each page it needs from a link there, and reads
-the page verbatim. The `docs` object in the document is the coverage record: the index and each
-page with its URL or path, byte count, and one `state`: `read`; `unread`, with a `reason` such as
-`fetch-failed`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
-settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
-404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
-on an `unread` or `unparsed` page is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
-other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
+It hands the docs index (`llms.txt`) and each page it needs to the plugin's shared fetcher,
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh`, which resolves the page from a link there and reads it verbatim to a file.
+The `docs` object in the document is the coverage record, built from the fetcher's manifest: the
+index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
+and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
+`unexpected-content-type`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
+settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins`, or a
+hooks page with no Event table (a soft 404, a reshaped page). Only `read` means the engine decided
+anything from the page; every row resting on an `unread` or `unparsed` page is `not-inspectable`.
+The pages this covers today are `settings-reference`, `env-vars`, and `hooks`, which the engine
+requests only when `settings-reference` links it; every other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
 instead of fetched again, and a page missing from it is fetched as usual.
 
 Run it with `--json` instead when you want the whole document; `--table` prints the version and
@@ -195,11 +199,12 @@ category; **full per-check criteria in
 - **A, Schema & Structure**: engine-decided
 - **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
-- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row), event validity against the live hooks page
+- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row). Event names are the engine's; for a `hook-event-page-not-read` row it left `not-inspectable`, read the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`). The engine already reports `skillOverrides` entries that cannot take effect: a key naming a known plugin (`G/skill-override-plugin`, `warning`) and entries in the user dir's `settings.local.json` (`G/skill-override-home-local`, `info`); a colon key it left as `skip` is yours to name or leave undecided. When the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
 - **H, Model and effort settings** and **I, Deep-link registration**: engine-decided; Phase 3 confirms the behavior each finding rests on before it is reported
+- **J, Known-issues fix versions**: engine-decided (`known-issue-fixed` rows); for an `info` finding, Phase 3.2 confirms the workaround is retired only if the live issue agrees
 
 ---
 
@@ -212,12 +217,17 @@ names, model configuration, permission syntax, and known issues.
 **Read every page in this phase verbatim, not through a summarizer.** These pages are long, with
 `settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
 then reports the rows past the cutoff as *absent*. So for each page,
-`curl https://code.claude.com/docs/en/<page>.md` to one directory and grep the files, per the
+run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --out <dir> <page>...` to fetch the pages
+into one directory and grep the files, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 **A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 
-Then run the citation check over that directory:
+The fetcher writes `<dir>/manifest.json` beside the pages: per page `url`, `retrieved`, `sha256`,
+`status`, `content_type`, `bytes`, `lines`, `state`, and `reason`, plus `claude_version` for the run.
+A page it reports `unread` supports no finding.
+
+Then run the citation check over that directory (it reads pages through the same fetcher):
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-doc-citations.sh" --docs-dir <dir>
@@ -251,8 +261,11 @@ route that works, and never let a route that does not work block the run:
    that column of the table, so the report states how old the recorded state is instead of an
    unqualified "unverified".
 
-For any issue whose upstream fix has shipped at or below the installed Claude Code version, confirm
-the settings-specific workaround is still needed and recommend retiring it if not.
+The engine has already compared each fix version `known-issues.md` records with the installed Claude
+Code version (Category J, `known-issue-fixed` rows). For each `finding` row, confirm the
+settings-specific workaround is still needed and recommend retiring it if not. Compare versions by
+hand only for an issue whose live thread names a fix release the file does not record, or when the
+engine's row is a `skip` because the installed version was unreadable.
 
 ### 3.3 Model configuration verification
 
@@ -319,7 +332,12 @@ environment.
 
 For each user-approved fix:
 
-1. Make the edit. Done when the target file carries the change and nothing else in it moved.
+1. Make the edit. Route each approved edit to `settings.json` or `settings.local.json`
+   through the built-in `update-config` skill when it resolves in this session, and write directly
+   when it does not (`.mcp.json` is outside its scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
+   check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
+   classifier asks, and the user's explicit approval of that fix is the consent. Done when the
+   target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
@@ -330,6 +348,20 @@ After all fixes:
 - Re-run the engine and present the before/after `summary` (findings by severity, rule counts,
   server counts)
 - Verify all config files are still valid JSON
+
+### Refusals in auto mode
+
+Two operations are refused in auto mode. Writing the team-layer suppression record
+`.claude/audit-pass.md` is refused as `[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh`
+for the after-fix summary is refused as `[Self-Modification]`. Never retry around a refusal. Hand the
+operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
+re-run and paste its output back. Report the before/after comparison from what they return.
+
+Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
+`claude-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
+[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of
+2026-09-27. Recheck when a Claude Code release changes auto-mode classifier categories, or a run
+where either refusal no longer fires.
 
 ### Fixes the skill can apply
 
@@ -367,6 +399,41 @@ implying the file is unreachable.
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
 invariants resolved against their own official pages when a check needs them, rather than asserted
 as fixed patterns here.
+
+## Boundary, the bundled `update-config` skill
+
+Both surfaces handle `settings.json` files, so a request about settings can mean either.
+
+- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+  automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
+  the person can both invoke it.
+- **This skill (marketplace plugin).** Audits the configuration that exists for correctness,
+  security, and drift against current official docs, across settings, MCP, hooks, plugins, and
+  permissions. It reports only, unless `--fix` is passed.
+
+**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making
+a settings change the person requested; prefer this skill for auditing what is configured. A
+request such as "allow npm commands" or "add a hook that runs when Claude stops" is a change, not
+an audit.
+
+**Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
+Phase 5, under `--fix`, one confirmed fix at a time; Phase 5 routes each such settings edit through
+`update-config`, and outside `--fix` this skill never chains into it on its own behalf.
+
+**Availability is never assumed.** Bundled skills are gated by settings such as
+`disableBundledSkills` and vary by version and host; this section states what to do when the
+surface resolves, never that it is present. The four-part records live in
+[reference/native-update-config.md](reference/native-update-config.md).
+
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

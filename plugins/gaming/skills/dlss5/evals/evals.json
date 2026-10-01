@@ -211,40 +211,49 @@
         "Stops on the not-a-candidate verdict and does not run -Verb apply",
         "Says the game's exe is 32-bit and the in-process route cannot load in a 32-bit game",
         "Does not suggest an upscaler mod as a way past the 32-bit refusal",
-        "If it mentions the Feeder route at all, calls it a separate unverified path subject to the anti-cheat gate and does not offer it as a way past the refusal",
         "Does not offer -Force or any other flag as a way past the verdict"
       ]
     },
     {
       "id": 17,
-      "name": "assess-no-upscaler-64-bit-names-feeder-unverified",
+      "name": "assess-no-upscaler-64-bit-stops-at-verdict",
       "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Hollow Harbor\\Binaries\\Win64 - can I put DLSS 5 on this? The assess JSON reports verdict not-a-candidate (no DLSS, FSR 2+ or XeSS DLL in the game tree), bitness 64-bit, launcher Steam, and antiCheat.status none-disclosed with the note that no kernel anti-cheat was disclosed, which is not proof of none.",
-      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and explains that the in-process OptiScaler route has no upscaler to hook. Because antiCheat.status is none-disclosed, names the DLSS5-Feeder ReShade route as a manual, unverified path that apply does not install (#4592), repeats the none-disclosed note (not proof the game has none), and says to play modded only solo or offline. Does not run apply.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and explains that the in-process OptiScaler route has no upscaler to hook. Names wiki-listed upscaler mods as the other path. Repeats the none-disclosed note (not proof the game has none). Does not name a ReShade-based route, does not run apply, and offers no -Force.",
       "files": [],
       "expectations": [
         "Runs assess and reports the not-a-candidate verdict",
         "Explains that the in-process OptiScaler route has no upscaler to hook in this game",
-        "Names DLSS5-Feeder as a manual route and calls it unverified",
-        "States that apply does not install the Feeder route",
+        "Names wiki-listed upscaler mods as the other path",
         "Repeats the anti-cheat note that none-disclosed is not proof the game has none",
-        "Tells the user to play modded only solo or offline",
+        "Does not name a ReShade-based install route",
         "Does not run -Verb apply",
         "Does not offer -Force or any other flag as a way past the verdict"
       ]
     },
     {
       "id": 18,
-      "name": "assess-no-upscaler-anti-cheat-game-omits-feeder",
+      "name": "assess-no-upscaler-anti-cheat-game-stops",
       "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin - can I put DLSS 5 on Helldivers 2? The assess JSON reports verdict not-a-candidate (no DLSS, FSR 2+ or XeSS DLL in the game tree), bitness 64-bit, launcher Steam, and antiCheat.status signals with a kernel anti-cheat signal.",
-      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and the anti-cheat signals. Does not point to DLSS5-Feeder; says the Feeder route does not lower anti-cheat risk (ReShade's add-on build is unsigned and ReShade disables depth in multiplayer). Gives no bypass or disable advice, offers no -Force, and does not run apply.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and the anti-cheat signals. Gives no bypass or disable advice, offers no -Force, and does not run apply.",
       "files": [],
       "expectations": [
         "Runs assess and reports the not-a-candidate verdict and the anti-cheat signals",
-        "Does not point to DLSS5-Feeder or its manual route as an option",
-        "States that the Feeder route does not lower anti-cheat risk",
         "Does not suggest bypassing, disabling or deleting the anti-cheat",
         "Does not offer -Force or any other flag as a way past the verdict",
         "Does not run -Verb apply"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "update-check-reports-and-continues",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - (before the action the skill ran -Verb refetch -StaleDays 7 and got: {\"checked\":\"2026-10-01T00:00:00Z\",\"items\":[],\"pinAdvice\":[\"wilsjo2 has a newer stable release v0.9.0; the pin is v0.8.3. Nothing was changed: a pin change is a plugin release, so follow Updating a pin in reference/upstream-watch.md\"]})",
+      "expected_output": "Reports the pinAdvice line and any changed or unchecked items in a few lines, then runs status as requested. Changes no pin, ledger row or installed file, and does not start a remove or apply.",
+      "files": [],
+      "expectations": [
+        "Reports the pinAdvice and any changed or unchecked items in a few lines",
+        "Continues with the requested status action unchanged",
+        "Says a new pin is a plugin release and edits no pin, ledger row or installed file",
+        "Does not run remove, apply or reset because of the advice"
       ]
     }
   ]

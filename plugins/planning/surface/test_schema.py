@@ -77,6 +77,36 @@ class TestKeywords(unittest.TestCase):
             self.err({"id": "v", "content": "x"}, schema.load("visual"))
         )
 
+    def test_visual_grouping_fields(self):
+        base = {"id": "v", "format": "svg", "content": "x"}
+        vis = schema.load("visual")
+        fields = {"group": "g", "order": 1.5, "primary": True, "label": "A"}
+        self.assertIsNone(self.err({**base, **fields}, vis))
+        for key, bad in (
+            ("group", 1),
+            ("order", "1"),
+            ("primary", "yes"),
+            ("label", 2),
+        ):
+            self.assertIn(key, self.err({**base, key: bad}, vis))
+
+    def test_visual_ops_need_their_fields(self):
+        ops = schema.load("ops")
+        visual = {"id": "v", "format": "svg", "content": "x"}
+        ok = [
+            {"op": "replace-visual", "visual": visual},
+            {"op": "archive-visual", "ids": ["v"], "why": "old"},
+        ]
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op in ok:
+            self.assertIsNone(check(op))
+        self.assertIsNotNone(check({"op": "replace-visual"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": [], "why": "x"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": ["v"]}))
+
 
 class TestShippedSchemas(unittest.TestCase):
     def test_v21_sample_files_without_schema_version_validate(self):
@@ -93,6 +123,18 @@ class TestShippedSchemas(unittest.TestCase):
         rows["Q1"]["status"] = "pending"
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
 
+    def test_meta_repo_is_a_string_in_the_file_and_in_the_meta_op(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["meta"]["repo"] = "o/r"
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["meta"]["repo"] = 5
+        self.assertIn("$.meta.repo", schema.first_error(doc, schema.load("questions")))
+        ops = schema.load("ops")
+        op = {"op": "meta", "set": {"repo": "o/r"}}
+        self.assertIsNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+        op["set"]["repo"] = 5
+        self.assertIsNotNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+
     def test_activity_is_capped_at_200_entries(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         doc["status"] = {"text": "Researching", "at": "t"}
@@ -105,6 +147,14 @@ class TestShippedSchemas(unittest.TestCase):
         e = {"seq": 1, "id": "Q1", "kind": "confirm", "alt": "0", "at": "t"}
         self.assertIsNone(schema.first_error(e, schema.load("event")))
 
+    def test_event_kinds_include_research_and_cancel_research_but_not_others(self):
+        s = schema.load("event")
+        for kind in ("research", "cancel-research"):
+            e = {"seq": 1, "id": "Q1", "kind": kind, "at": "t"}
+            self.assertIsNone(schema.first_error(e, s), kind)
+        e = {"seq": 1, "id": "Q1", "kind": "research-now", "at": "t"}
+        self.assertIsNotNone(schema.first_error(e, s))
+
     def test_event_kinds_include_confirm_understanding(self):
         e = {
             "seq": 1,
@@ -116,6 +166,86 @@ class TestShippedSchemas(unittest.TestCase):
             "contentRev": 2,
         }
         self.assertIsNone(schema.first_error(e, schema.load("event")))
+
+    def test_accept_audit_event_and_the_accept_it_fans_out(self):
+        s = schema.load("event")
+        audit = {
+            "seq": 1,
+            "id": None,
+            "kind": "accept-audit",
+            "alt": "1",
+            "text": "",
+            "at": "t",
+            "items": [{"id": "Q1", "contentRev": 0}],
+        }
+        self.assertIsNone(schema.first_error(audit, s))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "auditSeq": 1}
+        self.assertIsNone(schema.first_error(accept, s))
+        extra = {**audit, "items": [{"id": "Q1", "contentRev": 0, "note": "x"}]}
+        self.assertIn("unexpected property 'note'", schema.first_error(extra, s))
+        missing = {**audit, "items": [{"id": "Q1"}]}
+        self.assertIn("missing required 'contentRev'", schema.first_error(missing, s))
+
+    def test_a_hedged_event_and_its_response_validate(self):
+        e = {"seq": 1, "id": "Q1", "kind": "hedged", "text": "if cheap", "at": "t"}
+        self.assertIsNone(schema.first_error(e, schema.load("event")))
+        resp = {"decision": "hedged", "alt": None, "text": "if cheap"}
+        doc = {"seq": 1, "responses": {"Q1": resp}, "events": [e]}
+        self.assertIsNone(schema.first_error(doc, schema.load("responses")))
+        ops = schema.load("ops")
+        op = {"op": "record-terminal", "id": "Q1", "decision": "hedged", "text": "x"}
+        self.assertIsNone(
+            schema.first_error(op, ops["$defs"]["record-terminal"], "$", ops)
+        )
+
+    def test_revise_dependson_add_repoint_and_the_decision_event_content_rev(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": ["Q2"]}))
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": []}))
+        self.assertIn(
+            "dependsOn", check({"op": "revise", "id": "Q1", "dependsOn": "Q2"})
+        )
+        self.assertIsNone(check({"op": "add", "question": {}, "repoint": True}))
+        self.assertIsNotNone(check({"op": "add", "question": {}, "repoint": "yes"}))
+        self.assertIsNone(check({"op": "add-round", "repoint": True}))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "contentRev": 3}
+        self.assertIsNone(schema.first_error(accept, schema.load("event")))
+
+    def test_finish_op_and_finished_document_field(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "finish"}))
+        self.assertIsNone(
+            check({"op": "finish", "brief": "PLAN.md", "next": "n", "text": "t"})
+        )
+        self.assertIn("text", check({"op": "finish", "text": "x" * 501}))
+        self.assertIn("other", check({"op": "finish", "other": 1}))
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["finished"] = {"at": "t", "by": "stop", "text": "Stopped"}
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["finished"]["by"] = "nobody"
+        self.assertIn("by", schema.first_error(doc, schema.load("questions")))
+
+    def test_a_recommendation_history_line_carries_page_seq(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        line = {
+            "at": "t",
+            "by": "claude",
+            "kind": "revise",
+            "affects": [],
+            "pageSeq": 4,
+        }
+        doc["questions"][0]["history"] = [line]
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        line["pageSeq"] = "4"
+        self.assertIn("pageSeq", schema.first_error(doc, schema.load("questions")))
 
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
@@ -132,6 +262,58 @@ class TestShippedSchemas(unittest.TestCase):
         self.assertIsNone(schema.first_error(doc, schema.load("questions")))
         doc["restatement"]["sections"]["other"] = "o"
         self.assertIn("other", schema.first_error(doc, schema.load("questions")))
+
+    def test_context_op_shapes(self):
+        ops = schema.load("ops")
+
+        def err(op):
+            return schema.first_error(op, ops["$defs"]["context"], "$", ops)
+
+        for ok in (
+            {"op": "context", "percent": 0, "zone": "z"},
+            {"op": "context", "percent": 100, "zone": "z" * 40, "handoff": "h"},
+            {"op": "context", "handoff": "h" * 500},
+            {"op": "context", "clear": True},
+        ):
+            with self.subTest(ok=ok):
+                self.assertIsNone(err(ok))
+        for bad in (
+            {"op": "context", "percent": 101, "zone": "z"},
+            {"op": "context", "percent": -1, "zone": "z"},
+            {"op": "context", "percent": 1.5, "zone": "z"},
+            {"op": "context", "percent": 5, "zone": "z" * 41},
+            {"op": "context", "handoff": "h" * 501},
+            {"op": "context", "extra": 1},
+        ):
+            with self.subTest(bad=bad):
+                self.assertIsNotNone(err(bad))
+
+    def test_ops_text_caps_match_round_py(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op, cap in (
+            ({"op": "activity", "text": ""}, 500),
+            ({"op": "set-status", "text": ""}, 500),
+            ({"op": "wait", "id": "Q1", "waitsOn": ""}, 500),
+            ({"op": "archive", "ids": ["Q1"], "why": ""}, 500),
+            ({"op": "revise", "id": "Q1", "title": ""}, 500),
+            ({"op": "revise", "id": "Q1", "facts": ""}, 20000),
+            ({"op": "note-reply", "text": ""}, 20000),
+            ({"op": "group", "id": "g1", "summary": ""}, 20000),
+        ):
+            field = next(k for k, v in op.items() if v == "")
+            with self.subTest(op=op["op"], field=field):
+                self.assertIsNone(check({**op, field: "x" * cap}))
+                self.assertIn(f"at most {cap}", check({**op, field: "x" * (cap + 1)}))
+        alt = {
+            "op": "revise",
+            "id": "Q1",
+            "alternatives": [{"key": "a", "text": "x" * 501}],
+        }
+        self.assertIn("at most 500", check(alt))
 
 
 if __name__ == "__main__":

@@ -3,6 +3,62 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.89] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/markdown-format:check`, which probes it.
+
+## [0.11.88] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/markdown-format:check`, which probes it.
+
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
+## [0.11.87] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.11.86] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.11.85] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.11.84] - 2026-09-30
+
+### Changed
+
+- The hook and test comments scope the opt-in to the per-edit hook: a repository without a markdownlint config gets no rewrite, findings or `jq` notice, but the SessionStart probe still reports a missing `markdownlint-cli2` wherever the plugin is enabled and `markdown_format_enabled` is not `false`. Comment-only, no behavior change.
+
+## [0.11.83] - 2026-09-29
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change. `rewrite-guard.sh` is no longer carried.
+
+## [0.11.82] - 2026-09-29
+
+### Fixed
+
+- The setup skill's rerun caveat passes the scope `claude plugin list` reports (`user` from the home directory), per the plugin-reconfiguration convention.
+
+## [0.11.81] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.11.80] - 2026-09-29
 
 ### Fixed

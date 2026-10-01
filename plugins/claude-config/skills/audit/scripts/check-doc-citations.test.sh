@@ -33,11 +33,69 @@ assert_contains() {
   *) fail "$1" "expected to contain: $3" ;;
   esac
 }
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected $2, got $3"; fi
+}
 assert_not_contains() {
   case "$2" in
   *"$3"*) fail "$1" "unexpected substring: $3" ;;
   *) pass "$1" ;;
   esac
+}
+
+# index_of <dir>: write <dir>/llms.txt linking every page under <dir>, as the docs index does.
+index_of() {
+  local d="$1" p
+  {
+    printf '# Docs\n'
+    while IFS= read -r p; do
+      p="${p#"$d"/}"
+      printf -- '- [%s](https://code.claude.com/docs/en/%s): page\n' "${p%.md}" "$p"
+    done < <(find "$d" -name '*.md' | sort)
+  } >"$d/llms.txt"
+}
+
+# A curl stand-in serving local files by docs path. It logs every request to
+# $CURL_SHIM_LOG, serves $CURL_SHIM_SRC, answers 404 for a file it lacks, and
+# reports an off-origin final URL for the page named in $CURL_SHIM_REDIRECT_PAGE.
+SHIM="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM"
+cat >"$SHIM/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
+out="" url="" wfmt=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -o | -w | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+    [[ "$1" == "-o" ]] && out="$2"
+    [[ "$1" == "-w" ]] && wfmt="$2"
+    shift 2
+    ;;
+  -*) shift ;;
+  *) url="$1"; shift ;;
+  esac
+done
+rel="${url#https://code.claude.com/docs/}"
+rel="${rel#en/}"
+status=200
+if [[ -f "$CURL_SHIM_SRC/$rel" ]]; then cp "$CURL_SHIM_SRC/$rel" "$out"; else : >"$out"; status=404; fi
+ctype="text/markdown; charset=utf-8"
+[[ "$rel" == llms.txt ]] && ctype="text/plain; charset=utf-8"
+effective="$url"
+[[ -n "${CURL_SHIM_REDIRECT_PAGE:-}" && "$url" == *"/$CURL_SHIM_REDIRECT_PAGE.md" ]] && effective="https://elsewhere.example/docs/en/$CURL_SHIM_REDIRECT_PAGE.md"
+wfmt="${wfmt//%\{http_code\}/$status}"
+wfmt="${wfmt//%\{url_effective\}/$effective}"
+wfmt="${wfmt//%\{content_type\}/$ctype}"
+printf '%s' "$wfmt"
+EOF
+chmod +x "$SHIM/curl"
+
+# shim_run <served dir> <log> <script args...>: run the script through the stand-in with no fixture seam.
+shim_run() {
+  local src="$1" log="$2"
+  shift 2
+  PATH="$SHIM:$PATH" CURL_SHIM_SRC="$src" CURL_SHIM_LOG="$log" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" \
+    FETCH_DOCS_FIXTURE_DIR="" bash "$SCRIPT" "$@" 2>&1
 }
 
 # --- Case 1: every span present on fixture pages passes --------------------
@@ -47,6 +105,7 @@ man="$TEST_TMPDIR/manifest-present.tsv"
 printf '%s\n' '# comment' 'alpha	### `keyOne`' 'alpha	a sentence with `code`' 'beta	The space before a trailing `*` is part of the rule' >"$man"
 printf '%s\n' '# alpha' '### `keyOne`' 'prose, a sentence with `code` inside' >"$fx/alpha.md"
 printf '%s\n' '* **The space before a trailing `*` is part of the rule.** more' >"$fx/beta.md"
+index_of "$fx"
 rc=0
 out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 1: all present exits 0" 0 "$rc"
@@ -69,24 +128,25 @@ rc=0
 out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 3: skip does not fail" 0 "$rc"
 assert_contains "case 3: SKIP line printed once per page" "$out" "SKIP  gamma: page could not be read"
+assert_contains "case 3: SKIP line carries the reason" "$out" "not-in-index"
 assert_contains "case 3: summary counts skips" "$out" "2 skipped"
 assert_not_contains "case 3: no OK claimed for the skipped page" "$out" "OK    gamma"
 
 # --- Case 4: --docs-dir pages are read before any fetch -------------------------
-# A fake curl on PATH records every call and fails, so the run proves both that
-# a page on disk is never fetched and that an unreadable fetch is a SKIP.
-fakebin="$TEST_TMPDIR/bin"
-mkdir -p "$fakebin"
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s/curl-calls"\nexit 22\n' "$TEST_TMPDIR" >"$fakebin/curl"
-chmod +x "$fakebin/curl"
+# The stand-in serves an index listing both pages but only one page file, so the
+# run proves both that a page on disk is never requested and that a page the
+# fetch cannot read is a SKIP.
+served="$TEST_TMPDIR/served4"
+mkdir -p "$served"
+printf '%s\n' '# Docs' '- [a](https://code.claude.com/docs/en/alpha.md): a' '- [d](https://code.claude.com/docs/en/delta.md): d' >"$served/llms.txt"
 man="$TEST_TMPDIR/manifest-docs.tsv"
 printf '%s\n' 'alpha	### `keyOne`' 'delta	never fetched span' >"$man"
 rc=0
-out=$(PATH="$fakebin:$PATH" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" bash "$SCRIPT" --manifest "$man" --docs-dir "$fx" 2>&1) || rc=$?
+out=$(shim_run "$served" "$TEST_TMPDIR/curl-4.log" --manifest "$man" --docs-dir "$fx") || rc=$?
 assert_exit "case 4: docs-dir page satisfies the row, failed fetch is a skip" 0 "$rc"
 assert_contains "case 4: OK from the docs dir" "$out" "OK    alpha"
-assert_contains "case 4: the unfetchable page is skipped" "$out" "SKIP  delta"
-calls="$(cat "$TEST_TMPDIR/curl-calls" 2>/dev/null || true)"
+assert_contains "case 4: the unfetchable page is skipped with its reason" "$out" "SKIP  delta: page could not be read this run (http-404)"
+calls="$(cat "$TEST_TMPDIR/curl-4.log" 2>/dev/null || true)"
 assert_not_contains "case 4: the on-disk page was never fetched" "$calls" "alpha.md"
 assert_contains "case 4: the absent page was fetched once" "$calls" "delta.md"
 
@@ -97,6 +157,10 @@ assert_exit "case 5: missing manifest exits 2" 2 "$rc"
 rc=0
 bash "$SCRIPT" --nope >/dev/null 2>&1 || rc=$?
 assert_exit "case 5: unknown argument exits 2" 2 "$rc"
+rc=0
+out=$(CLAUDE_PLUGIN_ROOT="$TEST_TMPDIR/no-plugin" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 5: a missing shared fetcher exits 2" 2 "$rc"
+assert_contains "case 5: the missing fetcher is named" "$out" "shared fetcher not found"
 
 # --- Case 6: the shipped manifest is well-formed --------------------------------
 rc=0
@@ -104,54 +168,99 @@ bad=$(grep -vE '^(#|$)' "$MANIFEST" | grep -vcE $'^[a-z-]+(/[a-z-]+)*\t.+$' || t
 if [[ "$bad" == "0" ]]; then pass "case 6: every manifest row is slug<TAB>span"; else fail "case 6: every manifest row is slug<TAB>span" "$bad malformed row(s)"; fi
 
 # --- Case 7: a manifest with no trailing newline still checks its last row ------
-fx="$TEST_TMPDIR/lastrow"
-mkdir -p "$fx"
+fx7="$TEST_TMPDIR/lastrow"
+mkdir -p "$fx7"
 man="$TEST_TMPDIR/manifest-lastrow.tsv"
 printf 'alpha\t### `keyOne`\nalpha\t### `keyGone`' >"$man"
-printf '%s\n' '### `keyOne`' >"$fx/alpha.md"
+printf '%s\n' '### `keyOne`' >"$fx7/alpha.md"
+index_of "$fx7"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx7" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 7: the unterminated last row is checked and fails" 1 "$rc"
 assert_contains "case 7: MISS names the last row" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 7: both rows counted" "$out" "Checked 2 citation(s), 1 missing"
 
 # --- Case 8: a nested slug is fetched into its own subdirectory -----------------
-# The fake curl writes its -o target without creating directories, as curl
-# does, so the row is checked only when the script made the parent itself.
-nestbin="$TEST_TMPDIR/nestbin"
-mkdir -p "$nestbin"
-cat >"$nestbin/curl" <<'EOF'
-#!/usr/bin/env bash
-while [[ $# -gt 0 ]]; do
-  if [[ "$1" == "-o" ]]; then out="$2"; shift; fi
-  shift
-done
-printf 'a nested span\n' >"$out" || exit 23
-EOF
-chmod +x "$nestbin/curl"
+served="$TEST_TMPDIR/served8"
+mkdir -p "$served/plugins"
+printf 'a nested span\n' >"$served/plugins/install.md"
+index_of "$served"
 man="$TEST_TMPDIR/manifest-nested.tsv"
 printf 'plugins/install\ta nested span\n' >"$man"
 rc=0
-out=$(PATH="$nestbin:$PATH" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(shim_run "$served" "$TEST_TMPDIR/curl-8.log" --manifest "$man") || rc=$?
 assert_exit "case 8: the nested page is fetched and checked" 0 "$rc"
 assert_contains "case 8: OK for the nested slug" "$out" "OK    plugins/install: a nested span"
 
 # --- Case 9: a slug that could leave the page directory is refused --------------
 # A page sits beside the fixture directory, so a slug that climbed out of it
 # would read that page and pass.
-fx="$TEST_TMPDIR/slugs/pages"
-mkdir -p "$fx"
+fx9="$TEST_TMPDIR/slugs/pages"
+mkdir -p "$fx9"
 printf '%s\n' 'an escaped span' >"$TEST_TMPDIR/slugs/escape.md"
-printf '%s\n' 'an escaped span' >"$fx/alpha.md"
+printf '%s\n' 'an escaped span' >"$fx9/alpha.md"
+index_of "$fx9"
 for bad in '../escape' '/escape' 'alpha/../../escape' 'Alpha'; do
   man="$TEST_TMPDIR/manifest-badslug.tsv"
   printf 'alpha\tan escaped span\n%s\tan escaped span\n' "$bad" >"$man"
   rc=0
-  out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+  out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx9" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
   assert_exit "case 9: slug '$bad' exits 2" 2 "$rc"
   assert_contains "case 9: slug '$bad' is named with its row" "$out" "ERROR: manifest row 2 has an invalid page slug: $bad"
   assert_not_contains "case 9: slug '$bad' checks no row" "$out" "OK "
 done
+
+# --- Case 10: a slug the index does not list is skipped, never fetched -----------
+# The index lists skills but not slash-commands. slash-commands.md sits in the
+# fixture and on the served side byte-identical to skills.md, the shape of a
+# retired slug that answers with another page's body: a span skills carries
+# must not pass as slash-commands' own.
+fx10="$TEST_TMPDIR/retired"
+mkdir -p "$fx10"
+printf '%s\n' '# Skills' 'a span the skills page carries' >"$fx10/skills.md"
+cp "$fx10/skills.md" "$fx10/slash-commands.md"
+printf '%s\n' '# Docs' '- [Skills](https://code.claude.com/docs/en/skills.md): skills' >"$fx10/llms.txt"
+man="$TEST_TMPDIR/manifest-retired.tsv"
+printf '%s\n' 'slash-commands	a span the skills page carries' >"$man"
+rc=0
+out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx10" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 10: fixture, the unindexed page does not fail" 0 "$rc"
+assert_contains "case 10: fixture, SKIP names the page and the reason" "$out" "SKIP  slash-commands: page could not be read this run (not-in-index)"
+assert_not_contains "case 10: fixture, no OK for the unindexed page" "$out" "OK "
+assert_contains "case 10: fixture, the row counts as skipped" "$out" "Checked 0 citation(s), 0 missing, 1 skipped"
+printf '%s\n' 'skills	a span the skills page carries' 'slash-commands	a span the skills page carries' >"$man"
+rc=0
+out=$(shim_run "$fx10" "$TEST_TMPDIR/curl-10.log" --manifest "$man") || rc=$?
+assert_exit "case 10: fetch route, the unindexed page does not fail" 0 "$rc"
+assert_contains "case 10: fetch route, the indexed page is read" "$out" "OK    skills: a span the skills page carries"
+assert_contains "case 10: fetch route, the unindexed page is a SKIP" "$out" "SKIP  slash-commands: page could not be read this run (not-in-index)"
+assert_not_contains "case 10: fetch route, no OK for the unindexed page" "$out" "OK    slash-commands"
+calls="$(cat "$TEST_TMPDIR/curl-10.log" 2>/dev/null || true)"
+assert_contains "case 10: fetch route, the indexed page was requested" "$calls" "skills.md"
+assert_not_contains "case 10: fetch route, no request for slash-commands.md" "$calls" "slash-commands.md"
+
+# --- Case 11: every request is HTTPS only and stays on the docs origin -----------
+served="$TEST_TMPDIR/served11"
+mkdir -p "$served"
+printf '%s\n' 'alpha span' >"$served/alpha.md"
+printf '%s\n' 'beta span' >"$served/beta.md"
+index_of "$served"
+man="$TEST_TMPDIR/manifest-origin.tsv"
+printf '%s\n' 'alpha	alpha span' 'beta	beta span' >"$man"
+rc=0
+out=$(CURL_SHIM_REDIRECT_PAGE=beta shim_run "$served" "$TEST_TMPDIR/curl-11.log" --manifest "$man") || rc=$?
+assert_exit "case 11: an off-origin redirect does not fail the run" 0 "$rc"
+assert_contains "case 11: the on-origin page is read" "$out" "OK    alpha: alpha span"
+assert_contains "case 11: the redirected page is a SKIP with the reason" "$out" "SKIP  beta: page could not be read this run (redirected-off-origin)"
+assert_not_contains "case 11: no OK for the redirected page" "$out" "OK    beta"
+calls="$(cat "$TEST_TMPDIR/curl-11.log")"
+total="$(grep -c . "$TEST_TMPDIR/curl-11.log")"
+assert_eq "case 11: the index and both pages were requested" 3 "$total"
+https_only="$(grep -c -- '--proto =https --proto-redir =https --max-redirs 5 ' "$TEST_TMPDIR/curl-11.log")"
+assert_eq "case 11: every request is HTTPS only, redirects included and capped" "$total" "$https_only"
+timed="$(grep -c -- '--connect-timeout .* --max-time ' "$TEST_TMPDIR/curl-11.log")"
+assert_eq "case 11: every request carries a connect timeout and a max time" "$total" "$timed"
+assert_not_contains "case 11: no plain-http request" "$calls" "http://"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

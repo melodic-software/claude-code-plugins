@@ -3,6 +3,66 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/actionlint:check`, which probes it.
+
+## [0.11.6] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/actionlint:check`, which probes it. `/actionlint:check` runs its probes through Bash, jq included.
+
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
+## [0.11.5] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.11.4] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.11.3] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.11.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.11.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change. `rewrite-guard.sh` is no longer carried.
+
+## [0.11.0] - 2026-09-29
+
+### Added
+
+- The binary is probed at SessionStart, and a missing `actionlint` prints a notice bound to the manifest's declared prerequisite.
+
+### Changed
+
+- The PostToolUse missing-binary notice latches on the same key as the SessionStart probe (`actionlint-actionlint`, was `actionlint-missing`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal, instead of both firing.
+
+## [0.10.2] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.10.1] - 2026-09-29
 
 ### Fixed

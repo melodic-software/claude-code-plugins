@@ -6,15 +6,19 @@ Network-free: classify_pr consumes a fully hydrated PR view, exactly what the
 discovery/hydration layer would produce.
 """
 
+import argparse
 import pathlib
 import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_delta as delta
 import babysit_state as state_store
+import pr_queue_snapshot as snapshot_cli
+from repo_config_fake import RepoConfigFake
 
 
 def human_comment(comment_id):
@@ -170,6 +174,39 @@ class MutationLedgerAccumulatesAcrossCycles(unittest.TestCase):
             ["comment:11", "comment:22"],
             "the first cycle's human feedback id was dropped rather than merged",
         )
+
+
+class FleetRunResolvesPolicyPerRepo(unittest.TestCase):
+    """One run over two repositories: each PR is classified under its own
+    repository's policy."""
+
+    BOT_APPROVAL = {
+        "id": 21,
+        "author": {"login": "claude", "__typename": "Bot"},
+        "body": (
+            "Verdict: Approve. Checked every blocking criterion; all blocking "
+            "checks are inapplicable."
+        ),
+    }
+
+    def test_same_bot_approval_classifies_differently_per_repository(self):
+        RepoConfigFake(
+            {"owner/strict": "## babysit_approval_downgrade_logins\n- claude\n"}
+        ).install(self)
+        args = argparse.Namespace(owners="owner")
+        base = snapshot_cli.build_config(args)
+        prs = []
+        for repo, number in (("owner/strict", 1), ("owner/plain", 2)):
+            config = snapshot_cli.repo_classify_config(base, args, repo)
+            view = pr_view(repo, number, comments=[self.BOT_APPROVAL])
+            prs.append(
+                delta.classify_pr(
+                    view, None, [], "2026-07-17T10:00:00+00:00", None, None, config
+                )
+            )
+        by_key = {pr["key"]: pr for pr in prs}
+        self.assertEqual(len(by_key["owner/strict#1"]["feedback"]["material"]), 1)
+        self.assertEqual(by_key["owner/plain#2"]["feedback"]["material"], [])
 
 
 class CorruptStateRecovery(unittest.TestCase):

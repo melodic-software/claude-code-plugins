@@ -3,6 +3,35 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-10-01
+
+### Changed
+
+- The README and `backends.md` describe the Aseprite adapter as best-effort and unverified against a real
+  Aseprite install, with a failed run, missing output or a `sheet.json` without frames or meta falling back to native, in place of the local stand-in status line.
+
+## [0.4.0] - 2026-09-29
+
+### Added
+
+- `capture.py --record` muxes the scene's `audio` WAV under the WebM with ffmpeg, looped from scene time 0
+  and trimmed to the recording length, so the campfire recording has an audio track matching the video
+  length. Without ffmpeg, or when ffmpeg cannot mux (for example a build without libopus, a stalled run, or an empty output), the recording
+  stays video-only, `capture.py` prints a note, and the manifest says so (#5282).
+
+### Changed
+
+- `scene-canvas.md` and the `scene` skill document the `audio` hook and the ffmpeg mux in place of the
+  video-only statement.
+
+## [0.3.8] - 2026-09-29
+
+### Removed
+
+- The PixelLab and Retro Diffusion adapters, `hosted_backends.py`, the `--confirm` flag and
+  `PIXEL_ART_BACKEND_CONFIRM`. The backend is `native` (default) or `aseprite`; an unknown
+  configured name falls back to native with a notice. Hosted generators can return as separate items.
+
 ## [0.3.7] - 2026-09-29
 
 ### Changed

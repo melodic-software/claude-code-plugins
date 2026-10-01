@@ -55,14 +55,14 @@ guidance <200 lines per CLAUDE.md.
 | Convention | File(s) | Auto-read |
 |---|---|---|
 | AGENTS.md open standard (Linux Foundation-stewarded) | `AGENTS.md` root + nested, nearest wins | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, others; and in Claude Code since v2.1.277, where no `CLAUDE.md` displaces it (row 9). Claude Code concatenates the ancestor chain rather than resolving nearest-wins |
-| Cursor rules | `.cursor/rules/*.mdc` (+ nested); legacy `.cursorrules` deprecated | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual; also reads AGENTS.md + CLAUDE.md |
+| Cursor rules | `.cursor/rules/*.mdc` (+ nested); legacy `.cursorrules` deprecated | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual; CLI observed to read `AGENTS.md`, `CLAUDE.md` and `CLAUDE.local.md` together, without `@`-import expansion; `.cursor/rules/*.md` is inert and an `.mdc` needs frontmatter (`plugins/instruction-placement/skills/migrate/reference/sources.md`) |
 | GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**.instructions.md` (`applyTo:` globs); AGENTS.md (agent) | Auto-added to matching requests |
 | Gemini CLI | `~/.gemini/GEMINI.md`; workspace + ancestors; JIT subdir scan; `@` imports; `context.fileName` configurable | Concatenated into every prompt |
 | Windsurf | `global_rules.md`; `.windsurf/rules/` (newer docs prefer `.devin/`); legacy `.windsurfrules`; AGENTS.md | Per-rule `trigger:` manual / always_on / model_decision / glob |
 | Cline | `.clinerules` file or folder; global `~/Documents/Cline/Rules/` | Appended to system prompt; workspace wins |
 | Roo Code | `~/.roo/rules/`, `.roo/rules/` (+ per-mode variants); `.roorules` fallback | Auto-loaded, workspace wins |
 | Aider | `CONVENTIONS.md` | **NOT auto-read**; explicit `/read` / `--read` / `.aider.conf.yml` only |
-| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure. The spec defines the folder format only; `.agents/skills/` (project) + `~/.agents/skills/` (user) is the shared cross-tool DISCOVERY convention across Codex CLI (layered lookup incl. `$REPO_ROOT/.agents/skills`, `$HOME/.agents/skills`, `/etc/codex/skills`), Cursor (also `.cursor/skills/`), Gemini CLI, VS Code Copilot, Zed. Claude Code notably uses its own `~/.claude/skills/`/`.claude/skills/` paths; whether it also reads `.agents` paths is a lane 9 (#2911) verification item |
+| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure. The spec defines the folder format only; `.agents/skills/` (project) + `~/.agents/skills/` (user) is the shared cross-tool DISCOVERY convention across Codex CLI (layered lookup incl. `$REPO_ROOT/.agents/skills`, `$HOME/.agents/skills`, `/etc/codex/skills`), Cursor (also `.cursor/skills/`), Gemini CLI, VS Code Copilot, Zed. Claude Code notably uses its own `~/.claude/skills/`/`.claude/skills/` paths; the harness verdict for `~/.agents/skills` is REFUTED (`docs/upstream/aihero-course.md`, harness verdict row 5); adding an `.agents` root is declined in [ADR 0043](../adr/0043-record-the-skill-interop-decisions-and-conformance-gates.md) |
 | OpenAI Codex | AGENTS.md root + nested | Native (standard's originator) |
 | Zed | `.rules` (accepts `.cursorrules`, AGENTS.md, CLAUDE.md); skills `~/.agents/skills/` | Auto-included; Rules Library → Skills in v1.4.0 |
 | JetBrains Junie | `.junie/guidelines.md` | Auto-read during generation |
@@ -78,7 +78,8 @@ corroborate the competitor paths themselves.
 - Claude-side rows corroborate mostly within the single Anthropic publishing pool. **Accepted**:
   the effort's claim ladder requires verification against current official docs, not
   multi-publisher independence, for harness-behavior claims.
-- Cursor / Copilot / Windsurf / Cline rows are MEDIUM confidence (vendor doc hosts egress-blocked
+- Cursor / Copilot / Windsurf / Cline rows are MEDIUM confidence, except that Cursor's
+  AGENTS.md and CLAUDE.md loading is observed (see the row). Vendor doc hosts were egress-blocked
   in the research container; sourced via domain-filtered search + Anthropic's `/init` interop
   list as path corroborator). **Accepted for their purpose**: ecosystem awareness rows, not
   harness claims. Optional implementation-time task: re-fetch the four vendor pages from an
@@ -91,8 +92,9 @@ corroborate the competitor paths themselves.
 - `.agents/skills/` cross-tool convention (corrected 2026-08-17, user-raised): confirmed
   directionally from multiple independent secondary pools + Cursor's own docs surfaced via
   search (vendor hosts egress-blocked here), so MEDIUM; the spec repo itself confirms it defines
-  no directory locations. The Claude-Code-reads-`.agents`-paths question stays with #2911's
-  harness-claims bundle.
+  no directory locations. Whether Claude Code reads `~/.agents/skills` is answered by harness
+  verdict row 5 in `docs/upstream/aihero-course.md` (REFUTED); that verdict does not cover the
+  project `.agents/skills/` path. Adding an `.agents` root is declined in [ADR 0043](../adr/0043-record-the-skill-interop-decisions-and-conformance-gates.md).
 - Fresh-context verifier catches (recorded 2026-08-17): Roo and Aider rows are single-pool
   (vendor primary only, accepted on the same vendor-authority basis, now flagged); the AGENTS.md
   "nearest wins" nested-precedence detail is thinly corroborated (standard's FAQ only); the

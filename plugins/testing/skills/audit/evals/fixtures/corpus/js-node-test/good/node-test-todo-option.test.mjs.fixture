@@ -1,0 +1,8 @@
+// good-for: rule-zero-assertion
+// A todo option marks a placeholder whose failures do not count: not judged.
+import { test } from 'node:test';
+import { syncMailbox } from '../src/mail.mjs';
+
+test('syncs over JMAP', { todo: 'server support pending' }, () => {
+  syncMailbox('jmap://localhost');
+});

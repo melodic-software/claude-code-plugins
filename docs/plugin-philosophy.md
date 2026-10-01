@@ -307,7 +307,7 @@ re-deriving a row.
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`. `node` must be on `PATH`, and Claude Code does not guarantee it: exec form resolves `command` on `PATH` ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)), and the installed `claude` binary does not itself invoke Node ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)), both fetched 2026-09-29. A hook that cannot start is a non-blocking error, so a guard whose `node` is missing enforces nothing and the transcript notice is the only signal ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the claude-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and Claude Code does not guarantee it: exec form resolves `command` on `PATH` ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)), and the installed `claude` binary does not itself invoke Node ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)), both fetched 2026-09-29. A hook that cannot start is a non-blocking error, so a guard whose `node` is missing enforces nothing and the transcript notice is the only signal ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | No additional constraints. | 2026-07-17 |
@@ -320,7 +320,7 @@ re-deriving a row.
 
 ### Windows exec-form probe
 
-`scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument. No shell-form hook row remains.
+`scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form, except the three shell-form rows named in the Hooks row above: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument.
 
 - **Claim:** On Windows, exec form (`args` present) resolves `command` as an executable and spawns it directly with `args` as the argument vector. There is no shell, so a shebang is not honored, and `command` must be a real executable such as a `.exe`. `.cmd` and `.bat` shims cannot be spawned. If a Windows spawn of that shape drops `args` or the process image is `bash.exe`, the fleet sweep stops.
 - **Basis:** [Hooks reference](https://code.claude.com/docs/en/hooks), section "Exec form and shell form". Verbatim, from a full raw-markdown read of `https://code.claude.com/docs/en/hooks.md` (330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`; the slug is listed in `https://code.claude.com/docs/llms.txt`): "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." The same section states that exec form has no shell and that `shell` is "Ignored when `args` is set". Args-drop is [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495), open as of this date.
@@ -586,6 +586,22 @@ routinely shared across skills, so one `setup` skill is the single discoverable 
 flag fragmented across per-skill actions. Where distinct skills carry distinct readiness, the one
 setup skill aggregates and reports it per skill.
 
+`disable-model-invocation` is a whole-skill flag, so `setup` cannot hide `apply` from Claude and
+leave `check` reachable. A plugin whose hook or probe names a read-only check therefore also ships
+a separate `<plugin>:check` skill with `disable-model-invocation: false`. It reads `setup` and
+follows only its `check` section, so `setup` stays the one account of what is checked, and it
+installs and writes nothing. `setup` keeps `true`, and `apply` stays manual. A hook or probe names
+`/<plugin>:check`, never `/<plugin>:setup check`, which the flag hides from Claude.
+`plugins/context7/skills/check/SKILL.md` is the shape to copy. Verification record. Claim: the flag
+is set per skill in frontmatter, and the skills page documents no per-action invocation flag.
+Basis: <https://code.claude.com/docs/en/skills#frontmatter-reference>, field
+`disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this
+skill. Use for workflows you want to trigger manually with `/name`."), and
+<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> ("Two frontmatter fields let
+you restrict this"), both read from the raw `.md` of that page on 2026-09-29. As of: 2026-09-29.
+Recheck: a Claude Code release adds a per-action invocation flag, or that field's description
+stops applying to the whole skill.
+
 The verb set is deliberately closed at `check` and `apply`: no standalone `remove`, `reset`, or
 `migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
 argument to `apply`, per the teardown rule below). `apply` is *state-assessing*: it reads current
@@ -687,38 +703,60 @@ The `apply` verb stays closed. A write that installs something is an optional su
 never a new verb and never implied by bare `apply`. Subaction **names** stay locally informative;
 the fleet does not converge onto one spelling (#3574).
 
-Three sanctioned name shapes, picked by what the write actually installs:
+Four sanctioned shapes, picked by what the write installs and where it lands. The name follows the
+write and stays locally informative; the shape does not follow the name.
 
-| Shape | When | Live examples |
+| Shape | When | Live subactions: command and scope |
 |---|---|---|
-| Tool-named | the write installs one named tool through the consumer's existing package manager | `install-ruff`, `install-biome` |
-| Class-named | the write provisions a dependency class or a CLI, not one tool name | `install-deps`, `install-build-deps`, `install-cli`, `install-lint` |
-| Object-named | the write installs a named hook or file | `install-commit-msg`, `install-pre-commit-content` |
+| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
+| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
+| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide) |
+| Hook file | the write copies a named hook script into the operator's personal `.git/hooks/` | `install-commit-msg` (`hooks/commit-msg` and `hooks/guardrails-resolve-convention.sh`), `install-pre-commit-content` (`hooks/pre-commit` and `hooks/guardrails-content-lib/`) |
 
-A new install subaction picks one of those three. It does not invent a fourth grammar, and it does
-not rename a sibling to match.
+A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
+does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
+install one named tool, while `install-deps` and `install-build-deps` name a class.
 
-**Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
-rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
-gap; name every reason that applies; at least one always does.
+**Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
+install path recorded in the consumer's repo, declines to install. It uses this shape, not a
+plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
+paper over the gap; name every reason that applies; at least one always does.
 
-1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
-2. The only install command is unpinned (`@latest`), so it is not idempotent.
-3. The tool has no per-repo dependency-manager path (cargo/Homebrew/a pre-built binary, not a
-   lockfile).
+1. The hook resolves the tool on `PATH`, so the install it can use is machine-level (a global bin
+   directory such as `$GOPATH/bin`, cargo, Homebrew, a pre-built binary); a dependency recorded
+   through the repo's package manager, such as a `go.mod` tool line, is not one the hook finds.
+2. The tool publishes several official install methods, so choosing one is the consumer's call.
 
-`go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
-refusals. They stay; they are not defects against a missing subaction.
+The discriminator is the preamble, not the install command. A plugin that exists to drive a CLI
+(context7's `ctx7`, playwright's `@playwright/cli`) installs it machine-globally under the
+Machine-global CLI shape. A plugin whose hook only runs a tool over the consumer's files
+(go-format's `goimports`, typos-format's `typos`) refuses under the list above, though that tool is
+also its subject. A machine-global or `@latest` install is not itself a reason to refuse.
 
-- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal names
-  the reasons that apply from the list; the fleet is not renamed onto one spelling.
-- **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
-  `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
-  `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
-  `install-hint` and `install-browser` are not setup subactions.
-- **As of:** 2026-09-28.
-- **Recheck:** a setup skill grows a fourth name shape, or a maintainer converges the fleet onto
-  one spelling.
+`go-format` (no `install-goimports`: the hook resolves `PATH` only, reason 1) and `typos-format` (no
+`install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
+current refusals. They stay; they are not defects against a missing subaction.
+
+- **Claim:** install subactions fall into four shapes by what they install (consumer-repo
+  dependency, machine-global CLI, plugin-owned dependencies, hook file); names are not converged;
+  a refusal names the reasons that apply from the list and never excludes a sanctioned subaction.
+- **Basis:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
+  (`install-ruff`), `plugins/biome-format/skills/setup/SKILL.md` (`install-biome`),
+  `plugins/markdown-format/skills/setup/SKILL.md` (`install-lint`),
+  `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
+  (`install-cli`, the two `npm install -g` commands above),
+  `plugins/knowledge/skills/setup/SKILL.md` (`install-deps`),
+  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
+  branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
+  `plugins/guardrails/skills/setup/context/install-commit-msg.md` and
+  `plugins/guardrails/skills/setup/context/install-pre-commit-content.md` (hook files). The
+  refusals: `plugins/go-format/skills/setup/SKILL.md` and
+  `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
+  `install-browser` are not setup subactions.
+- **As of:** 2026-09-29.
+- **Recheck:** a setup skill adds an install subaction that fits none of the four shapes, a live
+  subaction changes what or where it installs, or a maintainer converges the fleet onto one
+  spelling.
 
 ## Prerequisites and failure behavior
 
@@ -1220,7 +1258,9 @@ name is not the same underlying value across models):
   tool schema, 2026-07-29), so it structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar). An orchestrator skill
+  by the [recorded exception](#named-agent-bar), and `implementation:phase-verifier`,
+  `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
+  against binary criteria ([pinned agents](#effort-tiers)). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
@@ -1310,18 +1350,23 @@ name is not the same underlying value across models):
 
 **Pinned `effort: high` agents.**
 
-- **Claim:** Fourteen named agents pin `effort: high` so a session tuned down for cost does not
-  silently cheapen consequential workers, and one more pins `effort: medium`. There is no
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers, and four pin `effort: medium`: `plan-reviewer` by its
+  recorded exception, and `phase-verifier`, `ci-log-auditor`, and `doc-drift-detector` because
+  each checks against binary criteria. The lowering is owner-decided Option B, narrow, at
+  `medium` and not `low`, because a low-effort executor stops detecting that it is stuck.
+  `security-reviewer` and `architecture-guardian` stay `high`. There is no
   per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
   agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides every pin at once
   for the whole session (the environment variable still wins, per above), and a `maxEffortLevel`
   or organization effort cap limits any pin above the cap. Both act on the whole session; neither
   cited page documents a per-lane or per-plugin lever.
 - **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
-  `implementer` and `phase-verifier`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
-  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`, `ci-log-auditor`,
-  `doc-drift-detector`, `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
-  `auditor`; `songwriting` `object-writer`. `effort: medium`: `planning` `plan-reviewer`. Issue
+  `implementer`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
+  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`,
+  `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
+  `auditor`; `songwriting` `object-writer`. `effort: medium`: `implementation` `phase-verifier`;
+  `review` `ci-log-auditor` and `doc-drift-detector`; `planning` `plan-reviewer`. Issue
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) is the source of
   the filed list of eleven, which omits `auditor`, `object-writer`, and `research-verifier`. The
   Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
@@ -1336,8 +1381,8 @@ name is not the same underlying value across models):
   tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
   [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
 - **As of:** 2026-09-29.
-- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer lowers or
-  drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
+- **Recheck:** a checker pinned `medium` misses a defect its `high` pin caught, the Agent tool gains
+  a per-invocation `effort` parameter, a maintainer lowers or drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,

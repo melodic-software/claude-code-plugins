@@ -1,0 +1,24 @@
+{
+  "tools": [
+    {
+      "name": "shfmt",
+      "check": "/bash-format:check",
+      "install": "host package or release binary, https://github.com/mvdan/sh#shfmt"
+    },
+    {
+      "name": "shellcheck",
+      "check": "/bash-format:check",
+      "install": "host package or release binary, https://github.com/koalaman/shellcheck#installing"
+    },
+    {
+      "name": "jq",
+      "check": "/bash-format:check",
+      "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/bash-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    }
+  ]
+}

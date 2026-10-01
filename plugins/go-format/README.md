@@ -72,6 +72,10 @@ surfaces the syntax error back to Claude as advisory context.
   prefix (`go list -m`). Absent: the hook still formats/fixes imports, just
   without the `-local` grouping (goimports' plain default behavior).
 
+A `SessionStart` probe reports a missing `goimports` wherever the plugin is enabled and
+`go_format_enabled` is not `false`, including a repository with no `.go` files, and names
+`/go-format:check`. It installs nothing.
+
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while
 formatting still runs.

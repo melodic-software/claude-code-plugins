@@ -3,6 +3,24 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.10] - 2026-10-01
+
+### Added
+
+- **`education` ships a plugin eval suite for the `quiz-me` non-obvious-behavior-keying case.** Run with `claude plugin eval`, no skill text changes ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
+## [0.11.9] - 2026-09-30
+
+### Fixed
+
+- **`teach` assembles a lesson with a splice script path that resolves.** `context/lessons.md` cited `splice-assets.sh` through the literal plugin-root token, which does not expand in a context file. It now reads `<skill-dir>/scripts/splice-assets.sh`, and `SKILL.md` gains a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
+## [0.11.8] - 2026-09-29
+
+### Fixed
+
+- **`teach` `**Arguments.**` line leads with the argument hint,** so the hint and the line list the same actions.
+
 ## [0.11.7] - 2026-09-29
 
 ### Fixed

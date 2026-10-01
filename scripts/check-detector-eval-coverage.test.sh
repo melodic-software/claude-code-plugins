@@ -25,6 +25,10 @@
 # streaming a partial discover report before an exit 2, and ignoring trailing
 # argv.
 #
+# The "what the walk resolves, excludes and refuses" block pins the jq walk one
+# rule per case: a shape it must resolve, an exclusion it must keep, and a shape
+# it must refuse by naming the site.
+#
 # P7 guards the stopping rule's extractor: a greedy `.*` keeps only the LAST id
 # on a line, so a detector spelling two emits as
 # `emit warning Q1 ...; emit error Q2 ...` never reaches the two-distinct-ids bar
@@ -33,6 +37,9 @@
 # a false positive or a lowered threshold.
 # shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-detector-eval-coverage.sh"
@@ -98,8 +105,8 @@ run_gate() {
   local pairs="$1"
   shift
   local outf errf
-  outf="$(mktemp)"
-  errf="$(mktemp)"
+  outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+  errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   (cd "$root" && DETECTOR_EVAL_COVERAGE_PAIRS="$pairs" bash scripts/check-detector-eval-coverage.sh "$@") >"$outf" 2>"$errf"
   RC=$?
   OUT="$(cat "$outf")"
@@ -240,7 +247,7 @@ rm -rf "$root"
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d)"
+mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 while IFS= read -r d; do
   [[ -d "$d" ]] || continue
   for exe in "$d"/*; do
@@ -249,8 +256,8 @@ while IFS= read -r d; do
     [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
   done
 done < <(printf '%s\n' "${PATH//:/$'\n'}")
-outf="$(mktemp)"
-errf="$(mktemp)"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
@@ -269,7 +276,7 @@ rm -rf "$root"
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d)"
+mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 while IFS= read -r d; do
   [[ -d "$d" ]] || continue
   for exe in "$d"/*; do
@@ -278,8 +285,8 @@ while IFS= read -r d; do
     [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
   done
 done < <(printf '%s\n' "${PATH//:/$'\n'}")
-outf="$(mktemp)"
-errf="$(mktemp)"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
@@ -290,6 +297,25 @@ if [[ $RC -eq 2 && "$ERR" == *"shfmt not found"* && -z "$OUT" ]]; then
   ok "a missing shfmt exits 2 with a diagnostic on stderr and nothing on stdout"
 else
   fail "missing shfmt not handled: rc=$RC out='$OUT' err='$ERR'"
+fi
+
+# An shfmt below the v3.13.0 floor drops call sites silently, so it must stop
+# the gate the same way a missing one does.
+stub="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+printf '#!/usr/bin/env bash\necho v3.12.0\n' >"$stub/shfmt"
+chmod +x "$stub/shfmt"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+(cd "$root" && PATH="$stub:$PATH" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
+RC=$?
+OUT="$(cat "$outf")"
+ERR="$(cat "$errf")"
+rm -f "$outf" "$errf"
+rm -rf "$stub"
+if [[ $RC -eq 2 && "$ERR" == *"v3.12.0 is older than v3.13.0"* && -z "$OUT" ]]; then
+  ok "an shfmt below the v3.13.0 floor exits 2 with a diagnostic on stderr and nothing on stdout"
+else
+  fail "old shfmt not refused: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
@@ -1051,6 +1077,261 @@ else
   fail "parser quoted eval counted: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
+
+# A wrapper prefix the walk does not follow must be UNRESOLVED (exit 2, site
+# named), never a silent loss. `command emit ...` is shifted and still resolves.
+wrapper_unresolved() {
+  local label="$1" wrapped="$2"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$wrapped"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* && "$ERR" == *"line 4: ${wrapped%% *} ... emit"* && -z "$OUT" ]]; then
+    ok "wrapper: $label is UNRESOLVED and named"
+  else
+    fail "wrapper $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+wrapper_unresolved 'command -p emit' 'command -p emit error P1 SRC "message"'
+wrapper_unresolved 'env X=1 emit' 'env X=1 emit error P1 SRC "message"'
+wrapper_unresolved 'xargs emit' 'xargs emit error P1 SRC "message"'
+
+mk_tree
+mk_detector det.sh 'emit warning P2 SRC "message"' 'command emit error P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P2 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P1"* && "$ERR" != *"emit call site"* ]]; then
+  ok "wrapper: command emit still resolves"
+else
+  fail "wrapper command emit: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# ===== what the walk resolves, excludes and refuses =========================
+# A real call must end as an id, as an UNRESOLVED line naming its site, or as a
+# stated exclusion; never as nothing.
+
+parser_sees_p1 'a single-quoted command word' "'emit' error P1 SRC \"message\""
+parser_sees_p1 'single-quoted severity and id' "emit 'error' 'P1' SRC \"message\""
+parser_sees_p1 'a dollar-quoted command word' "\$'emit' error P1 SRC \"message\""
+parser_sees_p1 'a hyphenated emitter name' 'emit-finding error P1 SRC "message"'
+parser_sees_p1 'a namespaced emitter name' 'emit::finding error P1 SRC "message"'
+parser_sees_p1 'a brace-expanded emitter name' 'emit{1..1} error P1 SRC "message"'
+parser_sees_p1 'command shifts to a hyphenated emitter' 'command emit-finding error P1 SRC "message"'
+parser_sees_p1 'builtin shifts to the emitter' 'builtin emit error P1 SRC "message"'
+parser_sees_p1 'exec shifts to the emitter' 'exec emit error P1 SRC "message"'
+parser_sees_p1 'nohup shifts to the emitter' 'nohup emit error P1 SRC "message"'
+parser_sees_p1 'a single-quoted wrapper shifts too' "'command' emit error P1 SRC \"message\""
+parser_sees_p1 'a forwarder after the id is still a site' 'emit error P1 "$@"'
+
+wrapper_unresolved 'exec -a NAME emit' 'exec -a name emit error P1 SRC "message"'
+wrapper_unresolved 'nohup -- emit' 'nohup -- emit error P1 SRC "message"'
+wrapper_unresolved 'builtin -- emit' 'builtin -- emit error P1 SRC "message"'
+wrapper_unresolved 'eval -- emit' 'eval -- emit error P1 SRC "message"'
+# The lookup exclusion belongs to `command`, to options BEFORE the emitter, and to
+# the exact options `-p`, `-v`, `-V` (bundled). Anything else is still a call.
+wrapper_unresolved 'command -p emit with a later -v argument' 'command -p emit error P1 SRC "message" -v'
+wrapper_unresolved 'command -- emit with a later -V argument' 'command -- emit error P1 SRC "message" -V'
+wrapper_unresolved 'env -v emit' 'env -v X=1 emit error P1 SRC "message"'
+wrapper_unresolved 'a word that only ends in -v' 'command -p x-v emit error P1 SRC "message"'
+wrapper_unresolved 'an option that only starts like -v' 'command -vx emit error P1 SRC "message"'
+wrapper_unresolved 'a computed option before the emitter' 'command "$opt" emit error P1 SRC "message"'
+wrapper_unresolved 'the first of two emit names' 'command -p emit emit_b'
+wrapper_unresolved 'a wrapped call with one argument' 'command -p emit error'
+wrapper_unresolved 'a wrapped call with a forwarder after the id' 'command -p emit error P1 "$@"'
+wrapper_unresolved 'a wrapped call with a word after a forwarder' 'command -- emit "$@" error P1 SRC "message"'
+
+# unresolved_case <label> <line>... — every line is a real call the walk cannot
+# resolve, so each must be named as its own unparsed site (lines 4, 5, ...).
+unresolved_case() {
+  local label="$1" n=4 named=1
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  for _ in "$@"; do
+    [[ "$ERR" == *"unparsed: line $n:"* ]] || named=0
+    n=$((n + 1))
+  done
+  if [[ $RC -eq 2 && $named -eq 1 && "$ERR" == *"emit call site"* && -z "$OUT" ]]; then
+    ok "unresolved: $label"
+  else
+    fail "unresolved $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+# not_a_site_case <label> <line>... — text or an exclusion the walk must not
+# count: the detector still passes, with nothing on stderr.
+not_a_site_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 0 && -z "$ERR" ]]; then
+    ok "not a site: $label"
+  else
+    fail "not a site $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+# A forwarder passes its caller's words through; the ids enter at the wrapper's
+# own calls. Every spelling the header lists, quoted and not, plus the wrapped forms.
+not_a_site_case 'every forwarder spelling' \
+  'emit error "$@"' 'emit error $@' 'emit error "$*"' 'emit error $*' 'emit error ${@}' \
+  'emit error "${*}"' 'emit "$@"' 'command -p emit error "$@"' 'env X=1 emit "$@"'
+# A lookup names emitters without calling them, and a call with no arguments is
+# not a site; neither may turn into an UNRESOLVED candidate. The lookups name a
+# second word after the emitter, so the no-argument exclusion cannot hide them.
+not_a_site_case 'a command lookup' \
+  'command -v emit emit_finding' 'command -pv emit git' "command '-v' emit x" 'command -V emit x' \
+  'command -vp emit x'
+not_a_site_case 'a call with no arguments' 'emit' 'command emit' 'builtin emit'
+not_a_site_case 'a wrapped call with no arguments' 'command -p emit' 'env emit' 'xargs emit'
+# The header names `$emitter error P1` as the emitter the walk cannot see. A
+# command word that is not one static literal, or a wrapper with no static word
+# after it, must be skipped, not crash the walk.
+not_a_site_case 'a command word that is not a static literal' \
+  '"$cmd" arg' '$emitter error P1' '"${cmd[@]}" x' 'x=$(date); "$x" y'
+not_a_site_case 'a wrapper with no static second word' \
+  'exec "$@"' 'eval "$body"' 'command "$cmd"' 'nohup' 'exec >/dev/null 2>&1'
+# Text is not a call, however it is quoted, wherever it sits in a wrapper, and
+# whatever follows it. A command that only CONTAINS `emit` is not an emitter.
+not_a_site_case 'a double-quoted eval body is text' 'eval "emit error P9" more'
+not_a_site_case 'a wrapper argument holding help text' 'command printf "%s %s" "emit error P9" more'
+not_a_site_case 'a command that only contains emit' 'remit error P9' 'xemit_finding warning P9'
+
+# A forwarder must be the whole word, and a bare parameter: a slice, default,
+# length, replacement or indirection of $@ (or a word that only starts with it)
+# is computed, so the call stays a candidate and is named.
+unresolved_case 'a modified or longer $@ is not a forwarder' \
+  'emit error ${@:1}' 'emit error ${@:-x}' 'emit error ${#@}' 'emit error ${@/a/b}' \
+  'emit error ${!@}' 'emit error "${!*}"' 'emit error "$@"x' 'emit error $@x' 'emit error "$@$x"' \
+  "emit error '\$@'"
+# A forwarder stands in for the severity or the id only as the LAST argument. A
+# word after it makes the id computed (with an empty `$@` it is the literal
+# `P1`), so the call is a site and stays unresolved.
+unresolved_case 'a word after a forwarder' \
+  'emit error "$@" P1' 'emit "$@" error P1' 'emit "$@" "$src"'
+unresolved_case 'an id that is only partly static' 'emit error P1$x' 'emit error "P1$x"'
+unresolved_case 'an id the row pattern matches only in part' 'emit error xP1' 'emit error P1xx'
+unresolved_case 'a computed severity or id' 'emit "$sev" P4' 'emit error ${id}'
+unresolved_case 'a severity that is not a plain word' \
+  'emit -x P1' 'emit error-x P1' 'emit 1x P1' 'emit "a b" P1'
+# `$` in the row pattern is not the end of the string: it also matches before a
+# final newline. The id is matched from \A to \z.
+unresolved_case 'an id with a trailing newline is not a full-string match' $'emit error "P1\n"'
+# The full-string match reads \A ... \z, so a leading newline is not part of an id.
+unresolved_case 'an id with a leading newline is not a full-string match' $'emit error "\nP1"'
+
+# A quoted array subscript is a string bash evaluates later, the same class as
+# `eval '...'`: the header's "any other string bash evaluates later" covers it.
+not_a_site_case 'a quoted array subscript is text until bash evaluates it' \
+  "[[ -v 'a[\$(emit error P9)]' ]]" "let 'a[\$(emit error P9)]=1'" "unset 'a[\$(emit error P9)]'"
+
+# A row pattern that accepts whitespace is outside the header's contract, and it
+# lets an id carry a newline. The scanner's counts must stay its own: the
+# resolved count is the ID lines it wrote, the candidate count is its last
+# CANDIDATES line, and neither may be moved by text inside an id.
+multiline_id_case() {
+  local label="$1" pattern="$2" id="$3" want_rc="$4"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "emit error \"$id\""
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "surfaces/det.sh|surfaces/evals.json|$pattern" --check
+  if [[ $RC -eq $want_rc ]] && { [[ $want_rc -eq 0 && -z "$ERR" ]] || [[ $want_rc -eq 2 && "$ERR" == *"has 2 emit call site(s) but only 3 resolved"* ]]; }; then
+    ok "multiline id: $label"
+  else
+    fail "multiline id $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+multiline_id_case 'a second ID line makes the resolved count exceed the candidates' \
+  'P1|P1[[:space:]]ID[[:space:]]P2' $'P1\nID P2' 2
+multiline_id_case 'a later line that only contains "ID " is not an ID line' \
+  'P1|P1[[:space:]]xID[[:space:]]P2' $'P1\nxID P2' 0
+multiline_id_case 'a CANDIDATES line inside an id does not replace the last one' \
+  'P1|P1[[:space:]]CANDIDATES[[:space:]]7' $'P1\nCANDIDATES 7' 0
+
+# A row pattern with alternation is matched as a whole: without the group around
+# it, `\AP[0-9]|Q[0-9]\z` would take the prefix `P1` of `P1x` for an id.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P1x SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate 'surfaces/det.sh|surfaces/evals.json|P[0-9]|Q[0-9]' --check
+if [[ $RC -eq 2 && "$ERR" == *"unparsed: line 4:"* ]]; then
+  ok "an alternation row pattern is matched as a whole"
+else
+  fail "alternation row pattern: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The walk reaches a call wherever the tree holds one. Each shape below nests an
+# emit call in a different construct and carries its own id (P11, P12, ...), so
+# one detector shows which constructs the walk skips: every id must be reported
+# uncovered, and a construct whose call is lost is named in the failure.
+nested_ids_case() {
+  local label="$1" n=10 shape k missing=""
+  shift
+  local -a shapes=("$@") lines=()
+  for shape in "${shapes[@]}"; do
+    n=$((n + 1))
+    lines+=("${shape//@ID@/P$n}")
+  done
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "${lines[@]}"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  for ((k = 11; k <= n; k++)); do
+    [[ "$ERR" == *"UNCOVERED CHECK ID: P$k "* ]] || missing+=" [${shapes[k - 11]}]"
+  done
+  if [[ $RC -eq 1 && -z "$missing" && "$ERR" != *"emit call site"* ]]; then
+    ok "nested: $label"
+  else
+    fail "nested $label: rc=$RC lost:$missing out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+nested_ids_case 'a call inside each compound command, expansion and redirection' \
+  '{ emit error @ID@; }' '( emit error @ID@ )' 'f() { emit error @ID@; }' 'function g { emit error @ID@; }' \
+  'if emit error @ID@; then :; fi' 'if :; then emit error @ID@; fi' 'if :; then :; else emit error @ID@; fi' \
+  'while emit error @ID@; do :; done' 'while :; do emit error @ID@; done' \
+  'for i in 1; do emit error @ID@; done' 'for i in $(emit error @ID@); do :; done' \
+  'case x in x) emit error @ID@ ;; esac' 'case $(emit error @ID@) in *) :;; esac' \
+  'case x in $(emit error @ID@)) :;; esac' \
+  'x=${v:$(emit error @ID@):1}' 'x=${v/$(emit error @ID@)/y}' 'x=${v//a/$(emit error @ID@)}' \
+  ': && emit error @ID@' 'emit error @ID@ && :' ': | emit error @ID@' 'emit error @ID@ | cat' '! emit error @ID@' \
+  'cat >"$(emit error @ID@)"' \
+  'x=$(emit error @ID@)' 'x=`emit error @ID@`' 'declare y=$(emit error @ID@)' 'arr=($(emit error @ID@))' \
+  'printf %s "$(emit error @ID@)"' 'diff <(emit error @ID@) /dev/null' 'x=${v:-$(emit error @ID@)}' \
+  'x=$(( $(emit error @ID@) + 1 ))' '[[ $(emit error @ID@) ]]' 'let x=$(emit error @ID@)' \
+  $'cat <<EOF\n$(emit error @ID@)\nEOF'
+
+# A span neither shfmt nor bash accepts is a file the parser cannot read: exit 2.
+# The line walk read these three (exit 1 naming P4), and this suite asserted so
+# before shfmt became the reader; the parser's refusal is the answer now.
+unparsable_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@" 'emit error P4 SRC "message"'
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 2 && "$ERR" == *"shfmt could not parse"* && -z "$OUT" ]]; then
+    ok "unparsable: $label is exit 2, not a guess"
+  else
+    fail "unparsable $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+unparsable_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
+unparsable_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
+unparsable_case 'a comment opened after `(`' 'f() (#<<EOF'
 
 # ============== P4: the registry is the stopping rule =====================
 # A qualifying skill absent from the registry is unenforced, which is the same

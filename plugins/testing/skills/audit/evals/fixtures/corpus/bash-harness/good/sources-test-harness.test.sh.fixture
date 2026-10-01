@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# The shared harness this script sources defines the cases and their
+# assertions. Shape from scripts/sync-*.test.sh.
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SELF_DIR/lib/test-harness.sh"
+. "$SELF_DIR/lib/sync-cluster-suite.sh"
+run_sync_cluster_suite context-zone

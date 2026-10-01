@@ -11,10 +11,17 @@
     {"id": "base", "title": "Basics", "summary": "Order, commitments and visuals."},
     {"id": "chain", "title": "Chain", "summary": "A dependsOn chain."},
     {"id": "talk", "title": "Talk", "summary": "An answer with a Claude reply."},
-    {"id": "batch", "title": "Batch", "summary": "Accept all."}
+    {"id": "batch", "title": "Batch", "summary": "Accept all."},
+    {"id": "hold", "title": "Hold", "summary": "A question held for research."},
+    {"id": "dup", "title": "Dup", "summary": "An alternative restates the recommendation."}
   ],
   "visuals": [
-    {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}}
+    {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}},
+    {"id": "gl", "scope": "question:Q3", "title": "Loose note", "format": "svg", "order": 0, "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 10\"><rect width=\"20\" height=\"10\"/></svg>"},
+    {"id": "gb", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option B: two steps with a review page", "format": "markdown", "order": 2, "primary": true, "content": "bodymark-b"},
+    {"id": "gt", "scope": "question:Q3", "group": "Timeline", "title": "Rollout timeline", "format": "markdown", "order": 3, "content": "bodymark-t"},
+    {"id": "gc", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option C: abandoned", "format": "markdown", "order": 0, "archived": {"why": "superseded", "at": "2026-01-01T00:00:00Z"}, "content": "bodymark-c"},
+    {"id": "ga", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option A: single page with inline payment form", "format": "markdown", "order": 1, "content": "bodymark-a"}
   ],
   "questions": [
     {"id": "Q3", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Third", "title": "Should the third step run?", "recommendation": "Yes, third.", "commits": ["The third step owns its own log"], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]},
@@ -30,6 +37,7 @@
       {"id": "vp", "title": "Inline image", "format": "image", "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="}
     ]},
     {"id": "X1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Dropped", "title": "Should the old path stay?", "recommendation": "No.", "commits": [], "alternatives": [{"key": "a", "text": "Yes"}, {"key": "b", "text": "Only for a release"}]},
+    {"id": "X2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Behind the dropped", "title": "Should the follow-on stay?", "dependsOn": ["X1"], "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
     {"id": "P1", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Upstream", "title": "Should the upstream step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
     {"id": "P2", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Middle", "title": "Should the middle step run?", "dependsOn": ["P1"], "recommendation": "Yes, after the upstream step.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
     {"id": "P3", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Downstream", "title": "Should the downstream step run?", "dependsOn": ["P2"], "recommendation": "Yes, last.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
@@ -37,6 +45,11 @@
       {"at": "2026-09-24T01:02:00Z", "by": "claude", "text": "The thread keeps every reply.", "replyTo": 2}
     ]},
     {"id": "A1", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch one", "title": "Should batch one run?", "recommendation": "Yes, batch one.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
-    {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]}
+    {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "D1", "group": "dup", "stage": "interview", "round": 1, "rev": 1, "short": "Dup", "title": "Should the dup step run?", "recommendation": "Yes, run it.", "commits": [], "alternatives": [{"key": "a", "text": "Yes, run it (recommended)"}, {"key": "b", "text": "No"}, {"key": "c", "text": "Yes, run it only on request"}]},
+    {"id": "H1", "group": "hold", "stage": "interview", "round": 1, "rev": 1, "short": "Held", "title": "Should a held question stay out of Show: Open?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}], "waiting": true, "waitsOn": "the benchmark run", "history": [
+      {"at": "2026-09-24T01:03:00Z", "by": "claude", "text": "Asked."},
+      {"at": "2026-09-24T01:04:00Z", "by": "claude", "text": "Pending research: the benchmark run"}
+    ]}
   ]
 }

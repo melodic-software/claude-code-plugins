@@ -80,15 +80,15 @@ rm -rf "$NB_WORK"
 
 # --- Notice text is bound to prerequisites.json --------------------------------
 # The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest has exactly one tool, biome,
+# path), so this case is the binding: the manifest lists biome and jq,
 # and the hook's missing-binary notice call and local-bin walk state that tool's
 # name, check, install and local_bin, verbatim.
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | length) == 1 and .tools[0].name == "biome" and .tools[0].local_bin == "node_modules/.bin/biome"' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: exactly one tool, biome, at node_modules/.bin/biome"
+  if jq -e '(.tools | map(.name)) == ["biome", "jq", "node"] and .tools[0].local_bin == "node_modules/.bin/biome"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly biome (at node_modules/.bin/biome), jq and node"
   else
-    fail "manifest: expected one tool named biome with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
+    fail "manifest: expected tools biome, jq and node with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
   fi
   IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to BIOME_NOTICE/,/[^\\]$/p' "$HOOK")"
@@ -186,32 +186,8 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # new_biome_repo <dir> [config_body] -> init a git repo with a node_modules
 # biome shim and (unless config_body is the literal NO_CONFIG) a biome.json.
@@ -464,13 +440,7 @@ run_hook_env "$REPO/tel.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL" >/dev/null 2>&1; then
-      ok "envelope: $field present"
-    else
-      fail "envelope: $field missing ($(cat "$TEL"))"
-    fi
-  done
+  if check_envelope "$TEL"; then ok "envelope: matches envelope schema"; else fail "envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
   if [[ "$(jq -r '.hook' "$TEL")" == "biome-format" ]]; then ok "envelope: hook is biome-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi

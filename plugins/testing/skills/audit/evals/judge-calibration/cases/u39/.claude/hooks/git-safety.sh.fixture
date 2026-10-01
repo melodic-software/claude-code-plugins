@@ -1,0 +1,488 @@
+#!/usr/bin/env bash
+# PreToolUse hook: Block dangerous git commands on shared branches.
+# Triggered on Bash matcher for git commands.
+#
+# Protection fires when EITHER (a) the branch is main/master (always
+# protected), OR (b) on any other branch the working tree has WIP (staged,
+# unstaged, or untracked) AND another live Claude Code session is concurrently
+# using this SAME working tree. Genuine same-tree concurrency is the real
+# hazard: session B's stash/checkout/switch silently mutates state session A
+# depends on (the incident: B stashed on a shared tree, capturing A's WIP into
+# a stash A couldn't see). A SOLO session with WIP is NOT blocked — concurrency
+# is detected via Claude Code's own per-session transcript freshness (see
+# another_live_session below). Fail-SAFE: when concurrency cannot be
+# determined, the gate assumes concurrency and blocks (never fail-OPEN).
+#
+# Prevents concurrent session interference by blocking:
+#   - git stash (captures other sessions' uncommitted changes)
+#   - git checkout <branch> (switches HEAD, disrupts shared working tree)
+#   - git switch <branch>   (same as checkout)
+#   - git checkout -b new   (carries WIP onto new branch, leaves shared
+#                            branch without it — same blast radius)
+#   - git switch -c new     (symmetric with checkout -b)
+#
+# Allow list (does not block):
+#   checkout: --orphan (create orphan), -p, --patch (interactive),
+#             '-- <paths>' anywhere (path restore, not branch switch)
+#   switch:   --orphan (create orphan)
+#   ALL the above when current branch is non-main AND working tree is clean
+#
+# BLOCKING: exits 2 with actionable stderr message.
+
+set -uo pipefail
+
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+
+hook::check_enabled "GIT_SAFETY"
+
+# Buffer stdin once so we can read BOTH the command AND transcript_path —
+# stdin is single-read; transcript_path drives the concurrency probe (the
+# non-main gate via another_live_session below).
+HOOK_INPUT=$(hook::buffer_stdin) || exit 0
+COMMAND=$(hook::jq_field "$HOOK_INPUT" '.tool_input.command') || exit 0
+TRANSCRIPT_PATH=$(hook::jq_field "$HOOK_INPUT" '.transcript_path' || true)
+
+# Collapse bash line continuations (`\` + newline) to a single space so the
+# regexes below see commands as bash will logically execute them. Without
+# this, legitimate path-restore commands written across lines —
+#   git checkout feature \
+#   -- README.md
+# — would be blocked because [:cntrl:] forbids the literal newline byte and
+# [[:blank:]] separators do not span newlines.
+#
+# A plain `${COMMAND//$'\\\n'/ }` is insufficient for TWO reasons: (1) in a
+# `${var//pat/}` glob the leading backslash escapes the newline, so the pattern
+# matches a bare newline and strips it while leaving the backslash; (2) jq on
+# Windows re-emits an embedded newline as CRLF, so a CR sits between the
+# backslash and the LF and breaks adjacency entirely. Strip CR, then collapse
+# `\`+newline with sed (regex backslash matches a literal backslash). Guarded so
+# the sed fork only runs when a continuation is actually present — this hook
+# fires on every git command and MSYS2 fork cost is the dominant per-call cost.
+if [[ "$COMMAND" == *\\$'\r'$'\n'* || "$COMMAND" == *\\$'\n'* ]]; then
+  COMMAND=$(printf '%s' "$COMMAND" | tr -d '\r' | sed ':j;N;$!bj;s/\\\n/ /g')
+fi
+
+EXECUTABLE=$(hook::bash_strip_literals "$COMMAND")
+hook::bash_contains_git_token "$EXECUTABLE" || exit 0
+
+# Normalize away git global options before subcommand matching.
+# `git -h` documents the global form: `git [-C <path>] [-c <key=val>] [--git-dir=<path>]
+# [--work-tree=<path>] [--exec-path[=<path>]] [--bare] [--no-pager] [--no-replace-objects]
+# [--no-optional-locks] <command>`. Without this normalization, commands like
+# `git -C path reset --hard` or `git -c core.safecrlf=false clean -fd` bypass
+# every destructive-subcommand regex below because `git` is not immediately
+# followed by the subcommand. Without this normalization, commands like
+# `git -C path reset --hard` or `git -c core.safecrlf=false clean -fd` bypass
+# every destructive-subcommand regex below because `git` is not immediately
+# followed by the subcommand.
+#
+# Strategy: repeatedly strip global options at EVERY `git` token position —
+# not only at the start of the whole bash command. A compound invocation like
+# `cd /tmp && git -C path reset --hard` keeps the `git` token after the
+# `&&` separator, and the destructive subcommand regexes below match anywhere
+# in the string, so we must normalize at every git token to close that hole.
+#
+# Implementation: anchor sed substitutions with `(^|[^[:alnum:]_])git[[:space:]]+`
+# so each replacement matches the start of any git invocation regardless of
+# what precedes it (start-of-string, whitespace, separator). Bounded by 8
+# iterations per substitution kind — real-world invocations stack ~3 globals
+# max, and the loop is bounded to prevent runaway in malformed input.
+strip_global_opts() {
+  local cmd="$1"
+  local prev
+  local i=0
+  # Value matcher for value-taking global options: a double-quoted string, a
+  # single-quoted string, or a bare non-space token. Without the quoted
+  # alternatives a value containing a space (`-C "C:/My Repo"`) is stripped
+  # only up to the first space, leaving a token wedged between `git` and the
+  # destructive subcommand.
+  local dq='"[^"]*"'
+  local sq="'[^']*'"
+  local val="(${dq}|${sq}|[^[:space:]]+)"
+  # Build the global-option strip expressions ONCE (constant across iterations —
+  # they only reference $val, fixed above), then apply them as a SINGLE `sed`
+  # invocation with ordered -e expressions instead of six piped `sed` processes.
+  # This cuts six subprocess forks per loop iteration to one — the dominant cost
+  # of this hook on every git command, and of the 171-case regression suite on
+  # Windows/MSYS2 (~84ms/sed-fork). GNU sed runs all -e as one ordered program
+  # per line, so expression N's output feeds N+1 exactly as the sequential
+  # pipeline did. Every global-option form these expressions must strip is
+  # exercised by the committed corpus, so a regression in any expression surfaces
+  # as a destructive command slipping past the block:
+  #   git-safety-global-opts.test.sh     — `=`-attached, space-separated, short
+  #                                         -p/-P, boolean pathspec, stacked globals
+  #   git-safety-compound-quoted.test.sh — quoted-value paths with spaces and
+  #                                         compound `&&`/`||`/`;`/`|` prefixes
+  # ORDER MATTERS: keep the expressions in this exact sequence.
+  local -a strip_exprs=(-E)
+  # `git -C <path>` / `git -c <key=val>` — token + arg (value may be quoted)
+  strip_exprs+=(-e "s/(^|[^[:alnum:]_])git[[:space:]]+-C[[:space:]]+${val}[[:space:]]+/\1git /g")
+  strip_exprs+=(-e "s/(^|[^[:alnum:]_])git[[:space:]]+-c[[:space:]]+${val}[[:space:]]+/\1git /g")
+  # Long-form `--git-dir=<path>`, `--work-tree=<path>`, `--exec-path[=<path>]`,
+  # `--namespace=<n>`, `--attr-source=<s>`, `--config-env=<name>=<envvar>`. These
+  # global options take values. `--config-env=core.safecrlf=FOO reset --hard`
+  # bypassed the destructive block when `--config-env` was not stripped.)
+  strip_exprs+=(-e "s/(^|[^[:alnum:]_])git[[:space:]]+--(git-dir|work-tree|exec-path|namespace|attr-source|config-env)=${val}[[:space:]]+/\1git /g")
+  # Same value-taking globals in separate-argument form. Git accepts both
+  # `--work-tree=<path>` (above) and `--work-tree <path>` (here); the
+  # space-separated form leaves the value token wedged between `git` and the
+  # destructive subcommand, so the regexes below miss it. Empirically verified
+  # bypass on `--work-tree . / --git-dir <p> / --namespace <n> / --attr-source
+  # <t> / --config-env <n>=<v>`. `--exec-path` is excluded: bare `git
+  # --exec-path <cmd>` prints the exec path and never runs <cmd>, so it carries
+  # no destructive bypass.
+  strip_exprs+=(-e "s/(^|[^[:alnum:]_])git[[:space:]]+--(git-dir|work-tree|namespace|attr-source|config-env)[[:space:]]+${val}[[:space:]]+/\1git /g")
+  # Boolean global flags (long form). Pathspec flags are boolean per
+  # `git -h` — they never take a `=value`, so they belong here rather than
+  # in the `--flag=<value>` substitution above. `--attr-source` is NOT here:
+  # it is value-taking (handled by the two substitutions above), and listing
+  # it as boolean would strip only the flag and strand its value token.
+  strip_exprs+=(-e 's/(^|[^[:alnum:]_])git[[:space:]]+--(bare|no-pager|paginate|no-replace-objects|no-optional-locks|exec-path|help|version|literal-pathspecs|no-literal-pathspecs|glob-pathspecs|noglob-pathspecs|icase-pathspecs)[[:space:]]+/\1git /g')
+  # Boolean global flags (short form per `git -h`: -p paginate, -P no-pager)
+  strip_exprs+=(-e 's/(^|[^[:alnum:]_])git[[:space:]]+-(p|P)[[:space:]]+/\1git /g')
+  while ((i < 8)); do
+    prev="$cmd"
+    cmd=$(printf '%s' "$cmd" | sed "${strip_exprs[@]}")
+    # Repeated identical globals (`git -C p1 -C p2`) need a second pass: the /g
+    # scan advances past the first replacement, so the freshly-produced `git `
+    # prefix isn't rescanned within the same pass. Loop until stable (≤8).
+    [[ "$cmd" == "$prev" ]] && break
+    ((i++))
+  done
+  printf '%s' "$cmd"
+}
+
+# Resolve the effective working tree the command targets — BEFORE stripping
+# globals (strip removes the `-C`). A `git -C <path>` global option points the
+# command at a DIFFERENT tree than the session's project repo, so the
+# shared-branch + WIP guards below must evaluate THAT tree's state. Without this,
+# `git -C <other-repo> checkout` is judged against the project's branch — a
+# cross-repo false positive (the project on a shared WIP branch blocks a commit
+# targeting an unrelated repo). Override ONLY when the -C path exists AND
+# resolves to a DIFFERENT git toplevel than the project: same-repo subpaths and
+# non-existent paths keep project-scoped evaluation (conservative — preserves the
+# `-C /nonexistent` corpus; the actual git command would fail on a bad path
+# anyway). Single-`-C` only; a `-C` whose path is a shell variable (`$VAR`)
+# can't be resolved by static analysis and falls back to project-scoped
+# evaluation — use a literal path for cross-repo git ops. The concurrency signal
+# (another_live_session) stays project-scoped by design (the transcript model is
+# per-project), so a non-main + dirty `-C` target still assumes concurrency
+# (fail-safe). The destructive-subcommand blocks below fire regardless of which
+# repo is targeted — data loss is universal.
+dash_c_target() {
+  local m
+  m=$(printf '%s' "$1" | sed -nE "s/.*(^|[^[:alnum:]_])git[[:space:]]+-C[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+).*/\2/p")
+  m=${m%\"}
+  m=${m#\"}
+  m=${m%\'}
+  m=${m#\'}
+  printf '%s' "$m"
+}
+resolve_effective_git_dir() {
+  local target proj_top tgt_top
+  target=$(dash_c_target "$1")
+  [[ -n "$target" && -d "$target" ]] || {
+    printf '%s' "${CLAUDE_PROJECT_DIR:-.}"
+    return
+  }
+  proj_top=$(git -C "${CLAUDE_PROJECT_DIR:-.}" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  tgt_top=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  if [[ -n "$tgt_top" && "$tgt_top" != "$proj_top" ]]; then
+    printf '%s' "$target"
+  else
+    printf '%s' "${CLAUDE_PROJECT_DIR:-.}"
+  fi
+}
+EFFECTIVE_GIT_DIR=$(resolve_effective_git_dir "$COMMAND")
+
+COMMAND=$(strip_global_opts "$COMMAND")
+
+START_TIME=$EPOCHREALTIME
+HOOK_OBSERVABILITY_TOOL="${HOOK_OBSERVABILITY_TOOL:-Bash}"
+export HOOK_OBSERVABILITY_TOOL
+SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+
+# Returns 0 (true) if working tree has any uncommitted changes — staged,
+# unstaged, or untracked. Default --untracked-files=normal is sufficient
+# for the empty/non-empty test we need; -uall would recurse into untracked
+# directories at extra cost we don't need. Sub-100ms typical on Git Bash.
+# Graceful degradation: if `git status` fails (corrupt repo, no .git, etc.)
+# the empty-string check returns false and the hook falls through to allow.
+wip_present() {
+  local out
+  out=$(git -C "$EFFECTIVE_GIT_DIR" status --porcelain 2>/dev/null | tr -d '\r')
+  [[ -n "$out" ]]
+}
+
+# TTL (minutes) within which a sibling session's transcript counts as "live".
+# Generous default biases residual error to the cheap (false-positive) side per
+# the fail-safe asymmetry: a recently-closed session blocks for up to the TTL
+# (one annoyed glance), versus an idle-but-dirty live session going falsely
+# "absent" (the capture incident). Override via GIT_SAFETY_LIVE_SESSION_TTL_MIN.
+LIVE_SESSION_TTL_MIN="${GIT_SAFETY_LIVE_SESSION_TTL_MIN:-30}"
+
+# Returns 0 (true) when ANOTHER live Claude Code session is concurrently using
+# this SAME working tree — detected via Claude Code's own per-session transcript
+# files (~/.claude/projects/<slug>/<session-id>.jsonl); no new marker files. The
+# hook receives its own transcript_path on stdin; dirname() yields the project's
+# session dir (path-derived per working tree, so same-tree sessions share it
+# while separate worktrees land in distinct dirs). Counts sibling *.jsonl
+# (excluding this session's own) modified within LIVE_SESSION_TTL_MIN minutes.
+#
+# FAIL-SAFE: any uncertainty (no transcript_path, unreadable dir, non-numeric
+# count) returns 0 (assume concurrency) so the gate degrades to the pre-redesign
+# WIP-block — never fail-OPEN on a safety gate.
+another_live_session() {
+  local tp="$1" dir self count
+  [[ -n "$tp" ]] || return 0
+  dir=$(dirname "$tp")
+  [[ -d "$dir" ]] || return 0
+  self=$(basename "$tp")
+  count=$(find "$dir" -maxdepth 1 -type f -name '*.jsonl' ! -name "$self" \
+    -mmin "-${LIVE_SESSION_TTL_MIN}" 2>/dev/null | wc -l | tr -d '\r ')
+  [[ "$count" =~ ^[0-9]+$ ]] || return 0
+  [[ "$count" -gt 0 ]]
+}
+
+# Two-predicate gate: protect main/master always, and protect ANY branch
+# whenever its working tree has WIP that another session might depend on.
+# Track the trigger reason — the create variants (`-b`, `-c`) stay allowed
+# on main (legitimate exit path off main) but are blocked on shared WIP
+# branches (carrying WIP off the shared branch is the same blast radius as
+# stashing it). Skip the WIP probe when the branch predicate already
+# matched — no `git status` call needed for clean-tree feature branches.
+if [[ "$EFFECTIVE_GIT_DIR" == "${CLAUDE_PROJECT_DIR:-.}" ]]; then
+  BRANCH=$(hook::current_branch)
+else
+  BRANCH=$(git -C "$EFFECTIVE_GIT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null | tr -d '\r')
+fi
+
+# --- Unconditional destructive-operation blocks ---
+# These fire regardless of branch or working tree state.
+# User can always run manually via `! <command>` in the prompt.
+
+# Block git reset --hard (all forms: HEAD, HEAD~N, <sha>, etc.)
+if [[ "$COMMAND" =~ git[[:space:]]+reset[[:space:]].*--hard ]]; then
+  {
+    printf 'BLOCKED: git reset --hard permanently discards uncommitted changes.\n'
+    printf 'Use git restore for file-level reset, or run manually: ! git reset --hard\n'
+  } >&2
+  hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+  exit 2
+fi
+
+# Block git clean with force flag (-f, -fd, -fdx, --force, etc.)
+# git clean without -f is a no-op (git refuses), so only force variants matter.
+if [[ "$COMMAND" =~ git[[:space:]]+clean[[:space:]] ]]; then
+  CLEAN_LONG_FORCE_RE='[[:space:]]--force([[:space:]]|$)'
+  CLEAN_SHORT_F_RE='[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'
+  if [[ "$COMMAND" =~ $CLEAN_LONG_FORCE_RE ]] || [[ "$COMMAND" =~ $CLEAN_SHORT_F_RE ]]; then
+    {
+      printf 'BLOCKED: git clean -f permanently deletes untracked files.\n'
+      printf 'Use /clean tree for fresh-pull reset (dry-run first), or run manually: ! git clean\n'
+    } >&2
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  fi
+fi
+
+# Block git push with force flags.
+# Raw --force / -f blocked EVERYWHERE — check raw force FIRST so that
+# `git push --force-with-lease --force origin feat` (both flags) still
+# hits the raw-force block, not the lease allowlist. --force-with-lease is allowed on feature branches
+# (pre-PR rebase workflow); blocked on main/master.
+if [[ "$COMMAND" =~ git[[:space:]]+push[[:space:]] ]]; then
+  PUSH_LONG_FORCE_RE='[[:space:]]--force([[:space:]]|$)'
+  PUSH_SHORT_F_RE='[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'
+  if [[ "$COMMAND" =~ $PUSH_LONG_FORCE_RE ]] || [[ "$COMMAND" =~ $PUSH_SHORT_F_RE ]]; then
+    {
+      printf 'BLOCKED: git push --force rewrites remote history.\n'
+      printf 'Use --force-with-lease on feature branches, or run manually: ! git push --force\n'
+    } >&2
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  fi
+  if [[ "$COMMAND" =~ --force-with-lease ]]; then
+    if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+      {
+        printf 'BLOCKED: force-push to %s is not allowed.\n' "$BRANCH"
+        printf 'Create a branch or PR instead, or run manually: ! git push --force-with-lease\n'
+      } >&2
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+      exit 2
+    fi
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+    exit 0
+  fi
+fi
+
+# Block git branch force-delete in all documented forms:
+#   - `git branch -D <ref>` and combined short flags containing D (`-Dv`, `-rD`, `-D` after other opts)
+#   - `git branch --delete --force <ref>`  (long-form equivalent)
+#   - `git branch -d -f <ref>`             (short-form equivalent)
+#   - `git branch -df <ref>` / `-fd`       (combined short flags)
+# `git branch -d` alone (lowercase, no force) is allowed — git refuses on unmerged.
+# Uppercase -D anywhere in a short-flag token is unconditional force-delete
+# (no equivalent without `-f` follow-up). Long-form `--delete` alone is safe;
+# only blocks when paired with `--force` or `-f`.
+BRANCH_SHORT_FORCE_DELETE_RE='[[:space:]]-[a-zA-Z]*D[a-zA-Z]*([[:space:]]|$)'
+BRANCH_HAS_LONG_DELETE_RE='[[:space:]]--delete([[:space:]]|$)'
+BRANCH_HAS_LOWER_DELETE_RE='[[:space:]]-[a-zA-Z]*d[a-zA-Z]*([[:space:]]|$)'
+BRANCH_HAS_FORCE_RE='[[:space:]](--force|-[a-zA-Z]*f[a-zA-Z]*)([[:space:]]|$)'
+
+if [[ "$COMMAND" =~ git[[:space:]]+branch[[:space:]] ]] \
+  && { [[ "$COMMAND" =~ $BRANCH_SHORT_FORCE_DELETE_RE ]] \
+    || { { [[ "$COMMAND" =~ $BRANCH_HAS_LONG_DELETE_RE ]] || [[ "$COMMAND" =~ $BRANCH_HAS_LOWER_DELETE_RE ]]; } \
+      && [[ "$COMMAND" =~ $BRANCH_HAS_FORCE_RE ]]; }; }; then
+  {
+    printf 'BLOCKED: git branch -D force-deletes a branch even with unmerged work.\n'
+    printf 'Use git branch -d (safe delete), or run manually: ! git branch -D\n'
+  } >&2
+  hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+  exit 2
+fi
+
+# Block git restore with whole-tree targets (., :/, *).
+# Single-file git restore <path> is fine — only bulk discard is dangerous.
+# Whole-tree target MUST be followed by whitespace or end-of-string so
+# `git restore .gitignore` (dotfile single-file restore) is NOT false-blocked.
+# bash `=~` is substring-anchored.
+if [[ "$COMMAND" =~ git[[:space:]]+restore[[:space:]] ]]; then
+  RESTORE_WHOLE_TREE_RE='git[[:space:]]+restore[[:space:]]+([^[:space:]]+[[:space:]]+)*(\.|:/|\*)([[:space:]]|$)'
+  if [[ "$COMMAND" =~ $RESTORE_WHOLE_TREE_RE ]]; then
+    {
+      printf 'BLOCKED: git restore with whole-tree target discards all uncommitted changes.\n'
+      printf 'Use git restore <specific-file> instead, or run manually: ! git restore .\n'
+    } >&2
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  fi
+fi
+
+TRIGGER=""
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+  TRIGGER="main"
+elif wip_present && another_live_session "$TRANSCRIPT_PATH"; then
+  TRIGGER="wip"
+fi
+[[ -n "$TRIGGER" ]] || {
+  hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+  exit 0
+}
+
+# Build a context-appropriate recovery message. The "main" trigger keeps the
+# original advice (use a worktree); the "wip" trigger leads with commit-first
+# because the WIP IS the cross-session signal — committing it is the cleanest
+# resolution and is what the agent should propose to the user.
+emit_block_message() {
+  local verb="$1"
+  if [[ "$TRIGGER" == "wip" ]]; then
+    {
+      printf 'BLOCKED: git %s on shared branch '"'"'%s'"'"' with uncommitted changes.\n' \
+        "$verb" "$BRANCH"
+      printf 'Other Claude sessions on this branch will lose access to this state.\n\n'
+      printf 'Recovery (in order of preference):\n'
+      printf '  1. Commit the WIP first, then retry: git add ... && git commit -m "..."\n'
+      printf '  2. Discard the WIP with explicit user authorization: ! git restore .\n'
+      printf '  3. Use a worktree for parallel work: claude --worktree <name>\n'
+    } >&2
+  else
+    {
+      printf 'BLOCKED: git %s on %s is not allowed — it changes shared state.\n' \
+        "$verb" "$BRANCH"
+      printf 'Create a worktree instead: use EnterWorktree or claude --worktree\n'
+    } >&2
+  fi
+}
+
+# Block git stash (all subcommands) on either trigger.
+if [[ "$COMMAND" =~ git[[:space:]]+stash ]]; then
+  emit_block_message "stash"
+  {
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  }
+fi
+
+# Block git checkout <branch>. On main, allow create variants (legitimate
+# exit path off main). On wip, block create variants too — `-b`/`-B` carries
+# WIP onto the new branch, leaving the shared branch without it (same
+# cross-session blast radius as stash). Path restore and patch mode are
+# always intra-branch, never carry state across sessions.
+if [[ "$COMMAND" =~ git[[:space:]]+checkout[[:space:]] ]]; then
+  # Path restore: '--' must appear within the git checkout invocation itself —
+  # not in a later subcommand. A global match on `--` allows compound commands
+  # like `git checkout feature && rm -- foo` to bypass HEAD-switch protection
+  # because `rm -- foo` satisfies the pattern. Anchoring to `git checkout` and
+  # excluding `|&;` chars prevents matching across compound operators.
+  # `[[:cntrl:]]` excludes newlines and other control characters from the
+  # character classes so the optional ref token can't span a newline.
+  # Separators between tokens use `[[:blank:]]` (space + tab only — POSIX
+  # horizontal whitespace) instead of `[[:space:]]` (which includes `\n`),
+  # so `git checkout feature\n-- foo` cannot satisfy the regex by treating
+  # the newline as the separator before `--`.
+  # Also requires at least one non-separator path character after `--`.
+  # Regex stored in a variable because bash's [[ =~ ]] parser interprets `|`/`&`
+  # as test operators when they appear inline, even inside character classes.
+  PATH_RESTORE_RE='git[[:blank:]]+checkout[[:blank:]]+([^|&;[:cntrl:]]*[[:blank:]])?--[[:blank:]]+[^[:space:]&|;[:cntrl:]]'
+  if [[ "$COMMAND" =~ $PATH_RESTORE_RE ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  # Patch mode is interactive partial staging — doesn't switch HEAD. Always allow.
+  if [[ "$COMMAND" =~ git[[:space:]]+checkout[[:space:]]+(-p|--patch) ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  # --orphan creates a fresh-history branch — allowed on main (rare but legitimate)
+  # AND on wip (carries WIP onto an orphan, but orphan is intentional state-shed).
+  if [[ "$COMMAND" =~ git[[:space:]]+checkout[[:space:]]+--orphan ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  # Create variants (-b / -B): allowed only when trigger is "main".
+  if [[ "$TRIGGER" == "main" && "$COMMAND" =~ git[[:space:]]+checkout[[:space:]]+-[bB] ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  emit_block_message "checkout"
+  {
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  }
+fi
+
+# Block git switch <branch>. Same create-variant rule as checkout.
+if [[ "$COMMAND" =~ git[[:space:]]+switch[[:space:]] ]]; then
+  if [[ "$COMMAND" =~ git[[:space:]]+switch[[:space:]]+--orphan ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  if [[ "$TRIGGER" == "main" && "$COMMAND" =~ git[[:space:]]+switch[[:space:]]+-[cC] ]]; then
+    {
+      hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+      exit 0
+    }
+  fi
+  emit_block_message "switch"
+  {
+    hook::record_timed_event PreToolUse git-safety "$START_TIME" 2 "$SUBJECT" error
+    exit 2
+  }
+fi
+
+{
+  hook::record_timed_event PreToolUse git-safety "$START_TIME" 0 "$SUBJECT" success
+  exit 0
+}

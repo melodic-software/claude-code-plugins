@@ -122,7 +122,7 @@ unranked.
 ## Bundled generic default lanes
 
 Used by rotation mode when no cascade layer declares `lanes` (see
-[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../../reference/config.md)). They are deliberately
+[`reference/config.md`](../../../reference/config.md)). They are deliberately
 stack-neutral: match what exists, skip what does not, and never assume a repo layout.
 
 | Lane | Globs (match what exists) | Why it is its own lane |

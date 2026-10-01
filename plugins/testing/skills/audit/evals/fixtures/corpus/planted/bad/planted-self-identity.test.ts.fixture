@@ -1,0 +1,8 @@
+// adapter: js-jest
+// expect: rule-recomputed-expectation
+// Planted #5, a control.
+import { calculateTotal } from '../src/limits';
+
+test('self identity control', () => {
+  expect(calculateTotal([1])).toBe(calculateTotal([1]));
+});

@@ -23,6 +23,15 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 # A suite that needs either sets its own after sourcing this file.
 unset CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK
 
+# Native jq.exe writes CRLF, so a `jq -r` value carries a trailing \r and fails a
+# string comparison. A suite calls this once after sourcing; it shadows jq with
+# `jq --binary` on Windows hosts and defines nothing elsewhere.
+jq_crlf_free() {
+  [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]] || return 0
+  # shellcheck disable=SC2329  # invoked by the suite that called jq_crlf_free
+  jq() { command jq --binary "$@"; }
+}
+
 : "${PASS:=0}"
 : "${FAIL:=0}"
 

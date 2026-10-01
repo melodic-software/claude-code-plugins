@@ -3,6 +3,45 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-09-30
+
+### Changed
+
+- **`reach`'s description fits the 500-character listing budget and the 1,024-character field cap.** Its core triggers and the same-lane and other-machine routes are kept ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.2.0] - 2026-09-29
+
+### Added
+
+- `reach` covers same-machine cross-lane reach: WSL to native Windows by running `claude.exe` over
+  interop, and Windows to WSL through `wsl.exe -d <distro> --exec`, with the distro read from
+  `wsl.exe -l -q`. Apostrophe quoting follows the origin shell: `'\''` in bash and Git Bash,
+  `''` in pwsh.
+- A route matrix at the top of `reach`: every origin lane against every target lane, each row
+  carrying its command shape and whether it was tested.
+- A Verbs section: run a script, prompt, multi-turn (`--session-id` then `--resume`), one open
+  stream-json pipe, list sessions, message a session, a named headless receiver (`-n <name>` with
+  `crossSessionInbound: accept`), and background sessions (`claude --bg --name`, trusted directory
+  only). Each verb is marked tested or untested. Every verb but running a script starts an agent,
+  prompts under auto mode, and costs about $0.22 to $0.31 per one-line turn, so a script is
+  preferred where it does the job; `--bare` cuts the cost but cannot receive messages.
+- Query and wait polls `claude agents --json` or reads the receiver: `notify_when_idle` from a `-p`
+  sender does not arrive before its turn ends. Remote Control stays out of headless recipes, since
+  `-p --remote-control` does not connect.
+- `reference/relay.md` lists the mechanisms the skill does not use (Remote Control, cloud sessions,
+  Channels, the raw inbox socket, agent teams) and why, and documents the signed-out Windows lane
+  check (`Failed to authenticate: OAuth session expired`, fixed by `/login` at that console), the
+  receiver's nested quoting and lifetime, and a verification record for each route.
+- Evals for the cross-lane routes, query and wait, the named receiver, the signed-out lane, and the
+  run-a-script verb.
+
+### Changed
+
+- The account model is per lane, not per machine: WSL and native Windows on one machine can sign
+  into different accounts, and the built-in peer tools reach only the current lane. Description,
+  Boundary and README now say so, and the peer tools own same-lane messaging only.
+- Commands address targets by their FLEET.md ssh alias through the Windows OpenSSH client.
+
 ## [0.1.3] - 2026-09-27
 
 ### Fixed

@@ -1,0 +1,13 @@
+#!/usr/bin/env bats
+# expect: rule-constant-restatement
+# MAX_RETRIES comes from the loaded library and is compared to its literal
+# value; retry never runs.
+
+setup() {
+  load 'test_helper/bats-assert/load'
+  load '../lib/retry'
+}
+
+@test "retry gives up after three attempts" {
+  assert_equal "$MAX_RETRIES" 3
+}

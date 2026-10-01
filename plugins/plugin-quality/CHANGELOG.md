@@ -5,6 +5,67 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-09-30
+
+### Fixed
+
+- **`audit`'s `evidence-packet.md` runs the packet scripts from a path that resolves.** The prune and seal commands cited `scripts/packet-prune.sh` and `scripts/packet-seal.sh` through the literal plugin-root token, which does not expand in a reference file. They now read `<plugin-root>/scripts/...`, and `SKILL.md` gains a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
+## [0.11.0] - 2026-09-30
+
+### Added
+
+- **Standards alignment covers discipline postures and the standards repository
+  ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)).** The auditor
+  checks a component against the `discipline:*` correctors the session lists (skipped and stated
+  when absent) and against the `standards` repository where one resolves, and cites each in the
+  Standards alignment ledger. `reference/categories.md` accepts `discipline:<name>` and
+  `<standards path>:<line>` as the convention value.
+
+### Changed
+
+- **Research covers every finding's claim, and tier records are checked.** Every Errors,
+  Improvements and Quality of life finding carries a research line, not only those with a
+  remediation, and a claim that cannot meet the bar is an open question. A tier record names the
+  fetched bytes as `<url> saved=<path> span=<span>`, and `collect-categories.sh` checks that the
+  saved file resolves inside the ledger's directory, exists, is non-empty and holds a non-empty span, for the primary and each distinct
+  corroborator. The effort table says which claims get research at `low`, `medium` and `high`.
+
+## [0.10.0] - 2026-09-29
+
+### Added
+
+- **Audit findings carry errors, improvements, quality of life and standards alignment
+  ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)).** The auditor
+  ledgers every component under the three categories (`reference/categories.md`), the
+  `collect-categories.sh` and `collect-standards.sh` collectors cite the resolved convention home
+  (an unresolved home is stated, nothing inferred), and each component-type lens gains a
+  `## Categories` section. Step 3 grades the ledger before it is presented. The standards
+  collector reports prose-graded seam-phrasing hits as `candidate` leads the auditor confirms, and
+  the ledger carries blindspots, unverified claims and doc-worthy gotchas under their own headings.
+- **Research gate on remediations.** A remediation at or above the effort tier's severity floor
+  needs a research line (`/discovery:research` when installed, the manual discipline otherwise);
+  one without it, or with an open question, is emitted as `needs-decision`, never `agent-ready`.
+  Audit-style plugins also get their emitted-finding samples validated, and a false one is graded
+  `verdict: false`.
+
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- **`/plugin-quality:audit` gains `session` and `arm` modes ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)).**
+  `session` discovers the plugins and skills the session used through the session-flow retro
+  transcript parser, confirms the list with the operator, and runs the existing pipeline over the
+  union. `arm` starts the session-flow running-retro observer at session start and records the
+  armed state. Both are operator-invoked only, with no hook.
+- **Evidence bar and research gate.** A candidate with no session artifact is listed as `unfiled`
+  with its reason and never emitted. A suggested change is labeled agent-ready only after a
+  `/discovery:research` pass with its source tiers recorded; otherwise it files as needs-decision.
+- **Review seams named by role** (adversarial re-examination, upstream conformance, the current
+  model's adaptation chapter, scope challenge), presence-gated and resolved at run time, each with an
+  absent-fallback line, plus a "What this composes" section. Detail lives in
+  `reference/session-mode.md`; five evals cover the new behavior.
+
 ## [0.8.0] - 2026-09-29
 
 ### Added

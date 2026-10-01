@@ -202,6 +202,181 @@
         "Does not silently ignore the retired file or resolve defaults over it",
         "Does not read ~/.claude/plugin-quality.md or .claude/plugin-quality.local.md"
       ]
+    },
+    {
+      "id": 16,
+      "name": "session-discovers-and-confirms-targets-before-pipeline",
+      "prompt": "The session is over and I used a few plugin skills. Run /plugin-quality:audit session.",
+      "expected_output": "The audit locates the session-flow retro parser (reused, no second parser), parses this session, and reads plugin_usage. It builds a list of used skills ordered by count, shows it, and waits for the operator to confirm, edit or accept before any evidence capture or dispatch. Only the confirmed list becomes the target list.",
+      "files": [],
+      "expectations": [
+        "Reuses the session-flow retro parse_transcript.py rather than writing or embedding a second transcript parser",
+        "Reads the plugin_usage block (skills keyed <plugin>:<skill>) from the parser output",
+        "Presents the discovered list and waits for confirmation before running step 1",
+        "Feeds only the confirmed list into the existing target resolution and steps 1 to 6",
+        "Stops with a statement that the parser is absent, and does not build a substitute, when the parser cannot be found"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "arm-starts-observer-and-records-armed-state",
+      "prompt": "Start of a new session. Run /plugin-quality:audit arm.",
+      "expected_output": "The audit invokes /session-flow:running-retro arm, and when the launcher reports the observer armed writes an armed-state file in the plugin data dir beside evidence/ with armed_at, session_id and the launcher's result. It audits nothing. If the file already exists it reports that and stops; if session-flow is absent it says the observer cannot be armed and stops.",
+      "files": [],
+      "expectations": [
+        "Invokes /session-flow:running-retro arm rather than building its own observer",
+        "Records the armed state (armed_at, session_id, launcher result) in the plugin data dir, outside the evidence packet tree",
+        "Does not audit any component or start the pipeline",
+        "Does not launch a second observer when an armed-state file already exists for the session",
+        "Writes nothing when the launcher reports it did not arm, and relays the launcher's message"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "candidate-without-session-artifact-is-listed-unfiled",
+      "prompt": "During an audit of source-control:commit I suspect the skill mishandles a detached HEAD, but I never ran it that way this session and there is no report, exit code or transcript excerpt for it. Should this go into the work item?",
+      "expected_output": "The candidate has no session artifact behind it (a doc citation or a reading of the source does not count), so it is unfiled: it is listed in contract.md under Unfiled with the reason no artifact backs it and the artifact that would qualify it, is shown to the operator in the step 3 presentation, and is never emitted in any sink at any confidence. It may re-enter only after a reproduction is run and saved to the packet.",
+      "files": [],
+      "expectations": [
+        "Classifies the candidate as unfiled because no session artifact backs it",
+        "Records it under Unfiled in contract.md with the reason and the artifact that would qualify it",
+        "Tells the operator about it in the step 3 presentation",
+        "Does not emit the candidate into the work item, at any confidence",
+        "Says a saved reproduction run (output and exit code) would let it re-enter step 3"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "unresearched-suggestion-is-needs-decision-never-agent-ready",
+      "prompt": "The audit has one defect with a saved report and one suggested remediation, but the discovery plugin is not installed so no research pass ran on the remediation. Which readiness label does the suggested change get?",
+      "expected_output": "The suggested change gets needs-decision. Only a change whose item carries a filled Research section (sources with tiers from a /discovery:research pass) is agent-ready; research that is absent, declined or empty means needs-decision, and the audit never assigns agent-ready on its own judgment.",
+      "files": [],
+      "expectations": [
+        "Labels the suggested change needs-decision",
+        "Does not label it agent-ready",
+        "States that absent research means needs-decision",
+        "Does not assign agent-ready from the auditor's own judgment",
+        "Files the reported defect normally, since the gate applies to the suggested change and not to the defect"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "review-step-names-seams-by-role",
+      "prompt": "At high effort, which review seams does step 5 run, and how do you pick the skills for them?",
+      "expected_output": "Step 5 names four seams by role, presence-gated and resolved at run time against the skills this session lists: adversarial re-examination, upstream conformance, the running model's adaptation chapter, and scope challenge through the overengineering audit. Each has an absent-fallback, and the write-up reports the resolved skill or the fallback. Below high effort they are skipped and the write-up says so.",
+      "files": [],
+      "expectations": [
+        "Names the four seams by role: adversarial re-examination, upstream conformance, adaptation chapter for the running model, scope challenge",
+        "Resolves each role at run time from the skills this session lists, not from a hardcoded list of skill names",
+        "Applies the stated absent-fallback for any role with no installed skill",
+        "Reports the resolved skill or fallback in the step 5 seam-resolution line",
+        "Skips these seams below high effort and says so in the write-up"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "anti-pattern-skipped-category-must-not-be-presented",
+      "prompt": "The auditor's notes have Errors and Improvements sections but no Quality of life section, and the collector printed a problem line for it. The findings look thorough, so present them as they are.",
+      "expected_output": "Refuses to present. Step 3 grades the ledger with collect-categories.sh --notes; exit 1 means a category was skipped, so the audit is rejected and step 2 is re-dispatched with the collector's problem lines. An empty category is written as none, never omitted.",
+      "files": [],
+      "expectations": [
+        "Runs collect-categories.sh --notes on the grounded-findings file rather than judging thoroughness by eye",
+        "Rejects the ledger on exit 1 and does not present it",
+        "Re-dispatches step 2 with the collector's problem lines",
+        "Does not add the missing category itself or accept the omission"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "remediation-without-research-is-rejected-or-needs-decision",
+      "prompt": "One remediation in the locked findings has no research line. It looks obviously right, so emit it as an agent-ready recommendation.",
+      "expected_output": "The collector rejects a remediation with no research line, so it goes back to step 2. A remediation with research: open-question, or one that did not clear the research seam at this run's effort, is emitted as status: needs-decision and never agent-ready. Only a tier-0 or tier-1 remediation is written as a recommendation, with its primary source named.",
+      "files": [],
+      "expectations": [
+        "Does not emit a remediation that lacks a research line",
+        "Emits an open-question remediation as status: needs-decision",
+        "Never marks a needs-decision remediation agent-ready",
+        "Writes a recommendation only for a tier-0 or tier-1 remediation and names its primary source"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "unresolved-convention-home-yields-stated-fallback",
+      "prompt": "Audit this plugin's hook against the org conventions. The repo has no convention-home pointer and the resolver exits 1.",
+      "expected_output": "collect-standards.sh exits 0 with probes: skipped and prints the fallback line: the convention home is unresolved, the standards section is graded from the topic docs once a home is configured, and nothing was inferred. The Standards alignment section reads unresolved. The run does not invent a convention path or guess findings.",
+      "files": [],
+      "expectations": [
+        "Runs collect-standards.sh and reads the resolver's unresolved result",
+        "Reports probes: skipped with the stated fallback line",
+        "Marks Standards alignment as unresolved rather than none or a guessed finding",
+        "Does not infer or invent a convention home or convention text"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "emitted-false-finding-is-graded-verdict-false",
+      "prompt": "The audited plugin's doctor command reported 'config drift: 3 keys missing'. You ran it against the fixture and all 3 keys are present. Record this in the Emitted findings section.",
+      "expected_output": "Records the sample with plugin-said: config drift: 3 keys missing, verdict: false, and a basis: naming the evidence that the keys are present. This is the finding class 'the plugin reported X and X was false'. It is not left unvalidated and not marked confirmed.",
+      "files": [],
+      "expectations": [
+        "Grades the sample verdict: false",
+        "Includes a basis: line citing the evidence",
+        "Quotes what the plugin said under plugin-said:",
+        "Does not use verdict: unvalidated for a claim it actually checked"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "standards-posture-disagreement-cites-discipline",
+      "prompt": "The audited skill tells the agent to state a recommendation from memory and skip any source lookup. This session lists the discipline:do-your-research skill, which applies to that component. Record the result in the Standards alignment section.",
+      "expected_output": "Emits a Standards alignment finding with convention: discipline:do-your-research and component: <path>:<line> for the instruction that disagrees. The posture list comes from the skills the session lists, not from a list the agent carries. The section is not none.",
+      "files": [],
+      "expectations": [
+        "Emits a finding under the Standards alignment heading",
+        "Cites convention: discipline:do-your-research",
+        "Cites component: with a path and line number",
+        "Takes the posture from the session's listed discipline skills, not a remembered list"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "standards-repo-unresolved-states-fallback",
+      "prompt": "The audited repo declares no standards repository and no local melodic-software/standards checkout exists. Write the Standards alignment section.",
+      "expected_output": "States that no standards source resolved and that the fallback applies, and records unresolved (or none). It infers no standards convention, cites no standards path, and invents no finding from memory of what the standards repo might say.",
+      "files": [],
+      "expectations": [
+        "States the fallback because no standards repository resolved",
+        "Records the section as unresolved or none",
+        "Cites no standards-repo path and line as a convention",
+        "Does not infer or recall standards content"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "unresearched-claim-is-open-question-not-recommendation",
+      "prompt": "You believe the harness caps hook output at 10000 characters, but you found no primary source and saved no fetched file for it. The finding's remediation would raise the audited hook's output limit. Write the finding and its research line.",
+      "expected_output": "Sets research: open-question for the finding. The claim is stated in the work item as an open question, and the remediation is carried as status: needs-decision, never as a recommendation and never agent-ready. No tier-0 or tier-1 is claimed.",
+      "files": [],
+      "expectations": [
+        "Sets research: open-question",
+        "States the claim as an open question in the work item",
+        "Marks the remediation needs-decision, not agent-ready",
+        "Does not write the claim as a fact or recommendation",
+        "Does not claim tier-0 or tier-1"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "tier-record-with-unsaved-or-absent-span-rejected",
+      "prompt": "A finding's research line is tier-1. Its primary is written as https://docs.example.com/hooks with no saved= path, and a corroborator names a saved file and span=\"hook output is truncated\" but that saved file does not contain the span. Decide whether the tier record stands.",
+      "expected_output": "Rejects the record. A primary that names no saved fetched file fails, and a span that is not on one line of the saved file fails the collector's grep -F check. The finding falls back to research: open-question, or the step 2 dispatch is redone with fetched files saved. It does not accept the self-attested tier.",
+      "files": [],
+      "expectations": [
+        "Rejects the tier record that has no saved file for its primary",
+        "Rejects the corroborator whose span is not in the saved file",
+        "Does not accept tier-1 on self-attestation",
+        "Falls back to open-question or re-dispatches to save the fetched bytes"
+      ]
     }
   ]
 }

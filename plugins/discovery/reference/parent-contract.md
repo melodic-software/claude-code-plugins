@@ -90,6 +90,12 @@ opens with no listed word is read as `full`, and the worker names that reading i
 `open_questions`. Explore and trace-intent have no Effort table, so for them the word asks for a
 narrower pass and the agent names the level it ran at.
 
+**A research `Budget: low` writes `Turn budget: 15`.** Fifteen leaves 25 of the worker's 40
+`maxTurns` for the index and sidecar writes and the return, and
+it sits below the default stop turn (30), so the worker honors it. The number is a judgment, sized
+so the gathering a `low` row allows fits well inside it. Other `Budget:` words leave the value to
+the parent, up to that default.
+
 **Research adds two more labeled lines.** `Source breadth:` because source breadth is the
 caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
 only the caller knows whether the answer will be quoted outside the session:
@@ -321,7 +327,10 @@ measured 8 redundant full reads in one explorer run. The rule for all three agen
 > **Read each file once.** A file you have already read in this run is still in your context; read
 > it again only to see a change you made to it. A scan followed by a full read of the same file on a
 > later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you
-> need the whole file, read it whole then. Read file contents with `Read` and search with `Grep`
+> need the whole file, read it whole then. A hit only names a file to read, so never `Grep` a file
+> you already mean to read in full (a rule file, an `AGENTS.md`, a contract doc): `Read` it on the
+> first turn you touch it. Reserve `Grep` for locating which files matter, and `Read` each one it
+> names once. Read file contents with `Read` and search with `Grep`
 > rather than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for
 > you and for anyone auditing the run. The same holds for a page you have already fetched: its text
 > is in your context, so fetch it again only when you need content the first fetch did not return.
@@ -329,7 +338,7 @@ measured 8 redundant full reads in one explorer run. The rule for all three agen
 
 ## Harness facts the dispatch design rests on
 
-Eleven harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Twelve harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
@@ -338,8 +347,9 @@ fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the s
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
 Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
+Record 12 is a first-party reproduction run on 2026-10-01, with the sub-agents page fetched the same day.
 
-**One shared recheck trigger covers all eleven:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all twelve:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
 subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
 model resolution, per-invocation subagent parameters, turn-limit output or partial marking, or
@@ -520,6 +530,58 @@ fails to recover a run that reached the limit, or a turns-to-complete distributi
 after the explorer stops re-reading files it already read. Change the number only on one of
 those, and change it here and in every definition it names together.
 
+*Measured, one machine.* Procedure:
+`python3 plugins/discovery/scripts/turns-to-complete.py --root ~/.claude/projects`, with
+`--since YYYY-MM-DD` to narrow the window. It counts distinct assistant message ids per
+`subagents/agent-*.jsonl` and flags a run at or above `--ceiling` (default 40, also applied to
+the 30-turn verifier). Scope: this one machine's local transcripts, 2026-09-23 to 2026-09-29, 32
+dispatches. Turns, p50 / p90 / max, and runs at the 40 ceiling:
+
+| agentType | n | p50 | p90 | max | at 40 |
+|---|---|---|---|---|---|
+| `discovery:researcher` | 25 | 29 | 46 | 50 | 4 |
+| `discovery:explorer` | 2 | 30 | 31 | 31 | 0 |
+| `discovery:research-verifier` | 5 | 10 | 14 | 14 | 0 |
+
+Three of the four researcher runs at the ceiling were resumed, and their counts of 46 to 50
+include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (the
+[#4739](https://github.com/melodic-software/claude-code-plugins/pull/4739) merge), reported
+separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
+explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
+ceiling. Samples this small do not settle a number. Decision: `maxTurns` stays 40 as a
+checkpoint, and research-deep does not size its lanes to finish within one dispatch; a run that
+reaches the limit completes through resume. The recheck triggers above still apply.
+
+### A named `discovery:explorer` dispatch delivers its definition body and its `skills:` preload
+
+*Claim.* A `subagent_type: discovery:explorer` dispatch from a directory-source plugin gives the
+agent its own definition body and resolves the `skills:` preload, so the agent returns the YAML
+block on its first return, with `model:` and `name:` together, with `name:` alone, and with `model:`
+alone. The
+two reported runs where an explorer behaved as if it had neither (no payload block, "I skipped the
+requested skills", a token expected in the dispatch prompt) did not reproduce.
+*Basis.* Four headless dispatches at commit `8f9a939b8`, `claude --version` 2.1.286, with
+`--plugin-dir plugins/discovery` (which overrides the installed 0.25.18 cache): `model: haiku` plus
+`name:`, `name:` alone, `model: haiku` alone, and `model: haiku` plus `name:` with a probe line asking
+the agent to say whether a "Preload liveness" section was in its instructions. Every run logged
+`[Agent: discovery:explorer] Preloaded skill 'discovery:explore'` and no skip warning; the probe run
+confirmed the definition body was in the agent's context; no run Read `SKILL.md`; every first return
+carried the YAML block with the skill's `preload_token` and `preload: fired`. Harness 2.1.286 also
+delivers a child agent's report as a message to its parent, not as a tool result. The
+[sub-agents page](https://code.claude.com/docs/en/sub-agents) states that "a subagent that launches
+background subagents waits for their results before it finishes" and that background results "reach
+Claude as a completion notification in a later turn". *What this does not
+establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
+intermittent harness fault, or a definition text that differed from this commit, is neither
+confirmed nor excluded. The dispatch without `model:` and `name:` was not run. *Consequence.* The
+preload and payload half of this record changes nothing in the dispatch envelope: the definition body loads, and the parent's acceptance gate
+(`check-dispatch-artifact.sh`) stays the detector for a run that ignores it.
+*As of.* 2026-10-01.
+*Recheck trigger.* A dispatched explorer returns no payload block, or a `preload_token` of `none`,
+`MISSING` or absent, while the debug log shows the preload line; or the CLI minor version moves past
+2.1.286; or a release note names agent-definition loading, `skills:` preload or hand-back delivery.
+In the first case capture the debug log and the agent's first message before any resume.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
@@ -631,8 +693,8 @@ So the honest statement is the one the rest of this plugin already makes about u
 multi-turn command is settings, not frontmatter: "To pre-approve tools for the whole session rather
 than a single turn, add allow rules to those permission settings instead." The plugin cannot ship
 them: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys. So the
-operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup apply` offers to do
-it with `<plugin root>` already filled in. The rules, with `<plugin root>` replaced by the absolute
+operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup check` prints them
+resolved for this install. The rules, with `<plugin root>` replaced by the absolute
 path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
 
 ```json
@@ -656,17 +718,21 @@ not. Each rule names the script directly, so it is not the interpreter-led shape
 The trailing space-and-`*` covers `--help` and every gate argument.
 
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
-the version (`…/discovery/<version>/`), so these rules stop matching after an update, the gates
-prompt again, and re-running `/discovery:setup apply` refreshes them. Writing `…/discovery/*/scripts/…`
+the version (`…/discovery/<version>/`), so these rules stop matching after an update and the gates
+prompt again; re-run `/discovery:setup check` and paste its output. Writing `…/discovery/*/scripts/…`
 instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
-as written", a `*` "matches any text, including spaces", and it "warns at startup about an allow rule
-with a `*` before the subcommand". A `*` in the path's version segment is before the program name
-ends, so it can stand in for `../../../usr/bin/<any program> <any arguments>` and the rule would
-approve that program. A prompt after an update is the safe failure; an arbitrary-program allow rule
-is not. *Claim:* a mid-path `*` in a Bash allow rule matches any text and draws a startup warning.
-*Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched 2026-09-28.
-*As of:* 2026-09-28. *Recheck when:* that section documents path normalization or a `*` that stops
-at `/`, which would make a version wildcard safe.
+as written" and a `*` "matches any text, including spaces". Tested on Claude Code 2.1.285 (probe
+linked under *Basis*): a `*` in the version segment matched across `/`, and
+`<root>/cache/discovery/../../outside/scripts/gate.sh` was allowed with no prompt, so the rule matches
+the command text without normalizing `..` and runs a script outside the plugin cache. A prompt after an
+update is the safe failure; a rule that approves a script outside the cache is not. *Claim:* a `*` in
+the version segment of a Bash allow rule spans `/` and is not path-normalized, so `..` escapes the
+plugin cache. *Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched
+2026-09-30, and the probe recorded at
+<https://github.com/melodic-software/claude-code-plugins/issues/4233#issuecomment-5900240219>
+(allowed 3 of 3 runs, Claude Code 2.1.285, Linux). *As of:* 2026-09-29, Claude Code 2.1.285.
+*Recheck when:* the permissions page documents path normalization or a `*` that stops at `/`, or a
+Claude Code release changes the probe result, which would make a version wildcard safe.
 
 ### What this gate does not grade
 
@@ -725,7 +791,10 @@ acceptance gate prints this value as `verification=<value>`. `pending` left in p
 boundary closed is the one wrong value: a later reader cannot tell it from a run still waiting. A
 `fail` sends the run back to the phase or dimension the failed criterion names, the family's own
 routing, and the value is rewritten when the re-run is verified. It is not a place to annotate an
-artifact with its own failure and ship it.
+artifact with its own failure and ship it. The one exception is research at `Budget: low`, which
+does not resume the researcher on a verifier-owned FAIL row: the artifact keeps the `fail` value
+with the failed rows named, and the result is presented with that caveat (`skills/research/SKILL.md`,
+"Effort, source breadth").
 
 **When no verifier can be dispatched.** The `Agent` tool is denied, the session is at the nesting
 limit, or the invoking context is itself a subagent with no spawn: write

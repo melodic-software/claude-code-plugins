@@ -65,7 +65,7 @@ reader who needs more.
 | 12 | Open questions to investigate | unknowns the resuming session can resolve itself |
 | 13 | Blockers needing an outside decision | work that cannot proceed without someone else |
 | 14 | Suggested skills | which skills to invoke for the remaining work |
-| 15 | This session | one past-tense `did: … · left: …` line about THIS hop |
+| 15 | This session | one past-tense `did: … · left: …` line about THIS hop, then its `Re-scan: …` attestation line |
 | 16 | Prior sessions | one table row per prior hop, copied forward |
 | 17 | Resume prompt | the rails block exactly as emitted on screen; always last |
 
@@ -111,11 +111,25 @@ state of now).
   resolved entry moved into a committed doc: `- [hN] Promoted to <path or URL>: <opening words>`,
   keeping the entry's own tag and quoting at least its first 20 characters (or all of a shorter
   entry) verbatim. The pointer is then an ordinary entry that later hops carry.
+- **A new entry never duplicates a carried one.** When the text matches an entry already in the
+  section (ignoring the `[hN]` tag, an `UNVERIFIED` prefix, spacing and case), keep the oldest
+  tagged entry, re-tagging it to the current hop if this session re-verified it, and write no
+  second copy. `validate` warns on a duplicate.
 - **One entry per line**, continuation lines indented. A section with nothing to carry and nothing
   new reads `None.` plus a half-line of reason; `None.` lines are exempt from the tag rule.
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that
   itself failed validation has every carried entry prefixed
   `UNVERIFIED (predecessor failed validation):` after its tag.
+- **Size.** `validate` warns when the file passes 300 lines. The Read tool returns at most 25k
+  tokens per call and a measured chain ran about 70 tokens a line (425 lines, ~29.6k tokens), so 25k
+  tokens is about 355 lines and 300 leaves margin. The warning does not fail the file.
+- **`UNVERIFIED (predecessor failed validation)` entries do not expire for now.** Each hop carries
+  them forward until the writer re-verifies and re-tags them or moves them under `Superseded:`;
+  automatic expiry is deferred.
+- **A hop's re-scan attestation is not an entry.** It describes how THIS hop closed §4, so it
+  lives in §15's `Re-scan:` line (see "Constraints that must hold" and "This session") and is
+  never appended to a cumulative section. An attestation entry that an earlier chain wrote into
+  §4 is an ordinary entry: it is carried, or moved under `Superseded:`, never deleted.
 
 ### Original goal
 
@@ -209,7 +223,9 @@ section 8.
 
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
 case". Those words mark constraints that emerged mid-discussion and never rose to a top-line
-bullet, and an omitted one is exactly what the resuming session ships as a bug.
+bullet, and an omitted one is exactly what the resuming session ships as a bug. Record how the
+re-scan was done on the `Re-scan:` line of section 15, never as a Constraints entry: the
+attestation is about this hop alone, and an entry here would be copied forward by every later hop.
 
 **Compaction changes what "the conversation" is.** Detect it from a concrete signal, a compaction
 notice or summary turn actually present in this conversation, never inferred from the history
@@ -219,15 +235,15 @@ happen mid-session without being the reason `/session-flow:handoff` was invoked,
 not the invocation reason.) Once that signal is present, the model-visible conversation is the
 summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
 summarizer already dropped. Exactly one of the following must be true when the section closes, and
-the section must say which. Silence on this point reads as the first, so it is never a third
-option:
+the `Re-scan:` line of section 15 must say which. Silence on this point reads as the first, so it
+is never a third option:
 
 - The re-scan read the lossless on-disk transcript instead of, or in addition to, the model-visible
   conversation, which stays lossless across compaction (the same record `retro`'s parser reads:
   `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`, paths resolved per retro's
   "Paths"; `/session-flow:running-retro`'s "2. Resolve inputs for the subagent" is a worked example
   of reading it without flooding the current context with the raw record).
-- It did not, and the section states so explicitly: "Re-scanned the visible conversation only; a
+- It did not, and the line states so explicitly: "Re-scan: visible conversation only; a
   compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried
   constraints."
 
@@ -404,11 +420,15 @@ When no skill maps to the remaining work, write `None — remaining work runs in
 
 ### This session
 
-Exactly one line, about THIS hop only, in the past tense:
+One `did/left` line, about THIS hop only, in the past tense, then one `Re-scan:` line:
 
 ```markdown
 did: wrote the re-run test and got it green · left: the staging migration and the double-run check
+Re-scan: read the lossless on-disk transcript; no compaction occurred
 ```
+
+The `Re-scan:` line is the hop's constraints re-scan attestation (the two statements are in
+"Constraints that must hold"). It is rewritten each hop and never carried, so a chain holds one.
 
 The separator is a middle dot, `·` (U+00B7), with a space either side; the validator matches
 `did: … · left: …` literally. `did` is what landed, `left` is what is still open, both past
@@ -443,12 +463,13 @@ session before it (this table, each row naming the file and transcript to open f
 
 The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
 screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
-below-rail lines. The on-screen rails block IS this section, printed by
+below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
+pair, above or below the resume region). The on-screen rails block IS this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
 between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, `Then:`, the
-`/goal` first line) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume
-prompt", full-path block. `new` writes every line of it except the `Next:` headlines and the
-optional `/goal` and re-arm slots.
+goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
+full-path block. `new` writes every line of it except the `Next:` headlines and the optional
+goal-region and below-rail slots.
 
 ## How this document is referenced elsewhere
 
@@ -553,7 +574,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
 #    next slot and the cumulative slots need. Leave an optional slot out
-#    (goal-rearm, below-rail, <section>-new) and fill deletes its line. For a
+#    (goal-first, goal-after, below-rail, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem

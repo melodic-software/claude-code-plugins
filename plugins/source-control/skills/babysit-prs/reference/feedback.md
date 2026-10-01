@@ -2,7 +2,7 @@
 
 Classification and disposition policy for review feedback. Classify structured state before
 interpreting prose. The shared per-PR discipline lives in the plugin-level file
-`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`: evidence-based comment state, structured
+`<plugin-root>/reference/review-discipline.md`: evidence-based comment state, structured
 finding extraction, and the per-finding D1-D7 verification gates. Apply it as written and never
 restate it here. Angle-bracket slots (`<state-dir>`, `<advisory-fix-round-cap>`) are filled from the
 effective-configuration block in this skill's `SKILL.md`, which renders every key's resolved
@@ -52,7 +52,7 @@ orchestrator records a durable disposition, under that PR's worker lease and bef
 triage result, so later snapshots stop re-flagging it as a blocker:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_feedback_ledger.py" dispose --pr owner/repo#42 --expected-head-sha <head-sha> --feedback-id "comment:123456789" --reason approval --lease-token <worker-token> --state-dir <state-dir> --apply
+python "<skill-dir>/scripts/manage_feedback_ledger.py" dispose --pr owner/repo#42 --expected-head-sha <head-sha> --feedback-id "comment:123456789" --reason approval --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
 - `--feedback-id` is the snapshot feedback id, verbatim; the helper requires stored snapshot
@@ -74,7 +74,7 @@ the findings were observed on, with one `--finding-class` per finding carrying t
 `safety.md` (a)/(b)/(c) provenance class:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_feedback_ledger.py" record-advisory-round --pr owner/repo#42 --expected-head-sha <head-sha> --finding-class c --finding-class c --finding-class b --lease-token <worker-token> --state-dir <state-dir> --apply
+python "<skill-dir>/scripts/manage_feedback_ledger.py" record-advisory-round --pr owner/repo#42 --expected-head-sha <head-sha> --finding-class c --finding-class c --finding-class b --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
 The classes are what makes the second-consecutive-all-(c) non-convergence tripwire evaluable after
@@ -130,7 +130,7 @@ hold, the safer default when the structural signal is absent.
   active stop-and-ask conditions until GitHub state resolves them. Escalate; never fix or
   resolve past them.
 - Ordinary human comments are classified, replied to with evidence, and surfaced per
-  `${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, never auto-fixed, and never resolved
+  `<plugin-root>/reference/review-discipline.md`, never auto-fixed, and never resolved
   on the human's behalf, outside autopilot's addressed-thread widening. Report each new stable
   comment id once, and do not keep an otherwise unchanged PR permanently active after the
   notification has been recorded.

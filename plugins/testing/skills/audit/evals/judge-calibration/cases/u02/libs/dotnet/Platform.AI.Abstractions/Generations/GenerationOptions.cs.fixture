@@ -1,0 +1,9 @@
+using Platform.AI.Abstractions.Models;
+
+namespace Platform.AI.Abstractions.Generations;
+
+public sealed record GenerationOptions(
+    ModelTier? PreferredTier = null,
+    float? Temperature = null,
+    int? MaxTokens = null,
+    IReadOnlyList<string>? StopSequences = null);

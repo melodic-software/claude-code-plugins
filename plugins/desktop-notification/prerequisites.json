@@ -1,0 +1,14 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/desktop-notification:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    },
+    {
+      "name": "jq",
+      "check": "/desktop-notification:check",
+      "install": "install jq from https://jqlang.org/download/"
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+using Microsoft.Extensions.AI;
+using Platform.AI.Abstractions.Content;
+using Platform.AI.Abstractions.Generations;
+using Platform.AI.Abstractions.Prompts;
+using Platform.Core.Results;
+
+// Disambiguate from Microsoft.Extensions.AI.TextContent (an AIContent subtype).
+using PromptTextContent = Platform.AI.Abstractions.Content.TextContent;
+
+namespace MonolithApi.Infrastructure.AI;
+
+/// <summary>
+/// Adapts a Microsoft.Extensions.AI <see cref="IChatClient"/> to the Platform
+/// <see cref="ITextGenerator"/> contract: maps <see cref="Prompt"/> to chat messages,
+/// <see cref="ChatResponse"/> to <see cref="Generation"/>, and provider exceptions to a typed
+/// error via <see cref="MeaiErrorClassifier"/>.
+/// </summary>
+internal sealed class MeaiTextGenerator(
+    IChatClient chatClient,
+    MeaiErrorClassifier errorClassifier,
+    TimeProvider timeProvider) : ITextGenerator
+{
+    public async Task<Result<Generation>> GenerateAsync(
+        Prompt prompt, GenerationOptions? options = null, CancellationToken ct = default)
+    {
+        long startTimestamp = timeProvider.GetTimestamp();
+
+        try
+        {
+            ChatResponse response = await chatClient.GetResponseAsync(
+                MapMessages(prompt), MapOptions(options), ct);
+
+            return Result.Success(MapGeneration(response, timeProvider.GetElapsedTime(startTimestamp)));
+        }
+#pragma warning disable CA1031 // Adapter boundary: every provider exception is classified into a typed AiError via Result<T>; ClassifyException re-throws genuine cancellation.
+        catch (Exception exception)
+        {
+            return errorClassifier.ClassifyException<Generation>(exception);
+        }
+#pragma warning restore CA1031
+    }
+
+    private static List<ChatMessage> MapMessages(Prompt prompt)
+    {
+        List<ChatMessage> messages = [];
+
+        if (prompt.SystemInstructions is { Count: > 0 } systemInstructions)
+        {
+            messages.Add(new ChatMessage(ChatRole.System, JoinText(systemInstructions)));
+        }
+
+        foreach (PromptMessage message in prompt.Messages)
+        {
+            messages.Add(new ChatMessage(MapRole(message.Role), JoinText(message.Content)));
+        }
+
+        return messages;
+    }
+
+    // Phase 1 maps text content only — the sole PromptContent variant today. Richer content
+    // (image, audio) maps when those PromptContent variants land.
+    private static string JoinText(IReadOnlyList<PromptContent> content) =>
+        string.Join(
+            Environment.NewLine,
+            content.OfType<PromptTextContent>().Select(static text => text.Text));
+
+    private static ChatRole MapRole(PromptRole role) =>
+        role switch
+        {
+            PromptRole.System => ChatRole.System,
+            PromptRole.Assistant => ChatRole.Assistant,
+            PromptRole.Tool => ChatRole.Tool,
+            _ => ChatRole.User,
+        };
+
+    private static ChatOptions? MapOptions(GenerationOptions? options)
+    {
+        if (options is null)
+        {
+            return null;
+        }
+
+        // PreferredTier (model selection) has no ChatOptions equivalent — the model is fixed at
+        // provider-client construction; routing is deferred (IModelRouter not in this slice).
+        return new ChatOptions
+        {
+            Temperature = options.Temperature,
+            MaxOutputTokens = options.MaxTokens,
+            StopSequences = options.StopSequences?.ToList(),
+        };
+    }
+
+    private static Generation MapGeneration(ChatResponse response, TimeSpan duration) =>
+        new(response.Text, MapFinishReason(response.FinishReason), MapUsage(response.Usage, duration));
+
+    // M.E.AI conflates a natural stop point and a provided stop sequence into
+    // ChatFinishReason.Stop, so Stop maps to Complete (never StopSequence); null / unknown
+    // also default to Complete.
+    private static FinishReason MapFinishReason(ChatFinishReason? reason) =>
+        reason switch
+        {
+            _ when reason == ChatFinishReason.Length => FinishReason.MaxTokens,
+            _ when reason == ChatFinishReason.ContentFilter => FinishReason.ContentPolicy,
+            _ when reason == ChatFinishReason.ToolCalls => FinishReason.ToolCall,
+            _ => FinishReason.Complete,
+        };
+
+    // Platform UsageReport carries only input/output token counts plus an adapter-measured
+    // duration. M.E.AI UsageDetails additionally exposes CachedInputTokenCount,
+    // ReasoningTokenCount, {Input,Output}AudioTokenCount, {Input,Output}TextTokenCount,
+    // TotalTokenCount and the AdditionalCounts dictionary — ALL dropped here. ChatResponse
+    // carries no duration, so the adapter measures wall-clock. This lossiness is recorded as
+    // ABSTR-1 consumption evidence (see PLAN Open Decision D1).
+    private static UsageReport MapUsage(UsageDetails? usage, TimeSpan duration) =>
+        new(
+            (int)(usage?.InputTokenCount ?? 0),
+            (int)(usage?.OutputTokenCount ?? 0),
+            duration);
+}

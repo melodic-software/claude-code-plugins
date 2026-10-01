@@ -9,19 +9,24 @@
 # and drift (E), the secret scan and env-vars documentation status (F), the
 # skill-listing measurement from an existing debug log and the skillOverrides
 # entries that cannot take effect (G), model and effort
-# values (H), and deep-link registration (I). Each decided row is emitted once,
+# values (H), deep-link registration (I), and each fix version reference/known-issues.md
+# records against the installed Claude Code version (J). Each decided row is emitted once,
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
 # shell calls.
 #
 # WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
-# fetches the docs index (llms.txt) over the network with curl, resolves each
-# page it needs (settings-reference, env-vars) from a link in that index, and
-# reads it verbatim into a temp directory it removes on exit (trap). A page
-# supplied through --docs-dir is read from there instead. Whether a key is
-# documented or deprecated, the accepted effortLevel and
-# disableDeepLinkRegistration values, and the version a key requires are taken
-# from settings-reference; env-var documentation status from env-vars. A row
+# asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
+# (llms.txt) and each page it needs (settings-reference, env-vars, and the pages
+# settings-reference links to that a check reads, such as hooks) from a link in
+# that index, verbatim, into a temp directory it removes on exit (trap). The
+# fetcher's manifest supplies each page's hash, status, content type, line count
+# and read time. A page supplied through --docs-dir is read from there instead.
+# Whether a key is documented or deprecated, the values a string key's Type
+# bullet lists (effortLevel, disableDeepLinkRegistration and every other such
+# key), the fallbackModel chain length, and the version a key requires are taken
+# from settings-reference; env-var documentation status from env-vars; the hook
+# events a settings or plugin hook may name from the hooks page. A row
 # resting on a page that was not read is not-inspectable, never clean. The
 # engine also runs `claude --version` and records the result, and searches the
 # installed claude binary for the literal names of undocumented keys. The
@@ -61,9 +66,9 @@
 #   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
-#   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
+#   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
 #                                       nothing is fetched and pages resolve through that llms.txt
-#   SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL the docs index (default https://code.claude.com/docs/llms.txt)
+#   FETCH_DOCS_INDEX_URL                the docs index (default https://code.claude.com/docs/llms.txt)
 #   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
@@ -279,6 +284,13 @@ fi
 # shellcheck source=../../../lib/resolve-scopes.sh
 source "$RESOLVE_SCOPES_LIB"
 
+# The upstream docs are fetched only by the plugin's shared fetcher.
+FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
+if [[ ! -r "$FETCH_DOCS" ]]; then
+  echo "ERROR: cannot read $FETCH_DOCS; the plugin's shared docs fetcher is missing" >&2
+  exit 2
+fi
+
 # Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
 PROJECT_ROOT=""
 scopes::project_root_to PROJECT_ROOT "${SETTINGS_AUDIT_ENGINE_FIXTURE_DIR:-}"
@@ -292,6 +304,7 @@ INSTALLED_JSON=""
 scopes::installed_registry_to INSTALLED_JSON "${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}" "$USER_DIR"
 
 BASELINE_FILE="${SETTINGS_AUDIT_ENGINE_BASELINE_FILE:-$PLUGIN_ROOT/skills/audit/reference/required-permissions.md}"
+KNOWN_ISSUES_FILE="${SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE:-$PLUGIN_ROOT/skills/audit/reference/known-issues.md}"
 CR_FILE="${SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE:-$PLUGIN_ROOT/skills/audit/reference/consent-receipts.json}"
 
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
@@ -551,124 +564,71 @@ if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
 fi
 trap 'rm -rf "$DOCS_TMP"' EXIT
 
-DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
-DOCS_ORIGIN=""
-[[ "$DOCS_INDEX_URL" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*) ]] && DOCS_ORIGIN="${BASH_REMATCH[1]}"
-# Set, even to an empty or missing directory, means no network: a seam that
-# points nowhere reads as unread pages, never as a fall back to the fetch.
-DOCS_FIXTURE_SET=0
-[[ -n "${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR+x}" ]] && DOCS_FIXTURE_SET=1
-DOCS_FIXTURE="${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR:-}"
+DOCS_INDEX_URL="${FETCH_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
 # Every control character but tab and newline, CR included, is dropped from the
 # working copy of a page, so text quoted from it into a row or the table never
 # carries one. Byte counts are taken from the page as read.
 DOC_CNTRL='\000-\010\013-\037\177'
 
-# fetch_verbatim <url> <dest>: the whole body or nothing. A timeout or an HTTP
-# error mid-download leaves no partial file to be counted as read (return 1).
-# HTTPS only, redirects included, and a redirect that lands outside the docs
-# origin is refused after the fact (return 2): the origin check on the linked
-# URL says nothing about where a redirected body came from.
-fetch_verbatim() {
-  local effective
-  if effective="$(curl -fsSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
-    -w '%{url_effective}' -o "$2" "$1" 2>/dev/null)" && [[ -s "$2" ]]; then
-    [[ -n "$DOCS_ORIGIN" && "$effective" == "$DOCS_ORIGIN/docs/"* ]] && return 0
-    rm -f "$2"
-    return 2
+# The fetcher reads the index and every page that --docs-dir does not supply, in
+# one call, and writes a manifest; a run whose pages all come from --docs-dir
+# requests nothing. A slug the index does not list, or lists off the docs
+# origin, is unread, and so is a page that did not arrive whole as text/markdown.
+DOCS_MANIFEST="$DOCS_TMP/manifest.json"
+# fetch_pages <manifest> <slug>...: one fetcher call for the index and the slugs.
+fetch_pages() {
+  local manifest="$1"
+  shift
+  # The engine reads the CLI version itself below and ignores the manifest's, so
+  # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
+  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" "$@" >/dev/null; then
+    echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
+    exit 2
   fi
-  rm -f "$2"
-  return 1
 }
-
-# The index is read on the first page that needs it; a run whose pages all
-# come from --docs-dir leaves it not-needed.
-INDEX_STATE=""
-INDEX_SOURCE=""
-INDEX_BYTES=0
-INDEX_REASON=""
-load_index() {
-  [[ -n "$INDEX_STATE" ]] && return 0
-  local raw=""
-  INDEX_STATE=unread
-  if [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
-    INDEX_SOURCE=fixture
-    if [[ -s "$DOCS_FIXTURE/llms.txt" ]]; then raw="$DOCS_FIXTURE/llms.txt"; else INDEX_REASON="fixture-missing"; fi
-  elif ! command -v curl >/dev/null 2>&1; then
-    INDEX_SOURCE=fetch
-    INDEX_REASON="curl-missing"
-  else
-    INDEX_SOURCE=fetch
-    fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"
-    case $? in
-    0) raw="$DOCS_TMP/llms.raw" ;;
-    2) INDEX_REASON="redirected-off-origin" ;;
-    *) INDEX_REASON="fetch-failed" ;;
-    esac
-  fi
-  [[ -n "$raw" ]] || return 0
-  INDEX_BYTES="$(wc -c <"$raw" | tr -d ' ')"
-  tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/llms.txt"
-  INDEX_STATE="read"
+# unsupplied <slug>...: the slugs --docs-dir does not hold, one per line.
+unsupplied() {
+  local s
+  for s in "$@"; do
+    [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$s.md" ]] || printf '%s\n' "$s"
+  done
 }
-
-# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
-index_link() {
-  awk -v suf="/$1.md" '{
-    while (match($0, /\]\([^) \t]+\)/)) {
-      u = substr($0, RSTART + 2, RLENGTH - 3)
-      $0 = substr($0, RSTART + RLENGTH)
-      if (length(u) >= length(suf) && substr(u, length(u) - length(suf) + 1) == suf) { print u; exit }
-    }
-  }' "$DOCS_TMP/llms.txt"
-}
+DOCS_WANT=()
+while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars)
+DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
+  '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
+if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
+  fetch_pages "$DOCS_MANIFEST" "${DOCS_WANT[@]}"
+  DOCS_INDEX_JSON="$(jq -c --arg url "$DOCS_INDEX_URL" \
+    '.index | {url:$url,source:(.source // ""),bytes,state,reason:(.reason // ""),sha256,content_type,lines,retrieved}' "$DOCS_MANIFEST")"
+fi
 
 declare -A PAGE_FILE=()
 DOCS_PAGES_JSON='[]'
-# acquire_page <slug>: read the page verbatim into the temp directory (control
-# characters stripped) and record where it came from, its byte count, and its state.
+# acquire_page <slug> [manifest]: record where the page came from, its hash, byte
+# and line counts and state, and keep a working copy with control characters
+# stripped. The manifest is the one from the fetcher call that requested the page.
 acquire_page() {
-  local slug="$1" src="" loc="" raw="" reason="" state=unread bytes=0
+  local slug="$1" manifest="${2:-$DOCS_MANIFEST}" rec raw=""
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
-    src=docs-dir
-    loc="$DOCS_DIR/$slug.md"
-    raw="$loc"
+    raw="$DOCS_DIR/$slug.md"
+    rec="$(jq -cn --arg s "$slug" --arg l "$raw" --argjson b "$(wc -c <"$raw" | tr -d ' ')" --argjson n "$(awk 'END { print NR }' "$raw")" \
+      --arg h "$(sha256_hex <"$raw")" \
+      '{slug:$s,url_or_path:$l,source:"docs-dir",bytes:$b,state:"read",reason:"",sha256:$h,content_type:null,lines:$n,retrieved:null}')"
   else
-    load_index
-    if [[ "$INDEX_STATE" != "read" ]]; then
-      reason="index-unread"
-    else
-      loc="$(index_link "$slug")"
-      if [[ -z "$loc" ]]; then
-        reason="not-in-index"
-      elif [[ -z "$DOCS_ORIGIN" || "$loc" != "$DOCS_ORIGIN/docs/"* ]]; then
-        reason="off-origin"
-      elif [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
-        src=fixture
-        if [[ -s "$DOCS_FIXTURE/$slug.md" ]]; then raw="$DOCS_FIXTURE/$slug.md"; else reason="fixture-missing"; fi
-      else
-        src=fetch
-        fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"
-        case $? in
-        0) raw="$DOCS_TMP/$slug.raw" ;;
-        2) reason="redirected-off-origin" ;;
-        *) reason="fetch-failed" ;;
-        esac
-      fi
-    fi
+    rec="$(jq -c --arg s "$slug" '(first(.pages[] | select(.slug == $s)) // {}) as $p
+      | {slug:$s,url_or_path:($p.url // ""),source:($p.source // ""),bytes:($p.bytes // 0),state:($p.state // "unread"),
+         reason:($p.reason // ""),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$manifest")"
+    [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then
-    bytes="$(wc -c <"$raw" | tr -d ' ')"
     tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
     PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
-    state="read"
   fi
-  DOCS_PAGES_JSON="$(jq -c --arg s "$slug" --arg l "$loc" --arg src "$src" --argjson b "$bytes" --arg st "$state" --arg r "$reason" \
-    '. + [{slug:$s,url_or_path:$l,source:$src,bytes:$b,state:$st,reason:$r}]' <<<"$DOCS_PAGES_JSON")"
+  DOCS_PAGES_JSON="$(jq -c --argjson r "$rec" '. + [$r]' <<<"$DOCS_PAGES_JSON")"
 }
 acquire_page settings-reference
 acquire_page env-vars
-[[ -n "$INDEX_STATE" ]] || INDEX_STATE=not-needed
 SR="${PAGE_FILE[settings-reference]:-}"
 EV="${PAGE_FILE[env-vars]:-}"
 
@@ -707,67 +667,87 @@ version_lt() {
 }
 
 # settings-reference, parsed once: every ### `key` heading, the first line of
-# its section that begins "Deprecated", and the first "Requires Claude Code
-# vX.Y.Z". A section ends at the next heading of any level outside a code fence.
+# its section that begins "Deprecated", the first "Requires Claude Code
+# vX.Y.Z", the first Type bullet, and the section body, code fences included (the first section of a
+# repeated key wins). A section ends at the next heading of any level outside a
+# code fence. The working copy holds no \001, so it carries the newlines of a
+# body from the awk to the array; a leading \001 keeps read from trimming it.
 declare -A SR_KEY=()
 declare -A SR_DEPRECATED=()
 declare -A SR_REQUIRES=()
-declare -A PERM_TYPE_KEYS=()
+declare -A SR_BODY=()
+# TYPE_KEYS holds each nested key an "object with ..." Type bullet names, as
+# parent.child, which covers one with no heading of its own. NESTED_PARENT holds
+# every dotted path the page documents a child under: the objects check_keys
+# descends into.
+declare -A TYPE_KEYS=()
+declare -A NESTED_PARENT=()
 if [[ -n "$SR" ]]; then
-  while IFS=$'\t' read -r k dep req; do
+  while IFS=$'\t' read -r k dep req typ body; do
     [[ -n "$k" ]] || continue
     SR_KEY[$k]=1
     [[ "$dep" != "-" ]] && SR_DEPRECATED[$k]="$dep"
     [[ "$req" != "-" ]] && SR_REQUIRES[$k]="$req"
+    if [[ -z "${SR_BODY[$k]+x}" ]]; then
+      body="${body#$'\001'}"
+      SR_BODY[$k]="${body//$'\001'/$'\n'}"
+      if [[ "$typ" == "* **Type**: object with "* ]]; then
+        while [[ "$typ" =~ \`([A-Za-z_][A-Za-z0-9_]*)\`(.*) ]]; do
+          TYPE_KEYS["$k.${BASH_REMATCH[1]}"]=1
+          typ="${BASH_REMATCH[2]}"
+        done
+      fi
+    fi
   done < <(awk '
-    function flush() { if (key != "") printf "%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req); key = "" }
-    /^[[:space:]]*```/ { fence = !fence; next }
-    fence { next }
+    function flush() { if (key != "") printf "%s\t%s\t%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req), (typ == "" ? "-" : typ), body; key = "" }
+    /^[[:space:]]*```/ { fence = !fence; if (key != "") body = body $0 "\001"; next }
+    fence { if (key != "") body = body $0 "\001"; next }
     /^(#|##|###|####) / {
       flush()
-      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = "" }
+      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = ""; typ = ""; body = "\001" }
       next
     }
     key == "" { next }
     dep == "" && /^[[:space:]]*Deprecated/ { dep = $0; sub(/^[[:space:]]+/, "", dep); gsub(/\t/, " ", dep) }
+    typ == "" && /^\* \*\*Type\*\*:/ { typ = $0; gsub(/\t/, " ", typ) }
     req == "" && match($0, /Requires Claude Code v[0-9]+\.[0-9]+\.[0-9]+/) { req = substr($0, RSTART + 22, RLENGTH - 22) }
+    { body = body $0 "\001" }
     END { flush() }
   ' "$SR")
 fi
 
 # sr_section <key>: the body of the key's section on settings-reference.
 sr_section() {
-  awk -v h="### \`$1\`" '
-    /^[[:space:]]*```/ { fence = !fence; if (in_s) print; next }
-    !fence && /^(#|##|###|####) / { if (in_s) exit; in_s = ($0 == h); next }
-    in_s { print }
-  ' "$SR"
+  printf '%s' "${SR_BODY[$1]:-}"
 }
 
 # type_values <key>: the string values the key's Type bullet accepts, one per
 # line, from either shape the page uses: "string, one of:" followed by nested
-# `"value"` bullets, or "the string `"value"`". Nothing when neither parses.
+# `"value"` bullets, or "the string `"value"`". Nothing when neither parses, and
+# nothing when a nested bullet is not a literal value (a pattern such as
+# `"%H:%M"`): that list is open, so the values read from it are not the set.
 type_values() {
   sr_section "$1" | awk '
     mode == "list" {
-      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); print v; next }
+      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); vals = vals v "\n"; next }
+      if ($0 ~ /^[[:space:]]+\* /) vals = ""
       exit
     }
     /^\* \*\*Type\*\*:/ {
       if ($0 ~ /string, one of:[[:space:]]*$/) { mode = "list"; next }
-      if (match($0, /the string `"[^"]*"`/)) print substr($0, RSTART + 13, RLENGTH - 15)
+      if (match($0, /the string `"[^"]*"`/)) vals = substr($0, RSTART + 13, RLENGTH - 15) "\n"
       exit
     }
+    END { printf "%s", vals }
   '
 }
 
-# The permissions object's Type bullet names the nested keys it takes, which
-# covers one with no heading of its own.
-if [[ -n "$SR" ]]; then
-  while IFS= read -r pk; do
-    [[ -n "$pk" ]] && PERM_TYPE_KEYS[$pk]=1
-  done < <(sr_section permissions | grep -m1 -E '^\* \*\*Type\*\*:' | grep -oE '`[^`]+`' | tr -d '`')
-fi
+for k in "${!SR_KEY[@]}" "${!TYPE_KEYS[@]}"; do
+  while [[ "$k" == *.* ]]; do
+    k="${k%.*}"
+    NESTED_PARENT[$k]=1
+  done
+done
 
 # Positive control: a page that was read but has no heading for two keys every
 # version documents (a soft 404, a reshaped page) did not parse, and every row
@@ -777,6 +757,46 @@ if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins
   SR=""
   SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
   DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
+fi
+
+# Pages a check reads that settings-reference links to, by slug: a check that
+# reads another page adds its slug here. A page settings-reference does not link
+# is not requested. One more fetcher call reads those --docs-dir does not hold.
+LINKED_PAGES=(hooks)
+linked=()
+if [[ -n "$SR" ]]; then
+  for slug in "${LINKED_PAGES[@]}"; do
+    grep -qE "\]\((https://[^/)]+)?/docs/(en/)?$slug(\.md)?[#)]" "$SR" && linked+=("$slug")
+  done
+fi
+if [[ ${#linked[@]} -gt 0 ]]; then
+  LINKED_MANIFEST="$DOCS_TMP/manifest-linked.json"
+  linked_fetch=()
+  while IFS= read -r slug; do linked_fetch+=("$slug"); done < <(unsupplied "${linked[@]}")
+  [[ ${#linked_fetch[@]} -gt 0 ]] && fetch_pages "$LINKED_MANIFEST" "${linked_fetch[@]}"
+  for slug in "${linked[@]}"; do acquire_page "$slug" "$LINKED_MANIFEST"; done
+fi
+
+# The hook events, from the Event table on the hooks page. A page that was read
+# but lists neither PreToolUse nor SessionStart did not parse, and no hook event
+# is then called unknown.
+declare -A HOOK_EVENTS=()
+HP="${PAGE_FILE[hooks]:-}"
+HP_UNREAD_WHY="the hooks page was not read this run"
+if [[ -n "$HP" ]]; then
+  while IFS= read -r ev; do
+    [[ -n "$ev" ]] && HOOK_EVENTS[$ev]=1
+  done < <(awk '
+    /^\| Event \|/ { on = 1; next }
+    on && /^\| :?-/ { next }
+    on && /^\| `/ { v = $0; sub(/^\| `/, "", v); sub(/`.*$/, "", v); print v; next }
+    on { exit }
+  ' "$HP")
+  if [[ -z "${HOOK_EVENTS[PreToolUse]:-}" || -z "${HOOK_EVENTS[SessionStart]:-}" ]]; then
+    HP=""
+    HP_UNREAD_WHY="the hooks page was read but its Event table has no PreToolUse or SessionStart row, so it did not parse"
+    DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "hooks" then .state = "unparsed" | .reason = "no-event-table" else . end)' <<<"$DOCS_PAGES_JSON")"
+  fi
 fi
 
 # --- Category A: schema and structure ----------------------------------------
@@ -806,23 +826,29 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   fi
 fi
 
-# Documented and deprecated keys: every top-level and permissions.* key is
-# looked up on settings-reference. A key with no heading there is not reported
+# Documented and deprecated keys: every top-level key, and every key inside an
+# object the page documents children of (permissions, sandbox, worktree, an
+# "object with ..." Type bullet), is looked up on settings-reference. An object
+# the page documents no child of, such as env or hooks, is not descended into.
+# A key with no heading there is not reported
 # as ignored, because the page omits keys the CLI manages itself; the installed
 # binary settles it, searched once for every such key after the scopes are read.
 KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
+NESTED_PARENTS_JSON="$(printf '%s\0' "${!NESTED_PARENT[@]}" | jq -Rsc 'split("\u0000")[:-1]')"
 check_keys() {
   # check_keys <file> <surface>
   local file="$1" surface="$2" k leaf ptr dep since
   # Fields arrive NUL-separated, so a key reaches its claim and the binary
-  # search exactly as written in the file: no tab-separated escaping.
+  # search as written in the file, with no tab-separated escaping. A key holding
+  # U+0000 cannot cross that stream (bash cannot hold a NUL), so jq spells it
+  # as the text \u0000 and it stays one row.
   while IFS= read -r -d '' k && IFS= read -r -d '' leaf && IFS= read -r -d '' ptr; do
     [[ -n "$k" ]] || continue
     if [[ -z "$SR" ]]; then
       row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "$SR_UNREAD_WHY; whether $k is documented is not decided" -
       continue
     fi
-    if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
+    if [[ -z "${SR_KEY[$k]:-}" && -z "${TYPE_KEYS[$k]:-}" ]]; then
       KP_SURF+=("$surface") KP_KEY+=("$k") KP_LEAF+=("$leaf") KP_PTR+=("$ptr")
       continue
     fi
@@ -844,7 +870,12 @@ check_keys() {
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
     # An empty key name has no literal to look up, so it is left out here.
-  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
+  done < <(jqf "$file" -j --argjson parents "$NESTED_PARENTS_JSON" '
+    def esc: gsub("~"; "~0") | gsub("/"; "~1");
+    def ent($p; $q): to_entries[] | . as $e | select($e.key != "" and ($p != "" or $e.key != "$schema"))
+      | (if $p == "" then $e.key else "\($p).\($e.key)" end) as $np | "\($q)/\($e.key | esc)" as $nq
+      | [$np, $e.key, $nq], (if ($e.value | type) == "object" and ($np | IN($parents[])) then $e.value | ent($np; $nq) else empty end);
+    if type == "object" then ent(""; "") | map(gsub("\u0000"; "\\u0000")) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
 }
 [[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
@@ -986,6 +1017,24 @@ cr_match() {
 BIN_SEARCH=not-needed
 BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
+# bin_describe <name>: the describe("...") string of the schema entry `name:`, control characters
+# stripped, capped at 160 characters. Only a declaration counts: the name is followed by `:`, no
+# statement or block boundary (`;{}`) and no other `key:` lies between it and the describe. The
+# binary holds many schemas and a name such as `timeout` or `enabled` is declared in several, so the
+# string is returned only when every describe-bearing declaration of the name carries the same one.
+# A name whose declarations differ yields nothing: which of them is the settings key is not known.
+bin_describe() {
+  local c body
+  while IFS= read -r c; do
+    c="${c#*"$1":}"
+    [[ "$c" == *'describe("'* ]] || continue
+    body="${c%%describe(\"*}"
+    c="${c#*describe(\"}"
+    [[ ${#body} -le 300 && "$c" == *\"* && ! "$body" =~ ,[A-Za-z_\$][A-Za-z0-9_\$]*: ]] || continue
+    printf '%s' "${c%%\"*}" | LC_ALL=C tr -d '[:cntrl:]' | cut -c1-160
+  done < <(LC_ALL=C grep -aoE -- "(^|[^A-Za-z0-9_\$])$1:[^;{}]{0,800}" "$CLAUDE_BIN" 2>/dev/null | LC_ALL=C tr -d '\000') |
+    LC_ALL=C sort -u | awk 'NR == 1 { d = $0 } END { if (NR == 1) print d }'
+}
 if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched
   if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]] &&
@@ -1012,7 +1061,8 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
     elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
       row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)$cr_note" "$ptr"
+      desc="$(bin_describe "$leaf")"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}$cr_note" "$ptr"
     else
       row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
     fi
@@ -1344,6 +1394,7 @@ resolve_hook_path() {
 
 declare -A HOOK_SEEN=()
 declare -A MATCHER_SEEN=()
+declare -A EVENT_SEEN=()
 declare -A PLUGIN_PATH=()
 while IFS=$'\t' read -r pkey pstatus ppath; do
   [[ -n "$pkey" ]] || continue
@@ -1373,6 +1424,17 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
     row D duplicate-hook finding info "$surface" "duplicate-hook:$event:$matcher:$cmd_ref" "the same command is registered twice for $event/$matcher" "$event/$matcher/$cmd"
   fi
   HOOK_SEEN[$key]=1
+  # Event name against the hooks page's Event table: one row per source and event.
+  if [[ -z "${EVENT_SEEN[$src|$event]:-}" ]]; then
+    EVENT_SEEN[$src|$event]=1
+    if [[ -z "$HP" ]]; then
+      row D hook-event not-inspectable none "$surface" "hook-event-page-not-read:$event" "$HP_UNREAD_WHY; whether $event is a hook event is not decided" -
+    elif [[ -n "${HOOK_EVENTS[$event]:-}" ]]; then
+      row D hook-event ok none "$surface" "documented-hook-event:$event" "$event is an event the hooks page lists" -
+    else
+      row D hook-event finding error "$surface" "undocumented-hook-event:$event" "$event is not an event the hooks page lists; Claude Code may never run its hooks" "$event"
+    fi
+  fi
   [[ "$htype" == "command" || -z "$htype" ]] || continue
   # Timeout shape: a round thousands multiple reads as milliseconds.
   if [[ -n "$timeout" && "$timeout" =~ ^[0-9]+$ && $timeout -ge 1000 && $((timeout % 1000)) -eq 0 ]]; then
@@ -1587,7 +1649,7 @@ fi
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
-# The drift script runs whether or not curl is present: a directory-sourced
+# The drift script runs whether or not the network tools are present: a directory-sourced
 # marketplace is read from disk, and a repo-sourced one it cannot fetch comes
 # back as a skipped marketplace with its reason, reported below.
 if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f "$SCRIPT_DIR/check-plugin-drift.sh" ]]; then
@@ -1820,6 +1882,33 @@ fi
 
 # --- Category H: model and effort values -----------------------------------------
 
+# value_documented <value> <accepted>: whether the value is one of the accepted
+# lines. A whole-string match: grep would read a multi-line value as several
+# patterns and pass "bogus<newline>high" on its second line. An accepted line
+# holding a <placeholder>, such as custom:<slug>, matches nonempty text in its
+# place; one followed by a literal character stops before that character.
+value_documented() {
+  local v="$1" a pat rest ph='^([^<]*)[<][^>]*[>](.*)$'
+  shopt -s extglob
+  [[ -n "$v" && "$v" != *$'\n'* ]] || return 1
+  while IFS= read -r a; do
+    if [[ "$a" == *'<'*'>'* ]]; then
+      pat="" rest="$a"
+      while [[ "$rest" =~ $ph ]]; do
+        pat+="${BASH_REMATCH[1]}"
+        rest="${BASH_REMATCH[2]}"
+        if [[ -n "$rest" ]]; then pat+="+([!${rest:0:1}])"; else pat+='?*'; fi
+      done
+      pat+="$rest"
+      # shellcheck disable=SC2053
+      [[ "$v" == $pat ]] && return 0
+    elif [[ "$v" == "$a" ]]; then
+      return 0
+    fi
+  done <<<"$2"
+  return 1
+}
+
 # documented_value <cat> <slug> <key> <value> <surface>: the value against the
 # set the key's Type bullet on settings-reference accepts. The claim is
 # <key>:<value> whatever the outcome, so a finding keeps one identity.
@@ -1832,30 +1921,50 @@ documented_value() {
   accepted="$(type_values "$key")"
   if [[ -z "$accepted" ]]; then
     row "$cat" "$slug" skip none "$surface" "$key:$v" "the Type bullet of $key on settings-reference did not parse to a value set; not decided" -
-  elif [[ -n "$v" && "$v" != *$'\n'* && $'\n'"$accepted"$'\n' == *$'\n'"$v"$'\n'* ]]; then
-    # A whole-string match: grep would read a multi-line value as several
-    # patterns and pass "bogus<newline>high" on its second line.
+  elif value_documented "$v" "$accepted"; then
     row "$cat" "$slug" ok none "$surface" "$key:$v" "$v is a value settings-reference documents for $key" -
   else
     row "$cat" "$slug" finding warning "$surface" "$key:$v" "$key is $v, which is not among the values its settings-reference Type bullet documents (${accepted//$'\n'/, })" "/$key"
   fi
 }
 
+# fallback_cap: how many distinct models the fallbackModel section says the
+# chain keeps ("at most three distinct allowed models"), as digits, from a digit
+# string or a number word up to ten. Nothing when the section states none.
+fallback_cap() {
+  local t
+  t="$(sr_section fallbackModel | tr '\n' ' ')"
+  t="${t,,}"
+  [[ "$t" =~ (at\ most|up\ to|no\ more\ than)\ ([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(\ [a-z]+){0,2}\ models ]] || return 0
+  case "${BASH_REMATCH[2]}" in
+    one) echo 1 ;; two) echo 2 ;; three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
+    six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
+    *) echo "${BASH_REMATCH[2]}" ;;
+  esac
+}
+
 check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
-  local raw dedup mix enforce avail_len req
+  local raw dedup cap mix enforce avail_len req
   if [[ "$(jqf "$file" -r 'has("effortLevel")')" == "true" ]]; then
     documented_value H effort-level effortLevel "$(jqf "$file" -r '.effortLevel | tostring')" "$surface"
   fi
   if [[ "$(jqf "$file" -r 'has("fallbackModel")')" == "true" ]]; then
     raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
     dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
-    if [[ "$raw" -gt 3 ]]; then
-      row H fallback-chain finding warning "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries; the declared schema caps the array at 3" /fallbackModel
-    fi
-    if [[ "$dedup" -gt 3 ]]; then
-      row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; the chain is capped at 3 after duplicate removal, so later entries may be ignored" /fallbackModel
+    cap="$(fallback_cap)"
+    if [[ -z "$SR" ]]; then
+      row H fallback-chain not-inspectable none "$surface" "fallbackModel-cap" "$SR_UNREAD_WHY; how many fallback models the chain keeps is not known" -
+    elif [[ -z "$cap" ]]; then
+      row H fallback-chain skip none "$surface" "fallbackModel-cap" "the fallbackModel section on settings-reference states no chain length; not decided" -
+    else
+      if [[ "$dedup" -gt "$cap" ]]; then
+        row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; settings-reference keeps at most $cap distinct models, so later entries may be ignored" /fallbackModel
+      fi
+      if [[ "$raw" -gt "$cap" ]]; then
+        row H fallback-chain skip none "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries against the $cap settings-reference keeps; a limit on the raw array belongs to the declared schema, which this run does not read; not decided" -
+      fi
     fi
   fi
   if [[ "$(jqf "$file" -r 'has("availableModels")')" == "true" ]]; then
@@ -1898,6 +2007,41 @@ check_i() {
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"
 [[ $USER_OK -eq 1 ]] && check_i "$USER_SETTINGS" "$SURF_USER"
 
+# check_enum <file> <surface>: every other top-level string-valued key whose
+# Type bullet on settings-reference lists the values it takes. A key the page
+# gives no such list, or one already checked above, has no row here. Never run
+# on settings.local.json, whose values the engine does not echo.
+check_enum() {
+  local file="$1" surface="$2" key val
+  [[ -n "$SR" ]] || return 0
+  while IFS=$'\t' read -r key val; do
+    [[ -n "${SR_KEY[$key]:-}" && -n "$(type_values "$key")" ]] || continue
+    documented_value H enum-value "$key" "$val" "$surface"
+  done < <(jqf "$file" -r 'if type == "object" then to_entries[] | select(.value | type == "string") | select(.key | IN("effortLevel", "disableDeepLinkRegistration") | not) | [.key, .value] | @tsv else empty end')
+}
+[[ $PROJECT_OK -eq 1 ]] && check_enum "$SETTINGS" "$SURF_SETTINGS"
+[[ $USER_OK -eq 1 ]] && check_enum "$USER_SETTINGS" "$SURF_USER"
+
+# --- Category J: known-issues fix versions -----------------------------------------
+
+# A known-issues.md table row that says "fixed in vX.Y.Z" (the form the file's
+# "Recording a fix version" section documents) is compared with the installed
+# Claude Code version; a row without that phrase has no fix version to check.
+if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
+  ki_re='#([0-9]+)\].*[Ff]ixed in v?([0-9]+\.[0-9]+\.[0-9]+)'
+  while IFS= read -r line; do
+    [[ "$line" =~ $ki_re ]] || continue
+    ki_issue="${BASH_REMATCH[1]}" ki_fix="${BASH_REMATCH[2]}"
+    if [[ -z "$CLAUDE_VERSION" ]]; then
+      row J known-issue-fixed skip none known-issues "fix-version:#$ki_issue" "known-issues records #$ki_issue as fixed in v$ki_fix and the installed Claude Code version could not be read; not decided" -
+    elif version_lt "$CLAUDE_VERSION" "$ki_fix"; then
+      row J known-issue-fixed ok none known-issues "fix-version:#$ki_issue" "installed v$CLAUDE_VERSION predates v$ki_fix, where #$ki_issue is fixed" -
+    else
+      row J known-issue-fixed finding info known-issues "fix-version:#$ki_issue" "installed v$CLAUDE_VERSION is at or past v$ki_fix, where known-issues records #$ki_issue as fixed; the workaround may no longer be needed" -
+    fi
+  done <"$KNOWN_ISSUES_FILE"
+fi
+
 # --- Assemble ----------------------------------------------------------------------
 
 rows_json="$(printf '%s\n' "${ROWS[@]}" | jq -cs '.')"
@@ -1909,8 +2053,7 @@ malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORM
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
 version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
   '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
-docs_json="$(jq -c --arg url "$DOCS_INDEX_URL" --arg src "$INDEX_SOURCE" --argjson b "$INDEX_BYTES" --arg st "$INDEX_STATE" --arg r "$INDEX_REASON" \
-  '{index:{url:$url,source:$src,bytes:$b,state:$st,reason:$r},pages:.}' <<<"$DOCS_PAGES_JSON")"
+docs_json="$(jq -c --argjson idx "$DOCS_INDEX_JSON" '{index:$idx,pages:.}' <<<"$DOCS_PAGES_JSON")"
 
 # The payloads ride stdin and are slurped, rather than being bound as --argjson
 # values. The whole argv is ONE Win32 command line, and a single argument past

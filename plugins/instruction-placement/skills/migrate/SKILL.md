@@ -314,8 +314,9 @@ than asking git for an index copy a staged edit may have replaced; a restore tha
 so and the run still exits non-zero.
 
 Removal is priced, and the price is printed before the confirmation: a directly read `AGENTS.md`
-does not appear in `/memory` or in the `/context` Memory files, and fires no `InstructionsLoaded`
-hook. That is a decision to make, not tidying.
+fires no `InstructionsLoaded` hook, and `/memory` lists it only from v2.1.280
+([`reference/sources.md`](reference/sources.md), "What shim removal costs"). That is a decision to
+make, not tidying.
 
 ## Verify the load, never assume it
 
@@ -347,12 +348,12 @@ directly at all.
   on Amazon Bedrock or with telemetry disabled, read `CLAUDE.md` files only, and that on those
   versions you update Claude Code. A `CLAUDE.md` containing `@AGENTS.md` never makes Claude read
   the file twice.
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-28 (54,922 bytes;
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-29 (49,601 bytes;
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
   "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
   earlier AGENTS.md workaround". Canary runs on Claude Code 2.1.278 confirmed the displacement
-  rule; this 2026-09-28 pass did not repeat those runs (`claude` on this host is not logged in).
-- **As of**: 2026-09-28.
+  rule; this 2026-09-29 pass did not re-run the displacement canary.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: that page changes which file names count for the check or which sessions lack
   support, or a release note names `AGENTS.md` or instruction-file loading.
 
@@ -366,10 +367,10 @@ rather than tidying. The dated quotes are in `reference/sources.md`, "What shim 
 Every upstream fact the cutover turns on lives as a four-part dated record in
 [`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
 the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
-the CI canary result, and what shim removal costs. `cutover-check.sh` parses the floor, the release
-map and the canary run out of that file rather than carrying its own copy, and exits 2 on a record
-it cannot read: a fact it cannot parse is one it must not silently skip checking. Read it before
-arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
+the CI canary result, the current fleet grade, and what shim removal costs. `cutover-check.sh`
+parses the floor, the release map and the canary run out of that file rather than carrying its own
+copy, and exits 2 on a record it cannot read: a fact it cannot parse is one it must not silently
+skip checking. Read it before arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
 detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed** surface and
 cannot see an `AGENTS.md` that Claude reads directly.
 
@@ -401,6 +402,16 @@ so a repository cannot rely on it and the gates keep the default's answer
 - **Never report a load verified without probing it.** `UNKNOWN` is not `PASS`, and a canary against
   an empty `AGENTS.md` proves nothing.
 - **Never leave the index stale.** Regenerating it is part of the move.
+
+## Spoke paths
+
+The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

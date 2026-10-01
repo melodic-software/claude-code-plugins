@@ -1,7 +1,7 @@
 # Trigger/dispatch slice
 
 Wires the signal-adapter and dispatch state of
-[`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md),
+[`reference/trigger-dispatch.md`](../../../reference/trigger-dispatch.md),
 discovery-first. Everything lands as reviewable changes; plan-gated surfaces are advisory +
 explicit opt-in with cost surfaced. Vendor event names and invocation flags live in THIS
 slice and its templates. The contract stays surface-class vocabulary only.

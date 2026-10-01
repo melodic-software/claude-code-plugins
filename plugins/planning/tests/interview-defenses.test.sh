@@ -71,7 +71,9 @@
 # Rewording, extending, or qualifying a pinned line is EXPECTED to fail, including a typo
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
-# then update the skill body and this suite in one change.
+# then update the skill body and this suite in one change. Recomputing a digest or pin here is
+# attended-only: an unattended run that hits a failing digest reports the pin and the git diff,
+# then stops, and never updates it.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -98,6 +100,7 @@ AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
+ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
 PASS=0
 FAIL=0
 fail() {
@@ -170,7 +173,7 @@ pin_exact() {
   if grep -Fxq -- "$line" "$file"; then
     ok "$label"
   else
-    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line"
+    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${ATTENDED_ONLY}"
   fi
 }
 
@@ -237,7 +240,7 @@ pin_section() {
   n_open="$(grep -Fxc -- "$open" "$file" || true)"
   n_close="$(grep -Fxc -- "$close" "$file" || true)"
   if [[ "$n_open" != "1" || "$n_close" != "1" ]]; then
-    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest."
+    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${ATTENDED_ONLY}"
     return
   fi
   got="$(section_digest "$file" "$open" "$close")"
@@ -246,7 +249,7 @@ pin_section() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest."
+    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -266,7 +269,7 @@ pin_frontmatter() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest."
+    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -284,7 +287,7 @@ pin_case_digest() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest."
+    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -301,7 +304,7 @@ pin_file() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest."
+    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -321,7 +324,7 @@ pin_case_set() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest with: jq -r '.evals[] | \"\\(.id):\\(.name)\"' <evals.json> | sort | tr -d '\\r' | sha256sum"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -441,7 +444,8 @@ declares_both_fixtures B "$CASE_B"
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
 # Both defenses are body prose, each covered by its own section digest below; no
-# frontmatter key states or qualifies either.
+# frontmatter key states or qualifies either. `argument-hint` is the bare slot list
+# `[action] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "881ecec0f5c8cf8e18d16edc7a3d5a72463c48ddc483f5736814b18506d2a6b3"
@@ -466,12 +470,13 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # recommendation, and restrict convention-only recommending to non-consequential questions.
 # Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
 # withheld question drops its recommendation but is still asked and registered, so it too
-# resolves nothing.
+# resolves nothing. The three recommendation-basis links point at the plugin-shipped
+# context file instead of an org URL; a link target changes no rule.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "be1109648072c71b2368ef1e130e4d34219352512d3423b774dcc58b94903684"
+  "c2dd07863d030599e9a4fe484d9f97bd5cb5db88e64284757fd07edf3bacb254"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -483,16 +488,19 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # ticked parts and sends unticked ones to the Brief as named risks, and a hedged reply
 # resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
 # the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
-# drift-check line add a non-terminal status the gate blocks on; they widen nothing.
+# drift-check line add a non-terminal status the gate blocks on; they widen nothing. Its
+# reconfirm row's named-field form changes only the row's text, not which reply moves it.
 # The page-parts paragraph states which decisions carry parts (accept and own keep unticked
 # parts as Brief risks; an alternative withdraws them, as the terminal rule does; a defer's
 # open row covers them) and names `confirm-commitments` for parts confirmed in the terminal.
-# Parts still never become rows the gate grades, so no binding or gate is loosened.
+# Parts still never become rows the gate grades, so no binding or gate is loosened. The gate
+# commands name the script through `<plugin-root>`, which SKILL.md defines; the same script
+# runs with the same flags.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "208d7359e732ab49d6db93cd94f4245f468a06821768a53658fa177db110901c"
+  "463d7352c0777ad0cb4c45412b869d5af837315f3234bdbdb37f5703321d899b"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -514,12 +522,18 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "### Step 1.5. Auto-detect (default action only)" \
   "bc000f8d116bad560c8a74646f7d3736aefa7c42d34a8aa5643c30c5bc58a984"
 # Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
-# outlives the branch goes and touches no assumption or Brief rule.
+# outlives the branch goes and touches no assumption or Brief rule. Its prune caveat applies
+# under `contract_tier: branch` only; under `local` nothing is committed, so nothing is pruned.
+# The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
+# and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
+# never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
+# The Brief cross-check also passes `--procedure`, which only adds a check on the Brief's
+# template headings; it retires no row and relaxes no rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "3824691bd60ef69d83647df46b5e14a6ffadc2df726425c0410bbb58f5aa05ae"
+  "405223026ec44f285049ee3dabfd653819e84fb66f0e128aec40344b86503a3e"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -544,20 +558,24 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
 # It also says a decision the session records in the ledger is mirrored with the same op as a
 # terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
+# The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "ff84d3f9cfacddcf6f11bc1fda1683cc0d87131d9583bc78c157cd513da737b8"
+  "0fbfcb797f606a548d8f46e1c97be4f63fdbeb33f8bfee1dd369f5d71a7ea17c"
+# Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
+# requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
+# names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "2d102b7a9f56349e6f105d5eab1e31581d577b06fd39834ad1a01a899784e4c3"
+  "8912973d4c0d98d78b60510b96d5c930a15224be21f088320940bcba318b0059"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
-  "## Composition with other skills" \
+  "## Next" \
   "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
@@ -581,12 +599,13 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "## Relentless \`me\` mode mechanics" \
   "0850ba314fc513e1f8ae0f0e749836f57a287fb0b265b6a8db356e29983714fc"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
-# not change which rows relentless mode may close.
+# not change which rows relentless mode may close. The Delivery bullet's topic-docs link is
+# relative to the spoke; a link target changes no rule.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "1bc352d972e0a7770917e7f4d5e3a7cce8d082b98abe3427560c7e2849e02170"
+  "e1ee1e7b928dab78be7062a0d11866044ddc246dc90dba69c2434bc5166d7ea9"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
@@ -597,7 +616,7 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "4ac90f63d046510f8744728ca5c7e46feaaf5c703eefa596e14f8546d190b242"
+  "08a4752216efdc690cca29b0c77808b9d994b8599dc3f539eff7afda83fde8a8"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
@@ -614,8 +633,10 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # durable home) grades where content persists after merge and touches neither defense.
 # Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
 # and the queued-output-first order, and resolves no row the user did not answer.
+# Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
+# `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "a3038d1d112c3727c1ea4bf1aa3dccbe16fccaf26587cca79050ff07e4ebf43a"
+  "2d0f3698af829c4aba3425a667498f4ca378e82f40df26e1c048c8941342ace6"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -787,8 +808,8 @@ pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
   "on the page, its parts are the question's \`commits\` entries"
 pin "loop.md defines commitment parts on the page" "$LOOP" \
   "**Commitment parts on the page.**"
-pin "loop.md: the register gate does not grade page parts" "$LOOP" \
-  "The register gate does not grade parts."
+pin "loop.md: an accepted or hedged page row with an unticked part exports open" "$LOOP" \
+  "an accepted or hedged row with an unticked part exports \`open\`"
 pin "loop.md: a mirrored terminal answer ticks no part" "$LOOP" \
   "a terminal answer mirrored with \`record-terminal\` ticks none"
 pin "loop.md: a hedged reply is never mirrored as accept" "$LOOP" \
@@ -836,6 +857,25 @@ pin "SKILL.md sweeps for assumptions before Step 3" "$SKILL" \
   "**Sweep for assumptions before Step 3.**"
 pin "SKILL.md: a sweep that adds an open row returns the run to Step 2" "$SKILL" \
   "Step 3 is reached when a sweep adds no \`open\` row"
+pin "SKILL.md: the confirmation restatement carries a recap generated from the register on disk" "$SKILL" \
+  "generated from the register on disk, never from the transcript, so it survives a compaction"
+pin "SKILL.md: each recap line carries the question text, not only its id and resolution" "$SKILL" \
+  "shaped \`Q<N> <status>: <question text> (<resolution>)\`"
+pin "SKILL.md: the Step 4 cross-check names the seven Brief template headings it requires" "$SKILL" \
+  "the Brief carries all seven template headings"
+pin "SKILL.md: the procedure check is cited by exit code, not by the model's account" "$SKILL" \
+  "cite its exit code and \`procedure=\` field as the evidence that the procedure ran, never your own account of it"
+pin "SKILL.md: a non-zero procedure exit halts the confirmation request" "$SKILL" \
+  "A non-zero exit HALTS the confirmation request"
+pin "SKILL.md: Step 3 names the model-judgment items the procedure check does not verify" "$SKILL" \
+  "whether the Step 1 survey grounded the questions, whether the domain was classified, whether register rows were written at ask-time rather than answer-time, and whether the frontier was recomputed between rounds"
+pin "SKILL.md: the recap and audit-answers neither compose nor duplicate each other" "$SKILL" \
+  "neither composes nor duplicates it"
+pin "audit-answers: states its relationship to the interview's recap and procedure check" "$AUDIT" \
+  "neither composes nor duplicates the other"
+pin "surface.md: the restate op carries the same register-sourced recap" \
+  "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "The restatement carries the same register-sourced recap as Step 3"
 pin "loop.md defines the constraint ledger row shape" "$LOOP" \
   "\`- C<N> | confirmed|inherited | <constraint> | <source>\`"
 pin "loop.md defines a process change" "$LOOP" \
@@ -854,6 +894,10 @@ pin "audit-answers: a hedged row never closes on CONFIRMED" "$AUDIT" \
   "never closes on a CONFIRMED verdict"
 pin "audit-answers: a free-text row is validated and flagged" "$AUDIT" \
   "A \`free-text:\` row is validated like any answer and flagged"
+pin "surface.md routes an accept-audit event to audit-answers" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "the skill routes the round to \`/planning:audit-answers\`"
+pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "| \`accept-audit\` |"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

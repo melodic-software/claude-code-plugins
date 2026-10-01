@@ -148,6 +148,37 @@ flagged. Everywhere else they stay literal. See [reference/criteria.md](referenc
 A clean scan ("No fragile permission grants found.") is a valid outcome. Report it as such, with
 the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Report the denominator".
 
+## Boundary, the built-in `/permissions` command
+
+"Fix my permission rules" can mean this audit or the dialog that edits the rules.
+
+- **`/permissions` (built-in command, alias `/allowed-tools`)**: an interactive dialog to view,
+  add, and remove allow, ask, and deny rules by scope. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Audits grants for portability and auto mode durability
+  across frontmatter and every settings scope, and writes nothing.
+
+**Routing.** When a finding calls for adding, removing, or rewriting a settings rule, offer it to
+the person: you can run `/permissions` instead of or alongside editing the file by hand. A grant
+in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. An
+unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `/permissions` writes whichever scope the person edits. This skill never runs
+it on the person's behalf.
+
+**Availability is never assumed.** This section states what to do when the person can run
+`/permissions`, never that it is present in their host. The four-part records live in
+[reference/native-surfaces.md](reference/native-surfaces.md).
+
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
+it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
+would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
+to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Next
 
 - A finding needs its operative rule located across scopes:

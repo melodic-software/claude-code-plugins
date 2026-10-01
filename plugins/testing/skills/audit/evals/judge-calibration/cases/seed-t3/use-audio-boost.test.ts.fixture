@@ -1,0 +1,10 @@
+import { renderHook } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
+import { useAudioBoost } from './use-audio-boost';
+
+it('boosts the audio element', () => {
+  vi.stubGlobal('AudioContext', vi.fn(() => ({ createGain: vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn() })), createMediaElementSource: vi.fn(() => ({ connect: vi.fn() })), destination: {} })));
+  const audioEl = document.createElement('audio');
+  const { result } = renderHook(() => useAudioBoost(audioEl));
+  expect(result.current.isBoosted).toBe(true);
+});

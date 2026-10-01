@@ -36,20 +36,22 @@
 #
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
-# docs/adr/** (decision records are a historical account, not prose to restyle),
-# plugins/*/skills/*/vendor/** (vendored third-party text, which the repo's own
-# vendor-docs-are-not-style rule puts out of scope), the per-source ledgers
-# docs/upstream/*.md (each records one third-party source and quotes it at
-# length, so the source's own punctuation rides along), and the eval fixtures
-# under plugins/ai-slop/skills/audit/evals/, which contain the tells they exist
-# to test.
+# plugins/*/skills/*/vendor/** (vendored third-party text is upstream content,
+# not this repository's prose), and the eval fixtures under
+# plugins/ai-slop/skills/audit/evals/, which contain the tells they exist to
+# test. The per-source ledgers docs/upstream/*.md are unpurged campaign
+# backlog: their own prose is first-party and joins this list once purged, and
+# what they quote from upstream stays byte-exact inside ai-slop-ignore-marked
+# regions. Those that still carry em dashes are named one by one in
+# .claude/ai-slop.json em_dash_allowed_paths so the full-repo detector run
+# stays at zero; that entry is a deferral, removed in the change that purges
+# the file and lists it here.
 #
-# docs/upstream/ IS NOT A VENDOR TREE, and the boundary there is authorship,
-# not path. Its files are this repository's own provenance records and research
-# trails about upstream sources. What they quote from upstream is third-party
-# text and stays byte-exact, inside an ai-slop-ignore-marked region when it
-# carries an em dash. Their own prose is first-party and joins this list once
-# purged, like any other surface. The unlisted ones are unpurged, not exempt.
+# docs/upstream/ IS NOT A VENDOR TREE, and the boundary is authorship, not
+# path. Vendored third-party text (plugins/*/skills/*/vendor/** and verbatim
+# upstream quotes) is out of scope. First-party prose under docs/upstream/ is
+# in scope whatever its path. The unlisted ones are unpurged, and the
+# ai-slop.json entries defer their purge; they do not exempt them as a class.
 # docs/upstream/claude-code-mods/ is not a third-party ledger: it is this
 # repository's own evidence trail for ADR 0035, so its live documents and the
 # dated research snapshot are declared below.
@@ -57,14 +59,10 @@
 # Root README, purged in #3265.
 README.md
 
-# Convention documents. Every directory under docs/conventions/ is declared by
-# name rather than by one `*/` glob, because docs/conventions/standards/README.md
-# is deliberately NOT purged: it carries a `standards-contract` semver, and
-# changing a single character of it forces a version bump that makes every
-# consuming repository's index mismatch, degrading skills to best-effort routing
-# until each one re-runs setup. That price is not worth a punctuation pass, so the
-# contract keeps its em dashes and stays off this list. Its worked example, which
-# carries no contract version, is purged and declared.
+# The decision records were purged whole.
+docs/adr/*.md
+
+# Convention documents, declared directory by directory.
 docs/conventions/authoring-formats/*.md
 docs/conventions/commit-convention/*.md
 docs/conventions/config-cascade/*.md
@@ -92,7 +90,7 @@ docs/conventions/rendered-views/*.md
 docs/conventions/retired-conventions/*.md
 docs/conventions/seam-phrasing/*.md
 docs/conventions/shell-test-helpers/*.md
-docs/conventions/standards/CHANGELOG.md
+docs/conventions/standards/*.md
 docs/conventions/standards/examples/*.md
 docs/conventions/topic-docs/*.md
 docs/conventions/topic-docs/examples/*.md
@@ -100,6 +98,8 @@ docs/conventions/tracker-reference-form/*.md
 docs/conventions/untrusted-content/*.md
 docs/conventions/upstream-drift/*.md
 docs/conventions/windows-path-emit/*.md
+# The out-of-scope records were purged whole.
+docs/out-of-scope/*.md
 # The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
 # markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
 # corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting
@@ -241,8 +241,8 @@ plugins/discovery/reference/*.md
 plugins/discovery/skills/*/SKILL.md
 plugins/discovery/skills/*/context/*.md
 plugins/discovery/skills/*/reference/*.md
-# The docs-hygiene plugin was purged whole, its eval fixtures included: those
-# fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
+# The docs-hygiene and docs-naming plugins were purged whole, eval fixtures included: those
+# fixtures specimen each plugin's OWN noise shapes, which are not em dashes, so
 # declaring them costs nothing. Two marked em dashes survive under these globs and
 # the gate honors both: a verbatim Microsoft quotation, and the audit-noise
 # bold-roster fixture whose matcher keys on the character itself.
@@ -256,7 +256,12 @@ plugins/docs-hygiene/skills/*/reference/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
-plugins/docs-hygiene/skills/*/templates/*
+plugins/docs-naming/*.md
+plugins/docs-naming/context/*.md
+plugins/docs-naming/reference/*.md
+plugins/docs-naming/skills/*/SKILL.md
+plugins/docs-naming/skills/*/context/*.md
+plugins/docs-naming/skills/*/templates/*
 plugins/domain-driven-design/README.md
 plugins/domain-driven-design/CHANGELOG.md
 plugins/domain-driven-design/skills/*/SKILL.md
@@ -371,13 +376,9 @@ plugins/overengineering/skills/*/SKILL.md
 plugins/overengineering/skills/*/context/*.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
-# The planning plugin was purged whole. `reference/` is declared file by file rather than by a
-# glob because plugins/planning/reference/standards-contract.md is a byte-for-byte generated copy
-# of docs/conventions/standards/README.md, which this campaign deliberately leaves unpurged; the
-# sync gate holds the copy identical to it, so the copy cannot be purged either.
+# The planning plugin was purged whole.
 plugins/planning/*.md
-plugins/planning/reference/artifact-protocol.md
-plugins/planning/reference/topic-docs.md
+plugins/planning/reference/*.md
 plugins/planning/skills/*/SKILL.md
 plugins/planning/skills/*/context/*.md
 plugins/planning/skills/*/templates/*.md
@@ -421,14 +422,11 @@ plugins/repo-hygiene/CHANGELOG.md
 plugins/repo-hygiene/skills/*/SKILL.md
 plugins/repo-hygiene/skills/clean/context/*.md
 plugins/repo-hygiene/skills/clean/reference/*.md
-# The review plugin was purged whole. `reference/` is declared file by file for the same reason as
-# planning's: plugins/review/reference/standards-contract.md is a generated copy of the deliberately
-# unpurged standards contract, held identical to it by the sync gate.
+# The review plugin was purged whole.
 plugins/review/*.md
 plugins/review/agents/*.md
 plugins/review/context/*.md
-plugins/review/reference/findings-file-shape.md
-plugins/review/reference/topic-docs.md
+plugins/review/reference/*.md
 plugins/review/skills/*/SKILL.md
 plugins/review/skills/*/context/*.md
 plugins/review/skills/audit-enforceability/evals/fixtures/*.md

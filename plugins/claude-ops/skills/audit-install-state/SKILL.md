@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in this session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
+description: "Read-only audit of `~/.claude` and `~/.claude.json`: the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
 argument-hint: "[unattended] [root]"
 user-invocable: true
 disable-model-invocation: false
@@ -45,8 +45,8 @@ Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-ha
 One native Claude Code surface asks a question that sounds like this skill's, and the two are
 routinely conflated:
 
-- **`doctor` (bundled skill, alias `checkup`)**. Ships with Claude Code rather than as a
-  marketplace plugin. It health-checks an installation and **offers to fix** what it finds:
+- **`doctor` (bundled skill, alias `checkup`)**: health-checks an installation and **offers to
+  fix** what it finds:
   installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
   updates, permissions. It also estimates what the skill listing costs in context. It is the one
   bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
@@ -78,14 +78,16 @@ its own.
 `authToken`), and the values inside `~/.claude.json`. These are inventory line-items: name, size,
 mtime, and nothing more. **Every subagent this skill dispatches inherits this rule; say so
 explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
-content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`; each entry
+content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`,
+`plugins/installed_plugins.json` and the `plugins/cache/*/*/*/.orphaned_at` markers; each entry
 it read by content carries `content_read: true` with the paths opened. Everything else is stat-only.
 
 ## Run it
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-install-state/scripts/install_state.py" \
-  --samples 3 --csv ./claude-install-listing.csv > ./claude-install-report.json
+  --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
+  > ./claude-install-report.json
 ```
 
 Write both artifacts **outside** the target root (`${CLAUDE_PLUGIN_DATA}` resolves *inside* it and
@@ -94,7 +96,8 @@ destination inside the root is unavoidable, pass it as `--csv` and the engine ex
 `self_excluded`. **Always pass `--csv`**: it is the only artifact carrying per-file rows, and
 without it `csv.path` is `null` and the run must not be described as covering every file.
 `--authored-threshold` only decides which entries the JSON *labels* `per-file` versus `rolled-up`.
-Other flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`), `--samples N` (default
+`--versions-out <path>` writes the complete `unreferenced_versions` list (Phase 3) and is excluded
+the same way. Other flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`), `--samples N` (default
 2; use 3+ on a busy machine). Python 3.11+ is the only requirement. The header records
 `engine_version` and the exact `invocation`, so a report reproduces from itself.
 
@@ -149,6 +152,34 @@ unit other than the file. Per-path rules: [reference/surfaces.md](reference/surf
 is my install so big", read `largest_subtrees` (top directories by measured bytes) and
 `node_modules` (bytes the product installed into the cache's version directories, upstream basis in
 its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attributed to nobody).
+
+`unreferenced_versions` lists each `plugins/cache/<marketplace>/<plugin>/<version>/` directory that
+no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
+`.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
+days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
+sweep is documented as starting from the marker, so it has no removal date. The report keeps only
+the 25 largest, so the field stops growing with the version count (each row repeats its path, so
+very long directory names still make rows large).
+`unreferenced_versions_total` is the full count and `unreferenced_versions_truncated` is true when
+the list was cut; never report the list length as the total. `--versions-out` writes the complete
+list as a JSON file, and `unreferenced_versions_file` then records its `path` and `count`. When the
+registry is missing, unparsable, or belongs to another root, the list is empty and
+`unreferenced_versions_note` says why; an empty list then means "not checked", not "none". The list
+is a report, not a deletion list, and removing anything stays with `/disk-hygiene:clean`. That
+skill treats the cache as managed state and leaves version directories to the product's own sweep;
+do not remove them by hand.
+
+A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
+the previous version's path after an update. Restart the session to pick up the new version; the
+old path is expected, not a defect.
+
+Basis for the 14-day window, the marker, and the running-session behavior: the plugin caching
+section of <https://code.claude.com/docs/en/plugins/loading> ("removes that directory in a
+background cleanup 14 days later, so a session that already loaded the old version keeps running").
+Verified 2026-09-29 against Claude Code 2.1.285 and that page as fetched that day. Recheck when the
+page changes the window, the marker name, or the sweep condition, or a release note names plugin
+cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py` and its byte-identical copy in
+`disk-hygiene`.
 
 ## Phase 4. Numeric names and liveness
 

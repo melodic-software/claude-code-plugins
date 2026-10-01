@@ -13,8 +13,12 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
+export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
+export HOME="$TEST_TMPDIR/home"
+mkdir -p "$HOME"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
+cd "$TEST_TMPDIR" || exit 1
 
 mkrepo() {
   # mkrepo <name> — a repo with a removable cache + build dir.
@@ -313,6 +317,40 @@ out="$(bash "$BATCH" --tier build --apply --batch-plan "$PLAN3")"
 assert_file_absent "build dir removed" "$R5/bin/b"
 assert_file_absent "cache removed by build tier (folds caches)" "$R5/.pytest_cache/x"
 
+# --- 6b. git tier dry-run counts only what apply acts on; all tier splits bytes per tier ---
+# `git gc --auto` does nothing below gc.auto or gc.autoPackLimit, so loose objects
+# under those limits are not planned work; above one they are.
+git_totals() { sed -n 's/.*planned=\([0-9]*\) bytes=\([0-9]*\).*/\1 \2/p' <<<"$1" | tail -1; }
+LR="$(mkrepo looserepo)"
+for n in 1 2 3; do echo "blob $n" | git -C "$LR" hash-object -w --stdin >/dev/null; done
+loose_before="$(git -C "$LR" count-objects -v)"
+git -C "$LR" gc --auto --quiet
+if [[ "$(git -C "$LR" count-objects -v)" == "$loose_before" ]]; then pass "git gc --auto removes nothing below its limits"; else fail "git gc --auto removes nothing below its limits" "$loose_before" "$(git -C "$LR" count-objects -v)"; fi
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "--tier git dry-run plans no loose objects below gc.auto"; else fail "--tier git plans no loose objects below gc.auto" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config gc.auto 2
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+read -r gp gb <<<"$(git_totals "$out")"
+if [[ "${gp:-0}" -gt 0 && "${gb:-0}" -gt 0 ]]; then pass "--tier git dry-run plans loose objects above gc.auto"; else fail "--tier git plans loose objects above gc.auto" ">0" "planned=$gp bytes=$gb"; fi
+assert_contains "git_bytes equals the git tier bytes" "$out" "bytes=$gb skipped=0 blocked=0 gitdirs=1 git_bytes=$gb"
+git -C "$LR" config gc.auto 0
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "gc.auto 0 turns auto gc off, so nothing is planned"; else fail "gc.auto 0 plans nothing" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config --unset gc.auto
+git -C "$LR" repack -q -d
+git -C "$LR" commit --allow-empty -qm second
+git -C "$LR" repack -q -d
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "two packs are below the default gc.autoPackLimit"; else fail "two packs are below gc.autoPackLimit" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config gc.autoPackLimit 1
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+read -r gp gb <<<"$(git_totals "$out")"
+if [[ "${gp:-0}" -gt 0 && "${gb:-0}" -gt 0 ]]; then pass "--tier git dry-run plans loose objects above gc.autoPackLimit"; else fail "--tier git plans loose objects above gc.autoPackLimit" ">0" "planned=$gp bytes=$gb"; fi
+out="$(bash "$BATCH" --tier all --repo "$LR")"
+assert_contains "--tier all prints caches_bytes" "$out" "caches_bytes="
+assert_contains "--tier all prints build_bytes" "$out" "build_bytes="
+assert_contains "--tier all prints git_bytes" "$out" "git_bytes="
+
 # --- 7. git tier: one prune per shared object store (worktree deduped) ---
 GR="$(mkrepo gitrepo)"
 git -C "$GR" worktree add "$TEST_TMPDIR/gitrepo-wt" -b wt >/dev/null 2>&1
@@ -456,6 +494,200 @@ rc=0
 git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
+
+# --- fleet discovery (--fleet) and clone dedupe, with ghq / chezmoi shimmed on PATH ---
+SHIM="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM"
+FL_A="$(mkrepo fleet-a)"
+FL_B="$(mkrepo fleet-b)"
+FL_CLONE="$(mkrepo fleet-clone)"
+FL_CZ="$(mkrepo fleet-chezmoi)"
+git -C "$FL_A" remote add origin git@GitHub.com:owner/repo.git
+git -C "$FL_CLONE" remote add origin https://user@github.com/owner/repo
+git -C "$FL_B" remote add origin https://github.com/owner/other.git
+git -C "$FL_CZ" remote add origin https://github.com/owner/dotfiles.git
+printf '#!/bin/sh\nprintf "%%s\\n" "%s" "%s" "%s"\n' "$FL_A" "$FL_B" "$FL_CLONE" >"$SHIM/ghq"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$FL_CZ" >"$SHIM/chezmoi"
+chmod +x "$SHIM/ghq" "$SHIM/chezmoi"
+
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)" || rc=$?
+assert_exit "--fleet dry-run exits 0" 0 "$rc"
+assert_contains "fleet includes the chezmoi source repo" "$out" "Repo: $FL_CZ"
+assert_contains "fleet includes a ghq repo" "$out" "Repo: $FL_B"
+assert_contains "two clones of one remote: the first is kept" "$out" "Repo: $FL_A"$'\n'"Outcome: would-clean"
+assert_contains "the other clone is reported as a duplicate" "$out" "skipped duplicate of $FL_A"
+assert_contains "repos counts the unique repos, the duplicate is skipped" "$out" "repos=3 "
+assert_contains "duplicate counted in skipped" "$out" "skipped=1 blocked=0"
+dup_hits="$(grep -c 'skipped duplicate of' <<<"$out" || true)"
+assert_exit "duplicate reported exactly once" 1 "$dup_hits"
+
+assert_contains "the duplicate clone gets a table row" "$out" "$FL_CLONE | skipped | 0 | "
+
+# --fleet dedupes the scan tier too.
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet 2>/dev/null)" || rc=$?
+assert_exit "scan --fleet exits 0" 0 "$rc"
+assert_contains "scan --fleet reports the second clone as a duplicate" "$out" "skipped duplicate of $FL_A"
+
+# --repo and --repos-from are an explicit selection: two clones of one origin are
+# both planned, in the caches tier and in the scan tier, with no duplicate record.
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$FL_A" "$FL_CLONE" 2>/dev/null)" || rc=$?
+assert_exit "--repo with two clones exits 0" 0 "$rc"
+assert_contains "--repo plans the first clone" "$out" "Repo: $FL_A"$'\n'"Outcome: would-clean"
+assert_contains "--repo plans the second clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
+assert_contains "--repo counts both clones" "$out" "Summary: repos=2 planned=2 "
+assert_contains "--repo skips nothing" "$out" "skipped=0 blocked=0"
+assert_not_contains "--repo reports no duplicate" "$out" "skipped duplicate of"
+out="$(printf '%s\n' "$FL_A" "$FL_CLONE" | bash "$BATCH" --tier caches --repos-from - 2>/dev/null)"
+assert_contains "--repos-from plans both clones" "$out" "Summary: repos=2 planned=2 "
+assert_not_contains "--repos-from reports no duplicate" "$out" "skipped duplicate of"
+out="$(bash "$BATCH" --tier scan --repo "$FL_CLONE" "$FL_A" 2>/dev/null)"
+assert_contains "scan --repo scans the first clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
+assert_contains "scan --repo scans the second clone" "$out" "Repo: $FL_A"$'\n'"Outcome: scanned"
+assert_not_contains "scan --repo reports no duplicate" "$out" "skipped duplicate of"
+out="$(bash "$BATCH" --tier git --repo "$FL_A" "$FL_CLONE" 2>/dev/null)"
+assert_contains "git --repo plans both clones' object stores" "$out" "gitdirs=2 "
+assert_not_contains "git --repo reports no duplicate" "$out" "skipped duplicate of"
+
+# A skip-listed clone never shadows its sibling under --fleet: the skipped one is
+# reported skipped, the other still runs and is not a duplicate of it.
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" 2>/dev/null)"
+assert_contains "skipped clone is reported skipped" "$out" "Repo: $FL_A"$'\n'"Outcome: skipped"$'\n'"Reason: skip-list"
+assert_contains "the sibling of a skipped clone is still planned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
+assert_not_contains "the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
+assert_contains "three repos planned, one skipped" "$out" "Summary: repos=4 planned=3 "
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet --skip "$FL_A" 2>/dev/null)"
+assert_contains "scan: the sibling of a skipped clone is still scanned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
+assert_not_contains "scan: the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
+# Skipping the ghq clone by path leaves the chezmoi source of the same origin to run.
+git -C "$FL_CZ" remote set-url origin git@github.com:owner/repo.git
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" --skip "$FL_CLONE" 2>/dev/null)"
+assert_contains "--fleet: the chezmoi source runs when its ghq clones are skipped" "$out" "Repo: $FL_CZ"$'\n'"Outcome: would-clean"
+git -C "$FL_CZ" remote set-url origin https://github.com/owner/dotfiles.git
+
+# A missing ghq/chezmoi contributes nothing; an empty fleet is the no-repos error.
+NOTOOLS="$TEST_TMPDIR/notools"
+mkdir -p "$NOTOOLS"
+for t in git bash sed awk grep tr head dirname mktemp mkdir cat rm find sort date uname basename wc du cut; do
+  p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$NOTOOLS/$t"
+done
+rc=0
+PATH="$NOTOOLS" bash "$BATCH" --tier caches --fleet >/dev/null 2>&1 || rc=$?
+assert_exit "--fleet with no ghq/chezmoi and no repos exits 2" 2 "$rc"
+
+# A chezmoi source that is not a git repo is ignored.
+NOGIT="$TEST_TMPDIR/cz-plain"
+mkdir -p "$NOGIT"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)"
+assert_not_contains "non-git chezmoi source is not a fleet entry" "$out" "$NOGIT"
+
+# --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
+mkclean() {
+  git init "$1" >/dev/null 2>&1
+  git -C "$1" config user.email t@example.com
+  git -C "$1" config user.name Test
+  git -C "$1" commit --allow-empty -m init >/dev/null 2>&1
+}
+CLEAN="$TEST_TMPDIR/cleanrepo"
+mkclean "$CLEAN"
+out="$(bash "$BATCH" --tier caches --repo "$CLEAN" 2>/dev/null)"
+assert_contains "clean repo reports nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_not_contains "clean repo is not would-clean" "$out" "Outcome: would-clean"
+assert_contains "clean repo summary keeps counting" "$out" "Summary: repos=1 planned=0"
+
+DIRTY="$(mkrepo mixdirty)"
+CLEAN2="$TEST_TMPDIR/cleanrepo2"
+mkclean "$CLEAN2"
+out="$(bash "$BATCH" --tier caches --repo "$DIRTY" "$CLEAN2" 2>/dev/null)"
+assert_contains "mixed fleet has would-clean" "$out" "Outcome: would-clean"
+assert_contains "mixed fleet has nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_contains "summary table header" "$out" "Repo | Outcome | Paths | Bytes"
+assert_contains "table row for the dirty repo" "$out" "$DIRTY | would-clean | "
+assert_contains "table row for the clean repo" "$out" "$CLEAN2 | nothing-to-do | 0 | "
+
+GT="$(mkrepo gitnew)"
+git -C "$GT" worktree add "$TEST_TMPDIR/gitnew-wt" -b wt2 >/dev/null 2>&1
+out="$(bash "$BATCH" --tier git --repo "$GT" "$TEST_TMPDIR/gitnew-wt" 2>/dev/null)"
+assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | "
+assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
+assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
+assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
+assert_contains "git tier row counts nothing apply would not act on" "$out" "$GT | would-clean | 0 | 0 B"
+assert_contains "git tier reason says the remote prune is not measured" "$out" "0 item(s) counted, 0 B; remote prune not measured"
+# A worktree whose directory is gone is what `git worktree prune` removes: counted.
+GW="$(mkrepo gitprune)"
+git -C "$GW" worktree add "$TEST_TMPDIR/gitprune-gone" -b gone >/dev/null 2>&1
+rm -rf "$TEST_TMPDIR/gitprune-gone"
+out="$(bash "$BATCH" --tier git --repo "$GW" 2>/dev/null)"
+assert_contains "git tier counts a prunable worktree" "$out" "$GW | would-clean | 1 | "
+
+# --- 5. durable plan location and dry-run path listing ---
+PD_REPO="$(mkrepo pdrepo)"
+PD_OTHER="$(mkrepo pdother)"
+out1="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out1")"
+assert_contains "default plan lands under CLAUDE_PLUGIN_DATA" "$PD_PLAN" "$CLAUDE_PLUGIN_DATA/"
+assert_file_exists "default plan file written under CLAUDE_PLUGIN_DATA" "$PD_PLAN"
+out2="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out2")"
+assert_contains "same repo set shares its plan directory" "$PD_PLAN2" "$(dirname "$(dirname "$PD_PLAN")")/"
+assert_not_contains "a repeat dry-run gets a new plan path" "$out2" "BatchPlan: $PD_PLAN"
+assert_file_exists "a repeat dry-run leaves the first plan intact" "$PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_OTHER")"
+assert_not_contains "different repo set gives a different plan path" "$out3" "BatchPlan: $PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER" --skip pdother)"
+PD_SKIP_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out3")"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER")"
+assert_not_contains "different skip list gives a different plan directory" "$out3" "BatchPlan: $(dirname "$(dirname "$PD_SKIP_PLAN")")/"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --list-paths-max 08 2>&1)"
+assert_not_contains "leading-zero --list-paths-max is read as decimal" "$out3" "value too great"
+
+PD_SET_DIR="$(dirname "$(dirname "$PD_PLAN")")"
+mkdir "$PD_SET_DIR/run.old" "$PD_SET_DIR/run.recent" && touch "$PD_SET_DIR/run.recent/plan"
+touch "$PD_SET_DIR/run.old/plan" && touch -d "15 days ago" "$PD_SET_DIR/run.old"
+bash "$BATCH" --tier caches --repo "$PD_REPO" >/dev/null
+assert_file_absent "a run directory older than 14 days is pruned" "$PD_SET_DIR/run.old/plan"
+assert_file_exists "a recent run directory is kept" "$PD_SET_DIR/run.recent/plan"
+
+out="$(env -u CLAUDE_PLUGIN_DATA bash "$BATCH" --tier caches --repo "$PD_REPO")"
+assert_contains "without CLAUDE_PLUGIN_DATA the plan lands under HOME/.claude" "$out" "BatchPlan: $HOME/.claude/"
+
+OVERRIDE="$TEST_TMPDIR/override.plan"
+out="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --batch-plan "$OVERRIDE")"
+assert_contains "--batch-plan overrides the default location" "$out" "BatchPlan: $OVERRIDE"
+assert_file_exists "override plan written" "$OVERRIDE"
+
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PD_PLAN")"
+assert_contains "apply with the printed default plan cleans" "$out" "Summary: removed=1 failed=0"
+assert_file_absent "apply with the printed plan removed the cache" "$PD_REPO/.pytest_cache/x"
+
+LR="$(mkrepo listrepo)"
+mkdir -p "$LR/.mypy_cache" "$LR/.ruff_cache"
+echo x >"$LR/.mypy_cache/x"
+echo x >"$LR/.ruff_cache/x"
+out="$(bash "$BATCH" --tier caches --repo "$LR")"
+assert_contains "dry run lists the repo's planned paths" "$out" "Paths: $LR"
+assert_contains "listing names a planned cache" "$out" ".pytest_cache"
+assert_contains "listing names another planned cache" "$out" ".mypy_cache"
+assert_not_contains "under the cap there is no tail" "$out" "more, see plan file"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+total="$(grep -c . "$(sed -n 's/^REPO\t[^\t]*\t[^\t]*\t//p' "$LR_PLAN")")"
+
+out="$(bash "$BATCH" --tier caches --repo "$LR" --list-paths-max 1)"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "over the cap the tail counts the rest" "$out" "$((total - 1)) more, see plan file: $LR_PLAN"
+entries="$(grep -c '^  [^ ].* | ' <<<"$out")"
+if [[ "$entries" -eq 1 ]]; then
+  pass "over the cap exactly the cap entries are listed"
+else
+  fail "exactly the cap entries are listed" 1 "$entries"
+fi
+
+help_out="$(bash "$BATCH" --help)"
+assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"

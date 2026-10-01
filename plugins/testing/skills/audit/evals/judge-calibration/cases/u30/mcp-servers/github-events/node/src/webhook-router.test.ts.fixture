@@ -1,0 +1,276 @@
+import { describe, expect, it } from "vitest";
+import { routeEvent } from "./webhook-router.js";
+
+describe("routeEvent — basics", () => {
+  it("should return null for empty event header", () => {
+    expect(routeEvent("", {})).toBeNull();
+    expect(routeEvent("  ", {})).toBeNull();
+  });
+
+  it("should route unknown events with generic builder", () => {
+    const result = routeEvent("deployment_status", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "bot" },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.notification.content).toBe("deployment_status completed (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      event: "deployment_status",
+      repo: "acme/repo",
+      sender: "bot",
+      action: "completed",
+    });
+  });
+
+  it("should route ping events", () => {
+    const result = routeEvent("ping", {
+      zen: "Speak like a human",
+      hook_id: 12345,
+      repository: { full_name: "acme/repo" },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.notification.content).toBe("GitHub ping (acme/repo): Speak like a human");
+    expect(result!.notification.meta).toMatchObject({
+      event: "ping",
+      repo: "acme/repo",
+      hook_id: 12345,
+    });
+  });
+
+  it("should route pull_request events", () => {
+    const result = routeEvent("pull_request", {
+      action: "opened",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "alice" },
+      pull_request: {
+        number: 42,
+        title: "Add widget",
+        html_url: "https://github.com/acme/repo/pull/42",
+        state: "open",
+        merged: false,
+        head: { ref: "feat/widget" },
+        base: { ref: "main" },
+      },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.notification.content).toBe("PR #42 opened: Add widget (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      event: "pull_request",
+      action: "opened",
+      pr_number: 42,
+      url: "https://github.com/acme/repo/pull/42",
+      state: "open",
+      merged: false,
+      head_ref: "feat/widget",
+      base_ref: "main",
+    });
+  });
+});
+
+describe("routeEvent — review surfaces", () => {
+  it("should route pull_request_review events", () => {
+    const result = routeEvent("pull_request_review", {
+      action: "submitted",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "bob" },
+      review: {
+        state: "approved",
+        user: { login: "bob" },
+        html_url: "https://github.com/acme/repo/pull/42#pullrequestreview-1",
+      },
+      pull_request: { number: 42 },
+    });
+    expect(result!.notification.content).toBe("PR #42 review approved by bob (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      event: "pull_request_review",
+      review_state: "approved",
+      pr_number: 42,
+    });
+  });
+
+  it("should route pull_request_review_comment events", () => {
+    const result = routeEvent("pull_request_review_comment", {
+      action: "created",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "carol" },
+      pull_request: { number: 7 },
+      comment: {
+        user: { login: "carol" },
+        body: "nit",
+        html_url: "https://github.com/acme/repo/pull/7#discussion_r1",
+      },
+    });
+    expect(result!.notification.content).toBe("PR #7 review comment by carol (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      event: "pull_request_review_comment",
+      pr_number: 7,
+    });
+  });
+
+  it("should route issue_comment events on a PR", () => {
+    const result = routeEvent("issue_comment", {
+      action: "created",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "dave" },
+      issue: {
+        number: 99,
+        title: "PR: title",
+        pull_request: { html_url: "x" },
+      },
+      comment: {
+        user: { login: "dave" },
+        body: "lgtm",
+        html_url: "https://github.com/acme/repo/issues/99#issuecomment-1",
+      },
+    });
+    expect(result!.notification.content).toBe("PR #99 comment by dave (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      issue_number: 99,
+      is_pr_comment: true,
+    });
+  });
+
+  it("should route issue_comment events on a regular issue", () => {
+    const result = routeEvent("issue_comment", {
+      action: "created",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "dave" },
+      issue: { number: 5, title: "bug" },
+      comment: { user: { login: "dave" }, body: "+1" },
+    });
+    expect(result!.notification.content).toBe("Issue #5 comment by dave (acme/repo)");
+    expect(result!.notification.meta).toMatchObject({
+      issue_number: 5,
+      is_pr_comment: false,
+    });
+  });
+});
+
+describe("routeEvent — checks + workflows", () => {
+  it("should route check_run events with annotations + details URLs", () => {
+    const result = routeEvent("check_run", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "github-actions" },
+      check_run: {
+        name: "ci-status",
+        status: "completed",
+        conclusion: "success",
+        html_url: "https://github.com/acme/repo/actions/runs/1",
+        details_url: "https://github.com/acme/repo/runs/100",
+        annotations_url: "https://api.github.com/repos/acme/repo/check-runs/100/annotations",
+        pull_requests: [{ number: 11 }],
+      },
+    });
+    expect(result!.notification.content).toBe(
+      "PR #11 check_run ci-status: completed (success) (acme/repo)",
+    );
+    expect(result!.notification.meta).toMatchObject({
+      check_name: "ci-status",
+      status: "completed",
+      conclusion: "success",
+      pr_number: 11,
+      details_url: "https://github.com/acme/repo/runs/100",
+      annotations_url: "https://api.github.com/repos/acme/repo/check-runs/100/annotations",
+    });
+  });
+
+  it("should omit annotations + details URLs when not present in payload", () => {
+    const result = routeEvent("check_run", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      check_run: {
+        name: "ci-status",
+        status: "completed",
+        conclusion: "success",
+        pull_requests: [{ number: 11 }],
+      },
+    });
+    expect(result!.notification.meta).not.toHaveProperty("details_url");
+    expect(result!.notification.meta).not.toHaveProperty("annotations_url");
+  });
+
+  it("should route check_suite events with check_runs_url", () => {
+    const result = routeEvent("check_suite", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "github-actions" },
+      check_suite: {
+        status: "completed",
+        conclusion: "failure",
+        check_runs_url: "https://api.github.com/repos/acme/repo/check-suites/200/check-runs",
+        pull_requests: [{ number: 12 }],
+      },
+    });
+    expect(result!.notification.content).toBe(
+      "PR #12 check_suite: completed (failure) (acme/repo)",
+    );
+    expect(result!.notification.meta).toMatchObject({
+      conclusion: "failure",
+      pr_number: 12,
+      check_runs_url: "https://api.github.com/repos/acme/repo/check-suites/200/check-runs",
+    });
+  });
+
+  it("should route workflow_run events with logs/jobs/artifacts URLs", () => {
+    const result = routeEvent("workflow_run", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      sender: { login: "github-actions" },
+      workflow_run: {
+        name: "ci",
+        status: "completed",
+        conclusion: "success",
+        html_url: "https://github.com/acme/repo/actions/runs/2",
+        logs_url: "https://api.github.com/repos/acme/repo/actions/runs/2/logs",
+        jobs_url: "https://api.github.com/repos/acme/repo/actions/runs/2/jobs",
+        artifacts_url: "https://api.github.com/repos/acme/repo/actions/runs/2/artifacts",
+        check_suite_url: "https://api.github.com/repos/acme/repo/check-suites/200",
+        head_branch: "feat/widget",
+        pull_requests: [{ number: 42 }],
+      },
+    });
+    expect(result!.notification.content).toBe(
+      "PR #42 workflow_run ci: completed (success) (acme/repo)",
+    );
+    expect(result!.notification.meta).toMatchObject({
+      workflow_name: "ci",
+      conclusion: "success",
+      head_branch: "feat/widget",
+      pr_number: 42,
+      logs_url: "https://api.github.com/repos/acme/repo/actions/runs/2/logs",
+      jobs_url: "https://api.github.com/repos/acme/repo/actions/runs/2/jobs",
+      artifacts_url: "https://api.github.com/repos/acme/repo/actions/runs/2/artifacts",
+      check_suite_url: "https://api.github.com/repos/acme/repo/check-suites/200",
+    });
+  });
+
+  it("should omit log/job URLs from workflow_run when not present", () => {
+    const result = routeEvent("workflow_run", {
+      action: "completed",
+      repository: { full_name: "acme/repo" },
+      workflow_run: {
+        name: "ci",
+        status: "in_progress",
+        conclusion: null,
+        head_branch: "feat/widget",
+        pull_requests: [{ number: 42 }],
+      },
+    });
+    expect(result!.notification.meta).not.toHaveProperty("logs_url");
+    expect(result!.notification.meta).not.toHaveProperty("jobs_url");
+    expect(result!.notification.meta).not.toHaveProperty("artifacts_url");
+  });
+
+  it("should tolerate missing optional fields gracefully", () => {
+    const result = routeEvent("pull_request", {});
+    expect(result).not.toBeNull();
+    expect(result!.notification.content).toContain("PR #?");
+    expect(result!.notification.meta).toMatchObject({
+      event: "pull_request",
+      repo: "?",
+      sender: "?",
+    });
+  });
+});

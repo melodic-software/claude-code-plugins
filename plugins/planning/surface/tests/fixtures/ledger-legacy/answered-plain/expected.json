@@ -1,0 +1,86 @@
+{
+  "Q1": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "",
+      "seeded": true
+    },
+    "recommendation": "everyone",
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "accepted: everyone"
+    }
+  },
+  "Q2": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "alt",
+      "alt": "a",
+      "text": "only admins",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "alt a: only admins"
+    }
+  },
+  "Q3": {
+    "title": "Retention?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "thirty days",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: thirty days"
+    }
+  },
+  "Q4": {
+    "title": "Region?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "eu-west",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "eu-west"
+    }
+  }
+}

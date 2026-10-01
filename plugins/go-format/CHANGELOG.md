@@ -3,6 +3,68 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/go-format:check`, which probes it.
+
+## [0.4.16] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/go-format:check`, which probes it. `/go-format:check` runs its probes through Bash, jq included.
+
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
+## [0.4.15] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.4.14] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.4.13] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.4.12] - 2026-09-30
+
+### Changed
+
+- README and `/go-format:setup check` state that the SessionStart probe reports a missing `goimports` wherever the plugin is enabled and `go_format_enabled` is not `false`, including a repository with no `.go` files.
+
+## [0.4.11] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.4.10] - 2026-09-29
+
+### Changed
+
+- The setup skill's install refusal cites the shared refusal reasons in `docs/plugin-philosophy.md` instead of a plugin-specific rationale.
+
+## [0.4.9] - 2026-09-29
+
+### Fixed
+
+- The setup skill's rerun caveat passes the scope `claude plugin list` reports (`user` from the home directory), per the plugin-reconfiguration convention.
+
+## [0.4.8] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.4.7] - 2026-09-29
 
 ### Fixed
