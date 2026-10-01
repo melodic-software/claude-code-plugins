@@ -1511,6 +1511,55 @@ def test_fill_handles_two_slots_on_the_this_session_line(tmp_path):
     assert validated.returncode == 0, out(validated) + err(validated)
 
 
+def test_this_session_carries_one_rescan_line_and_refuses_a_second_or_a_stray(tmp_path):
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    payload["rescan"] = "read the lossless on-disk transcript; no compaction occurred"
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    text = target.read_text(encoding="utf-8")
+    assert text.count("\nRe-scan: read the lossless on-disk transcript") == 1
+    assert run("validate", str(target), "--strict-transcript").returncode == 0
+    for extra in ("Re-scan: again", "a stray line"):
+        target.write_text(
+            text.replace("\nRe-scan: ", f"\n{extra}\nRe-scan: ", 1),
+            encoding="utf-8",
+            newline="\n",
+        )
+        assert run("validate", str(target), "--strict-transcript").returncode == 1, extra
+
+
+def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
+    """An attestation an earlier chain wrote into Constraints is an ordinary
+    entry: it stays, so the successor still validates."""
+    target = new_hop2_skeleton(tmp_path)
+    text = target.read_text(encoding="utf-8")
+    assert "Re-scanned" not in text
+    old = "- [h1] Re-scanned the visible conversation only; a compaction occurred this session."
+    hop1 = target.parent / HOP1
+    hop1.write_text(
+        hop1.read_text(encoding="utf-8").replace(
+            "- [h1] The thing must stay green.",
+            f"- [h1] The thing must stay green.\n{old}",
+            1,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert run("validate", str(hop1), "--strict-transcript").returncode == 0
+    repo = target.parent.parent.parent
+    target.unlink()
+    run(
+        *new_args(
+            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+        )
+    ).check_returncode()
+    carried = target.read_text(encoding="utf-8")
+    assert old in carried
+    payload = required_slots(carried)
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    assert run("validate", str(target), "--strict-transcript").returncode == 0
+
+
 def test_fill_multi_line_value_lands_as_lines_in_place(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))

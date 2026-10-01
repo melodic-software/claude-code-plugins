@@ -206,6 +206,7 @@ DIRECTIVE_TAIL = (
 PRIOR_SESSION_RE = re.compile(r"^Prior session: ([0-9A-Fa-f-]{36})\.$")
 THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
+RESCAN_PREFIX = "Re-scan: "
 NEXT_CLOSED = "Next: none (closed)"
 NEXT_MAX = 5
 OPENING_ASK_CAP = 15
@@ -1013,9 +1014,12 @@ def validate_doc(
     this = doc.section("This session")
     if this is not None:
         content = [line for line in this if line.strip()]
-        if len(content) != 1:
+        rescan = content[1:]
+        if not content or len(rescan) > 1 or any(
+            not line.strip().startswith(RESCAN_PREFIX) for line in rescan
+        ):
             f.fail(
-                f"This session: exactly one line 'did: … · left: …' required (found {len(content)})"
+                f"This session: one line 'did: … · left: …', optionally followed by one '{RESCAN_PREFIX}…' line, required (found {len(content)})"
             )
         else:
             line = content[0].strip()
@@ -1649,6 +1653,11 @@ def build_skeleton(
             + _fill("did", "what landed this session, past tense, no '|'")
             + " · left: "
             + _fill("left", "what is still open, past tense, no 'next', no '|'"),
+            RESCAN_PREFIX
+            + _fill(
+                "rescan",
+                "one line: the constraints re-scan read the lossless on-disk transcript, or 'visible conversation only; a compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried constraints'",
+            ),
         ],
     )
 

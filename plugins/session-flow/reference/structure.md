@@ -65,7 +65,7 @@ reader who needs more.
 | 12 | Open questions to investigate | unknowns the resuming session can resolve itself |
 | 13 | Blockers needing an outside decision | work that cannot proceed without someone else |
 | 14 | Suggested skills | which skills to invoke for the remaining work |
-| 15 | This session | one past-tense `did: … · left: …` line about THIS hop |
+| 15 | This session | one past-tense `did: … · left: …` line about THIS hop, then its `Re-scan: …` attestation line |
 | 16 | Prior sessions | one table row per prior hop, copied forward |
 | 17 | Resume prompt | the rails block exactly as emitted on screen; always last |
 
@@ -116,6 +116,10 @@ state of now).
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that
   itself failed validation has every carried entry prefixed
   `UNVERIFIED (predecessor failed validation):` after its tag.
+- **A hop's re-scan attestation is not an entry.** It describes how THIS hop closed §4, so it
+  lives in §15's `Re-scan:` line (see "Constraints that must hold" and "This session") and is
+  never appended to a cumulative section. An attestation entry that an earlier chain wrote into
+  §4 is an ordinary entry: it is carried, or moved under `Superseded:`, never deleted.
 
 ### Original goal
 
@@ -209,7 +213,9 @@ section 8.
 
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
 case". Those words mark constraints that emerged mid-discussion and never rose to a top-line
-bullet, and an omitted one is exactly what the resuming session ships as a bug.
+bullet, and an omitted one is exactly what the resuming session ships as a bug. Record how the
+re-scan was done on the `Re-scan:` line of section 15, never as a Constraints entry: the
+attestation is about this hop alone, and an entry here would be copied forward by every later hop.
 
 **Compaction changes what "the conversation" is.** Detect it from a concrete signal, a compaction
 notice or summary turn actually present in this conversation, never inferred from the history
@@ -219,15 +225,15 @@ happen mid-session without being the reason `/session-flow:handoff` was invoked,
 not the invocation reason.) Once that signal is present, the model-visible conversation is the
 summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
 summarizer already dropped. Exactly one of the following must be true when the section closes, and
-the section must say which. Silence on this point reads as the first, so it is never a third
-option:
+the `Re-scan:` line of section 15 must say which. Silence on this point reads as the first, so it
+is never a third option:
 
 - The re-scan read the lossless on-disk transcript instead of, or in addition to, the model-visible
   conversation, which stays lossless across compaction (the same record `retro`'s parser reads:
   `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`, paths resolved per retro's
   "Paths"; `/session-flow:running-retro`'s "2. Resolve inputs for the subagent" is a worked example
   of reading it without flooding the current context with the raw record).
-- It did not, and the section states so explicitly: "Re-scanned the visible conversation only; a
+- It did not, and the line states so explicitly: "Re-scan: visible conversation only; a
   compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried
   constraints."
 
@@ -404,11 +410,15 @@ When no skill maps to the remaining work, write `None — remaining work runs in
 
 ### This session
 
-Exactly one line, about THIS hop only, in the past tense:
+One `did/left` line, about THIS hop only, in the past tense, then one `Re-scan:` line:
 
 ```markdown
 did: wrote the re-run test and got it green · left: the staging migration and the double-run check
+Re-scan: read the lossless on-disk transcript; no compaction occurred
 ```
+
+The `Re-scan:` line is the hop's constraints re-scan attestation (the two statements are in
+"Constraints that must hold"). It is rewritten each hop and never carried, so a chain holds one.
 
 The separator is a middle dot, `·` (U+00B7), with a space either side; the validator matches
 `did: … · left: …` literally. `did` is what landed, `left` is what is still open, both past
