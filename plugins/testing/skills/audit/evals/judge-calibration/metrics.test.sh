@@ -435,7 +435,9 @@ check "the rater's repository holds the case's files" "grep -qx './src/add.ts' \
 check "and nothing else" "! grep -qvx -e ./src/add.ts -e ./test/add.test.ts -e ./flag.test.sh \"\$STUB_DIR\"/rater-*.ls"
 cargs="$(for f in "$STUB_DIR"/codex-*.args; do tr '\0' '\n' <"$f"; done)"
 assert_contains "codex runs read-only in the case repository" "$cargs" $'exec\n-s\nread-only\n-C\n/'
-for f in --ephemeral --skip-git-repo-check --json -o; do assert_contains "codex gets $f" "$cargs" $'\n'"$f"$'\n'; done
+for f in --ephemeral --skip-git-repo-check --json -o --ignore-user-config; do assert_contains "codex gets $f" "$cargs" $'\n'"$f"$'\n'; done
+assert_contains "codex runs without web search" "$cargs" $'\n-c\nweb_search=disabled\n'
+assert_contains "codex runs without connected apps" "$cargs" $'\n-c\nfeatures.apps=false\n'
 assert_empty "labels.tsv is untouched until --merge" "$(col "$RW/labels.tsv" opus_label | tr -d '\n')"
 
 out="$(bash "$RATERS" --merge "$RW/labels.tsv" 2>&1)"

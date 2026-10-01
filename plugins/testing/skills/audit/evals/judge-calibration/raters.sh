@@ -20,7 +20,9 @@
 # stratum, split or another label. opus runs as `claude -p` with the judge's
 # isolation: Read, Grep and Glob scoped to that repository, and no hooks,
 # settings, MCP servers or slash commands. Codex runs `codex exec` in its
-# read-only sandbox, which does not refuse reads outside the directory, so a
+# read-only sandbox without the user's config.toml (so no MCP servers, plugins
+# or AGENTS.md), web search or connected apps. The sandbox does not refuse
+# reads outside the directory, so a
 # row fails, with no label, when its transcript or answer names labels.tsv,
 # judge-calibration, tautological-tests-judge (where the user labels), LABELS.md or a case or row id. Exits 1 when any row failed.
 #
@@ -100,7 +102,8 @@ Reply with one JSON object and nothing else: {\"label\": \"FLAG\", \"reason\": \
       --output-format stream-json --verbose "$prompt" </dev/null >"$TMPD/out" 2>&1)
     answer="$(jq -Rr 'fromjson? | select(.type? == "result") | .result // empty' "$TMPD/out")"
   else
-    "$CODEX" exec -s read-only -C "$t" --ephemeral --skip-git-repo-check --json -o "$TMPD/answer" "$prompt" \
+    "$CODEX" exec -s read-only -C "$t" --ephemeral --skip-git-repo-check --ignore-user-config \
+      -c web_search=disabled -c features.apps=false --json -o "$TMPD/answer" "$prompt" \
       </dev/null >"$TMPD/out" 2>&1
     [[ -f "$TMPD/answer" ]] && answer="$(<"$TMPD/answer")"
   fi
