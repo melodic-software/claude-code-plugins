@@ -394,12 +394,15 @@ printf '#!/usr/bin/env bash\nexit 2\n' >"$TMP/scanner-2.sh"
 out="$(payload z2 stop "" '{"hook_event_name": "Stop"}' | TEST_SCAN_SCANNER="$TMP/scanner-2.sh" bash "$HOOK" 2>/dev/null)"
 rc=$?
 check "scanner exit 2: exit 0" '((rc == 0))'
-printf 'mktemp() { : "$__unset_on_purpose"; }\n' >"$TMP/crash.sh"
+# mapfile first runs in judge::load, in the main shell, after the state was
+# found and the library sourced: an unbound variable there ends the script.
+printf 'mapfile() { : "$__unset_on_purpose"; }\n' >"$TMP/crash.sh"
 transcript z3 claude-sonnet-5
 record z3 w1 "$Z" null
 out="$(payload z3 stop "" '{"hook_event_name": "Stop"}' | BASH_ENV="$TMP/crash.sh" bash "$HOOK" 2>/dev/null)"
 rc=$?
 check "a crash in the script: exit 0 and no partial output" '((rc == 0)) && [[ -z "$out" ]]'
+check "the crash happened mid-run (the unbound variable is in the log)" 'grep -q "__unset_on_purpose: unbound variable" "$DATA/test-judge.log"'
 
 # TEST_JUDGE_ACTIVE=1 exits at once.
 stub_reset
