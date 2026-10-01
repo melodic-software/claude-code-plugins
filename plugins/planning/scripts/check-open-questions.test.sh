@@ -780,13 +780,13 @@ expect_exit "--procedure alone without a ledger -> 2" 2 --procedure
 many_bad="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
-- Q3 | answerd | round 1 | Format? | markdown
+- Q3 | donee | round 1 | Format? | markdown
 - Q2 | answered (restated after Q3) | round 1 | Moderation? | later
 - Q4 | open | round 2 | Retention? |
 EOF
 )"
 many_bad_err="$(stderr_of --ledger "$many_bad")"
-for want in "line 10: unknown status 'answerd'" "line 11: question id out of order: Q2 follows Q3" "line 11: unknown status 'answered (restated after Q3)'"; do
+for want in "line 10: unknown status 'donee'" "line 11: question id out of order: Q2 follows Q3" "line 11: unknown status 'answered (restated after Q3)'"; do
   if [[ "$many_bad_err" == *"$want"* ]]; then pass "row errors name '$want'"; else fail "row errors name '$want' (stderr: '$many_bad_err')"; fi
 done
 expect_exit "row errors still exit 2" 2 --ledger "$many_bad"
