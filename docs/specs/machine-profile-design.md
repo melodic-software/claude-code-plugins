@@ -3,7 +3,8 @@
 Design for a re-runnable machine profile that discovers host facts once, stores them, and hands
 each plugin's `setup` the answers. Tracked by
 [#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666). This document
-records design only: it changes no setup contract, no invocation-mode class, and no plugin.
+records the design and its rulings. The build adds a `claude-ops` skill and changes no setup
+contract and no invocation-mode class.
 
 ## Contents
 
@@ -15,9 +16,9 @@ records design only: it changes no setup contract, no invocation-mode class, and
 - [Manual-change policy](#manual-change-policy)
 - [Reuse and machine-health](#reuse-and-machine-health)
 - [Placement](#placement)
-- [Out of scope until the later decision](#out-of-scope-until-the-later-decision)
+- [Out of scope](#out-of-scope)
 - [Acceptance criteria left for the build](#acceptance-criteria-left-for-the-build)
-- [Open questions](#open-questions)
+- [Rulings](#rulings)
 - [Verification record](#verification-record)
 
 ## Problem
@@ -236,20 +237,18 @@ profile's `diff` is the only consumer.
 **Recommendation: a skill in `claude-ops`, not a new plugin.**
 **Basis:** `claude-ops` already owns fleet state and ships `prerequisites` and `inventory`, the two
 skills the profile reads; a new plugin would add a third owner of host facts beside
-`machine-health`. Judgment on the remaining half: whether the skill's scope is too broad for
-`claude-ops` stays with the owner when ruling on this document. The decision is recorded in
+`machine-health`. The owner ratified the placement. The decision is recorded in
 [ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md).
 
-## Out of scope until the later decision
+## Out of scope
 
-Held for the owner's later ruling on this document:
+Not part of the build:
 
 - Any change to the setup contract, and any change to `validate-plugin-contracts.mjs`.
 - Amending invocation-mode class (ii) or adding a class, and any change to a `setup` skill's
   `disable-model-invocation` value.
 - Adding a model-invocable `check` skill for a plugin that lacks one.
-- Version bumps and CHANGELOG entries for any touched plugin.
-- The skill itself, its scripts, and its tests.
+- Version bumps and CHANGELOG entries for any plugin other than `claude-ops`.
 
 ## Acceptance criteria left for the build
 
@@ -268,21 +267,17 @@ tree under a scratch `HOME` and no real-host specifics:
   `npm view ctx7 version` writes `.npm/_logs` and an update-notifier marker under `HOME`. Test:
   hash both trees before and after. `apply` writes nothing without an explicit confirm.
 
-## Open questions
+## Rulings
 
-Each is for the later decision on this document. Placement is settled by
-[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md) and is not open here.
+Placement is settled by
+[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md).
 
-1. **Class (ii).** Amend class (ii), add a class, or leave the setup skills hidden and rely on
-   reproduction. Recommendation: leave them hidden until the profile is built and shows a check the
-   wrappers and reproduction cannot cover. Unblocks: whether the fleet contract change happens at
-   all.
-2. **Keying deviation.** Ratify a non-project-keyed machine section under plugin-data-report-keying.
-   Recommendation: ratify, with per-domain sections keyed by tree. Unblocks: the store's path scheme.
-3. **The machine-health feed.** Whether machine-health ships a `config` check that reads the
-   profile, or the profile's `diff` stays the only consumer. Recommendation: ship the check only
-   once the profile exists and runs on an OS whose machine-health checks are implemented. Unblocks: the handoff
-   contract.
+1. **Class (ii).** The setup skills stay hidden and class (ii) is unchanged. The profile relies on
+   reproduction and relay.
+2. **Keying deviation.** A non-project-keyed machine section is ratified under
+   plugin-data-report-keying, with per-domain sections keyed by tree.
+3. **The machine-health feed.** The machine-health `config` check is deferred until the profile
+   exists and runs on an OS whose machine-health checks are implemented.
 
 ## Verification record
 

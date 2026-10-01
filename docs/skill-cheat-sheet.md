@@ -312,6 +312,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
+| [`/claude-ops:machine-profile`](../plugins/claude-ops/skills/machine-profile/SKILL.md) | `claude-ops` | weekly | Discover, store and diff machine facts and per-tree identity domains. Read-only by default. |
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
 | [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |

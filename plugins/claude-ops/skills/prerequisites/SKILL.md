@@ -29,6 +29,7 @@ With no arguments and a `claude` executable on PATH, the script reads the enable
 ## Next
 
 - A formatter or linter binary is missing: /actionlint:check, /bash-format:check, /biome-format:check, /go-format:check, /markdown-format:check, /powershell-format:check, /ruff-format:check or /typos-format:check
+- Record the whole machine's facts and identity domains, not only binaries: /claude-ops:machine-profile
 - The fleet's versions, a different question: /claude-ops:plugins audit
 
 ## Gotchas
