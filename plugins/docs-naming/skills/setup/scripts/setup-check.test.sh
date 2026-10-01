@@ -162,6 +162,7 @@ out="$(check "$root")"
 assert_contains "a retired-name team layer is named" "$out" "WARN  layer team"
 assert_contains "the retired-name row says which file" "$out" "$root/.claude/docs-hygiene.json is the retired docs-hygiene name"
 assert_contains "the resolve row still passes" "$out" "PASS  resolve"
+assert_contains "the tracked row points at the rename, not at apply" "$out" "git mv .claude/docs-hygiene.json .claude/docs-naming.json"
 
 # 14. Usage.
 assert_eq "--help exits 0" "0" "$(

@@ -27,7 +27,8 @@
 #                 `roots=["docs","guide"]` sets a list and `rule=lower-kebab`
 #                 sets a scalar.
 #
-# Exit: 0 written or already configured, 2 usage error or an unwritable target.
+# Exit: 0 written or already configured, 2 usage error, an unwritable target, or a
+#       team layer still at the retired docs-hygiene name (rename it first).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -90,6 +91,12 @@ fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
 TARGET="$ROOT/$TARGET_REL"
+
+# A fresh docs-naming.json would shadow the retired-name file the resolver still
+# reads, silently dropping its settings.
+if [[ ! -f "$TARGET" && -f "$ROOT/.claude/docs-hygiene.json" ]]; then
+  die "$ROOT/.claude/docs-hygiene.json is the retired name of this layer; run: git mv .claude/docs-hygiene.json $TARGET_REL"
+fi
 
 if [[ -f "$TARGET" ]]; then
   current="$(jqr -e . "$TARGET" 2>/dev/null)" || die "the existing team layer is not valid JSON: $TARGET"

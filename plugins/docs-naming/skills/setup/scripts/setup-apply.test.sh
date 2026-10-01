@@ -129,6 +129,19 @@ assert_eq "a malformed existing layer exits 2" "2" "$(
 )"
 assert_eq "a malformed existing layer is left as it was" "{broken" "$(cat "$(target "$root")")"
 
+# 11b. A team layer still at the retired docs-hygiene name is refused, never
+#      shadowed by a fresh docs-naming.json.
+root="$(new_repo)"
+mkdir -p "$root/.claude"
+printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-hygiene.json"
+err="$(bash "$SUT" --defaults --root "$root" 2>&1 >/dev/null)"
+assert_eq "a retired-name team layer exits 2" "2" "$(
+  bash "$SUT" --defaults --root "$root" >/dev/null 2>&1
+  printf '%s' "$?"
+)"
+assert_contains "the refusal names the rename" "$err" "git mv .claude/docs-hygiene.json .claude/docs-naming.json"
+assert_eq "no docs-naming.json is written beside it" "absent" "$([[ -e "$(target "$root")" ]] && echo present || echo absent)"
+
 # 12. The bundled template itself is valid and carries every documented key.
 missing="$(jq -r '
   ["roots","rule","regex","exempt_basenames","exempt_paths","exempt_extensions",

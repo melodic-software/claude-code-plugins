@@ -254,6 +254,8 @@ if [[ "$HAVE_GIT" -eq 1 && -f "$ROOT/$TEAM_LAYER" ]]; then
   else
     row WARN "team layer tracked" "$TEAM_LAYER is written but untracked; commit it to share it"
   fi
+elif [[ -f "$ROOT/.claude/docs-hygiene.json" && ! -f "$ROOT/$TEAM_LAYER" ]]; then
+  row INFO "team layer tracked" "the team layer is still at the retired name; git mv .claude/docs-hygiene.json $TEAM_LAYER"
 elif [[ ! -f "$ROOT/$TEAM_LAYER" ]]; then
   row INFO "team layer tracked" "no team layer yet; run setup apply --defaults to write one"
 fi

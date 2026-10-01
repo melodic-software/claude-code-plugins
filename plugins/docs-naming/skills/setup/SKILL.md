@@ -83,7 +83,9 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    and taken as a string when it does not, so `roots=["docs","guide"]` sets a
    list and `rule=lower-kebab` sets a scalar. The script prints
    `already configured` without touching the file when nothing changes, and
-   writes `.claude/docs-naming.json` and nothing else.
+   writes `.claude/docs-naming.json` and nothing else. It refuses, exit 2, while
+   the team layer still sits at the retired `docs-hygiene` name: rename it with
+   `git mv` first, or the new file would shadow its settings.
 4. **Verify.** Re-run `check` and report the persisted values from its table,
    never from the write alone. A WARN saying the file is untracked means "commit
    it to share it", never success.
