@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.56.1] - 2026-10-01
+## [0.56.2] - 2026-10-01
 
 ### Fixed
 
 - **`interview`'s `context/loop.md` no longer cites bundled files through the literal plugin-root token.** The token is not substituted in a `context/` file, so the page-surface Delivery bullet's `reference/topic-docs.md` link resolved to nothing and is now relative to the spoke, and the two register-gate commands now read `bash "<plugin-root>/scripts/check-open-questions.sh"`. `SKILL.md` gains a `## Spoke paths` section that defines `<plugin-root>`. The two `interview-defenses.test.sh` digests over the edited sections are re-pinned ([#5273](https://github.com/melodic-software/claude-code-plugins/issues/5273)).
+
+## [0.56.1] - 2026-10-01
+
+### Added
+
+- **`planning` ships a plugin eval suite for three skill cases.** Covers `brainstorm` observed-fact evidence bar and disconnected-scan-before-new-work, and `plan` unilateral-decision-not-folded; run with `claude plugin eval`, no skill text changes ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
 
 ## [0.56.0] - 2026-10-01
 
