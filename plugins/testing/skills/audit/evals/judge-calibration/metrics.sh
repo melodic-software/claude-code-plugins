@@ -159,7 +159,8 @@ check() {
 # id, verdict, the ledger's model and effort, reason.
 arm() {
   local labels="$1" dir="$2" fx id t target s n rows names lines info r tid test ord name kh o v hit
-  while IFS= read -r fx; do
+  # fd 3: the judge and scanner children inherit stdin and may read it.
+  while IFS= read -r fx <&3; do
     t="$TMPD/repo"
     rm -rf "${t:?}" "$DATA/verdicts"
     mkdir -p "$t"
@@ -177,8 +178,9 @@ arm() {
       awk -F- 'NF { for (i = $1; i <= ($2 == "" ? $1 : $2); i++) print i }' | jq -sc .)"
     info="$(jq -cn --arg f "$target" --arg r "$t" --argjson names "$names" --argjson lines "$lines" \
       '{file: $f, repo: $r, whole: false, names: $names, base_ok: 0, lines: $lines, writers: [], owner: ""}')"
+    git -C "$t" add -A && git -C "$t" -c user.name=calibration -c user.email=calibration@localhost commit -qm case
     judge::derive "$info"
-    [[ -z "$KEYS" ]] || judge::run "$info" "$KEYS" "$JUDGE_RUN_TIMEOUT" "$HINT"
+    [[ -n "$KEYS" ]] && judge::reserve_run && judge::run "$info" "$KEYS" "$JUDGE_RUN_TIMEOUT" "$HINT" "$RUNRES"
     while IFS=$'\t' read -r tid test _; do
       ord=1 name="$test"
       [[ "$test" =~ ^(.*)\ \#([0-9]+)$ ]] && name="${BASH_REMATCH[1]}" ord="${BASH_REMATCH[2]}"
@@ -190,10 +192,11 @@ arm() {
         printf '%s\tUNKNOWN\t-\t-\tno verdict for this block\n' "$tid"
         continue
       fi
-      v="$(judge::validate "$DATA/verdicts/$PKEY/$SID/$hit.json")"
-      jq -r --arg id "$tid" '[$id, .verdict, .model, .effort, (.reason // "" | gsub("[\t\n]"; " "))] | @tsv' <<<"$v"
+      judge::relay_reset
+      judge::validate "$DATA/verdicts/$PKEY/$SID/$hit.json" "$target"
+      jq -r --arg id "$tid" '[$id, .verdict, .model, .effort, (.reason // "" | gsub("[\t\n]"; " "))] | @tsv' <<<"$RELAY"
     done <<<"$rows"
-  done < <(awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } !seen[$c["file"]]++ { print $c["file"] }' "$1")
+  done 3< <(awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } !seen[$c["file"]]++ { print $c["file"] }' "$1")
 }
 
 sweep() {
@@ -208,6 +211,8 @@ sweep() {
   source "$HOOK_DIR/scanner-run.sh"
   # shellcheck source=../../../../hooks/judge-lib.sh
   source "$HOOK_DIR/judge-lib.sh"
+  # No session limit on calibration runs: every case gets its reservation.
+  unset CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
   export CAL_JUDGE_INNER="${TEST_JUDGE_CMD:-claude}" CAL_COST_LOG
   TEST_JUDGE_CMD="$SELF"
   printf '| model | effort | holdout FLAG precision [95%% CI] | holdout FLAG recall [95%% CI] | UNKNOWN rate | cost per case |\n'
