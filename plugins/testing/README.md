@@ -48,14 +48,78 @@ skills, one concern: proving behavior with tests.
 
 Test structure and conventions come from your own project's `CLAUDE.md` and rules.
 
-Two `userConfig` options, prompted by Claude Code at enable time:
+`userConfig` options, prompted by Claude Code at enable time (all listed under Options reference
+below):
 
 - `test_guards_enabled` (default `false`) turns on two hooks. `test-scan` (PostToolUse) runs the
   can't-fail scanner on each test file Claude writes or edits and returns the findings as
   context. `test-weaken` (PreToolUse) asks Claude for a reason when an edit removes or skips tests
   or assertions.
+- `test_judge_enabled` (default `false`, and only effective with `test_guards_enabled`, whose scan
+  records the tests it judges) turns on the task-end test judge, described below.
+  `test_judge_model` (default `opus`) and `test_judge_fallback_model` (default `sonnet`) name the
+  judge's model class, and `test_judge_effort` (default `medium`) its effort.
+  `test_judge_session_runs` (unset: no limit) caps the judge runs one session starts.
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
   fails open.
+
+### Task-end test judge
+
+A separate headless `claude -p` run asks one question of each test block the session created or
+changed: where did its expected value come from? It answers FLAG (the value restates the
+implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
+applies anything. A background job judges soon after a write; at the end of the task the Stop hook
+waits for any run still going, judges what is left (10 tests per task end, the rest at the next
+one), writes a review-findings file (under `.work/reviews/<branch>/`, or the `memory_dir` that
+`.claude/topic-docs.yaml` names), and shows the counts. In an interactive session it also asks
+Claude once to show you each verdict and proposed diff and wait; unattended sessions get the
+counts and the file only. A session that ended before its verdicts were shown gets them named at
+the next session start. The writing agent never supplies the judge's prompt, model or output, and
+the judge's model class always differs from every model that wrote the tests: when the configured
+class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
+three wrote them the tests are reported UNKNOWN.
+
+Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
+in another file of the repository (tracked, or untracked and not ignored), since the line of code
+an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
+diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
+evidence, source or diff. The repository is the git toplevel of the test file's own directory,
+whatever the hook's working directory. In the findings file each judge field is kept on one line
+and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
+the diff's fence is longer than any run of backticks inside it, so judge text cannot add a heading,
+a table row or a fence. The memory root and the findings directory must resolve, symbolic links
+followed, inside the checkout, before and after they are created. The `.gitignore` is written only
+where no name exists yet, or kept when it is a regular file; a link, FIFO or anything else there is
+refused. The findings file is written to a new temporary file in the checked directory, the
+directory is checked again, and the file then takes the first free name with `mv -n`, so any name
+already taken (by a file, a link or anything else) is skipped. A check that fails sends the file
+to `findings/` in the plugin data directory. A local process that swaps a directory between those
+steps can still race them; that residual is accepted. A
+`memory_dir` with characters outside `[A-Za-z0-9._/-]` or a `..` component is ignored for `.work`.
+
+What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
+limit, the test-file globs, adapters and rule levels in `.claude/testing.yaml`, and a per-test
+`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn
+relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+blocks on its own failure; it never applies a fix; and its malfunction guards (a
+$0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
+machine).
+
+What it reaches: only test blocks the session created or changed, or that gained a
+`cant-fail-ok:` marker. It judges the block's text, so a stub set up in `beforeEach` or a snapshot
+kept in a `.snap` file is outside what it sees. A bash test script with no test blocks is judged
+as one whole file, with the changed lines as a hint. A test file a Bash call changed is recorded
+and judged when Claude Code records the call's changed files (`bashEditDiffEnabled: true` in
+user, `--settings` or managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`, and within the Bash
+route's limits below); no background job starts for a Bash call, so the Stop hook judges those
+tests itself. Test files written through an MCP tool are not recorded, so they are not judged. A
+test file in no git repository is not judged: the judge's reads are scoped to the repository, so
+it is reported UNKNOWN, "no repository". A symbolic link inside the repository that points outside
+it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
+and refused, and its Grep does not follow a linked directory (probe R2-P15). A
+glob added only through the consumer settings entry `/testing:setup check` prints
+(`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
+judges those tests at the task end, again with no background job ahead of it.
 
 `/testing:run-e2e` reads one optional consumer-project config surface,
 `.claude/testing/e2e.md`: `recording` (`video | gif | off`, default `off`) and
@@ -118,6 +182,11 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
+| `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At the end of each task, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
+| `test_judge_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
+| `test_judge_fallback_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus, sonnet or haiku. |
+| `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge: low, medium, high, xhigh or max. |
+| `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these

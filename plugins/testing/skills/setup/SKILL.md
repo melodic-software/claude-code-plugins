@@ -48,6 +48,32 @@ audit and the `test-scan` hook go quiet with no plugin change; an excluded path 
 adapter silences `test-weaken` too. Additions reach the audit at once, and the
 hook only through the settings entry `check` prints.
 
+## The task-end test judge
+
+Three plugin options, not keys of this file, turn on and tune the judge: `test_judge_enabled`
+(default `false`; it needs `test_guards_enabled`, whose scan records the tests it judges),
+`test_judge_model` and `test_judge_fallback_model` (model classes `fable`, `opus`, `sonnet` or
+`haiku`; defaults `opus` and `sonnet`), plus `test_judge_effort` (default `medium`) and
+`test_judge_session_runs` (unset: no limit). At the end of each task a separate model asks where
+the expected value of each test the session created or changed came from, and reports FLAG, PASS
+or UNKNOWN with quoted evidence and a proposed diff it never applies.
+
+- Tunable: the options above, and through this file the test globs, adapters and rule levels that
+  decide which files are recorded; per test, a `cant-fail-ok: <reason>` marker, which puts its
+  block in front of the judge rather than hiding it.
+- Fixed: the judge's one question; its one forced turn relays verdicts for the user to approve,
+  and it never gates a stop, a commit or `--check` and never blocks on its own failure; it never
+  applies a fix; its model class differs from every model that wrote the tests; its malfunction guards.
+- Reach: only blocks the session created or changed or that gained a marker, judged by their own
+  text, so a stub in `beforeEach` or a snapshot in a `.snap` file is outside it; a bash test script
+  is one whole file; a test file a Bash call changed is recorded and judged at the Stop when Claude
+  Code records the call's changed files (`bashEditDiffEnabled: true` in user, `--settings` or
+  managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`); writes through an MCP tool are not
+  recorded.
+- A glob added only through the settings entry `check` prints is recorded in the same plugin data
+  directory as the shipped rows, so the Stop hook judges those tests at the task end. No background
+  job starts for them, so that judging happens at the Stop rather than ahead of it.
+
 ## `check` (read-only)
 
 Run the script and show its output as it prints:
