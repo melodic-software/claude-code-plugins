@@ -1945,13 +1945,27 @@ def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None
 
 
 def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool:
-    """Whether code outside the straight line of the block declaring `ident`
-    at `pos` writes that binding: a nested block (`if(c){x=2}`, a loop
-    body), a function (`function f(){x=2}`), or an expression-bodied arrow
-    (`()=>x=2`). Whether and when that write runs is not static. A write
-    that a nearer declaration of `ident` shadows is to that local instead.
+    """Whether the binding at `pos` may not hold its initializer when read:
+    it is a bare assignment rather than a declaration (`if(c)x=2`,
+    `c&&(x=2)`), it sits in an expression-bodied arrow (`()=>x=2`), or any
+    other code writes it, in the same block (`if(c)x=2;`), a nested block,
+    or a function. A write that a nearer declaration of `ident` shadows is
+    to that local instead.
     """
-    home = braces.enclosing(pos)
+    ident_re = r"[A-Za-z_$][\w$]*"
+    simple = r"(?:" + _STR + r"|[\w$.]+|\[(?:" + _STR + r'|[^\[\]"])*\])'
+    chain = re.compile(
+        r"(?<![\w$.])(?:var|let|const)\s+(?:"
+        + ident_re
+        + r"\s*=\s*"
+        + simple
+        + r"\s*,\s*)*$"
+    )
+    # `_declares` misses a declarator whose statement follows a function
+    # declaration's `}`; a `var` reached back through simple declarators is
+    # one too.
+    if not (_declares(src, pos) or chain.search(src, max(0, pos - 4096), pos)):
+        return True
     lo, hi = _chunk_span(src, pos)
 
     def in_arrow(at: int) -> bool:
@@ -1969,10 +1983,7 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
         w = w.start()
         if not _visible(braces, pos, w, src):
             continue
-        block = braces.enclosing(w)
-        if block == home and not in_arrow(w):
-            continue
-        scope = _function_block(src, braces, w) or block
+        scope = _function_block(src, braces, w) or braces.enclosing(w)
         if scope is None or not any(
             d.start() != pos
             and _declares(src, d.start())

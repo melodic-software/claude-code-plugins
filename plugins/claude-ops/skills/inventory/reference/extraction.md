@@ -274,9 +274,10 @@ export can name it plainly (`export{qHe}`) while a later statement renames it. `
 `disallowedTools` resolve element by element (literals, tool-name constants, one level of
 `...spread`); `get tools(){...}` is `getter` and `tools:uw.tools` is `reference`, each null. A
 spread reads the binding its own module and scope see, not the nearest same-name binding in the
-bundle; when that binding is not an array literal, or code off the declaring block's straight line
-assigns it (a nested block, a function, or an expression-bodied arrow such as
-`function init(){pY=[...]}`), the list is `partial`.
+bundle. When that binding is not an array literal, is itself a bare or conditional assignment
+rather than a declaration, or any other code assigns it (a conditional write in the same block such
+as `if(c)pY=["B"]`, a nested block, a function such as `function init(){pY=["B"]}`, or an
+expression-bodied arrow such as `()=>pY=["B"]`), the list is `partial`.
 
 ### 10. Find built-in tools by shape, not by builder
 

@@ -1193,6 +1193,10 @@ class TestBuiltinAgents(unittest.TestCase):
             'var pY=[xt,"Artifact"];for(;;){pY=["Other"]}',
             'var pY=[xt,"Artifact"];var f=()=>pY=["Other"];f();',
             'var f=()=>pY=["Other"];var pY=[xt,"Artifact"];f();',
+            'var pY=[xt,"Artifact"];if(c)pY=["Other"];',
+            'var pY=[xt,"Artifact"];pY=c?["Other"]:pY;',
+            'var pY=[xt,"Artifact"];c&&(pY=["Other"]);',
+            'var pY=[xt,"Artifact"];for(;;)pY=["Other"];',
         ):
             src = AGENT_SRC + (
                 prelude + 'var SP={agentType:"spread-probe",'
@@ -1201,6 +1205,16 @@ class TestBuiltinAgents(unittest.TestCase):
             )
             rec = self._extract(src)[0]["spread-probe"]
             self.assertEqual(rec["disallowed_tools_source"], "partial", prelude)
+
+    def test_a_spread_declared_after_a_function_declaration_resolves(self) -> None:
+        src = AGENT_SRC + (
+            'function h(){return 1}var a="x",b=["y","z"],pY=[xt,"Artifact"],q=1;'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
 
     def test_a_spread_whose_writer_shadows_the_name_still_resolves(self) -> None:
         src = AGENT_SRC + (
