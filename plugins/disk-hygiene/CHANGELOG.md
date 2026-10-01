@@ -15,6 +15,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
+- **The belt's script filters match interpreter calls only.** The three script `if` patterns (`hygiene.py`, `kill_switch_probe.py`, `release_belt.py`) used to match any command containing the file name, so `git commit -m 'hygiene.py'` or `cat` of a script reached the belt. They now match only a `py*` interpreter calling the bundled script path. A command containing `$()` or backticks still reaches the belt through every wildcard-led filter and is denied; the README and safety model state this.
 - **The README, safety model and `clean` skill state the belt's threat model, governed shapes, accepted gaps and subagent behavior.** An earlier release note called the belt's subagent reach "inconsistent"; the 0.29.0 entry now says it does not reach subagents, as the 2.1.285 probe showed.
 
 ## [0.42.2] - 2026-09-30
