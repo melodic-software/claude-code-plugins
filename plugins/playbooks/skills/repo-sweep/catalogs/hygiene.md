@@ -278,7 +278,7 @@ Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), 
 
 ### file-names
 
-- skill: docs-hygiene:audit-file-names, docs-hygiene:realign-file-names
+- skill: docs-naming:audit-file-names, docs-naming:realign-file-names
 - args:
 - applies-when: repo has a docs tree and a file-name casing rule
 - checked: false

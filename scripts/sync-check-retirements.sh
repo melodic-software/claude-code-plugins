@@ -29,6 +29,7 @@ copies=(
   plugins/plugin-quality/lib/check-retirements.sh
   plugins/claude-ops/lib/check-retirements.sh
   plugins/attribution/lib/check-retirements.sh
+  plugins/docs-naming/lib/check-retirements.sh
 )
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"

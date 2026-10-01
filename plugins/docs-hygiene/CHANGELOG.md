@@ -1,5 +1,16 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.0] - 2026-10-01
+
+### Changed
+
+- **Breaking:** the `setup`, `audit-file-names`, `realign-file-names` and `generate-file-name-gate`
+  skills moved to the new `docs-naming` plugin; install it to keep them. `docs-hygiene` no longer
+  ships them. The config files are now `.claude/docs-naming.json` and `.claude/docs-naming.local.json`
+  (`docs-naming` reads the old `.claude/docs-hygiene*.json` names for one release with a warning), and
+  the memory directory and artifact type are renamed to `docs-naming`, so a rename plan in flight
+  needs a re-audit.
+
 ## [0.23.21] - 2026-09-30
 
 ### Changed
