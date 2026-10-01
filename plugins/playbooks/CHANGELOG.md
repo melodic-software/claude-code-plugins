@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.16.0] - 2026-10-01
+
+### Added
+
+- **The Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`.** It states
+  the deltas against Sonnet 5: the effort re-sweep, check-ins at low and medium effort, steering
+  when thinking is off, the `between_tools` 400 at xhigh and max, completion verification at low
+  effort, and fallback behavior. `fable-5` meta-rule 3, its description triggers and its evals route
+  Sonnet 5.5 sessions to the chapter.
+
 ## [0.15.4] - 2026-10-01
 
 ### Fixed
