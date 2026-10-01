@@ -92,6 +92,8 @@
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/no_assertion/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
@@ -103,6 +105,8 @@
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
@@ -114,6 +118,8 @@
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/calls_sut/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/calls_sut/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
@@ -125,6 +131,8 @@
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/no_assertion/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
@@ -134,6 +142,8 @@
       "prompt": "Run /mutation-testing:audit --exercised on a branch that adds scenarios/boundary/test_app.py. The testing plugin is not installed in this session.",
       "expected_output": "Refuses the exercised scope with a message naming the `testing` plugin: it is what recognizes which changed files are tests. Does not guess test files from their names, does not fall back to the diff scope silently, and mutates nothing.",
       "files": [
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py"
       ]
     },
@@ -144,6 +154,8 @@
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
         "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
         "evals/fixtures/exercised-scope/EXPECTED.md"
       ]
