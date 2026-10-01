@@ -33,7 +33,7 @@ Read in order:
    plus untracked files from git ls-files --others --exclude-standard.
 
 Run the checklist below. Do not edit files. Open your report with a `Criteria read:` line
-naming which of REVIEW.md, the cited criteria docs and the unscoped rules you read, or
+naming every review criteria source you read (REVIEW.md, review guidance in CLAUDE.md, AGENTS.md or a contributing guide, the cited criteria docs, and the unscoped and path-scoped rules), or
 `none present`, or `skipped: <reason>`. Close it with a `Coverage:` line naming the changed
 files you did not reach, or `all changed files reviewed`. Between them, return the findings
 table only.
