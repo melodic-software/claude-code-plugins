@@ -193,6 +193,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
+| [`/claude-ops:check`](../plugins/claude-ops/skills/check/SKILL.md) | `claude-ops` | Report whether node and jq resolve for the claude-ops hooks. Never installs. |
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
 | [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
