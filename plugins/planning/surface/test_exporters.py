@@ -444,6 +444,22 @@ class TestBriefIds(SessionCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
+    def test_a_ledger_only_named_field_deferral_reads_unescaped_in_defer_until(self):
+        ledger = self.gapped()
+        text = ledger.read_text(encoding="utf-8")
+        text = text.replace(
+            "deferred to planning", "answer:: deferred: after a\\;b", 1
+        ).replace(
+            "USER-RESERVED until the pilot",
+            "answer:: deferred; note:: wait for x\\;y",
+            1,
+        )
+        ledger.write_text(text, encoding="utf-8")
+        deferred = self.brief_with(ledger).split("### Deferred questions")[1]
+        self.assertIn("- Q3: Four unclaimed?, defer until after a;b;", deferred)
+        self.assertIn("- Q4: Which cap?, defer until wait for x;y;", deferred)
+        self.assertNotIn("\\;", deferred)
+
     def test_constraint_lines_carry_the_real_id_not_a_position(self):
         text = self.brief_with(self.gapped())
         constraints = text.split("### Constraints")[1].split("###")[0]

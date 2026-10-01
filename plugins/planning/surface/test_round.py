@@ -268,7 +268,9 @@ class TestRefusals(DirCase):
         self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
 
     def test_short_recommendation_does_not_warn(self):
-        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        rc, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q4", stage="interview"))
+        )
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
@@ -2234,6 +2236,74 @@ class TestRoundStamp(DirCase):
             "add", "--file", self.file("q.json", question("Q5", stage="build2"))
         )
         self.assertNotIn("no meta.stages label", err)
+
+
+class TestApplyWatcherWarning(DirCase):
+    def test_apply_with_no_watcher_warns_with_the_unhandled_count_and_still_writes(
+        self,
+    ):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "ask",
+                    "text": "why",
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+        ops = {"ops": [{"op": "reply", "id": "Q2", "text": "plain"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("no watcher armed; 1 unhandled events", err)
+        self.assertEqual(self.q("Q2")["history"][-1]["text"], "plain")
+
+
+class TestAddDefaultsToTheNewestStage(DirCase):
+    def test_an_add_with_no_stage_takes_the_newest_questions_stage_and_warns(self):
+        self.rp(
+            "add",
+            "--file",
+            self.file("a.json", question("Q4", stage="design", round=2)),
+        )
+        rc, _, err = self.rp("add", "--file", self.file("b.json", question("Q5")))
+        self.assertEqual(rc, 0, err)
+        self.assertEqual((self.q("Q5")["stage"], self.q("Q5")["round"]), ("design", 2))
+        self.assertIn("Q5 named no stage; used stage 'design', round 2", err)
+
+    def test_an_add_with_a_stage_does_not_warn(self):
+        _, _, err = self.rp(
+            "add", "--file", self.file("a.json", question("Q4", stage="design"))
+        )
+        self.assertNotIn("named no stage", err)
+
+
+class TestRepairRounds(DirCase):
+    def seed(self):
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": "l.md",
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+            "roundCells": {"Q1": "round 2 (was 12)", "Q2": "round 1 (design)"},
+        }
+        doc["questions"][0]["round"] = 12
+        self.write_doc(doc)
+
+    def test_status_lists_a_seeded_inflated_round_and_the_repair_fixes_only_it(self):
+        self.seed()
+        _, out, _ = self.rp("status")
+        self.assertIn("round drift: Q1 stored round 12", out)
+        self.assertIn("reads round 2", out)
+        self.assertNotIn("round drift: Q2", out)
+        rc, out, err = self.rp("repair-rounds")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual([q["round"] for q in self.doc()["questions"]], [2, 1, 1])
+        _, out, _ = self.rp("status")
+        self.assertNotIn("round drift", out)
+        rc, out, _ = self.rp("repair-rounds")
+        self.assertIn("no round drift", out)
 
 
 class TestReplyHintOnOwnAnswer(DirCase):
