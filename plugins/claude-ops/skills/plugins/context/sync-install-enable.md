@@ -53,7 +53,10 @@ policy. SKILL.md's **Configured value** line renders the actual value; that rend
 step's prose, is what to branch on:
 
 - **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select, then
-  `claude plugin install <id> -s user` for each the user picks
+  `claude plugin install <id> -s user` for each the user picks. A dismissed or unanswered prompt
+  means no picks: re-enter with `--only-install ""` (SKILL.md Step 3), which installs nothing and
+  still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
+  the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
 - **`all`**: `claude plugin install <id> -s user` for every entry, no prompt
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
