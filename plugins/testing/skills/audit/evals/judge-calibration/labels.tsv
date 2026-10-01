@@ -1,4 +1,4 @@
-id	source	language	file	test	in_scope	human_label	model_label	adjudicated_label	judge_verdict	evidence	note	stratum	split
+id	source	language	file	test	in_scope	human_label	opus_label	codex_label	judge_verdict	evidence	note	stratum	split
 seed-s3	authored for pocock S3 (SKILL.md: "a snapshot derived by hand the same way"); upstream gives no code	js-vitest	cases/seed-s3/receipt.test.ts.fixture	renders the receipt	yes						DT1: in scope; ships its authored implementation	seed	tune
 seed-g7	claude-code-plugins:.work/tautological-tests/pocock-critique/RESEARCH-gaps.md G7 (untracked): the two statements verbatim, the rest authored	js-vitest	cases/seed-g7/user-service.test.ts.fixture	gets a user by id	yes						DT1: in scope; ships its authored implementation	seed	holdout
 seed-t3	claude-code-plugins:.work/tautological-tests/phase4-pocock-examples.md T3 (untracked): the stubGlobal call verbatim from the reconstruction; the assertion authored (the talk does not give it)	js-vitest	cases/seed-t3/use-audio-boost.test.ts.fixture	boosts the audio element	no						DT1: out of scope (coupling), expected UNKNOWN; ships its authored implementation	seed	holdout

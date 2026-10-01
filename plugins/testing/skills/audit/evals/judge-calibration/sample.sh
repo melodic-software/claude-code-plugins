@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # sample.sh: build the unlabeled calibration set. Draws the in-use stratum from
 # the git histories of three repositories, then assigns every case file of
-# labels.tsv a split. Refuses once any label cell is filled. Reads the
+# labels.tsv a split. Reads labels.tsv's columns by header name, and refuses
+# once any label cell (a *_label or judge_verdict column) is filled. Reads the
 # repositories only (git log, git show, git ls-tree, git grep); writes cases/u*/
 # and labels.tsv here.
 #
@@ -145,8 +146,14 @@ resolve() {
   echo "sample.sh: no $LABELS" >&2
   exit 2
 }
-if awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
-  $c["human_label"] $c["model_label"] $c["adjudicated_label"] $c["judge_verdict"] != "" { f = 1 } END { exit !f }' "$LABELS"; then
+# Columns are read by header name; C is the awk rule that names them.
+# shellcheck disable=SC2016 # an awk rule
+C='FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i }'
+awk -F'\t' "$C"' FNR == 1 { n = split("id source language file test note stratum split", k, " ")
+  for (i = 1; i <= n; i++) if (!(k[i] in c)) { print "sample.sh: labels.tsv has no " k[i] " column" > "/dev/stderr"; exit 2 }
+  exit }' "$LABELS" || exit 2
+if awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) if ($i ~ /_label$/ || $i == "judge_verdict") k[i] = 1; next }
+  { for (i in k) if ($i != "") f = 1 } END { exit !f }' "$LABELS"; then
   echo "sample.sh: labels.tsv already holds labels; redrawing would orphan them" >&2
   exit 1
 fi
@@ -160,6 +167,9 @@ for spec in "${REPOS[@]}"; do
     echo "sample.sh: $ROOT/$name lacks $sha" >&2
     exit 2
   }
+done
+for spec in "${REPOS[@]}"; do
+  read -r name sha <<<"$spec"
   git -C "$ROOT/$name" log --no-renames --format='C %H' --numstat "$sha" |
     awk -v r="$name" '/^C / { c = $2; next }
       NF >= 3 && $1 != "-" && $1 > 0 {
@@ -233,7 +243,8 @@ while IFS=$'\t' read -r p ord _ _ _ bname; do
   j=$((j + 1))
   test="$bname"
   ((ord > 1)) && test+=" #$ord"
-  printf '%s-%d\t%s:%s@%s\t%s\tcases/%s/%s.fixture\t%s\t\t\t\t\t\t\tchanged %s; code under test: %s\tin-use\t\n' \
+  # id, source, language, file, test, note, stratum: placed by name below.
+  printf '%s-%d\t%s:%s@%s\t%s\tcases/%s/%s.fixture\t%s\tchanged %s; code under test: %s\tin-use\n' \
     "$id" "$j" "$name" "$path" "$commit" "$adapter" "$id" "$path" "$test" "$(<"$TMP/p$p/ranges")" \
     "$(paste -sd' ' "$TMP/p$p/code")" >>"$TMP/rows"
 done <"$TMP/drawn"
@@ -241,18 +252,21 @@ done <"$TMP/drawn"
 # Keep the authored strata, replace in-use, then split every stratum by file.
 {
   head -n 1 "$LABELS"
-  awk -F'\t' 'NR > 1 && $13 != "in-use"' "$LABELS"
-  cat "$TMP/rows"
+  awk -F'\t' "$C"' FNR > 1 && $c["stratum"] != "in-use"' "$LABELS"
+  awk -F'\t' -v OFS='\t' 'FNR == NR { if (FNR == 1) { n = NF; for (i = 1; i <= NF; i++) h[i] = $i }; next }
+    { split("", v); split("id source language file test note stratum", k, " "); for (i = 1; i <= 7; i++) v[k[i]] = $i
+      for (i = 1; i <= n; i++) printf "%s%s", v[h[i]], (i < n ? OFS : "\n") }' "$LABELS" "$TMP/rows"
 } >"$TMP/all"
-awk -F'\t' 'NR > 1 { print $13 }' "$TMP/all" | awk '!seen[$0]++' >"$TMP/strata"
+awk -F'\t' "$C"' FNR > 1 { print $c["stratum"] }' "$TMP/all" | awk '!seen[$0]++' >"$TMP/strata"
 : >"$TMP/holdout"
 while read -r s; do
-  awk -F'\t' -v s="$s" 'NR > 1 && $13 == s { n[$4]++; if (!seen[$4]++) o[++m] = $4 } END { for (i = 1; i <= m; i++) print n[o[i]] "\t" o[i] }' "$TMP/all" |
+  awk -F'\t' -v s="$s" "$C"' FNR > 1 && $c["stratum"] == s { f = $c["file"]; n[f]++; if (!seen[f]++) o[++m] = f } END { for (i = 1; i <= m; i++) print n[o[i]] "\t" o[i] }' "$TMP/all" |
     shuffle "$SEED" | awk -F'\t' '{ a[NR] = $0; t += $1 } END { for (i = 1; i <= NR && 3 * h < t; i++) { split(a[i], x, "\t"); h += x[1]; print x[2] } }' >>"$TMP/holdout"
 done <"$TMP/strata"
-awk -F'\t' -v OFS='\t' 'NR == FNR { h[$1] = 1; next } FNR > 1 { $14 = ($4 in h) ? "holdout" : "tune" } 1' \
+awk -F'\t' -v OFS='\t' -v ho="$TMP/holdout" 'FILENAME == ho { h[$1] = 1; next }
+  FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; print; next } { $c["split"] = ($c["file"] in h) ? "holdout" : "tune" } 1' \
   "$TMP/holdout" "$TMP/all" >"$LABELS"
 
 echo "population: $(wc -l <"$TMP/pairs") pairs; phase 1: $k pairs, $skipped unreadable, $unresolved dropped with unresolved code ($unresolved_blocks blocks), $(wc -l <"$TMP/pool") blocks kept"
 echo "phase 2: $(wc -l <"$TMP/drawn") blocks in $n files; provenance-shaped scanner findings: $(awk -F'\t' '{ s += $5 } END { print s + 0 }' "$TMP/drawn") drawn, $(awk -F'\t' '{ s += $5 } END { print s + 0 }' "$TMP/pool") in the pool"
-awk -F'\t' 'NR > 1 { n[$13]++; h[$13] += $14 == "holdout"; if (!f[$4]++) { fn[$13]++; fh[$13] += $14 == "holdout" } } END { for (s in n) print s ": " n[s] " rows in " fn[s] " files, holdout " h[s] " rows in " fh[s] " files" }' "$LABELS"
+awk -F'\t' "$C"' FNR > 1 { s = $c["stratum"]; o = $c["split"] == "holdout"; n[s]++; h[s] += o; if (!f[$c["file"]]++) { fn[s]++; fh[s] += o } } END { for (s in n) print s ": " n[s] " rows in " fn[s] " files, holdout " h[s] " rows in " fh[s] " files" }' "$LABELS"

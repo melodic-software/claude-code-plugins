@@ -2,7 +2,8 @@
 
 The task-end judge stays advisory until this set measures it (`plan.md` Phase 4, design DT1, DT9,
 DT13). Everything lives in `plugins/testing/skills/audit/evals/judge-calibration/`: `cases/`,
-`labels.tsv`, `sample.sh` (draws the set) and `metrics.sh` (scores it).
+`labels.tsv`, `sample.sh` (draws the set), `raters.sh` (the model raters) and `metrics.sh` (scores
+the labels and runs the judge).
 
 ## Protocol
 
@@ -83,39 +84,129 @@ reads.
 
 ### Raters
 
-Pending the Q12 rater decision. Settled by the plan: two raters, the user and a model rater of a
-class other than the judge's, label every case blind to each other and to the judge. A rater sees
-the case file, the test name and the changed lines, never `source`, `stratum`, `in_scope`, `note`
-or another label. The user adjudicates every disagreement. Labels are trusted at user-versus-model
-kappa of at least 0.6.
+The user labels all 78 rows blind, and those labels (`human_label`) are the ground truth. Labeling
+every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
+scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs adjudication,
+because no rater label is used as ground truth.
+
+The labeling page is a private claude.ai artifact. Per row it shows the test file and the code
+under test with paths relative to the case root, the test name and the changed lines; never the
+case id, `source`, `in_scope`, `note`, `stratum`, `split` or another label. The user wrote the seed
+and adversarial cases, so those labels are not blind to authorship, and `metrics.sh` reports the
+`in-use` stratum separately for that reason.
+
+Two model raters label every row blind through `raters.sh`:
+
+- `opus`: `claude -p --model opus` with the judge's isolation. Its only tools are Read, Grep and
+  Glob, scoped to the case's repository, and it runs with no hooks, settings sources, MCP servers
+  or slash commands.
+- GPT through `codex exec -s read-only` when the Codex CLI is on PATH and logged in; otherwise
+  `opus` rates alone.
+
+Each row runs in an empty temporary git repository holding only its case's files at their
+repository paths. The rater gets the judge's question, the FLAG, PASS and UNKNOWN definitions copied
+from `test-judge-prompt.md`, the test file's path, the test's name and the changed lines. It answers
+with one JSON object, `{"label", "reason"}`.
+
+Codex's read-only sandbox does not refuse reads outside its directory, so:
+
+- `raters.sh` refuses to run while `labels.tsv` holds any label;
+- each rater's output goes to `raters/<rater>.tsv`, and `raters.sh --merge` copies it into the
+  `opus_label` and `codex_label` columns only after both raters finish; the user's labels are
+  merged after that;
+- a row fails, with no label, when its transcript or answer names `labels.tsv`,
+  `judge-calibration` or a case or row id.
+
+Each rater's kappa against the user is reported with its coverage and raw agreement beside it.
+Rater-versus-rater agreement is not reported as quality. A rater whose pooled kappa against the
+user is under 0.6 is marked `failed` and dropped from use as a re-labeler. It does not block the
+calibration, because the user's labels are the ground truth.
+
+Why the user, not a model, is the independent rater: LLM judges show self-preference bias, scoring
+output from their own model family higher. For that bias Haiku, Sonnet, Opus and Fable are one
+family, so an Opus rater is not independent of a Sonnet or Opus judge. Independence comes from the
+user. GPT is outside the family, which is why Codex is the second rater when it is available.
+
+There is no separate pilot set. Run-to-run variance is measured on the chosen arm (see the sweep).
 
 ### Scoring
 
-Labels are FLAG, PASS or UNKNOWN. `metrics.sh` reports, per stratum and pooled: Cohen's kappa for
-user versus model rater, judge versus user and judge versus model rater; the judge's confusion
-matrix against the adjudicated label; FLAG precision and recall with Wilson 95% intervals; FLAG
-prevalence; and UNKNOWN counts. An UNKNOWN on an adjudicated FLAG counts as a miss. System recall
-covers only tests the session created or changed (DT13).
+Labels are FLAG, PASS or UNKNOWN. The UNKNOWN rule was fixed before any label existed:
+
+- A judge or rater UNKNOWN on a row the user labeled FLAG or PASS is an abstention. It is left out
+  of kappa, precision and recall, and counted against coverage, whose denominator is the rows the
+  user labeled FLAG or PASS.
+- On a row the user labeled UNKNOWN, a judge UNKNOWN is correct and a judge FLAG or PASS is
+  over-reach. A FLAG there counts against FLAG precision.
+- Kappa is three-class Cohen's kappa over the rows where neither side abstained.
+
+`metrics.sh` reports per stratum, then pooled as `all`:
+
+- `kappa user-opus`, `kappa user-codex` and `kappa judge-user`, each with coverage and raw
+  agreement;
+- the judge's confusion matrix against the user's labels;
+- FLAG precision and recall with Wilson 95% score intervals;
+- FLAG prevalence and the achieved FLAG n (`flag-n`);
+- on the rows the user labeled UNKNOWN, how often the judge said UNKNOWN and how often it
+  over-reached.
+
+The Wilson score interval keeps close to its nominal coverage at small n and near 0 or 1, where the
+plain normal interval does not (Newcombe 1998, "Two-sided confidence intervals for the single
+proportion"). System recall covers only tests the session created or changed (DT13).
 
 ### Judge runs and the model sweep
 
-`metrics.sh --sweep` runs the judge over every case for `haiku`, `sonnet` and `opus` at `low` and
-`medium` effort through `judge::run` and `judge::validate`, the functions the hooks use, so it
-scores what a session would see relayed. Each case runs in an empty temporary repository holding
-only its own files at their repository paths: the test and the code under test, but no label, id
-or other case. The judge sees less of the repository than in a real session, where it can follow
-imports past the first level. The shipped default is the arm with the best holdout FLAG precision and recall; where
-arms' intervals overlap, the cheaper arm wins. The fallback default is the best arm of another
-class.
+`metrics.sh --sweep` runs the frozen judge over every row for 7 arms: `sonnet` at `low`, `medium`,
+`high` and `xhigh`, and `opus` at `low`, `medium` and `high`. Haiku waits on research gap G8. The
+runs go through `judge::run` and `judge::validate`, the functions the hooks use, so the sweep
+scores what a session would see relayed. Each row's verdict is kept in
+`sweep/<model>-<effort>.tsv`, and each run's cost and wall time in `sweep/<model>-<effort>.runs.tsv`.
+`metrics.sh --table` reprints the table from those files.
+
+Each case runs in an empty temporary repository holding only its own files at their repository
+paths: the test and the code under test, but no label, id or other case. The judge sees less of the
+repository than in a real session, where it can follow imports past the first level.
+
+The table reports, per arm: accuracy, FLAG precision and recall with Wilson intervals, coverage,
+cost per row, wall time per run (median, and p95 by nearest rank), wall time for the arm, and the
+exact McNemar p against the most accurate arm.
+
+Selection uses paired accuracy over all rows. A verdict is correct when it equals the user's label,
+so for selection an UNKNOWN on a FLAG or PASS row counts as wrong.
+
+1. The most accurate arm is the reference.
+2. An arm whose two-sided exact McNemar test against it (a binomial test on the rows where exactly
+   one of the two is correct) is not significant at 0.05 ties with it.
+3. Among tied arms `sonnet` wins, then the lower p95 wall time per run, then the lower cost per
+   row. Accuracy comes first; the judge runs during normal development and must not stall it.
+4. The fallback default is the best arm of the other class by the same rule, tested against that
+   class's most accurate arm.
+
+Both defaults go to `plugin.json` and the in-script defaults in the same commit, with the sweep
+table below.
+
+Power: at n = 50 the exact McNemar test has power 0.83 to separate accuracy 0.9 from 0.7. Separating
+0.9 from 0.8 needs about 100 rows, so at 78 rows arms that close tie and the tie-breaks decide.
+
+The prompt stays frozen, so selection runs on all rows. If the prompt changes after the first
+commit to `labels.tsv`, every figure is re-measured on `holdout` rows only (29 rows), and this file
+states that n.
+
+Run-to-run variance: `metrics.sh --rerun <model> <effort>` runs the chosen arm twice more over every
+row and reports the share of rows whose verdict changed across the three runs.
+
+After the choice, R2-P13's Stop wait (18-28 s with `opus` `medium`) is re-measured with the chosen
+arm and recorded in `probes.md`; a shorter debounce is considered if the wait stays long.
 
 On every new model in a class, re-run `metrics.sh --sweep` and change the default only when the
-sweep says so: the settings hold class aliases, so a new version needs no code change.
+sweep says so: the settings hold class aliases, so a new version needs no code change. Add Haiku
+once G8 confirms its effort support.
 
 ## Results
 
 ### Rater agreement
 
-TODO: the `kappa user-model` lines from `metrics.sh`, after labeling.
+TODO: the `kappa user-opus` and `kappa user-codex` lines from `metrics.sh`, after labeling.
 
 ### Judge against the labels
 
@@ -123,7 +214,8 @@ TODO: per-stratum `metrics.sh` output for the chosen arm.
 
 ### Model sweep
 
-TODO: the six-row table from `metrics.sh --sweep`.
+TODO: the seven-row table from `metrics.sh --sweep`, its chosen and fallback lines, and the
+`--rerun` row for the chosen arm.
 
 ### Chosen default
 
