@@ -1157,6 +1157,26 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertEqual(notes["unresolved_names"], ["qq9"])
         self.assertEqual(notes["resolved"], notes["definitions_seen"] - 1)
 
+    def test_a_spread_reads_its_own_scope_not_the_nearest_binding(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function g(){let pY=p(1);return pY}'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_a_spread_of_a_non_constant_binding_stays_partial(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];var pY=c?[xt]:[yt];'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent"])
+        self.assertEqual(rec["disallowed_tools_source"], "partial")
+
     def test_no_roster_leaves_every_agent_absent(self) -> None:
         agents, notes = self._extract(AGENT_SRC.split("function R()")[0])
         self.assertFalse(notes["roster_found"])

@@ -272,7 +272,9 @@ An agent in the initializer is `default`, one pushed is `conditional`, one never
 `export{X as NAME}` for a three-character-or-longer binding is read, since the chunk's own closing
 export can name it plainly (`export{qHe}`) while a later statement renames it. `tools` and
 `disallowedTools` resolve element by element (literals, tool-name constants, one level of
-`...spread`); `get tools(){...}` is `getter` and `tools:uw.tools` is `reference`, each null.
+`...spread`); `get tools(){...}` is `getter` and `tools:uw.tools` is `reference`, each null. A
+spread reads the binding its own module and scope see, not the nearest same-name binding in the
+bundle; when that binding is not an array literal, the list is `partial`.
 
 ### 10. Find built-in tools by shape, not by builder
 

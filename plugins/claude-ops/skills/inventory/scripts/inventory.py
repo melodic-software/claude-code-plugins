@@ -3224,7 +3224,9 @@ def _array_names(
     """Tool names in the array literal at `open_i`, and whether all resolved.
 
     Elements are string literals, tool-name constants, or a `...spread` of
-    another array constant, which is followed `hops` deep.
+    another array constant, which is followed `hops` deep. The spread reads
+    the binding its own module and scope see (`_binding_value`), not the
+    nearest same-name binding in the bundle.
     """
     names: list[str] = []
     complete = True
@@ -3237,7 +3239,16 @@ def _array_names(
         if lit:
             names.append(_unescape(lit.group(1)))
         elif spread and hops > 0:
-            v = _nearest_binding(src, spread.group(1), at)
+            try:
+                v = _binding_value(
+                    src,
+                    braces,
+                    spread.group(1),
+                    start,
+                    window=SHORT_IDENT_LOCALITY_BYTES,
+                )
+            except (ValueError, IndexError, RecursionError):
+                v = None
             if v is not None and src.startswith("[", v):
                 more, ok = _array_names(src, braces, v, index, v, hops - 1)
                 names.extend(more)

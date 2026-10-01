@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.3] - 2026-10-01
+
+### Fixed
+
+- **The inventory reads the Explore and Plan agents' full disallowed-tools list on Claude Code
+  2.1.286.** A `...spread` inside `tools` or `disallowedTools` now resolves to the binding its own
+  module and scope see, by the same rule name and field resolution use. Before, it took the
+  nearest same-name binding in the bundle, an unrelated call on 2.1.286, so the shared entries
+  (the Artifact tools among them) were dropped and the field read `partial`. A spread whose
+  binding is not an array literal still reads `partial`.
+
 ## [0.79.2] - 2026-10-01
 
 ### Fixed
