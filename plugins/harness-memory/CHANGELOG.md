@@ -17,6 +17,7 @@ All notable changes to the `harness-memory` plugin are documented here. Format f
 - The description and README state the boundary with `harness-config`: this plugin owns
   memory-layer health, `harness-config:audit-instructions` judges instruction text against the
   current model.
+
 ## [0.13.13] - 2026-10-01
 
 ### Changed

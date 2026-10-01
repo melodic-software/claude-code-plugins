@@ -18,6 +18,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   `harness-config-melodic-software/` before uninstalling the old plugin.
 - The description and README state the boundary with `harness-memory`: that plugin owns
   memory-layer health, `audit-instructions` judges instruction text against the current model.
+
 ## [0.55.5] - 2026-10-01
 
 ### Changed
