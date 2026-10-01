@@ -55,6 +55,30 @@ from the repository root:
 - CI has no plugin installed, so the proposal vendors `ratchet.py` (one stdlib file) into the
   repository, for example `.performance/ratchet.py`, unless the repository already carries it.
 
+### Telemetry-derived counters
+
+A count that lives in a telemetry store (spans, events, a log) is measured by a command that
+flushes, queries, and prints the token itself; `ratchet.py` only runs the command and parses stdout.
+
+```json
+{"name": "tool-calls", "field": "calls", "ceiling": 12, "goal": "<the verified goal this protects>",
+ "command": "id=$(uuidgen); RUN_ID=$id ./run-subject.sh && ./flush-exporter.sh && n=$(duckdb -noheader -csv .telemetry/events.db \"select count(*) from events where run_id='$id'\") && [ \"$n\" -gt 0 ] && echo calls=$n"}
+```
+
+- **Scope the query to the run the command started**, by an id it generates, never a time window.
+  A late batch from the previous run lands in a window and inflates the count.
+- **Exit non-zero on zero rows.** `[ "$n" -gt 0 ]` above: a missing event must fail the command, or
+  it reads as a count of 0 and passes any ceiling. The subject's own failure must also fail it.
+- **Force the exporter to flush, or poll until the run's record is complete, before printing.**
+  `add` and `propose-tighten` measure twice. A read taken before the flush sees a partial count: the
+  two runs disagree and `add` refuses, or both read partial values, agree, and set a ceiling that is
+  too low.
+- **CI needs the store.** `check` exits 2 when the command fails, and a runner with no telemetry
+  store fails it. Either the CI job stands up the store and exporter so the command is
+  self-contained, or the counter is re-expressed as a count the command prints directly. Otherwise
+  leave it out of the required ratchet.
+- The store query lives in the counter command. `ratchet.py` takes no telemetry dependency.
+
 ## 3. The CI check
 
 `ratchet.py check` exits `0` at or below every ceiling, `1` when a counter is above its ceiling
