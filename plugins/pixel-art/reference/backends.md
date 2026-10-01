@@ -44,8 +44,8 @@ skip that feature, continue with the documented reduced result.
   by position over the sheet cells, `null` cells dropped) and `meta.image` becomes `sheet.png`;
   `frameTags`, `layers` and `slices` stay as Aseprite wrote them. A frame count that differs from
   the sheet cell count, or an unreadable `sheet.json`, falls back to native with one line.
-- Status: exercised only against a local stand-in (`test_backends.py`); not yet run against the real
-  Aseprite CLI. The generated Lua has never been executed by Aseprite.
+- Status: best-effort and unverified against a real Aseprite install. Any failure (a non-zero exit,
+  missing or unreadable output, a frame-count mismatch) falls back to native with one line.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
@@ -69,8 +69,7 @@ skip that feature, continue with the documented reduced result.
   empty frames unless `--ignore-empty` is given, and does not state the default `json-hash` key
   format or the value of `meta.image`; the adapter therefore maps frames by position and sets
   `meta.image` itself. Basis = [CLI](https://www.aseprite.org/docs/cli/). As-of 2026-09-29. Recheck
-  trigger: that page documenting the default key format or `meta.image`, or a real-Aseprite run
-  showing keys or frame counts that differ from one frame per sheet cell.
+  trigger: that page documenting the default key format or `meta.image`.
 
 ## General image models
 
