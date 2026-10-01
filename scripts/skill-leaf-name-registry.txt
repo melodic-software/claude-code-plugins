@@ -142,7 +142,7 @@ audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-bu
 # guardrails joins on the same grounds: it reports whether node and jq resolve
 # for its hooks. autonomy, context-guard, desktop-notification, eol-normalizer,
 # session-flow, source-control and testing join on the same grounds: each reports
-# whether jq resolves for its hooks.
+# whether node and jq resolve for its hooks.
 check actionlint,autonomy,bash-format,biome-format,claude-ops,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,session-flow,skill-quality,source-control,testing,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
