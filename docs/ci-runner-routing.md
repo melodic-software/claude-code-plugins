@@ -126,9 +126,9 @@ a developer's local toolchain, so CI never lints with a ruff nobody runs. Do not
 ## Time-to-green
 
 The standing target is a p50 under 5 minutes and a p95 under 12 minutes per
-pull-request head SHA, measured to the first successful full run of each
-required workflow; contract-only runs are excluded. This repository owns the
-target, tracked on #3932.
+pull-request head SHA, measured to the first successful full run of the
+required workflow (`ci-status`); contract-only runs are excluded. This
+repository owns the target, tracked on #3932.
 
 ## Authoritative references
 
