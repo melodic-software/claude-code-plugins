@@ -32,6 +32,10 @@ Remediation for a FAIL: install it explicitly, `npm install --save-dev markdownl
 repository or a global install, then rerun `check`. Without it `/docs-hygiene:compress` stops at its
 entry point before touching a file. No other skill in this plugin needs the binary.
 
+## Next
+
+`/docs-hygiene:compress`
+
 ## Gotchas
 
 - **A missing binary is not a lint failure.** `compress` never ships unverified output, so absence
