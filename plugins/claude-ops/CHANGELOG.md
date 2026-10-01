@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.0] - 2026-10-01
+
+### Added
+
+- **`/claude-ops:machine-profile` records what this machine has and reports when it changes.** It discovers machine facts and per-tree identity domains, stores them as a profile with the observation behind every value, and diffs the stored profile against the host. Read-only unless the operator confirms: `record --confirm` writes the profile and `apply --confirm` prints what to hand to each setup. It never installs and never reapplies a stored value on its own.
+
 ## [0.79.4] - 2026-10-01
 
 ### Fixed
