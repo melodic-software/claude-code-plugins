@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.44.0] - 2026-10-01
+
+### Added
+
+- **`check-usage-limit-reset.py --received <ISO-8601>`.** A limit message states only a clock time, so the reset resolves to the first occurrence at or after the time the message appeared. `/session-flow:keep-going` passes it. Without the flag the behavior is unchanged.
+
 ## [0.43.1] - 2026-10-01
 
 ### Changed
