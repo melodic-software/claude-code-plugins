@@ -71,8 +71,17 @@ async page => { // the user journey in order on one page, no reload after phase 
     await pick("Q4"); await page.fill("#note", "What does slow mean here?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
     const ask = await last();
     ok("Ask Claude posts the note as an ask", ask.kind === "ask" && ask.id === "Q4" && ask.text === "What does slow mean here?", JSON.stringify(ask));
+    ok("Ask Claude empties the note", (await page.inputValue("#note")) === "", await page.inputValue("#note"));
+    await page.fill("#note", "scratch"); await page.click("[data-clear]");
+    ok("Clear empties the note and disables itself", (await page.inputValue("#note")) === "" && await page.$eval("[data-clear]", b => b.disabled));
     await page.request.get(base + "api/wait?after=0&timeout=2", {headers: {"X-Interview-Token": await token()}}); await page.waitForTimeout(900);
     ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
+    ok("an unanswered ask shows the Waiting for Claude's reply chip on Q4", /Waiting for Claude's reply/.test(await text('.qbtn[data-q="Q4"]')), await text('.qbtn[data-q="Q4"]'));
+    await pick("Q4"); await arm("a"); await tap("[data-save]", 300);
+    const nb = (await events()).length;
+    ok("Accept on a question still waiting for Claude asks first", /Accept current recommendation anyway\?/.test(await text("#dlgTitle")), await text("#dlgTitle"));
+    await tap("#dlgCancel", 300);
+    ok("cancelling the prompt sends nothing", (await events()).length === nb, String(nb));
 
     // own answer that is a question
     const askToast = await text("#toast");
@@ -113,6 +122,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the header counts 1 pending research and Q3 not answered", (await text("#pendBtn")) === "1 pending research" && (await text("#meterText")) === "2 of 5 answered", (await text("#pendBtn")) + " / " + await text("#meterText"));
     ok("the Claude line shows the status with its age", /^Researching the retry benchmark for Q3/.test(await text("#claudeLine")) && await page.$eval("#claudeLine .age", el => el.getAttribute("aria-hidden") === "true" && /ago|just now/.test(el.textContent)), await text("#claudeLine"));
     ok("a held question's commitments leave the to-confirm count", (await text("#assumeCount")) === "3 to confirm", await text("#assumeCount"));
+    const f0 = await page.$eval("#filter", el => el.value);
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const open2 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
+    await page.selectOption("#filter", f0); await page.waitForTimeout(150);
+    ok("Show: Open leaves out Q3, held for research after its accept, and lists the questions that need you", open2 === "Q4,Q5", open2);
     await pick("Q3");
     ok("the card shows the banner beside the kept decision", /Pending research: the retry benchmark/.test(await text("#dscroll .waitban")) && /Accepted/.test(await text("#cur")) && /Counts once Claude's research on Q3 returns/.test(await text("#cur")), await text("#cur"));
     await arm("2");
@@ -120,6 +134,16 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap("[data-save]", 700);
     const aw = await last();
     ok("Answer anyway saves, stays on Q3 and says it counts once the research returns", aw.id === "Q3" && aw.kind === "alt" && await sel() === "Q3" && /Counts once Claude's research on Q3 returns/.test(await text("#toast")) && (await text("#meterText")) === "2 of 5 answered", JSON.stringify(aw) + " " + await text("#toast"));
+    ok("the held card says research is in progress with its start time and keeps the answer controls enabled", /Research in progress, started \d/.test(await text("#dscroll .waitban")) && !(await page.$("#choices input:disabled")) && !(await page.$("#note:disabled")), await text("#dscroll .waitban"));
+    ok("a held question offers Cancel research and no Research this", !!(await page.$('[data-research="cancel-research"]')) && !(await page.$('[data-research="research"]')), await text("#talkRow"));
+    await tap('[data-research="cancel-research"]', 600);
+    const cr = await last();
+    ok("Cancel research posts kind cancel-research for Q3 and the hold stays until Claude releases it", cr.kind === "cancel-research" && cr.id === "Q3" && !!(await page.$('#dscroll .waitban')), JSON.stringify(cr));
+    await pick("Q4");
+    ok("a question with no hold offers Research this and no Cancel research", !!(await page.$('[data-research="research"]')) && !(await page.$('[data-research="cancel-research"]')), await text("#talkRow"));
+    await tap('[data-research="research"]', 600);
+    const rr = await last();
+    ok("Research this posts kind research for Q4", rr.kind === "research" && rr.id === "Q4", JSON.stringify(rr));
     await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
     const listed = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
     ok("Show: Pending lists only Q3", listed === "Q3", listed);
@@ -129,6 +153,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Q5 reads Needs your answer and its group counts it open", /Needs your answer: whether the version must be pinned/.test(await text('.qbtn[data-q="Q5"] .chip.s-need')) && (await text('.sec[data-key="g:g2"] .cnt')) === "3 open / 3", await text('.sec[data-key="g:g2"] .cnt'));
     await pick("Q1"); await page.click("#qhead"); await page.keyboard.press("n"); const n1 = await sel(); await page.keyboard.press("n"); const n2 = await sel();
     ok("n visits Q4 then Q5 and skips Q3, pending research", n1 === "Q4" && n2 === "Q5", n1 + " " + n2);
+    ok("a question waiting on the user offers neither Research this nor Cancel research", !(await page.$('[data-research]')), await text("#talkRow"));
     ok("a long hold text wraps inside the rail: it never scrolls sideways", await page.$eval("#railList", el => el.scrollWidth <= el.clientWidth), await page.$eval("#railList", el => el.scrollWidth + " > " + el.clientWidth));
     ok("Q5 offers one action, Answer again, with a one-line reason and no Reopen", /set your earlier answer \(Own answer: .*\) aside because it needs your decision\./.test(await text("#cur")) && (await page.$$("#cur [data-again]")).length === 1 && !(await page.$('[data-act="reopen"]')) && !/Set aside/.test(await text("#cur")), await text("#cur"));
     const aside = await page.$eval('.qbtn[data-q="Q5"] .chip.aside', el => { const s = getComputedStyle(el); return {t: el.textContent, b: s.borderTopWidth, bg: s.backgroundColor, c: s.cursor}; }).catch(() => null);
@@ -155,8 +180,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
-    const chip = await page.$$eval(".qbtn .chip.hot", els => els.map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
+    const chip = await page.$$eval(".qbtn .chip.hot", els => els.filter(el => !/after your answer/.test(el.textContent)).map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
     ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
+    ok("Q3's heads-up reply after its answer puts the after-answer chip on its card", /Replied after your answer/.test(await text('.qbtn[data-q="Q3"]')), await text('.qbtn[data-q="Q3"]'));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -202,6 +228,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
     ok("a terminal accept mirrored with record-terminal, then confirmed by Claude, leaves no part of Q4 to confirm", !(await page.$('#toConfirm [data-cq="Q4"]')) && /Q4 \(Said yes in the terminal\)/.test(await text("#byClaude")), await text("#toConfirm"));
+    const f4 = await page.$eval("#filter", el => el.value);
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const open4 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
+    await page.selectOption("#filter", f4); await page.waitForTimeout(150);
+    const cards4 = await text('.qbtn[data-q="Q2"]') + await text('.qbtn[data-q="Q4"]');
+    ok("Claude's confirm-commitments line after an answer is not a reply: Q2 and Q4 stay settled, off Show: Open and without the after-answer chip", !/Q[24]/.test(open4) && !/after your answer/.test(cards4) && /Q3/.test(open4) && (await text("#meterText")) === "4 of 7 answered", open4 + " / " + cards4 + " / " + await text("#meterText"));
     ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);
@@ -212,6 +244,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // confirm understanding
     ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
     ok("Wrap up warns Understanding not confirmed yet", /Understanding not confirmed yet/.test(await text("#unconfWarn")));
+    for (const [w, h] of [[1440, 900], [390, 844]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(200);
+      const hit = await page.evaluate(() => { const a = document.querySelector('[data-understand="confirm"]').getBoundingClientRect(), b = document.getElementById("offText").getBoundingClientRect(); return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top); });
+      ok("at " + w + "x" + h + " Confirm does not overlap the What-is-off box", !hit);
+    }
+    await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(200);
     const n2 = (await events()).length;
     await tap('[data-understand="off"]', 400);
     ok("Something's off needs text: nothing posts without it", (await events()).length === n2 && /Say what is off first/.test(await text("#restate")), await text("#restate"));

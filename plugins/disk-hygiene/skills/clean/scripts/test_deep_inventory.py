@@ -372,6 +372,14 @@ class PluginCacheTest(TempTree):
                 rows = di.plugin_cache_versions(self.root, NOW)
                 self.assertEqual([r["disposition"] for r in rows], ["UNKNOWN"])
 
+    def test_registry_with_invalid_utf8_leaves_every_version_unknown(self) -> None:
+        self.cache("mkt/alpha/1.0.0")
+        (self.root / "plugins" / "installed_plugins.json").write_bytes(
+            b'{"plugins": {"a@mkt": [{"installPath": "/x/\xff"}]}}'
+        )
+        rows = di.plugin_cache_versions(self.root, NOW)
+        self.assertEqual([r["disposition"] for r in rows], ["UNKNOWN"])
+
     def test_empty_registry_leaves_every_version_a_candidate(self) -> None:
         self.cache("mkt/alpha/1.0.0")
         self.registry([], {})
@@ -412,6 +420,15 @@ class PluginCacheTest(TempTree):
         self.cache("mkt/alpha/1.0.0")
         self.registry([], {})
         (self.root / "plugins/cache/mkt/alpha/1.0.0/.orphaned_at").write_text("soon")
+        row = di.plugin_cache_versions(self.root, NOW)[0]
+        self.assertNotIn("evidence", row)
+
+    def test_a_symlinked_marker_is_not_followed(self) -> None:
+        self.cache("mkt/alpha/1.0.0")
+        self.registry([], {})
+        outside = self.root / "outside.txt"
+        outside.write_text(str(int(NOW * 1000)), encoding="utf-8")
+        (self.root / "plugins/cache/mkt/alpha/1.0.0/.orphaned_at").symlink_to(outside)
         row = di.plugin_cache_versions(self.root, NOW)[0]
         self.assertNotIn("evidence", row)
 

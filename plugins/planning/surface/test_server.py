@@ -190,6 +190,26 @@ class TestApi(ServerCase):
     def test_07_delivered_at_stamped(self):
         self.assertIn("deliveredAt", self.state()["responses"]["events"][-1])
 
+    def test_08a_research_and_cancel_research_are_accepted_without_a_decision(self):
+        seqs_ = []
+        before = self.state()["responses"]["responses"].get("Q5")
+        for body in (
+            {"id": "Q5", "kind": "research"},
+            {"id": "Q5", "kind": "research", "text": "check the vendor docs"},
+            {"id": "Q5", "kind": "cancel-research"},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 200, data)
+            seqs_.append(data["seq"])
+        evs = {e["seq"]: e for e in self.state()["responses"]["events"]}
+        self.assertEqual(
+            [evs[s]["kind"] for s in seqs_], ["research", "research", "cancel-research"]
+        )
+        self.assertEqual(evs[seqs_[1]]["text"], "check the vendor docs")
+        self.assertEqual(self.state()["responses"]["responses"].get("Q5"), before)
+        self.assertEqual(self.post({"id": "nope", "kind": "research"})[0], 400)
+        self.assertEqual(self.post({"id": "Q5", "kind": "researchh"})[0], 400)
+
     def test_08_empty_note_is_400(self):
         code, _ = self.post({"kind": "note", "text": "  "})
         self.assertEqual(code, 400)
@@ -397,6 +417,30 @@ class TestApi(ServerCase):
     def test_28_ac31_both_files_validate_after_the_suite(self):
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
+
+
+class TestLongText(ServerCase):
+    """A long own answer and a long ask are stored whole, not cut at any length limit."""
+
+    fixtures = True
+
+    def test_long_own_answer_and_ask_reach_responses_json_whole(self):
+        filler = "Sentence of filler text that keeps going. " * 145
+        long_text = (
+            filler
+            + "There are more questions here, but the rest is for round two and then it ends"
+        )
+        self.assertGreaterEqual(len(long_text), 6000)
+        for qid, kind in (("Q5", "own"), ("Q6", "ask")):
+            code, _ = self.post({"id": qid, "kind": kind, "text": long_text})
+            self.assertEqual(code, 200)
+        saved = json.loads((self.dir / "responses.json").read_text(encoding="utf-8"))
+        texts = {
+            e["kind"]: e["text"] for e in saved["events"] if e["id"] in ("Q5", "Q6")
+        }
+        self.assertEqual(texts["own"], long_text)
+        self.assertEqual(texts["ask"], long_text)
+        self.assertEqual(saved["responses"]["Q5"]["text"], long_text)
 
 
 class TestEnsureRunning(ServerCase):
@@ -1238,6 +1282,33 @@ class TestListenerDisconnect(WaitCase):
         self.assertNotIn("deliveredAt", ev)
 
 
+class TestHedged(WaitCase):
+    """A hedged decision is an accept that carries its condition as the event text."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_a_hedged_decision_needs_a_condition_within_the_line_cap(self):
+        before = self.state()["responses"]["events"]
+        for text in ("", "   ", "x" * 501):
+            code, data = self.post({"id": "A", "kind": "hedged", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.state()["responses"]["events"], before)
+
+    def test_a_hedged_decision_is_recorded_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        code, data = self.post({"id": "A", "kind": "hedged", "text": "if it is cheap"})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["decision"], "hedged")
+        self.assertEqual(r["responses"]["A"]["text"], "if it is cheap")
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestQuestionState(WaitCase):
     """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
 
@@ -1303,7 +1374,7 @@ class TestQuestionState(WaitCase):
         doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
         self.assertFalse(any("state" in q for q in doc["questions"]))
 
-    def test_7_revising_marks_direct_dependents_of_a_delivered_unhandled_decision(
+    def test_7_revising_marks_the_question_with_its_own_delivered_unhandled_decision(
         self,
     ):
         self.handle_all()
@@ -1311,18 +1382,18 @@ class TestQuestionState(WaitCase):
         before = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(before["B"], "revising before delivery")
+        self.assertFalse(before["A"], "revising before delivery")
         code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
         self.assertFalse(body["timedOut"])
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertEqual(rev, {"A": False, "B": True, "C": False, "D": False})
+        self.assertEqual(rev, {"A": True, "B": False, "C": False, "D": False})
         self.handle_all()
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(rev["B"])
+        self.assertFalse(rev["A"])
 
     def test_8_archived(self):
         rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")

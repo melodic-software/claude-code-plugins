@@ -27,7 +27,7 @@
       "required": ["decision"],
       "additionalProperties": false,
       "properties": {
-        "decision": {"enum": ["accept", "alt", "own", "defer", null]},
+        "decision": {"enum": ["accept", "alt", "own", "defer", "hedged", null]},
         "alt": {"type": ["string", "null"]},
         "text": {"type": "string"},
         "updatedAt": {"type": "string"},

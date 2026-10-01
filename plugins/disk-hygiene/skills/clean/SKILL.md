@@ -264,7 +264,8 @@ module name. The file's entry carries a `stdlib-module-shadow` advisory, and the
 advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
 renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
-For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
+For each hinted or suspicious entry, and each entry the catalog lists as `uncataloged`, first run the required local procedure in [ownership investigation](reference/ownership-investigation.md) (its sources, how evidence is recorded, and the `/discovery:research` escalation when no owner is found).
+Then inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
    tool over an age/name guess.
@@ -339,7 +340,7 @@ was never inventoried, so `logical_size` is `null` rather than `0`, except on th
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
-low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition` or `prior_unresolved` is a hint, never approval; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
+low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition`, `target_prior_disposition` or `prior_unresolved` is a hint, never approval, and an operator answer recorded under another scan target is not asked again while the entry's identity holds; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan
 

@@ -123,6 +123,18 @@ class TestShippedSchemas(unittest.TestCase):
         rows["Q1"]["status"] = "pending"
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
 
+    def test_meta_repo_is_a_string_in_the_file_and_in_the_meta_op(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["meta"]["repo"] = "o/r"
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["meta"]["repo"] = 5
+        self.assertIn("$.meta.repo", schema.first_error(doc, schema.load("questions")))
+        ops = schema.load("ops")
+        op = {"op": "meta", "set": {"repo": "o/r"}}
+        self.assertIsNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+        op["set"]["repo"] = 5
+        self.assertIsNotNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+
     def test_activity_is_capped_at_200_entries(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         doc["status"] = {"text": "Researching", "at": "t"}
@@ -134,6 +146,14 @@ class TestShippedSchemas(unittest.TestCase):
     def test_event_kinds_include_confirm(self):
         e = {"seq": 1, "id": "Q1", "kind": "confirm", "alt": "0", "at": "t"}
         self.assertIsNone(schema.first_error(e, schema.load("event")))
+
+    def test_event_kinds_include_research_and_cancel_research_but_not_others(self):
+        s = schema.load("event")
+        for kind in ("research", "cancel-research"):
+            e = {"seq": 1, "id": "Q1", "kind": kind, "at": "t"}
+            self.assertIsNone(schema.first_error(e, s), kind)
+        e = {"seq": 1, "id": "Q1", "kind": "research-now", "at": "t"}
+        self.assertIsNotNone(schema.first_error(e, s))
 
     def test_event_kinds_include_confirm_understanding(self):
         e = {
@@ -165,6 +185,18 @@ class TestShippedSchemas(unittest.TestCase):
         self.assertIn("unexpected property 'note'", schema.first_error(extra, s))
         missing = {**audit, "items": [{"id": "Q1"}]}
         self.assertIn("missing required 'contentRev'", schema.first_error(missing, s))
+
+    def test_a_hedged_event_and_its_response_validate(self):
+        e = {"seq": 1, "id": "Q1", "kind": "hedged", "text": "if cheap", "at": "t"}
+        self.assertIsNone(schema.first_error(e, schema.load("event")))
+        resp = {"decision": "hedged", "alt": None, "text": "if cheap"}
+        doc = {"seq": 1, "responses": {"Q1": resp}, "events": [e]}
+        self.assertIsNone(schema.first_error(doc, schema.load("responses")))
+        ops = schema.load("ops")
+        op = {"op": "record-terminal", "id": "Q1", "decision": "hedged", "text": "x"}
+        self.assertIsNone(
+            schema.first_error(op, ops["$defs"]["record-terminal"], "$", ops)
+        )
 
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))

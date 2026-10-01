@@ -10464,6 +10464,226 @@ class GuardTests(unittest.TestCase):
         self.assertIn("this specific engine invocation", gated_reason)
         self.assertNotIn("Bash is restricted", gated_reason)
 
+    def _engine_words(self, tail: str) -> str:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self._data_root.resolve().as_posix()
+        return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
+
+    def _gated_reason(self, command: str) -> str:
+        result = self.run_guard_engine_gate(command)
+        assert result is not None
+        output = result["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        return cast(str, output["permissionDecisionReason"])
+
+    def test_engine_gate_denial_names_the_flag_order_violation(self) -> None:
+        command = self._engine_words("scan --target t --root-children --output s")
+        reason = self._gated_reason(command)
+        self.assertIn("'--root-children'", reason)
+        self.assertIn("required flags first", reason)
+        self.assertIn("--target, --output", reason)
+        self.assertIn(guard._ENGINE_GATE_SCOPE, reason)
+        self.assertIn("read-only forms that work", reason)
+        # belt-mode text is unchanged by the reason
+        belt = guard._bash_denial_guidance("/data/root", mode=guard._MODE_BELT)
+        self.assertEqual(
+            belt,
+            guard._bash_denial_guidance(
+                "/data/root", mode=guard._MODE_BELT, command=command
+            ),
+        )
+        self.assertNotIn("required flags first", belt)
+
+    def test_engine_mismatch_reason_names_each_early_stage(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        python = self.python_command()
+        root = "/data/root"
+        tail = f'scan --target t --output s --data-root "{root}"'
+        cases = {
+            "wrong interpreter": (
+                f'"/usr/bin/other" "{script}" {tail}',
+                "/usr/bin/other",
+            ),
+            "wrong script": (f'"{python}" "/tmp/other.py" {tail}', "/tmp/other.py"),
+            "unknown subcommand": (
+                f'"{python}" "{script}" bogus --data-root "{root}"',
+                "bogus",
+            ),
+            "missing data-root": (
+                f'"{python}" "{script}" scan --target t --output s',
+                "--data-root is missing",
+            ),
+            "unauthorized data-root": (
+                f'"{python}" "{script}" scan --target t --output s '
+                "--data-root /elsewhere",
+                "/elsewhere",
+            ),
+            "pipe after invocation": (
+                f'"{python}" "{script}" {tail} | tail',
+                "pipe",
+            ),
+        }
+        for label, (command, expected) in cases.items():
+            with self.subTest(label):
+                self.assertIn(expected, guard._engine_mismatch_reason(command, root))
+
+    def test_engine_mismatch_reason_names_the_engine_operand_of_a_mention(
+        self,
+    ) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        for command in (f'grep foo "{engine}"', f'cat "{engine}"'):
+            with self.subTest(command):
+                reason = guard._engine_mismatch_reason(command, "/data/root")
+                self.assertIn("is the engine path", reason)
+                self.assertIn(command.split()[0], reason)
+                self.assertNotIn("not this hook's Python", reason)
+        plugin_root = guard._engine_script_path().parents[3]
+        relative = guard._engine_script_path().relative_to(plugin_root).as_posix()
+        with chdir_context(plugin_root):
+            reason = guard._engine_mismatch_reason(f"grep foo {relative}", "/data/root")
+        self.assertIn("resolves to the engine from the current directory", reason)
+        self.assertIn(relative, reason)
+
+    def test_engine_mismatch_reason_names_only_the_operator_present(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        python = self.python_command()
+        head = f'"{python}" "{script}" scan --target t --output s --data-root /d'
+        cases = {
+            "pipe": (f"{head} | tail", "a pipe"),
+            "redirect": (f"{head} > out", "a redirect"),
+            "semicolon": (f"{head}; echo", "a ';'"),
+            "substitution": (f"{head} $(id)", "a substitution or expansion"),
+            "backslash": (f"{head} a\\b", "a backslash"),
+            "quote": (f'{head} a"b"', "a quote that does not wrap a whole word"),
+        }
+        for label, (command, expected) in cases.items():
+            with self.subTest(label):
+                reason = guard._engine_mismatch_reason(command, "/d")
+                self.assertIn(expected, reason)
+                for other, (_, phrase) in cases.items():
+                    if other != label:
+                        self.assertNotIn(phrase, reason)
+
+    def test_unparsable_reason_blames_an_unquoted_brace_never_a_quoted_one(
+        self,
+    ) -> None:
+        expansion = "a substitution or expansion"
+        for command, blamed in (
+            ("a {b,c}", "'{'"),
+            ("a '{b}' {c}", "'{'"),
+            ("a '{b}' $(x)", "'$'"),
+            ('a "{b}" | c', "a pipe"),
+        ):
+            with self.subTest(command=command):
+                self.assertIn(blamed, guard._unparsable_reason(command))
+        self.assertIn(expansion, guard._unparsable_reason("a {b,c}"))
+        for command in ("a '{b}' c\\d", "a '{b}' x'y'", 'a "{b}" \t'):
+            with self.subTest(command=command):
+                reason = guard._unparsable_reason(command)
+                self.assertNotIn("'{'", reason)
+                self.assertNotIn("'}'", reason)
+                self.assertNotIn(expansion, reason)
+
+    def test_literal_parser_accepts_braces_only_inside_whole_word_quotes(
+        self,
+    ) -> None:
+        parse = guard._literal_shell_words
+        self.assertEqual(["a", "{b}"], parse("a '{b}'"))
+        self.assertEqual(["a", "x{y} z"], parse('a "x{y} z"'))
+        self.assertEqual(["a", "{b}", "c"], parse("a '{b}' c", allow_backslash=True))
+        self.assertEqual(["a", "C:\\{g}"], parse('a "C:\\{g}"', allow_backslash=True))
+        for command in (
+            "a {b}",
+            "a x{b}",
+            "a '{b}'x",
+            "a x'{b}'",
+            "a '{b}' {c}",
+            "a '{b}",
+            'a "${x}"',
+            'a "$(x)"',
+            'a "`x`"',
+            "a '$x{b}'",
+            "a '{b}' $x",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(parse(command))
+
+    def test_quoted_braces_keep_engine_relevance_on_both_surfaces(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        command = f"python3 \"{script}\" scan --target '{{g}}' --output s"
+        self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+        self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+        self.assertFalse(guard._engine_gate_relevant("ls '{g}'", "Bash"))
+        self.assertFalse(guard._engine_gate_relevant("Get-Item '{g}'", "PowerShell"))
+
+    def test_operator_labels_cover_the_characters_the_literal_parser_rejects(
+        self,
+    ) -> None:
+        self.assertEqual(
+            set(guard._OPERATOR_LABELS), set(guard._SHELL_EXPANSION_OR_OPERATOR_CHARS)
+        )
+
+    def test_engine_gate_defers_the_read_only_forms_the_denial_advertises(self) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        relative = "plugins/disk-hygiene/skills/clean/scripts/hygiene.py"
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                f"git show origin/main:{relative}",
+                "git grep foo -- hygiene.py",
+                f"grep foo {relative}",
+                "rg foo hygiene.py",
+            ):
+                self.assertFalse(guard._engine_gate_relevant(command, "Bash"), command)
+            for command in (
+                f'grep foo "{engine}"',
+                f'cat "{engine}"',
+                f'git show "{engine}"',
+                f"grep foo {relative} | tail",
+            ):
+                self.assertTrue(guard._engine_gate_relevant(command, "Bash"), command)
+
+    def test_engine_gate_gates_a_relative_word_that_resolves_to_the_engine(
+        self,
+    ) -> None:
+        engine = guard._engine_script_path()
+        plugin_root = engine.parents[3]
+        relative = engine.relative_to(plugin_root).as_posix()
+        rev_form = f"git show origin/main:{relative}"
+        cases = (
+            (engine.parent, "rg foo hygiene.py"),
+            (engine.parent, "git grep foo -- hygiene.py"),
+            (plugin_root, f"grep foo {relative}"),
+        )
+        for cwd, command in cases:
+            with self.subTest(cwd=cwd.name, command=command), chdir_context(cwd):
+                self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
+                self.assertIn(
+                    "resolves to the installed engine from the current directory "
+                    "is still gated",
+                    self._gated_reason(command),
+                )
+
+    def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
+        cases = (
+            'gh issue list --search "python3 hygiene.py"',
+            'gh issue list --search "hygiene.py scan"',
+            'echo "run python3 hygiene.py"',
+            '"python3 hygiene.py scan"',
+        )
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in cases:
+                with self.subTest(command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                    reason = self._gated_reason(command)
+                    word = next(w for w in command.split('"') if "hygiene.py" in w)
+                    self.assertIn(f"{word!r} holds the engine filename", reason)
+                    self.assertNotIn("not this hook's Python", reason)
+                    self.assertNotIn("word(s)", reason)
+            self.assertFalse(
+                guard._engine_gate_relevant("gh issue list --search hygiene.py", "Bash")
+            )
+
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
 
@@ -10955,6 +11175,13 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(guard.is_exact_readonly_supporting_command("/usr/bin/["))
             self.assertFalse(
                 guard.is_exact_readonly_supporting_command("/usr/bin/[ -d $(pwd) ]")
+            )
+            guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+            self.assertTrue(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d '{guid}' ]")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d {guid} ]")
             )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
@@ -15388,6 +15615,38 @@ class EngineGrammarTests(unittest.TestCase):
                         self.grammar.literal_value_ok(flag, cast(str, flag.example))
                     )
 
+    def test_a_quoted_brace_target_is_classified_like_a_plain_one(self) -> None:
+        guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+        for name in ("scan", "inventory"):
+            spec = self.grammar.subcommand(name)
+            plain = self.words(spec, optionals=False)
+            plain[plain.index("--target") + 1] = "target-dir"
+            braced = [guid if word == "target-dir" else word for word in plain]
+            command = self.command(name, braced)
+            single, double = command, command.replace(f"'{guid}'", f'"{guid}"')
+            self.assertIn(f"'{guid}'", single)
+            self.assertIn(f'"{guid}"', double)
+            expected = self.classify(name, plain)
+            self.assertEqual(name, expected)
+            for label, text in (("single", single), ("double", double)):
+                with self.subTest(subcommand=name, quote=label):
+                    self.assertEqual(
+                        expected,
+                        guard.classify_exact_engine_command(text, self.AUTHORITY),
+                    )
+
+    def test_an_unquoted_or_expanding_brace_target_is_refused(self) -> None:
+        spec = self.grammar.subcommand("scan")
+        words = self.words(spec, optionals=False)
+        head = self.command("scan", words)
+        for target in ("{a,b}", "x{a}", "'{a}'x", '"${x}"', '"$(x)"', "'{a}' '{b'"):
+            with self.subTest(target=target):
+                self.assertIsNone(
+                    guard.classify_exact_engine_command(
+                        f"{head} --policy {target}", self.AUTHORITY
+                    )
+                )
+
     def test_parser_declares_exactly_the_grammar_flags(self) -> None:
         subparsers = self.subparsers()
         self.assertEqual(list(self.grammar.SUBCOMMAND_NAMES), list(subparsers))
@@ -15415,6 +15674,72 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertEqual(flag.required, bool(action.required))
                     if flag.choices is not None:
                         self.assertEqual(sorted(flag.choices), action.choices)
+
+    def _external_checks(self) -> dict[str, object]:
+        return {self.grammar.AUTHORIZED_DATA_ROOT: lambda v: v == self.AUTHORITY}
+
+    def assert_refused(self, name: str, words: list[str], *named: str) -> None:
+        checks = self._external_checks()
+        reason = self.grammar.explain_mismatch(name, words, checks)
+        self.assertIsNotNone(reason, words)
+        self.assertFalse(self.grammar.match_invocation(name, words, checks), words)
+        for word in named:
+            self.assertIn(word, cast(str, reason))
+
+    def test_explainer_and_matcher_agree_on_every_declared_shape(self) -> None:
+        checks = self._external_checks()
+        for spec in self.grammar.SUBCOMMANDS:
+            for optionals in (False, True):
+                words = self.words(spec, optionals=optionals)
+                with self.subTest(subcommand=spec.name, optionals=optionals):
+                    self.assertIsNone(
+                        self.grammar.explain_mismatch(spec.name, words, checks)
+                    )
+                    self.assertTrue(
+                        self.grammar.match_invocation(spec.name, words, checks)
+                    )
+
+    def test_explainer_names_the_offending_word(self) -> None:
+        scan = self.grammar.subcommand("scan")
+        assert scan is not None
+        base = self.words(scan, optionals=False)
+        head = self.head(scan)
+        # wrong order: an optional flag ahead of the required head
+        self.assert_refused(
+            "scan",
+            ["--root-children", *base],
+            "--root-children",
+            "required flags first",
+            "--target, --output",
+        )
+        # unknown flag
+        self.assert_refused("scan", [*base, "--bogus"], "--bogus")
+        # duplicate of a non-repeatable flag
+        self.assert_refused(
+            "scan", [*base, "--policy", "p", "--policy", "q"], "--policy"
+        )
+        # bad value
+        self.assert_refused("scan", [*base, "--max-depth", "0"], "--max-depth", "'0'")
+        self.assert_refused(
+            "scan", [*head, "--data-root", "/other"], "--data-root", "'/other'"
+        )
+        # missing requires
+        self.assert_refused(
+            "scan", [*base, "--root-child", "x"], "--root-child", "--root-children"
+        )
+        # missing required flag
+        self.assert_refused("scan", ["--target", "t"], "--output")
+        # missing one_of member
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                required = [
+                    word for chunk in self.required_chunks(spec) for word in chunk
+                ]
+                self.assert_refused(
+                    spec.name,
+                    [*required, *self.data_root_chunk(spec)],
+                    *group,
+                )
 
     def test_engine_parses_and_guard_admits_every_declared_shape(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:

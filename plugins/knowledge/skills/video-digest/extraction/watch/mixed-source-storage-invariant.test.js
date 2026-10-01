@@ -41,6 +41,7 @@ const X_URL = `https://x.com/someuser/status/${TWID}`;
 let workRoot;
 /** @type {string} */
 let fixtureDir;
+let previousTmpdir;
 
 /**
  * @param {string} id
@@ -59,6 +60,8 @@ describe("storage invariant: mixed-source batches share one queue root", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mixed-source-root-"));
     fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "mixed-source-fix-"));
+    previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = fixtureDir; // run-watch keeps its temp dirs, so they land in a dir removed below
     process.env.VIDEO_DIGEST_WORK_ROOT = workRoot;
     captured.stderr.length = 0;
     captured.stdout.length = 0;
@@ -66,6 +69,8 @@ describe("storage invariant: mixed-source batches share one queue root", () => {
   });
 
   afterEach(async () => {
+    if (previousTmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTmpdir;
     delete process.env.VIDEO_DIGEST_WORK_ROOT;
     await fs.rm(workRoot, { recursive: true, force: true });
     await fs.rm(fixtureDir, { recursive: true, force: true });

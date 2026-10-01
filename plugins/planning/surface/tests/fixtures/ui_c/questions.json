@@ -11,7 +11,8 @@
     {"id": "base", "title": "Basics", "summary": "Order, commitments and visuals."},
     {"id": "chain", "title": "Chain", "summary": "A dependsOn chain."},
     {"id": "talk", "title": "Talk", "summary": "An answer with a Claude reply."},
-    {"id": "batch", "title": "Batch", "summary": "Accept all."}
+    {"id": "batch", "title": "Batch", "summary": "Accept all."},
+    {"id": "hold", "title": "Hold", "summary": "A question held for research."}
   ],
   "visuals": [
     {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}},
@@ -42,6 +43,10 @@
       {"at": "2026-09-24T01:02:00Z", "by": "claude", "text": "The thread keeps every reply.", "replyTo": 2}
     ]},
     {"id": "A1", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch one", "title": "Should batch one run?", "recommendation": "Yes, batch one.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
-    {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]}
+    {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "H1", "group": "hold", "stage": "interview", "round": 1, "rev": 1, "short": "Held", "title": "Should a held question stay out of Show: Open?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}], "waiting": true, "waitsOn": "the benchmark run", "history": [
+      {"at": "2026-09-24T01:03:00Z", "by": "claude", "text": "Asked."},
+      {"at": "2026-09-24T01:04:00Z", "by": "claude", "text": "Pending research: the benchmark run"}
+    ]}
   ]
 }

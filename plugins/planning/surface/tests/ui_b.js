@@ -25,6 +25,13 @@ async page => {
   await page.request.get(base + "api/wait?after=" + (ev[ev.length - 1].seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": token}});
   await page.waitForTimeout(900);
   ok("Claude line reads 'Claude is working on ...'", /^Claude is working on /.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
+  await page.setViewportSize({width: 1280, height: 720}); await page.waitForTimeout(200);
+  const dh = await page.evaluate(() => ({h: document.querySelector("fieldset.decide").getBoundingClientRect().height, vh: innerHeight}));
+  ok("at 1280x720 the decide fieldset is at most 40% of the viewport", dh.h <= dh.vh * 0.4 + 1, JSON.stringify(dh));
+  await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(200);
+  const ph = await page.evaluate(() => { const c = document.getElementById("claudeLine"); return {hs: document.documentElement.scrollWidth - innerWidth, cut: c.scrollWidth > c.clientWidth + 1 || c.scrollHeight > c.clientHeight + 1, shown: !c.hidden}; });
+  ok("at 390x844 there is no horizontal page scroll and the status line is not truncated", ph.hs <= 0 && ph.shown && !ph.cut, JSON.stringify(ph));
+  await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(200);
   if (await page.$eval('.qbtn[data-q="N2"]', el => !el.offsetParent)) await page.click('.sec[data-key="g:g9"] .sec-h');
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
   ok("receipt shows Saved and Delivered with times", /Saved \d.*Delivered \d/.test(await page.textContent("#cur")), await page.textContent("#cur"));

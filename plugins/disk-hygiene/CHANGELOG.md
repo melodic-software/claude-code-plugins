@@ -3,6 +3,56 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-09-30
+
+### Fixed
+
+- **The engine gate accepts braces inside a quoted word** ([#5641](https://github.com/melodic-software/claude-code-plugins/issues/5641)). A `--target` such as `'D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}'` now forms an exact engine call, so the WSL distro folders can be snapshotted. `{` and `}` are literal inside a whole-word single or double quote and are accepted only there; every other expansion or operator character, `$` included, is still refused wherever it sits, and an unquoted brace is still refused. The denial no longer names a quoted brace as the culprit.
+
+## [0.42.0] - 2026-09-30
+
+### Added
+
+- **Catalog scope and an `uncataloged` report**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). `catalog` now
+  accounts for every immediate child of the target, every hinted or empty entry at any depth, and,
+  at a user-home or `--root-children` target, every out-of-place immediate child. Entries with no
+  record and no owner-level ancestor are listed under `uncataloged`; a record marked
+  `owner_level` covers everything below its path while its identity holds.
+- **Required ownership investigation** (`reference/ownership-investigation.md`). Each entry is
+  checked against nine local sources, each evidence item names its source, `/discovery:research`
+  is used only when no owner is found and only when it resolves, and the report ends with one
+  question per entry whose owner is unknown, which stays `keep` until answered.
+
+### Changed
+
+- **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
+  and descendant set still hold is reused when another scan target reaches the same entry, so it is
+  not asked again, even where this target holds an engine record with an open question. The scan
+  sets `target_prior_disposition` when the scan target itself was answered, and the `catalog`
+  report lists a reused entry under `unchanged` as `answered under <target>`. A new answer replaces
+  older answers for the same entry recorded under other targets, an owner-level answer reached from
+  another target covers its descendants, and `catalog` refuses a `--sizes-only` snapshot, which has
+  no entries to account for.
+
+## [0.41.3] - 2026-09-30
+
+### Changed
+
+- **A Windows `detached` answer does not mean unused for WSL and Docker disks** ([#5642](https://github.com/melodic-software/claude-code-plugins/issues/5642)). `Get-DiskImage` reads a running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx` and WSL's `swap.vhdx` as `detached`, because WSL2 and Docker hold them open through their own virtual machine. The image keeps `virtual-disk` and the block, so nothing becomes deletable and reclaimable bytes stay 0. The `Get-DiskImage` record in `skills/clean/reference/safety-model.md` is now observed on Windows: `attached` plus the drive letter for a host-mounted VHDX, `detached` for those disks, and an error for an `initrd.img`. No code changes.
+
+## [0.41.2] - 2026-09-30
+
+### Changed
+
+- **The deep inventory's `plugin-cache-version` rows come from a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `claude-ops`, so the install-state audit and the deep inventory apply one rule for which cache versions are unreferenced, including the guarded read of `installed_plugins.json`. `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge.
+
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work, adding that a relative path or bare name which resolves to the installed engine from the current directory is still gated. A quoted word the gate reads as an engine call, such as a `gh --search` query naming an interpreter and the engine, is named as the gated word. The message is the only change: the guard matches and denies exactly as before.
+
 ## [0.41.0] - 2026-09-30
 
 ### Added

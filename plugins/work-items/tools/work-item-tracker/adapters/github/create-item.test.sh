@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/create-item.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -14,8 +17,8 @@ assert_usage_error "$S" --title x --type # --type needs a value
 # the repo resolve must all take the REST path. Direct adapter invocation
 # (dispatcher gate is covered in work-item-tracker.test.sh).
 if command -v jq >/dev/null 2>&1; then
-  STUB="$(mktemp -d)"
-  PROJECT="$(mktemp -d)"
+  STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  PROJECT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$STUB/gh" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1" == "--version" ]]; then
@@ -85,7 +88,7 @@ EOF
   assert_eq "create-item on gh 2.45 repo resolve id" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
   assert_not_contains "create-item on gh 2.45 never calls repo view" "$(<"$STUB/calls.log")" "repo view"
 
-  TYPED_ERR="$(mktemp)"
+  TYPED_ERR="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   TYPED_OUT="$(GH_STUB_VERSION=2.45.0 run_create --title t --type Task --repo o/r 2>"$TYPED_ERR")"
   rc=$?
   assert_eq "create-item --type on gh 2.45 degrades → exit 0" "0" "$rc"

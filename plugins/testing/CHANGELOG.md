@@ -54,6 +54,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
 
+## [0.12.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.12.0] - 2026-09-30
 
 ### Added

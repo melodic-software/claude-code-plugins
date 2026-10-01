@@ -324,6 +324,59 @@
         "Quotes what the plugin said under plugin-said:",
         "Does not use verdict: unvalidated for a claim it actually checked"
       ]
+    },
+    {
+      "id": 25,
+      "name": "standards-posture-disagreement-cites-discipline",
+      "prompt": "The audited skill tells the agent to state a recommendation from memory and skip any source lookup. This session lists the discipline:do-your-research skill, which applies to that component. Record the result in the Standards alignment section.",
+      "expected_output": "Emits a Standards alignment finding with convention: discipline:do-your-research and component: <path>:<line> for the instruction that disagrees. The posture list comes from the skills the session lists, not from a list the agent carries. The section is not none.",
+      "files": [],
+      "expectations": [
+        "Emits a finding under the Standards alignment heading",
+        "Cites convention: discipline:do-your-research",
+        "Cites component: with a path and line number",
+        "Takes the posture from the session's listed discipline skills, not a remembered list"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "standards-repo-unresolved-states-fallback",
+      "prompt": "The audited repo declares no standards repository and no local melodic-software/standards checkout exists. Write the Standards alignment section.",
+      "expected_output": "States that no standards source resolved and that the fallback applies, and records unresolved (or none). It infers no standards convention, cites no standards path, and invents no finding from memory of what the standards repo might say.",
+      "files": [],
+      "expectations": [
+        "States the fallback because no standards repository resolved",
+        "Records the section as unresolved or none",
+        "Cites no standards-repo path and line as a convention",
+        "Does not infer or recall standards content"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "unresearched-claim-is-open-question-not-recommendation",
+      "prompt": "You believe the harness caps hook output at 10000 characters, but you found no primary source and saved no fetched file for it. The finding's remediation would raise the audited hook's output limit. Write the finding and its research line.",
+      "expected_output": "Sets research: open-question for the finding. The claim is stated in the work item as an open question, and the remediation is carried as status: needs-decision, never as a recommendation and never agent-ready. No tier-0 or tier-1 is claimed.",
+      "files": [],
+      "expectations": [
+        "Sets research: open-question",
+        "States the claim as an open question in the work item",
+        "Marks the remediation needs-decision, not agent-ready",
+        "Does not write the claim as a fact or recommendation",
+        "Does not claim tier-0 or tier-1"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "tier-record-with-unsaved-or-absent-span-rejected",
+      "prompt": "A finding's research line is tier-1. Its primary is written as https://docs.example.com/hooks with no saved= path, and a corroborator names a saved file and span=\"hook output is truncated\" but that saved file does not contain the span. Decide whether the tier record stands.",
+      "expected_output": "Rejects the record. A primary that names no saved fetched file fails, and a span that is not on one line of the saved file fails the collector's grep -F check. The finding falls back to research: open-question, or the step 2 dispatch is redone with fetched files saved. It does not accept the self-attested tier.",
+      "files": [],
+      "expectations": [
+        "Rejects the tier record that has no saved file for its primary",
+        "Rejects the corroborator whose span is not in the saved file",
+        "Does not accept tier-1 on self-attestation",
+        "Falls back to open-question or re-dispatches to save the fetched bytes"
+      ]
     }
   ]
 }
