@@ -10,7 +10,7 @@ parses, the column a report reads, the flag that changes which branch runs, the 
 out in another language.
 
 Severity and confidence come from the shared vocabulary
-([`${CLAUDE_PLUGIN_ROOT}/context/severity.md`](${CLAUDE_PLUGIN_ROOT}/context/severity.md)) or the
+([`context/severity.md`](../../../context/severity.md)) or the
 project's own when it defines one. **This mode adds no grading scale of its own**: not a proof
 level, not an evidence rung, not a confidence variant. The two existing axes carry every finding.
 

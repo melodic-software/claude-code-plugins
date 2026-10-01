@@ -31,7 +31,7 @@ Verify each one independently. For example:
 
 ## Dimension-specific guidance
 
-Read [`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/audit-checklist.md`](../reference/audit-checklist.md) for the kinds of claims to
+Read [`reference/audit-checklist.md`](../reference/audit-checklist.md) for the kinds of claims to
 watch for in each dimension. The checklist is a guide for **what to look for**, not a list to check
 off. The primary method is always: read the file, extract claims, verify each one.
 

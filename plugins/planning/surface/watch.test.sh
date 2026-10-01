@@ -238,7 +238,8 @@ print(sum(1 for h in q.get("history", []) if h.get("by") == "claude"))
 rev_before=$(rev)
 lines_before=$(claude_lines)
 printf '{"ops": [{"op": "handle", "seqs": [%s, %s, %s]}]}\n' "$seq" "$((seq + 1))" "$((seq + 2))" >"$d/ops.json"
-run="${cmd//<data_dir>/$d}"
+run="${cmd//<surface_dir>/$here}"
+run="${run//<data_dir>/$d}"
 CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h.out" "$tmp/h.err" bash -c "$run"
 rc=$?
 rev_after=$(rev)

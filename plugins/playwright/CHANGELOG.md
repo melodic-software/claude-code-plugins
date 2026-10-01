@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-09-30
+
+### Fixed
+
+- **The Windows foreground helper command in `windows-quirks.md` resolves.** It cited the script through the literal plugin-root token, which does not expand in a reference file. It now reads `<skill-dir>/scripts/force-chrome-foreground.ps1`, and `SKILL.md` gains a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
 ## [0.8.1] - 2026-09-30
 
 ### Changed

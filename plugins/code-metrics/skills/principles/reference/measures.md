@@ -178,5 +178,5 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
   profiles carry their own regions.
 
 Which tool is tried in which order per lane is data, not prose:
-`${CLAUDE_PLUGIN_ROOT}/scripts/collector-ladder.tsv`, with the per-tool stamps in
-`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`.
+`<plugin-root>/scripts/collector-ladder.tsv`, with the per-tool stamps in
+[`reference/collectors.md`](../../../reference/collectors.md).

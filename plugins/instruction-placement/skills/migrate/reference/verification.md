@@ -10,19 +10,19 @@ directory does not survive between tool calls.
 
 ```bash
 # The root file, through its shim. <trigger> is any tracked file that exists.
-${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
+<plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger README.md --expect AGENTS.md
 
 # A nested surface: the trigger has to be a NON-INSTRUCTION file in that
 # directory or below it. The attach fires on a Read there and nowhere else, and
 # reading the nested AGENTS.md itself lets the model quote the token out of the
 # Read result, which proves nothing about loading.
-${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
+<plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger src/billing/service.ts \
   --expect AGENTS.md --expect src/billing/AGENTS.md
 
 # A path-scoped rule: the trigger is a file its `paths:` glob matches.
-${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
+<plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger src/api/handler.ts --expect .claude/rules/api.md
 ```
 
@@ -36,7 +36,7 @@ For an `agents-only` repository the shim is the whole change, and `reachable` is
 parallel of `wiring`. Capture both readings:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh reachable --file AGENTS.md --root <repo>
+<plugin-root>/scripts/render-index.sh reachable --file AGENTS.md --root <repo>
 ```
 
 `NATIVE` before the shim (nothing blocks the file, and nothing carries it into a session that

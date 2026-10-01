@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.18] - 2026-09-30
+
+### Fixed
+
+- **`find`'s unattended spoke runs the state-key helper from a real path.** `context/unattended.md` cited `lib/state-key.sh` through the literal plugin-root token, which does not expand in a context file. It now reads `<plugin-root>/lib/state-key.sh`, and `SKILL.md` gains a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.1.17]
 
 ### Changed

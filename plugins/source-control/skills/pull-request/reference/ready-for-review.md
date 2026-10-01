@@ -28,7 +28,7 @@ flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4.
 
 ```bash
 BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName')
-REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh") || exit 1
+REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1
 
 gh pr update-branch "$PR_NUMBER"                     # merges the base into the head branch
 git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD

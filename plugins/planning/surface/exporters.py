@@ -2,12 +2,23 @@
 
 Each exporter reads only questions.json and responses.json from a data dir and returns text:
   export_ledger  the interview ledger: a decision-tree checklist, then the open-question register in
-                 the row shape scripts/check-open-questions.sh grades, then the deferred questions
-  export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`
+                 the row shape scripts/check-open-questions.sh grades, then the deferred questions;
+                 given a ledger's text it merges into that ledger's register (merged_register)
+  sync_ledger    a ledger's text with only its register rows replaced by the merged rows
+  export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
+                 numbers as that ledger and carries its ledger-only rows. Goal, Constraints, Acceptance
+                 criteria and Out-of-scope come from the newest confirmed restatement rev, and the
+                 TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
-round.py exposes them as export-ledger, export-brief, export-report and import-ledger.
+round.py exposes them as export-ledger, export-brief, export-report, import-ledger and
+sync-ledger.
+
+A row's round cell is read as the N of a leading `round <N>` (any case), else its first integer,
+else 1; import warns, naming the row, when the leading form is missing, and keeps each cell that
+is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes back while the
+question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
 Register ids: surface ids that are already Q1..Qn stay as they are; any other set is renumbered
 Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
@@ -29,7 +40,9 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   row's text as a ledger seeded it (written even when empty);
                                   on an open or superseded-by-plan row with no proposal, the
                                   seeded text, but not beside a held row's accept, hedged answer or
-                                  alternative, whose note it is
+                                  alternative, whose note it is; beside a counted free-text answer
+                                  (not a set-aside or superseded-by-plan row's), the user's words
+                                  when the question's resolution is the answer (reply --resolution)
   aside:: E(aside)                the newest decision a user hold set aside, when none counts;
                                   import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
@@ -61,6 +74,7 @@ import base64
 import html
 import json
 import re
+import sys
 from pathlib import Path
 
 from server import (
@@ -69,6 +83,7 @@ from server import (
     MAX_VISUAL_FILE,
     load_json,
     read_visual_file,
+    release_user_holds,
 )
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
@@ -82,6 +97,7 @@ LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
+ROUND_CELL = re.compile(r"^\s*round\s+([0-9]+)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
@@ -172,10 +188,11 @@ def split_fields(s):
     return fields
 
 
-def decision_fields(q, rec):
+def decision_fields(q, rec, resolve=True):
     """(answer, note): the decision in the resolution vocabulary, and the note an accept, a hedged
     accept (its condition) or an alternative carries. An alternative whose key the question does
-    not list is `alt <key>`."""
+    not list is `alt <key>`. An `own` answer the question resolved (and `resolve` allows: the held
+    row's note slot is free) is the resolution, with the user's words as its note."""
     decision, text = rec.get("decision"), rec.get("text") or ""
     if decision in ("accept", "hedged"):
         word = "accepted" if decision == "accept" else "hedged"
@@ -192,8 +209,19 @@ def decision_fields(q, rec):
         )
         return f"alt {key}" + ("" if alt is None else f": {alt}"), text
     if decision == "own":
+        if resolve and resolves(q.get("resolution"), rec):
+            return f"free-text: {q['resolution']['text']}", text
         return f"free-text: {text}", ""
     return "deferred" + (f": {text}" if text else ""), ""
+
+
+def resolves(resolution, rec):
+    """True when `resolution` (a question's accepted reading) was written for the decision `rec`."""
+    return bool(
+        resolution
+        and resolution.get("decidedAt") == rec.get("updatedAt")
+        and resolution.get("seq") == rec.get("seq")
+    )
 
 
 def seed_proposal(seed):
@@ -332,7 +360,11 @@ def readable(status, fields, marked):
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
         # A decision's note is labeled; any other note is the row's own seeded text.
-        noted = decided.startswith(("accepted: ", "hedged: ")) or ALT.match(decided)
+        noted = (
+            decided.startswith(("accepted: ", "hedged: "))
+            or ALT.match(decided)
+            or (fields.get("answer") and decided.startswith("free-text: "))
+        )
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
         # A page deferral; a seeded one's arbiter is in its own text.
@@ -353,6 +385,10 @@ def held_terminal(q, answer, note, at):
         decision, key, text = "defer", None, answer[len("deferred: ") :]
     elif answer.startswith("free-text: "):
         decision, key, text = "own", None, answer[len("free-text: ") :]
+        if note:
+            # A resolved own answer: the answer is the accepted reading, the note the user's words.
+            q["resolution"] = {"text": text, "at": at, "decidedAt": at}
+            text = note
     elif alt:
         decision, key, text = "alt", alt.group(1), note
         if not any(a.get("key") == key for a in q["alternatives"]):
@@ -375,6 +411,7 @@ def read(d):
     d = Path(d)
     doc = load_json(d / "questions.json", {"questions": []})
     resp = load_json(d / "responses.json", EMPTY_RESPONSES)
+    release_user_holds(doc, resp)
     return doc, resp
 
 
@@ -472,7 +509,9 @@ def settle(q, responses, events, seed_rows):
             # since a held row's status reads open and could not tell it from a deferred one.
             fields.update(answer="deferred", note=rec.get("text") or "")
         elif said:
-            fields[kind], note = decision_fields(q, rec)
+            fields[kind], note = decision_fields(
+                q, rec, kind == "answer" and status != "superseded-by-plan"
+            )
             fields["note"] = note or None
         # The seeded text of a row still unsettled once the hold clears rides in note, unless
         # the decision's own note is there.
@@ -503,19 +542,25 @@ def settle(q, responses, events, seed_rows):
     return "open", fields, "", False
 
 
-def register(doc, resp):
-    """One dict per question, in register order, with its Q<N> and settled status."""
-    qs = list(doc.get("questions") or [])
-    ids = [q["id"] for q in qs]
+def numbering(ids):
+    """({id: register number}, contiguous): ids that are already Q1..Qn keep their number; any
+    other set is numbered from 1 in natural id order."""
     contiguous = all(QN.match(i) for i in ids) and sorted(
         int(i[1:]) for i in ids
     ) == list(range(1, len(ids) + 1))
-    qs.sort(key=lambda q: natural(q["id"]))
+    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, contiguous
+
+
+def register(doc, resp, extra=()):
+    """One dict per question, in register order, with its Q<N> and settled status; `extra`
+    names ledger-only ids that share the numbering."""
+    qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
+    pos, contiguous = numbering([q["id"] for q in qs] + list(extra))
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
     rows = []
-    for i, q in enumerate(qs, start=1):
+    for q in qs:
         status, fields, note, reserved = settle(q, responses, events, seed_rows)
         marked = marked_commits(q, events)
         lead = "" if contiguous else f"[{clean(q['id'])}] "
@@ -524,11 +569,12 @@ def register(doc, resp):
         decided = latest_decision(q, responses) or {}
         rows.append(
             {
-                "n": f"Q{i}",
+                "n": f"Q{pos[q['id']]}",
                 "q": q,
                 "status": status,
                 "resolution": res.rstrip(),
                 "display": clean(lead + readable(status, fields, marked)),
+                "readable": clean(readable(status, fields, marked)),
                 "note": note,
                 "reserved": reserved,
                 "confirmed": confirmed,
@@ -542,17 +588,129 @@ def register(doc, resp):
 
 
 def row_line(r):
-    q = r["q"]
-    line = f"- {r['n']} | {r['status']} | round {q.get('round') or 1} | {clean(q.get('title'))} | {r['resolution']}".rstrip()
+    line = f"- {r['n']} | {r['status']} | {r['round']} | {r['title']} | {r['resolution']}".rstrip()
     # A raw line break would start a continuation line, and one starting `- Q` forges a row.
     if len(line.splitlines()) != 1:
         raise ValueError(f"register row {r['n']} would span lines: {line!r}")
     return line
 
 
-def export_ledger(d):
+def round_cell(rnd, cell):
+    """A row's round cell: `cell` (a ledger's own text, label and all) while it still names round
+    `rnd`, else `round <rnd>`."""
+    return cell if cell and round_of(cell)[0] == rnd else f"round {rnd}"
+
+
+def ledger_register(text):
+    """{question id: (status, round cell, title, resolution)} of a ledger's register rows, in
+    file order; the id is a row's `[<id>]` lead, else its Q<N>."""
+    rows = {}
+    for n, status, _, title, res, cell in parse_register(text):
+        lead = LEAD.match(res)
+        rows[lead.group(1) if lead else f"Q{n}"] = (status, cell, title, res)
+    return rows
+
+
+COLUMNS = ("status", "round", "title", "resolution")
+
+
+def merged_register(d, text=None):
+    """(doc, rows, notes) of the register export_ledger writes, in id order. Each row is a dict
+    of n, status, round, title, resolution and short. With a ledger's text the page's rows merge
+    into its register: a row only the ledger has is kept as it stands; a page row keeps the
+    ledger's title and its round cell while that cell still names the page's round; and a row
+    the ledger settled that the page shows otherwise, with no decision of the page's own since
+    any import, keeps the ledger's status and resolution, a conflict (a page decision since
+    then is newer than the ledger row and is written over it). notes are (kind, line) pairs, one per difference between the ledger
+    and the merge or the page: kind `change` (the merge rewrites the ledger), `conflict` or
+    `kept` (the merge keeps the ledger's text the page lacks)."""
     doc, resp = read(d)
-    rows = register(doc, resp)
+    old = ledger_register(text) if text is not None else {}
+    page_ids = {q["id"] for q in doc.get("questions") or []}
+    extra = [i for i in old if i not in page_ids]
+    pos, contiguous = numbering(sorted(page_ids) + extra)
+    seeded = (doc.get("meta") or {}).get("seededFrom") or {}
+    cells = seeded.get("roundCells") or {}
+    responses = resp.get("responses") or {}
+
+    def page_decided(q):
+        """True when the page holds a decision of its own, one made after any import."""
+        stamps = [
+            x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x
+        ]
+        stamps.append((q.get("archived") or {}).get("at"))
+        # A hold counts from the wait op's stamp; an imported hold carries none.
+        stamps.append(q.get("waiting") and q.get("waitingSince"))
+        return any(s and s > seeded.get("at", "") for s in stamps) or bool(
+            q.get("supersededBy")
+        )
+
+    rows = []
+    for r in register(doc, resp, extra):
+        q = r["q"]
+        rnd = q.get("round") or 1
+        page = {
+            "status": r["status"],
+            "round": round_cell(rnd, cells.get(q["id"])),
+            "title": clean(q.get("title")),
+            "resolution": r["resolution"],
+        }
+        row = dict(page, n=r["n"], id=q["id"], short=clean(q.get("short")), page=page)
+        if q["id"] in old:
+            status, cell, title, res = old[q["id"]]
+            row.update(round=round_cell(rnd, cell), title=title or page["title"])
+            if (
+                status not in UNSETTLED
+                and status != page["status"]
+                and not page_decided(q)
+            ):
+                row.update(status=status, resolution=res)
+        rows.append(row)
+    for i in extra:
+        status, cell, title, res = old[i]
+        if not contiguous and not LEAD.match(res):
+            res = f"[{clean(i)}] {res}".rstrip()
+        rows.append(
+            {
+                "n": f"Q{pos[i]}",
+                "id": i,
+                "status": status,
+                "round": cell,
+                "title": title,
+                "resolution": res,
+                "short": title,
+            }
+        )
+    rows.sort(key=lambda r: int(r["n"][1:]))
+    notes = []
+    if text is not None and list(old) != [r["id"] for r in rows if r["id"] in old]:
+        notes.append(("change", "register: rows rewritten in id order"))
+    for r in rows if text is not None else ():
+        n, was, page = r["n"], old.get(r["id"]), r.get("page")
+        if not page:
+            notes.append(("kept", f"{n}: only in the ledger; kept"))
+        elif not was:
+            notes.append(("change", f"{n}: new row from the page"))
+        for col, before in zip(COLUMNS, was if page and was else ()):
+            if before != r[col]:
+                notes.append(("change", f"{n} {col}: {before!r} -> {r[col]!r}"))
+            elif before != page[col] and col == "status":
+                notes.append(
+                    (
+                        "conflict",
+                        f"{n} status: conflict, kept the ledger's {before!r} and its "
+                        f"resolution (page: {page[col]!r})",
+                    )
+                )
+            elif before != page[col] and col in ("round", "title"):
+                notes.append(
+                    ("kept", f"{n} {col}: kept {before!r} (page: {page[col]!r})")
+                )
+    return doc, rows, notes
+
+
+def export_ledger(d, text=None):
+    doc, rows, _ = merged_register(d, text)
     title = (doc.get("meta") or {}).get("title")
     out = ["# Interview ledger", ""]
     if title:
@@ -560,13 +718,31 @@ def export_ledger(d):
     out += ["**Decision tree:**", ""]
     for r in rows:
         mark = " " if r["status"] in UNSETTLED else "x"
-        out.append(f"- [{mark}] {r['n']} {clean(r['q'].get('short'))}: {r['status']}")
+        out.append(f"- [{mark}] {r['n']} {r['short']}: {r['status']}")
     out += ["", "## Open-question register", ""]
     out += [row_line(r) for r in rows]
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
-    out += [f"- {r['n']}: {clean(r['q'].get('title'))}" for r in retired] or ["- none"]
+    out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
     return "\n".join(out) + "\n"
+
+
+def sync_ledger(d, text, where):
+    """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
+    by merged_register's rows, written where the first row stood."""
+    lines = text.splitlines(keepends=True)
+    heads, found = scan_register([line.rstrip("\r\n") for line in lines])
+    if len(heads) != 1:
+        refuse(f"{len(heads)} open-question register headings, not one", where)
+    _, rows, notes = merged_register(d, text)
+    drop = {i for i, _ in found}
+    at = min(drop) if drop else heads[0] + 1
+    if not drop and at < len(lines) and not lines[at].strip():
+        at += 1
+    eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    new = [row_line(r) + eol for r in rows]
+    keep = [line for i, line in enumerate(lines) if i not in drop]
+    return "".join(keep[:at] + new + keep[at:]), notes
 
 
 def held_open(r):
@@ -590,10 +766,82 @@ def named_risks(rows):
     ]
 
 
-def export_brief(d):
+def restatement_revs(doc):
+    """Every restatement, oldest first: `restatements`, plus the mirrored `restatement` of a file
+    written before that list existed."""
+    kept = list(doc.get("restatements") or [])
+    latest = doc.get("restatement")
+    if latest and not any(r.get("rev") == latest.get("rev") for r in kept):
+        kept.append(latest)
+    return kept
+
+
+def confirmed_restatement(doc, events):
+    """(latest rev, newest confirmed restatement, its Confirm event); a rev counts as confirmed
+    when its newest live confirm-understanding verdict is a Confirm. Each is None when absent."""
+
+    def confirm(r):
+        live = [
+            e
+            for e in events
+            if e.get("kind") == "confirm-understanding"
+            and not e.get("withdrawn")
+            and e.get("contentRev") == r["rev"]
+        ]
+        return live[-1] if live and live[-1].get("alt") == "confirm" else None
+
+    revs = restatement_revs(doc)
+    found = next(((r, confirm(r)) for r in reversed(revs) if confirm(r)), (None, None))
+    return (revs[-1]["rev"] if revs else None), *found
+
+
+def bullets(text):
+    """A restated section as plain bullets that cannot turn into a heading or a fence."""
+    return [
+        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
+        for line in str(text or "").splitlines()
+        if line.strip()
+    ]
+
+
+def ledger_row(n, qid, status, title, res):
+    """A brief row for a question only the ledger has, in the shape register() gives a page one."""
+    lead = LEAD.match(res)
+    body = clean(lead.group(2) if lead else res)
+    return {
+        "n": n,
+        "q": {"id": qid, "short": clean(title), "title": clean(title)},
+        "status": status,
+        "readable": body,
+        "note": body,
+        "reserved": "USER-RESERVED" in body,
+        "confirmed": [],
+        "unconfirmed": [],
+        "carries": False,
+    }
+
+
+def brief_label(r):
+    """A row's Q<N>, with its own id beside it when the register numbers it differently."""
+    qid = r["q"]["id"]
+    return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
+
+
+def export_brief(d, text=None):
+    """The Brief. With a ledger's text it numbers the questions as that ledger's register does
+    and carries the rows only the ledger has, so each Q<N> is the one the gate reads there."""
     doc, resp = read(d)
-    rows = register(doc, resp)
-    title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    old = ledger_register(text) if text is not None else {}
+    page_ids = {q["id"] for q in doc.get("questions") or []}
+    extra = [i for i in old if i not in page_ids]
+    rows = register(doc, resp, extra)
+    pos, _ = numbering(sorted(page_ids) + extra)
+    for i in extra:
+        status, _, title, res = old[i]
+        rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
+    rows.sort(key=lambda r: int(r["n"][1:]))
+    latest, restated, sign = confirmed_restatement(doc, resp.get("events") or [])
+    sections = (restated or {}).get("sections") or {}
     count = {
         s: sum(1 for r in rows if r["status"] == s)
         for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
@@ -601,7 +849,7 @@ def export_brief(d):
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
     risks = named_risks(rows)
-    gated = [r["n"] for r in rows if held_open(r)]
+    gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
@@ -616,45 +864,52 @@ def export_brief(d):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    out += ["", "### Goal", "", para(title), "", "### Constraints", ""]
+    if latest is not None:
+        # The stamp the --brief gate reads. A Brief edited after a Confirm needs a new restate.
+        if restated and restated["rev"] == latest:
+            stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
+        elif restated:
+            stamp = (
+                f"UNCONFIRMED (latest rev {latest}); the sections below are from "
+                f"confirmed rev {restated['rev']}"
+            )
+        else:
+            stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
+        out.append(f"- Restatement: {stamp}")
+    title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
+    out += ["### Constraints", ""]
     out += [
-        f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
+        *bullets(sections.get("constraints")),
+        *(
+            f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
+            for r in answered
+        ),
     ] or ["- none recorded"]
-    restatement = doc.get("restatement") or {}
-    verdicts = [
-        e.get("alt")
-        for e in resp.get("events") or []
-        if e.get("kind") == "confirm-understanding"
-        and e.get("contentRev") == restatement.get("rev")
-    ]
-    restated = (
-        restatement.get("sections", {}).get("acceptance")
-        if verdicts[-1:] == ["confirm"]
-        else None
+    criteria = bullets(sections.get("acceptance"))
+    out += ["", "### Acceptance criteria", ""]
+    out += (
+        [*criteria, ""]
+        if criteria
+        else ["- none recorded in the interview surface", ""]
     )
-    criteria = [
-        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
-        for line in str(restated or "").splitlines()
-        if line.strip()
-    ]
-    out += [
-        "",
-        "### Acceptance criteria",
-        "",
-        *(criteria or ["- none recorded in the interview surface"]),
-        "",
-    ]
     out += ["### Captured assumptions", ""]
     lines = [
-        f"- {clean(c)}: confirmed on {r['n']}; revisit if {r['n']} changes"
+        f"- {clean(c)}: confirmed on {brief_label(r)}; revisit if {r['n']} changes"
         for r, c in confirmed
     ]
-    lines += [f"- risk: {clean(c)} (unconfirmed); from {r['n']}" for r, c in risks]
+    lines += [
+        f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
+    ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]
     archived = [r for r in rows if r["status"] == "withdrawn"]
     out += [
-        f"- {r['n']} {clean(r['q'].get('title'))}: {r['display']}" for r in archived
+        *bullets(sections.get("outOfScope")),
+        *(
+            f"- {brief_label(r)} {clean(r['q'].get('title'))}: {r['readable']}"
+            for r in archived
+        ),
     ] or ["- none"]
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
@@ -662,7 +917,7 @@ def export_brief(d):
         until = r["note"] or "the user revisits it"
         arbiter = ARBITER_USER if r["reserved"] else ARBITER_PLAN
         out.append(
-            f"- {r['n']}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
+            f"- {brief_label(r)}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
         )
     if not retired:
         out.append("- none")
@@ -866,28 +1121,48 @@ def export_report(d):
     return "\n".join(out) + "\n"
 
 
-def parse_register(text):
-    """Register rows as (n, status, round, title, resolution), skipping fenced blocks."""
-    rows, inside, fenced = [], False, False
-    for line in text.splitlines():
+def round_of(cell):
+    """(round, anchored) of a register round cell: the N of a leading `round <N>`, else the
+    cell's first integer, else 1; anchored is False unless the leading form matched."""
+    m = ROUND_CELL.match(cell)
+    if m:
+        return int(m.group(1)), True
+    m = re.search(r"[0-9]+", cell)
+    return (int(m.group()) if m else 1), False
+
+
+def scan_register(lines):
+    """(heads, rows) over a ledger's lines outside fenced blocks: the index of every heading
+    naming the open-question register, and (index, row match) for each row under the first."""
+    heads, rows, fenced, inside = [], [], False, False
+    for i, line in enumerate(lines):
         if FENCE.match(line):
             fenced = not fenced
             continue
         if fenced:
             continue
         if re.match(r"^#+\s", line):
-            if inside:
-                break
             inside = "open-question register" in line.lower()
+            if inside:
+                heads.append(i)
             continue
-        m = ROW.match(line) if inside else None
-        if not m:
-            continue
+        m = ROW.match(line) if inside and len(heads) == 1 else None
+        if m:
+            rows.append((i, m))
+    return heads, rows
+
+
+def parse_register(text):
+    """Register rows as (n, status, round, title, resolution, round cell), skipping fenced
+    blocks."""
+    rows = []
+    for _, m in scan_register(text.splitlines())[1]:
         parts = [p.strip() for p in m.group(2).split("|", 3)]
         parts += [""] * (4 - len(parts))
-        status, rnd, title, res = parts
-        digits = re.sub(r"[^0-9]", "", rnd)
-        rows.append((int(m.group(1)), status.lower(), int(digits or 1), title, res))
+        status, cell, title, res = parts
+        rows.append(
+            (int(m.group(1)), status.lower(), round_of(cell)[0], title, res, cell)
+        )
     return rows
 
 
@@ -918,6 +1193,7 @@ def import_hold(qid, title, rnd, hold, seeded, at, rev):
         "alternatives": [],
         "waiting": True,
         "waitsOn": hold["waitsOn"],
+        "waitingSince": at,
     }
     if hold["user"]:
         q["waitingBy"] = "user"
@@ -1057,8 +1333,13 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     seeded_defer = answer == "deferred" and (
         status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
+    # A counted free-text answer's note is the user's words behind its resolution; the note of a
+    # set-aside one, or of a superseded-by-plan row's, is the row's seeded text.
+    own_noted = answer is not None and status != "superseded-by-plan"
     noted = decided is not None and (
-        decided.startswith(("accepted: ", "hedged: ")) or bool(ALT.match(decided))
+        decided.startswith(("accepted: ", "hedged: "))
+        or bool(ALT.match(decided))
+        or (own_noted and decided.startswith("free-text: "))
     )
     if decided is not None and decided.startswith("hedged: ") and not note:
         refuse("a hedged answer with no condition in field 'note'", where)
@@ -1087,7 +1368,7 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             {"index": i, "reason": SEED_NOTE, "at": at} for i in ticked
         ]
     if hold is not None:
-        q.update(waiting=True, waitsOn=waits)
+        q.update(waiting=True, waitsOn=waits, waitingSince=at)
         if who == "user":
             q["waitingBy"] = "user"
     if "proposal" in fields:
@@ -1149,13 +1430,21 @@ def import_ledger(doc, text, ledger, at):
     rows = parse_register(text)
     if not rows:
         raise SystemExit(f"refused: no open-question register rows in {ledger}")
-    seeded, seen = {}, set()
-    for n, status, rnd, title, res in rows:
+    seeded, seen, cells = {}, set(), {}
+    for n, status, rnd, title, res, cell in rows:
         lead = LEAD.match(res)
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
         if qid in seen:
             raise SystemExit(f"refused: duplicate question id in {ledger}: {qid}")
         seen.add(qid)
+        if not round_of(cell)[1]:
+            print(
+                f"warning: {qid} round cell {cell!r} does not start with 'round <N>'; "
+                f"read as round {rnd}",
+                file=sys.stderr,
+            )
+        if cell != f"round {rnd}":
+            cells[qid] = cell
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
         named = parse_named(res, ledger)
@@ -1243,7 +1532,7 @@ def import_ledger(doc, text, ledger, at):
                 {"index": i, "reason": SEED_NOTE, "at": at} for i in range(len(commits))
             ]
         if held:
-            q.update(waiting=True, waitsOn=held.group(2))
+            q.update(waiting=True, waitsOn=held.group(2), waitingSince=at)
             if held.group(1) == "awaiting user":
                 q["waitingBy"] = "user"
         by = "claude" if status in UNSETTLED else "user-terminal"
@@ -1255,4 +1544,6 @@ def import_ledger(doc, text, ledger, at):
     meta = doc.setdefault("meta", {})
     meta.setdefault("title", f"Seeded from {Path(ledger).name}")
     meta["seededFrom"] = {"ledger": ledger, "at": at, "rows": seeded}
+    if cells:
+        meta["seededFrom"]["roundCells"] = cells
     return doc

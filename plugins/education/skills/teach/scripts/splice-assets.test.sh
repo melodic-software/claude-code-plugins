@@ -416,7 +416,7 @@ probe_hook() {
 }
 
 # shellcheck disable=SC2016  # `${CLAUDE_PLUGIN_ROOT}` stays literal: the guard is driven with
-# the command string exactly as lessons.md writes it, before the harness substitutes anything.
+# the documented invocation before any path is substituted into it.
 NEW_INVOCATION='bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/splice-assets.sh" "/c/Users/Test User/Claude Learning/proj/topic/rust/concepts/ownership/lesson.html" "/c/Users/Test User/Claude Learning/proj/topic/rust/assets"'
 OLD_RECIPE='awk -v A="/c/ws/assets" "/\/\* SPLICE:STYLE \*\// { next } { print }" lesson.html > lesson.html.tmp && mv lesson.html.tmp lesson.html'
 
