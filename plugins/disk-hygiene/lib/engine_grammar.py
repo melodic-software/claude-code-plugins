@@ -26,10 +26,12 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   flag-shaped) and pass the flag's ``pattern`` or ``choices``. A flag whose
   value the guard can only judge with context it alone holds names an
   ``external_check``; the guard supplies that callable to ``match_invocation``.
-  ``--data-root`` is the one such flag, and the guard also requires it to be
+  ``--data-root`` is one such flag, and the guard also requires it to be
   present: the parser keeps it optional so a state-writing subcommand can refuse
   its absence with the engine's own diagnostic, and an invocation without it is
-  not admitted.
+  not admitted. The input files (``--snapshot``, ``--plan``, ``--paths``,
+  ``--vcs-evidence``) are the others: each must be an absolute path whose real
+  location is inside that authorized root.
 * ``requires`` names another flag that must also be present.
 * A subcommand's ``one_of`` groups name optional flags of which exactly one
   must be present. The parser declares each group as a required mutually
@@ -58,6 +60,12 @@ AUTHORIZED_DATA_ROOT = "authorized-data-root"
 
 # The flag carrying that value. The guard requires it on every engine call.
 DATA_ROOT_FLAG = "--data-root"
+
+# An engine input (snapshot, plan, approved paths, VCS evidence): an absolute
+# path whose real location is inside that authorized data root. A snapshot
+# carries the protection globs preview and apply enforce, so an input read from
+# anywhere else could drop one.
+AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 
 
 class Flag:
@@ -150,6 +158,10 @@ class Subcommand:
 
 def _data_root_flag() -> Flag:
     return Flag(DATA_ROOT_FLAG, external_check=AUTHORIZED_DATA_ROOT)
+
+
+def _input_flag(name: str, **options) -> Flag:
+    return Flag(name, external_check=AUTHORIZED_DATA_ROOT_FILE, **options)
 
 
 # A directory basename with no separator and no self/parent reference.
@@ -252,18 +264,17 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
     Subcommand(
         "preview",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--plan", required=True, example="plan.json"),
+            _input_flag("--snapshot", required=True),
+            _input_flag("--plan", required=True),
             _data_root_flag(),
         ),
     ),
     Subcommand(
         "handoff-verify",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag(
+            _input_flag("--snapshot", required=True),
+            _input_flag(
                 "--paths",
-                example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
             Flag(
@@ -276,7 +287,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                     "one path is the per-deletion form"
                 ),
             ),
-            Flag("--vcs-evidence", example="vcs-evidence.json"),
+            _input_flag("--vcs-evidence"),
             _data_root_flag(),
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
@@ -285,7 +296,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
     Subcommand(
         "catalog",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
+            _input_flag("--snapshot", required=True),
             Flag(
                 "--run-id",
                 required=True,
@@ -302,8 +313,8 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "apply",
         (
             Flag("--execute", takes_value=False, required=True),
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--plan", required=True, example="plan.json"),
+            _input_flag("--snapshot", required=True),
+            _input_flag("--plan", required=True),
             Flag("--confirm-tier", required=True, choices=TIERS, example="high"),
             Flag(
                 "--approval-token",
@@ -319,7 +330,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "handoff-apply",
         (
             Flag("--execute", takes_value=False, required=True),
-            Flag("--snapshot", required=True, example="snapshot.json"),
+            _input_flag("--snapshot", required=True),
             # One exact approved path per call: the engine verifies that path
             # against live state and deletes it in the same process.
             Flag(
@@ -329,7 +340,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="relative/exact.tmp",
                 help="the one snapshot-relative approved path to verify and delete",
             ),
-            Flag("--vcs-evidence", required=True, example="vcs-evidence.json"),
+            _input_flag("--vcs-evidence", required=True),
             Flag("--report", required=True, example="report.json"),
             _data_root_flag(),
         ),

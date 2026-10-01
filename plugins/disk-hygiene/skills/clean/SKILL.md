@@ -169,7 +169,9 @@ It only reports: removing a listed entry still takes `scan`, a fresh `preview` a
 
 Choose a unique run-directory path under `${CLAUDE_PLUGIN_DATA}/runs/`; the engine creates it (it
 creates the parent of `--output`). Snapshots, plans, and reports must stay there, never in the target
-or `${CLAUDE_PLUGIN_ROOT}`. Run:
+or `${CLAUDE_PLUGIN_ROOT}`. Spell each input file (`--snapshot`, `--plan`, `--paths`,
+`--vcs-evidence`) as an absolute path under the run directory: the guard and the engine refuse one
+anywhere else. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \

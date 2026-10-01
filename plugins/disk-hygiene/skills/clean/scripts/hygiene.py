@@ -396,6 +396,26 @@ def state_output_path(path: Path) -> Path:
     return path
 
 
+def state_input_path(path: Path) -> Path:
+    """Resolve an engine input file and require it inside the data root.
+
+    A snapshot carries the protection globs preview and apply enforce, so a
+    snapshot, plan, path list or VCS evidence read from anywhere else could drop
+    a protection the scan recorded.
+    """
+    if not DATA_ROOT_OVERRIDE:
+        raise HygieneError("a generated-state root is required: pass --data-root")
+    data_root = Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
+    path = path.expanduser().resolve(strict=False)
+    if not is_within(path, data_root):
+        raise HygieneError("engine inputs must be read from inside the data root")
+    return path
+
+
+def load_input_json(value: str) -> dict[str, Any]:
+    return load_json(state_input_path(Path(value)))
+
+
 def os_key() -> str:
     system = platform.system().lower()
     return {"darwin": "macos", "windows": "windows", "linux": "linux"}.get(
@@ -5757,7 +5777,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "inventory":
             return run_inventory(args.target, args.deep)
-        snapshot = load_json(Path(args.snapshot))
+        snapshot = load_input_json(args.snapshot)
         if args.command == "catalog":
             entries = snapshot.get("entries")
             if (
@@ -5823,11 +5843,11 @@ def main(argv: list[str] | None = None) -> int:
             approved = validate_handoff_paths(
                 {"version": SCHEMA_VERSION, "paths": args.path}
                 if args.path
-                else load_json(Path(args.paths)),
+                else load_input_json(args.paths),
                 entry_map(snapshot),
             )
             vcs_evidence = (
-                validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
+                validate_vcs_evidence(load_input_json(args.vcs_evidence), approved)
                 if args.vcs_evidence
                 else None
             )
@@ -5840,7 +5860,7 @@ def main(argv: list[str] | None = None) -> int:
                 {"version": SCHEMA_VERSION, "paths": [args.path]}, entry_map(snapshot)
             )
             vcs_evidence = validate_vcs_evidence(
-                load_json(Path(args.vcs_evidence)), [approved]
+                load_input_json(args.vcs_evidence), [approved]
             )
             report_path = state_output_path(Path(args.report))
             report = handoff_apply(snapshot, approved, vcs_evidence)
@@ -5849,7 +5869,7 @@ def main(argv: list[str] | None = None) -> int:
                 report,
                 {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
             )
-        plan = load_json(Path(args.plan))
+        plan = load_input_json(args.plan)
         checked = preview(snapshot, plan)
         if args.command == "preview":
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
