@@ -57,6 +57,11 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .notice{display:flex;gap:8px;align-items:center;margin-left:auto;border:1px solid var(--chg);background:var(--chg-soft);border-radius:6px;padding:3px 8px;max-width:55%;white-space:nowrap}
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
+#reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+#reBanner[hidden],.ntoast[hidden]{display:none}
+.ntoast{position:fixed;left:16px;bottom:16px;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(440px,calc(100vw - 32px));border:1px solid var(--chg);background:var(--panel);border-radius:8px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13.5px;pointer-events:none}
+.ntoast button{pointer-events:auto}
+.rediff .diff{white-space:pre-wrap;max-height:none}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 h1{font:600 26px/1.1 var(--display);margin:6px 0 0;text-wrap:balance}
 .hright{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;justify-content:flex-end}
@@ -383,6 +388,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
       <div class="notice" id="notice" hidden></div>
     </div>
+    <div class="banner" id="reBanner" hidden></div>
   </header>
   <div class="layout" id="layout">
     <nav class="rail" aria-label="Questions">
@@ -446,8 +452,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     <button class="tbtn small" id="fsClose" title="Close (Esc)" aria-keyshortcuts="Escape">Close</button></div>
   <div class="fsview" id="fsView"><div class="fsstage" id="fsStage"></div></div>
 </div>
+<div class="ntoast" id="needToast" role="status" aria-live="polite" hidden></div>
 <dialog id="dlg"><h3 id="dlgTitle"></h3><div id="dlgBody"></div>
-  <div class="arow"><button class="act primary" id="dlgOk" data-submit="1">Accept these</button><button class="act" id="dlgCancel">Cancel</button></div></dialog>
+  <div class="arow"><button class="act primary" id="dlgOk" data-submit="1">Accept these</button><button class="act" id="dlgAlt" hidden></button><button class="act" id="dlgCancel">Cancel</button></div></dialog>
 <dialog id="finDlg" aria-labelledby="finTitle"><h3 id="finTitle">Interview complete</h3><div id="finBody"></div>
   <div class="arow"><button class="act primary" id="finClose">Close</button></div></dialog>
 <dialog id="keysDlg" aria-labelledby="keysTitle"><h3 id="keysTitle">Keyboard shortcuts</h3><div class="keys" id="keysBody"></div>
@@ -482,13 +489,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
-    instance: "", restarted: false, finished: null,
+    instance: "", restarted: false, finished: null, need: null, actKeys: null,
     armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
   const lsGet = (k, d) => { try { const v = localStorage.getItem("iv2:" + S.session + ":" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
   const lsSet = (k, v) => { try { if (v === undefined || v === null) localStorage.removeItem("iv2:" + S.session + ":" + k); else localStorage.setItem("iv2:" + S.session + ":" + k, JSON.stringify(v)); } catch (e) {} };
+  const finLoad = () => { try { return JSON.parse(localStorage.getItem("iv2:finish") || "null"); } catch (e) { return null; } }; // one key per origin, which is one data dir's port; it carries the data-dir id
+  const finSave = v => { try { if (v) localStorage.setItem("iv2:finish", JSON.stringify(v)); else localStorage.removeItem("iv2:finish"); } catch (e) {} };
   function localSettings(){ try { return JSON.parse(localStorage.getItem("iv2:settings") || "{}") || {}; } catch (e) { return {}; } }
   function setLocal(k, v){ const o = localSettings(); if (v === undefined) delete o[k]; else o[k] = v; try { localStorage.setItem("iv2:settings", JSON.stringify(o)); } catch (e) {} applySettings(); }
   function setting(k){ const l = localSettings(); return k in l ? l[k] : S.settings[k] ? S.settings[k].value : DEFAULTS[k]; }
@@ -837,7 +846,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
     if ($("clAge").textContent !== age) $("clAge").textContent = age;
-    renderNotice();
+    renderNotice(); renderReBanner(); renderNeedToast();
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
     ac.textContent = sure ? "Understanding confirmed · " + unticked + " unticked; they become named risks unless ticked" : na + " to confirm";
@@ -851,14 +860,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const un = unseenActs().filter(needsAct).length, ab = $("actBadge"); // only what needs the user badges Activity; log entries wait in the panel
     ab.hidden = !un || S.fly === "activity"; ab.textContent = un;
     ab.parentNode.setAttribute("aria-label", "Activity" + (ab.hidden ? "" : ", " + un + " new"));
-    const away = document.hidden && S.hiddenBase ? [...arrivalKeys()].filter(k => !S.hiddenBase.has(k)).length : 0; // what landed since the tab was hidden, whether or not a flyout marked it seen
+    const away = document.hidden && S.hiddenBase ? acts().filter(e => needsAct(e) && !S.hiddenBase.has(actKey(e))).length : 0; // Needs-you entries that landed since the tab was hidden, whether or not a flyout marked them seen
     document.title = (away > 0 ? "(" + away + ") " : "") + (m.title || "Interview");
     const vb = $("visBadge"), vn = S.sel && S.sel !== SUMMARY && Q[S.sel] ? visualsFor(Q[S.sel]).length : 0;
     vb.hidden = !vn || S.fly === "visuals"; vb.textContent = vn;
     vb.parentNode.setAttribute("aria-label", "Visuals" + (vb.hidden ? "" : ", " + vn));
   }
   function renderNotice(){ // digests unseen entries; not a live region, never takes focus
-    const un = unseenActs().filter(needsAct), e = un[un.length - 1], box = $("notice");
+    const un = unseenActs().filter(needsAct), e = un.filter(x => isRestate(x) && !uState()).pop() || un[un.length - 1], box = $("notice"); // a restatement still to confirm outranks a later note
     box.hidden = !e;
     if (!e) { setHtml(box, ""); return; }
     const more = un.length > 1 ? " (+" + (un.length - 1) + " more)" : "", tgt = actTarget(e);
@@ -866,8 +875,33 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (tgt ? '<button class="tbtn small" data-go="' + esc(tgt) + '">' + (e.notes ? "Open Notes" : tgt === SUMMARY ? "Go to the summary" : "Go to " + esc(tgt)) + "</button>" : "") +
       '<button class="tbtn small" data-allact="1">All activity</button>');
   }
+  function renderReBanner(){ // a changed restatement stays flagged until it has a verdict, however many notices follow it
+    const show = !!S.doc.restatement && (S.doc.restatements || []).length > 1 && !uState() && !wrapSent();
+    setHtml($("reBanner"), show ? "<b>Restatement changed, needs your Confirm.</b> <button class=\"tbtn small\" data-go=\"" + SUMMARY + "\">Go to the summary</button>" : "");
+    $("reBanner").hidden = !show;
+  }
+  function needToast(es){ // new Needs-you entries only; the entry text says what, the buttons go there or dismiss
+    const e = es[es.length - 1];
+    S.need = {text: e.finished ? "Interview complete" : e.notes ? "Claude replied in Notes" : e.text, more: es.length - 1, tgt: actTarget(e), notes: !!e.notes};
+    renderNeedToast(); notifyHidden(S.need.text);
+  }
+  const canNotify = () => { try { return !!window.Notification && Notification.permission !== "denied" && lsGet("notify", false) !== true; } catch (e) { return false; } };
+  function renderNeedToast(){
+    const n = S.need;
+    setHtml($("needToast"), n ? "<span>" + esc(n.text) + esc(n.more ? " (+" + n.more + " more)" : "") + "</span>" +
+      (n.tgt ? '<button class="tbtn small" data-ntgo="' + esc(n.tgt) + '">' + (n.notes ? "Open Notes" : n.tgt === SUMMARY ? "Go to the summary" : "Go to " + esc(n.tgt)) + "</button>" : "") +
+      (canNotify() ? '<button class="tbtn small" data-notify="1">Notify me when this tab is hidden</button>' : "") + '<button class="tbtn small" data-ntdismiss="1">Dismiss</button>' : "");
+    $("needToast").hidden = !n;
+  }
+  async function enableNotify(){ // the only place permission is asked, and only inside a click
+    try { lsSet("notify", (await Notification.requestPermission()) === "granted"); } catch (e) {}
+    renderNeedToast();
+  }
+  function notifyHidden(text){
+    try { if (document.hidden && lsGet("notify", false) === true && Notification.permission === "granted") new Notification((S.doc.meta || {}).title || "Interview", {body: text}); } catch (e) {}
+  }
   const isRestate = e => !!S.doc.restatement && e.restate === S.doc.restatement.rev;
-  const actTarget = e => e.notes ? "notes" : (e.ids || []).find(id => Q[id]) || (isRestate(e) ? SUMMARY : null);
+  const actTarget = e => e.notes ? "notes" : isRestate(e) && !uState() ? SUMMARY : (e.ids || []).find(id => Q[id]) || (isRestate(e) ? SUMMARY : null); // a restatement still to confirm leads to the summary, not to a question the same write touched
 
   // ---------- history thread ----------
   const VERB = {accept: "accepted", hedged: "accepted with a condition", own: "answered", defer: "deferred", reopen: "reopened", ask: "asked Claude", rephrase: "asked for a rephrase", research: "asked Claude to research", "cancel-research": "cancelled the research", undo: "undid a save", note: "wrote", wrapup: "asked to wrap up"};
@@ -1106,8 +1140,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- conflict (409) ----------
   function snapOf(q){ return {rev: crev(q), title: q.title, recommendation: q.recommendation || "", alternatives: (q.alternatives || []).map(a => "(" + a.key + ") " + a.text).join("\n")}; }
-  function wordDiff(a, b){
-    const x = String(a || "").split(/(\s+)/), y = String(b || "").split(/(\s+)/);
+  function wordDiff(a, b, sep){ // sep splits into the compared pieces: words by default, /^/m for lines
+    const x = String(a || "").split(sep || /(\s+)/), y = String(b || "").split(sep || /(\s+)/);
     if (x.length * y.length > 250000) return "<del>" + esc(a) + "</del> <ins>" + esc(b) + "</ins>";
     const L = Array.from({length: x.length + 1}, () => new Uint16Array(y.length + 1));
     for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
@@ -1183,16 +1217,27 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
   const USECT = [["goal", "Goal"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
+    const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
+    return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
+  }
+  function reDiffHtml(){ // line diff of every section against the newest confirmed rev
+    const r = S.doc.restatement, old = confirmedRev(); if (!r || !old) return "";
+    const sec = (x, k) => String((x.sections || {})[k] || "").trim() + "\n";
+    const rows = USECT.filter(([k]) => sec(old, k) !== sec(r, k)).map(([k, t]) => "<h5>" + t + '</h5><div class="diff">' + wordDiff(sec(old, k), sec(r, k), /^/m) + "</div>");
+    return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + old.rev + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
+  }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box
     const r = S.doc.restatement;
     if (!r) return '<section class="blk"><h4>Shared understanding</h4><p class="empty">Claude has not restated the shared understanding yet.</p></section>';
     const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + md(r.sections[k])).join("");
-    const foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>"
+    const na = openAssumptions(), foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>" +
+        (na ? '<p class="kbd" id="uCommit">Confirming the understanding does not tick commitments. ' + ("The " + na + (na === 1 ? " unticked commitment becomes a named risk" : " unticked commitments become named risks")) + " in the Brief unless you tick " + (na === 1 ? "it" : "them") + '. <button type="button" class="tbtn small" data-toconfirm="">Open the commitment list</button></p>' : "")
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
-      : wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
+      : reDiffHtml() + (wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
       : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
         '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
-        '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";
+        '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>");
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
   function cBoxHtml(){ // only what is still to confirm; Claude's confirmations are listed with their reasons below it
@@ -1540,6 +1585,31 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!secs || S.api < 2) { S.undo = null; return; }
     S.undo = {seq, id, note}; undoTimer = setTimeout(() => { S.undo = null; renderToast(); }, secs * 1000);
   }
+  const reEsc = k => String(k).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function refOf(q, text){ // the one option a note names by a label the card shows (Rec, #1, option 2, (a)), else null: none, or several
+    const alts = q.alternatives || [], hits = new Map(), t = String(text || "");
+    if (/(?:^|[\s,;(])(?:#|option\s+)1\b/i.test(t) || /(?:^|\W)Rec\b/.test(t)) hits.set("", {label: "Accept with note", kind: "accept", alt: null});
+    for (const m of t.matchAll(/(?:^|[\s,;(])(?:#|option\s+)([2-9])\b/gi)) { const a = alts[+m[1] - 2]; if (a) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); } // option 2 was (a) while the rows were numbered
+    alts.forEach(a => { if (new RegExp("(?:^|[\\s,;])\\(" + reEsc(a.key) + "\\)", "i").test(t)) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); });
+    return hits.size === 1 ? [...hits.values()][0] : null;
+  }
+  function askRef(ref, own){ // "ok" records the named option with the note, "own" keeps the note as typed, anything else sends nothing
+    const dlg = $("dlg"), alt = $("dlgAlt");
+    $("dlgTitle").textContent = "Did you mean " + ref.label + "?";
+    $("dlgBody").innerHTML = "<p>Your note names " + esc(ref.label) + ", a label on this card. " + (ref.kind === "accept" ? "Accept with note records the recommendation with your note." : "Choosing it records " + esc(ref.label) + " with your note.") + "</p>";
+    $("dlgOk").textContent = ref.kind === "accept" ? "Accept with note" : "Choose " + ref.label; $("dlgOk").disabled = false;
+    alt.textContent = own; alt.hidden = false; dlg.returnValue = "";
+    return new Promise(res => {
+      dlg.onclose = () => { alt.hidden = true; res(dlg.returnValue); };
+      $("dlgOk").onclick = () => dlg.close("ok"); alt.onclick = () => dlg.close("own"); $("dlgCancel").onclick = () => dlg.close("cancel");
+      dlg.showModal(); $("dlgOk").focus();
+    });
+  }
+  async function resolveRef(q, text, own){ // null: send as typed; false: the user backed out; else the option the note names
+    const ref = refOf(q, text); if (!ref) return null;
+    const a = await askRef(ref, own);
+    return a === "ok" ? ref : a === "own" ? null : false;
+  }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
     const c = armedOf(choicesOf(q));
@@ -1550,6 +1620,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const note = keep !== undefined ? keep : $("note").value.trim();
     if ((noteKind(c.kind) || c.wn) && !note) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : "Own answer needs a note.", true); $("note").focus(); return; }
     if (c.kind === "hedged" && note.length > LINE_CAP) { toast("The condition is too long: at most " + LINE_CAP + " characters.", true); $("note").focus(); return; }
+    if (c.kind === "own" && keep === undefined) { // own text that starts from a card label is most often an accept with a remark
+      const r = await resolveRef(q, note, "Save as own answer"); if (r === false) return;
+      if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; }
+    }
     await send(c.kind, c.alt, undefined, keep, withNote(q, c));
   }
   function confirmAccept(){ // Claude has not answered your ask yet, so the recommendation may still change
@@ -1586,6 +1660,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel]; if (!q || S.busy) return;
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
+    if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
     S.busy = true; toast("Saving.");  renderAnswer();
@@ -1751,7 +1826,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.instance && data.instance && data.instance !== S.instance) S.restarted = true; // a new server holds a new token: this page cannot save any more
     S.instance = data.instance || S.instance;
     S.finished = S.doc.finished || null; // kept in memory when the server goes away: its last frame is what the offline state reads
+    const kept = finLoad();
+    if (S.finished) { if (!kept || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }
+    else if (kept && kept.session === S.session) finSave(null); // a resumed interview has no finish
     Q = {}; S.doc.questions.forEach(q => Q[q.id] = q);
+    const fresh = S.actKeys ? acts().filter(e => !S.actKeys.has(actKey(e)) && needsAct(e)) : []; // only what needs the user, and never what the first load already held
+    S.actKeys = new Set(acts().map(actKey));
     S.replies = {};
     S.doc.questions.forEach(q => (q.history || []).forEach(h => { if (h.by === "claude" && h.replyTo) S.replies[h.replyTo] = h; }));
     (S.doc.notes || []).forEach(h => { if (h.replyTo) S.replies[h.replyTo] = h; });
@@ -1787,6 +1867,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     restoreFocus(f); // a state push keeps focus on the same control
     showFinish();
+    if (fresh.length) needToast(fresh);
+  }
+  function restoreFinish(){ // the state call failed before the first state arrived: show the finish this browser kept
+    const k = finLoad(); if (S.loaded || !k || !k.finished) return;
+    S.session = k.session || ""; S.finished = k.finished;
+    $("answer").hidden = true; $("dscroll").innerHTML = finishedHtml(S.finished);
+    renderHeader(); showFinish();
   }
   function renderAll(){ renderHeader(); renderRail(); renderDetail(); if (S.fly) renderFly(); }
   let thawTimer = null;
@@ -1828,6 +1915,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
+    const nt = t.closest("#needToast button");
+    if (nt) { if (nt.dataset.notify) { enableNotify(); return; } S.need = null; renderNeedToast(); if (nt.dataset.ntgo) goTo(nt.dataset.ntgo); return; }
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
     if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
@@ -1945,7 +2034,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   setInterval(() => { if (S.loaded) renderHeader(); }, 2000);
 
   applySettings();
-  refresh().then(() => setOnline(true)).catch(() => setOnline(false)).finally(connect);
+  refresh().then(() => setOnline(true)).catch(() => { setOnline(false); restoreFinish(); }).finally(connect);
 })();
 </script>
 </body>

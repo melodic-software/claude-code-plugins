@@ -231,6 +231,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "confirm-commitments", "id": "Q4", "reason": "Said yes in the terminal"},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging on their own.",
       "constraints": "Builds stop at ten minutes.", "planningOwned": "How the cache key is built."}}]}'
+  # A Notes reply lands after the restatement: the restate notice must stay shown over it (phase 4).
+  japply e2 '{"ops": [{"op": "note-reply", "text": "One more thing: what should the cache key include?"}]}'
   jrun 4
   jhandle
   bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --force >/dev/null
@@ -256,13 +258,14 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 7
   japply i '{"ops": [{"op": "activity", "text": "Checked the cache key while you were looking"}]}'
   jrun 8
-  japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}]}'
+  # One log entry and one Notes reply: only the Notes reply counts in the title (phases 9, 11 and 13).
+  japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}, {"op": "note-reply", "text": "Still on track."}]}'
   jrun 9
   jrun 10
-  japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}]}'
+  japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}, {"op": "note-reply", "text": "Nothing new yet."}]}'
   jrun 11
   jrun 12
-  japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}]}'
+  japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}, {"op": "note-reply", "text": "Checking again."}]}'
   jrun 13
   jhandle
   japply m '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview",
@@ -280,6 +283,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
       "recommendation": "Only the jobs on the same runner image.", "commits": ["Shares one cache across jobs"], "alternatives": [{"key": "a", "text": "Every job"}, {"key": "b", "text": "None"}]}},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
+  # A Notes reply after the restatement: the restate notice outranks it in phase 16.
+  japply n2 '{"ops": [{"op": "note-reply", "text": "Anything else before the Brief?"}]}'
   jrun 16
   # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
   # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and
@@ -298,7 +303,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  browser=409 journey=189
+  browser=434 journey=214
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi
