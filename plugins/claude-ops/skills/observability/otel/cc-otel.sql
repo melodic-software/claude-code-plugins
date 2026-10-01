@@ -236,7 +236,7 @@ GROUP BY trace_id;
 -- (see the header note on error posture).
 -- Content boundary (enforced at compaction, documented here for queriers): no
 -- api_request_body/api_response_body rows; user_prompt rows have body NULL and the `prompt`
--- attribute scrubbed unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1 was set at prune time.
+-- and `prompt_text` attributes scrubbed unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1 was set at prune time.
 CREATE OR REPLACE MACRO cc_logs_cold(src := COALESCE(NULLIF(getenv('CC_OTEL_STORE'), ''), '.claude/observability/otel') || '/cold/cc-logs-*.parquet') AS TABLE
 SELECT * FROM read_parquet(src);
 

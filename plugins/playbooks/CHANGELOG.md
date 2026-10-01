@@ -4,11 +4,23 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.5] - 2026-10-01
+## [0.16.1] - 2026-10-01
 
 ### Changed
 
 - `repo-sweep` and `skill-authoring/reference/precompute-context.md` point to the worktree skill's command-shape record instead of restating the shapes an isolated session refuses.
+
+## [0.16.0] - 2026-10-01
+
+### Added
+
+- A Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`. The `fable-5` skill's meta-rule 3 routes Sonnet 5.5 to it and names its fallback targets.
+
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- The `boris` advanced and autonomy references point at the current docs for model and effort facts instead of restating them.
 
 ## [0.15.4] - 2026-10-01
 

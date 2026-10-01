@@ -27,7 +27,7 @@ import shutil
 import sys
 import tempfile
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Bundled tzdata must be importable before any ZoneInfo(IANA) call so hosts
@@ -165,7 +165,52 @@ def resolve_zone(name: str) -> ZoneInfo:
         ) from exc
 
 
-def parse_reset(text: str, *, now: datetime | None = None) -> datetime:
+def _first_at_or_after(received: datetime, zone, hour: int, minute: int) -> datetime:
+    """The first wall-clock ``hour:minute`` in ``zone`` at or after ``received``.
+
+    Each candidate is rebuilt on a calendar date (not shifted by 24h) and
+    normalized through UTC, so a time inside a DST gap lands on a real instant
+    and instants, not wall times, are compared. A time inside a DST fall-back
+    hour has two instants; both are candidates.
+    """
+    floor = received.astimezone(timezone.utc)
+    day = received.astimezone(zone).date()
+    while True:
+        naive = datetime(day.year, day.month, day.day, hour, minute)
+        folds = [
+            naive.replace(tzinfo=zone, fold=fold)
+            .astimezone(timezone.utc)
+            .astimezone(zone)
+            for fold in (0, 1)
+        ]
+        # In a DST gap fold=1 shifts the instant; keep it only for a real wall time.
+        real = [c for c in folds if c.replace(tzinfo=None) == naive] or folds[:1]
+        due = [c for c in real if c.astimezone(timezone.utc) >= floor]
+        if due:
+            return min(due, key=lambda c: c.astimezone(timezone.utc))
+        day += timedelta(days=1)
+
+
+def _parse_instant(value: str, flag: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError(f"{flag} needs an offset or Z: {value}")
+    return parsed
+
+
+def parse_reset(
+    text: str,
+    *,
+    now: datetime | None = None,
+    received: datetime | None = None,
+) -> datetime:
+    """Resolve the reset clause to an aware datetime.
+
+    With ``received`` (when the limit message was shown), the reset is the
+    first occurrence of the stated time at or after it, so a time already past
+    on the message's own day resolves to the next day. Without it, the time is
+    read on today's calendar relative to ``now``.
+    """
     match = RESET_RE.search(text)
     if not match:
         raise ValueError("no reset clause found")
@@ -183,6 +228,8 @@ def parse_reset(text: str, *, now: datetime | None = None) -> datetime:
         zone = now.tzinfo or resolve_zone("UTC")
     else:
         zone = datetime.now().astimezone().tzinfo or resolve_zone("UTC")
+    if received is not None:
+        return _first_at_or_after(received, zone, hour, minute)
     current = now.astimezone(zone) if now is not None else datetime.now(zone)
     reset_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
     # After midnight, an evening reset already passed yesterday; an early-morning
@@ -203,13 +250,27 @@ def main(argv: list[str] | None = None) -> int:
         "--now",
         help="ISO-8601 override for tests (must include offset or Z)",
     )
+    parser.add_argument(
+        "--received",
+        help=(
+            "ISO-8601 time the limit message was shown (must include offset or Z); "
+            "a reset time already past on that day resolves to the next day"
+        ),
+    )
     args = parser.parse_args(argv)
     text = args.text
     if text is None:
         text = sys.stdin.read()
-    now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
     try:
-        reset_at = parse_reset(text, now=now)
+        now = (
+            datetime.fromisoformat(args.now.replace("Z", "+00:00"))
+            if args.now
+            else None
+        )
+        received = (
+            _parse_instant(args.received, "--received") if args.received else None
+        )
+        reset_at = parse_reset(text, now=now, received=received)
     except TimezoneUnavailableError as exc:
         print(f"timezone-unavailable: {exc}", file=sys.stderr)
         return 3

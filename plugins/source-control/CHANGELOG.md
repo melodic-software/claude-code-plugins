@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.3] - 2026-10-01
+
+### Changed
+
+- **`worktree/reference/gather-block.md` records the command shapes an isolated session accepts**: the observed refusals, the harness layer, and accepted rewrites.
+
 ## [0.71.2] - 2026-10-01
 
 ### Changed
 
-- **`worktree/reference/gather-block.md` records the command shapes an isolated session accepts**: refusal classes, the harness layer, accepted rewrites, and the shapes not yet probed.
+- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
 
 ## [0.71.1] - 2026-10-01
 
