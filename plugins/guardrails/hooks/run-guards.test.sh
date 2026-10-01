@@ -1006,6 +1006,10 @@ cap_quoted "a <<-'EOF' body ends at a tab-indented terminator" 0 "cat <<-'EOF'${
 cap_quoted "a <<'EOF' body does not end at a tab-indented line" 2 "cat <<'EOF'${NL}$QS${NL}${TAB}EOF"
 cap_quoted "a PR body through --body-file - reaches the guards" 0 "gh pr create --title 'x' --body-file - <<'EOF'${NL}$(rep 'Run `check` first. ' 300)${NL}EOF"
 cap_quoted "a body ends at its own terminator, not a longer line" 0 "cat <<'EOF'${NL}EOFX${NL}$QS${NL}EOF"
+XS=$(rep '$(: x) ' "$OVER")
+cap_quoted "$OVER \$(: x) in a <<'EOF' body reach the guards" 0 "cat <<'EOF'${NL}$XS${NL}EOF"
+cap_quoted "$OVER \$(: x) in an unquoted <<EOF body count" 2 "cat <<EOF${NL}$XS${NL}EOF"
+cap_quoted "$OVER \$(: x) after a <<'EOF' body count" 2 "cat <<'EOF'${NL}x${NL}EOF${NL}echo $XS"
 cap_quoted "an unquoted <<EOF body counts" 2 "cat <<EOF${NL}$QS${NL}EOF"
 cap_quoted "an expanding heredoc counts" 2 "cat <<EOF${NL}\$(rm -rf /) $QS${NL}EOF"
 cap_quoted "an empty delimiter counts" 2 "cat <<''${NL}$QS${NL}"
