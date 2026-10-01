@@ -10,6 +10,9 @@
   and a recheck trigger. `orchestrate/context/sources.md` now lists, per imperative, the section
   that backs it instead of quoted and paraphrased page text, and the orchestrate gotchas follow the
   same shape.
+- **`orchestrate` no longer gives non-work steps a self-check.** A step that is not the work gets
+  no verifier. The workflow size anchor is re-derived (5 to 9 agents medium, 10 or more large, and
+  read the size guideline in force), and the workflow-concurrency override is recorded.
 
 ## [0.41.2] - 2026-09-30
 

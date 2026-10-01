@@ -71,7 +71,7 @@ told:
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
    judge this artifact, its blind spots are uncorrelated with yours, with the fresh-context
    same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
-   (ledger, checklist, status log) is not the work and stays at self-check, however many of them a
+   (ledger, checklist, status log) is not the work and gets no verifier, however many of them a
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
 4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
@@ -151,17 +151,19 @@ a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
 rationalizable either way. Not thresholds to enforce, the judgment still runs on context
-boundaries, not head-count, but we anchor it to the platform's workflow size settings: fewer than
-5 agents is small, 5–14 medium, and a run large enough to trip the platform's large-workflow
-warning is a size to justify out loud. An order-of-magnitude disagreement with this anchor is one
-to name, not skip.
+boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
+than 5 agents is small, 5 to 9 medium, 10 or more large, and a run large enough to trip the
+platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
+disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
+guideline in force for this session: the platform's default differs by plan, and the guideline
+the session sets is the one Claude receives, whatever this anchor says.
 
-- **Pointer**: for the workflow size guideline, see
+- **Pointer**: for the workflow size guideline and its defaults, see
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline>; for the large-workflow
   warning, see <https://code.claude.com/docs/en/workflows#cost>.
-- **As of**: 2026-08-10
-- **Recheck trigger**: that page changes a size-guideline agent count or the threshold its
-  large-workflow warning fires at.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that page changes a size-guideline agent count, a default guideline, or the
+  threshold its large-workflow warning fires at.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
@@ -213,8 +215,8 @@ detectable from above.
 configurable and has changed more than once within weeks, so any number written here is stale by
 the time it is read. Agent-tool subagents carry a depth cap and a concurrency cap
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); workflow agents
-and agent-team teammates carry their own, so "read the current values" includes the workflows
-page whenever the run will use the Workflow tool. Read the current values rather than assuming
+and agent-team teammates carry their own, and workflow concurrency has its own override, so "read
+the current values" includes the workflows page whenever the run will use the Workflow tool. Read the current values rather than assuming
 them, and design the tree so it degrades to a shallower one instead of failing. Never design a
 tree that needs a fork to spawn a fork: that is a shape constraint, not a tunable. Whether a
 below-limit fork can parent non-fork children is unconfirmed, so do not treat a fork as a
@@ -226,7 +228,7 @@ forbidden intermediate tier either. The version history behind the caps lives in
   concurrency cap, see <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>; for
   workflow limits, see <https://code.claude.com/docs/en/workflows#behavior-and-limits>; for forks,
   see <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-08-15
+- **As of**: 2026-08-15; 2026-10-01 for the workflow concurrency override.
 - **Recheck trigger**: a changelog entry touches subagent limits, or `context/sources.md` is
   re-verified.
 

@@ -3,6 +3,21 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-01
+
+### Added
+
+- **`confirm` has a `NOT VERIFIED` verdict.** A run where every check hit an environment skip
+  stops before outcome verification; an environment skip that remains holds the verdict below
+  `CONFIRMED` until the skipped check runs.
+
+### Changed
+
+- **`confirm`'s gate runs in a fixed order**: a failure stops, a `STOPPED` install stops, an
+  all-environment-skip run stops as `NOT VERIFIED`, otherwise outcome verification proceeds. On
+  the no-toolchain path it applies the same counting and lockfile-only install rules as
+  `toolchain:check`. Its `/run` and `/verify` records are links-only.
+
 ## [0.6.13] - 2026-09-30
 
 ### Changed

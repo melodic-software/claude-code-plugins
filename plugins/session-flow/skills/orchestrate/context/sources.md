@@ -100,7 +100,7 @@ sessions, until their timeouts.
   deadlines, see <https://code.claude.com/docs/en/tools-reference#monitor-tool>; for the
   notification a background subagent gets, see
   <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>.
-- **As of**: 2026-09-25
+- **As of**: 2026-10-01
 - **Recheck trigger**: either page changes its subagent background-command lifetime or
   notification behavior, or the Monitor deadline figures.
 
@@ -203,7 +203,7 @@ tools. Either alone proves nothing. Agent-team teammates do not get `Workflow` b
 - **Pointer**: for the tool filters on subagents, see
   <https://code.claude.com/docs/en/sub-agents#available-tools>; for a fork's tools, see
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
-- **As of**: 2026-08-10
+- **As of**: 2026-10-01
 - **Recheck trigger**: either section changes which tools a subagent, fork, or teammate keeps.
 
 ## Imperative 6: SURFACE DRIFT
@@ -258,11 +258,11 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   <https://code.claude.com/docs/en/workflows#cost>. As of: 2026-09-27. Recheck trigger: the page
   changes how a workflow agent's model is picked.
 - **The platform's large-workflow warning is our anchor for "wide fan-out."** The brief speaks of
-  a wide fan-out abstractly; the size guideline, the warning threshold, the concurrency bound and
-  the total agent cap are read live from the pointer, never copied here. Empirical, unpinned
-  datum: a 4-CPU cloud container bound a run at 2 concurrent agents (observed 2026-08-15).
-  Pointer: <https://code.claude.com/docs/en/workflows#cost>,
+  a wide fan-out abstractly; the size guideline in force, the warning threshold, the concurrency
+  bound with its override, and the total agent cap are read live from the pointer, never copied
+  here. Empirical, unpinned datum: a 4-CPU cloud container bound a run at 2 concurrent agents
+  (observed 2026-08-15). Pointer: <https://code.claude.com/docs/en/workflows#cost>,
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline> and
-  <https://code.claude.com/docs/en/workflows#behavior-and-limits>. As of: 2026-08-15. Recheck
-  trigger: that page changes a size-guideline agent count, the warning threshold, or the
-  concurrency bound.
+  <https://code.claude.com/docs/en/workflows#behavior-and-limits>. As of: 2026-10-01. Recheck
+  trigger: that page changes a size-guideline agent count or default, the warning threshold, or
+  the concurrency bound or its override.

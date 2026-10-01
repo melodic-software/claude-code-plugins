@@ -27,6 +27,10 @@ only after that version increases.
 - The `opus-5` thinking-and-effort decision, the `context-economy` thinking-retention probe
   (re-run on Claude Code 2.1.285) and the `calibration` thinking-matrix record are re-derived
   against the current pages.
+- The `fable-5` `verification` chapter installs missing declared dependencies from the lockfile
+  with install scripts disabled before it downgrades a check, and its surfaces table carries one
+  pointer record. The `trust-and-authority` chapter adds one line on a user message that arrives
+  mid-turn beside a tool result.
 
 - The `fable-5-1`, `opus-4-8`, `opus-5`, `opus-5-5` and `sonnet-5` model-adaptation chapters and the
   `prompt-caching` chapter now hold our decision in our own words, with a pointer to the exact

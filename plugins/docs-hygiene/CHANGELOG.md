@@ -12,6 +12,13 @@
 - **`write-for-humans` records its four fallback layers in the links-only shape.** The layers in
   `reference/sources.md` are this plugin's selections from published standards, each with our
   decision, a pointer, an as-of date and a recheck trigger.
+- **`write-for-humans` runs checks instead of a self-check.** After writing it runs the project's
+  prose linter and `/ai-slop:audit`, or reports that the AI-tell check did not run.
+- **`write-for-agents` names which surfaces are system prompt**: a subagent body, an output style,
+  and the launch flags that replace or append to the system prompt. Everything else reaches the
+  model as conversation content.
+- **`rename-references` sets a binary done criterion** for its stale-path pass: zero orphans and
+  zero stale-but-functional rows, or each remaining row named.
 
 ## [0.23.21] - 2026-09-30
 

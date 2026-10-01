@@ -356,7 +356,14 @@ were fixed and re-read main-side. Pins: nine `high`, six `medium`.
 - **Sanity Check:** `grep -c 'sonnet-5-5' plugins/claude-config/skills/audit-instructions/reference/criteria.md` prints at least 3, and the claude-config tests pass under `bash scripts/affected-tests.sh --run --base origin/main`.
 - **Sanity Check:** `grep -n 'pinned below' plugins/claude-config/skills/audit/reference/audit-checklist.md` prints the new row.
 
-### Phase 5: Verification doctrine [TODO]
+### Phase 5: Verification doctrine [DONE]
+
+Done 2026-10-01. Fresh-context verifier 9/9; its accuracy notes were then fixed and re-read
+main-side: `skip (unsupported)` is a missing-tool skip in check and confirm alike, a syntax-only
+ecosystem reports "no real check ran", the uv example is `uv sync --frozen --no-build`, and an
+output style is named as a system-prompt surface. `plugins/playbooks/skills/skill-authoring/SKILL.md`
+is not edited: it is a whole-file digest of a third-party post with a vendored baseline, and the
+system-prompt guidance landed in `/docs-hygiene:write-for-agents`.
 
 - [ ] `plugins/toolchain/skills/check/SKILL.md` (:117, :127-146, :169, :195) and `plugins/verification/skills/confirm/SKILL.md` (:96-98, :126-128). Changes (Q4, Q29, narrowed at planning):
   - when declared dependencies are missing, install them from the lockfile with install scripts disabled and the project's own package manager (for example `npm ci --ignore-scripts`, `uv sync --frozen`, `dotnet restore --locked-mode`), within the permission mode and never with sudo;
