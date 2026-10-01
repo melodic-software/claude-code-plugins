@@ -551,7 +551,7 @@ run_win "quoted mention piped to R (blocked)" "echo \"open('/c/tmp/x','w')\" | R
 run_win "quoted mention piped to an unknown interpreter (blocked)" \
   "echo \"open('/c/tmp/x','w')\" | ./interp" 2
 run_win "quoted mention, then a script run by path (blocked)" \
-  "cat s.py | grep \"open('/c/tmp/x','w')\" ; ./s.py" 2
+  "cat s.py \"open('/c/tmp/x','w')\" ; ./s.py" 2
 run_win "gh body mention then an unlisted command after && (blocked)" \
   "gh issue create --body \"open('/c/tmp/x','w')\" && R -e 1" 2
 run_win "gh body mention with an unquoted glob arg (blocked)" \
