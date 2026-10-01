@@ -65,10 +65,3 @@ plugins/skill-quality/scripts/check-listing-budget.test.sh
 plugins/context-budget/skills/audit/scripts/measure.test.sh
 # Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
-
-# NOT a wall-clock case. Case [4] failed under --jobs 4 on a hosted runner (run
-# 33787030286) and passes serially. Pinned to one CPU on the hosted runner it
-# passed 10/10, so CPU starvation alone does not break it; the open candidate
-# is state shared with a concurrently running suite. It stays listed until
-# that is found (#3694).
-plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh

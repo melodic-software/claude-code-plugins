@@ -3,11 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.3] - 2026-10-01
+## [0.56.1] - 2026-10-01
 
 ### Changed
 
 - **The interview watcher holds a found event for 3 seconds of quiet, up to 12 seconds in all, before it wakes.** Accepts up to 3 seconds apart now share one wake instead of one each; the hold was 0.3 and 2 seconds. A lone accept waits 3 seconds before Claude wakes ([#5457](https://github.com/melodic-software/claude-code-plugins/issues/5457)).
+
+## [0.56.0] - 2026-10-01
+
+### Changed
+
+- **`draft-goal-condition` proposes the drafted condition through the built-in `ProposeGoal`
+  tool when it resolves.** The proposal keeps `ask_user` true, so the person approves it with one
+  keypress. It is made only from the main thread of an interactive local session outside plan
+  mode, and only for a condition that contains no tab and passes the length counter at the
+  tool's own cap. The paste-ready `/goal` line is still emitted every time. The Boundary section
+  and `reference/native-goal.md` record the tool.
 
 ## [0.55.2] - 2026-10-01
 
