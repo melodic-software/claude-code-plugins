@@ -29,6 +29,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   another target covers its descendants, and `catalog` refuses a `--sizes-only` snapshot, which has
   no entries to account for.
 
+## [0.41.3] - 2026-09-30
+
+### Changed
+
+- **A Windows `detached` answer does not mean unused for WSL and Docker disks** ([#5642](https://github.com/melodic-software/claude-code-plugins/issues/5642)). `Get-DiskImage` reads a running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx` and WSL's `swap.vhdx` as `detached`, because WSL2 and Docker hold them open through their own virtual machine. The image keeps `virtual-disk` and the block, so nothing becomes deletable and reclaimable bytes stay 0. The `Get-DiskImage` record in `skills/clean/reference/safety-model.md` is now observed on Windows: `attached` plus the drive letter for a host-mounted VHDX, `detached` for those disks, and an error for an `initrd.img`. No code changes.
+
 ## [0.41.2] - 2026-09-30
 
 ### Changed
