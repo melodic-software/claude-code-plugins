@@ -2895,14 +2895,14 @@ class TestSettleBurstCap(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def settle_with(self, seqs_seen):
+    def settle_with(self, seqs_seen, deadline=float("inf")):
         feed = iter(seqs_seen)
         with unittest.mock.patch.object(
             self.server, "load_json", side_effect=lambda *_: {"seq": next(feed)}
         ):
             with self.hub.cond:
                 start = time.monotonic()
-                r = self.hub.settle({"seq": 0})
+                r = self.hub.settle({"seq": 0}, deadline)
                 return r, time.monotonic() - start
 
     def test_a_quiet_log_returns_after_one_quiet_window(self):
@@ -2916,6 +2916,11 @@ class TestSettleBurstCap(unittest.TestCase):
         self.assertGreater(r["seq"], 1)
         self.assertGreaterEqual(took, self.server.BURST_SECONDS * 0.95)
         self.assertLess(took, self.server.BURST_SECONDS + 0.5)
+
+    def test_a_log_that_never_goes_quiet_is_cut_off_at_the_request_deadline(self):
+        r, took = self.settle_with(range(1, 1000), deadline=time.time() + 0.5)
+        self.assertGreater(r["seq"], 1)
+        self.assertLess(took, 0.5 + 0.3)
 
 
 if __name__ == "__main__":

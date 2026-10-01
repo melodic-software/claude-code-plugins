@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **The interview watcher holds a found event for 3 seconds of quiet, up to 12 seconds in all, before it wakes.** Accepts up to 3 seconds apart now share one wake instead of one each; the hold was 0.3 and 2 seconds. A lone accept waits 3 seconds before Claude wakes ([#5457](https://github.com/melodic-software/claude-code-plugins/issues/5457)).
+- **The interview watcher holds a found event for 3 seconds of quiet, up to 12 seconds in all, before it wakes.** Accepts up to 3 seconds apart now share one wake instead of one each; the hold was 0.3 and 2 seconds. A lone accept waits 3 seconds before Claude wakes, and the hold never outlasts the wait's own timeout ([#5457](https://github.com/melodic-software/claude-code-plugins/issues/5457)).
 
 ## [0.56.0] - 2026-10-01
 

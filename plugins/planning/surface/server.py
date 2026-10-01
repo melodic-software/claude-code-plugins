@@ -1184,10 +1184,11 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
-    def settle(self, r):
-        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all,
-        so a burst of saves wakes the watcher once. Holds self.cond; returns the newest responses."""
-        cap = time.time() + BURST_SECONDS
+    def settle(self, r, deadline=float("inf")):
+        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all
+        and never past `deadline`, so a burst of saves wakes the watcher once and the reply still
+        lands inside the watcher's transfer timeout. Holds self.cond; returns the newest responses."""
+        cap = min(time.time() + BURST_SECONDS, deadline)
         while True:
             left = min(QUIET_SECONDS, cap - time.time())
             if left <= 0:
@@ -1255,7 +1256,7 @@ class Hub:
                         events = []
                     left = deadline - time.time()
                     if events:
-                        r = self.settle(r)
+                        r = self.settle(r, deadline)
                         check_revoked()
                         top = r.get("seq", 0)
                         events = select_events(r)
