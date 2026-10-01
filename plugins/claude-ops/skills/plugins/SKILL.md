@@ -132,7 +132,9 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
      --only-install "<the ids the user picked, comma-separated>" --run-dir "<the digest's run_dir>" --render
    ```
 
-   An empty id list is legal and means "install nothing, still complete Step 5". The report that
+   An empty id list is legal and means "install nothing, still complete Step 5". A dismissed or
+   unanswered multi-select is that case: re-enter with `--only-install ""`, and the report lists
+   the declined gap under `Action needed`. The report that
    call prints supersedes the first one, covers the whole run, and reuses the same cache-content
    finding rather than checking again.
 

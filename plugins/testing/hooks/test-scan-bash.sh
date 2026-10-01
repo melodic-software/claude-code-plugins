@@ -14,6 +14,10 @@
 # every path but only the first five carry hunks; a path without hunks reports
 # nothing.
 #
+# Each file's payload carries the call's session_id, transcript_path and cwd,
+# and <tool_use_id>-<n> as its own id, so test-scan.sh leaves the per-write
+# session record the task-end judge reads, as for a Write or Edit.
+#
 # test-scan.sh's own stderr (a scanner that failed or timed out) passes
 # through, as on the Write and Edit route.
 #
@@ -70,6 +74,7 @@ for p in "${paths[@]}"; do
        tool_name: (if $d.created then "Write" else "Edit" end),
        session_id: (.session_id // ""), agent_id: (.agent_id // ""),
        tool_use_id: "\(.tool_use_id // "")-\($n)",
+       transcript_path: (.transcript_path // ""), cwd: (.cwd // ""),
        tool_input: {file_path: $f},
        tool_response: (if $d.created then {type: "create", structuredPatch: []}
                        else {type: "update", structuredPatch: ($d.hunks // [])} end)}
