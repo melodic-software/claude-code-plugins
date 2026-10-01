@@ -106,6 +106,7 @@ assert_contains "FLAG precision counts a FLAG on a user UNKNOWN" "$out" $'flag-p
 assert_contains "FLAG recall leaves the abstention out" "$out" $'flag-recall seed 0.8571 [0.4869, 0.9743] (6/7)'
 assert_contains "prevalence" "$out" $'prevalence seed 0.3333 (8/24)'
 assert_contains "achieved FLAG n" "$out" $'flag-n seed 8'
+assert_contains "achieved FLAG n is 0 in a stratum with no user FLAG" "$out" $'flag-n in-use 0'
 assert_contains "the judge on user UNKNOWN rows" "$out" $'unknown seed user=5 correct=3 over-reach=2'
 assert_contains "kappa NA when chance agreement is 1" "$out" 'kappa user-opus in in-use NA (n=3)'
 assert_contains "precision NA when the judge never says FLAG" "$out" $'flag-precision in-use NA (0/0)'
@@ -391,7 +392,9 @@ label=PASS
 grep -q '^Test: .*flag' <<<"$prompt" && label=FLAG
 grep -q '^Test: leaky' <<<"$prompt" &&
   echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"../judge-calibration/labels.tsv"}}]}}'
-jq -cn --arg r "Label: {\"label\": \"$label\", \"reason\": \"stub\\treason\"}" '{type: "result", subtype: "success", is_error: false, result: $r}'
+reason="stub\\treason"
+[[ $label == FLAG ]] && reason+=" {x: 1}" # a reason quoting code braces
+jq -cn --arg r "Label: {\"label\": \"$label\", \"reason\": \"$reason\"}" '{type: "result", subtype: "success", is_error: false, result: $r}'
 EOF
 # The codex stub: `login status` per STUB_CODEX_LOGIN; exec writes UNKNOWN to -o.
 cat >"$TMP/rater-codex.sh" <<'EOF'
@@ -408,7 +411,7 @@ export RATER_CLAUDE_CMD="$TMP/rater-claude.sh" RATER_CODEX_CMD="$TMP/rater-codex
 out="$(bash "$RATERS" "$RW/labels.tsv" 2>&1)"
 check "raters.sh exits 1 when a row failed the guard (output: ${out:0:300})" "[[ $? -eq 1 ]]"
 assert_contains "opus labels by id, reason on one line" "$(cat "$RW/raters/opus.tsv" 2>/dev/null)" \
-  $'c1\tPASS\tstub reason\nc2\tFLAG\tstub reason\nc3\tFLAG\tstub reason\nc4\t\t'
+  $'c1\tPASS\tstub reason\nc2\tFLAG\tstub reason {x: 1}\nc3\tFLAG\tstub reason {x: 1}\nc4\t\t'
 assert_contains "the guard names its cause" "$(cat "$RW/raters/opus.tsv" 2>/dev/null)" "labels.tsv"
 assert_contains "codex rates every row" "$(cut -f1,2 "$RW/raters/codex.tsv" 2>/dev/null)" $'c1\tUNKNOWN\nc2\tUNKNOWN\nc3\tUNKNOWN\nc4\tUNKNOWN'
 rargs="$(for f in "$STUB_DIR"/rater-*.args; do tr '\0' '\n' <"$f"; done)"

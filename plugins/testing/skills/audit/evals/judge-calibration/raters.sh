@@ -109,7 +109,8 @@ Reply with one JSON object and nothing else: {\"label\": \"FLAG\", \"reason\": \
     printf '%s\t\tfailed: the transcript names labels.tsv, LABELS.md, the calibration directory or a case id\n' "$id"
     return 1
   fi
-  s="$(jq -Rrs '[scan("\\{[^{}]*\\}") | fromjson? | objects | select(.label | IN("FLAG", "PASS", "UNKNOWN"))] | last
+  # The outermost {...} first: a reason quoting code braces defeats the flat scan.
+  s="$(jq -Rrs '[(capture("(?s)(?<j>\\{.*\\})").j | fromjson?), (scan("\\{[^{}]*\\}") | fromjson?)] | map(objects | select(.label | IN("FLAG", "PASS", "UNKNOWN"))) | first
     | select(. != null) | [.label, (.reason // "" | tostring | gsub("[\t\n\r]"; " "))] | @tsv' <<<"$answer")"
   if [[ -z "$s" ]]; then
     printf '%s\t\tfailed: no FLAG, PASS or UNKNOWN label in the answer\n' "$id"

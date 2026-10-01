@@ -164,7 +164,7 @@ report() {
       print "flag-precision " g " " wilson(tp, jf)
       print "flag-recall " g " " wilson(tp, rd[g])
       print "prevalence " g " " share(pf[g], nh[g])
-      print "flag-n " g " " pf[g] + 0
+      printf "flag-n %s %d\n", g, pf[g] # %d: gawk prints an untyped element passed to share() as a denormal
       print "unknown " g " user=" hu[g] + 0 " correct=" ok[g] + 0 " over-reach=" over[g] + 0
     }
     END { if (BAD) exit BAD; for (i = 1; i <= ns; i++) show(order[i]); show("all") }
