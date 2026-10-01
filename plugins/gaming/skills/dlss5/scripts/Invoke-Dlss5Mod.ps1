@@ -1385,7 +1385,8 @@ function GhApi($path, $jq) {
     $gh = Tool $script:Gh
     $o = & $gh api $path --jq $jq 2>&1
     if ($LASTEXITCODE) { throw "gh api $path failed: $($o | Select-Object -First 1)" }
-    @($o | Select-Object -First 5) -join '; '
+    # Release tags are third-party text: keep only the characters a version or state line needs.
+    (@($o | Select-Object -First 5) -join '; ') -replace '[^A-Za-z0-9._+ ();=#:/-]', ''
 }
 # The fork repos behind $BuildPins.
 $ForkRepos = @{ dagherbou = 'Dagherbou/OptiScaler_DLSSNR'; wilsjo2 = 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass' }
@@ -1420,7 +1421,7 @@ function Do-Refetch {
         }
         Probe 'GeForce driver' 'nvidia-smi' { $s = Tool $script:Smi; (& $s --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() }
         Probe 'GeForce driver (published)' 'NVIDIA driver lookup' {
-            $d = ((& $script:HttpGet $NvDriverUrl) | ConvertFrom-Json).IDS.downloadInfo | Where-Object { $_.IsWHQL -eq '1' -and $_.IsBeta -eq '0' } | Select-Object -First 1
+            $d = ((& $script:HttpGet $NvDriverUrl) | ConvertFrom-Json).IDS.downloadInfo | Where-Object { $_.IsWHQL -in '1', 1, $true -and $_.IsBeta -in '0', 0, $false } | Select-Object -First 1
             if ($d.Version) { "$($d.Version) ($($d.ReleaseDateTime))" }
         }
         Probe 'Runtime DLL' 'file version' {
@@ -2268,6 +2269,16 @@ public sealed class Dlss5DirHandle : IDisposable {
         $u = Do-Refetch | ConvertFrom-Json
         Assert 'a newer prerelease alone gives no pin advice' (@($u.pinAdvice).Count -eq 0 -and (@($u.items) | Where-Object item -eq 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass').found -like '*v9.9.9 (prerelease)*')
 
+        # NVIDIA may send the flags as JSON booleans or numbers.
+        $script:NvJson = '{"IDS":[{"downloadInfo":{"Version":"900.1","IsWHQL":false,"IsBeta":true,"ReleaseDateTime":"beta"}},{"downloadInfo":{"Version":"899.3","IsWHQL":true,"IsBeta":false,"ReleaseDateTime":"d"}}]}'
+        $u = Do-Refetch | ConvertFrom-Json
+        Assert 'refetch accepts boolean driver flags' ((@($u.items) | Where-Object item -eq 'GeForce driver (published)').found -eq '899.3 (d)')
+
+        # A release tag is third-party text: instruction characters never reach the output.
+        $script:GhLatest = 'v9.9.9`n<ignore>$(x)"'
+        $u = Do-Refetch | ConvertFrom-Json
+        Assert 'a release tag is scrubbed to version characters' ($u.pinAdvice[0] -notmatch '[<>$"`]')
+
         # -StaleDays: a fresh cache makes no probe, a stale or corrupt one runs, and nothing throws.
         $script:Gh = 'gh-missing-selftest'
         $script:StaleDays = 7
@@ -2283,7 +2294,7 @@ public sealed class Dlss5DirHandle : IDisposable {
         Assert 'a corrupt cache runs the probes' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
         Put $uc '{"checked":"not a date","items":[]}'
         $r = Do-RefetchThrottled | ConvertFrom-Json
-        Assert 'an unparseable checked time counts as stale' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
+        Assert 'an unreadable checked time counts as stale' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
     }
     finally {
         Pop-Location
