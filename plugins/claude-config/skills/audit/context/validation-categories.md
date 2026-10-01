@@ -194,17 +194,17 @@ the run. Use `SETTINGS_AUDIT_FIXTURE_DIR=<dir>` to short-circuit network calls i
 
 ```bash
 # Project audit (default: reads .claude/settings.json at the project root)
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # User audit (override target file)
 CLAUDE_SETTINGS_FILE=~/.claude/settings.json \
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+  bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # Plan + dry-run apply
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh"
+bash "<skill-dir>/scripts/fix-plugin-drift.sh"
 
 # Apply the orphan-false removals
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
+bash "<skill-dir>/scripts/fix-plugin-drift.sh" --yes
 ```
 
 **What `--yes` leaves behind:** each apply writes a `<settings>.bak.<UTC stamp>.<random>` sibling

@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-09-30
+
+### Fixed
+
+- **`lookup`'s `update.md` runs `update.sh` from a path that resolves.** The three `update.sh` commands cited the script through the literal plugin-root token, which does not expand in a context file. They now read `<skill-dir>/scripts/update.sh`, and `SKILL.md` gains a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
 ## [0.6.1] - 2026-09-29
 
 ### Changed

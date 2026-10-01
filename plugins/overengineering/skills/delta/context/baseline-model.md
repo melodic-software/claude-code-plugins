@@ -16,7 +16,7 @@ Two independent things have to be right here, and each fails silently on its own
 
 **First: a spine must be persisted, because the artifact is rewritten in place on every re-run.** A
 re-audit merges into the existing file by stable finding id rather than depositing a timestamped
-sibling (`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, "Where it lives" and "Re-run merge
+sibling (`<plugin-root>/context/findings-artifact.md`, "Where it lives" and "Re-run merge
 semantics"), and the audit writes **per layer as it walks**, so the prior content begins disappearing
 at the first layer, not at the end of the run. There is therefore **no previous artifact left to diff
 against after the audit has run**, and this lane can never be "run the audit, then diff the file". A
@@ -71,7 +71,7 @@ artifact's stored judgment and this run's fresh one.
 `spine-baseline.md`, beside the findings artifact in the same resolved home. Its frontmatter, what
 its body may and may not carry, its deliberately-not-`overengineering-findings` type, and why it is a
 snapshot rather than a second record are owned by
-`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` under "The spine-capture obligation". **This
+`<plugin-root>/context/findings-artifact.md` under "The spine-capture obligation". **This
 skill does not restate them.** Three rules bind the run directly:
 
 **A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is

@@ -27,6 +27,8 @@
 #                                                      tracks it as a non-test source file
 #   B <tab> <count>                                    test blocks parsed (emitted once, at END)
 #   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
+#   K <tab> <start>-<end> <tab> <ordinal> <tab> <name> an examined test block in SCOPE (-v BLOCKS=1 only); the
+#                                                      ordinal counts same-named blocks through the whole file
 #
 # -v INVENTORY=<n> replaces all of the above with an inventory of the text,
 # counted per masked line whatever the block model sees, so a fragment with no
@@ -1634,6 +1636,7 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
   # A test that skips itself from inside its body does not run: not judged.
   if (has(blk, R_BODY_SKIP)) return
   blocks++
+  if (BLOCKS) block_record()
   if (SRC_PEND != "") src_flush()
   g8_eval()
   if (block_raw) return
@@ -1707,7 +1710,7 @@ function append_block(m, r) {
   if (FNR != block_line) inert_scan(m, r)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
-  if (m !~ /^[[:space:]]*$/) prev_code = code_tail(m, r)
+  if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
 }
 
 function close_block() {
@@ -1718,7 +1721,18 @@ function close_block() {
   closed_lo = block_line; closed_at = FNR
   if (PEND != "" && in_scope(block_line, block_hi)) printf "%s", PEND
   PEND = ""
+  ORD[block_name]++
   closing = 1; inert_close(); eval_block(); closing = 0
+}
+
+# --blocks: a block is named by its name and its ordinal among same-named
+# blocks, counted whether or not SCOPE lists them, so a scoped run numbers a
+# block as an unscoped one does. An indent block ends on its last code line,
+# leaving out the blank and comment lines before the next def.
+function block_record(    hi) {
+  hi = MODEL == "indent" ? block_code_last : block_hi
+  if (SCOPE == "" || in_scope(block_line, hi))
+    printf "K\t%d-%d\t%d\t%s\n", block_line, hi, ORD[block_name], clean_detail(block_name)
 }
 
 # A C# test body starting on this line: a "{" opens a brace body, a "=>" opens

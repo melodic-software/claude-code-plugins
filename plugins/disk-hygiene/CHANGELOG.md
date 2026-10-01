@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands each say the engine sits in the `scripts/` directory that `SKILL.md`'s engine commands give; the handoff and the safety model call that directory `<skill-dir>` where they use it. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
+
 ## [0.42.1] - 2026-09-30
 
 ### Fixed

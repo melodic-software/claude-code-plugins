@@ -12,6 +12,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   create one (never `EnterWorktree` by name), to enter an existing one (claim check, then
   `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The verification records are in `reference/native-worktree.md`.
 
+## [0.68.1] - 2026-09-30
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
+
 ## [0.68.0] - 2026-09-30
 
 ### Added

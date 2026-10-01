@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`fanout` and `quality-gate` context files no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` file, which the model reads as plain bytes. Links to `context/severity.md`, `reference/topic-docs.md` and `reference/standards-contract.md` are now relative to the spoke, and the remaining paths read `<plugin-root>/...`. Both skills gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.34.3] - 2026-09-30
 
 ### Changed

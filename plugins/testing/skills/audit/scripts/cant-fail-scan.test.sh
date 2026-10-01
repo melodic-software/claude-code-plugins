@@ -784,6 +784,68 @@ assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
 run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x
 assert_exit "--lines with a malformed list refuses (exit 2)" 2 "$rc"
 
+# --blocks: one `block <file>:<start>-<end> <ordinal> <name>` line per examined
+# test block in scope, in every adapter family. The ordinal counts same-named
+# blocks through the whole file, so a --lines run numbers a block the way an
+# unscoped run does. Expected ranges are read off the fixture text by hand.
+B="$TMP_ROOT/blocks"
+mkdir -p "$B"
+printf '%s\n' "import { test, expect } from 'vitest';" "" \
+  "test('adds', () => {" "  expect(sum(1, 2)).toBe(3);" "});" \
+  "test('adds', () => {" "  expect(sum(2, 2)).toBe(4);" "});" \
+  "test('subs', () => {" "  expect(sub(3, 2)).toBe(1);" "});" >"$B/dup.test.ts"
+run_file --file "$B/dup.test.ts" --blocks
+assert_exit "--blocks completes (exit 0)" 0 "$rc"
+assert_contains "--blocks keeps the report of a clean file" "$out" "No can't-fail tests found."
+assert_matches "--blocks: JS first 'adds' is ordinal 1" "$out" '^block dup\.test\.ts:3-5 1 adds$'
+assert_matches "--blocks: JS second 'adds' is ordinal 2" "$out" '^block dup\.test\.ts:6-8 2 adds$'
+assert_matches "--blocks: JS 'subs' is ordinal 1" "$out" '^block dup\.test\.ts:9-11 1 subs$'
+run_file --file "$B/dup.test.ts" --blocks --lines 7
+assert_matches "--blocks --lines keeps the whole-file ordinal" "$out" '^block dup\.test\.ts:6-8 2 adds$'
+if [[ "$(count_lines "$out" '^block ')" == 1 ]]; then pass "--blocks --lines lists only the touched block"; else fail "--blocks --lines lists only the touched block" "$out"; fi
+run_file --file "$B/dup.test.ts"
+assert_not_contains "no --blocks, no block lines" "$out" "block dup"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --blocks
+assert_contains "--blocks keeps the findings" "$out" "cant-fail-js.test.js:11: test 'adds numbers'"
+assert_matches "--blocks lists blocks beside findings" "$out" '^block plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11-13 1 adds numbers$'
+run_file --file "$B/dup.test.ts" --blocks --check
+assert_exit "--blocks works only in the report mode (exit 2)" 2 "$rc"
+assert_contains "--blocks outside the report mode says so" "$out" "--blocks lists blocks in the report mode only"
+
+printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "  {" "    Assert.Equal(3, Sum(1, 2));" "  }" \
+  "  [Fact]" "  public void Subs()" "    => Assert.Equal(1, Sub(3, 2));" "}" >"$B/BlocksTests.cs"
+run_file --file "$B/BlocksTests.cs" --blocks
+assert_matches "--blocks: C# brace body" "$out" '^block BlocksTests\.cs:3-6 1 Adds$'
+assert_matches "--blocks: C# => body" "$out" '^block BlocksTests\.cs:8-9 1 Subs$'
+
+# A Python block ends on its last code line: the blank line before the next
+# def is not part of it.
+printf '%s\n' "def test_a():" "    assert foo() == 1" "" "def test_b():" "    assert foo() == 2" >"$B/test_blocks.py"
+run_file --file "$B/test_blocks.py" --blocks
+assert_matches "--blocks: Python block ends on its last code line" "$out" '^block test_blocks\.py:1-2 1 test_a$'
+assert_matches "--blocks: Python last block" "$out" '^block test_blocks\.py:4-5 1 test_b$'
+run_file --file "$B/test_blocks.py" --blocks --lines 3
+assert_not_contains "--blocks: a blank line between defs touches no block" "$out" "block test_blocks"
+
+printf '%s\n' "#!/usr/bin/env bats" "" '@test "greets" {' "  run greet" '  [ "$status" -eq 0 ]' "}" "" \
+  '@test "greets" {' "  run greet x" '  [ "$output" = "hi x" ]' "}" >"$B/greet.bats"
+run_file --file "$B/greet.bats" --blocks
+assert_matches "--blocks: bats first @test" "$out" '^block greet\.bats:3-6 1 greets$'
+assert_matches "--blocks: bats second @test of one name" "$out" '^block greet\.bats:8-11 2 greets$'
+
+printf '%s\n' "Describe 'Sum' {" "  It 'adds' {" "    Sum 1 2 | Should -Be 3" "  }" "}" >"$B/Sum.Tests.ps1"
+run_file --file "$B/Sum.Tests.ps1" --blocks
+assert_matches "--blocks: Pester It" "$out" '^block Sum\.Tests\.ps1:2-4 1 adds$'
+
+printf '%s\n' "package sum" "" 'import "testing"' "" "func TestSum(t *testing.T) {" \
+  "	if Sum(1, 2) != 3 {" '		t.Fatal("want 3")' "	}" "}" >"$B/sum_test.go"
+run_file --file "$B/sum_test.go" --blocks
+assert_matches "--blocks: Go test func" "$out" '^block sum_test\.go:5-9 1 TestSum$'
+
+printf '%s\n' "#!/usr/bin/env bash" "source ./lib.sh" 'assert_eq "$(greet)" hi' "pass done" >"$B/greet.test.sh"
+run_file --file "$B/greet.test.sh" --blocks --lines 3
+assert_matches "--blocks: a bash harness is one whole-file block" "$out" '^block greet\.test\.sh:1-4 1 greet\.test\.sh$'
+
 # --inventory: per-line counts of test starts, assertion tokens and skip
 # markers, and the literal side of each equality, for texts judged with the
 # adapter and config of the --file path (the test-weaken hook's two sides).
