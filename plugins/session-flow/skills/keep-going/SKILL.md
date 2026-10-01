@@ -169,8 +169,10 @@ For any "is it stuck / check the monitor / poke it":
   Exit `0` means the reset has passed, treat the worker as resumable now.
   Exit `1` means the limit is provisional until a live re-check of the
   current account confirms it (next bullet); only then hand back by invoking
-  `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the message carried no parseable reset clause; say
-  so plainly and ask the operator rather than guessing. Exit `3` means the
+  `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the checker could not parse its input; read stderr
+  first. `no reset clause found` means the message had none: say so plainly
+  and ask the operator rather than guessing. `--received needs an offset or Z`
+  means your own `--received` value was malformed: fix it and rerun. Exit `3` means the
   reset clause parsed but the IANA timezone could not be resolved (rare when
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
   failure rather than treating the message as unparsable. In a single

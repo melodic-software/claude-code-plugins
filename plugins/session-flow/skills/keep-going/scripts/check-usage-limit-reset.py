@@ -170,14 +170,24 @@ def _first_at_or_after(received: datetime, zone, hour: int, minute: int) -> date
 
     Each candidate is rebuilt on a calendar date (not shifted by 24h) and
     normalized through UTC, so a time inside a DST gap lands on a real instant
-    and instants, not wall times, are compared.
+    and instants, not wall times, are compared. A time inside a DST fall-back
+    hour has two instants; both are candidates.
     """
+    floor = received.astimezone(timezone.utc)
     day = received.astimezone(zone).date()
     while True:
-        wall = datetime(day.year, day.month, day.day, hour, minute, tzinfo=zone)
-        candidate = wall.astimezone(timezone.utc).astimezone(zone)
-        if candidate.astimezone(timezone.utc) >= received.astimezone(timezone.utc):
-            return candidate
+        naive = datetime(day.year, day.month, day.day, hour, minute)
+        folds = [
+            naive.replace(tzinfo=zone, fold=fold)
+            .astimezone(timezone.utc)
+            .astimezone(zone)
+            for fold in (0, 1)
+        ]
+        # In a DST gap fold=1 shifts the instant; keep it only for a real wall time.
+        real = [c for c in folds if c.replace(tzinfo=None) == naive] or folds[:1]
+        due = [c for c in real if c.astimezone(timezone.utc) >= floor]
+        if due:
+            return min(due, key=lambda c: c.astimezone(timezone.utc))
         day += timedelta(days=1)
 
 

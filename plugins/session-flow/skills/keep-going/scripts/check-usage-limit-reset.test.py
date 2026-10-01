@@ -126,6 +126,26 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertEqual(reset_at.date().isoformat(), "2026-11-01")
         self.assertEqual((reset_at.hour, reset_at.minute), (1, 30))
 
+    def test_parse_reset_received_in_repeated_hour(self) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 1:30am (America/New_York)",
+            now=datetime.fromisoformat("2026-11-01T01:20:00-05:00"),
+            received=datetime.fromisoformat("2026-11-01T01:15:00-05:00"),
+        )
+        self.assertEqual(reset_at.isoformat(), "2026-11-01T01:30:00-05:00")
+
+    def test_parse_reset_received_before_repeated_hour_takes_first_occurrence(
+        self,
+    ) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 1:30am (America/New_York)",
+            now=datetime.fromisoformat("2026-11-01T00:20:00-04:00"),
+            received=datetime.fromisoformat("2026-11-01T00:15:00-04:00"),
+        )
+        self.assertEqual(reset_at.isoformat(), "2026-11-01T01:30:00-04:00")
+
     def test_parse_reset_received_across_spring_forward(self) -> None:
         mod = _load_module()
         received = datetime.fromisoformat("2027-03-13T22:00:00-05:00")
