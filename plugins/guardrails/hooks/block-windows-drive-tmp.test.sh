@@ -592,6 +592,26 @@ run_win "gh body mention with an unterminated quote (blocked)" \
   "gh issue create --body \"open('/c/tmp/x','w') --title 'a" 2
 run_win "gh api (not text-carrying) quoting open(/c/tmp) (blocked)" \
   "gh api repos/o/r/issues -f body=\"open('/c/tmp/x','w')\"" 2
+# A quoted command word must not vanish and leave a trailing listed word in its
+# place: bash runs python3 here with echo/printf/git as arguments.
+run_win "quoted \"python3\" \"-c\" open(/c/tmp) then echo (blocked)" \
+  "\"python3\" \"-c\" \"open('/c/tmp/x','w').write('a')\" echo" 2
+run_win "quoted 'python3' '-c' open(/c/tmp) then printf (blocked)" \
+  "'python3' '-c' \"open('/c/tmp/x','w').write('a')\" printf x" 2
+run_win "quoted \"python3\" \"-c\" open(/c/tmp) then git commit (blocked)" \
+  "\"python3\" \"-c\" \"open('/c/tmp/x','w')\" git commit -m x" 2
+run_win "quoted 'python3' '-c' write_text(/c/tmp) then gh issue create (blocked)" \
+  "'python3' '-c' \"import pathlib; pathlib.Path('/c/tmp/x').write_text('a')\" gh issue create" 2
+run_win "quoted \"python3\" \"-c\" open(/tmp) then git tag (blocked)" \
+  "\"python3\" \"-c\" \"open('/tmp/x','w')\" git tag v1" 2
+run_win "quoted \"echo\" word with open(/c/tmp) (blocked, fail-closed)" \
+  "\"echo\" \"open('/c/tmp/x','w')\"" 2
+run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then echo (blocked)" \
+  "\"python3\" \"-c\" \"open('C:/tmp/x','w').write('a')\" echo" 2
+run_win_pwsh "PS: quoted 'python3' '-c' open(C:/tmp) then printf (blocked)" \
+  "'python3' '-c' \"open('C:/tmp/x','w').write('a')\" printf x" 2
+run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then git commit (blocked)" \
+  "\"python3\" \"-c\" \"open('C:/tmp/x','w')\" git commit -m x" 2
 # A computed path beside a decoy read: the token tmp left outside the read call
 # keeps the block.
 run_win "python read then urlretrieve to a concatenated /c/'+'tmp path (blocked)" \

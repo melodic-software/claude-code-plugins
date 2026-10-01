@@ -670,10 +670,12 @@ segment_writes_drive_root_tmp() {
 # command and fail-closed by allowlist: the text is data only on the Bash tool
 # (PowerShell runs `[IO.File]::Open(` inline), with no `\`, `$`, backtick or
 # process substitution (an expansion or escape can build a command's name), and
-# when the command, once every quoted string is deleted, is exactly one of the
-# listed text-carrying commands with plain flag words and no operator, newline,
-# glob or redirect. Any other command could be an interpreter this guard does
-# not know, so it keeps the rule.
+# when the command, once every quoted string is replaced by one placeholder
+# word, is exactly one of the listed text-carrying commands with plain flag
+# words and no operator, newline, glob or redirect. The placeholder keeps a
+# quoted word in its place, so a quoted command word (`"python3" "-c" "..."
+# echo`) never reads as the listed command after it. Any other command could be
+# an interpreter this guard does not know, so it keeps the rule.
 _DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:space:]]+(issue|pr)[[:space:]]+(create|comment|edit)|git[[:space:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
 # Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
 _DRIVE_TMP_CODE_RC=""
@@ -684,7 +686,7 @@ inline_code_can_run() {
       [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]]; then
       local rest="$COMMAND" bare="" q
       while [[ "$rest" =~ ^([^\"\']*)([\"\']) ]]; do
-        bare+="${BASH_REMATCH[1]}"
+        bare+="${BASH_REMATCH[1]}Q"
         q="${BASH_REMATCH[2]}"
         rest="${rest:${#BASH_REMATCH[0]}}"
         [[ "$rest" == *"$q"* ]] || return "$_DRIVE_TMP_CODE_RC"
