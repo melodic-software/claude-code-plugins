@@ -188,6 +188,31 @@ if command -v playwright-cli >/dev/null 2>&1; then
   sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
   pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
+  # ui_c phase 6 runs against a fifth server with one question and no events. A background
+  # handler waits for the page to arm a watcher (the lease shows in /api/state), then handles
+  # the answer as a handle-only apply while the page stays open.
+  f="$tmp/f3"
+  mkdir -p "$f"
+  cp tests/fixtures/ui_d/questions.json "$f/"
+  bash "$here/round.sh" --dir "$f" ensure-running --port 0 >/dev/null
+  fport=$(sed -n 's/^PORT=//p' "$f/.interview-session.env" | tr -d '\r')
+  sed "s/__PORT__/$fport/; s/__PHASE__/6/" tests/ui_c.js >"$tmp/ui_c6.js"
+  (
+    for _ in $(seq 1 120); do
+      if curl -fs "http://127.0.0.1:$fport/api/state" | grep -q '"watcher": *"w1"'; then
+        sleep 4
+        read -r -a late <<<"$(unhandled "$f")"
+        [[ "${#late[@]}" -gt 0 ]] && "$py" "$here/round.py" --dir "$f" handle --seq "${late[@]}"
+        break
+      fi
+      sleep 0.5
+    done
+  ) >/dev/null 2>&1 &
+  handler=$!
+  pw run-code --filename "$(script_path "$tmp/ui_c6.js")" >"$tmp/ui_c6.out" 2>&1
+  wait "$handler" 2>/dev/null
+  bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
+
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
   # flow on one page in twenty phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
@@ -303,10 +328,10 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 20
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
-  for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  browser=434 journey=214
+  browser=439 journey=214
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

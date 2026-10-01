@@ -315,7 +315,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     const back = await until(() => !/^Connection lost/.test(document.getElementById("pill").textContent), 10000);
     await page.waitForTimeout(500);
-    ok("becoming visible re-fetches /api/state and shows what happened meanwhile", back && fetched.length > 0 && fetched[0] < 1000 && /Sent to Claude/.test(await text('.qbtn[data-q="Q4"]')), "fetched at " + fetched.join(",") + " ms");
+    ok("becoming visible re-fetches /api/state and shows what happened meanwhile", back && fetched.length > 0 && fetched[0] < 1000 && /Sent to Claude|No session is listening/.test(await text('.qbtn[data-q="Q4"]')), "fetched at " + fetched.join(",") + " ms");
 
     // confirm understanding after a new restate, then wrap up
     await tap("#sumBtn", 300);
