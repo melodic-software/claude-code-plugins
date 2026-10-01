@@ -3027,6 +3027,53 @@ class TestLegacyLedgerFixtures(SessionCase):
                 legacy, named = self.round_trip(shape)
                 self.assertEqual(named, legacy)
 
+    def test_a_hand_written_reconfirm_row_is_the_row_a_page_accept_writes(self):
+        body = "admin\\; only"
+        page_row = (
+            f"- Q1 | answered | round 1 | Who writes? | proposal:: {body}; "
+            f"was:: any enrolled user; answer:: accepted: {body}"
+        )
+        seeded = self.tmp / "seeded"
+        seeded.mkdir()
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            f"- Q1 | superseded-by-plan | round 1 | Who writes? | proposal:: {body}; "
+            "was:: any enrolled user\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=seeded)
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((seeded / "questions.json").read_text(encoding="utf-8"))
+        self.session(doc["questions"], [event(1, "Q1", "accept")], doc["meta"])
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(rows, [page_row])
+
+        states, exported = [], []
+        for name, text in (("page", rows[0]), ("hand", page_row)):
+            d = self.tmp / name
+            d.mkdir()
+            written = self.tmp / f"{name}.md"
+            written.write_text(
+                f"# Interview ledger\n\n## Open-question register\n\n{text}\n",
+                encoding="utf-8",
+            )
+            rc, out = self.rp("import-ledger", "--ledger", str(written), d=d)
+            self.assertEqual(rc, 0, out)
+            states.append(
+                legacy_state(json.loads((d / "questions.json").read_text("utf-8")))
+            )
+            exported.append(register_rows(self.export("ledger", d=d)))
+        self.assertEqual(states[0], states[1])
+        q1 = states[1]["Q1"]
+        self.assertEqual(q1["terminal"]["decision"], "accept")
+        self.assertEqual(q1["recommendation"], "admin; only")
+        self.assertEqual(
+            q1["alternatives"], [{"key": "was", "text": "any enrolled user"}]
+        )
+        self.assertEqual(q1["round"], 1)
+        self.assertEqual(exported, [[page_row], [page_row]])
+
     def test_a_plain_alt_answer_keeps_its_text_and_adds_no_alternative(self):
         legacy, named = self.round_trip("answered-plain")
         self.assertEqual(

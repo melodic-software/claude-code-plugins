@@ -30,6 +30,9 @@ publish, send, or consume names; a service or consumer class is not one. Identit
 namespace-qualified type. In-process calls are `/architecture:map-flow`. A cross-process hop in
 that trace is a hand-off to this skill.
 
+Read: C# (MassTransit shape). Declined: Node, Go, Python, Rust, JVM, Ruby, and PHP. Their files are
+never read, so a message only they publish or consume is absent from the chart, not a finding.
+
 ## Resolve home
 
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`.
