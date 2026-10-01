@@ -3833,6 +3833,24 @@
         "class": "bundled-skill"
       },
       "component": {
+        "plugin": "docs-naming",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "Creates a document artifact versus configuring the docs-naming file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.284",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "cd41f53c6aab8b18117d35ccd710e0ef",
+        "component": "01433380f1a4d342c2a9eb2c5224bd41"
+      }
+    },
+    {
+      "native": {
+        "name": "doc",
+        "class": "bundled-skill"
+      },
+      "component": {
         "plugin": "review",
         "skill": "doc-drift-detector",
         "kind": "agent"
@@ -4175,7 +4193,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "docs-hygiene",
+        "plugin": "docs-naming",
         "skill": "audit-file-names",
         "kind": "skill"
       },
@@ -4193,7 +4211,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "docs-hygiene",
+        "plugin": "docs-naming",
         "skill": "realign-file-names",
         "kind": "skill"
       },
@@ -4202,7 +4220,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "b7b277e905dba7621cb48e6eef55ae23",
-        "component": "08b7fee0b33e2d80a03a8bb80901bc9f"
+        "component": "4a79f28a4bdea1c28f6432a4d5055360"
       }
     },
     {

@@ -15,11 +15,10 @@ stated moment:
 | Authoring | while the text is being written | `write-for-agents`, `write-for-humans` |
 | In-page quality | after it exists, inside one file | `compress`, `audit-noise` |
 | Whole-document worth | after it exists, about the file itself | `audit-derivability`, `audit-progressive-disclosure` |
-| Cross-file structure | about the relationships between files | `extract-ssot`, `rename-references`, `audit-encapsulation`, the file-name set |
-| Enforcement | so the above does not decay | `generate-file-name-gate` |
+| Cross-file structure | about the relationships between files | `extract-ssot`, `rename-references`, `audit-encapsulation` |
+| Enforcement | so the above does not decay | none |
 
-The file-name set is `setup`, `audit-file-names`, `realign-file-names`, and
-`generate-file-name-gate`. `audit-encapsulation` belongs on the cross-file
+`audit-encapsulation` belongs on the cross-file
 axis: it is about citations between files, specifically citations into
 skill-private surfaces. It has a README skills-table row.
 
@@ -42,12 +41,9 @@ tracked markdown a repository maintains.
    shape and the marketplace owns PR-body sections.
 5. **Not an auto-applier.** Every skill here that changes a file does it
    only when the user opts in, behind a confirmation per invocation or per
-   batch. File-name renames are gated per file: `realign-file-names` accepts
-   one file at a time. The file-name findings artifact does not declare
-   `type: review-findings`, because that type is auto-applicable by
-   construction.
+   batch.
 
-## Listing budget and the file-name set
+## Listing budget
 
 **Decision.** Accept the five-concern charter and the five boundaries. The
 only listing-budget rule is the 8,000 default in
@@ -56,19 +52,23 @@ name-only listing: discovery that depends on a `## Next` chain is how a skill
 becomes unloadable.
 
 The four file-name skills (`setup`, `audit-file-names`, `realign-file-names`,
-`generate-file-name-gate`) move to a `docs-naming` plugin, tracked in
-[#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348).
-The extraction is not part of this change; the shared audit router is decided
-with the split.
+`generate-file-name-gate`) live in the `docs-naming` plugin, tracked in
+[#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348),
+so the Enforcement concern has no skill here. This plugin keeps a check-only
+`setup` for its `markdownlint-cli2` prerequisite. The shared audit router is
+not built: the sibling pointers in each audit description and the `repo-sweep`
+catalog route between the audits.
 
 - **Claim:** the five-concern charter and five boundaries above are the
   plugin's contract, and the listing budget is governed only by
   `check-listing-budget.sh` at 8,000.
-- **Basis:** the owner decision comment on
+- **Basis:** the owner decisions on
   [#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142)
-  (2026-09-29); `check-listing-budget.sh plugins/docs-hygiene/skills` reads
-  5,234 / 8,000.
-- **As of:** 2026-09-29.
+  (2026-09-29) and
+  [#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348)
+  (2026-10-01); `check-listing-budget.sh plugins/docs-hygiene/skills` reads
+  4,291 / 8,000 over 9 listed skills, and `plugins/docs-naming/skills` reads
+  955 / 8,000 over 2.
+- **As of:** 2026-10-01.
 - **Recheck:** a listed-skill addition that makes `check-listing-budget.sh`
-  report over budget at 8,000 (`WARN`; the script exits 0), or the `docs-naming`
-  extraction PR landing.
+  report over budget at 8,000 (`WARN`; the script exits 0).

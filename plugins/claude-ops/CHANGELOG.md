@@ -3,6 +3,25 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.3] - 2026-10-01
+
+### Fixed
+
+- **A missing executable is classed as a hook launch failure.** Claude Code 2.1.285 reports a
+  hook whose command is not on `PATH` as `Executable not found in $PATH`; the unsurfaced hook
+  failure audit now classes that record as a launch failure instead of a completed non-zero exit.
+
+## [0.79.2] - 2026-10-01
+
+### Fixed
+
+- **The inventory no longer reports a phantom built-in command `string` on Claude Code 2.1.286.**
+  A command, bundled-skill, subagent or tool name held in an identifier now resolves only when the
+  binding that read sees, by the module and scope rule, is that string constant. A name bound to a
+  conditional or a call, or a constant in another module, stays unresolved; before, the nearest
+  string constant anywhere ahead won, so the skill loader's `Vt=$t?smt(e):e` read an unrelated
+  `Vt="string"`. `VALIDATED_AGAINST` is `2.1.286`.
+
 ## [0.79.1] - 2026-10-01
 
 ### Fixed

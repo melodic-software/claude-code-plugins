@@ -299,7 +299,7 @@ zone resolver, and the standalone statusline. Every hook row runs through `node 
 so the hooks need [Node.js](https://nodejs.org/en/download) on `PATH`: Claude Code's native binary
 neither ships nor uses Node ([setup](https://code.claude.com/docs/en/setup)), and without it the
 hooks do not launch and are not enforced. The statusline tee does not use Node.
-`/context-guard:setup check` reports both prerequisites. The snapshot updates only while an interactive
+`/context-guard:setup check` reports both prerequisites; `/context-guard:check` reports whether `jq` resolves. The snapshot updates only while an interactive
 session refreshes the statusline; `context_window` fields can be `null` early in a session and
 right after `/compact`, per the
 [statusline reference](https://code.claude.com/docs/en/statusline). Readers own null handling.

@@ -4,6 +4,11 @@
       "name": "pwsh",
       "check": "/powershell-format:check",
       "install": "a host package or release build of PowerShell 7+, https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
+    },
+    {
+      "name": "jq",
+      "check": "/powershell-format:check",
+      "install": "install jq from https://jqlang.org/download/"
     }
   ]
 }

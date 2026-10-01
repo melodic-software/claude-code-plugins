@@ -7,6 +7,22 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## [1.5] - 2026-10-01
+
+Additive option (minor bump): a second location for the team layer of a structured surface. The
+layer set, the precedence among the three layers, override semantics, and overlay naming are
+unchanged, `.claude/<name>` stays a supported location, and no surface has to change.
+
+- **Location axis for the team layer (#5606).** A structured surface's team layer may be the one
+  `yaml config` (or `json config`) fenced block in `docs/conventions/<concern>.md`. The docs block
+  wins over `.claude/<name>`, which is read when the docs file holds no block, and a resolver
+  prints one warning naming both paths when both exist. Two blocks in one file is an invalid
+  layer. The Expression doctrine's structured-data bullet points at the axis, and every other
+  plugin's `.claude/*` surface is listed for later adoption.
+  [ADR 0044](../../adr/0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
+  records the decision. `testing` (`audit`, `test-scan`) is the first adopter and declares a hard
+  stop on an unusable layer where rule 5 degrades soft.
+
 ## Location outliers ratified, 2026-09-29
 
 - **Consumer config placed outside `.claude/` is declared, not drift (#3577).** `standards`

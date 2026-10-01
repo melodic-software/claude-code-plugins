@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# resolve-config.sh — resolve the testing plugin's .claude/testing.yaml cascade.
+# resolve-config.sh — resolve the testing plugin's config cascade.
 #
 # LAYERS, per the config-cascade convention, in order: user-global
-# (~/.claude/testing.yaml), team (<root>/.claude/testing.yaml)
-# and a gitignored personal overlay (<root>/.claude/testing.local.yaml). Lists
-# concatenate with the first occurrence kept; a scalar in a later layer
-# overrides. The format is the adapters' YAML subset, parsed by
-# skills/audit/scripts/adapter-load.awk -v MODE=config (its header lists the
-# keys), so no jq, yq or Python is needed.
+# (~/.claude/testing.yaml), team and a gitignored personal overlay
+# (<root>/.claude/testing.local.yaml). The team layer is the ```yaml config
+# block of <root>/docs/conventions/testing.md when that file holds one, else
+# <root>/.claude/testing.yaml. When both exist the docs block wins and a
+# warning naming both paths goes to stderr. Lists concatenate with the first
+# occurrence kept; a scalar in a later layer overrides. The format is the
+# adapters' YAML subset, parsed by skills/audit/scripts/adapter-load.awk
+# -v MODE=config (its header lists the keys and the block form), so no jq, yq
+# or Python is needed. An error in the block names the .md file and its own
+# line.
 #
 # OUTPUT, one record per line, `<key> <tab> <value>`:
-#   layer               a layer file that is present, in cascade order
+#   layer               a layer file that is read, in cascade order (the .md
+#                       file when the docs block is the team layer)
 #   adapters.enable     adapter id; when any is listed, only listed adapters run
 #   adapters.disable    adapter id; wins over enable
 #   paths.include       glob relative to <root>, normalized
@@ -50,7 +55,7 @@
 #           Adapter ids are still checked, against the adapter files' id: lines.
 #
 # Exit: 0 resolved, 2 usage error, a team or overlay layer that is a symlink
-# or under a symlinked <root>/.claude, or an unreadable, unparsable or invalid
+# or under a symlinked directory inside <root>, or an unreadable, unparsable or invalid
 # layer (the file and line are named on stderr).
 
 # tcfg_norm <path or glob>: set TCFG_NORM to it normalized.
@@ -147,32 +152,69 @@ PLUGIN="${BASH_SOURCE[0]%/*}"
 PLUGIN="$PLUGIN/.."
 LOADER="$PLUGIN/skills/audit/scripts/adapter-load.awk"
 
+TEAM_DOCS="$ROOT/docs/conventions/testing.md"
+TEAM_YAML="$ROOT/.claude/testing.yaml"
+
+# gather <1|0>: set layers to the user-global layer, the team layer (the docs
+# convention file for 1, .claude/testing.yaml for 0) and the overlay, as present.
 layers=()
 declare -A layer_seen=()
-for f in ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"} \
-  "$ROOT/.claude/testing.yaml" "$ROOT/.claude/testing.local.yaml"; do
-  [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
-  # A repository could point a symlinked layer at any file and have it parsed.
-  if [[ "$f" == "$ROOT"/* ]] && [[ -L "$f" || -L "$ROOT/.claude" ]]; then
-    die "layer is a symlink or under a symlinked .claude, refusing to read it: $f"
-  fi
-  [[ -r "$f" ]] || die "layer is not readable: $f"
-  layer_seen[$f]=1
-  layers+=("$f")
-done
-[[ ${#layers[@]} -gt 0 ]] || exit 0
+gather() {
+  local f d team="$TEAM_YAML"
+  ((${1})) && team="$TEAM_DOCS"
+  layers=()
+  layer_seen=()
+  for f in ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"} \
+    "$team" "$ROOT/.claude/testing.local.yaml"; do
+    [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
+    # A repository could point a symlinked layer at any file and have it parsed.
+    if [[ "$f" == "$ROOT"/* ]]; then
+      d="$f"
+      while [[ "$d" == "$ROOT"/* ]]; do
+        [[ ! -L "$d" ]] || die "layer is a symlink or under a symlinked directory, refusing to read it: $f"
+        d="${d%/*}"
+      done
+    fi
+    [[ -r "$f" ]] || die "layer is not readable: $f"
+    layer_seen[$f]=1
+    layers+=("$f")
+  done
+}
 
-records="$(awk -v MODE=config -f "$LOADER" "${layers[@]}")" || exit 2
+# The docs file is the team layer when it holds a config block; else the
+# loader's `block` record is absent and .claude/testing.yaml is read instead.
+load() {
+  ((${#layers[@]})) || return 0
+  awk -v MODE=config -f "$LOADER" "${layers[@]}"
+}
+docs=0
+[[ -f "$TEAM_DOCS" ]] && docs=1
+gather "$docs"
+records="$(load)" || exit 2
+if ((docs)) && [[ "$records" != block$'\t'* ]]; then
+  docs=0
+  gather 0
+  records="$(load)" || exit 2
+elif ((docs)) && [[ -f "$TEAM_YAML" ]]; then
+  printf 'resolve-config: warning: %s and %s both exist; using the docs block, ignoring the .claude file\n' \
+    "$TEAM_DOCS" "$TEAM_YAML" >&2
+fi
+[[ ${#layers[@]} -gt 0 ]] || exit 0
 
 out=()
 dirs=()
 ids=()
 consumer_globs=()
 ext=""
+blk_from=1 blk_to=0
 for f in "${layers[@]}"; do out+=("layer"$'\t'"$f"); done
 while IFS=$'\t' read -r key val; do
   [[ -n "$key" ]] || continue
   case "$key" in
+  block)
+    IFS=$'\t' read -r _ blk_from blk_to <<<"$val"
+    continue
+    ;;
   paths.include | paths.exclude)
     tcfg_norm "$val"
     val="$TCFG_NORM"
@@ -210,8 +252,11 @@ for id in ${ids[@]+"${ids[@]}"}; do
   [[ -z "${known[$id]:-}" ]] || continue
   loc="${layers[*]}"
   for f in "${layers[@]}"; do
-    if n="$(grep -nwF -m1 -- "$id" "$f")"; then
-      loc="$f:${n%%:*}"
+    # In the docs file only the config block's lines count.
+    from=1 to='$'
+    [[ "$f" == "$TEAM_DOCS" ]] && from="$blk_from" to="$blk_to"
+    if n="$(sed -n "${from},${to}p" "$f" | grep -nwF -m1 -- "$id")"; then
+      loc="$f:$((from + ${n%%:*} - 1))"
       break
     fi
   done
