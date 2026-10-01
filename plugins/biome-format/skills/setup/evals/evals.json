@@ -10,7 +10,7 @@
       "expectations": [
         "Resolves the Biome binary by mirroring the hook's resolution order — the node_modules/.bin walk upward from the edited file toward the repo root, then PATH — instead of a bare `command -v biome`",
         "Does not PASS a binary the hook itself would not resolve",
-        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once per session and agent notice instead of formatting",
         "Reads the hook script as the source of truth for the accepted config names rather than reciting the skill body, and confirms hook registration via /plugin Installed rather than parsing settings files"
       ]
     },

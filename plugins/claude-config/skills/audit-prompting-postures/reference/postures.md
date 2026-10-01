@@ -31,6 +31,13 @@ that leads with what the human owes) are model-neutral, so proposals citing them
 condition. Verified 2026-09-23 against the subpage's raw `.md` (28,311 bytes); recheck when a
 cited heading disappears from either page.
 
+A row that names the "Sonnet 5.5 subpage" means
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>.
+It is fetched lazily, like the other subpages. The behaviors its cited headings address (a stop
+rule that names when to ask, scope held to the request, a real check before "done") are
+model-neutral, so proposals citing it carry no model condition. Verified 2026-10-01 against the
+subpage's raw `.md` (27,412 bytes); recheck when a cited heading disappears.
+
 ## Purpose classification vocabulary
 
 Classify each component by what its body has the model DO (multiple or none):
@@ -69,7 +76,8 @@ Classify each component by what its body has the model DO (multiple or none):
 - **Present when:** the component bounds scope to what was asked (no unrequested features,
   abstractions, defensive code, or cleanup beyond the task).
 - **Pointer:** main page, "Overeagerness"; Fable 5 subpage, "Consider all effort levels"
-  (anti-overengineering block).
+  (anti-overengineering block); Sonnet 5.5 subpage, "Steer initiative and scope" (unrequested
+  additions).
 
 ### P3: Anti-test-gaming guardrail
 
@@ -90,7 +98,8 @@ Classify each component by what its body has the model DO (multiple or none):
 - **Predicate:** long-running.
 - **Present when:** the component ties progress/status claims to tool-result evidence and requires
   naming unverified work as unverified.
-- **Pointer:** Fable 5 subpage, "Ground progress claims during long runs".
+- **Pointer:** Fable 5 subpage, "Ground progress claims during long runs"; Sonnet 5.5 subpage,
+  "Verification on coding tasks" (a change reported done with no check that exercised it).
 
 ### P6: Autonomy or checkpoint posture
 
@@ -107,7 +116,8 @@ Classify each component by what its body has the model DO (multiple or none):
   interactive one names the gates worth stopping at.
 - **Pointer:** Fable 5 subpage, "Rare cases of early stopping" (autonomous) and "Strong
   instruction following" (checkpoint block); Opus 5.5 subpage, "Unattended agentic runs"; Opus 5.5
-  usage guide, "Say what 'done' looks like, then let it run" and "Tell it which stops you want".
+  usage guide, "Say what 'done' looks like, then let it run" and "Tell it which stops you want";
+  Sonnet 5.5 subpage, "Steer initiative and scope" (carrying work through at lower effort).
 
 ### P7: Destructive-action confirmation
 

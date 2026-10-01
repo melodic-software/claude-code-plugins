@@ -168,8 +168,8 @@ It only reports: removing a listed entry still takes `scan`, a fresh `preview` a
 ## 1. Create a read-only snapshot
 
 Choose a unique run-directory path under `${CLAUDE_PLUGIN_DATA}/runs/`; the engine creates it (it
-creates the parent of `--output`). Snapshots, plans, and reports must stay there, never in the target
-or `${CLAUDE_PLUGIN_ROOT}`. Run:
+creates the parent of `--output`). Snapshots, plans, and reports stay there, never in the target or
+`${CLAUDE_PLUGIN_ROOT}`; every file argument is an absolute path there, or the guard refuses it. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \

@@ -49,7 +49,7 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of formatting.
+   once per session and agent notice instead of formatting.
 3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-managed virtual-environment walk (the exact `.venv` interpreter paths it tests for
    the current platform, walking up from the edited file toward the repo root) and then

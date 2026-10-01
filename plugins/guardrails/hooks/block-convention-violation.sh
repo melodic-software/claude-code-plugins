@@ -86,7 +86,7 @@ hook::require_jq "PreToolUse" "guardrails-block-convention-violation" "$INPUT"
 # Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
 # skip below did — hook::require_jq above has already made the degraded state
-# visible once per session. The `// "Bash"` default moves to the bash-side
+# visible once per session and agent. The `// "Bash"` default moves to the bash-side
 # expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 

@@ -234,6 +234,8 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
                     str(plan_path),
                     "--report",
                     str(self.base / "report.json"),
+                    "--data-root",
+                    str(self.base),
                     *flags,
                 ]
             )
