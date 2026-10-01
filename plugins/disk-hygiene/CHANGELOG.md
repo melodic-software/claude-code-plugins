@@ -3,12 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.5] - 2026-10-01
+## [0.42.6] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.42.5] - 2026-10-01
+
+### Fixed
+
+- **The guard and the engine read file arguments only from the data root** ([#5750](https://github.com/melodic-software/claude-code-plugins/issues/5750)). `--snapshot`, `--plan`, `--paths` and `--vcs-evidence` must be absolute paths whose real location is inside the authorized data root. A snapshot carries the protection globs that preview and apply enforce, so one read from elsewhere could carry weaker rules and drive an apply. The engine refuses the same paths when it is run without the guard.
+- **`--output` and `--report` cannot land on engine-owned state** ([#5750](https://github.com/melodic-software/claude-code-plugins/issues/5750)). The same check now covers the two output flags and refuses the data root itself, `guard-decisions/`, `guard-launch-monitor/`, `inventory/`, `catalog.json` and `CATALOG.md`, including case-folded spellings, symlinks and, on Windows, trailing dots, spaces and stream suffixes. `write_json` replaces the file atomically, so a hard link to the decision log is no longer written through.
+- **A snapshot path that leaves the target on Windows is refused** ([#5750](https://github.com/melodic-software/claude-code-plugins/issues/5750)). A drive, UNC, rooted or `..` part in a snapshot entry or VCS-evidence path made the join discard the target; both now fail closed with `windows_escaping_path`.
 
 ## [0.42.4] - 2026-10-01
 
