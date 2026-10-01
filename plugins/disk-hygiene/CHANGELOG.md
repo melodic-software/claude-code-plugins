@@ -7,7 +7,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands read `<skill-dir>/scripts/hygiene.py`, and each file says `<skill-dir>` is the directory whose `scripts/` path `SKILL.md`'s engine commands give. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
+- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands each say the engine sits in the `scripts/` directory that `SKILL.md`'s engine commands give; the handoff and the safety model call that directory `<skill-dir>` where they use it. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
 
 ## [0.42.1] - 2026-09-30
 
