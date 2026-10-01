@@ -12,7 +12,7 @@ to ENFORCE the rules in it, and every refusal below is a defect that shipped in 
 | `spawn-census.sh` | One process-spawn census of one subject command, via a stable PATH shim directory. |
 | `run-spawn-census.sh` | Before and after censuses, with the rule 1 warm-agreement proof. |
 | `ab.sh` | Interleaved A/B timing with order flipping, order-flipped per iteration. |
-| `summarize.py` | Per-arm p50 and p95, refusing any percentile the sample count cannot express. |
+| `summarize.py` | Per-arm p50 and p95, refusing any percentile the sample count cannot express, printing the nearest-rank value beside each interpolated one, and flagging a p95 that one sample carries. |
 | `ratio.py` | Paired ratio, suppressed under concurrency. |
 | `differential.py` | Pre-change versus post-change behavior over an argv matrix: byte-identical stdout and exit code, with any stderr difference disclosed as outside that bar. |
 | `discriminate.py` | Does this check actually fail without the fix. |
