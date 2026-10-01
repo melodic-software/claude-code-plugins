@@ -305,7 +305,7 @@ jobs:
   # report an honest evaluated-and-not-applicable success. ShellCheck, exec-bit,
   # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
   # whole repository, and a shell/shebang/hook file added under an otherwise
-  # docs-only prefix like docs/adr/ is real input they must still catch, as
+  # docs-only prefix is real input they must still catch, as
   # is a docs-only diff that reintroduces an em dash on a purged surface.
   #
   # The job NEVER skips — only steps are gated. A skipped required lane's
@@ -405,8 +405,8 @@ jobs:
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
       # `run_shell`, and `run_shell` carries the docs-only term: a pull request
-      # whose only change is a shell script under a docs-only prefix such as
-      # `docs/adr/` resolves docs-only, and the gate would skip ShellCheck on
+      # whose only change is a shell script under a docs-only prefix
+      # resolves docs-only, and the gate would skip ShellCheck on
       # the very file it should read while the aggregator override recorded that
       # skip as success. So the step always runs and lets the composite decide.
       - name: Select the changed shell scripts

@@ -298,7 +298,7 @@ withheld; three of five initial answers revised on evidence).
   `#N` is **validated** (strictly numeric; owner/repo to a repo-name shape) and then **promoted** to
   the qualified `<provider>:<owner>/<repo>#<number>` form, with the read scoped by `--repo` to that
   id's own repository — commit and PR text is attacker-influenceable through a fork PR, and a bare
-  number would read a same-numbered issue in the *current* repo; (3) the memory slice keys
+  number would read a same-numbered issue in the *current* repo; (3) the rung keys
   on the **topic slug**, not the branch slug — the branch axis is deliberately lossy. **Design
   correction found in PR review:** the item is read through a documented public seam or the provider
   mechanic, never by invoking the sibling plugin's seam CLI — `plugin-philosophy.md` forbids

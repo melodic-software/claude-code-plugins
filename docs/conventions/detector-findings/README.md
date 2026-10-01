@@ -54,14 +54,12 @@ file format is that route.
 
 ## Where the file goes
 
-The destination is the current branch's findings directory in the **memory slice**,
-`.work/reviews/<branch-slug>/`, never committed. A producer writes where the consumer scans.
-[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md)
-owns the home and the branch slug, and `/review:fanout` names it under "Shared inputs". That skill
-body does not restate either, so a producer and the consumer read one text rather than two that
-have to be reconciled. Naming the owner by its repo path is the point of this section:
-`review:fanout` reaches it through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside
-`review` can expand, and it is the same document either way.
+The destination is the current branch's findings directory in the **memory slice**
+(`.work/reviews/<branch-slug>/` by default), never committed. A producer writes where the consumer
+scans. `/review:fanout` "Shared inputs" (`plugins/review/skills/fanout/SKILL.md`) owns the home and
+the branch slug, and a producer resolves them the way that skill does, so a producer and the
+consumer read one text rather than two that have to be reconciled. The file shape is owned by
+[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md).
 
 What the owner leaves to a producer, stated as consequences rather than as a second statement of
 its rules:
@@ -646,7 +644,7 @@ its own plugin's context file. A byte-identity check has no subject.
 |---|---|
 | Table shape and cell escaping | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-file shape" |
 | Path relativization and the colon-free timestamp | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-writer contract" |
-| Findings home, branch sub-path, slug rule | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) |
+| Findings home, branch sub-path, slug rule | `/review:fanout` "Shared inputs" |
 | Which of those a non-fanout producer owes, and the fields it computes | this doc |
 | A rule's threshold, tier argument, disposition, and auto-applicability | this doc's crosswalk |
 

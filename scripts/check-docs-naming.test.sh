@@ -331,6 +331,7 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
     n=0
     for filter in \
       '.file_names.exempt_basenames |= .[1:]' \
+      '.file_names.exempt_paths += ["docs/a/**"]' \
       '.file_names.exempt_extensions |= .[1:]' \
       '.file_names.regex = "^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+$"'; do
       n=$((n + 1))
