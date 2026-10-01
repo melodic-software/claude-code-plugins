@@ -157,6 +157,9 @@ Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808
 
 ## 67. xhigh: New Default Effort for Opus 4.7
 
+> **Superseded:** default effort differs by model and has changed since this tip. For the current
+> defaults, see [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+
 Opus 4.7 in Claude Code defaults to `xhigh`, a new effort level beyond the low/medium/high/max scale tip 34 describes. Model reasons longer before acting, pairing with the delegation shift: think harder once, rather than iterate fast and bounce back to you.
 
 ```bash
