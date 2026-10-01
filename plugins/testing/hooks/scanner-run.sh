@@ -9,9 +9,10 @@
 # later, "Windows users using WSL, MSYS2, or Cygwin, should use this option
 # when using a native jq.exe") writes the bytes as they are, so no field, path
 # or diff gains a CR and none loses one it carried. Added under Git Bash and
-# Cygwin only; TESTING_OSTYPE is the test seam for that condition.
+# Cygwin only, and only when a jq binary exists, so `command -v jq` still
+# reports a missing one; TESTING_OSTYPE is the test seam for the platform.
 case "${TESTING_OSTYPE:-${OSTYPE:-}}" in
-msys* | cygwin*) jq() { command jq -b "$@"; } ;;
+msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
 *) ;;
 esac
 

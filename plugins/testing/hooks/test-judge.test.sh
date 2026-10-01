@@ -566,7 +566,7 @@ check "a failed scan is not cached" '[[ "$(scans)" == 2 ]]'
 # on the project key, keep the paths as they are, and read every field
 # without a trailing CR.
 check "the fake Windows jq writes CRLF" '[[ "$(PATH="$WIN_JQ:$PATH" jq -n 1 | od -An -c | tr -d " ")" == "1\r\n" ]]'
-WT='C:\Users\k\.claude\projects\-repo\wsid.jsonl'
+WT='C:\Users\k\.claude\projects\-repo\wsid.jsonl' # portability-ok: a literal Windows path, not a regex escape
 WC='C:\repo'
 WPK="$(printf '%s\n%s' "$WC" 'C:\Users\k\.claude\projects\-repo' | sha256 | cut -c1-16)"
 W1="$REPO/src/win\\one.test.ts"
@@ -592,6 +592,42 @@ check "Windows: stop_hook_active true does not block" '[[ "$(field .decision)" !
 out="$(wpay st2 "" '{"hook_event_name": "Stop", "stop_hook_active": false}' | win bash "$HOOK" 2>/dev/null)"
 check "Windows: the Stop finds test-scan's project key and relays both verdicts, the FLAG intact" \
   '[[ "$(field .reason)" == *"reviewed 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+check "Windows: the relay markers sit under test-scan's project key" '[[ "$(find "$DATA/relayed/$WPK/wsid" -type f | wc -l)" == 2 ]]'
+
+# CRLF alone, with Linux paths: stop_hook_active must still read as true, so a
+# session with an unrelayed verdict is not blocked a second time.
+transcript crlf claude-sonnet-5
+CR1="$REPO/src/crlf.test.ts"
+js_file "$CR1" crlf
+record crlf w1 "$CR1" null
+bg crlf w1 "$CR1"
+out="$(payload crlf stop "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
+check "CRLF jq: stop_hook_active true does not block" '[[ "$(field .decision)" != block ]]'
+out="$(payload crlf stop "" '{"hook_event_name": "Stop"}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
+check "CRLF jq: the next task end relays the verdict" '[[ "$(field .reason)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
+
+# Under Git Bash one file is C:\x in a payload, C:/x from git and /c/x from
+# MSYS, with any case; a diff path from git must match the payload's file, and
+# the findings Location must still be repo-relative.
+lib() { # lib <OSTYPE> <bash>: run bash with the judge library sourced
+  TESTING_OSTYPE="$1" HOOK_DIR="$HOOK_DIR" DATA="$DATA" PKEY=x SID=x TPATH=x bash -c \
+    'source "$HOOK_DIR/scanner-run.sh"; source "$HOOK_DIR/judge-lib.sh"; '"$2"
+}
+WA='C:\users\k\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
+WB='C:\Users\K\repo\a.ts'
+WL='/r/a\b.ts'                     # portability-ok: a literal path holding a backslash, not a regex escape
+WF='C:\Users\K\repo\src\w.test.ts' # portability-ok: a literal Windows path, not a regex escape
+export WA WB WL
+check "msys: C:/Users/K/repo/src/a.test.ts and $WA are one file" 'lib msys "judge::same_path C:/Users/K/repo/src/a.test.ts \"\$WA\""'
+check "msys: /c/users/k/repo/a.ts and $WB are one file" 'lib msys "judge::same_path /c/users/k/repo/a.ts \"\$WB\""'
+check "linux: a backslash is part of a file name" '! lib linux-gnu "judge::same_path /r/a/b.ts \"\$WL\""'
+jq -cn --arg f "$WF" '{file: $f, repo: "C:/Users/K/repo", name: "w", ordinal: 1, start: 3,
+  end: 5, verdict: "FLAG", evidence: [], source: "s", diff: "d", reason: "", model: "m", effort: "e"}' >"$TMP/winverdict.json"
+loc="$(WV="$TMP/winverdict.json" lib msys 'RELAY="$(<"$WV")"$'"'"'\n'"'"'; RELAY_REPOS=("C:/Users/K/repo"); judge::findings
+  grep "^| 1 |" "$FINDINGS" | cut -d"|" -f5')"
+check "msys: the findings Location is repo-relative with forward slashes" '[[ "$loc" == " src/w.test.ts:3 " ]]'
+check "msys with no jq binary: no jq function hides the missing jq" \
+  '! env PATH=/nonexistent TESTING_OSTYPE=msys "$(command -v bash)" -c "source \"$HOOK_DIR/scanner-run.sh\"; command -v jq"'
 out="$(jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", session_id: "wsucc", transcript_path: $t,
   cwd: $c, source: "clear"}' | win bash "$HOOK_DIR/test-judge-start.sh" 2>/dev/null)"
 check "Windows: SessionStart writes the successor marker under the same project key" '[[ -f "$DATA/successors/$WPK/wsucc" ]]'

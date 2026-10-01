@@ -33,6 +33,22 @@ JUDGE_RULE=testing/judge/rule-restated-expectation
 case "${OSTYPE:-}" in msys* | cygwin*) JUDGE_AGE_ONLY=1 ;; *) JUDGE_AGE_ONLY=0 ;; esac
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
 
+# Under Git Bash and Cygwin one file can be named C:\x (a payload), C:/x (git)
+# or /c/x (MSYS), on a file system that ignores case.
+case "${TESTING_OSTYPE:-${OSTYPE:-}}" in msys* | cygwin*) JUDGE_WIN=1 ;; *) JUDGE_WIN=0 ;; esac
+
+# judge::same_path <a> <b>: true when the two paths name one file.
+judge::same_path() {
+  local a="$1" b="$2"
+  if ((JUDGE_WIN)); then
+    a="${a//\\//}" b="${b//\\//}"
+    [[ "$a" =~ ^/([a-zA-Z])/(.*)$ ]] && a="${BASH_REMATCH[1]}:/${BASH_REMATCH[2]}"
+    [[ "$b" =~ ^/([a-zA-Z])/(.*)$ ]] && b="${BASH_REMATCH[1]}:/${BASH_REMATCH[2]}"
+    a="${a,,}" b="${b,,}"
+  fi
+  [[ "$a" == "$b" ]]
+}
+
 judge::log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$JUDGE_LOG" 2>/dev/null; }
 judge::now() { NOW="${EPOCHSECONDS:-$(date +%s)}"; }
 judge::sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
@@ -135,7 +151,7 @@ judge::derive() {
   while read -r h _; do
     h="${h#\\}"
     key+="${h:0:16}"
-  done < <(printf '%s\n%s\n' "$1" "$HOOK_DIR" | judge::sha - "$file" "${cfgs[@]}")
+  done < <(printf '%s\n%s\n%s\n' "$1" "$HOOK_DIR" "$SCANNER" | judge::sha - "$file" "${cfgs[@]}")
   cache="$DATA/derive/$key"
   if ((${#key} >= 32)) && [[ -f "$cache" ]]; then
     mapfile -t c <"$cache"
@@ -156,7 +172,7 @@ judge::derive() {
     grep -q '^  adapter: bash-harness' "$tmpd/scan" && HINT="$lines"
   else
     ((rc == 0)) || judge::log "scanner exited $rc on $file: judged as one whole-file key"
-    b=("0 1-${#text[@]} ${file##*/}")
+    b=("0 1-${#text[@]} ${file##*[/\\]}")
     whole=true HINT="$lines"
   fi
   cur=0
@@ -436,7 +452,7 @@ judge::run() {
   testing::fields "$info" .file .repo .owner '.writers | tojson' || return 0
   file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
-  [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
+  [[ -n "$repo" && -d "$repo" ]] || repo="${file%[/\\]*}"
   n=0
   while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
@@ -488,7 +504,7 @@ judge::run() {
 
 # judge::label <verdict or info json fields: file name ordinal>: "<file>: <name>", with #n past the first.
 judge::label() {
-  local l="${1##*/}: $2"
+  local l="${1##*[/\\]}: $2"
   (($3 > 1)) && l+=" #$3"
   printf '%s' "$l"
 }
@@ -523,7 +539,7 @@ judge::validate() {
     (.diff // "" | tostring), "\u0000"' <<<"$json" 2>/dev/null)
   ((${#FIELDS[@]} == 4)) || return 0
   repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
-  [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
+  [[ -n "$repo" && -d "$repo" ]] || repo="${file%[/\\]*}"
   if [[ ! -f "$file" ]]; then
     why="the test file no longer exists"
   elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
@@ -538,7 +554,7 @@ judge::validate() {
     while IFS= read -r -d '' p; do
       [[ "$p" == ok ]] && n=1 && continue
       p="${p#*$'\t'}" && p="${p#*$'\t'}"
-      [[ "$repo/$p" == "$file" ]] || why="the proposed diff touches another file"
+      judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file"
     done < <(git -C "$repo" apply --check --numstat -z 2>/dev/null <<<"$diff" && printf 'ok\0')
     ((n)) || why="the proposed diff does not apply"
   fi
@@ -630,9 +646,12 @@ judge::findings() {
       path="$dir/$ts-test-judge-$i.md"
       i=$((i + 1))
     done
-    jq -rs --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
+    jq -rs --arg win "$JUDGE_WIN" --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
       def esc: tostring | gsub("\\|"; "\\|") | gsub("[\r\n]+"; " ");
-      def rel: .file | ltrimstr($repo + "/");
+      def slash: if $win == "1" then gsub("\\\\"; "/") else . end;
+      def norm: slash | if $win == "1" then ascii_downcase | sub("^/(?<d>[a-z])/"; "\(.d):/") else . end;
+      def rel: (.file | slash) as $f
+        | if ($f | norm | startswith(($repo | norm) + "/")) then $f[($repo | length) + 1:] else $f end;
       def tname: "\(.name)\(if .ordinal > 1 then " #\(.ordinal)" else "" end)";
       map(select((.repo // "") == $repo)) as $v
       | ($v | map(select(.verdict == "FLAG"))) as $f
