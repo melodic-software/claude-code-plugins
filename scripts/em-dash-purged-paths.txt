@@ -241,8 +241,8 @@ plugins/discovery/reference/*.md
 plugins/discovery/skills/*/SKILL.md
 plugins/discovery/skills/*/context/*.md
 plugins/discovery/skills/*/reference/*.md
-# The docs-hygiene plugin was purged whole, its eval fixtures included: those
-# fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
+# The docs-hygiene and docs-naming plugins were purged whole, eval fixtures included: those
+# fixtures specimen each plugin's OWN noise shapes, which are not em dashes, so
 # declaring them costs nothing. Two marked em dashes survive under these globs and
 # the gate honors both: a verbatim Microsoft quotation, and the audit-noise
 # bold-roster fixture whose matcher keys on the character itself.
@@ -257,6 +257,17 @@ plugins/docs-hygiene/skills/*/evals/fixtures/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
 plugins/docs-hygiene/skills/*/templates/*
+plugins/docs-naming/*.md
+plugins/docs-naming/context/*.md
+plugins/docs-naming/reference/*.md
+plugins/docs-naming/skills/*/SKILL.md
+plugins/docs-naming/skills/*/actions/*.md
+plugins/docs-naming/skills/*/context/*.md
+plugins/docs-naming/skills/*/reference/*.md
+plugins/docs-naming/skills/*/evals/fixtures/*.md
+plugins/docs-naming/skills/*/evals/fixtures/*/*.md
+plugins/docs-naming/skills/*/evals/fixtures/*/*/*.md
+plugins/docs-naming/skills/*/templates/*
 plugins/domain-driven-design/README.md
 plugins/domain-driven-design/CHANGELOG.md
 plugins/domain-driven-design/skills/*/SKILL.md
