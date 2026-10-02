@@ -184,6 +184,12 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
 2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
+## Next
+
+/session-flow:audit-sessions sweep
+
+Checks whether what this retro found recurs across every session on the machine.
+
 ## Gotchas
 
 - **Run all phases by default** in session mode. Skip metrics only when the parser fails or the
