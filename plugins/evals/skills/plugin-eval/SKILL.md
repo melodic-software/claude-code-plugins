@@ -392,9 +392,9 @@ about another.
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 to a stronger judge, and calibrate again before reading its scores. Its false positives and
 negatives name the samples to read first. A run whose reply was not the sample is left out of the
-agreement; one with neither a kept trace nor judge evidence is reported unchecked. A sample with no
-reproduced run is listed as `untested`, counts toward no agreement, and shows in the verdict line;
-raise `--runs` or tighten the prompt before reading the grader's score.
+agreement, and so is one with neither a kept trace nor judge evidence, which is also reported
+unchecked. A sample with no reproduced run is listed as `untested`, counts toward no agreement,
+and shows in the verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
 
 - **Pointer**: what a judge reads for each `focus`, see
   <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; the 90% bar, see

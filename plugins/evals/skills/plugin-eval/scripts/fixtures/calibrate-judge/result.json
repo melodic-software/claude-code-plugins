@@ -83,6 +83,10 @@
           {
             "score": 0, "error": null, "skippedPaidGraders": false,
             "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
           }
         ]
       }

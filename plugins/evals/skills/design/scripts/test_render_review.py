@@ -121,6 +121,13 @@ class Markdown(unittest.TestCase):
         self.assertIn(r"!\[\](https://x.example/p.png) \[ok\](https://y.example)", row)
         self.assertIn(r"a\\\|b", row)
 
+    def test_a_bare_url_stays_its_own_visible_text(self):
+        cases = [{"id": 1, "name": "see https://x.example/a and www.y.example"}]
+        code, text, _ = run(cases, "markdown")
+        self.assertEqual(code, 0)
+        _, _, row = table_rows(text)
+        self.assertIn("see https://x.example/a and www.y.example", row)
+
     def test_one_fenced_block_per_case_longer_than_any_backtick_run(self):
         tricky = "before\n`````\n<script>x</script>\nafter"
         cases = [{"id": 1, "prompt": tricky}, {"id": 2, "input": "plain"}]

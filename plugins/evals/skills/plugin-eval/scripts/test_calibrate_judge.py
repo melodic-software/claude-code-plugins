@@ -416,7 +416,7 @@ class ScoreTest(Base):
             out,
         )
         self.assertIn(
-            "reproduction: 2 checked against traces, 8 against judge evidence, 1 unchecked",
+            "reproduction: 2 checked against traces, 9 against judge evidence, 1 unchecked",
             out,
         )
         self.assertNotIn("FAIL grader", out)
@@ -445,6 +445,30 @@ class ScoreTest(Base):
             out.strip().splitlines()[-1],
             "verdict: PASS (every grader at or above 90%; 1 untested)",
         )
+
+    def test_an_unchecked_run_is_excluded_from_the_agreement(self):
+        result = copy.deepcopy(self.result)
+        del self.rows(result, 4)[3]["graders"][0]["evidence"]
+        proc = self.score(result)
+        out = proc.stdout
+        self.assertIn("agreement 8/9 runs (88.9%) over 4 samples", out)
+        self.assertIn("8 against judge evidence, 2 unchecked", out)
+        self.assertIn(
+            "reproduction unchecked, no trace or evidence: capital-city--names-paris--04 "
+            "with-arm run 4",
+            out,
+        )
+
+    def test_a_sample_with_only_unchecked_runs_is_untested(self):
+        result = copy.deepcopy(self.result)
+        for row in self.rows(result, 1):
+            row.pop("tracePath", None)
+            for grader in row["graders"]:
+                grader.pop("evidence", None)
+        proc = self.score(result)
+        out = proc.stdout
+        self.assertIn("samples with no reproduced run: 1 of 4", out)
+        self.assertIn("untested: capital-city--names-paris--01", out)
 
     def test_a_false_positive_drops_the_grader_under_the_target(self):
         result = copy.deepcopy(self.result)
@@ -508,9 +532,10 @@ class ScoreTest(Base):
         path.write_text(json.dumps(manifest))
         proc = self.score(manifest=path)
         self.assertIn(
-            "reproduction: 2 checked against traces, 0 against judge evidence, 9 unchecked",
+            "reproduction: 2 checked against traces, 0 against judge evidence, 10 unchecked",
             proc.stdout,
         )
+        self.assertIn("agreement 1/1 runs (100.0%) over 1 samples", proc.stdout)
 
     def test_a_case_missing_from_the_result_is_named(self):
         result = copy.deepcopy(self.result)

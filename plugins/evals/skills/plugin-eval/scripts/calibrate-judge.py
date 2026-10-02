@@ -574,7 +574,8 @@ def score_run(tally, entry, run, where, base):
     tally.checked[source] += 1
     if reply is None:
         tally.unchecked.append(where)
-    if reply is not None and not same_text(reply, entry["answer"]):
+        return
+    if not same_text(reply, entry["answer"]):
         tally.unreproduced.append(
             '%s: reply begins "%s" (%s)' % (where, first_line(reply), source)
         )

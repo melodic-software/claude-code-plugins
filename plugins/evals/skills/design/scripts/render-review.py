@@ -56,7 +56,8 @@ def as_text(value):
 
 
 def md_cell(value):
-    """One table cell: a single line, HTML-inert, with no live link or image."""
+    """One table cell: a single line, HTML-inert, with no image and no link hidden
+    behind other text. A bare URL may still autolink, but it shows its own address."""
     flat = re.sub(r"([\\\[\]|])", r"\\\1", " ".join(as_text(value).split()))
     return html.escape(flat, quote=False)
 
