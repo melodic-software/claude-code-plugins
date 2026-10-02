@@ -15,8 +15,12 @@ Classes, per changed leaf (a JSON pointer, RFC 6901):
   added / removed       the key or list item exists on one side only
 
 A value is unresolved when its field's sibling `<field>_source` is `partial`
-or `unresolved`, when it is that source field itself holding one of those, or
-when it is a string holding the reader's `…` runtime placeholder.
+or `unresolved`, or when it is that source field itself holding one of those.
+A source of `literal` or `frontmatter` names text read as written, so the
+value is resolved even when it contains `…`. Under any other source (a
+`template`, `constant`, `call` or `arrow` value can carry a runtime
+substitution) or none, a string holding the reader's `…` runtime placeholder
+is unresolved, and so is a list with such an element.
 
 Run metadata is ignored: `/host`, and `elapsed_seconds`, `path` and
 `selected_by` anywhere under `/sources`.
@@ -38,6 +42,7 @@ import sys
 from typing import Any
 
 UNRESOLVED_SOURCES = frozenset({"partial", "unresolved"})
+AS_WRITTEN_SOURCES = frozenset({"literal", "frontmatter"})
 ELLIPSIS = "…"
 METADATA_KEYS = frozenset({"elapsed_seconds", "path", "selected_by"})
 CLASSES = (
@@ -58,12 +63,21 @@ def _escape(key: str) -> str:
 def _ignored(pointer: str, key: str) -> bool:
     if pointer == "" and key == "host":
         return True
-    return pointer.startswith("/sources") and key in METADATA_KEYS
+    under_sources = pointer == "/sources" or pointer.startswith("/sources/")
+    return under_sources and key in METADATA_KEYS
+
+
+def _same_scalars(old: list, new: list) -> bool:
+    return len(old) == len(new) and all(
+        a == b and type(a) is type(b) for a, b in zip(old, new)
+    )
 
 
 def _unresolved(value: Any, source: Any) -> bool:
     if source in UNRESOLVED_SOURCES:
         return True
+    if source in AS_WRITTEN_SOURCES:
+        return False
     if isinstance(value, list):
         return any(isinstance(v, str) and ELLIPSIS in v for v in value)
     return isinstance(value, str) and ELLIPSIS in value
@@ -96,7 +110,7 @@ def _diff(
         # A list of names reads as a whole, so an inserted name does not
         # shift every later index into a spurious value->value.
         if all(map(_scalar, old + new)):
-            if old != new:
+            if not _same_scalars(old, new):
                 out.append(_change(pointer, old, new, src_old, src_new))
             return
         for i in range(max(len(old), len(new))):

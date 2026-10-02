@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.2] - 2026-10-02
+## [1.2.1] - 2026-10-02
 
 ### Changed
 
@@ -23,6 +23,42 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=regex|parser|compare`** (default `regex`, whose output is unchanged).
+  `parser` starts a long-lived node helper (`scripts/js/parser_helper.cjs`, newline-delimited
+  JSON on stdin/stdout) and parses every `// @bun` module of the bundle with acorn before the
+  extraction runs; a module that does not parse marks the report broken. `compare` runs both
+  readers and records every difference under `reader.compare`, classified by
+  `compare_reports.py`; a `value->value` difference marks the report broken. In this release the
+  parser checks coverage only and the values still come from the regex reader; the binding and
+  write lookups move to the parser in later phases of #5640. On Claude Code 2.1.287 all 2,158
+  modules parse, the parser adds about 3.4 s, and the two readers' reports match.
+- **The parser's packages install on first use and are never vendored.** `scripts/js/` commits
+  only `package.json` and `package-lock.json` (acorn 8.18.0, eslint-scope 9.1.2). The first parser
+  run copies both into `<base>/inventory-parser/<lockfile hash>/` and runs
+  `npm ci --ignore-scripts`; the base is `--deps-dir`, else a harness-ops `$CLAUDE_PLUGIN_DATA`,
+  else the checkout's `.work/harness-ops` when run from a marketplace checkout, else
+  `~/.claude/plugins/data/harness-ops-melodic-software`. Missing npm, a failed install, or a
+  helper that does not load leaves the binary source unavailable with
+  `parser reader broken: <reason>; run: <command>`; missing node says to install Node.js and
+  rerun. Either way `--self-check` exits 1 and nothing falls back to the regex reader. Install
+  directories a killed install left half-built are removed once they are older than twice the
+  `npm ci` timeout. `python3 parser_reader.py --install` performs the install alone.
+  The rule is written up repo wide as `docs/conventions/on-demand-dependencies/`.
+
+### Fixed
+
+- `compare_reports.py` ignores run metadata only under `/sources` itself, so a top-level key such
+  as `/sources_summary` is compared; compares flat lists type-sensitively, so `[1]` to `[true]`
+  is a change; and treats a value whose source is `literal` or `frontmatter` as resolved even when
+  it contains `…`, so a literal `"Wait…"` changing is a `value->value` change rather than
+  `unresolved->resolved`.
+- `test_fixture_parse.py` finds the installed parser packages on its own and fails instead of
+  skipping when `INVENTORY_REQUIRE_ACORN` is set, which CI now sets after installing them.
 
 ## [1.1.1] - 2026-10-02
 
