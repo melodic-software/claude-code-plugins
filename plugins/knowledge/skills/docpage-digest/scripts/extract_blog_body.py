@@ -37,6 +37,10 @@ class BodyExtractor(HTMLParser):
         self.lang_capture = False
 
     def flush(self, prefix=""):
+        if self.cells is not None:
+            # A block boundary inside a table row stays in the cell's text.
+            self.buf.append(" ")
+            return
         text = " ".join("".join(self.buf).split())
         if text:
             self.blocks.append(prefix + text)
@@ -75,7 +79,9 @@ class BodyExtractor(HTMLParser):
             if tag == "br":
                 self.pre.append("\n")
             return
-        if tag in FLUSH_ON_START:
+        if tag == "p" and self.lists:
+            self.flush_item()
+        elif tag in FLUSH_ON_START:
             self.flush()
         if tag in ("ul", "ol"):
             self.flush_item()
@@ -155,7 +161,7 @@ class BodyExtractor(HTMLParser):
             self.table = None
         if tag in HEADINGS:
             self.flush("#" * int(tag[1]) + " ")
-        elif tag == "li":
+        elif tag == "li" or (tag == "p" and self.lists):
             self.flush_item()
         elif tag in ("p", "figcaption"):
             self.flush("[CAPTION] " if tag == "figcaption" else "")

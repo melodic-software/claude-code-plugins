@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.2.0] - 2026-10-01
+## [1.2.0] - 2026-10-02
 
 ### Added
 

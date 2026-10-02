@@ -1,6 +1,6 @@
 # Changelog: docs-hygiene plugin
 
-## [0.24.5] - 2026-10-01
+## [0.24.5] - 2026-10-02
 
 ### Changed
 

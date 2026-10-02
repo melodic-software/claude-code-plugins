@@ -50,6 +50,15 @@ class TestExtractBlogBody(unittest.TestCase):
         self.assertRegex(self.lines[header + 1], SEPARATOR)
         self.assertEqual(self.lines[header + 2], "| North | 31% |")
 
+    def test_paragraphs_inside_cells_stay_in_the_table(self):
+        self.assertIn("| East | 24% |", self.lines)
+        self.assertNotIn("East", [line for line in self.lines if not line.startswith("|")])
+
+    def test_paragraphs_inside_list_items_keep_the_bullet(self):
+        first = self.lines.index("- Check the rain gauge first.")
+        self.assertIn("  Skip watering after rain.", self.lines[first + 1 :])
+        self.assertIn("- Log every reading.", self.lines)
+
     def test_no_widget_or_video_label_text(self):
         for label in WIDGET_LABELS:
             with self.subTest(label=label):

@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.25] - 2026-10-01
+## [0.25.25] - 2026-10-02
 
 ### Changed
 
