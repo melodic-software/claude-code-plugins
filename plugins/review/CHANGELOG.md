@@ -3,12 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.11] - 2026-10-02
+## [0.34.12] - 2026-10-02
 
 ### Changed
 
 - The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
   the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
+## [0.34.11] - 2026-10-02
+
+### Fixed
+
+- `fanout` run-everything mode decides Workflow availability from the toolset alone and
+  points at the workflows page for the disable switches and resume rules. The main-thread
+  fallback no longer claims to lose concurrency, and the nesting-depth note carries an as-of date.
 
 ## [0.34.10] - 2026-10-02
 

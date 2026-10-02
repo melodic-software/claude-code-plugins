@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-10-02
+
+### Fixed
+
+- `implement-dispatch` points at the sub-agents page for model resolution order and notes
+  that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides the frontmatter binding and per-call models;
+  it is reported, not a reason to refuse dispatch.
+
 ## [0.20.0] - 2026-10-02
 
 ### Added
