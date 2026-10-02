@@ -1,6 +1,6 @@
 ---
 description: "Validate a filled /planning:interview ledger with fresh-context agents that re-check each answer blind to its rationale; only doubtful ones come back. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Plans: '/planning:devils-advocate'; first-time questions: '/planning:interview'."
-argument-hint: "[topic] (no args reads the current topic's interview ledger)"
+argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -25,6 +25,9 @@ contains git. The dated record for that composition claim is the worktree skill'
 ## Variables
 
 Arguments: `$ARGUMENTS`
+
+The optional `[topic]` names the interview topic to validate. With no argument, the skill reads
+the current topic's interview ledger.
 
 ## Purpose
 

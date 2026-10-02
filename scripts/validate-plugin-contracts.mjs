@@ -197,8 +197,8 @@ for (const path of setupSkills) {
   // doctrine surfaces (settings this contract forbids setup to mutate; external
   // prerequisites) have no such signal and are covered by the check-only
   // declaration plus the registry exclusion, not by a second existence probe.
-  if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
-    fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
+  if (!/^argument-hint:\s*"[[<]check[|\]>]/m.test(frontmatter)) {
+    fail(path, 'setup skills must declare check as the leading action in argument-hint ("[check|apply] ...", "<check|apply> ...", or "[check] ...") (docs/conventions/argument-hint/README.md)');
   }
   const body = content.slice(content.indexOf("---", 3) + 3);
   if (!/`check`/.test(body)) {
@@ -1192,19 +1192,56 @@ const ARGUMENT_HINT_DOC = "docs/conventions/argument-hint/README.md";
 const ARGUMENT_HINT_BUDGET = 100;
 const warnings = [];
 
-function argumentHintMalformed(value) {
-  if (/^[|>]/.test(value) || value.includes(String.fromCodePoint(0x2014))) return true;
-  if (/\((?:e\.g\.|for example)/i.test(value) || value.includes("Default:")) return true;
+// A slot that names a closed set instead of writing it out. A literal flag such
+// as `--mode` is not a slot name; `--<mode>` is.
+const PLACEHOLDER_SLOTS = new Set(["action", "actions", "mode", "modes", "option", "options"]);
+
+// Every shape the hint breaks, so each reason warns on its own line.
+function argumentHintProblems(value) {
+  const problems = [];
+  if (/^[|>]/.test(value)) problems.push("block scalar");
+  if (value.includes(String.fromCodePoint(0x2014))) problems.push("em dash");
+  if (value.includes("Default:")) problems.push("Default: prose");
+  if (/\s\||\|\s/.test(value)) problems.push("spaced pipe");
+  if (/…(?![\]>])/.test(value)) problems.push("… not closing a shortened set");
   let depth = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    const c = value[i];
-    if (c === "[" || c === "<") depth += 1;
-    else if ((c === "]" || c === ">") && depth > 0) depth -= 1;
-    else if (c === "|" && depth === 0 && (value[i - 1] !== " " || value[i + 1] !== " ")) {
-      return true;
+  let outside = "";
+  // Top-level tokens, each bracket group standing as one NUL token.
+  let topLevel = "";
+  for (const c of value) {
+    if (c === "[" || c === "<") {
+      if (depth === 0) topLevel += " \u0000 ";
+      depth += 1;
+    } else if ((c === "]" || c === ">") && depth > 0) depth -= 1;
+    else if (depth === 0) {
+      outside += c;
+      topLevel += c;
     }
   }
-  return false;
+  if (outside.includes("|")) problems.push("alternatives outside [] or <>");
+  const slotWords = value
+    .split(/[\s|[\]]+/)
+    .filter((token) => !/^--[a-z]/i.test(token))
+    .map((token) => token.replace(/\.\.\.|…|[<>-]/g, "").toLowerCase());
+  if (slotWords.some((word) => PLACEHOLDER_SLOTS.has(word))) {
+    problems.push("placeholder slot instead of the written-out set");
+  }
+  const bare = outside.replace(/\.\.\.|…/g, "");
+  // A literal word may lead (`check`) or follow a flag (`--from main`); one that
+  // follows a slot or another word is prose (`<path> defaults to cwd`).
+  const tokens = topLevel.replace(/\.\.\.|…/g, " ").split(/\s+/).filter(Boolean);
+  const wordAfterSlotOrWord = tokens.some(
+    (token, i) => i > 0 && token !== "\u0000" && !token.startsWith("-") && !tokens[i - 1].startsWith("-"),
+  );
+  if (
+    /[()]|:\s/.test(value) ||
+    /[.,;]/.test(bare) ||
+    /(?:^|\s)(?:or|and)(?:\s|$)/i.test(bare) ||
+    wordAfterSlotOrWord
+  ) {
+    problems.push("prose outside the grammar");
+  }
+  return problems;
 }
 
 // The first inline span of the body's **Arguments.** line: null when the line
@@ -1246,9 +1283,9 @@ for (const path of argumentSkills) {
       `${relative(root, path)}: argument-hint is ${length} characters, over the ${ARGUMENT_HINT_BUDGET}-character budget (${ARGUMENT_HINT_DOC})`,
     );
   }
-  if (argumentHintMalformed(value)) {
+  for (const problem of argumentHintProblems(value)) {
     warnings.push(
-      `${relative(root, path)}: argument-hint is malformed: block scalar, em dash, parenthetical example, Default: prose, or an unspaced pipe outside brackets (${ARGUMENT_HINT_DOC})`,
+      `${relative(root, path)}: argument-hint is malformed: ${problem} (${ARGUMENT_HINT_DOC})`,
     );
   }
   const span = argumentsLineSpan(content.slice(content.indexOf("---", 3) + 3));

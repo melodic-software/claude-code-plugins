@@ -1,6 +1,6 @@
 ---
 description: "Reshape prose so a scanning reader gets the point: bottom line first, no more words than the meaning needs, structure that survives scanning, factual tone. Two modes. Invoked bare it sets a standing posture for everything written afterwards; given any target it reshapes that text and reports before and after word counts. Never drops a decision, number, ask, error or warning, and never edits an already-posted record in place unless told to. Use when: 'write this for the PO', 'shorten this ticket', 'make this scannable', 'bottom line first', 'nobody will read this', 'rewrite this PR description for reviewers', or before writing anything a person reads in a tracker, a pull request, a doc, or a status update. Not for: in-flight chat and code terseness (discipline:tighten-your-output), word-level trimming of a repo .md (docs-hygiene:compress), restructuring without shortening (adhd:clarify), or doc genre and language standards at authoring time (docs-hygiene:write-for-humans)."
-argument-hint: "[target] (empty sets the posture; otherwise pasted text, a file, a URL, a PR, or a ticket)"
+argument-hint: "[target]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

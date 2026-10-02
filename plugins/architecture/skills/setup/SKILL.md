@@ -1,6 +1,6 @@
 ---
 description: "Verify and converge the architecture plugin's consumer configuration: the convention-home binding, and the architecture topic doc declaring where landscape and portfolio artifacts land (architecture_dir) and which landscape dialect to emit (landscape_dialect). Use when: 'set up architecture', 'where should the landscape go', 'declare our architecture directory', 'map-landscape says there is no architecture home', 'switch the landscape dialect to structurizr', before a first /architecture:map-landscape run in a repository, or after changing the convention home. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
-argument-hint: "check | apply [home=<dir>] [architecture_dir=<path>] [landscape_dialect=<structurizr|mermaid>]"
+argument-hint: "[check|apply] [home=<dir>] [architecture_dir=<path>] [landscape_dialect=<structurizr|mermaid>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -13,6 +13,8 @@ consumer's convention home per the consuming marketplace's config-cascade expres
 `check` inspects and reports PASS/FAIL/INFO with one remediation line per FAIL; `apply` converges
 exactly TWO consumer artifacts, the marked pointer-line region in the root instruction file and the
 topic doc `<home>/architecture/README.md`, and nothing else.
+
+Action routing: no argument or `check` runs the check.
 
 The key reference is `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (keys, topic-doc location,
 resolution order, defaults). Read it first; this skill reports against that contract rather than

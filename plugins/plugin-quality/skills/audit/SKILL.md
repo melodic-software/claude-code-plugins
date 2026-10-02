@@ -1,6 +1,6 @@
 ---
 description: "Post-use behavioral audit of a Claude Code plugin component, a skill, agent, hook, command, or config, after using or setting it up, ending in a work item emitted to the plugin's maintainers. Covers errors, improvements, and quality of life for each audited component. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when the ask is 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin (or hook) well-designed', 'find bugs or gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
-argument-hint: "<plugin>[:<component>] | session | arm"
+argument-hint: "[<plugin>[:<component>]...|session|arm]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Behavioral audit of a plugin component ending in a maintainer work item
 ---
 
-**Arguments.** `<plugin>[:<component>] | session | arm`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails). `session` and `arm` are whole arguments, never combined with a target; see [Session mode and arm](#session-mode-and-arm-operator-invoked-only).
+**Arguments.** `[<plugin>[:<component>]...|session|arm]`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails). `session` and `arm` are whole arguments, never combined with a target; see [Session mode and arm](#session-mode-and-arm-operator-invoked-only).
 
 # Plugin audit
 
