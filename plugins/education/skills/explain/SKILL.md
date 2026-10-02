@@ -132,6 +132,13 @@ mission-driven coach when the user wants ongoing depth or practice.
   (`teach` sets `disable-model-invocation`).
 - **Not a rewording service.** If the jargon can't be shed, that's a gap to
   surface (Feynman gap check), not a synonym to swap in.
+- **Not a restructure.** A dense, decision-heavy message that has the right content in the
+  wrong shape is `adhd:clarify` (if that plugin is installed): same precision, same
+  words, one decision at a time. This skill trades precision for plain words.
+- **Not the reader's stop signal.** When the reader says the last message did not land
+  and wants it re-pitched with the missing context, in Simplified Technical English and
+  the project's own vocabulary, that is `/discipline:wait-what` (if installed), which only
+  the human can fire. This skill answers "explain this"; that one repairs one message.
 - **Not a picture.** This skill changes altitude and stays in prose. When the user
   wants a visual explainer instead, a diagram rather than a paragraph, that is the
   sibling `/education:eli5`; invoke it via the Skill tool. Its floor is fixed at

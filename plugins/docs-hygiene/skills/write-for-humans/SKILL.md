@@ -115,7 +115,9 @@ view anywhere, nothing specific.
 
 The three sentence-level layers, address, load, ambiguity, apply to every sentence at once, so
 they live together in one place rather than three:
-[`reference/sentence-rules.md`](reference/sentence-rules.md). Read it while drafting, not after.
+[`reference/sentence-rules.md`](reference/sentence-rules.md). Read it while drafting, not after. It
+holds the load rules in full: the hard 20-word cap on instruction sentences, simple verb forms, and
+the paragraph limits.
 
 ## A worked example
 
