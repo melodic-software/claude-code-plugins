@@ -3,6 +3,17 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.22] - 2026-10-02
+
+### Changed
+
+- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work,
+  the level model config's `medium` row and the cost guide's starting point give it. The pin stays
+  explicit so an orchestrator's lowered effort does not reach the worker.
+- **`phase-verifier` pins `effort: high`, up from `medium`.** Verification is the work the `high`
+  row names. Its model rule now reads as never weaker than the work it checks, and a phase routed
+  upward passes the verifier the same tier.
+
 ## [0.19.21] - 2026-10-02
 
 ### Changed

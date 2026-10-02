@@ -3,6 +3,13 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.41] - 2026-10-02
+
+### Changed
+
+- **`object-writer` pins `effort: medium`, down from `high`.** Creative generation is not
+  verification, so it runs at the model's default level.
+
 ## [1.4.40] - 2026-10-02
 
 ### Changed

@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.10] - 2026-10-02
+
+### Changed
+
+- **`code-reviewer`, `ci-log-auditor` and `doc-drift-detector` pin `model: opus`, up from
+  `sonnet`.** A judgment verdict is never on a weaker model than the work it checks. All six
+  verdict agents keep `effort: high` and carry a pin record pointing at the model-config `high` row
+  and the advisor capability rule, as of 2026-10-02, rechecked at the next model release.
+  `ecosystem-specialist` stays `sonnet` at `medium`: its build, test and lint commands are the
+  objective failure signal.
+
 ## [0.34.9] - 2026-10-02
 
 ### Changed

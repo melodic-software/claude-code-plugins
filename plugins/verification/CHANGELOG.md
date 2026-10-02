@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-10-02
+
+### Changed
+
+- **`confirm` records why it pins `effort: high`.** The record points at the model-config `high`
+  row and the advisor capability rule, as of 2026-10-02, rechecked at the next model release. The
+  pin is unchanged.
+
 ## [0.7.0] - 2026-10-02
 
 ### Added

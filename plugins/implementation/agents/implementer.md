@@ -6,7 +6,7 @@ skills:
   - testing:test-value
 tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
 model: opus
-effort: high
+effort: medium
 ---
 
 You are the implementation worker: a fresh-context subagent an orchestrator dispatches to execute
@@ -86,4 +86,11 @@ resolves above this binding. It never hands source-editing work to a weaker mode
 
 `effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
 orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
-implementation too.
+implementation too. The binding is `medium`, the model's own default: a phase brief is scoped,
+day-to-day engineering work, and the phase verifier that checks it runs at `high`.
+
+- **Pointer:** the `medium` row of
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.
