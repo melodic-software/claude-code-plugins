@@ -4,6 +4,23 @@ Notable changes to the argument-hint contract (SemVer). Changing the budget, the
 or whether a violation warns or fails is a major bump. Adding a malformed shape the gate warns on
 is a minor bump. Docs-only clarification is a patch.
 
+## [2.0.0] - 2026-10-01
+
+Major. The bracket grammar changes and the setup hint form changes
+([#5774](https://github.com/melodic-software/claude-code-plugins/issues/5774)).
+
+- **Official notation.** Alternatives sit inside `[]` or `<>` with an unspaced `|`, as every
+  built-in command hint does. The spaced top-level pipe (`check | apply`) is no longer allowed.
+- **Setup hints** start `[check|apply]`, `<check|apply>`, or `[check]`. The validator fails a
+  setup hint that does not start with `[check` or `<check`.
+- **Written-out sets.** A slot named `action`, `mode`, or `options` is not a hint.
+- **No prose.** No parenthetical of any kind, no `: words`, and no words after the last slot.
+- **Gate.** One warning per shape, each naming it: `spaced pipe`, `alternatives outside [] or <>`,
+  `placeholder slot instead of the written-out set`, and `prose outside the grammar`, beside the
+  existing em dash, `Default:`, block scalar, and budget warnings.
+- **Records.** Four-part records for the official notation and for the absence of argument
+  completion for plugin skills. The doc marks which rules are official and which are house rules.
+
 ## [1.1.0] - 2026-09-29
 
 Minor. A new shape the gate warns on; the budget and the existing warnings are unchanged.
