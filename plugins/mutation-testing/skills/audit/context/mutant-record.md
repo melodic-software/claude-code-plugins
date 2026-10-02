@@ -58,8 +58,9 @@ Phase 0, in this order, replacing the exercised scope's mapping:
    `<before>` as both arguments, which exits 2 on a malformed row and on an empty K0 (nothing
    detected before proves nothing).
 2. Refuse when the production files differ from the recorded sha on any listed path: `git diff
-   --quiet <sha> -- <listed paths>` compares the working tree with that commit. Refuse when a listed
-   `original` no longer matches its lines.
+   --quiet <sha> -- "<path>" ...` compares the working tree with that commit, each record path
+   quoted as its own argument (a record path is a file name from the repository, never shell text).
+   Refuse when a listed `original` no longer matches its lines.
 3. The test set is the tests under the test path now, recognized through `/testing:audit --file` as
    the exercised scope does. The mapping is skipped and so are its endings (`no changed tests: scope
    empty`, `no mapping: scope empty`): a batch that deleted tests must still be gated, not end as an

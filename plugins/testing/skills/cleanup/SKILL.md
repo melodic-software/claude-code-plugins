@@ -57,7 +57,8 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
 Gather all three before any edit, and write the candidate list to `decisions.md`:
 
 1. The scanner's findings over the folder:
-   `env CANT_FAIL_SCAN_ROOT=<absolute folder> bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings`.
+   `env CANT_FAIL_SCAN_ROOT="<absolute folder>" bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings`.
+   Quote every path you put in a command, each as its own argument.
    Every row is a candidate, report-only rules included. `Location` is repo-relative.
 2. Test-judge findings, when present. The judge is off by default, so usually there are none. Read
    every `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal
@@ -130,6 +131,8 @@ Invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/bef
   candidate changes: the batch's changed tests that import `<path>`. The user reverts the ones they
   choose; then replay again. Cleanup reverts nothing itself.
 - `Gate: pass`: go on.
+- Any other outcome (no `Gate:` line, a refusal, a compare that could not run) stops the batch the
+  same way. Only `Gate: pass` reaches step 7.
 
 ### 7. Report and commit
 
