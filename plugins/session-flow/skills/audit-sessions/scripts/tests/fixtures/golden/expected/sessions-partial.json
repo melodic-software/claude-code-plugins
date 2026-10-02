@@ -1,0 +1,162 @@
+{
+  "argv": [
+    "--sessions",
+    "gold-0001,gold-9999",
+    "--base",
+    "proj"
+  ],
+  "exit": 0,
+  "output": {
+    "status": "warning",
+    "summary": "Multi-session retro: 2 chained session(s) (1 with transcript), 4 assistant turns total, 7 human messages, 1 compaction(s), covering 1 of 2 transcript(s) in the chain",
+    "chain_coverage": {
+      "requested": 2,
+      "found": 1,
+      "available": 2,
+      "project_transcripts": 2,
+      "ratio": 0.5
+    },
+    "fork_candidates": [],
+    "sessions": [
+      {
+        "id": "gold-0001",
+        "transcript_present": true,
+        "subagents_present": true,
+        "data": {
+          "session": {
+            "id": "gold-0001",
+            "start": "2026-10-01T10:00:00+00:00",
+            "end": "2026-10-01T10:03:00+00:00",
+            "duration_minutes": 3.0,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "versions": [
+              "2.1.287"
+            ],
+            "git_branches": [
+              "feat/login",
+              "main"
+            ]
+          },
+          "turns": {
+            "assistant": 4,
+            "user": 8,
+            "human_messages": 7,
+            "tool_result_messages": 1
+          },
+          "tokens": {
+            "total_input": 34,
+            "total_output": 103,
+            "cache_creation": 300,
+            "cache_read": 5000,
+            "total_context": 5334
+          },
+          "queued_user_messages": 1,
+          "tools": {
+            "usage": {
+              "Skill": 1,
+              "Edit": 1
+            },
+            "rejections": [
+              {
+                "tool_use_id": "tu-02",
+                "snippet": "The user rejected this edit"
+              }
+            ],
+            "rejection_count": 1
+          },
+          "compactions": {
+            "count": 1,
+            "details": [
+              {
+                "timestamp": "2026-10-01T10:02:00.000Z",
+                "trigger": "manual",
+                "pre_tokens": 5000
+              }
+            ]
+          },
+          "turn_durations": {
+            "count": 3,
+            "avg_ms": 6667,
+            "min_ms": 1000,
+            "max_ms": 18000,
+            "total_ms": 20000
+          },
+          "stop_reasons": {
+            "tool_use": 1,
+            "end_turn": 1
+          },
+          "hook_summaries": {
+            "count": 1,
+            "prevented_continuations": 0,
+            "hook_errors": 0
+          },
+          "plugin_usage": {
+            "skills": {
+              "session-flow:retro": 1,
+              "review:quality-gate": 1
+            }
+          },
+          "files_modified": [
+            "src/a.py",
+            "src/b.py"
+          ],
+          "subagents": [
+            {
+              "id": "agent-a1",
+              "type": "Explore",
+              "description": "Find the login handler"
+            }
+          ],
+          "errors": [
+            {
+              "type": "parse_error",
+              "detail": "Malformed JSON line"
+            }
+          ]
+        },
+        "role": "current"
+      },
+      {
+        "id": "gold-9999",
+        "transcript_present": false,
+        "subagents_present": false,
+        "subagents": [],
+        "error": "No transcript found at proj/gold-9999.jsonl",
+        "role": "previous"
+      }
+    ],
+    "aggregate": {
+      "total_assistant_turns": 4,
+      "total_human_messages": 7,
+      "total_input_tokens": 34,
+      "total_output_tokens": 103,
+      "total_compactions": 1,
+      "total_tool_rejections": 1,
+      "all_tools": {
+        "Skill": 1,
+        "Edit": 1
+      },
+      "all_plugin_skills": {
+        "session-flow:retro": 1,
+        "review:quality-gate": 1
+      },
+      "all_subagents": [
+        {
+          "id": "agent-a1",
+          "type": "Explore",
+          "description": "Find the login handler",
+          "session_id": "gold-0001"
+        }
+      ],
+      "all_models": [
+        "claude-opus-5-5"
+      ],
+      "all_branches": [
+        "feat/login",
+        "main"
+      ]
+    }
+  }
+}
