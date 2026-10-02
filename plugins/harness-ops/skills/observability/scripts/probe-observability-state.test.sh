@@ -256,11 +256,11 @@ task_xml() { # <command> <arguments-text> [settings-extra]
   printf '      <Arguments>%s</Arguments>\n    </Exec>\n  </Actions>\n</Task>' "$2"
 }
 # The provisioning launcher's argument, XML-escaped as schtasks exports it.
-LAUNCHER="-NoProfile -Command &quot;\$plugin = 'claude-ops@example-marketplace'; &amp; { \
+LAUNCHER="-NoProfile -Command &quot;\$plugin = 'harness-ops@example-marketplace'; &amp; { \
 \$index = Join-Path \$root 'plugins/installed_plugins.json'; \
 \$prune = Join-Path \$entry.installPath 'skills/observability/otel/prune-otel-store.sh' } *&gt;&gt; \$log&quot;"
 prune_task_line() { bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 6p; }
-HAND="$TMP/hand/claude-ops/0.62.4/skills/observability/otel/prune-otel-store.sh"
+HAND="$TMP/hand/harness-ops/0.62.4/skills/observability/otel/prune-otel-store.sh"
 mkdir -p "${HAND%/*}"
 : >"$HAND"
 
@@ -272,8 +272,8 @@ assert_eq "prune-task: no task" "prune-task:missing" "$(prune_task_line)"
 export STUB_SCHTASKS_XML
 STUB_SCHTASKS_XML="$(task_xml "$PWSH" "$LAUNCHER")"
 assert_eq "prune-task: the provisioned launcher" "prune-task:provisioned" "$(prune_task_line)"
-STUB_SCHTASKS_XML="$(task_xml "$PWSH" "${LAUNCHER/claude-ops@/harness-ops@}")"
-assert_eq "prune-task: a launcher naming the harness-ops key" "prune-task:provisioned" "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "$PWSH" "${LAUNCHER/harness-ops@/other-plugin@}")"
+assert_eq "prune-task: a launcher naming another plugin key is not provisioned" "prune-task:stale path" "$(prune_task_line)"
 STUB_SCHTASKS_XML="$(task_xml "$PWSH" "$LAUNCHER" '<Enabled>false</Enabled>')"
 assert_eq "prune-task: a disabled task" "prune-task:disabled" "$(prune_task_line)"
 STUB_SCHTASKS_XML="$(task_xml "$GIT_BASH" "$LAUNCHER")"

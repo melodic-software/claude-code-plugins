@@ -34,7 +34,7 @@ bash "<upsert-script>" \
 ## What the upsert writes
 
 The marker is `work-items:work-loop@<instance>` and the comment's first line is the sentinel
-`<!-- claude-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
+`<!-- harness-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
 rendered and distinct per writer, so sibling instances each own one comment on the same issue.
 The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
 sentinel is never adopted. Where the lookup finds nothing the script creates the comment; where it

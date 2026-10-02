@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.2] - 2026-10-02
+## [0.18.3] - 2026-10-02
 
 ### Changed
 
@@ -18,6 +18,13 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   usage.
 - `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
   page's workaround section.
+
+## [0.18.2] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` names the shim-doctrine floor by the current plugin id, `harness-memory`,
+  only.**
 
 ## [0.18.1] - 2026-10-02
 

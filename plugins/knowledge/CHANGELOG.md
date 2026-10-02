@@ -49,6 +49,14 @@ item stays indented under it. The pin manifest's
   dispatch, where effort is the agent's pin or the session level; below `medium`, Phase 4 stops
   and reports the level instead of verifying.
 
+## [0.14.17] - 2026-10-02
+
+### Changed
+
+- **The README drops the "Migrating from the standalone `book-distill` plugin" note.** The
+  marketplace no longer carries a `renames` map; an install naming `book-distill` must enable
+  `knowledge` instead.
+
 ## [0.14.16] - 2026-10-02
 
 ### Fixed

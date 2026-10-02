@@ -31,7 +31,7 @@
 #
 # WHERE THE STORE IS — the hooks decide, this script asks them:
 #
-#   The writers select the store through claude_ops::resolve_skill_usage_dir
+#   The writers select the store through harness_ops::resolve_skill_usage_dir
 #   in ../../../hooks/harness-ops-paths.sh (skill_usage_scope: repo, user or
 #   data-dir; skill_usage_dir under the scope root). Without --store this script
 #   sources that same resolver and feeds it the same options, so the file it
@@ -218,7 +218,7 @@ resolve_store_from_scope() {
   # skill subprocess, the working directory otherwise. An unresolved root
   # (not a git checkout) falls back to the hint, as it does for the writers.
   project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}") || true
-  store_dir=$(CLAUDE_PLUGIN_DATA="$DATA_ROOT" claude_ops::resolve_skill_usage_dir "$SCOPE" "$project_dir" "$REL_DIR")
+  store_dir=$(CLAUDE_PLUGIN_DATA="$DATA_ROOT" harness_ops::resolve_skill_usage_dir "$SCOPE" "$project_dir" "$REL_DIR")
   rc=$?
   case "$rc" in
   0) ;;

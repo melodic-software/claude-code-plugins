@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.2.1] - 2026-10-02
+## [2.0.1] - 2026-10-02
 
 ### Changed
 
@@ -23,6 +23,26 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [2.0.0] - 2026-10-02
+
+### Changed
+
+- **BREAKING: every remaining `claude-ops` name is now `harness-ops`.** The lane telemetry
+  sentinel is `<!-- harness-ops:lane-telemetry marker=... -->` and the restart consumer's
+  marker is `harness-ops:restart-consumer`; a comment posted under the old marker is no longer
+  found, and a new one is written. The environment variables are `HARNESS_OPS_LANES_CONFIG`,
+  `HARNESS_OPS_CHANGELOG_LEDGER`, `HARNESS_OPS_CHANGELOG_CAP_RELEASES` and
+  `HARNESS_OPS_CHANGELOG_CAP_ITEMS`; the `CLAUDE_OPS_*` names are not read. The shared shell
+  helpers are `harness_ops::*`. The restart consumer's Windows scheduled task is
+  `HarnessOps Lane Restart Consumer`; delete a task registered under the old `ClaudeOps` name
+  and register it again from `restart-consumer.sh print-schedule`.
+- **`morning-brief` reads only lane comments that open with the
+  `<!-- harness-ops:lane-telemetry marker=... -->` sentinel,** so a comment left under an older
+  sentinel is not reported as a second, stale row for its lane.
+- **BREAKING: `probe-observability-state.sh --otel-store` recognizes only the `harness-ops@`
+  plugin key.** A prune task whose launcher still names `claude-ops@` reports `stale path`;
+  rerun the provisioning apply (melodic-software/provisioning#670).
 
 ## [1.2.0] - 2026-10-02
 

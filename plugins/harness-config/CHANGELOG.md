@@ -59,6 +59,16 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   a custom agent with `omitClaudeMd: true` does too, so a rule restated for it is not flagged as
   redundant. The record names the sub-agents page's internal disagreement on that field.
 
+## [1.2.1] - 2026-10-02
+
+### Changed
+
+- **The `audit` findings default to `.work/harness-config-audit/findings.json`.** The
+  `.work/claude-config-audit/` path is not read.
+- **The README drops the migration sections for `claude-config`, `claude-memory`, `claude-ops`
+  and `claude-config-audit`.** The marketplace no longer carries a `renames` map, so an install
+  that names an old id must be re-enabled under the `harness-*` name.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added

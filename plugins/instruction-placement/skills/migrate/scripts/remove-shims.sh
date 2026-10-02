@@ -43,7 +43,7 @@ CUTOVER_CHECK="$SCRIPT_DIR/cutover-check.sh"
 SOURCES_MD="$SCRIPT_DIR/../reference/sources.md"
 
 # The releases that corrected the shim doctrine, from each plugin's own
-# CHANGELOG `## [<version>]` heading: harness-memory (then claude-memory) 0.12.9 corrected its fix
+# CHANGELOG `## [<version>]` heading: harness-memory 0.12.9 corrected its fix
 # path, and instruction-placement 0.15.0 is where the last of the old doctrine
 # went (`realign/context/apply-recipes.md` and `context/routing-rubric.md` both
 # still sent Claude-specific text to the CLAUDE.md below the import at 0.14.0).

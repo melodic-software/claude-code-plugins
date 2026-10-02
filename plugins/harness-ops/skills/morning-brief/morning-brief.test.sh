@@ -97,13 +97,14 @@ cat >"$TMP/decisions.json" <<'EOF'
 EOF
 
 # babysit fresh (1h30m), triage stale (26h), work unparsable stamp, work-2 has
-# flags, and a non-lane scope-note comment that must be skipped.
+# flags; a lane comment without the sentinel and a scope-note comment are skipped.
 cat >"$TMP/telemetry.json" <<'EOF'
 [
-  {"body": "- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"},
-  {"body": "- lane: triage\n- last-cycle: 2026-07-19T06:00Z\n- flags: queue-depth climbing"},
-  {"body": "- lane: work\n- last-cycle: 2026-07-20T07:XX\n- flags: -"},
-  {"body": "- lane: work-2\n- last-cycle: 2026-07-20T07:40Z\n- flags: gh-identity drift detected"},
+  {"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"},
+  {"body": "<!-- harness-ops:lane-telemetry marker=lane:triage -->\n- lane: triage\n- last-cycle: 2026-07-19T06:00Z\n- flags: queue-depth climbing"},
+  {"body": "<!-- harness-ops:lane-telemetry marker=lane:work -->\n- lane: work\n- last-cycle: 2026-07-20T07:XX\n- flags: -"},
+  {"body": "<!-- harness-ops:lane-telemetry marker=lane:work-2 -->\n- lane: work-2\n- last-cycle: 2026-07-20T07:40Z\n- flags: gh-identity drift detected"},
+  {"body": "- lane: unmarked\n- last-cycle: 2026-07-18T06:00Z\n- flags: none"},
   {"body": "Scope note: this issue is the interim telemetry surface."}
 ]
 EOF
@@ -288,6 +289,7 @@ assert_contains "telemetry triage stale flagged" "$OUT" "STALE (>6h)"
 assert_contains "telemetry unparsable stamp handled" "$OUT" "unparsable timestamp"
 assert_contains "telemetry surfaces flags" "$OUT" "gh-identity drift detected"
 assert_not_contains "telemetry hides flags=none" "$OUT" "flags: none"
+assert_not_contains "telemetry skips a lane comment without the sentinel" "$OUT" "unmarked"
 
 # --- RECOMMENDED preview truncation ------------------------------------------
 OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 30 \
@@ -749,7 +751,7 @@ cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100").json" <<'EOF'
  {"number": 52, "title": "loop-lane telemetry running per-lane status (older duplicate)", "pull_request": {"url": "x"}}]
 EOF
 cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
-[{"body": "- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
+[{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 
 OUT_REST="$(run_stub rest)"
@@ -787,7 +789,7 @@ cat >"$TMP/same-decisions.json" <<'EOF'
 [{"number": 42, "title": "pick a store", "url": "http://x/i/42", "body": "Options weighed.\nRECOMMENDED: option B.", "comments": [{"body": "no change of lean"}]}]
 EOF
 cat >"$TMP/same-telemetry.json" <<'EOF'
-[{"body": "- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
+[{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
   --repo-labels-json "$TMP/same-labels.json" \

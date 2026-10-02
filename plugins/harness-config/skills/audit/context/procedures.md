@@ -99,7 +99,7 @@ not a policy change. That is why the two rows are graded differently.
 `audit-pass` skill hashes: `identity.check`, `identity.claim`, and `identity.sites` (each a
 `surface` plus a versioned `anchor/v1`), with `finding_id` derived from them, plus `severity`,
 `detail`, `lane` (`harness-config/audit`) and `tier` (`derived` for engine rows). Persist it in the
-topic's memory slice (default `.work/claude-config-audit/findings.json`), never in the tree the
+topic's memory slice (default `.work/harness-config-audit/findings.json`), never in the tree the
 audit scans. A judgment finding the model adds takes the same shape with `"tier": "judged"`; derive
 its anchor and id with the engine's `anchor` and `finding-id` subcommands rather than by hand, so
 two runs agree on the identity.
