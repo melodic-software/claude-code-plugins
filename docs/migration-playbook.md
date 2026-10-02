@@ -877,8 +877,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      `harness-config:audit-permission-grants` check P1 detects exactly these shapes and is the
      mechanical half of this criterion.
 2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
-   **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
-   that ships a **remote** server (see its review record below), which remains the higher-scrutiny
+   **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain-mcp` is the only plugin
+   that ships a **remote** server (see the `dometrain` review record below, which covers that
+   server), which remains the higher-scrutiny
    case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine**, since a remote
@@ -996,7 +997,8 @@ with the layered gates above; 6 first-party.
 
 ### Review record: `dometrain` (ACCEPT, 2026-07-22)
 
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. The server and
+its `userConfig` ship in `dometrain-mcp`, and the sync script stays in `dometrain`.
 
 **This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
 Eleven releases landed between the reviewed version and the shipping one, and no record says
