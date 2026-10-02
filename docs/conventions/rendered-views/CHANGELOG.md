@@ -8,11 +8,15 @@ versioned; this log records each change to it.
 - **Views gain tiers, content classes, and a validator profile (#5851).** Four
   tiers (static, client-interactive, animated, Claude-interactive), with
   person-facing views interactive by default and reports allowed to stay static.
-  Content classes K0 (session-authored) and K1 (this repo's files) may use
-  model-written script; K2 (attacker-controllable text) is builder-only: a
-  checked-in template plus escaped JSON data. The interactive validator profile
-  is specified for the shared builder. New rung guidance says when text beats a
-  diagram, a page, or a video.
+  Content classes K0 (session-authored) and K1 (this repo's default-branch files)
+  may use model-written script under a minimum CSP; K2 (attacker-controllable
+  text, and anything derived from it) is builder-only: a checked-in template plus
+  escaped JSON data. The interactive validator profile is specified for the
+  shared builder, with an exact script-body exemption, `base-uri` and
+  `form-action` set to `'none'`, named SVG refusals, and a Claude-interactive
+  payload rule; K2 pages stay off the Claude-interactive tier until
+  `session-bridge` meets it. New rung guidance says when text beats a diagram, a
+  page, or a video.
 - **Three amendments.** The boundary rule now names video and audio as views and
   emits person-facing views interactive by default; dual-audience reports still
   offer. The generator-skill ban becomes "no generic HTML skill; thin
@@ -20,7 +24,8 @@ versioned; this log records each change to it.
   as its default.
 - **Record bundle.** The new
   [record-bundle convention](../record-bundle/README.md) holds a record with its
-  diagrams and media; views are written outside it.
+  diagrams and media; views are written outside it. Its links stay inside the
+  bundle, and an externally sourced SVG in it is K2.
 
 ## Escape helper, 2026-09-28
 

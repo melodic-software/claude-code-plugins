@@ -20,12 +20,16 @@ is emitted; this convention owns where the record and its sources live.
   would have told them.
 - **Diagrams.** The source of every diagram the record cites, when the diagram is not
   inline in the record as a fenced block. A hand-authored SVG is a source and belongs
-  here.
+  here. An SVG that came from a pull request, another repository, or the web is K2 under
+  the rendered-views content classes: a view that inlines it passes the builder's SVG
+  allowlist and is a K2 page.
 - **Media.** Material the record depends on that cannot be regenerated from it:
   screenshots, a test-run recording, an image a person supplied.
-- **Links are relative.** The record cites diagrams and media by a path relative to the
-  bundle root (`diagrams/flow.mmd`, `media/login-failure.png`), so the bundle can move
-  without breaking a link.
+- **Links are relative and stay inside the bundle.** The record cites diagrams and
+  media by a path relative to the bundle root (`diagrams/flow.mmd`,
+  `media/login-failure.png`), so the bundle can move without breaking a link. A link
+  has no `..` segment and no absolute path, and no file in the bundle is a symlink, so
+  a view built from the bundle reads nothing outside it.
 - `diagrams/` and `media/` exist only when the record cites something in them.
 
 ## What never goes in a bundle
