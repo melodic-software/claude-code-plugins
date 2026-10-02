@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "miro",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Ships a local stdio MCP server that installs its pinned npm dependencies on first launch (needs Node.js 24+ and npm); installs disabled, so opt in. The server starts without a Miro API token; until one is set, each tool call explains how to set it.",
   "author": {
     "name": "Melodic Software",
@@ -21,7 +21,7 @@
   "userConfig": {
     "miro_api_token": {
       "type": "string",
-      "title": "Miro API token",
+      "title": "API token",
       "description": "Miro REST API token from https://miro.com/app/settings/user-profile/apps. Until it is set, every Miro tool call returns an error that names this option and the configure command. Stored by Claude Code in secure credential storage, never settings.json.",
       "sensitive": true
     }

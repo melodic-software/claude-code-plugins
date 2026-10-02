@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.0] - 2026-10-01
+## [0.20.0] - 2026-10-02
 
 ### Added
 
@@ -26,6 +26,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - The upstream records in `implementer`, `scoped-implementer` and `implement-dispatch` are links-only:
   each states our decision with a pointer to the exact docs section, an as-of date and a recheck
   trigger, and no longer quotes or paraphrases the sub-agents, costs, effort or model-config pages.
+
+## [0.19.21] - 2026-10-02
+
+### Changed
+
+- The `implement_dispatch_wave_cap` option title carries its unit, "Dispatch wave cap (rows)", and
+  its description fits 300 characters, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`). The rest of the description moves to the README's
+  "Option details".
 
 ## [0.19.20] - 2026-10-02
 

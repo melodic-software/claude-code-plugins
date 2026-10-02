@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.3.1] - 2026-10-01
+## [1.3.3] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,15 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - `audit-pass` Phase 4 and its `doctor-handoff.md` reference name `/doctor prompt-audit` as an operator-run handoff, handed off the same way as the `/doctor` checkup.
 - `audit-instructions` row I17-a (`criteria.md` 1.27.0) names no model: it takes the set of models whose thinking cannot be turned off from the model configuration "Extended thinking" section at audit time, and its record is re-stamped.
 - The `/doctor prompt-audit` records in `bundled-claude-api.md`, `audit-pass` Phase 4 and `doctor-handoff.md` are links-only: they state our routing and handoff decisions and point at the docs section for its scope, write posture and version floor instead of paraphrasing it.
+
+## [1.3.2] - 2026-10-02
+
+### Changed
+
+- **`audit-instructions` no longer calls `/doctor prompt-audit`'s write posture undocumented.** The
+  upstream memory page now documents it. The `doctor` Boundary section states our decision (offer
+  it, leave applying its edits to the person, never chain into it) and reads its gates from the
+  records; `reference/native-doctor.md` records the pointer, as-of date and recheck trigger.
 
 ## [1.3.0] - 2026-10-02
 

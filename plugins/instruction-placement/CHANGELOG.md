@@ -3,12 +3,23 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.5] - 2026-10-01
+## [0.19.1] - 2026-10-02
 
 ### Fixed
 
 - `render-index.sh` no longer indexes rules or nested instruction files inside an `evals/fixtures/` tree. Those trees imitate a consuming repository as test input, and their rows were reaching this repository's always-loaded `AGENTS.md` index.
 - `glob-tools.sh rules` (the `/instruction-placement:check` glob gate) no longer checks rules inside an `evals/fixtures/` tree, so a fixture rule whose globs name the fixture's files no longer fails the gate as a zero match. The exclusion lives in the shared discovery layer (`lib/discover.sh`), so the index, the glob gate, `detect.sh` and the wiring gate apply one filter.
+
+## [0.19.0] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): `Index-drift hook`, `Over-broad glob ceiling
+  (percent)` and `Index rows before grouping`, in sentence case, and each description states its
+  default.
+- `breadth_max` declares `min` 0 and `max` 100, since it is a percent of tracked files. A value
+  above 100, which could never report a glob over-broad, is now rejected when set.
 
 ## [0.18.4] - 2026-10-02
 

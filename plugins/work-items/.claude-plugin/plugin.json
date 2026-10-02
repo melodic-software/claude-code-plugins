@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "work-items",
-  "version": "0.44.1",
+  "version": "0.44.2",
   "description": "Manages development work items through a provider-neutral tracker seam that ships with the plugin (bundled dispatcher plus github, local-markdown, jira, gitea, and linear adapters; seam plugin-dir canonical, adapters consumer-local-first): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, a macro-journey router over spec containers (rollup, per-container execution shape, next-step routing), raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states), plus the two work-items loop lanes of the loop-lane convention: a self-paced autonomous work-loop drain (work-class admission gate, adaptive item cap, PR-only) and an attended attend-queue escalation lane. The re-runnable setup skill binds the provider (.work-item-tracker.json), seeds the recurring-schedule seam (.github/recurring-schedule.json), and remaps canonical role labels.",
   "author": {
     "name": "Melodic Software",
@@ -19,61 +19,61 @@
     "orchestration"
   ],
   "userConfig": {
-    "lane_instance": {
-      "type": "string",
-      "title": "Lane instance id",
-      "description": "Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the lane's telemetry sentinel marker (`work-items:work-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state, including first_drain_complete, whose loss would end one machine's earn-trust ratification gate because a different machine finished a drain. Must match ^[a-z0-9][a-z0-9-]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments. Set an opaque id if a machine name should not be published in a public tracker."
-    },
     "decompose_container_publish": {
       "type": "boolean",
-      "title": "Pre-select spec-container publish at decompose approval",
-      "description": "When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns (the Brief published as a container item carrying the binding-resolved container label, default work-map, with slices as native sub-items). The approval gate itself is unchanged and mandatory. This key changes the offered default answer, never bypasses approval. Leave unset (or false) for the default plain ask with a default answer of no; this key declares no default so an unset value stays distinguishable from a configured one."
+      "title": "Decompose spec-container preselect",
+      "description": "When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false."
     },
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",
-      "description": "Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once within one plan phase, the size of one dispatch wave (it runs exactly one item per invocation). Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under worker commit authority run one at a time, and /implementation:implement-dispatch sets the authority from the consuming plan, so the cap changes behavior only under commit authority orchestrator with several rows sharing a worktree. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset and implement-dispatch applies its implement_dispatch_wave_cap operator option, else its internal default (its precedence list owns the order). This key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap).",
+      "description": "Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default.",
       "min": 1
+    },
+    "lane_instance": {
+      "type": "string",
+      "title": "Lane instance ID",
+      "description": "Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^[a-z0-9][a-z0-9-]{0,31}$. It appears verbatim in tracker comments."
     },
     "work_loop_item_cap_start": {
       "type": "number",
-      "title": "Work-loop adaptive item cap: starting value",
-      "description": "Where the work-loop lane's adaptive per-cycle item cap starts. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic.",
+      "title": "Work-loop item cap start",
+      "description": "Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic.",
       "default": 2,
       "min": 1
     },
     "work_loop_item_cap_ceiling": {
       "type": "number",
-      "title": "Work-loop adaptive item cap: ceiling",
-      "description": "Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling.",
+      "title": "Work-loop item cap ceiling",
+      "description": "Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Default 3. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling.",
       "default": 3,
       "min": 1
     },
     "work_loop_item_cap_floor": {
       "type": "number",
-      "title": "Work-loop adaptive item cap: floor",
-      "description": "Lower bound the work-loop lane's adaptive item cap can drop to on dirty items.",
+      "title": "Work-loop item cap floor",
+      "description": "Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. Default 1.",
       "default": 1,
       "min": 1
     },
     "work_loop_frontier_item_cap_ceiling": {
       "type": "number",
-      "title": "Work-loop frontier-tier item cap ceiling",
-      "description": "Quota guard for frontier-capability-tier items in the work-loop lane: items carrying capability-tier: frontier run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the provider-permissioned label only; absent label = general tier (fail-closed).",
+      "title": "Work-loop frontier item cap ceiling",
+      "description": "Ceiling on the adaptive cap for frontier-capability-tier items in the work-loop lane, which run at concurrency 1. Default 2; keep it at or below work_loop_item_cap_ceiling. The tier is read from the provider-permissioned label only; no label means the general tier (fail-closed).",
       "default": 2,
       "min": 1
     },
     "work_loop_no_progress_threshold": {
       "type": "number",
-      "title": "Work-loop no-progress stall threshold",
-      "description": "Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset.",
+      "title": "Work-loop stall threshold (cycles)",
+      "description": "Consecutive no-progress cycles (actionable work in view, no item advanced, no PR opened) before the work-loop lane raises its stall escalation. Default 3. The lane escalates and keeps looping. Idle cycles with nothing actionable neither count nor reset.",
       "default": 3,
       "min": 1
     },
     "work_loop_in_flight_stale_days": {
       "type": "number",
       "title": "Work-loop stale in-flight PR age (days)",
-      "description": "A candidate whose open closing PR (draft or ready) was created more than this many days ago stops being silently excluded: the work-loop lane escalates it to the attended queue with the escalation marker, and the drain report names it. The value is an age taken from the PR's createdAt; the lane stores no state for it.",
+      "description": "Age in days, from the PR's createdAt, past which a candidate's open closing PR (draft or ready) stops being silently excluded and the work-loop lane escalates it to the attended queue. Default 14. The drain report names it; the lane stores no state for it.",
       "default": 14,
       "min": 1
     }

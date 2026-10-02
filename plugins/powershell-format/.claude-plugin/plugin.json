@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "powershell-format",
-  "version": "0.9.9",
+  "version": "0.9.10",
   "description": "Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo, using the consuming repo's own analyzer settings.",
   "author": {
     "name": "Melodic Software",
@@ -19,7 +19,7 @@
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",
-      "title": "powershell-format hook",
+      "title": "Format and lint on edit",
       "description": "Format and lint PowerShell on edit via PSScriptAnalyzer",
       "default": true
     },

@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.60.0] - 2026-10-01
+## [0.61.0] - 2026-10-02
 
 ### Added
 
@@ -13,6 +13,17 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
 - The routing-table record in `plan-template.md` and the goal-usage gotcha in `draft-goal-condition` are links-only: our decision, then a pointer, an as-of date and a recheck trigger, with no paraphrase of the `opusplan` or costs sections.
+
+## [0.60.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `surface` is a picker in `/config` (`terminal`, `page`), so a value outside that set is no longer
+  accepted. Titles read "Interview question surface", "AskUserQuestion question rounds", and
+  "Interview question emoji anchors". The `use_emoji_question_markers` description fits 300
+  characters; the rest of it, and the `surface` fallback rule, move to the README's "Option
+  details".
 
 ## [0.59.4] - 2026-10-02
 
