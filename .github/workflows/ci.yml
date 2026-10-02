@@ -43,9 +43,9 @@ permissions:
 
 # THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
-# cancelled nor evict anything, and the `ci-status` composite's bounded
-# carry-forward wait is what makes it read the full run's `ci-lanes` status
-# rather than queueing for it. The previous shape queued instead, on a shared
+# cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
+# the `ci-lanes` status once and finishes (see the `ci-status` job). The
+# previous shape queued instead, on a shared
 # group with `cancel-in-progress` false, and eviction is unconditional: a
 # pending run evicted before its `ci-status` job started left the check suite
 # with no `ci-status` check run at all, and the required check stopped reporting
@@ -139,10 +139,11 @@ jobs:
     timeout-minutes: 10
     # The change-detection action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else.
+    # and nowhere else. `statuses: write` is for the in-flight marker below.
     permissions:
       contents: read
       pull-requests: read
+      statuses: write
     # `run_windows` is computed and read by nothing in THIS file: its consumer
     # moved to .github/workflows/test-windows.yml, which re-derives it by this
     # exact expression because job outputs do not cross workflow files. It stays
@@ -158,6 +159,32 @@ jobs:
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
     steps:
+      # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
+      # run on this SHA reads the newest bot-written `ci-lanes` status once and
+      # passes only on `success`, so this `pending` makes it fail at once
+      # instead of carrying forward a verdict this run is about to replace (an
+      # earlier draft run's not-applicable `success`, say). The red it leaves is
+      # replaced when this run's `ci-status` re-runs it after recording its own
+      # verdict. A write that keeps failing fails this job, and so the run: a
+      # missing marker is the one way a stale `success` could be carried.
+      - name: Mark the lanes in flight
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in 1 2 3; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=pending -f context=ci-lanes \
+              -f description="full run $GITHUB_RUN_ID in flight" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "Marked ci-lanes pending on $HEAD_SHA."
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
+          exit 1
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2633,19 +2660,14 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # Sized by the carry-forward wait below, not by this job's own work: the
-    # job must hold the whole wait plus the composite's overhead, and the wait
-    # must outlast the full run it reads. 28 because the composite counts only
-    # its sleeps against the ceiling (run.sh:403), which measured 6.1% of
-    # extra poll time on four ceiling logs: 1,500 s of budget lands near
-    # 1,500 x 1.061 + 6 = 1,598 s of wall, 82 s under 28 minutes, so the job
-    # timeout never cuts off the fail-closed message (#5784).
-    timeout-minutes: 28
+    # Nothing here waits on another run, so the job is sized by its own work:
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only.
+    timeout-minutes: 3
     permissions:
-      # ci-status lists this workflow's runs on this head SHA to find an earlier
-      # incomplete one before it reads the carried-forward status. Under an
-      # explicit block the default is none, and the call would 403.
-      actions: read
+      # The full run re-runs this workflow's red contract-only runs on its head
+      # SHA once it records `success` (the last step). Under an explicit block
+      # the default is none, and the call would 403.
+      actions: write
       contents: read
       # pr-contract upserts the advisory linkage comment and moves the linkage
       # label; ci-status records the `ci-lanes` commit status the carry-forward
@@ -2677,24 +2699,50 @@ jobs:
           # The replaced inline aggregator passed only `success`, so a `skipped`
           # lane was already red here.
           treat-skipped-as: fail
-          # A contract-only run no longer queues behind the full run it reads
-          # from, so it waits for one instead, and the wait must outlast that
-          # run. 1,500 s is the 7-day job-queue p95 (432 s) plus the full run's
-          # p95 from creation to verdict after the v0.30.2 re-pin (1,018 s,
-          # n = 99), 1,450 s rounded up. The old 540 s assumed a 4 to 5 minute
-          # full run; the full run's long pole is `lint-2`, and 11 of 45
-          # contract-only attempts after the re-pin went red at that ceiling on
-          # SHAs whose full run then passed, the longest needing 1,030 s
-          # (#5784). The job's `timeout-minutes` above is sized from this value.
-          #
-          # A FAILURE WAITS ONLY FOR ITS WRITER'S RE-RUN (#4670). A `success`
-          # ends the wait at once. A `failure` or `error` ends it too, unless
-          # the full run that wrote it is re-running with an attempt started
-          # after the status; then the wait holds for that run alone, so a body
-          # edit during a re-run of a failed full run reads the re-run's
-          # verdict. A re-run of a different full run on the same SHA does not
-          # hold it, and a writer re-run longer than 1,500 s fails closed at the
-          # ceiling. Operator remedy: docs/ci-runner-routing.md, section
+          # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
+          # `ci-lanes` status once and passes only on `success`. While a full
+          # run is in flight that status is the `pending` its `changes` job
+          # wrote, so the contract-only run goes red in seconds; the full run's
+          # own `ci-status` check run is newer and decides the merge gate, and
+          # the next step re-runs the red one so it does not linger. Waiting
+          # instead held a runner for the whole full run (mean 299 s, up to the
+          # ceiling) and still went red whenever the full run outlasted the
+          # ceiling (#5784). Operator remedy: docs/ci-runner-routing.md, section
           # Contract-only ci-status.
-          carry-forward-wait-seconds: '1500'
+          carry-forward-wait-seconds: '0'
           token: ${{ github.token }}
+      # The full run's `success` is now on the SHA, so every red contract-only
+      # run beside it (a body edit or label flip that read `pending`) would read
+      # `success` on a re-run. Re-running the failed jobs keeps the run's
+      # original event, so the attempt is contract-only again and cannot reach
+      # this step. A red that is red for a contract reason stays red, and a
+      # contract-only run still in progress at this listing is not seen: re-run
+      # it by hand (the failure message says so). Never fails the job: the
+      # verdict above is already recorded, and a refused re-run must not turn
+      # the required check red over a check run that is no longer the newest.
+      - name: Re-run the red contract-only runs on this SHA
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.changes.result == 'success' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          api="repos/$GITHUB_REPOSITORY/actions"
+          workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) || {
+            echo "::warning::could not read this run; no contract-only run re-run."
+            exit 0
+          }
+          failed=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" \
+            --jq ".workflow_runs[] | select(.conclusion == \"failure\" and .id != $GITHUB_RUN_ID) | .id") || {
+            echo "::warning::could not list this workflow's runs on $HEAD_SHA; no contract-only run re-run."
+            exit 0
+          }
+          for id in $failed; do
+            changes=$(gh api "$api/runs/$id/jobs?filter=latest" \
+              --jq '[.jobs[] | select(.name == "changes") | .conclusion][0] // ""') || continue
+            [ "$changes" = skipped ] || continue
+            if gh api --method POST "$api/runs/$id/rerun-failed-jobs" >/dev/null; then
+              echo "Re-ran contract-only run $id."
+            else
+              echo "::warning::could not re-run contract-only run $id; re-run it by hand."
+            fi
+          done
