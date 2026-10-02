@@ -7,6 +7,7 @@ No secret, email, or home path is written literally here: each is assembled at r
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,8 @@ def test_generic_assignment_covers_quoted_keys_and_values(raw: str, expected: st
         ("password := " + SHORT, "password := <redacted:generic-assignment>"),
         ("DB_PASS=" + SHORT, "DB_PASS=<redacted:generic-assignment>"),
         ("passphrase: " + SHORT, "passphrase: <redacted:generic-assignment>"),
+        ("pw: " + SHORT, "pw: <redacted:generic-assignment>"),
+        ("DB_PW=" + SHORT, "DB_PW=<redacted:generic-assignment>"),
         ("bypass: yes", "bypass: yes"),
     ],
 )
@@ -152,6 +155,50 @@ def test_url_credentials_are_redacted(scheme: str, host: str) -> None:
     ],
 )
 def test_prose_credential_with_digit_or_symbol_is_redacted(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+def test_url_credential_pass_stays_fast_on_a_long_hyphenated_token() -> None:
+    # An unbounded scheme rescanned this token from every offset: 40 KB took seconds.
+    text = "a-" * 20_000
+    started = time.monotonic()
+    assert redact.load_redactor().redact(text) == text
+    assert time.monotonic() - started < 1.0
+
+
+PEM_BEGIN = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
+PEM_END = "-----END " + "RSA PRIVATE" + " KEY-----"
+PEM_BODY = "\n".join(["Q" * 64] * 3)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # No END marker: everything from BEGIN on is key material.
+        (f"here it is\n{PEM_BEGIN}\n{PEM_BODY}\nand more", "here it is\n<redacted:private-key>"),
+        (f"{PEM_BEGIN}\n{PEM_BODY}\n{PEM_END} then done", "<redacted:private-key> then done"),
+    ],
+    ids=["no-end", "complete"],
+)
+def test_private_key_block_is_redacted_with_or_without_its_end(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("mysql -uroot -p" + SHORT + " app", "mysql -uroot -p<redacted:cli-password> app"),
+        ("mysqldump -h db -u admin -p" + SHORT + " app", "mysqldump -h db -u admin -p<redacted:cli-password> app"),
+        ("mariadb -u admin -p'" + SHORT + " x' app", "mariadb -u admin -p<redacted:cli-password> app"),
+        # A bare -p prompts for the password; -P is the port; other tools' -p is not a password.
+        ("mysql -u root -p app", "mysql -u root -p app"),
+        ("mysql -P3306 -h db", "mysql -P3306 -h db"),
+        ("find . -name x -print", "find . -name x -print"),
+        ("gcc -pedantic -Wall a.c", "gcc -pedantic -Wall a.c"),
+        ("ssh -p2222 host", "ssh -p2222 host"),
+    ],
+)
+def test_attached_database_client_password_is_redacted(raw: str, expected: str) -> None:
     assert redact.load_redactor().redact(raw) == expected
 
 

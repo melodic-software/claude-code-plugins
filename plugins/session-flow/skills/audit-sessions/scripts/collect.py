@@ -13,7 +13,9 @@ fingerprint matches its stored record is skipped. With a retention window, recor
 that ended before it are pruned and such sessions are not ingested. Typed turns of at most
 `--excerpt-words` words right after an assistant message keep an excerpt, redacted by redact.py
 and then cut to `--excerpt-chars`; when redaction fails closed no excerpt is stored and the run
-warns. Repo identity comes from lib/state-key.sh, run once per distinct cwd.
+warns. Every other stored string from a transcript is redacted too, and one longer than
+max(4096, 16 x --excerpt-chars) is skipped and counted instead. Repo identity comes from
+lib/state-key.sh, run once per distinct cwd.
 
 `census` and `drift` read the store only, through census.py: the per-(version, model) aggregate
 and its classified diff between Claude Code versions (exit 1 when drift is found).
@@ -88,6 +90,14 @@ FRUSTRATION_RE = re.compile(r"\b(wtf|god ?damn|damn|shit|crap|ffs|seriously|ugh)
 CENSUS_DEPTH = 3
 DYNAMIC_KEY = re.compile(r"^(toolu_|srvtoolu_|call_)|[/\\\s?:]|^[0-9a-f-]{16,}$|^\d+$")
 DATA_MAPS = frozenset({"trackedFileBackups", "answers", "wireToolInputs"})
+# A census value is kept only when it looks like an identifier; free text buckets as <other>.
+CENSUS_LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
+
+# Redaction is skipped, never preceded by a cut, for text longer than this: a cut can split a secret
+# and leave its head in the kept window, and the vendored patterns slow down on very long text.
+TEXT_CAP_FLOOR = 4096
+TOO_LONG = "<too-long>"
+SUPPRESSED = "<suppressed>"
 
 
 def emit(status: str, summary: str, data: dict, code: int, schema: str = SCHEMA) -> int:
@@ -186,6 +196,11 @@ def _key_paths(obj: object, prefix: str, depth: int, out: set[str]) -> None:
                     _key_paths(value, path, depth + 1, out)
 
 
+def _label(value: object) -> str:
+    text = str(value)
+    return text if CENSUS_LABEL.fullmatch(text) else "<other>"
+
+
 def census_keys(record: dict) -> tuple[str, list[str]]:
     """The (version|model) bucket of one record and the `<section>:<key>` names it counts."""
     kind = record.get("type") if isinstance(record.get("type"), str) else "<none>"
@@ -198,18 +213,18 @@ def census_keys(record: dict) -> tuple[str, list[str]]:
     _key_paths(record, "", 0, paths)
     keys = [f"record_type:{kind}", *(f"key_path:{kind}:{p}" for p in paths)]
     if kind == "system":
-        keys.append(f"system_subtype:{record.get('subtype')}")
+        keys.append(f"system_subtype:{_label(record.get('subtype'))}")
     elif kind == "attachment":
         attachment = record.get("attachment")
-        keys.append(f"attachment_type:{attachment.get('type') if isinstance(attachment, dict) else attachment}")
+        keys.append(f"attachment_type:{_label(attachment.get('type') if isinstance(attachment, dict) else attachment)}")
     elif kind == "assistant":
         for key, value in _obj(message.get("usage")).items():
             keys.append(f"usage_key:{key}")
             keys.extend(f"usage_key:{key}.{inner}" for inner in _obj(value))
         if "error" in record:
-            keys.append(f"assistant_error:{record.get('error')}")
+            keys.append(f"assistant_error:{_label(record.get('error'))}")
         if "effort" in record:
-            keys.append(f"effort_value:{record.get('effort')}")
+            keys.append(f"effort_value:{_label(record.get('effort'))}")
     return f"{version}|{model}", keys
 
 
@@ -545,9 +560,47 @@ class RepoIdentity:
         return identity, worktree
 
 
-def _free_text(redactor: redact.Redactor, text: str | None) -> str | None:
-    """Typed text kept outside excerpts: redacted, and dropped while redaction fails closed."""
-    return None if text is None else redactor.excerpt(text, len(text))
+class Scrubber:
+    """Redacts every transcript-derived string a record stores, and counts those too long to redact."""
+
+    def __init__(self, redactor: redact.Redactor, excerpt_chars: int) -> None:
+        self.redactor = redactor
+        self.cap = max(TEXT_CAP_FLOOR, 16 * excerpt_chars)
+        self.too_long = 0
+
+    def _fits(self, text: str) -> bool:
+        if len(text) <= self.cap:
+            return True
+        self.too_long += 1
+        return False
+
+    def text(self, text: str | None) -> str | None:
+        return self.redactor.redact(text) if text is not None and self._fits(text) else None
+
+    def key(self, text: str) -> str:
+        return self.redactor.redact(text) if self._fits(text) else TOO_LONG
+
+    def keys(self, counts: Counter) -> dict:
+        # Redaction can fold two keys into one, so their counts add up.
+        out: Counter = Counter()
+        for text, n in counts.items():
+            out[self.key(text)] += n
+        return dict(out)
+
+    def paths(self, edits: Counter, cwd: str | None) -> dict:
+        # Paths are transcript text: none is stored while redaction fails closed, only the count.
+        if self.redactor.fail_closed:
+            return {SUPPRESSED: sum(edits.values())} if edits else {}
+        relative: Counter = Counter()
+        for path, n in edits.items():
+            relative[_relpath(path, cwd)] += n
+        return self.keys(relative)
+
+    def excerpt(self, text: str | None, limit: int | None = None) -> str | None:
+        """Redacted, then cut to `limit` (None keeps it whole); None while failing closed or too long."""
+        if text is None or self.redactor.fail_closed or not self._fits(text):
+            return None
+        return self.redactor.excerpt(text, len(text) if limit is None else limit)
 
 
 def build_record(
@@ -572,14 +625,16 @@ def build_record(
     edit_counts = scan.edits.values()
     stop_ms = scan.stop_hook_ms
     suppressed = redactor.fail_closed
+    scrub = Scrubber(redactor, excerpt_chars)
+    # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
+    # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {
         "schema": RECORD_SCHEMA,
         "collector_version": version,
         "ingested_at": _iso(time.time()),
         "session_id": main.stem,
         "fingerprint": fp,
-        "project_dir": main.parent.name,
-        "cwd": scan.cwd,
+        "cwd": scrub.text(scan.cwd),
         "repo_identity": repo_identity,
         "worktree": worktree,
         "cc_versions": sorted(scan.versions, key=census.version_key),
@@ -589,7 +644,7 @@ def build_record(
         "tokens": {side: ledger.totals() for side, ledger in scan.ledgers.items()},
         "cache_miss": {"reasons": dict(scan.cache_miss), "missed_input_tokens": scan.missed_input_tokens},
         "rate_limit": {"types": dict(scan.rate_limit), "usage_limit_notices": scan.usage_limit_notices},
-        "errors": dict(scan.errors),
+        "errors": scrub.keys(scan.errors),
         "tools": {
             "calls": sum(scan.tools.values()),
             "by_name": dict(scan.tools),
@@ -602,8 +657,7 @@ def build_record(
             "files": len(scan.edits),
             "files_ge3": sum(n >= 3 for n in edit_counts),
             "max_one_file": max(edit_counts, default=0),
-            # A path outside the cwd is transcript text: it goes through the redactor too.
-            "by_relpath": {redactor.redact(_relpath(path, scan.cwd)): n for path, n in scan.edits.items()},
+            "by_relpath": scrub.paths(scan.edits, scan.cwd),
         },
         "subagents": {
             "count": len(subagents),
@@ -626,14 +680,15 @@ def build_record(
             "started_with_clear": scan.started_with_clear,
         },
         "link_keys": {
-            "custom_title": _free_text(redactor, scan.custom_title),
-            "agent_name": _free_text(redactor, scan.agent_name),
+            # Titles and agent names are typed text, so --excerpt-chars 0 stores neither.
+            "custom_title": scrub.excerpt(scan.custom_title) if excerpt_chars else None,
+            "agent_name": scrub.excerpt(scan.agent_name) if excerpt_chars else None,
             "first_ts": scan.time_block()["start"],
         },
-        "branches": sorted(scan.branches),
-        "prs": [{"repo": repo, "number": number} for repo, number in sorted(scan.prs)],
+        "branches": sorted({scrub.key(branch) for branch in scan.branches}),
+        "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],
         "permission": {"modes": dict(scan.permission_modes), "changes": scan.permission_changes},
-        "commands": {"slash": dict(scan.slash), "skills_model_invoked": dict(scan.skills)},
+        "commands": {"slash": scrub.keys(scan.slash), "skills_model_invoked": scrub.keys(scan.skills)},
         "human": {
             "turns": scan.human_turns,
             "flagged": [
@@ -643,7 +698,7 @@ def build_record(
                     "uuid": record.get("uuid") if isinstance(record.get("uuid"), str) else None,
                     "words": words,
                     "flags": flags,
-                    "excerpt": redactor.excerpt(text, excerpt_chars) if excerpt_chars else None,
+                    "excerpt": scrub.excerpt(text, excerpt_chars) if excerpt_chars else None,
                 }
                 for index, record, text, words, flags in scan.flagged
             ],
@@ -663,6 +718,7 @@ def build_record(
             "rules_loaded": redactor.rule_count,
             "rules_skipped": len(redactor.skipped),
             "excerpts_suppressed": suppressed,
+            "skipped_too_long": scrub.too_long,
         },
     }
 
@@ -705,7 +761,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     redactor = redact.load_redactor()
     identity = RepoIdentity()
     index = load_store(store)
-    scanned = ingested = skipped = expired = 0
+    scanned = ingested = skipped = expired = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
     for main in sorted(root.glob("*/*.jsonl")):
@@ -749,6 +805,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
             continue
         index[target] = (fp, end)
         ingested += 1
+        too_long += record["redaction"]["skipped_too_long"]
         unknown_types.update(record["unknown"]["record_types"])
     pruned = 0
     if cutoff is not None:
@@ -769,6 +826,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
             "rules_loaded": redactor.rule_count,
             "rules_skipped": len(redactor.skipped),
             "excerpts_suppressed": redactor.fail_closed,
+            "skipped_too_long": too_long,
         },
         "unknown_record_types": dict(unknown_types),
         "elapsed_s": round(time.monotonic() - started, 3),

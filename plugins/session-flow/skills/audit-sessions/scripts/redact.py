@@ -33,7 +33,7 @@ _HOME = re.compile(
 _EMAIL = re.compile(
     r"(?<![\w.%+-])[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
 )
-_KEYWORD = r"key|secret|token|passw(?:or)?d|passphrase|pwd|(?<![a-z])pass(?![a-z])"
+_KEYWORD = r"key|secret|token|passw(?:or)?d|passphrase|pwd|(?<![a-z])(?:pass|pw)(?![a-z])"
 # A quoted key leaves its closing quote before the separator, separators can repeat (`=>`, `:=`),
 # and a quoted value runs to its own closing quote.
 _ASSIGNMENT = re.compile(
@@ -44,11 +44,26 @@ _PROSE = re.compile(
     r"(?i)\b(passw(?:or)?d|passphrase|pwd|secret|token)(\s+(?:(?:is|was|-)\s+)?)"
     r"(?!<redacted:)(?=[^\s,;]*[\d!@#$%^&*])[^\s,;]+"
 )
-_URL_CREDENTIAL = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://[^\s:/@]*:)[^\s@/]+(?=@)")
+# The scheme starts where no scheme character precedes it and is short, so a long token of scheme
+# characters is scanned once, not from every offset.
+_URL_CREDENTIAL = re.compile(
+    r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]{0,30}://[^\s:/@]*:)[^\s@/]+(?=@)"
+)
 _BEARER = re.compile(r"(?i)\b(bearer)(\s+)(?!<redacted:)[A-Za-z0-9._~+/=-]{8,}")
 _BASIC = re.compile(r"(?i)\b(authorization\s*:\s*basic)(\s+)(?!<redacted:)[A-Za-z0-9+/=]{8,}")
+# A private key block runs to its END marker, or to the end of the text when that was cut off.
+_PRIVATE_KEY = re.compile(
+    r"-----BEGIN ([A-Z ]*)PRIVATE KEY-----.*?(?:-----END \1PRIVATE KEY-----|\Z)", re.S
+)
+# A password attached to a database client's -p flag; -P is the port, and a bare -p prompts.
+_CLI_PASSWORD = re.compile(
+    r"""(?i)(?<![\w-])((?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s(?-i:-p))"""
+    r"""(?!<redacted:)('[^']*'|"[^"]*"|[^\s'"]\S*)"""
+)
 _PASSES = (
+    (_PRIVATE_KEY, "<redacted:private-key>"),
     (_URL_CREDENTIAL, r"\1<redacted:url-credential>"),
+    (_CLI_PASSWORD, r"\1<redacted:cli-password>"),
     (_BEARER, r"\1\2<redacted:bearer>"),
     (_BASIC, r"\1\2<redacted:basic-auth>"),
     (_ASSIGNMENT, r"\1\2<redacted:generic-assignment>"),

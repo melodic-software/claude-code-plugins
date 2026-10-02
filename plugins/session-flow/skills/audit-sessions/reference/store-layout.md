@@ -15,14 +15,27 @@ D/audit-sessions/
 ## Store
 
 - **One store per machine.** `collect.py` reads every project under `~/.claude/projects`, so the
-  store is not keyed by the checkout that ran it. Each record names its own project directory,
-  working directory and repository identity; `p-<12 hex>` is a hash of the project directory name.
+  store is not keyed by the checkout that ran it. Each record names its own redacted working
+  directory and repository identity; `p-<12 hex>` is a hash of the project directory name, which
+  itself is not stored because it encodes the working directory unredacted.
 - **One JSON file per session, replaced atomically.** Re-collecting a session rewrites its file, so
   a repeated run never double-counts. Collect skips a session whose transcript fingerprint is
   unchanged; `--force` re-ingests it.
-- **Transcript text kept.** Only short excerpts of your own typed turns, redacted before they are
-  written and capped at `audit_sessions_excerpt_chars` characters (0 stores none). Every other
-  stored field is a count, a duration, an identifier or a redacted path.
+- **Transcript text kept.** A record stores these strings from the transcript, each redacted before
+  it is written:
+  - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
+    the session's custom title and agent name; 0 stores none of the three;
+  - the working directory, edited file paths (relative to it when inside it), branch names, PR
+    repositories, and the names of slash commands, model-invoked skills and assistant errors.
+
+  A string longer than max(4096, 16 × `audit_sessions_excerpt_chars`) characters is skipped rather
+  than cut and counted in `redaction.skipped_too_long`. While redaction fails closed, no excerpt,
+  title or agent name is stored and edited paths collapse to one `<suppressed>` count. Census
+  values that are not identifier-shaped are stored as `<other>`. Every other field
+  is a count, a duration, a timestamp, or a name Claude Code writes (models, tools, record types,
+  permission modes).
+- **Redaction is best-effort pattern matching.** It replaces known secret shapes, email addresses
+  and home-directory prefixes, and can miss a secret in a shape it does not know.
 - **Retention.** Collect drops a record whose session ended more than
   `audit_sessions_retention_days` days ago (0 keeps every record), and never ingests one already
   outside that window.

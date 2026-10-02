@@ -79,6 +79,12 @@ def records(data_dir: Path) -> dict[str, dict]:
     return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in store.glob("p-*/*.json")}
 
 
+def stored_path(path: Path) -> str:
+    """A path as a record stores it: the home-directory prefix folds to `~`, as on Windows temp dirs."""
+    home, text = str(Path.home()), str(path)
+    return "~" + text[len(home) :] if text.startswith(home + os.sep) else text
+
+
 def state_key(cwd: Path) -> str:
     return subprocess.run(
         ["bash", str(STATE_KEY), "--root", str(cwd)], capture_output=True, text=True, check=True
@@ -97,8 +103,8 @@ def test_full_session_record(data_dir, multi):
     rec = records(data_dir)["sess-a1"]
     identity, worktree = state_key(cwd_a).rsplit("/", 1)
     assert rec["schema"] == "session-record/v1"
-    assert rec["project_dir"] == "proj-a"
-    assert rec["cwd"] == str(cwd_a)
+    assert "project_dir" not in rec and "proj-a" not in json.dumps(rec)
+    assert rec["cwd"] == stored_path(cwd_a)
     assert (rec["repo_identity"], rec["worktree"]) == (identity, worktree)
     assert rec["cc_versions"] == ["2.1.286", "2.1.287"]
     assert rec["time"] == {
@@ -302,9 +308,94 @@ def test_excerpt_chars_zero_stores_no_text_and_word_limit_bounds_flags(data_dir,
     assert [(t["words"], t["excerpt"]) for t in flagged] == [(2, None)]
 
 
-def test_skipped_redaction_rule_suppresses_excerpts_but_keeps_numbers(data_dir, multi, tmp_path):
+def test_excerpt_chars_zero_stores_no_title_or_agent_name(data_dir, multi):
     root, _ = multi
-    # The plugin's script layout, copied, with a vendored rules file whose one rule cannot compile.
+    assert collect(data_dir, root, "--excerpt-chars", "0").returncode == 0
+    link_keys = records(data_dir)["sess-a1"]["link_keys"]
+    assert (link_keys["custom_title"], link_keys["agent_name"]) == (None, None)
+
+
+def test_overlong_typed_turn_is_skipped_unredacted_and_counted(data_dir, tmp_path):
+    root = tmp_path / "projects"
+    # One 200 KB word passes the word gate; redacting it took minutes before the length cap.
+    write_session(root, "sess-long", ["a-" * 100_000, "short reply"])
+    started = time.monotonic()
+    result = collect(data_dir, root)
+    assert time.monotonic() - started < 5
+    assert result.returncode == 0, result.stdout + result.stderr
+    rec = records(data_dir)["sess-long"]
+    assert [t["excerpt"] for t in rec["human"]["flagged"]] == [None, "short reply"]
+    assert rec["redaction"]["skipped_too_long"] == 1
+    assert envelope(result)["data"]["redaction"]["skipped_too_long"] == 1
+
+
+@pytest.mark.parametrize(
+    ("excerpt_chars", "kept", "skipped"),
+    [(240, 4096, 4097), (300, 4800, 4801)],
+    ids=["floor-4096", "sixteen-times-excerpt-chars"],
+)
+def test_length_cap_is_the_larger_of_4096_and_16_excerpt_chars(data_dir, tmp_path, excerpt_chars, kept, skipped):
+    root = tmp_path / "projects"
+    write_session(root, "sess-cap", ["x" * kept, "y" * skipped])
+    assert collect(data_dir, root, "--excerpt-chars", str(excerpt_chars)).returncode == 0
+    rec = records(data_dir)["sess-cap"]
+    assert [t["excerpt"] for t in rec["human"]["flagged"]] == ["x" * excerpt_chars, None]
+    assert rec["redaction"]["skipped_too_long"] == 1
+
+
+def test_overlong_title_agent_name_and_edit_path_are_skipped(data_dir, multi):
+    root, _ = multi
+    path = root / "proj-a" / "sess-a2.jsonl"
+    append_record(path, {"type": "custom-title", "customTitle": "t" * 5000})
+    append_record(path, {"type": "agent-name", "agentName": "n" * 5000})
+    append_record(
+        path,
+        {"type": "assistant", "uuid": "b-a9", "timestamp": "2026-09-21T09:03:00Z",
+         "message": {"id": "msg_z", "model": "claude-sonnet-5-5",
+                     "content": [{"type": "tool_use", "id": "toolu_z", "name": "Write",
+                                  "input": {"file_path": "/elsewhere/" + "p" * 5000}}]}},
+    )
+    assert collect(data_dir, root).returncode == 0
+    rec = records(data_dir)["sess-a2"]
+    assert (rec["link_keys"]["custom_title"], rec["link_keys"]["agent_name"]) == (None, None)
+    assert rec["edits"]["by_relpath"] == {"<too-long>": 1}
+    assert rec["redaction"]["skipped_too_long"] == 3
+
+
+def test_transcript_strings_are_redacted_before_they_are_stored(data_dir, tmp_path):
+    root = tmp_path / "projects"
+    email = "".join(("dev.person", "@", "example", ".com"))
+    home = "/".join(("", "home", "someone"))
+    base = {"sessionId": "sess-s", "version": "2.1.287", "cwd": f"{home}/gone-repo", "gitBranch": f"feat/{email}"}
+    lines = [
+        {**base, "type": "user", "uuid": "u1", "timestamp": "2026-09-25T10:00:00Z",
+         "message": {"role": "user", "content": f"<command-name>/run:{email}</command-name>"}},
+        {**base, "type": "assistant", "uuid": "a1", "timestamp": "2026-09-25T10:00:10Z", "error": f"failed in {home}/x",
+         "message": {"id": "m1", "model": "claude-opus-5-5",
+                     "content": [{"type": "tool_use", "id": "toolu_s", "name": "Skill", "input": {"skill": f"ask {email}"}}]}},
+        {"type": "pr-link", "sessionId": "sess-s", "prNumber": 7, "prRepository": f"{home}/fork"},
+        {"type": "attachment", "sessionId": "sess-s", "attachment": f"pasted note from {email}"},
+    ]
+    project = root / "proj-s"
+    project.mkdir(parents=True)
+    (project / "sess-s.jsonl").write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8", newline="\n")
+
+    assert collect(data_dir, root).returncode == 0
+    rec = records(data_dir)["sess-s"]
+    assert rec["cwd"] == "~/gone-repo"
+    assert rec["repo_identity"] is None
+    assert rec["branches"] == ["feat/<email>"]
+    assert rec["prs"] == [{"repo": "~/fork", "number": 7}]
+    assert rec["commands"] == {"slash": {"run:<email>": 1}, "skills_model_invoked": {"ask <email>": 1}}
+    assert rec["errors"] == {"failed in ~/x": 1}
+    assert rec["census"]["unknown|*"]["attachment_type:<other>"] == 1
+    stored = json.dumps(rec)
+    assert email not in stored
+    assert home not in stored
+
+
+def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Collect from a copy of the plugin's script layout whose one vendored rule cannot compile."""
     skill = tmp_path / "plugin" / "skills" / "audit-sessions"
     (skill / "scripts").mkdir(parents=True)
     (tmp_path / "plugin" / "scripts").mkdir()
@@ -316,18 +407,37 @@ def test_skipped_redaction_rule_suppresses_excerpts_but_keeps_numbers(data_dir, 
     (skill / "vendor" / "gitleaks" / "gitleaks-rules.json").write_text(json.dumps(rules), encoding="utf-8")
 
     script = skill / "scripts" / "collect.py"
-    result = subprocess.run(
+    return subprocess.run(
         [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root)],
         capture_output=True, text=True, encoding="utf-8", timeout=60,
     )
+
+
+def test_skipped_redaction_rule_suppresses_excerpts_but_keeps_numbers(data_dir, multi, tmp_path):
+    root, _ = multi
+    result = collect_failing_closed(data_dir, root, tmp_path)
     assert result.returncode == 1, result.stdout + result.stderr
     env = envelope(result)
     assert env["status"] == "warning"
-    assert env["data"]["redaction"] == {"rules_loaded": 0, "rules_skipped": 1, "excerpts_suppressed": True}
+    assert env["data"]["redaction"] == {
+        "rules_loaded": 0, "rules_skipped": 1, "excerpts_suppressed": True, "skipped_too_long": 0
+    }
     rec = records(data_dir)["sess-a1"]
     assert rec["human"]["turns"] == 4
     assert [t["excerpt"] for t in rec["human"]["flagged"]] == [None, None]
     assert rec["redaction"]["excerpts_suppressed"] is True
+
+
+def test_failing_closed_keeps_edit_counts_but_no_paths(data_dir, multi, tmp_path):
+    root, _ = multi
+    assert collect_failing_closed(data_dir, root, tmp_path).returncode == 1
+    # sess-a1 edits src/widget.py three times and README.md once.
+    assert records(data_dir)["sess-a1"]["edits"] == {
+        "files": 2,
+        "files_ge3": 1,
+        "max_one_file": 3,
+        "by_relpath": {"<suppressed>": 4},
+    }
 
 
 def test_retention_prunes_old_records_and_never_reingests_them(data_dir, multi):
