@@ -125,9 +125,14 @@ BAKED_FLAGS = (
 # Extraction lanes the sibling extractor reports integrity for, and the
 # native class each one carries. Session-provided and marketplace classes have
 # no lane: nothing about them is derivable from the binary.
-# `bundled_workflows`, `builtin_agents`, and `builtin_tools` are optional: an
-# extraction that predates a lane lacks its key, and the lane is then not
-# scored or reported rather than read as broken.
+# `bundled_workflows`, `builtin_agents`, `builtin_tools`, and `builtin_plugins`
+# are optional: an extraction that predates a lane lacks its key, and the lane
+# is then not scored or reported rather than read as broken.
+# `builtin_plugins` (the `cc-plugin-*@builtin` plugins) is keyed by plugin, not
+# by surface: `_lane_payloads` flattens each plugin and each of its skills,
+# agents and commands into a plugin-backed-builtin surface, scored after every
+# other lane so a name another lane already holds is not scored twice.
+PLUGIN_COMPONENT_LANE = "builtin_plugins"
 LANE_ORDER = (
     "builtin_commands",
     "bundled_skills",
@@ -135,6 +140,7 @@ LANE_ORDER = (
     "plugin_backed",
     "builtin_agents",
     "builtin_tools",
+    PLUGIN_COMPONENT_LANE,
 )
 LANE_OF_CLASS = {
     "builtin-command": "builtin_commands",
@@ -149,6 +155,7 @@ LANE_OF_CLASS = {
 # command, so a component only routes to them.
 ROUTE_ONLY_CLASSES = ("session-skill", "builtin-agent", "builtin-tool")
 CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
+CLASS_OF_LANE[PLUGIN_COMPONENT_LANE] = "plugin-backed-builtin"
 
 
 # Lane order in the generated view: (class, section heading, singular noun used
@@ -456,6 +463,8 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
         if lane == "plugin_backed":
             continue
         for name, entry in payload.items():
+            if lane == PLUGIN_COMPONENT_LANE and name in seen:
+                continue
             seen.add(name)
             registrations = registrations_of(entry)
             if not registrations or any(r.get("internal") for r in registrations):
@@ -1384,8 +1393,10 @@ def check_presence_mentions(repo: Path) -> list[str]:
 def build_native_index(
     inventory: dict[str, Any], lane_payloads: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
-    """Native name -> {class, entry}, first lane wins in workflow, skill,
-    command, agent, tool order; plugin-backed built-ins override."""
+    """Native name -> {class, lane, entry}, first lane wins in workflow, skill,
+    command, agent, tool, built-in plugin order; plugin-backed built-ins
+    override. `lane` is the lane the entry was read from: two lanes share the
+    plugin-backed-builtin class, so the class alone cannot name it."""
     native_index: dict[str, dict[str, Any]] = {}
     for lane in (
         "bundled_workflows",
@@ -1393,10 +1404,11 @@ def build_native_index(
         "builtin_commands",
         "builtin_agents",
         "builtin_tools",
+        PLUGIN_COMPONENT_LANE,
     ):
         for name, entry in (lane_payloads.get(lane) or {}).items():
             native_index.setdefault(
-                name, {"class": CLASS_OF_LANE[lane], "entry": entry}
+                name, {"class": CLASS_OF_LANE[lane], "lane": lane, "entry": entry}
             )
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
         # The extractor enriches a same-named command or skill with the plugin;
@@ -1404,6 +1416,7 @@ def build_native_index(
         enriched = native_index.get(name)
         native_index[name] = {
             "class": "plugin-backed-builtin",
+            "lane": "plugin_backed",
             "entry": enriched["entry"]
             if enriched
             else {"name": name, "plugin_name": plugin},
@@ -1411,11 +1424,66 @@ def build_native_index(
     return native_index
 
 
+def lane_of(seen: dict[str, Any]) -> str | None:
+    """The lane an index entry was read from; the class's lane only for an
+    entry that carries none."""
+    return seen.get("lane") or LANE_OF_CLASS.get(seen.get("class"))
+
+
+def lanes_of_class(klass: Any) -> set[str]:
+    """Every lane that can carry a class: a seeded pair absent from the
+    extraction could have been read from any of them."""
+    return {lane for lane, c in CLASS_OF_LANE.items() if c == klass}
+
+
+def plugin_component_payload(
+    plugins: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """The `builtin_plugins` lane as surfaces: each plugin under its own name,
+    and each skill, agent and command under the component's name, every
+    registration carrying the owning plugin as `plugin_name`."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    for plugin, rec in plugins.items():
+        # `in_loader: false` is a registration the loader never requires: not
+        # proven live, so not a native surface to rule against.
+        if not isinstance(rec, dict) or rec.get("in_loader") is False:
+            continue
+        base = {"plugin_name": plugin, "gated": rec.get("gated") is True}
+        out.setdefault(plugin, []).append(
+            {
+                **base,
+                "name": plugin,
+                "component_kind": "plugin",
+                "description": rec.get("description"),
+                "aliases": rec.get("aliases") or [],
+            }
+        )
+        for kind in ("skills", "agents", "commands"):
+            for comp in rec.get(kind) or []:
+                name = comp.get("name") if isinstance(comp, dict) else None
+                if not isinstance(name, str) or not name:
+                    continue
+                reg = {
+                    **base,
+                    "name": name,
+                    "component_kind": kind[:-1],
+                    "description": comp.get("description"),
+                }
+                if kind == "agents":
+                    reg["user_invocable"] = False
+                elif isinstance(comp.get("user_invocable"), bool):
+                    reg["user_invocable"] = comp["user_invocable"]
+                out.setdefault(name, []).append(reg)
+    return out
+
+
 def _lane_payloads(inventory: dict[str, Any]) -> dict[str, Any]:
     # The workflow lane is optional: an extraction that predates it simply
     # has no such lane, which is not a missing consumed key.
     return {
-        lane: inventory.get(lane)
+        lane: plugin_component_payload(inventory[lane])
+        if lane == PLUGIN_COMPONENT_LANE
+        else inventory.get(lane)
         for lane in LANE_ORDER
         if isinstance(inventory.get(lane), dict)
     }
@@ -1624,10 +1692,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
         # when the name is absent from the extraction, the observed class when
         # present, and both when the two disagree (a class collision), so a
         # broken lane on either side marks the candidate.
-        seeded_lane = LANE_OF_CLASS.get(native.get("class"))
-        observed_lane = LANE_OF_CLASS.get(seen["class"]) if seen else None
+        observed_lane = lane_of(seen) if seen else None
+        seeded_lanes = (
+            {observed_lane}
+            if seen and seen["class"] == native.get("class")
+            else lanes_of_class(native.get("class"))
+        )
         re_derivable, notes = broken_lane_evidence(
-            {lane for lane in (seeded_lane, observed_lane) if lane}
+            {lane for lane in (*seeded_lanes, observed_lane) if lane}
         )
         evidence.extend(notes)
         kind = component.get("kind", "skill")
@@ -1714,13 +1786,17 @@ def cmd_detect(args: argparse.Namespace) -> int:
         name, plugin, skill, kind = key
         component = {"plugin": plugin, "skill": skill, "kind": kind}
         if key in store_verdicts:
+            re_derivable, notes = broken_lane_evidence({surface.lane})
             existing.append(
                 {
                     "native": name,
                     "class": surface.klass,
+                    "lane": surface.lane,
                     "component": component,
                     "score": score,
                     "store_verdict": store_verdicts[key],
+                    "re_derivable": re_derivable,
+                    **({"evidence": notes} if notes else {}),
                 }
             )
             continue
@@ -1774,7 +1850,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         discovered_candidate(
             key,
             seen["class"],
-            LANE_OF_CLASS.get(seen["class"]),
+            lane_of(seen),
             registrations,
             score,
             matched,
