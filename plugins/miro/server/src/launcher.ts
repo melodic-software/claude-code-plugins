@@ -101,7 +101,7 @@ export function installCommand(target: string, platform = process.platform): str
       `npm ${ci} --prefix ${q(target)} ${flags.join(" ")}`
     );
   }
-  const q = (path: string) => `'${path.replaceAll("\\", "/").replaceAll("'", `'\\''`)}'`;
+  const q = (path: string) => `'${path.replaceAll("'", `'\\''`)}'`;
   return (
     `rm -rf ${q(target)} && mkdir -p ${q(target)} && cp ${sources.map(q).join(" ")} ${q(target)}/ ` +
     `&& npm ${ci} --prefix ${q(target)} ${flags.join(" ")}`
