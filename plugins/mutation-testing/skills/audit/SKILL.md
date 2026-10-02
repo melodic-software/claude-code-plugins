@@ -55,8 +55,8 @@ Arguments: `$ARGUMENTS`
 
 ### Effort, the mutant cap of last resort
 
-Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
+the variable name) rather than an effort level, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
 
 Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,
