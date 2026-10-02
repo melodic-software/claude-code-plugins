@@ -436,7 +436,7 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     . "${SKILL_DIR}/../../hooks/hook-utils.sh"
     # shellcheck source=../../../hooks/harness-ops-paths.sh
     . "${SKILL_DIR}/../../hooks/harness-ops-paths.sh"
-    SKILL_USAGE_LOG="${SKILL_USAGE_DATA_ROOT%/}/skill-usage/$(claude_ops::repo_slug "$REPO_ROOT")/skill-usage.jsonl"
+    SKILL_USAGE_LOG="${SKILL_USAGE_DATA_ROOT%/}/skill-usage/$(harness_ops::repo_slug "$REPO_ROOT")/skill-usage.jsonl"
   else
     SKILL_USAGE_LOG="${SKILL_USAGE_BASE%/}/${SKILL_USAGE_DIR}/skill-usage.jsonl"
   fi

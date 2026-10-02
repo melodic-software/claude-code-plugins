@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.17] - 2026-10-02
+
+### Changed
+
+- **The README drops the "Migrating from the standalone `book-distill` plugin" note.** The
+  marketplace no longer carries a `renames` map; an install naming `book-distill` must enable
+  `knowledge` instead.
+
 ## [0.14.16] - 2026-10-02
 
 ### Fixed

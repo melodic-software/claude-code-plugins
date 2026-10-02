@@ -11,7 +11,7 @@
 # MARKER / DETECTION CONVENTION (reusable across lanes and tracking issues):
 #   The script writes a machine-detectable sentinel as the FIRST line of the
 #   comment body:
-#       <!-- claude-ops:lane-telemetry marker=<MARKER> -->
+#       <!-- harness-ops:lane-telemetry marker=<MARKER> -->
 #   <MARKER> is a caller-supplied short id (e.g. `lane:triage`) constrained to
 #   [A-Za-z0-9:@._-] so it can never contain the `>` that would close the comment
 #   early. The sentinel is an HTML comment: invisible in the rendered issue, and
@@ -310,7 +310,7 @@ if ((body_bytes < MIN_BODY_BYTES)); then
   exit 3
 fi
 
-SENTINEL="<!-- claude-ops:lane-telemetry marker=$MARKER -->"
+SENTINEL="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 new_body="$SENTINEL"$'\n'"$body_text"
 
 # --- Resolve owner/repo ------------------------------------------------------

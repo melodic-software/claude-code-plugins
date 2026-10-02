@@ -15,7 +15,7 @@ fi
 # Resolve a project-relative directory without allowing an absolute path,
 # Windows drive/UNC path, `..` traversal, or an existing symlink ancestor to
 # escape the physical project root. Prints the candidate on success.
-claude_ops::resolve_project_relative_dir() {
+harness_ops::resolve_project_relative_dir() {
   local project_dir="$1" configured="$2" normalized segment candidate ancestor parent
   local -a segments
 
@@ -67,7 +67,7 @@ claude_ops::resolve_project_relative_dir() {
 # digest of the full physical path — folding alone is lossy (/tmp/a-b and
 # /tmp/a/b would collide), so the digest carries the uniqueness. sha1sum ships
 # with Git Bash and Linux; cksum is the POSIX fallback.
-claude_ops::repo_slug() {
+harness_ops::repo_slug() {
   local p="" base hash physical=""
   hook::physical_path_to physical "$1" || :
   hook::normalize_path_to p "$physical"
@@ -82,7 +82,7 @@ claude_ops::repo_slug() {
 # empty and '.' segments dropped. The resolver tolerates ./x and x//y when
 # writing (mkdir normalizes), but a git ignore pattern is matched literally, so
 # the exclude line must be canonical.
-claude_ops::normalize_rel_segments() {
+harness_ops::normalize_rel_segments() {
   local raw="${1//\\//}" out="" seg
   local -a segs
   IFS='/' read -r -a segs <<<"$raw"
@@ -98,7 +98,7 @@ claude_ops::normalize_rel_segments() {
 # pattern, not a glob that over-matches sibling dirs. Leading #/! need no
 # handling: the exclude line always begins with the root anchor `/`, so the
 # comment/negation meaning (first-char-only) never applies.
-claude_ops::gitignore_escape() {
+harness_ops::gitignore_escape() {
   local s="$1" out="" ch i
   for ((i = 0; i < ${#s}; i++)); do
     ch="${s:i:1}"
@@ -121,19 +121,19 @@ claude_ops::gitignore_escape() {
 #     does not apply (the data dir is plugin-owned, keyed by repo).
 # Prints the destination on success. Returns 1 on an invalid configured dir,
 # 2 when the scope's base directory is unavailable.
-claude_ops::resolve_skill_usage_dir() {
+harness_ops::resolve_skill_usage_dir() {
   local scope="$1" project_dir="$2" rel_dir="$3"
   case "$scope" in
   user)
     [[ -n "${HOME:-}" && -d "${HOME:-}" ]] || return 2
-    claude_ops::resolve_project_relative_dir "$HOME" "$rel_dir" || return 1
+    harness_ops::resolve_project_relative_dir "$HOME" "$rel_dir" || return 1
     ;;
   data-dir)
     [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 2
-    printf '%s' "${CLAUDE_PLUGIN_DATA%/}/skill-usage/$(claude_ops::repo_slug "$project_dir")"
+    printf '%s' "${CLAUDE_PLUGIN_DATA%/}/skill-usage/$(harness_ops::repo_slug "$project_dir")"
     ;;
   *)
-    claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir" || return 1
+    harness_ops::resolve_project_relative_dir "$project_dir" "$rel_dir" || return 1
     ;;
   esac
 }
@@ -148,7 +148,7 @@ claude_ops::resolve_skill_usage_dir() {
 # semantics change, so tracked content is unaffected. Disable with
 # skill_usage_git_exclude=false. Best-effort: every failure is a silent no-op
 # (the write path must never break on ignore hygiene).
-claude_ops::ensure_git_exclude() {
+harness_ops::ensure_git_exclude() {
   local project_dir="$1" rel_dir="$2" store_file="${3:-skill-usage.jsonl}" exclude_file dir line
   [[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE:-true}" == "true" ]] || return 0
   exclude_file=$(git -C "$project_dir" rev-parse --git-path info/exclude 2>/dev/null | tr -d '\r')
@@ -157,12 +157,12 @@ claude_ops::ensure_git_exclude() {
   /* | [A-Za-z]:*) ;;
   *) exclude_file="${project_dir%/}/$exclude_file" ;;
   esac
-  dir="$(claude_ops::normalize_rel_segments "$rel_dir")"
+  dir="$(harness_ops::normalize_rel_segments "$rel_dir")"
   if [[ -n "$dir" ]]; then
-    line="/$(claude_ops::gitignore_escape "$dir")/"
+    line="/$(harness_ops::gitignore_escape "$dir")/"
   else
     # Store dir IS the repo root — ignore the specific store file, not the tree.
-    line="/$(claude_ops::gitignore_escape "$store_file")"
+    line="/$(harness_ops::gitignore_escape "$store_file")"
   fi
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
@@ -180,7 +180,7 @@ claude_ops::ensure_git_exclude() {
 # "<notice_prefix>-badscope / -badconfig / -nodest" and emitted for
 # <hook_event>. expansion_type is recorded only when non-empty (the tool-path
 # producer passes "").
-claude_ops::record_skill_use() {
+harness_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
   local project_dir="" rel_dir scope log_dir verified_log_dir ts branch line=""
   local -a exp_keys=()
@@ -197,15 +197,15 @@ claude_ops::record_skill_use() {
     scope="repo"
     ;;
   esac
-  if ! log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir"); then
+  if ! log_dir=$(harness_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir"); then
     if hook::notice_once "${notice_prefix}-badconfig" "$input"; then
       hook::emit_skip_notice "$hook_event" \
         "harness-ops skipped skill-usage logging: the skill-usage destination is invalid for scope \"${scope}\" (repo/user scopes need a contained relative skill_usage_dir — no absolute, drive, UNC, traversal, or escaping symlink path; data-dir needs CLAUDE_PLUGIN_DATA)."
     fi
   elif mkdir -p "$log_dir" 2>/dev/null &&
-    verified_log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir") &&
+    verified_log_dir=$(harness_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir") &&
     [[ "$verified_log_dir" == "$log_dir" ]]; then
-    [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
+    [[ "$scope" == "repo" ]] && harness_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
     # No work tree or an unborn HEAD fails the read and records "unknown".
     branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
@@ -217,7 +217,7 @@ claude_ops::record_skill_use() {
       skill s "$skill" \
       branch s "$branch" \
       project s "$(basename -- "$project_dir")" \
-      project_id s "$(claude_ops::repo_slug "$project_dir")" \
+      project_id s "$(harness_ops::repo_slug "$project_dir")" \
       hook s "skill-usage-audit" \
       source s "$src" \
       ${exp_keys[@]+"${exp_keys[@]}"}

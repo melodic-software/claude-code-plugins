@@ -27,7 +27,7 @@
 #
 # Options:
 #   --config FILE        lane config JSON (same resolution as lane-launcher.sh:
-#                        --config -> $CLAUDE_OPS_LANES_CONFIG ->
+#                        --config -> $HARNESS_OPS_LANES_CONFIG ->
 #                        <repo>/.work/lanes/lanes.json, with the same temporary
 #                        default-only fallback to the pre-move
 #                        <repo>/.work/lanes.json under a deprecation warning)
@@ -80,7 +80,7 @@
 #                    "instance": "laptop-a", "repo": "owner/name" } }
 #   issue    default: the open issue titled exactly `Lane telemetry: <name>`.
 #   marker   default: any comment on that issue carrying the shared sentinel
-#            `<!-- claude-ops:lane-telemetry marker=... -->` whose fenced JSON
+#            `<!-- harness-ops:lane-telemetry marker=... -->` whose fenced JSON
 #            block has a `restart_request` key. A bound marker matches that lane
 #            type across EVERY writer instance (`<marker>@<instance>`, #1295) —
 #            an exact-equality match would go blind the moment lanes adopted the
@@ -154,7 +154,7 @@
 # `skipped-running` / `breaker-open` ticks are reported but NOT ledgered, so the
 # file grows with incidents rather than with the polling interval. `check` is
 # read-only and writes nothing. Every `run` also upserts the consumer's own
-# sentinel-marked telemetry comment (marker `claude-ops:restart-consumer`)
+# sentinel-marked telemetry comment (marker `harness-ops:restart-consumer`)
 # carrying the `lane:` / `last-cycle:` / `flags:` fields `morning-brief.sh`
 # already parses — so a consumer that stops running surfaces as a STALE lane in
 # the morning brief instead of becoming a second silent gap.
@@ -190,10 +190,10 @@ INTERVAL_MINUTES=15
 NOW_EPOCH=""
 declare -a TARGET_LANES=()
 
-CONSUMER_MARKER="claude-ops:restart-consumer"
+CONSUMER_MARKER="harness-ops:restart-consumer"
 CONSUMER_LANE="restart-consumer"
-SENTINEL_PREFIX="<!-- claude-ops:lane-telemetry marker="
-TASK_NAME="ClaudeOps Lane Restart Consumer"
+SENTINEL_PREFIX="<!-- harness-ops:lane-telemetry marker="
+TASK_NAME="HarnessOps Lane Restart Consumer"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
@@ -404,12 +404,12 @@ resolve_repo() {
 
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
-    CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/.work/lanes/lanes.json}"
+    CONFIG="${HARNESS_OPS_LANES_CONFIG:-$REPO/.work/lanes/lanes.json}"
     # Same default-only fallback lane-launcher.sh applies (see its header): a
     # checkout that predates the `lanes/` concern home keeps working, loudly.
     # This consumer runs unattended on an OS schedule, so a hard failure here
     # would silently stop honoring restart requests until someone read a log.
-    if [[ -z "${CLAUDE_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/.work/lanes.json" ]]; then
+    if [[ -z "${HARNESS_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/.work/lanes.json" ]]; then
       warn "reading the pre-move lane config at $REPO/.work/lanes.json"
       warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
       CONFIG="$REPO/.work/lanes.json"

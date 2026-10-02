@@ -1076,10 +1076,10 @@ assert_contains "with both present the lanes/ home wins" "$out" "DRY-RUN: claude
 assert_not_contains "the leftover pre-move config is not read" "$out" "-n stale"
 assert_not_contains "no warning when the lanes/ home exists" "$out" "pre-move lane config"
 
-# $CLAUDE_OPS_LANES_CONFIG stays the escape hatch: used verbatim, never
+# $HARNESS_OPS_LANES_CONFIG stays the escape hatch: used verbatim, never
 # suffixed and never fallen back from, so a config kept outside the memory root
 # fails loudly rather than silently resolving to a pre-move file.
-out="$(CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json" run_launcher status --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" 2>&1)"
+out="$(HARNESS_OPS_LANES_CONFIG="$TMP/nowhere.json" run_launcher status --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
 assert_eq "the env override is not fallen back from" 4 "$rc"
 assert_contains "the env override is used verbatim" "$out" "lane config not found: $TMP/nowhere.json"

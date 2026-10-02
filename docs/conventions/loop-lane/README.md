@@ -889,7 +889,7 @@ directly, find the `Lane telemetry: <lane>` issue and print its sentinel comment
 ```bash
 gh issue list -R "$R" --state open --search '"Lane telemetry: work-loop" in:title' --json number,title
 gh api "repos/$R/issues/<n>/comments" --paginate \
-  --jq '.[] | select(.body | startswith("<!-- claude-ops:lane-telemetry marker=")) | .body'
+  --jq '.[] | select(.body | startswith("<!-- harness-ops:lane-telemetry marker=")) | .body'
 ```
 
 The telemetry comment is written only by the instance its marker names; the operator never edits

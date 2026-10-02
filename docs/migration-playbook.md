@@ -502,26 +502,15 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
 
-**The marketplace `renames` map is append-only.** Every entry stays: a consumer whose
-`enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
-entry strands them. A rename this marketplace chooses is a clean breaking change carried by a
-version bump and a changelog note, with no new entry. The exception is a rename upstream forces:
-`claude plugin validate` rejects a third-party name starting `claude-`
-([plugins-reference, name](https://code.claude.com/docs/en/plugins-reference)), so
-`claude-config`, `claude-memory` and `claude-ops` became `harness-config`, `harness-memory` and
-`harness-ops` with entries in the map, because every existing install of a now-invalid id would
-otherwise break with no action on the user's part.
-
-Three true renames are missing from the map on purpose: `bash-lint` to `bash-format` and
-`markdown-formatter` to `markdown-format` (commit `ecf02fddc`, #281), and `bug-report` to `bugs`
-(commit `3b2225bcc`, #3232). An install that still names an old id gets
-`Plugin "<name>" not found in marketplace`. `provenance` to `attribution` needs no entry because the `provenance`
-shim plugin still ships. Plugin splits and file moves are not renames.
+**The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
+by a version bump and a changelog note. An install that still names an old id gets
+`Plugin "<name>" not found in marketplace`, and the consumer re-enables the plugin under its new
+name. Plugin splits and file moves are not renames.
 
 A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
 shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
 point at the successor. It keeps an existing install from reporting
-`Plugin "<name>" not found in marketplace` without adding to the frozen map, since upstream has no
+`Plugin "<name>" not found in marketplace`, since upstream has no
 deprecation state of its own
 ([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
 checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
@@ -584,9 +573,9 @@ Consumer guidance to state in that PR body:
   disk.
 - Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
   marketplace no longer publishes.
-- No tombstone and no `renames` entry. The map takes only upstream-forced renames (see "Version pinning and update
-  delivery" above), and a retirement has no successor id to point at anyway; if the capability moved
-  into another plugin, say which one in the PR body and in the surviving plugin's changelog.
+- No tombstone and no `renames` entry (see "Version pinning and update delivery" above). If the
+  capability moved into another plugin, say which one in the PR body and in the surviving plugin's
+  changelog.
 
 ## Persistence, configuration & external integration
 
@@ -1420,7 +1409,7 @@ authority.
 | Feature | Position | Rationale |
 |---|---|---|
 | `strict` per entry | adopt default (`true`; omit the field) | No entry in `.claude-plugin/marketplace.json` sets `strict`. Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
-| `renames` | adopt | Already in `.claude-plugin/marketplace.json`. Append-only: existing keys stay so old settings ids keep resolving, and only an upstream-forced rename adds one. The renames `bash-lint`, `markdown-formatter` and `bug-report` are deliberately absent, so an old-name install gets `Plugin "<name>" not found in marketplace`. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
+| `renames` | reject | `.claude-plugin/marketplace.json` carries no `renames` map. A rename is a clean break: an old-name install gets `Plugin "<name>" not found in marketplace` and the consumer re-enables the new name. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
 | `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
 | `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
 | Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
@@ -1448,7 +1437,7 @@ authority.
   `strict` default, relative-path resolution under a `url` marketplace source, command-source
   bulk behavior, the version rung order, the community submission bar, or the top-level `bin/`
   rule; a maintainer revisits the `claude-community` reject (for example, outside demand for one plugin);
-  or the frozen `renames` posture changes.
+  or the `renames` reject changes.
 
 ## Local development loop
 

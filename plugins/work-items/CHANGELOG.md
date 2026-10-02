@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.0] - 2026-10-02
+
+### Changed
+
+- **BREAKING: the lane telemetry sentinel is `<!-- harness-ops:lane-telemetry marker=... -->`.**
+  `lane-telemetry-upsert.sh` no longer finds a comment posted under the old `claude-ops:`
+  sentinel and writes a new one; delete the old comment by hand.
+
 ## [0.43.8] - 2026-10-02
 
 ### Fixed

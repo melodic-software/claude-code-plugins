@@ -28,7 +28,7 @@ unreadable store or a destination that cannot be resolved, `3` for bad arguments
 ## The default store is the writer's store
 
 Without `--store` the script sources the hooks' own resolver
-(`hooks/harness-ops-paths.sh`, `claude_ops::resolve_skill_usage_dir`) and gives it the same
+(`hooks/harness-ops-paths.sh`, `harness_ops::resolve_skill_usage_dir`) and gives it the same
 three inputs the writers use: the scope, the relative dir, and the project root
 (`CLAUDE_PROJECT_DIR`, else the working directory). So the file it opens is the file the hooks
 wrote, in every scope. A default restated here would be one branch of that policy, correct
