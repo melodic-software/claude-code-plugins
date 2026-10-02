@@ -97,6 +97,14 @@ fi
 
 new_case
 hooks_json withmod "$MOD"
+stub_claude 2.1.287 0
+rm "$f/bin/node"
+run 2 "node absent is an error, not 'no mod'"
+assert_output_contains "node-absent line" "node not on PATH"
+no_test_ran "node absent runs no test"
+
+new_case
+hooks_json withmod "$MOD"
 stub_claude 2.10.0 1
 run 1 "a failing mod test fails the run"
 assert_output_contains "failure line" "Mod tests failed."

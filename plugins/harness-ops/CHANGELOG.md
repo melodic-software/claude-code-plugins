@@ -8,10 +8,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 ### Added
 
 - **The inventory reports what this account and these settings say about each built-in
-  plugin.** A full run adds `builtin_plugin_state`: per gate flag, the value cached in the global
-  config's `cachedGrowthBookFeatures` beside the binary default (`cached_present: false` means the
+  plugin.** A full run adds `builtin_plugin_state`: per gate flag, the value cached in
+  `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` `cachedGrowthBookFeatures` beside the binary default (`cached_present: false` means the
   default applies); per plugin, every user, project and local `enabledPlugins` entry for its
-  `<name>@builtin` id and the one that wins; and the mods rollout flag
+  `<name>@builtin` id and the one that wins, where a file holding any non-Boolean value
+  contributes none (`enabled_plugins_rejected`); and the mods rollout flag
   `tengu_plugin_hooks_modules`. Its caveats record that a gate read through the per-process
   `pinnedFeatureValues` pin, as `cc-plugin-diff`'s is, is fixed at session start, so a cached value
   read later can differ from what a running session uses.

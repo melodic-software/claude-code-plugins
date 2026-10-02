@@ -1,8 +1,19 @@
 # Mod authoring: writing a hooks module in a marketplace plugin
 
-Owner doc for **how a plugin in this marketplace ships a mod**: a hooks module of function hooks
-that Claude Code calls in its own process. Anthropic owns the mods API and ships the authoring
-guide inside Claude Code; this doc covers only what that guide cannot know about this repository.
+Owner doc for **how a plugin in this marketplace would ship a mod**: a hooks module of function
+hooks that Claude Code calls in its own process. Anthropic owns the mods API and ships the
+authoring guide inside Claude Code; this doc covers only what that guide cannot know about this
+repository.
+
+## Mods are deferred
+
+This doc does not authorize a mod. [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md)
+still defers mods: no plugin under `plugins/` gains a `modules` key until all five go criteria in
+the [Mods row of the Native-first table](../../plugin-philosophy.md) hold, checked with
+[go-no-go.md](../../upstream/claude-code-mods/go-no-go.md). The pilot in
+[#5777](https://github.com/melodic-software/claude-code-plugins/issues/5777) is how those criteria
+get evaluated, and it stays under `.work/` until they pass. The rest of this doc is the how-to for
+when they do, and for that pilot.
 
 ## Boundary
 
@@ -59,7 +70,8 @@ Verified 2026-10-01 against Claude Code 2.1.287. Recheck trigger: that table cha
   namespace. Tests are `*.test.ts` or `*.test.tsx` beside the module.
 - The plugin name must not start with `claude-`; `claude plugin validate` rejects it.
 - `scripts/validate-plugins.sh` runs `claude plugin validate --json` on every plugin and
-  `claude plugin test` on every plugin whose `hooks.json` names `modules`.
+  `claude plugin test` on every plugin whose `hooks.json` names `modules`. Under ADR 0035 none
+  does, so the test step skips; it exists so the first mod that clears the go criteria is tested.
 
 Basis: the reference page's "Files" table ("`modules`: an array with one path, relative to this
 file, to the hooks module") and the create page ("`claude plugin validate` fails a name that looks

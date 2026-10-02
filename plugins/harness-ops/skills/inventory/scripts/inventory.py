@@ -5244,15 +5244,17 @@ BUILTIN_STATE_CAVEATS = (
     "session starts. The cache can refresh later, so a running session may use a "
     "value other than `cached`.",
     "`enabled_setting` reads user, project and local settings only (local wins, "
-    "then project, then user); managed settings and `--settings` are not read.",
+    "then project, then user); managed settings and `--settings` are not read. A "
+    "scope in `enabled_plugins_rejected` holds a non-Boolean value, so Claude Code "
+    "ignores its whole `enabledPlugins` map and it contributes no override.",
 )
 _SETTINGS_PRECEDENCE = ("local", "project", "user")
 
 
-def global_config_path(root: Path) -> Path:
-    """`.claude.json` sits inside a custom config dir and beside the default one."""
-    inside = root / ".claude.json"
-    return inside if inside.is_file() else root.parent / ".claude.json"
+def global_config_path(root: Path, custom: bool) -> Path:
+    """`${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: inside a custom config dir,
+    in the home directory for the default one. Never the custom dir's parent."""
+    return (root if custom else Path.home()) / ".claude.json"
 
 
 def builtin_plugin_state(
@@ -5260,6 +5262,7 @@ def builtin_plugin_state(
     root: Path,
     project_root: Path,
     mods_flag_in_bundle: bool | None,
+    custom_config_dir: bool,
 ) -> dict[str, Any]:
     """What this account and these settings say about each built-in plugin.
 
@@ -5267,7 +5270,7 @@ def builtin_plugin_state(
     the flag values cached for the account and any `enabledPlugins` entry for
     the plugin's id, so a reader can tell whether a gate's default applies here.
     """
-    gcfg_path = global_config_path(root)
+    gcfg_path = global_config_path(root, custom_config_dir)
     gcfg = _load_json(gcfg_path)
     cache = gcfg.get("cachedGrowthBookFeatures") if isinstance(gcfg, dict) else None
     cache_read = isinstance(cache, dict)
@@ -5283,10 +5286,18 @@ def builtin_plugin_state(
         "local": project_root / ".claude" / "settings.local.json",
     }
     enabled: dict[str, dict[str, Any]] = {}
+    rejected: dict[str, list[str]] = {}
     for scope, path in scopes.items():
         data = _load_json(path)
         found = data.get("enabledPlugins") if isinstance(data, dict) else None
-        enabled[scope] = found if isinstance(found, dict) else {}
+        found = found if isinstance(found, dict) else {}
+        # Claude Code drops every enabledPlugins entry of a file holding one
+        # non-Boolean value, so that scope decides nothing.
+        bad = sorted(k for k, v in found.items() if not isinstance(v, bool))
+        if bad:
+            rejected[scope] = bad
+            found = {}
+        enabled[scope] = found
 
     out: dict[str, Any] = {}
     for name, rec in sorted(plugins.items()):
@@ -5307,6 +5318,8 @@ def builtin_plugin_state(
         "global_config": str(gcfg_path) if gcfg is not None else None,
         "flag_cache_read": cache_read,
         "settings_read": sorted(s for s, p in scopes.items() if p.is_file()),
+        # Scope -> its non-Boolean keys: Claude Code ignores that whole map.
+        "enabled_plugins_rejected": rejected,
         "mods_flag": {
             "flag": MODS_ROLLOUT_FLAG,
             "in_bundle": mods_flag_in_bundle,
@@ -5466,6 +5479,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 root,
                 project_root,
                 report["builtin_plugin_notes"].get("mods_flag_in_bundle"),
+                bool(args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR")),
             )
 
     return report

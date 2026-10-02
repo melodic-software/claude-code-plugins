@@ -217,7 +217,9 @@ in the global config's `cachedGrowthBookFeatures` (`~/.claude.json`, or `.claude
 custom config dir); `cached_present: false` means the key is absent and the binary default applies;
 `null` means no cache was read. `enabled_overrides` lists each user, project and local
 `enabledPlugins` entry for the plugin's id, and `enabled_setting` is the winning one (local, then
-project, then user), or null when none names it and `default_enabled` decides. `mods_flag` carries
+project, then user), or null when none names it and `default_enabled` decides. A scope listed in
+`enabled_plugins_rejected` holds a non-Boolean value, so Claude Code ignores that file's whole map
+and it contributes no override; name the offending keys. `mods_flag` carries
 `tengu_plugin_hooks_modules`, the rollout flag for mods in installed plugins. A gate read through
 the per-process pin is fixed at session start, so a cached value read later can differ from what a
 running session uses: say "cached", never "live".

@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Run `claude plugin test` on every plugin that ships a mod: a hooks/hooks.json
-# whose "modules" array is non-empty. Exits 0 with a skip line when no plugin
-# ships one, when `claude` is not on PATH, or when the CLI predates
-# `claude plugin test` (mods need 2.1.287). Exits 1 when any mod's tests fail.
+# whose "modules" array is non-empty. ADR 0035 defers mods, so today no plugin
+# ships one and this skips; it is here for the first mod that clears the ADR's
+# go criteria. Exits 0 with a skip line when no plugin ships a mod, when
+# `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
+# need 2.1.287). Exits 1 when any mod's tests fail, and 2 when node, which
+# reads hooks.json, is not on PATH.
 # Basis: https://code.claude.com/docs/en/plugins/mods/test.md
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "error: node not on PATH; cannot read hooks.json to find mods" >&2
+  exit 2
+fi
 
 MIN_VERSION=2.1.287
 

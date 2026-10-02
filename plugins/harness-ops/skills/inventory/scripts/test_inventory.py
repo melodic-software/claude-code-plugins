@@ -15,6 +15,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 import inventory as inv
 
@@ -3005,12 +3006,17 @@ class TestBuiltinPluginState(unittest.TestCase):
         self.project = self.home / "repo"
         (self.project / ".claude").mkdir(parents=True)
         self.root.mkdir()
+        home = mock.patch.object(inv.Path, "home", return_value=self.home)
+        home.start()
+        self.addCleanup(home.stop)
 
     def write(self, path: pathlib.Path, data: object) -> None:
         path.write_text(json.dumps(data), encoding="utf-8")
 
-    def state(self) -> dict:
-        return inv.builtin_plugin_state(self.PLUGINS, self.root, self.project, True)
+    def state(self, root: pathlib.Path | None = None, custom: bool = False) -> dict:
+        return inv.builtin_plugin_state(
+            self.PLUGINS, root or self.root, self.project, True, custom
+        )
 
     def test_cached_flag_values_sit_beside_each_default(self) -> None:
         self.write(
@@ -3054,9 +3060,45 @@ class TestBuiltinPluginState(unittest.TestCase):
             self.root / ".claude.json",
             {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
         )
-        got = self.state()
+        got = self.state(custom=True)
         self.assertEqual(got["global_config"], str(self.root / ".claude.json"))
         self.assertTrue(got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]["cached"])
+
+    def test_a_custom_config_dir_never_reads_its_parent(self) -> None:
+        # `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: a custom dir with no
+        # global config of its own has none, whatever sits beside it.
+        custom = self.home / "profiles" / "work"
+        custom.mkdir(parents=True)
+        self.write(
+            custom.parent / ".claude.json",
+            {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
+        )
+        got = self.state(root=custom, custom=True)
+        self.assertFalse(got["flag_cache_read"])
+        self.assertIsNone(got["global_config"])
+
+    def test_the_default_config_dir_reads_home(self) -> None:
+        self.write(self.root / ".claude.json", {"cachedGrowthBookFeatures": {}})
+        self.write(
+            self.home / ".claude.json",
+            {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
+        )
+        got = self.state()
+        self.assertEqual(got["global_config"], str(self.home / ".claude.json"))
+        self.assertTrue(got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]["cached"])
+
+    def test_a_non_boolean_value_voids_that_files_enabled_plugins(self) -> None:
+        pid = "cc-plugin-mermaid@builtin"
+        self.write(self.root / "settings.json", {"enabledPlugins": {pid: True}})
+        self.write(
+            self.project / ".claude" / "settings.json",
+            {"enabledPlugins": {pid: False, "other@m": "yes"}},
+        )
+        got = self.state()
+        self.assertEqual(got["enabled_plugins_rejected"], {"project": ["other@m"]})
+        mermaid = got["plugins"]["cc-plugin-mermaid"]
+        self.assertEqual(mermaid["enabled_overrides"], {"user": True})
+        self.assertIs(mermaid["enabled_setting"], True)
 
     def test_no_flag_cache_is_unknown_not_absent(self) -> None:
         got = self.state()
