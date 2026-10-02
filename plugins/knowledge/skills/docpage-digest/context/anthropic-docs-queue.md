@@ -97,6 +97,15 @@ named with it and keeps the post as a correlate):
   which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
   technique. Unverified until fetched. No docs page covers test-impact analysis as of 2026-10-01;
   recheck trigger: a docs page starts covering it
+- <https://claude.dev/blog/spending-your-effort/> (not a pointer; correlate only)
+  "Using Claude Code: Spending your effort", which `docs/upstream/opus-5-5-task-cost.md` (Q34)
+  and the `playbooks` model-adaptation chapters already cite as a correlate without a custody
+  record; its standfirst is a vendor claim. Resolved to its titled page on 2026-10-02. Docs
+  pointer: <https://code.claude.com/docs/en/model-config#adjust-effort-level>
+- <https://claude.dev/blog/lessons-from-building-claude-code-prompt-caching-is-everything/> (not a pointer; correlate only)
+  "Lessons from building Claude Code: Prompt caching is everything", queued by the same record
+  (Q34); its standfirst is a vendor claim. Resolved to its titled page on 2026-10-02. Docs
+  pointer: <https://platform.claude.com/docs/en/build-with-claude/prompt-caching>
 
 Engineering posts:
 
