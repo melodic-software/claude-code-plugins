@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.2] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work`'s branch-owned fix worker lands on the strong tier, never below the original implementation.** The original can now be a Sonnet `scoped-implementer` phase, so "the same tier as the original" no longer named the fix worker's floor; it still dispatches as `implementation:implementer`.
+
 ## [0.44.1] - 2026-10-02
 
 ### Changed
