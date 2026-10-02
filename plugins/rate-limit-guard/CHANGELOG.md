@@ -3,6 +3,13 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.5] - 2026-10-02
+
+### Changed
+
+- The reader contract's consumer list names the `source-control` `pull-request` watch handoff,
+  which inlines the floor to check the windows before starting a PR watcher.
+
 ## [0.10.4] - 2026-10-02
 
 ### Changed

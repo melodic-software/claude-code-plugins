@@ -844,8 +844,9 @@ values stay byte-identical across lanes and to that contract's own floor block.
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that
-inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
-launch-prompt templates under `prompts/loops/`. The four prose copies must match byte for byte; the
+inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, the
+`source-control` `pull-request` watch handoff, and the two launch-prompt templates under
+`prompts/loops/`. The five prose copies must match byte for byte; the
 prompt templates carry the floor inside a blockquote re-wrapped to a narrower column, so their
 registration compares the block after normalization. Normalization strips blockquote markers,
 backticks and emphasis, and flattens whitespace runs, so **line breaks and markup are free in that
