@@ -31,6 +31,23 @@ those workflows resolve vocabulary, when the `domain-driven-design` plugin is
 installed; without it, resolved terms are recorded in the design artifacts
 themselves. Every skill also works standalone.
 
+## Workflows
+
+- **`/planning:plan-panel`** (`workflows/plan-panel.js`). A multi-angle plan
+  panel that `/planning:plan` launches, opt-in, for a hard or wide plan:
+  one planner per angle (MVP-first, risk-first, reuse-first and
+  testability-first by default), independent judges that score every draft on
+  goal fit, blast radius, test strategy and reversibility, and one synthesizer
+  that builds the plan from the winner and grafts runner-up ideas. Its `args`
+  carry `task` (required; without it the run dispatches nothing), `context`,
+  `angles`, `judges` (default 3), `roles` and `maxConcurrent` (default 4).
+  `roles` is the map `/multi-agent:route all` prints. Without it, built-in fallbacks run planners
+  on `opus` at `medium` effort and judges on `opus` at `high`, and the
+  synthesizer inherits the session model at `high`. It returns the plan, the
+  scores, the grafted ideas, the dissent and every draft; the synthesized plan goes
+  through the skill's reviewer and approval gate. When the Workflow tool is
+  absent, `/planning:plan` formulates the single plan as before.
+
 ## Works in any repo
 
 - **Reads your conventions, assumes none.** Project rules, naming conventions,

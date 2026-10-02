@@ -90,4 +90,5 @@ Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` pri
 
 Report, in this order: the base merge, the security review's findings and how each was
 dispositioned (or the fallback that stood in for it), the verify gate's result with the head it
-ran on, and the flip. Then hand monitoring off to `/source-control:pull-request monitor`.
+ran on, and the flip. Then choose who watches the PR from here, per
+[watch-handoff.md](watch-handoff.md).

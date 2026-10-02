@@ -6,6 +6,7 @@ disable-model-invocation: false
 metadata:
   workflow-stage: plan
   summary: Produce a structured implementation plan with an approval gate
+allowed-tools: ["Workflow(planning:plan-panel)"]
 ---
 
 **Arguments.** `[task description, 'review', or 'close-out']`. e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out
@@ -172,6 +173,8 @@ Before formulating, resolve the consumer's standards and load what this task tou
 - **Name provenance** when a personal-layer rule (a `*.local.md` overlay or the user-global layer) materially shapes the plan.
 - **Broken index row** → surface it and offer the fix (Boy Scout). Never silent. **Always compare** the index's `standards-contract` frontmatter to the binding's own version when resolving; on any mismatch, degrade per the binding's tolerant-reader rule AND report the skew in the produced plan (older: best-effort + "index at vX, contract at vY. Re-run setup"; newer: best-effort + "update the plugin", no migration offer).
 - The produced plan **cites the standards sections loaded** for the surfaces it touches, the template's "Standards grounding" element, or states why grounding was skipped (scale tier).
+
+**Multi-angle panel (opt-in).** For a hard or wide plan, when the user asks for it or `/multi-agent:assess` returns `workflow`, formulate through the `planning:plan-panel` workflow instead of one draft, behind a Workflow availability gate with this single-plan flow as the fallback. Read [context/plan-panel.md](context/plan-panel.md) before launching. Its synthesized plan still goes through Step 3 onward and the Step 5 approval gate.
 
 Produce a structured plan using the template in [context/plan-template.md](context/plan-template.md). The template covers:
 
