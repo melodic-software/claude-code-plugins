@@ -162,6 +162,15 @@ describe("repair command", () => {
     expect(spawnSync("bash", ["-n", "-c", command]).status).toBe(0);
   });
 
+  it("quotes a POSIX path verbatim, keeping a backslash a legal filename character", () => {
+    const odd = "/srv/o'brien\\data dir/mcp-server/abc";
+    const command = installCommand(odd, "linux");
+    const quoted = command.slice("rm -rf ".length, command.indexOf(" && mkdir"));
+    const printed = spawnSync("bash", ["-c", `printf %s ${quoted}`], { encoding: "utf8" });
+    expect(printed.stdout).toBe(odd);
+    expect(spawnSync("bash", ["-n", "-c", command]).status).toBe(0);
+  });
+
   it("is a Windows PowerShell 5.1 line on Windows, with no &&", () => {
     const winTarget = "D:\\O'Brien Data\\mcp-server\\abc";
     const command = installCommand(winTarget, "win32");
