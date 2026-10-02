@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- **A phase boundary no longer writes a handoff and stops by default.** `implement` Step 4 treats
+  the phases of one approved plan as one task: it still verifies, marks the plan, updates the status
+  summary and commits, then routes the next step with `/session-flow:workflow`, handing it the
+  PLAN.md path and the next phase. It writes a handoff entry and stops only on its own conditions:
+  a model or domain switch, the end of the run, a user-only commit gate, or the work moving to
+  another session. The status summary points at the PLAN.md path and next phase when no handoff
+  was written. `implement-dispatch`'s heavy-window signal (Resident-vs-clear item (a)) routes the
+  same way instead of clearing by default. Both skills gain a `## Next` naming
+  `/review:quality-gate`, and new evals cover the routed boundary and the model-switch stop.
+
 ## [0.20.0] - 2026-10-02
 
 ### Added

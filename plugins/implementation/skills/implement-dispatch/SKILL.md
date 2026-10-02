@@ -177,11 +177,17 @@ An entry whose evidence does not resolve, or whose result was never verified, is
 
 The orchestrator stays resident across phase boundaries by default. Clear and resume from the emitted prompt only when one of these holds:
 
-- **(a) The harness or operator signals a clear**. A compaction notice, a context-guard hook, or the user saying the session is heavy. Do not poll your own context statistics to decide this; a budget reading is not a decay signal (see `/implementation:implement` "Mid-phase handoff")
+- **(a) The harness or operator signals a heavy window**. A compaction notice, a context-guard hook, or the user saying the session is heavy. Route the next step with `/session-flow:workflow` rather than clearing by default, handing it the PLAN.md path and the next phase; clear and resume from the emitted prompt when it routes there. Do not poll your own context statistics to decide this; a budget reading is not a decay signal (see `/implementation:implement` Step 4, "Mid-phase")
 - **(b) The next phase is inline-routed** per the routing table (an inline-routed phase wants a fresh window for its own reads)
 - **(c) A model/domain switch is pending** for the next phase
 
 Which way the boundary goes decides its ritual (see Phase boundaries): a clear gets the full Step 4 ritual, ending in the resume prompt the fresh session starts from; a resident boundary gets the plan marks, the deviations entry, and the commit. In autonomous mode a boundary is not a stopping point: unless (a), (b), or (c) above calls for a clear, dispatch the next phase in the same turn. Otherwise stop only on Major divergence, when blocked on something only the human can supply, or before a destructive, hard-to-undo, or outward action the plan does not cover.
+
+We treat the phases of one approved plan as one task, so the orchestrator's window question at a boundary goes to the workflow router rather than to a default clear. Without session-flow, see the pointer below.
+
+- **Pointer**: for what to do when the window fills, see <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section changes its `/compact` or `/clear` guidance.
 
 ## Integration with workflow
 
@@ -199,6 +205,10 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Does not edit inline**. Inline execution cadence, commit discipline, and mode context files (feature/bugfix/refactor) are `/implementation:implement`'s
 - **Does not create or revise plans**. A planning pass produces plans; this skill executes routing tables
 - **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (when installed) is the SSOT; this skill invokes it main-side at the right moments, falling back to the project's own build command when that plugin is absent
+
+## Next
+
+`/review:quality-gate`. It reviews the finished change before outcome verification, the order `/implementation:implement` Step 5 hands off in.
 
 ## Gotchas
 
