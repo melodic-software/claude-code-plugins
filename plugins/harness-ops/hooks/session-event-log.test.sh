@@ -230,10 +230,10 @@ assert_eq "Stop: last_assistant_message (content) is absent" "false" "$(jq -r 'h
 assert_eq "Stop: a background task's agent_type is not read as the event's" "false" "$(jq -r 'has("agent_type")' "$(ELOG e1)")"
 assert_record "effort rows satisfy the record schema" "$(ELOG e1)"
 
-run "$P" "$(payload e2 SubagentStop '"effort":{"level":"medium"},"stop_hook_active":false,"agent_id":"def456","agent_type":"Explore","agent_transcript_path":"/home/dev/.claude/projects/p/abc/subagents/agent-def456.jsonl","last_assistant_message":"done","background_tasks":[],"session_crons":[]')" "$ON" >/dev/null
+run "$P" "$(payload e2 SubagentStop '"effort":{"level":"medium"},"stop_hook_active":false,"agent_id":"def456","agent_type":"Explore","agent_transcript_path":"/home/<user>/.claude/projects/p/abc/subagents/agent-def456.jsonl","last_assistant_message":"done","background_tasks":[],"session_crons":[]')" "$ON" >/dev/null
 assert_eq "SubagentStop with top-level effort.level records it" "medium" "$(jq -r .effort "$(ELOG e2)")"
 assert_eq "SubagentStop: agent_type round-trips" "Explore" "$(jq -r .agent_type "$(ELOG e2)")"
-assert_eq "SubagentStop: agent_transcript_path is the raw absolute value" "/home/dev/.claude/projects/p/abc/subagents/agent-def456.jsonl" "$(jq -r .agent_transcript_path "$(ELOG e2)")"
+assert_eq "SubagentStop: agent_transcript_path is the raw absolute value" "/home/<user>/.claude/projects/p/abc/subagents/agent-def456.jsonl" "$(jq -r .agent_transcript_path "$(ELOG e2)")"
 
 run "$P" "$(payload e3 Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL")" "$ON" CLAUDE_EFFORT=xhigh >/dev/null
 assert_eq "payload wins over a conflicting inherited CLAUDE_EFFORT=xhigh" "high" "$(jq -r .effort "$(ELOG e3)")"
@@ -274,9 +274,9 @@ assert_eq "SessionStart records n/a" "n/a" "$(jq -r .effort "$(ELOG e8)")"
 assert_record "metadata rows satisfy the record schema" "$(ELOG e8)"
 
 # The raw absolute cwd, transcript_path and scratchpad_dir (D32).
-run "$P" '{"session_id":"e9","transcript_path":"/home/dev/.claude/projects/-home-dev-proj/e9.jsonl","cwd":"/home/dev/proj","scratchpad_dir":"/tmp/claude-1000/-home-dev-proj/e9/scratchpad","permission_mode":"auto","hook_event_name":"PostToolBatch","tool_calls":[]}' "$ON" >/dev/null
-assert_eq "raw absolute cwd round-trips" "/home/dev/proj" "$(jq -r .cwd "$(ELOG e9)")"
-assert_eq "raw absolute transcript_path round-trips" "/home/dev/.claude/projects/-home-dev-proj/e9.jsonl" "$(jq -r .transcript_path "$(ELOG e9)")"
+run "$P" '{"session_id":"e9","transcript_path":"/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl","cwd":"/home/<user>/proj","scratchpad_dir":"/tmp/claude-1000/-home-dev-proj/e9/scratchpad","permission_mode":"auto","hook_event_name":"PostToolBatch","tool_calls":[]}' "$ON" >/dev/null
+assert_eq "raw absolute cwd round-trips" "/home/<user>/proj" "$(jq -r .cwd "$(ELOG e9)")"
+assert_eq "raw absolute transcript_path round-trips" "/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl" "$(jq -r .transcript_path "$(ELOG e9)")"
 assert_eq "raw absolute scratchpad_dir round-trips" "/tmp/claude-1000/-home-dev-proj/e9/scratchpad" "$(jq -r .scratchpad_dir "$(ELOG e9)")"
 assert_eq "permission_mode round-trips" "auto" "$(jq -r .permission_mode "$(ELOG e9)")"
 
