@@ -193,7 +193,9 @@ machines; neither on the attended box.
 > dispatches land on the strong tier structurally: the `implementation`
 > plugin's `implementer` / `phase-verifier` agent definitions carry the
 > binding in `model` frontmatter, so pass no `model` for those and never
-> one that undercuts the binding. Pass an explicit per-invocation `model`
+> one that undercuts the binding. A phase the plan routes `sonnet` as
+> well-scoped goes to `scoped-implementer` with an explicit `model: sonnet`
+> instead; unrouted or complex phases stay on `implementer`. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry: the frontier
 > tier (`best`) for conflict resolution and any security-surface work class,
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not

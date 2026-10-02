@@ -360,7 +360,8 @@ read them there rather than from this file.
   the real work happens in dispatched workers.
 - **Attended queue: strong tier.** Human in the loop, and where
   classification proposals are made.
-- **Dispatched implementers: strong tier.**
+- **Dispatched implementers: strong tier.** A phase the plan routes `sonnet`
+  as well-scoped goes to `scoped-implementer` on `sonnet` instead.
 - **Conflict and security subagents: frontier tier**, which babysit-loop
   requires for conflict workers unconditionally.
 - **No `haiku` dispatch.** The convention admits it nowhere in these lanes,

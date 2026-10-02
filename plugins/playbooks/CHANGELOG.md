@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.17.1] - 2026-10-02
+## [0.17.2] - 2026-10-02
 
 ### Fixed
 
@@ -14,6 +14,14 @@ only after that version increases.
   attributed tips are kept.
 - `skill-authoring` points at the skills page for the `CLAUDE_EFFORT` values instead of
   listing them.
+
+## [0.17.1] - 2026-10-01
+
+### Changed
+
+- The prompt-caching reference's session-side section links the Claude Code prompt-caching page
+  and the costs page's account of why usage climbs in a long session, instead of explaining
+  either.
 
 ## [0.17.0] - 2026-10-02
 
