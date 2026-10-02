@@ -3,7 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.0] - 2026-10-02
+## [3.0.0] - 2026-10-02
+
+### BREAKING
+
+- **The default inventory reader now needs Node.js and npm.** `inventory.py` reads the bundle with
+  `--reader=parser` by default, which installs its pinned parser on first use; without Node.js or
+  npm the report shows `binary: broken` with the repair command and no binary sections. Pass
+  `--reader=regex` to keep the old behavior.
 
 ### Added
 
@@ -14,18 +21,24 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `reduce` and the like), resolving which function a callback or callee holds back through
   parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
   an export to every importer and re-export, and an argument to an imported function into its
-  one exporter. The list stays literal only when every hop is known not to change it. A hop it
-  cannot resolve, a module with a direct `eval`, an exported name any module reads by name as a
-  property (`ns.pY`), and a bundle that writes to `Array.prototype` or `Object.prototype` keep it
-  partial. New helper ops `keys_used` and `exports` back those checks, and `reader.flow_lookups`
-  counts the lookups.
+  one exporter. The list stays literal only when every hop is known not to change it. These keep
+  it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
+  `instanceof`; an exported name any module reads by name as a property (`ns.pY`); an export whose
+  file, read from its importers' `from"..."`, is taken whole by `import*as`, `export*from`,
+  `import(...)` or `require(...)`; a bundle with any module that may change `Array.prototype` or
+  `Object.prototype` (through an alias, `["prototype"]`, `{prototype:P}=Array`, a function
+  parameter, `__proto__`, `Object.getPrototypeOf` or `constructor.prototype`); and a flow too deep
+  for the helper's stack, which no longer crashes it. New helper ops `keys_used` and `exports`
+  back those checks, and `reader.flow_lookups` counts the lookups. `reference/extraction.md` lists
+  the assumptions that remain unchecked.
 
 ### Changed
 
-- **`--reader=parser` is the inventory's default.** A run needs Node.js and npm and installs the
-  pinned parser on first use; without them the binary source reports broken with the repair
-  command. `--reader=regex` and `--reader=compare` stay selectable. The inventory skill passes
-  `--deps-dir "${CLAUDE_PLUGIN_DATA}"`.
+- **`--reader=parser` is the inventory's default.** `--reader=regex` and `--reader=compare` stay
+  selectable. The inventory and audit-native-overlap skills pass
+  `--deps-dir "${CLAUDE_PLUGIN_DATA}"`. The changelog skill's native-drift step runs the inventory
+  without it and installs into the fallback, `<config dir>/plugins/data/harness-ops-melodic-software`,
+  the same directory `${CLAUDE_PLUGIN_DATA}` names for this plugin.
 - Under the parser, the Explore and Plan agents' `disallowed_tools` read literal again on 2.1.284
   to 2.1.287, with the regex reader's values: their array is exported, aliased, returned to a
   `.some(t)` caller whose `t` holds no function, re-exported under a name no module imports, and
