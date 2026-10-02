@@ -37,7 +37,10 @@ document written to this layer is not thereby STE-conformant.
 
 - **Pointer**: for the specification, Issue 9 (2025), see [asd-ste100.org](https://asd-ste100.org);
   its writing rules carry the numbers cited in `sentence-rules.md` (3.2, 5.1, 6.5, 6.6). For the
-  STEMG paper on AI, see the [STE downloads page](https://www.asd-ste100.org/STE_downloads.html).
+  STEMG white paper on AI, see the
+  [PDF](https://www.asd-ste100.org/assets/files/WhitePaper-ASD-STE100_and_AI.pdf) and, for the
+  plausibility-versus-compliance wording, the entry "White Paper: Simplified Technical English and
+  Artificial Intelligence" on the [STE downloads page](https://www.asd-ste100.org/STE_downloads.html).
 - **As of**: 2026-10-02
 - **Recheck trigger**: a new Issue of the specification is published, or STEMG revises its paper on
   AI.
