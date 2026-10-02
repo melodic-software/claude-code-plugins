@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.74.0] - 2026-10-02
+
+### Added
+
+- **`pull-request` chooses who watches a PR once it is out of draft.** At the end of `ready`, and
+  at `monitor` entry when no choice was made, a matrix picks between this skill's monitor, a
+  background agent through `/session-flow:continue-in-background`, `/background`, `/autofix-pr`
+  and the babysit loop, by whether the person is staying and whether the machine stays on. For a
+  route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
+  a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
+  or force-push). New `reference/watch-handoff.md`; `native-surfaces.md` records auto-fix's
+  requirements and limits and `/background`.
+
 ## [0.73.0] - 2026-10-02
 
 ### Changed
