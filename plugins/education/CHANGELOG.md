@@ -3,6 +3,20 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-10-02
+
+### Fixed
+
+- `eli5` and `teach` no longer list a cream or off-white background among the styles to leave
+  out, since the shared chrome's ivory background is the sanctioned default.
+
+### Changed
+
+- `eli5` points to `visualization:visualize` for choosing a form for content already in the
+  conversation.
+- `explain` says when to pick `adhd:clarify` (restructure) or `discipline:wait-what` (re-pitch
+  one message) instead.
+
 ## [0.12.0] - 2026-10-02
 
 ### Changed

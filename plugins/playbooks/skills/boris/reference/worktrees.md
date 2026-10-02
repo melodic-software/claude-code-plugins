@@ -39,6 +39,10 @@ isolation: worktree
 ---
 ```
 
+The `model:` line is illustrative; `isolation: worktree` is the point. For choosing a subagent's
+model now, see [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) (as of
+2026-10-02; recheck when that section changes).
+
 ### Non-Git Source Control
 
 Mercurial, Perforce, SVN users define `WorktreeCreate` and `WorktreeRemove` hooks in `settings.json` to get isolation without Git.
