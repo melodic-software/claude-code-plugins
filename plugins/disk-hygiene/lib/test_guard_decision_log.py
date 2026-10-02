@@ -179,6 +179,23 @@ class GuardDecisionLogTests(unittest.TestCase):
         (entry,) = self.read_records()
         self.assertNotIn("FAKE", entry["command"])
 
+    def test_secret_starting_in_view_and_running_past_the_scan_bound_is_redacted(
+        self,
+    ) -> None:
+        # Each starts in the first 400 characters and ends past the scan bound,
+        # so no complete-shape rule can match it inside the scanned prefix.
+        pem_header = "-----BEGIN " + "RSA PRIVATE KEY-----"
+        for label, secret in (
+            ("pem", pem_header + "\nMIIJFAKEbody" + "Q" * 6000),
+            ("jwt", "eyJ" + "FAKEheader" + "." + "FAKEpayload" + "Q" * 6000),
+            ("ghs", "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "Q" * 6000),
+        ):
+            with self.subTest(label):
+                record = decision_log.build_record(
+                    hook="h", decision="deny", rule="r", command="printf %s " + secret
+                )
+                self.assertNotIn("FAKE", record["command"])
+
     def test_none_and_deny_by_default_persist_length_not_command_text(self) -> None:
         secret = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
         self.write_one(

@@ -169,7 +169,7 @@ AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
 ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 60.0
 ASYNC_MERGE_POLL_INTERVAL_SECONDS = 3.0
 ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})
-ASYNC_UUID_RE = re.compile(r"^[0-9A-Za-z-]{1,64}$")
+ASYNC_UUID_RE = re.compile(r"[0-9A-Za-z-]{1,64}")
 
 
 def _poll_sleep(seconds: float) -> None:
@@ -1608,7 +1608,7 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
     A UUID that is not GitHub's shape never reaches the API path: it reads as
     `corrupt`, which keeps a recorded request held.
     """
-    if not ASYNC_UUID_RE.match(uuid):
+    if not ASYNC_UUID_RE.fullmatch(uuid):
         return {
             "status": "",
             "message": f"unusable async merge request id {uuid!r}",
@@ -1916,7 +1916,7 @@ def check_pending_request(
     if (
         age is not None
         and age > PENDING_MERGE_MAX_AGE_SECONDS
-        and ASYNC_UUID_RE.match(uuid)
+        and ASYNC_UUID_RE.fullmatch(uuid)
     ):
         update_pending(path, key, None)
         return {**entry, "status": "expired", "message": "older than GitHub retains"}

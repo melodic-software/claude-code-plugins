@@ -18,6 +18,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
 from typing import Any
 from unittest import mock
 
@@ -604,19 +605,34 @@ class PendingRequestOutlivesTheRun(AsyncMergeHarness):
         self.assertEqual(self.output["pendingMergeRequest"]["status"], "expired")
         self.assertEqual(self._records(), {})
 
-    def test_a_record_with_an_unusable_request_id_is_held_and_never_read(
-        self,
-    ) -> None:
+    def _corrupt_record(self, uuid: str, *, age_hours: float = 0) -> None:
         path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
+        requested = merge.datetime.now(merge.UTC) - timedelta(hours=age_hours)
         entry = {
-            "uuid": "../../../user",
+            "uuid": uuid,
             "head": HEAD,
             "mergeAction": "direct_merge",
-            "requestedAt": merge.datetime.now(merge.UTC).isoformat(),
+            "requestedAt": requested.isoformat(),
         }
         merge.write_state(
             path, {"schema_version": 1, "requests": {"owner/repo#1": entry}}
         )
+
+    def test_a_record_with_an_unusable_request_id_is_held_and_never_read(
+        self,
+    ) -> None:
+        self._corrupt_record("../../../user")
+        self._assert_corrupt_hold()
+
+    def test_a_corrupt_record_is_held_however_old(self) -> None:
+        self._corrupt_record("../../../user", age_hours=48)
+        self._assert_corrupt_hold()
+
+    def test_an_id_with_a_trailing_newline_is_corrupt(self) -> None:
+        self._corrupt_record(UUID + "\n")
+        self._assert_corrupt_hold()
+
+    def _assert_corrupt_hold(self) -> None:
         code = self._run(_proc(), [], extra=("--state-dir", self.state.name))
         self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
         self.assertIn("corrupt", self.output["blockers"][0])

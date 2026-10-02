@@ -14,7 +14,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   credential-name rule (`FOO_KEY=...`) backtracked in cubic time, so a 4 KB command of repeated
   `KEY` took about 40 seconds; it now makes one attempt per name. A value longer than 4096
   characters is scanned only to that bound, and the kept text is narrowed by what redaction
-  removed, so a secret cut at the bound is never shown.
+  removed, so a secret cut at the bound is never shown. A private key or JWT that starts in the
+  kept text and runs past the bound is redacted from its start.
 
 ## [0.42.9] - 2026-10-02
 

@@ -145,6 +145,21 @@ def _redact_secrets(text: str) -> str:
     return text
 
 
+# A private key or JWT that runs past the scan bound has no end inside the
+# scanned text, so no complete-shape rule above can match it.
+_KEY_RUNNING_TO_CUT = re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*\Z", re.DOTALL)
+_JWT_RUNNING_TO_CUT = re.compile(r"(?:ghs_[0-9]+_)?eyJ")
+_TOKEN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.+/=-"
+
+
+def _redact_cut_tail(text: str) -> str:
+    text = _KEY_RUNNING_TO_CUT.sub(REDACTED, text)
+    # rstrip finds the run of token characters at the cut in linear time.
+    run_start = len(text.rstrip(_TOKEN_CHARS))
+    jwt = _JWT_RUNNING_TO_CUT.search(text, run_start)
+    return text[: jwt.start()] + REDACTED if jwt else text
+
+
 def _clip(value: object) -> str | None:
     if value is None:
         return None
@@ -153,7 +168,7 @@ def _clip(value: object) -> str | None:
         # Scan only a bounded prefix, and narrow the kept window by what
         # redaction removed, so every kept character comes from the first
         # MAX_TEXT_CHARS of the input and a secret cut at the bound stays out.
-        scanned = _redact_secrets(text[:MAX_SCAN_CHARS])
+        scanned = _redact_cut_tail(_redact_secrets(text[:MAX_SCAN_CHARS]))
         window = MAX_TEXT_CHARS - max(0, MAX_SCAN_CHARS - len(scanned))
         return scanned[: max(0, window)] + "..."
     text = _redact_secrets(text)

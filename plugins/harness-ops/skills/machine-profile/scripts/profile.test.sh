@@ -216,6 +216,9 @@ refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"b
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_eyJFAKE.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+# A JWS whose header carries a certificate chain (x5c) runs to many hundreds of characters.
+long_jwt="eyJ$(printf 'A%.0s' {1..900}).FAKEpayload.FAKEsignature"
+refuse "a JWT with a 900-character header is refused" '{"key":"k","value":"'"$long_jwt"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 # Values that once kept jq's backtracking regex busy for 10-60 s. `timeout 10` is
 # the backstop: a slow validation reads as rc 124, a finished one as 0 or 1.
 for shape in 'ghs_1_-:50000' 'ghs_1_eyJ:30000' 'ghs_1_eyJa.:30000' 'ghs_1_eyJ-:30000'; do
