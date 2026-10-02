@@ -1,6 +1,6 @@
 ---
 description: "Fan out review across many finding-producing surfaces at once, this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins, then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
-argument-hint: "[mode] [--yes]"
+argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Fan review out across every reviewer surface into one ranked report
 ---
 
-**Arguments.** `[mode] [--yes]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes
+**Arguments.** `[run-everything|fix] [--yes]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes
 
 ## Repository context. Gather first
 

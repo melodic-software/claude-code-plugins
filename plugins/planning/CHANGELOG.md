@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.3] - 2026-10-01
+## [0.59.4] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,19 @@ All notable changes to the `planning` plugin are documented here. Format follows
   correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
   wording kept, and its record says no docs page states it, with the trigger "a docs page starts
   covering it".
+
+## [0.59.3] - 2026-10-02
+
+### Fixed
+
+- `design-handoff` no longer declares an `argument-hint`: it takes no arguments, and its body
+  now says so.
+- The `audit-answers` and `devils-advocate` argument hints use Claude Code's official bracket
+  notation: each drops the prose after the grammar, which the skill body now carries.
+- The `design` and `interview` argument hints use Claude Code's official bracket notation: each
+  lists the actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.59.2] - 2026-10-01
 

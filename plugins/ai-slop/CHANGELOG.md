@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.4] - 2026-10-01
+## [0.12.5] - 2026-10-01
 
 ### Changed
 
@@ -10,6 +10,15 @@
   decisions. No rule, default or severity changes: the em-dash rule stays zero-tolerance by default.
 - The feeling-instead-of-mechanism rubric item is restated in our own example and tests, and the
   archiewood/claudeisms ratios now sit behind a pointer to that repository instead of in the catalog.
+
+## [0.12.4] - 2026-10-02
+
+### Fixed
+
+- The `audit` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.12.3] - 2026-10-01
 

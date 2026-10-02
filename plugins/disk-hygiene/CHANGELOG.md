@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.8] - 2026-10-02
+
+### Fixed
+
+- The `clean` `argument-hint` uses Claude Code's official bracket notation: the `[options]`
+  placeholder is replaced by the literal `[--quiet]` flag, and the other flags stay in the body's
+  full form.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.42.7] - 2026-10-01
 
 ### Changed

@@ -19,6 +19,13 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   command builds nothing at install time. A missing tool is never installed, and a run whose
   install changed the tree (status or diff) stops and reports the paths.
 
+## [0.13.19] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.13.18] - 2026-09-28
 
 ### Changed

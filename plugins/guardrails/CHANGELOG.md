@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.6] - 2026-10-01
+## [0.46.7] - 2026-10-01
 
 ### Changed
 
@@ -12,6 +12,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the three advisory verify guards, and the `node` and `jq` prerequisites are each a decision with
   a pointer to the anchored hooks section, an as-of date and a recheck trigger, and none of the
   page's wording is stored. No guard behavior changes.
+
+## [0.46.6] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.46.5] - 2026-10-01
 

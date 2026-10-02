@@ -60,6 +60,13 @@ only after that version increases.
   the upstream checklist by pointer, and renames its groups (frontmatter and body, scripts, evals
   and testing); its eval follows the new names.
 
+## [0.16.3] - 2026-10-02
+
+### Fixed
+
+- The `fable-5`, `repo-sweep`, and `update` argument hints use Claude Code's official bracket
+  notation: each keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.16.2] - 2026-10-01
 
 ### Changed

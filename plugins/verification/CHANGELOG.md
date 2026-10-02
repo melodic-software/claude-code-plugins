@@ -22,6 +22,15 @@ All notable changes to the `verification` plugin are documented here. Format fol
 - `confirm` pins `effort: high` in its frontmatter, and its outcome report states the effort level
   the run used.
 
+## [0.6.16] - 2026-10-02
+
+### Fixed
+
+- The `confirm` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
+  the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.6.15] - 2026-10-01
 
 ### Changed

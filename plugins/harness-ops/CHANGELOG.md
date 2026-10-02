@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.0.2] - 2026-10-01
+## [1.0.3] - 2026-10-01
 
 ### Changed
 
@@ -23,6 +23,15 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [1.0.2] - 2026-10-02
+
+### Fixed
+
+- The `machine-profile` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [1.0.1] - 2026-10-01
 

@@ -1,11 +1,11 @@
 ---
 description: "Find and stress-test rhymes with Pat Pattison's discipline. Identity check, stability-tier walk, vowel triangle, song-world vocabulary, mosaic/multi-word rhyme, cliche scan. Internal generation is primary (8-15 labeled candidates, never a single winner); the Datamuse API supplements for breadth/syllables/semantic field. Use when: 'rhyme this', 'find rhymes for X', 'why does this rhyme feel weak', 'mosaic rhyme', 'rhyme this proper noun', 'rhyme like Eminem', 'syllable count of X', 'rhyme worksheet'. For meter/scansion use /songwriting:meter-prosody; for line-volume dumps use /songwriting:co-write line-brainstorm."
-argument-hint: "[action] [args]"
+argument-hint: "[rhyme|mosaic|types|datamuse|worksheet|dictionary|strategy] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[action] [args]`. e.g., /songwriting:rhyme, /songwriting:rhyme mosaic "Texas", /songwriting:rhyme worksheet Full actions in body
+**Arguments.** `[rhyme|mosaic|types|datamuse|worksheet|dictionary|strategy] [args]`. e.g., /songwriting:rhyme, /songwriting:rhyme mosaic "Texas", /songwriting:rhyme worksheet Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 

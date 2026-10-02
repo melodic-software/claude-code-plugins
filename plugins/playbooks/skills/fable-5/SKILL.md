@@ -1,6 +1,6 @@
 ---
 description: "When the bundled claude-api skill resolves in this session, prefer it for current model, price, and API facts and the cost audit; this skill for judgment and mechanisms around them. Claude Fable 5's operating doctrine, standing instructions arming the session, with chapters loading at their triggers: calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of substantive engineering work, or before multi-step work where judgment matters. Also hosts per-model adaptation chapters (current: Fable 5 and 5.1, Opus 5.5, Sonnet 5.5; fallback-only: Opus 5, Opus 4.8, Sonnet 5): use when running on a model other than Fable 5, or adapting prompts to one: 'fable 5.1 adaptation', 'opus 5.5 adaptation', 'sonnet 5.5 adaptation', 'model delta', 'model adaptation chapter'."
-argument-hint: "[full | <chapter>]"
+argument-hint: "[full|<chapter>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1] - 2026-10-01
+## [0.17.2] - 2026-10-01
 
 ### Changed
 
@@ -18,6 +18,15 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   usage.
 - `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
   page's workaround section.
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- The `migrate` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.17.0] - 2026-10-01
 

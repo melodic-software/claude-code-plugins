@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.24] - 2026-10-01
+## [0.25.25] - 2026-10-01
 
 ### Changed
 
@@ -10,6 +10,13 @@
 - **`reference/parent-contract.md` states the new pin** and converts its harness-facts, credential
   and permission-grant records to the links-only shape: our decision, a pointer to the exact
   section, an as-of date and a recheck trigger.
+
+## [0.25.24] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
 
 ## [0.25.23] - 2026-10-01
 

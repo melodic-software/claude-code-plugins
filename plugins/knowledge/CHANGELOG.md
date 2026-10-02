@@ -46,6 +46,18 @@ only after that version increases.
   dispatch, where effort is the agent's pin or the session level; below `medium`, Phase 4 stops
   and reports the level instead of verifying.
 
+## [0.14.16] - 2026-10-02
+
+### Fixed
+
+- The `course-digest` `argument-hint` uses Claude Code's official bracket notation: it lists the
+  actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `video-digest` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`. The action router gains an empty-argument row:
+  with no argument the skill names its actions and asks which to run.
+
 ## [0.14.15] - 2026-10-01
 
 ### Changed
