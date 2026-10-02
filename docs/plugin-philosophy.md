@@ -316,7 +316,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Adopt on need | No additional constraints. | 2026-07-17 |
-| [`bin/`](https://code.claude.com/docs/en/plugins/components#executables) | Adopt on need | A plugin's executables reach the Bash tool's `PATH` for as long as the plugin stays on; names must be collision-safe (plugin-prefixed), because the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never depend on bare-name invocation: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
+| [`bin/`](https://code.claude.com/docs/en/plugins/components#executables) | Decline | claude.ai organization plugin sync rejects a plugin with a top-level `bin/` (#5850), and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds one. Put executables under `scripts/` and invoke them via `${CLAUDE_PLUGIN_ROOT}/scripts/`. Bare-name invocation was never dependable either: `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), and a `bash "…/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
 | [Plugin `settings.json`](https://code.claude.com/docs/en/plugins/components#default-settings) | `agent` prohibited by default | Supports only `agent` and `subagentStatusLine`. `agent` takes over the main thread, a consumer-hostile default for a marketplace plugin; any exception requires documented justification in the plugin README. | 2026-07-17 |
 | [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
@@ -424,7 +424,7 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
   hasn't written it down.
 
 Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror, a hook-only export: a Bash
-call made by a skill and monitor processes do not receive it. A non-hook consumer (a `bin/` script,
+call made by a skill and monitor processes do not receive it. A non-hook consumer (a script,
 a skill-invoked shell script) takes the value through non-sensitive `${user_config.*}` substitution
 in skill or agent content, an explicit argument, or a component field that substitutes it. The
 custom environment variable is retired when the migration lands.
@@ -1118,7 +1118,10 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 ### Model tiers
 
 The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
-above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
+above, never below; tedious or mechanical preparation may drop one tier.** An implementation phase
+the plan routes `sonnet` as well-scoped may also drop one tier, to `implementation:scoped-implementer`
+at `medium` effort, the [effort floor](#effort-floor); unrouted or complex phases stay on
+`implementation:implementer` at the strong tier. The heavy default must be
 explicit: every agent definition in this repository pins `model`, because an agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
@@ -1227,7 +1230,9 @@ current alias; raise the pair together, and note frontmatter binds a floor, sinc
 raise above it stays a per-invocation override at the dispatch site). That pair is the binding, not the
 recheck list: the trigger above re-audits **every** agent-frontmatter `model` value in this
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
-list restated here.
+list restated here. Outside the pair, `plugins/implementation/agents/scoped-implementer.md` binds
+the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
+well-scoped phases, dispatched with an explicit per-invocation `model`.
 
 That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
@@ -1373,9 +1378,10 @@ kind of work, and never below `medium` for work that changes code or verifies a 
 [effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `implementer`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`; `songwriting` `object-writer`. Four pin `effort: medium`: `planning`
+`plugin-quality` `auditor`; `songwriting` `object-writer`. Five pin `effort: medium`: `planning`
 `plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`,
-because it checks one phase against acceptance criteria fixed before it runs; and `review`
+because it checks one phase against acceptance criteria fixed before it runs; `implementation`
+`scoped-implementer`, because a plan routes only well-scoped work to it; and `review`
 `ecosystem-specialist` and `discovery` `explorer`, because their work is clearly scoped tool use,
 running a repository's declared commands and reading and indexing a scope. No pin goes below
 `medium`, because a low-effort executor stops detecting that it is stuck. A frontmatter pin is what

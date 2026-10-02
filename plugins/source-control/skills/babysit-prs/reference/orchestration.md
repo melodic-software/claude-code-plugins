@@ -47,7 +47,7 @@ question: **is there a delta since the last snapshot that a worker could actuall
 previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
-the direct merge gate itself (`bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners
+the direct merge gate itself (`bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners
 <watched-owners>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
 and conversation resolution), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
@@ -826,7 +826,7 @@ Each worker must:
   (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
-  through `bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
+  through `bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
   --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed,
@@ -914,7 +914,7 @@ Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-rev
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
-outdated-thread list above, via bash "<plugin-root>/bin/source-control-babysit-resolve-thread"
+outdated-thread list above, via bash "<plugin-root>/scripts/source-control-babysit-resolve-thread"
 owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins
 @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
 taken from that list; a

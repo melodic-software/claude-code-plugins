@@ -53,8 +53,8 @@ else
 fi
 
 echo "== guarded-wrapper behavior =="
-MERGE_WRAPPER="../../../bin/source-control-babysit-merge"
-RESOLVE_WRAPPER="../../../bin/source-control-babysit-resolve-thread"
+MERGE_WRAPPER="../../../scripts/source-control-babysit-merge"
+RESOLVE_WRAPPER="../../../scripts/source-control-babysit-resolve-thread"
 
 check_exit() {
   local label="$1" want="$2"

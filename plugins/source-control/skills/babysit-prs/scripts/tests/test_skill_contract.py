@@ -435,7 +435,7 @@ class SkillContractTests(unittest.TestCase):
 
     def test_lane_script_prerequisite_names_its_actual_evidence(self) -> None:
         # A denial of a raw wildcarded-interpreter form says nothing about the
-        # sanctioned bin/-path form; the section must keep saying so, and must
+        # sanctioned scripts/-path form; the section must keep saying so, and must
         # keep naming classifyAllShell as the mechanism that actually makes
         # reachability an operator-configuration property, or it reverts to
         # overclaiming a repro.
