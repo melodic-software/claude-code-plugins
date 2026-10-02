@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/config-root.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Shared config-root resolver for the layered `.claude/<surface>` cascade.
 # Sourced by scripts; run directly for the model-run skills:

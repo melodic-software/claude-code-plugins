@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "multi-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Workflow and model-routing guidance for multi-agent work: assess (workflow, subagent, or single context for a task, with a Workflow availability check), route (the role map a workflow script reads from args, resolved through a config cascade, with a guard that keeps fan-out stages off a frontier model), audit-defaults (rechecks each bundled default against its upstream pointer and proposes changes), and setup (checks the resolved map and writes a user, team or local layer after a preview and an explicit yes).",
   "author": {
     "name": "Melodic Software",

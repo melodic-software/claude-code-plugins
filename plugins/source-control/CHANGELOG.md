@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.73.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `config-root.sh`, `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks and lib.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
 ## [0.73.0] - 2026-10-02
 
 ### Changed

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/parse-concern-value.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Resolve a single scalar value from a concern file the way every
 # consuming plugin must: quote-aware, comment-safe, whitespace-trimmed,
 # trailing-slash-normalized — with a caller-supplied fallback for the case the
@@ -14,8 +16,8 @@
 # SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh at the marketplace repo
 # root. The copies materialized into consuming plugins exist because installed
 # plugins are cache-isolated and must be self-contained — never edit a copy.
-# Edit the source and run scripts/sync-parse-concern-value.sh; CI rejects
-# drifted copies.
+# Edit the source and run scripts/sync-shared-copies.sh; CI rejects drifted
+# copies.
 #
 # Usage:
 #   parse-concern-value.sh <concern-file> <key> [fallback]

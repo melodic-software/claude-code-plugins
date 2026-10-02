@@ -191,7 +191,7 @@ Three rules bind every read, whichever rung it comes from:
 | 3: mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
 
 `lib/fetch-docs.sh` is the rung-1 implementation. A plugin carries it as `scripts/fetch-docs.sh`,
-and `scripts/sync-fetch-docs.sh` keeps every carried copy identical to `lib/`. It reads a page
+and `scripts/sync-shared-copies.sh` generates every carried copy from `lib/`. It reads a page
 verbatim to a file and writes a manifest, and it applies the identity check
 [below](#a-200-does-not-mean-you-got-the-page-you-asked-for) as the **index-listed identity rule**:
 a slug the publisher's index does not list is unread, never fetched. A **publisher profile**

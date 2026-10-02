@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.8] - 2026-10-02
+
+### Changed
+
+- **Shared `parse-concern-value.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's skills.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.24.7] - 2026-10-02
 
 ### Fixed

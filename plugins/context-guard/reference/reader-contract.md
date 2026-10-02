@@ -558,8 +558,8 @@ and managed settings, where `statusLine` is also a valid key.
 
 - The plugin's own zone-crossing hooks (first shipped consumer, see "Zone-crossing hooks").
 - The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
-  decisions, conservative on `unknown`). It resolves the zone through a synced byte-identical copy
+  decisions, conservative on `unknown`). It resolves the zone through a generated copy
   of this plugin's `scripts/context-zone.sh`. Its co-located `zones-inline-drift.test.sh` lane,
   which runs in the repo's plugin-gate CI job, checks that resolver copy and the evidence-degraded
-  marker path in its skill body against the values this file prints. Byte-identity of the copy
-  against the canonical resolver is a separate gate, `scripts/sync-context-zone.sh --check`.
+  marker path in its skill body against the values this file prints. That the copy matches
+  its canonical, `lib/context-zone.sh`, is a separate gate, `scripts/sync-shared-copies.sh --check`.

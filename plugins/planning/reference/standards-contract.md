@@ -2,6 +2,9 @@
 standards-contract: 1.0.1
 ---
 
+<!-- GENERATED from docs/conventions/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
+
 # Standards Convention
 
 A versioned, marketplace-wide contract for how skills discover and load a

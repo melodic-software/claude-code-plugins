@@ -5,6 +5,15 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `context-zone.sh`, `resolve-convention-home.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The zones-inline-drift suite comment now names that generator.
+
 ## [0.12.2] - 2026-10-02
 
 ### Changed
