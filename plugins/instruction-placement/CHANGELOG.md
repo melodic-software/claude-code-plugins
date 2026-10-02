@@ -26,7 +26,9 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   own `discover.sh` model, and a closing operator question catches any loading path not listed.
   User settings and plugins are read under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` and
   `CLAUDE_CODE_PLUGIN_CACHE_DIR` rather than a fixed `~/.claude`, and the operator is asked whether
-  contributors set either.
+  contributors set either, a question that also covers condition A's user `CLAUDE.md`. Under
+  `disableAllHooks` or `allowManagedHooksOnly`, the loader counts as present only on v2.1.287 or
+  later, where built-in mods are verified to keep running.
 
 ### Fixed
 

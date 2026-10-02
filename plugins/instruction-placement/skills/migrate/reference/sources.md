@@ -376,6 +376,13 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `AGENTS.md` directly." The plugin loads files; nothing upstream says it moves content or writes
   a shim, and no page states how a disabled built-in plugin is recorded in settings, which is why
   condition C reads `enabledPlugins` for whichever ID the inventory prints rather than one spelling.
+  Condition C's hook policy: under `allowManagedHooksOnly`, "Mods built into Claude Code keep
+  running"; under `disableAllHooks`, "Mods built into Claude Code keep running in both cases"; and
+  the mods overview's "Mods built into Claude Code" table lists `cc-plugin-agents-md`. The memory
+  page's unavailable list no longer names either setting. An earlier revision did (this
+  repository's `plugins/harness-config/reference/agents-md-liveness.md`, as of 2026-09-21, quotes
+  "You or your organization set `disableAllHooks` or `allowManagedHooksOnly`"), and no changelog
+  entry dates the change, so the skill trusts the exemption only from 2.1.287.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 by the rung-1
   route (50,074 bytes; slug in `llms.txt`; first heading "How Claude remembers your project"),
   sections "When Claude Code reads AGENTS.md" (line 363), "Choose which instruction files load"
@@ -384,7 +391,11 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   AGENTS.md differs from CLAUDE.md" (line 416), "Remove an earlier AGENTS.md workaround" (line
   426) and "Share one file with other coding tools" (line 435). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
   2026-10-01, `pluginConfigs`: "Built-in plugins store their options under the same key with an
-  `@builtin` suffix". The
+  `@builtin` suffix"; fetched again 2026-10-02 (416,824 bytes, first heading "All settings"),
+  "What runs under `allowManagedHooksOnly`" (line 4008) and "`disableAllHooks`" (line 4021).
+  [plugins/mods/overview](https://code.claude.com/docs/en/plugins/mods/overview), fetched
+  2026-10-02 (23,269 bytes, first heading "Mods overview"), "Mods built into Claude Code" (line
+  220). The
   [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry for 2.1.277
   reads "Added AGENTS.md support: in a project with no CLAUDE.md, Claude Code reads AGENTS.md
   instead; change it under \"Project instructions\" in `/config`", and the 2.1.281 entry reads
@@ -399,7 +410,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `--binary-only` run printed `id` `cc-plugin-agents-md@builtin`, alias `agents-md`, `in_loader`
   true, `load` `unconditional`, `gated` true on `tengu_agents_md_mod` with default true; that is
   one build's reading, not the decision's input.
-- **As of**: 2026-10-01, Claude Code 2.1.287.
+- **As of**: 2026-10-01, Claude Code 2.1.287; the hook-policy exemption 2026-10-02, same build.
 - **Recheck trigger**: the memory page changes the "When Claude Code reads AGENTS.md" list, the
   "Choose which instruction files load" table, the "When AGENTS.md support is unavailable" list,
   the difference table, the "Share one file with other coding tools" conditions, or the shim
@@ -410,4 +421,6 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   comes
   to state when a subdirectory's `AGENTS.md` loads under `claude-md-and-agents-md` or whether an
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
-  disabled; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.
+  disabled; settings-reference or the mods overview changes whether built-in mods keep running
+  under `disableAllHooks` or `allowManagedHooksOnly`, or stops listing `cc-plugin-agents-md` as
+  one; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.
