@@ -176,14 +176,8 @@ user. Unattended runs stop before the commit.
 
 ## Next
 
-/source-control:pull-request create
-
-Opens the batch's draft pull request with `pr-body.md` as its body.
-
-A deletion can leave an export, global or wrapper whose only caller was the deleted test. Cleanup
-leaves production code alone, because the replay refuses when it changes; after the merge,
-`/code-tidying:audit-dead-code <folder's production paths>` (if installed) reports those as
-test-only usage.
+- Open the batch's draft pull request with `pr-body.md` as its body: /source-control:pull-request create
+- A deletion left an export, global or wrapper with no production caller: /code-tidying:audit-dead-code
 
 ## Gotchas
 
@@ -196,5 +190,7 @@ test-only usage.
 - **The gate compares sets, not tests.** A weakened test passes the gate when another changed test
   in the batch now kills the same mutants. Each rewrite is still
   reviewed on its own row; per-test kill attribution is not built.
+- **Cleanup never edits production code.** The replay refuses when production changes, so an export
+  whose only caller was a deleted test stays until a separate dead-code pass removes it.
 - **A record outlives nothing.** Production code that changes between the two runs makes the replay
   refuse. Finish a batch before rebasing it.

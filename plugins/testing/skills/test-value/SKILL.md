@@ -126,8 +126,3 @@ Also judgment only:
   source: a change detector, unless the list is an external contract (`cant-fail-ok: <why>`), and a
   capability flag is tested by exercising what it promises;
 - a test kept alive only to preserve an export, global or wrapper that no production caller uses.
-
-Matt Pocock's `tdd` skill and his 2026 talk supply most of these examples. This skill corrects
-him in five places: T1 and T2 are change detectors, not tests that cannot fail; call counts are
-right at unmanaged boundaries; a direct database read is state verification; a reviewed snapshot
-is a real oracle; and refactoring stays in the loop.

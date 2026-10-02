@@ -25,6 +25,11 @@ All notable changes to the `testing` plugin are documented here. Format follows
   finding step 1 did not list. Its `## Next` points at `/code-tidying:audit-dead-code` for exports a
   deletion leaves with no caller.
 
+### Removed
+
+- Provenance notes in `test-value` (where its examples came from and where it departs from that
+  source) and `write` (the upstream skill a rule came from). The rules stand on their own.
+
 ## [0.19.1] - 2026-10-02
 
 ### Fixed
