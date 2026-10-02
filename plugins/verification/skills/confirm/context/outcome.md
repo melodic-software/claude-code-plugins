@@ -62,6 +62,7 @@ Justified additions are fine but should be noted. Unjustified additions should b
 - Plan items: X/Y complete (Z%)
 - Deviations: N (all justified / N unjustified)
 - Scope additions: N (M justified)
+- Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
 ```
 
 ### 5. Verdict
