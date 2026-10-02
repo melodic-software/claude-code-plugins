@@ -99,8 +99,9 @@ none, and `effort: medium` still applies. Basis: the costs page's
 coding tasks well"; Opus for complex architectural decisions or multi-step reasoning); the
 [effort table](https://code.claude.com/docs/en/model-config#adjust-effort-level), whose `medium`
 row covers day-to-day engineering with a clear scope; the
+[Sonnet 5.5 effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5)
+("start with `medium` for well-specified tasks and move to `high` for harder or longer ones"); the
 [subagent model order and allowlist substitution](https://code.claude.com/docs/en/sub-agents#choose-a-model);
-the effort-pin owner's ruling of 2026-10-01; `phase-verifier` already runs at `effort: medium`. As
-of: 2026-10-01. Recheck: the Agent tool gains a per-spawn effort parameter, the costs page changes
-its model split, the effort table changes its `medium` row, or the `sonnet` alias moves to a new
-model.
+the effort-pin owner's ruling of 2026-10-01. As of: 2026-10-01. Recheck: the Agent tool gains a
+per-spawn effort parameter, the costs page changes its model split, the effort table or the Sonnet
+5.5 effort guidance changes its `medium` advice, or the `sonnet` alias moves to a new model.
