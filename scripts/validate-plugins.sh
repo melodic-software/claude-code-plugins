@@ -5,6 +5,8 @@
 # per-plugin pass catches a bad plugins/<name>/.claude-plugin/plugin.json; the
 # --strict repo-root pass validates the catalog manifest itself, where a bad
 # marketplace.json entry surfaces (it is not caught by per-plugin validation).
+# A plugin that ships a mod also gets `claude plugin test` (scripts/test-plugin-mods.sh),
+# which skips when the CLI predates mods.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
@@ -111,6 +113,8 @@ done
 
 echo "=== validate --strict (catalog manifest) ==="
 render_validate . --strict || failed=1
+
+bash scripts/test-plugin-mods.sh || failed=1
 
 if [[ $failed -ne 0 ]]; then
   echo "Plugin validation failed." >&2
