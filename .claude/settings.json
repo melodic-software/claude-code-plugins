@@ -31,18 +31,23 @@
   },
   "skillListingBudgetFraction": 0.05,
   "enabledPlugins": {
+    "ai-briefing@melodic-software": true,
     "animation@melodic-software": false,
     "docs-naming@melodic-software": true,
     "dometrain-mcp@melodic-software": false,
+    "dometrain@melodic-software": true,
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
     "harness-config@melodic-software": true,
     "harness-memory@melodic-software": true,
     "harness-ops@melodic-software": true,
+    "kindle-dedrm@melodic-software": true,
+    "miro@melodic-software": true,
     "multi-agent@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false,
-    "retro-audio@melodic-software": false
+    "retro-audio@melodic-software": false,
+    "songwriting@melodic-software": true
   },
   "extraKnownMarketplaces": {
     "melodic-software": {
