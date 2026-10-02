@@ -49,11 +49,11 @@ sql_path() { # native duckdb.exe cannot read MSYS paths; double quotes for a SQL
   printf '%s\n' "${p//\'/\'\'}"
 }
 
-command -v duckdb >/dev/null 2>&1 || die "duckdb not found"
 store="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"
 for f in cc-metrics.json cc-logs.json; do
   [[ -f "$store/$f" ]] || die "no store file at $store/$f"
 done
+command -v duckdb >/dev/null 2>&1 || die "duckdb not found"
 
 err="$(mktemp)"
 trap 'rm -f "$err"' EXIT

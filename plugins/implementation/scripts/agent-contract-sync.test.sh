@@ -90,8 +90,7 @@ perturb() {
   local dir="$TMP/$1" out
   mkdir -p "$dir"
   cp "$IMPL" "$dir/a.md"
-  cp "$SCOPED" "$dir/b.md"
-  sed -i "$3" "$dir/b.md"
+  sed "$3" "$SCOPED" >"$dir/b.md"
   if out="$(check_pair "$dir/a.md" "$dir/b.md")"; then
     bad "$1: check passed a perturbed copy"
   elif [[ "$out" == *"$2"* ]]; then

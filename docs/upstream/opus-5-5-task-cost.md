@@ -20,7 +20,7 @@ costs on Opus 5.5". It follows the record shape of [opus-5-5-usage-guide.md](opu
 and [claude-dev-sonnet-5-5-blog.md](claude-dev-sonnet-5-5-blog.md), and the
 [upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Each row maps
 one post item to the official docs section this repository trusts for it, and says what the
-repository does. The post's figures appear only in this file, each labelled vendor-reported. Every
+repository does. The post's figures appear only in this file, each labeled vendor-reported. Every
 place where the post and the docs, or two docs pages, disagree is in [Conflicts](#conflicts).
 
 ## Status
@@ -82,7 +82,7 @@ or stops covering the item.
 |---|---|---|---|---|---|
 | A task costs turns times the context each turn resends, so the same per-token price can cost different amounts per task | [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session) | No repository-authored cost explanation (Q36, which replaced Q27). Phase 2 links this section from `plugins/playbooks/reference/prompt-caching.md` (session-side section) and `plugins/planning/skills/draft-goal-condition/SKILL.md` (Gotchas) | ADOPTED (Q36) | 2026-10-01 | Section moves |
 | "A retry costs more than those savings" (vendor-reported) | [Manage costs: Work efficiently on complex tasks](https://code.claude.com/docs/en/costs#work-efficiently-on-complex-tasks) | Not restated and not made a rule (Q29) | NOT ADOPTED (Q29) | 2026-10-01 | Section moves, or a docs page states the comparison |
-| The figures are illustrations; check the docs and your own math | [Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs) | Phase 2 adds `.claude/rules/cost-claims.md`, a path-scoped rule: cost claims point at the costs doc and the pricing page and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labelled vendor-reported. No audit check (Q28) | ADOPTED (Q28) | 2026-10-01 | Section moves |
+| The figures are illustrations; check the docs and your own math | [Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs) | Phase 2 adds `.claude/rules/cost-claims.md`, a path-scoped rule: cost claims point at the costs doc and the pricing page and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported. No audit check (Q28) | ADOPTED (Q28) | 2026-10-01 | Section moves |
 
 ## What does a task cost?
 
@@ -266,7 +266,7 @@ Decisions on this branch:
   delivery: Q43, Q45).
 - Q2: mechanism choices were made at planning, not in the interview.
 - Q6: Phase 3 amends research outcome-gate row 7 in `plugins/discovery/skills/research/SKILL.md`
-  so a claim labelled MEDIUM or LOW and listed as a gap is not an accepted claim, after checking
+  so a claim labeled MEDIUM or LOW and listed as a gap is not an accepted claim, after checking
   the row's other callers.
 - Q34: Phase 7 queues "Using Claude Code: Spending your effort" and "Lessons from building Claude
   Code: Prompt caching is everything" in the docpage-digest queue as recorded, not run. Their two

@@ -1,5 +1,5 @@
 ---
-description: "Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labelled vendor-reported"
+description: "Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -24,7 +24,7 @@ conversation, is fine; the number is the docs' to state.
 On a subscription the `/usage` session cost is a list-price estimate of the work, not a bill, as
 the costs page says. Do not present it as spend.
 
-One exception: a record under `docs/upstream/` may list a post's figures, each labelled
+One exception: a record under `docs/upstream/` may list a post's figures, each labeled
 vendor-reported, because recording what the post said is its job. Guidance elsewhere links the
 record and copies none of its figures.
 
