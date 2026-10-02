@@ -50,8 +50,8 @@ upward only.
 
 `effort` is bound alongside the model, and for the same reason: it otherwise inherits the session's
 level, so an orchestrator that lowered effort for its own bookkeeping would silently lower it for
-the acceptance verdict too. The binding is `high`, the level for work where verification matters,
-one level above the implementer's `medium`.
+the acceptance verdict too. The binding is `high`, the model-config row the pointer below names,
+above the implementer's `medium`.
 
 - **Pointer:** the `high` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);

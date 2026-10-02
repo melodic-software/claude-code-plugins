@@ -1139,8 +1139,7 @@ Four rules decide a lane's model, applied in this order:
   for rule 4,
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
 - **As of:** 2026-10-02.
-- **Recheck trigger:** next model release, which the cost page itself asks for, or any cited
-  section changes.
+- **Recheck trigger:** next model release, or any cited section changes.
 - **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
   subagent verdict and the work it checks is our reading, not a source statement. What counts as an
   objective failure signal under rule 4 (a build, a test run, a schema or exit-code check) is also
@@ -1432,9 +1431,8 @@ passes no effort.
   named pin.
 - **Sources agree:** the newer effort post,
   <https://claude.dev/blog/spending-your-effort/> (correlate only), and model config's
-  choose-an-effort-level section now put scoped implementation work on the `medium` row and
-  verification work on the `high` row, so the implementer pins `medium` and its verifier `high`.
-  Model config stays the source we follow if they diverge again, because a docs section outranks a
+  choose-an-effort-level section no longer disagree on implementation work. We pin the implementer
+  `medium` and its verifier `high`, the rows we read model config as giving each. Model config stays the source we follow if they diverge again, because a docs section outranks a
   blog post under the
   [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
   2026-10-02. Recheck trigger: next model release, or either page is revised on that point.
@@ -1457,7 +1455,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `review` `doc-drift-detector` | `opus` | `high` | `high` | Drift verdict |
 | `review` `ecosystem-specialist` | `sonnet` | `medium` | `medium` | Runs a repository's declared build, test and lint commands |
 | `review` `security-reviewer` | `opus` | `high` | `high` | Security verdict |
-| `songwriting` `object-writer` | `opus` | `medium` | `medium` | Creative generation, which no row names; the `medium` choice, the model's default, is our judgment |
+| `songwriting` `object-writer` | `opus` | `medium` | `medium` | Creative generation, which no row names; the `medium` choice is our judgment |
 
 - **Pointer:** for the rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);

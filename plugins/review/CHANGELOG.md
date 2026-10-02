@@ -8,7 +8,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 ### Changed
 
 - **`code-reviewer`, `ci-log-auditor` and `doc-drift-detector` pin `model: opus`, up from
-  `sonnet`.** A judgment verdict is never on a weaker model than the work it checks. All six
+  `sonnet`.** A judgment verdict is never on a weaker model than the work it checks. All five
   verdict agents keep `effort: high` and carry a pin record pointing at the model-config `high` row
   and the advisor capability rule, as of 2026-10-02, rechecked at the next model release.
   `ecosystem-specialist` stays `sonnet` at `medium`: its build, test and lint commands are the

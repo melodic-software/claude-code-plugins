@@ -8,7 +8,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 ### Changed
 
 - **`object-writer` pins `effort: medium`, down from `high`.** Creative generation is not
-  verification, so it runs at the model's default level.
+  verification; the `medium` choice is our judgment.
 
 ## [1.4.40] - 2026-10-02
 

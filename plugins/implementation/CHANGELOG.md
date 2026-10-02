@@ -7,12 +7,16 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Changed
 
-- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work,
-  the level model config's `medium` row and the cost guide's starting point give it. The pin stays
-  explicit so an orchestrator's lowered effort does not reach the worker.
-- **`phase-verifier` pins `effort: high`, up from `medium`.** Verification is the work the `high`
-  row names. Its model rule now reads as never weaker than the work it checks, and a phase routed
+- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work.
+  The pin record points at the model-config `medium` row and the cost guide's per-task comparison,
+  as of 2026-10-02, rechecked at the next model release. The pin stays explicit so an
+  orchestrator's lowered effort does not reach the worker.
+- **`phase-verifier` pins `effort: high`, up from `medium`.** Its pin record points at the
+  model-config `high` row and the advisor capability rule. Its model rule now reads as never weaker than the work it checks, and a phase routed
   upward passes the verifier the same tier.
+- **`implement-dispatch` points at the "Model tiers" ladder for the verifier's model raise.** The
+  raise itself is unchanged. `implementer`'s model-binding note no longer assumes a fast
+  orchestrator root.
 
 ## [0.20.1] - 2026-10-02
 

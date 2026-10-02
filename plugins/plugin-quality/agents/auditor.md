@@ -15,7 +15,7 @@ dispatch prompt: the evidence-packet path, the audit target (`<plugin>[:<compone
 component-type lens file path(s) to apply.
 
 **Model and effort pin.** This agent returns an audit verdict, so it pins `model: opus` and
-`effort: high`: a verdict runs at the level for work where verification matters, on a model at
+`effort: high`, the model-config row the pointer below names, on a model at
 least as capable as the one that produced the work it checks.
 
 - **Pointer:** the `high` row of

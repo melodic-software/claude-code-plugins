@@ -425,9 +425,10 @@ The reasons behind each binding:
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
-- **fast binds `sonnet`.** We bind the fast tier to `sonnet` for its speed and cost relative to the
-  tiers above, on mechanical items whose output an objective check decides. The tier has nothing to do with Claude Code's fast mode, a separate
-  speed setting for Opus (for fast mode, see
+- **fast binds `sonnet`.** We bind the fast tier to `sonnet` for mechanical items whose output an
+  objective check decides, where its speed and cost against the tiers above (see the models
+  overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
+  for Opus (for fast mode, see
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
 - **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
   having a smaller context window and an older knowledge cutoff than these lanes need (for both,
