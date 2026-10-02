@@ -1,11 +1,13 @@
-// What src/launch.ts, the entry point Claude Code starts, runs. Installs the server's npm dependencies from the committed
-// lockfile into ${CLAUDE_PLUGIN_DATA} on first launch, then runs the TypeScript source with
-// Node's type stripping. Rules: docs/conventions/on-demand-dependencies/README.md.
+// What src/launch.ts, the entry point Claude Code starts, runs. Installs the server's npm
+// dependencies from the committed lockfile into ${CLAUDE_PLUGIN_DATA} on first launch, then
+// runs the TypeScript source with Node's type stripping.
+// Rules: docs/conventions/on-demand-dependencies/README.md.
 //
 // Layout under the data directory:
 //   mcp-server/<lock hash>/node_modules   runtime dependencies, from `npm ci --omit=dev`
-//   mcp-server/<lock hash>/app-<src hash>  a copy of src/, so Node resolves its imports
-//                                         from the node_modules above it
+//   mcp-server/<lock hash>/app-<hash>     a copy of src/ plus the current package.json, keyed
+//                                         by both; Node resolves its imports from the
+//                                         node_modules above it
 // Both are built in a `.partial-<pid>` sibling and renamed into place, so an interrupted run
 // leaves nothing that looks complete and concurrent first launches end with one good copy.
 // Nothing here writes to stdout: it is the MCP stdio channel.
@@ -21,6 +23,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -65,17 +68,33 @@ export function installDir(dataDir: string): string {
   return join(dataDir, "mcp-server", digest([readFileSync(join(SERVER_DIR, "package-lock.json"))]));
 }
 
-export function appDir(target: string): string {
+const currentManifest = (): Buffer => readFileSync(join(SERVER_DIR, "package.json"));
+
+// The source copy carries its own package.json, so Node reads the package scope (`type`,
+// `imports`, `exports`) from the current manifest even when an unchanged lockfile reuses an
+// install made from an older one. Dependencies still resolve from the node_modules above it.
+export function appDir(target: string, manifest = currentManifest()): string {
   const parts = runtimeSources().flatMap((path) => [relative(SRC_DIR, path), readFileSync(path)]);
-  return join(target, `app-${digest(parts)}`);
+  return join(target, `app-${digest(["package.json", manifest, ...parts])}`);
 }
 
-export function installCommand(target: string): string {
-  const q = (path: string) => `'${path.replaceAll("\\", "/").replaceAll("'", `'\\''`)}'`;
-  const sources = MANIFESTS.map((name) => q(join(SERVER_DIR, name))).join(" ");
+export function installCommand(target: string, platform = process.platform): string {
+  const sources = MANIFESTS.map((name) => join(SERVER_DIR, name));
   const [ci, ...flags] = NPM_CI_ARGS;
+  if (platform === "win32") {
+    // Windows PowerShell 5.1 has no `&&`; Stop turns each cmdlet failure into a halt.
+    const q = (path: string) => `'${path.replaceAll("'", "''")}'`;
+    return (
+      `$ErrorActionPreference = 'Stop'; ` +
+      `Remove-Item -LiteralPath ${q(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
+      `New-Item -ItemType Directory -Force -Path ${q(target)} | Out-Null; ` +
+      `Copy-Item -LiteralPath ${sources.map(q).join(", ")} -Destination ${q(target)}; ` +
+      `npm ${ci} --prefix ${q(target)} ${flags.join(" ")}`
+    );
+  }
+  const q = (path: string) => `'${path.replaceAll("\\", "/").replaceAll("'", `'\\''`)}'`;
   return (
-    `rm -rf ${q(target)} && mkdir -p ${q(target)} && cp ${sources} ${q(target)}/ ` +
+    `rm -rf ${q(target)} && mkdir -p ${q(target)} && cp ${sources.map(q).join(" ")} ${q(target)}/ ` +
     `&& npm ${ci} --prefix ${q(target)} ${flags.join(" ")}`
   );
 }
@@ -173,13 +192,15 @@ export function ensureDependencies(target: string): boolean {
   return true;
 }
 
-export function ensureSource(target: string): string {
-  const app = appDir(target);
-  const ready = (dir: string) => existsSync(join(dir, "index.ts"));
+export function ensureSource(target: string, manifest = currentManifest()): string {
+  const app = appDir(target, manifest);
+  const ready = (dir: string) =>
+    existsSync(join(dir, "index.ts")) && existsSync(join(dir, "package.json"));
   if (!ready(app)) {
-    buildAtomically(app, ready, (partial) =>
-      cpSync(SRC_DIR, partial, { recursive: true, filter: isRuntimeSource }),
-    );
+    buildAtomically(app, ready, (partial) => {
+      cpSync(SRC_DIR, partial, { recursive: true, filter: isRuntimeSource });
+      writeFileSync(join(partial, "package.json"), manifest);
+    });
   }
   return app;
 }

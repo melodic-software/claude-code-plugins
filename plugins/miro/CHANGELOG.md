@@ -12,9 +12,12 @@ All notable changes to the `miro` plugin are documented here. Format follows
   Claude Code now starts `server/src/launch.ts`, which runs
   `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` from the committed lockfile into
   `${CLAUDE_PLUGIN_DATA}/mcp-server/<lockfile hash>/` once, then runs the TypeScript source with
-  Node's type stripping. Later launches reuse the install. The first launch needs `npm` on `PATH`
-  and network access; when the install fails, the server exits and its stderr names the cause and
-  the shell line that repairs it; the README and the `setup` skill say where to read it.
+  Node's type stripping from a copy of the source that carries the current `package.json`, keyed
+  by both, so a manifest change takes effect even when the lockfile does not change. Later
+  launches reuse the install. The first launch needs `npm` on `PATH` and network access; when the
+  install fails, the server exits and its stderr names the cause and the line that repairs it (a
+  POSIX shell line, or a Windows PowerShell line on Windows); the README and the `setup` skill
+  say where to read it.
   `server/dist/index.min.js`, `build.mjs`, `esbuild`, and the CI
   `verify-bundle` drift gate are removed; CI now starts the server the same way, twice, from an
   empty data directory. The plugin now follows the

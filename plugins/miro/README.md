@@ -140,8 +140,10 @@ first launch and then starts `index.ts`:
   `package.json` and `package-lock.json` in
   `${CLAUDE_PLUGIN_DATA}/mcp-server/<lockfile hash>/`, so a lockfile change installs beside the
   old set instead of over it.
-- The source is copied into `app-<source hash>/` under that directory, so Node resolves the
-  server's imports from the `node_modules` above it.
+- The source and the current `package.json` are copied into `app-<hash of both>/` under that
+  directory, so Node resolves the server's imports from the `node_modules` above it and reads
+  its package scope from the current manifest, even when an unchanged lockfile reuses the
+  install.
 - Both are built in a `.partial-<pid>` sibling and renamed into place, so an interrupted launch
   leaves nothing that looks complete and two sessions starting at once end with one good copy.
 - On any failure the launcher exits with the cause and the repair command on stderr. It never

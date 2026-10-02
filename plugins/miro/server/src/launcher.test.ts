@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, utimesSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,7 +18,7 @@ import {
   installCommand,
   installDir,
 } from "./launcher.ts";
-import { LAUNCH, seedInstall, tempDataDir } from "./test-support/install.ts";
+import { LAUNCH, SERVER_DIR, seedInstall, tempDataDir } from "./test-support/install.ts";
 
 const temps: (() => void)[] = [];
 afterEach(() => {
@@ -67,5 +74,51 @@ describe("later launches", () => {
     expect(existsSync(join(app, "index.ts"))).toBe(true);
     expect(existsSync(join(app, "launcher.test.ts"))).toBe(false);
     expect(existsSync(join(app, "test-support"))).toBe(false);
+    expect(readFileSync(join(app, "package.json"), "utf8")).toBe(
+      readFileSync(join(SERVER_DIR, "package.json"), "utf8"),
+    );
+  });
+
+  it("put a changed package.json beside the source, with the same lockfile", () => {
+    const target = seedInstall(dataDir());
+    const manifest = JSON.parse(readFileSync(join(SERVER_DIR, "package.json"), "utf8"));
+    const changed = `${JSON.stringify({ ...manifest, imports: { "#probe": "zod" } }, null, 2)}\n`;
+
+    const app = ensureSource(target, Buffer.from(changed));
+
+    expect(app).not.toBe(ensureSource(target));
+    expect(readFileSync(join(app, "package.json"), "utf8")).toBe(changed);
+    // The source copy's own manifest scopes `imports`, and a bare dependency still resolves
+    // from the install's node_modules above it.
+    writeFileSync(
+      join(app, "probe.ts"),
+      'import { z } from "zod";\nimport * as viaImports from "#probe";\nprocess.stdout.write(String(z === viaImports.z));\n',
+    );
+    const run = spawnSync(process.execPath, [join(app, "probe.ts")], { encoding: "utf8" });
+    expect(run.stderr).toBe("");
+    expect(run.stdout).toBe("true");
+  });
+});
+
+describe("repair command", () => {
+  const target = "/data/it's a dir/mcp-server/abc";
+
+  it("is a POSIX shell line off Windows, quoting a space and a single quote", () => {
+    const command = installCommand(target, "linux");
+    expect(command).toContain(`rm -rf '/data/it'\\''s a dir/mcp-server/abc'`);
+    expect(command).toContain("npm ci --prefix '/data/it'\\''s a dir/mcp-server/abc' --omit=dev");
+    expect(spawnSync("bash", ["-n", "-c", command]).status).toBe(0);
+  });
+
+  it("is a Windows PowerShell 5.1 line on Windows, with no &&", () => {
+    const winTarget = "C:\\Users\\O'Brien Dev\\data\\mcp-server\\abc";
+    const command = installCommand(winTarget, "win32");
+    const quoted = "'C:\\Users\\O''Brien Dev\\data\\mcp-server\\abc'";
+    expect(command).not.toContain("&&");
+    expect(command.startsWith("$ErrorActionPreference = 'Stop'; ")).toBe(true);
+    expect(command).toContain(`Remove-Item -LiteralPath ${quoted} -Recurse -Force`);
+    expect(command).toContain(`New-Item -ItemType Directory -Force -Path ${quoted}`);
+    expect(command).toContain(`-Destination ${quoted};`);
+    expect(command).toContain(`npm ci --prefix ${quoted} --omit=dev --ignore-scripts`);
   });
 });
