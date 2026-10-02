@@ -386,7 +386,8 @@ Claude Code alias (see "Alias binding" below):
 
 Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
 pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
-recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
+recommended shape); a reviewer or verifier is never weaker than the implementer, in model tier or
+in effort level; a security-surface
 work class routes to the frontier tier unconditionally.
 
 ### Alias binding

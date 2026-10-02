@@ -290,13 +290,12 @@ so nothing substitutes a token in them before it reaches the Bash tool.
   verification contract (what a tag asserts and what evidence each tag class needs) is owned by
   the profile. See the active profile's filter section. An inferred tag that skips the
   profile's evidence rule is exactly how stale guidance enters a corpus.
-- **Know where each agent's effort comes from.** A plain Agent tool call carries no effort
-  setting, so that agent runs at its subagent definition's `effort` or, without one, the
-  session's. A Workflow `agent()` call can set its own effort per call (the `workflow-authoring`
-  reference documents the option). Check the route live before relying on a "high effort"
-  verification claim, and record the effective effort and its source in verification records.
-  - **Pointer**: for a subagent definition's `effort` field, see
-    <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>.
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: the Agent tool gains a per-call effort parameter, or that field's
-    precedence over the session effort changes.
+- **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
+  effort option; an Agent tool dispatch runs at the agent's pin or, with no pin, the session's.
+  Check the route live before
+  relying on a "high effort" verification claim, and record the effective effort and its source in
+  verification records.
+  - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
+    record, in the marketplace repository; no docs page covers per-call Workflow effort.
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: a docs page starts covering it.

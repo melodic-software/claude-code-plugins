@@ -18,6 +18,8 @@ changed.
 - **Provider gap (§5).** The self-paced `/loop` shape is restated against the provider support the
   scheduled-tasks page now documents.
 - **Recheck trigger.** Any new model on Claude Code's model page re-reads the §3 alias binding.
+- **Reviewer floor (§3).** A reviewer or verifier is never weaker than the implementer in effort
+  level as well as model tier.
 
 ## [9.4.0] - 2026-09-29
 

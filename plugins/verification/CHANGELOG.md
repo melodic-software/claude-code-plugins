@@ -19,6 +19,8 @@ All notable changes to the `verification` plugin are documented here. Format fol
   `toolchain:check`. Its `/run` and `/verify` records are links-only.
 - `confirm`'s native `/verify` record notes that a recorded project verify skill can answer to
   `/verify` in place of the bundled one, so the skill never assumes which one resolves.
+- `confirm` pins `effort: high` in its frontmatter, and its outcome report states the effort level
+  the run used.
 
 ## [0.6.14] - 2026-10-01
 

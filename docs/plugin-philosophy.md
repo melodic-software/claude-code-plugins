@@ -1286,10 +1286,10 @@ same depth on two models):
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
   instead, and why, are listed under [pinned agents](#effort-tiers). An orchestrator skill
-  whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
-  pin governs the orchestrating conversation, and whether it propagates to subagents spawned
-  while the skill is active is undocumented, so treat propagation as unknown alongside the cache
-  caveat below.
+  whose consequential work executes in generic dispatches reaches them through its own pin: a
+  skill-level pin governs the orchestrating conversation and, by our probe, the subagents it
+  dispatches (the skill-pin record under [override levers](#effort-tiers)); no docs page covers
+  that reach, so the cache caveat below still applies.
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code or verifies a change
   (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
@@ -1396,6 +1396,36 @@ holds a named agent's lane, since an Agent-tool dispatch passes no effort.
   [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
   2026-10-01. Recheck trigger: either page is revised on that point.
 
+**Per-pin rows.** Each pinned agent outside `plugins/implementation` follows one row of model
+config's effort-level table, read for the model its `model` alias resolves to. Review, verification
+and verdict lanes follow the `high` row; well-specified mechanical work follows the `medium` row.
+
+| Agent | Model | Pin | Row | Why that row |
+|---|---|---|---|---|
+| `discovery` `explorer` | `sonnet` | `medium` | `medium` | Reads and indexes a scope it is handed |
+| `discovery` `intent-tracer` | `opus` | `high` | `high` | Reconstructed rationale feeds decisions |
+| `discovery` `research-verifier` | `opus` | `high` | `high` | Verdict on a research artifact |
+| `discovery` `researcher` | `opus` | `high` | `high` | Research that feeds decisions |
+| `planning` `plan-reviewer` | `opus` | `medium` | `medium` | A review lane held to `medium` by its [recorded exception](#named-agent-bar), not by the review rule |
+| `plugin-quality` `auditor` | `opus` | `high` | `high` | Audit verdict |
+| `review` `architecture-guardian` | `opus` | `high` | `high` | Review verdict |
+| `review` `ci-log-auditor` | `sonnet` | `high` | `high` | Audit verdict on a CI run |
+| `review` `code-reviewer` | `sonnet` | `high` | `high` | Review verdict |
+| `review` `doc-drift-detector` | `sonnet` | `high` | `high` | Drift verdict |
+| `review` `ecosystem-specialist` | `sonnet` | `medium` | `medium` | Runs a repository's declared build, test and lint commands |
+| `review` `security-reviewer` | `opus` | `high` | `high` | Security verdict |
+| `songwriting` `object-writer` | `opus` | `high` | `high` | Creative generation, which no row names; the `high` choice is our judgment |
+
+- **Pointer:** for the rows, see
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  for the model each alias resolves to, see
+  [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for
+  each model's default level, see
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** a row named in the table changes, the default effort of the model an agent's
+  alias resolves to changes, or an agent's `model` or `effort` changes.
+
 **Override levers.** We name two levers for a user who wants a pinned agent at another level.
 `CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin. A Workflow
 script's `agent()` call passes `opts.effort`, and `opts.model`, for that call alone. A
@@ -1419,6 +1449,37 @@ covers per-call effort for `agent()`; for the call itself, see
 - **As of:** 2026-10-01.
 - **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call or
   for the Agent tool.
+
+**Where per-task effort is set.** We set a task's effort through Workflow's per-call effort
+option. An Agent-tool dispatch of a named agent runs at that agent's pin, and a generic one at the
+session level. A lane's `--effort` sets the session level, so it covers the orchestrator's own
+turns and its generic dispatches; it does not move a named agent's pin. Workflow scripts this
+repository ships never pass an effort below a named agent's pin, and omit effort on a call to a
+named agent to keep the pin. A call that names no agent passes an explicit level.
+
+- **Pointer:** for the `--effort` flag, see
+  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags); for a
+  subagent's `effort` field and its rank over the session level, see
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+  No docs page covers per-call effort for a Workflow `agent()` call as of 2026-10-02; our Workflow
+  probe above is the record.
+- **As of:** 2026-10-02.
+- **Recheck trigger:** a docs page starts covering it, the Agent tool gains an effort parameter, or
+  either section above changes how the flag or the field ranks.
+
+**A skill's pin reaches the subagents it dispatches.** We treat a skill's frontmatter `effort` pin
+as applying to the main turns while that skill is active and to the subagents it dispatches.
+
+- **Pointer:** our probe, two headless sessions on Claude Code 2.1.285. Session
+  `ec6654fe-076a-4c3d-970c-363339cb63b3` ran a throwaway plugin skill pinned `effort: high` under
+  `--effort low` and ran at `high` on three main turns and two subagent turns; control session
+  `908560cb-3f30-4157-a672-5e00112bba0a` ran without the pin and stayed at `low` throughout. The
+  throwaway plugin no longer exists, so the session ids are the artifact. For the skill field, see
+  [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference);
+  no docs page covers the pin's reach into dispatched subagents.
+- **As of:** 2026-09-29.
+- **Recheck trigger:** the Claude Code CLI version moves past 2.1.285, or a docs page starts
+  covering pin propagation to subagents.
 
 **Configurability gap.** No per-agent user setting exists: a user cannot move one named agent's pin
 without editing its definition, and we have not confirmed that a plugin `userConfig` value can
@@ -1463,6 +1524,17 @@ for the ultracode setting, see
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 As of: 2026-10-01. Recheck trigger: any new model on Claude Code's model page, or a new way to set
 or save a level).
+
+One exception, scoped to frontmatter: a skill or agent may pin `effort`, because the pin holds only
+while that skill or agent is active and never changes the user's session or saved level.
+
+- **Pointer:** for the skill field, see
+  [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference);
+  for the agent field, see
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** either field starts persisting a level past the active skill or agent, or
+  stops overriding the session level.
 
 ### Effort floor
 

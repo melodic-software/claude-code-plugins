@@ -38,6 +38,8 @@ only after that version increases.
   pages, names the model-config section "Work with Fable" with its link, and gives its no-docs-
   page note a recheck trigger. The project-root rule and the Codex sandbox note state the
   mechanism without a past-run anecdote.
+- docpage-digest's effort gotcha points at the marketplace's record on where per-task effort is
+  set: Workflow's per-call option, or an agent's pin for an Agent tool dispatch.
 
 ## [0.14.15] - 2026-10-01
 
