@@ -15,6 +15,8 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir/.."
+# shellcheck source=lib/gate-entry.sh
+. "$script_dir/lib/gate-entry.sh" || exit 2
 
 registry="scripts/shared-copies.txt"
 self="scripts/sync-shared-copies.sh"
@@ -122,10 +124,7 @@ check_copy() {
 
 check_bump() {
   local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed
-  if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-    echo "error: base ref $base does not resolve to a commit." >&2
-    exit 2
-  fi
+  gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
   for src in "${srcs[@]}"; do
     src_changed=0
     while IFS= read -r copy; do
