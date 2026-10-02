@@ -246,6 +246,25 @@ class CaptureTest(unittest.TestCase):
             self.assertNotEqual(seen["served"], scene.parent)
             self.assertEqual(seen["served_files"], ["scene.html"])
 
+    def test_debugger_wait_outlasts_a_slow_cold_start_but_not_an_exited_browser(self):
+        clock = [0.0]
+
+        def sleep(seconds):
+            clock[0] += seconds
+            if clock[0] >= 30:
+                (profile / "DevToolsActivePort").write_text("4321\n/devtools/browser/x\n")
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(capture.time, "time", lambda: clock[0]), \
+                mock.patch.object(capture.time, "sleep", sleep):
+            profile = pathlib.Path(tmp)
+            self.assertEqual(capture._devtools_port(profile, SimpleNamespace(poll=lambda: None)), 4321)
+            (profile / "DevToolsActivePort").unlink()
+            clock[0] = 0.0
+            with self.assertRaisesRegex(RuntimeError, "exited 1 before the debugger opened"):
+                capture._devtools_port(profile, SimpleNamespace(poll=lambda: 1, returncode=1))
+            self.assertEqual(clock[0], 0.0)
+
     def test_example_exposes_capture_contract(self):
         text = (CAMPFIRE / "scene.html").read_text()
         self.assertIn("window.__pixelScene", text)
