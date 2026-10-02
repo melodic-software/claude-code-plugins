@@ -5,11 +5,11 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.1.0] - 2026-10-01
+## [1.2.0] - 2026-10-01
 
 ### Added
 
-- **`audit-instructions` rows I36 and I37** (`criteria.md` 1.25.0), both scoped to `sonnet-5-5`:
+- **`audit-instructions` rows I36 and I37** (`criteria.md` 1.26.0), both scoped to `sonnet-5-5`:
   I36 flags an instruction that limits tool or search use as a general policy on a component that
   has a search or retrieval tool; I37 flags model-visible text added after every tool result in an
   interactive session without a condition.
@@ -56,6 +56,19 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - audit-instructions I14 no longer says only the built-in Explore and Plan agents skip `CLAUDE.md`:
   a custom agent with `omitClaudeMd: true` does too, so a rule restated for it is not flagged as
   redundant. The record names the sub-agents page's internal disagreement on that field.
+
+## [1.1.0] - 2026-10-01
+
+### Added
+
+- **`audit-instructions` recommends `/instruction-placement:migrate plan` when project instructions
+  still live in `CLAUDE.md`.** `criteria.md` 1.25.0 adds the AGENTS.md content-home advisory: one
+  line in the report's Routing subsection per tracked project `CLAUDE.md` that migrate's plan
+  covers (never `.claude/CLAUDE.md`) whose content is anything other than `@AGENTS.md`. It keeps the `CLAUDE.md` shim, leaves shim removal to migrate's
+  `cutover-check`, routes Claude-specific text to `.claude/rules/` with a `paths:` glob, and sends
+  progressive-disclosure questions to `/docs-hygiene:audit-progressive-disclosure`. Both sibling
+  skills are named only when their plugin is installed. It is not a finding: no Finding ID,
+  severity, or diff. `## Next` names the migrate skill.
 
 ## [1.0.0] - 2026-10-01
 
