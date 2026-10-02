@@ -628,7 +628,8 @@ class TestFlowQuery(unittest.TestCase):
                 'var Pt=Object.prototype.hasOwnProperty;Pt.call(o.constructor.prototype,"k");',
                 False,
             ),
-            ('var d=G(Object.prototype,"__proto__");', False),
+            ('var d=G(Object.prototype,"__proto__");', True),
+            ('function G(o,k){o.includes=f}G(Array.prototype,"__proto__");', True),
             ("delete o.__proto__;o.__proto__=null;", False),
             ("for(;n=Reflect.getPrototypeOf(n);)if(n===Object.prototype)break;", False),
         ):

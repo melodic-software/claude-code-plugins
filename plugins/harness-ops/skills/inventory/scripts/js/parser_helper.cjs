@@ -905,9 +905,7 @@ const MUTATORS = new Set(["defineProperty", "defineProperties", "assign", "setPr
 // destructuring source, or a discarded value, directly or through `?:`,
 // `||`, `&&` and `,`. An alias, and the parameter of a function declared
 // in the module that receives one, is followed through its variable,
-// every read of it held to the same uses. `G(Object.prototype,"__proto__")`
-// with any callee is taken as the es-shims descriptor read it is in the
-// bundle. Any other use counts as a change.
+// every read of it held to the same uses. Any other use counts as a change.
 //
 // A value that may be some other prototype (`x.__proto__`,
 // `Object.getPrototypeOf(x)`, `x.constructor.prototype`) counts only when
@@ -1019,10 +1017,6 @@ function patchesBuiltins(ast) {
       case "BinaryExpression":
         return EQUALITY.has(p.operator);
       case "CallExpression":
-        // `gOPD(Object.prototype,"__proto__")`, the es-shims dunder-proto
-        // idiom, whose callee is another module's factory result: taken as
-        // the descriptor read it is.
-        if (p.arguments.length === 2 && p.arguments[0] === n && p.arguments[1].value === "__proto__") return true;
         return p.arguments.includes(n) && reads(p.callee, p.arguments.indexOf(n));
       case "ArrayExpression": {
         const holder = parents.get(p);

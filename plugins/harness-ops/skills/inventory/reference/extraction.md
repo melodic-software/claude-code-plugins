@@ -424,10 +424,8 @@ an equality or `in` operand, an argument of a built-in that only reads (`Object.
 `Object.hasOwn`, `x.hasOwnProperty.call`), a `new WeakSet([...])` element, a destructuring
 source, or a parameter or alias whose every use is one of these; any other use counts as a
 change. `x.__proto__`, `Object.getPrototypeOf(x)` and `x.constructor.prototype` count when written
-through (`[].__proto__.includes=f`) or handed to a built-in that changes its first argument. One
-idiom is taken as read without following its callee: `G(Object.prototype,"__proto__")`, the
-es-shims descriptor read, whose `G` is another factory's result in the 2.1.284 to 2.1.287
-bundles. An export also stays partial when a file its importers name in `from"..."` is taken
+through (`[].__proto__.includes=f`) or handed to a built-in that changes its first argument. An
+export also stays partial when a file its importers name in `from"..."` is taken
 whole anywhere: `import*as N from`, `export*from`, `import(...)`, `require(...)` or
 `import.meta.require(...)` with that file's literal path, since a computed read (`N[k]`) or an
 enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches the export without naming it.
