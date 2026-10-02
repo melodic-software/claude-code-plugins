@@ -28,8 +28,8 @@ versioned; this log records each change to it.
 - **Three amendments.** The boundary rule now names video and audio as views and
   emits person-facing views interactive by default; dual-audience reports still
   offer. The generator-skill ban becomes "no generic HTML skill; thin
-  intent-named skills allowed". The pull-request digest ships `medium: artifact`
-  as its default.
+  intent-named skills allowed". The pull-request digest takes `medium: artifact`
+  as its default once its own external-publication review signs off.
 - **Record bundle.** The new
   [record-bundle convention](../record-bundle/README.md) holds a record with its
   diagrams and media; views are written outside it. Its links stay inside the
