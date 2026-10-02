@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.6] - 2026-10-02
+
+### Fixed
+
+- `write-for-agents` no longer gives a cream background as its example of a design exclusion.
+
 ## [0.24.5] - 2026-10-02
 
 ### Changed

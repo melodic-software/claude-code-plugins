@@ -3,6 +3,20 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-10-02
+
+### Fixed
+
+- The terminal pin for pull-request diffs, fetched content and other repositories' files no
+  longer says it lasts "until the escape helper ships" (the helper has shipped). It lasts until
+  the lane is wired through the helper.
+- The chrome's ivory background is no longer on the styles-to-leave-out lists, which now name only layout habits.
+
+### Changed
+
+- `visualize` and `education:eli5` name each other: this skill picks a form for what is already
+  in the conversation, and `eli5` builds a zero-knowledge picture explainer.
+
 ## [0.9.0] - 2026-10-02
 
 ### Changed
