@@ -1,6 +1,6 @@
 # Share code across plugins by vendoring with a sync gate, not a shared package
 
-- Status: accepted
+- Status: accepted; amended 2026-10-02 (copies are generated output, see the amendment below)
 - Date: 2026-07-04
 
 ## Decision
@@ -31,16 +31,19 @@ Alternatives weighed (docs verified 2026-07-03):
   <https://code.claude.com/docs/en/plugin-dependencies>). **Recheck trigger:** Claude Code
   ships a documented dependency-path variable; that would also allow sharing the lib beyond this
   marketplace.
-- **Marketplace-internal symlinks: deferred.** Documented mechanism: a symlink from a plugin to a
-  file elsewhere in the same marketplace is dereferenced at install, copying the target's content into
-  the cache: native SSOT with no sync script
+- **Marketplace-internal symlinks: rejected (amended 2026-10-02, was deferred).** Documented
+  mechanism: a symlink from a plugin to a file elsewhere in the same marketplace is dereferenced at
+  install, copying the target's content into the cache: native SSOT with no sync script
   (<https://code.claude.com/docs/en/plugins-reference#share-files-within-a-marketplace-with-symlinks>).
-  Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
-  installs (breaking the local development loop above) and are fragile to author and clone on Windows,
-  the primary environment on both the authoring and consuming side. **Recheck trigger:** the dev
-  loop stops depending on `--plugin-dir`, the documented `--plugin-dir` / local-path handling changes
-  so marketplace symlinks are no longer skipped (the upstream premise this deferral rests on), or the
-  Windows constraint lifts.
+  Rejected because default Git for Windows does not create symlinks: it ships with symlink support
+  disabled (<https://gitforwindows.org/symbolic-links.html>), and with `core.symlinks` false Git
+  checks a symlink out as a small plain file containing the link text
+  (<https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks>), both fetched
+  2026-10-02. Windows is the primary environment on both the authoring and consuming side, so a
+  default clone there would carry text stubs where the library should be. Such symlinks are also
+  *skipped* for `--plugin-dir` / local-path installs, which breaks the local development loop.
+  **Recheck trigger:** Git for Windows enables symlinks by default, and the documented
+  `--plugin-dir` / local-path handling stops skipping marketplace symlinks.
 - **Copies with only a byte-identity CI gate: subsumed.** The chosen shape is that gate plus a
   canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
 
@@ -79,6 +82,37 @@ obligates a plugin `version` bump, since the version is the update cache key. (`
 `repo-analysis` + `video-digestion`, shared by its `video-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
+
+## Amendment (2026-10-02): one canonical source, every copy generated
+
+This amends the decision above; it does not supersede it. Each shared library has exactly one
+canonical source, and every per-plugin copy is **generated output**, not a hand-synced duplicate:
+
+- `scripts/shared-copies.txt` registers each copy as a `<canonical> <copy>` line.
+  `scripts/sync-shared-copies.sh` is the one regen command: it rewrites every registered copy, and
+  running it twice produces no diff. Run it after editing a canonical; a contributor may wire it, or
+  its `--check`, into a local pre-commit hook.
+- A generated copy is the canonical with a two-line header after any shebang line. The header says
+  the file is generated, names its canonical source and the regen command, and tells the reader to
+  edit the canonical instead. The header names no plugin, so copies of one canonical stay
+  byte-identical to each other, which is what `check-cross-plugin-source-drift.sh` compares.
+- CI only verifies. `sync-shared-copies.sh --check` fails when any copy differs from what its
+  canonical generates, and it never writes; CI never runs the regen and never commits.
+- The version-bump gate stays. `sync-shared-copies.sh --check-bump <base-ref>` fails a change to a
+  canonical when any carrying plugin's manifest version did not move, with the same sync-only
+  CHANGELOG wording as above and the same exemption for a plugin absent at the base ref.
+- `--print-manifest` publishes one `src` block per canonical, followed by its `copy` lines, and
+  `scripts/affected-tests.sh` reads every block for its shared-lib fan-out.
+
+Settled with this amendment and not reopened by it: copies, not symlinks (the alternative above);
+no dependency plugin (the alternative above); and no versioning of the copy or registry format,
+since a format change migrates every copy in the same change.
+
+The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) is the pilot: its hand-run
+`scripts/sync-html-escape.sh` is deleted and its copy is generated. The other `sync-*.sh` clusters
+keep their byte-identical copies and their scripts until each moves to the registry in its own
+change; a cluster is migrated by registering its copies, regenerating, deleting its script and its
+test, and pointing its CI steps at the generator.
 
 ## Addendum (2026-09-07): one sync lane with N steps, not one lane per library
 

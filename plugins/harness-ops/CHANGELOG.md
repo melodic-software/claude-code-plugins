@@ -3,6 +3,146 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows a spread array across modules.** Where `--reader=parser` used to
+  read a spread list as partial on any reference outside its safe list, the helper's new `flow`
+  op follows the array through aliases, returns to every call, arguments into the callee's
+  parameter, and the callbacks of array methods that never change it (`some`, `forEach`, `map`,
+  `reduce` and the like), resolving which function a callback or callee holds back through
+  parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
+  an export to every importer and re-export, and an argument to an imported function into the
+  module its `from` path names in Bun's module table. The list stays literal only when every hop
+  is known not to change it. These keep it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
+  `instanceof`; a flow too deep for the helper's stack, which no longer crashes it; an exported
+  name any module reads by name as a property (`ns.pY`); an export whose module's file is loaded
+  whole anywhere (`import*as`, `export*from`, `import(...)`, `require(...)`,
+  `import.meta.require(...)`), or is unknown; and a sink for a name the walk trusted as built in.
+- **A sink rule on trusted names.** The flow reports the names it trusts (each method it calls on
+  the array, each name it relies on the prototypes not holding, and the lookups of a coercion),
+  and the helper's new `sinks` op finds any write of one on an object not provably fresh: a member
+  write of the name or with a computed key that names nothing, the name as a string or `Symbol.x`
+  argument to any call, an object-literal key given to `Object.assign` or `defineProperties`, a
+  definer (`Object.defineProperty`, `Reflect.set`, `__defineGetter__`) given a computed key or
+  read other than as a direct callee, an alias of `Object` or `Reflect`, a prototype swap, and
+  code built from a string (global `eval` other than a direct call, the `Function` constructor).
+- `read_bundle` names each module's `/$bunfs/root/...` file from Bun's standalone module table.
+  New helper ops `keys_used`, `exports` and `sinks` back the checks, and `reader.flow_lookups`
+  counts the flow lookups. `reference/extraction.md` lists the assumptions that remain unchecked.
+
+### Changed
+
+- `--reader=regex` stays the inventory's default. The parser reader is selectable with
+  `--reader=parser` (or `--reader=compare`, which runs both) and needs Node.js and npm only when
+  selected; it installs its pinned packages on first use, and without them reports
+  `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
+  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
+  when a parser reader is selected.
+- The changelog skill's per-release native-drift pass keeps taking its values from the default
+  regex reader and adds a `--reader=compare --self-check` guard: a value the regex and parser
+  readers disagree on for a new build is filed as a reader-divergence item. Without Node.js or npm
+  the guard records "compare guard unavailable: install Node.js and npm" and files nothing, since
+  the regex values stand. The parser installs into the inventory's fallback,
+  `<config dir>/plugins/data/harness-ops-melodic-software`, the directory `${CLAUDE_PLUGIN_DATA}`
+  names for this plugin.
+- Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
+  2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
+  every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14
+  times. No value differs between the readers.
+- Under the parser, `var pY=[...];export{pY}` with no importer reads partial: with no module
+  table its file is unknown, so a namespace of it cannot be ruled out.
+
+## [2.4.3] - 2026-10-02
+
+### Changed
+
+- `lanes`' example config runs the `babysit` merge lane on `opus`, the strong-tier orchestrator
+  root `docs/conventions/loop-lane/README.md` sets, instead of `sonnet`. The launcher tests assert
+  the new root.
+
+## [2.4.2] - 2026-10-02
+
+### Fixed
+
+- `audit-performance` limits the truthiness trap to the observer-agents flag and dates the
+  documented subagent defaults. `lanes` dates the effort row and points at upstream for what
+  `ultracode` does to the effort level.
+
+## [2.4.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's repair command is valid on Windows. When the reader reports
+  itself broken, `install_command` now takes the platform (default `sys.platform`) and on `win32`
+  prints a Windows PowerShell 5.1 line (`$ErrorActionPreference = 'Stop'`, `Remove-Item`,
+  `New-Item`, `Copy-Item`, `npm.cmd ci --prefix`, `;` chaining, single quotes doubled) instead of the
+  POSIX `rm -rf ... && mkdir -p ... && cp ...` line. The POSIX form is unchanged elsewhere, and
+  the node-missing report still prints no command.
+
+## [2.4.0] - 2026-10-02
+
+### Added
+
+- **`/harness-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
+
+## [2.3.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
+  `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
+  a write (init, assign, compound, update, destructure, for-in-of), a function or class
+  declaration of the same name, and every read that may change the value. Only two reads are
+  known safe: a spread into an array or a call, and a member read in a listed value-only position
+  (`x.length` as an operand, a condition, an argument or an initializer; any other position counts
+  as an escape). Every other read counts, by kind: a member write or `delete`, any method call,
+  whether called, optionally called, tagged (`` x.pop`a` ``) or constructed (a method may return
+  the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
+  a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
+  an export). Each comes with its kind and offset. A module that calls `eval` directly answers
+  nothing. Under the parser, `_written_elsewhere` (the spread check) and the check for a
+  reassigned parameter use it instead of the regex search, and `reader.write_lookups` counts the
+  lookups. `--reader=regex` is unchanged and stays the default.
+
+### Changed
+
+- Under `--reader=parser`, the Explore and Plan agents' `disallowed_tools` read as partial on
+  2.1.284 to 2.1.287 (the regex reader reads a literal). Their spread array is exported from its
+  module, and on 2.1.286 an importer aliases it (`Gr=pY`) and returns it from a function whose
+  caller passes it to `.some(t)` callbacks, so the array reaches code that could change it.
+
+### Fixed
+
+- Under `--reader=parser`, a spread of an array that may be changed later reads as partial instead
+  of the initializer (finding 3 on #5640, and the alias shapes the #5828 verifier found):
+  `pY.push("B")`, `pY.length=0`, `g(pY)`, `var q=pY;q.push("B")`, `(pY||[]).push("B")`,
+  `function r(){return pY}`, and the other shapes above. The regex reader still reads these as
+  the literal.
+- Under `--reader=parser`, a function declaration named after a parameter counts as reassigning
+  it: `function hL(e){function e(){}}` no longer binds the call's argument to `e`.
+- Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
+  partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
+- Under `--reader=parser`, assignment text inside a string or comment is no write:
+  `var pY=[...];var s="let pY;pY=[\"B\"]"` keeps `...pY` literal.
+- Under `--reader=parser`, a nested function's own parameter of the same name no longer counts as
+  reassigning the outer parameter, so the bound argument stands:
+  `function ff(x){function h(x){x=1}return x}` called as `ff("REAL")` reads `REAL`.
+
 ## [2.2.0] - 2026-10-02
 
 ### Changed

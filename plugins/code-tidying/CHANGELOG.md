@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1] - 2026-10-02
+
+### Fixed
+
+- `batch-simplify` repo mode points at the sub-agents page for the concurrent subagent limit
+  (including its exemptions) and the spawn-depth behavior, each with an as-of date.
+
 ## [0.26.0] - 2026-10-02
 
 ### Changed

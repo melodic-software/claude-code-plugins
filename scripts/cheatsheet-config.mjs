@@ -41,7 +41,6 @@ export const EXCLUDED_PLUGINS = new Map([
   ["kindle-dedrm", "personal-domain plugin"],
   ["knowledge", "personal-domain plugin"],
   ["machine-health", "personal-domain plugin"],
-  ["provenance", "deprecated shim"],
   ["songwriting", "personal-domain plugin"],
   ["x", "personal-domain plugin"],
 ]);

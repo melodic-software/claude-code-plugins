@@ -94,6 +94,7 @@ over a corpus, so it was measured once on this repository before shipping:
 | Real, after independent re-derivation | **1** |
 
 The one is `docs/hook-migration-audit.md`, which no file in the repository references under any form.
+It was deleted in #5790.
 Both rejections are more instructive than the survivor. `docs/adr/0006-...` is cited twice, but under
 the `ADR 0006` form rather than the filename form, caught by this lane's own query-form-variation
 rule. `docs/ai-briefing-design.md` is cited by `docs/migration-playbook.md`, and was missed because

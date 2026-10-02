@@ -45,7 +45,7 @@ brief as arguments: the namespaced form `playground:playground` is the reliable
 address for a plugin skill; the bare `playground` form resolves only while no other
 skill carries that name. Pass the request
 as stated; the upstream skill owns template choice and generation. When the user names
-styles to leave out (a cream background, pill-shaped buttons), carry that list in the
+styles to leave out (italic accent words, pill-shaped buttons), carry that list in the
 brief; when they dislike a choice in the generated page, add it to the list and invoke
 again. A general "make it look less generic" only swaps one default for another. If
 the invocation is refused, do not retry blind: tell the user the skill is installed but this session

@@ -36,6 +36,11 @@ Opus 4.8 moved the default effort UP. The old deliberate `xhigh` choice is close
 
 ## 80. Dynamic Workflows: Days or Weeks Instead of Quarters
 
+> **Superseded:** availability, opt-in, launch approval per permission mode, and run limits have
+> changed since this tip; auto mode is one way to avoid prompts, not a requirement. For the
+> current rules, see [dynamic workflows](https://code.claude.com/docs/en/workflows). As of
+> 2026-10-02; recheck when that page's "Behavior and limits" or approval sections change.
+
 Research preview (May 28, 2026) for tasks too big for one pass. Trigger: say **"use a workflow"** (refined Jun 9, since bare "workflow" had too many false positives, Section 93). Orchestrator shape, not peer-to-peer agent teams: a top-level Claude kicks off N tasks (100s possible); each task fans out implementer → two verifiers → fixer, looping until verifiers pass. Save it for the biggest jobs: migrations, refactors, perf optimization, batch bug fixes, catalogue-and-categorize sweeps. Token-intensive; don't burn it on a 20-line tweak. Auto mode is not optional. One permission prompt freezes a hundred-agent run. Cat Wu's example: catalogued 100s of A/B flags for stale rollouts in <10 minutes via parallel investigation.
 
 ## 81. Why Workflows: Three Failure Modes They Fix
@@ -44,7 +49,7 @@ From Thariq Shihipar + Sid Bidasaria (the engineers who built them): the default
 
 ## 82. Workflow Primitives, and Dynamic vs Static
 
-A dynamic workflow is a JavaScript file: `agent(prompt, opts?)` (options: `schema`, `model`, `isolation: "worktree"`, `agentType`), `parallel([fns])` (barrier: waits for all), `pipeline(items, ...stages)` (no barrier: items stream through stages independently). Workflows are resumable: interrupt and resume picks up where it left off. Dynamic beats static (Agent SDK / `claude -p`): static harnesses must handle every edge case so they end up generic; Opus 4.8+ writes a custom harness tailor-made for the case.
+A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barrier: waits for all) and `pipeline()` (no barrier: items stream through stages independently). For the current primitives and `agent()` options, see [What the saved script looks like](https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like) and the bundled `/workflow-authoring` skill (as of 2026-10-02; recheck when that section adds or renames a primitive). Workflows are resumable: interrupt and resume picks up where it left off. Dynamic beats static (Agent SDK / `claude -p`): static harnesses must handle every edge case so they end up generic; Opus 4.8+ writes a custom harness tailor-made for the case.
 
 ## 83. The Six Workflow Patterns Claude Composes
 
@@ -60,7 +65,7 @@ Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun'
 
 ## 86. Saving and Sharing Workflows
 
-Press **"s"** in the workflow menu to save; files land in `~/.claude/workflows`, or distribute via a skill (reference the JS files in SKILL.md and prompt Claude to treat them as a *template*, not a verbatim script). The **"ultracode"** trigger word guarantees Claude builds a workflow rather than a single pass.
+Press **"s"** in the workflow menu to save (for the save locations, see [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse); as of 2026-10-02, recheck when that section changes), or distribute via a skill (reference the JS files in SKILL.md and prompt Claude to treat them as a *template*, not a verbatim script). The **"ultracode"** trigger word guarantees Claude builds a workflow rather than a single pass.
 
 ## 87. Auto Mode Retired Plan Mode (Opus 4.6+)
 
@@ -82,9 +87,9 @@ The team collected thousands of agent transcripts + permission prompts, classifi
 
 ## 91. Nested Subagents: Agents Kicking Off Agents
 
-Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *to start*. That starting cap is now historical, not the current ceiling. Nesting is a context-management tool: each layer keeps its own window so deep work doesn't bloat the parent. Monitor via arrow-down in the terminal. Model choice propagates to nested agents; thinking weights don't (yet). Works with forked sessions and Chrome tools. The lower-level primitive under the workflows arc (80–86); pairs with 6, 76, 28.
+Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *to start*. That starting cap is now historical, not the current ceiling. Nesting is a context-management tool: each layer keeps its own window so deep work doesn't bloat the parent. Monitor via arrow-down in the terminal. For how a nested agent's model is chosen, see [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). Works with forked sessions and Chrome tools. The lower-level primitive under the workflows arc (80–86); pairs with 6, 76, 28.
 
-**The depth ceiling is configurable and moves. Never author a tree that needs a specific depth.** It went from that fixed, unchangeable five layers (v2.1.172–2.1.216), to a default of one (v2.1.217), to a configurable default of three (v2.1.219). Tune it with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, set to the number of layers you want below the main conversation. `1` turns nesting off, so it *lowers* the ceiling as readily as it raises one. The [sub-agents](https://code.claude.com/docs/en/sub-agents) page carries the current default and the full version history; read it rather than assuming any number, and design the tree so it degrades to a shallower one instead of failing.
+**The depth ceiling is configurable and moves. Never author a tree that needs a specific depth.** For the current default and how to change it, see [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents); read it rather than assuming any number, and design the tree so it degrades to a shallower one instead of failing. As of 2026-10-02; recheck when that section changes the default or the variable that sets it.
 
 ## 92. fork: true Runs a Skill in Its Own Context Window (Experimental)
 
@@ -92,7 +97,7 @@ Add `fork: true` to a skill's frontmatter so the skill runs in its own context w
 
 ## 93. The Dynamic-Workflows Trigger Is Now "use a workflow"
 
-Correction to Section 80's launch guidance: say **"use a workflow"**, not the bare word "workflow". The single word triggered workflows when users didn't mean to. Mechanics unchanged.
+Correction to Section 80's launch guidance: say **"use a workflow"**, not the bare word "workflow". The single word triggered workflows when users didn't mean to. Mechanics unchanged. The documented keyword is now `ultracode`, with a direct request in your own words also accepted; see [Ask for a workflow in your prompt](https://code.claude.com/docs/en/workflows#ask-for-a-workflow-in-your-prompt) (as of 2026-10-02; recheck when that section changes the keyword).
 
 ## 94. Fable 5: The Best Coding Model, By a Wide Margin
 
@@ -109,5 +114,5 @@ Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking
 - **New default for coding**: updates Section 2 (Model Selection) and 78 (Opus 4.8 "strongest yet").
 - **"Less prompts and steers"**: lean into context minimalism (88) and delegation over guidance (65): give it the goal, not the micro-steps.
 - **Longer sessions + higher trust**: the autonomy stack (auto mode 42/68, `/goal` 77, nested subagents 91, workflows 80–86) pays off more on a base model that self-verifies better.
-- **Cost**: 2× Opus 4.8; for high-volume routine work Opus 4.8 / Sonnet may be better economics. Reach for Fable where the quality jump pays for itself.
-- **Caveat**: Fable-specific effort levels and usage tactics aren't documented yet.
+- **Cost**: reach for Fable where the quality jump pays for itself. For current model economics, see [compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-02; recheck on a new model release or a change to that section's default recommendation).
+- **Effort**: for the effort levels Fable supports, see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes).
