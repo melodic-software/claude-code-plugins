@@ -3,6 +3,7 @@ description: "Fan out review across many finding-producing surfaces at once, thi
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow", "Workflow(review:fanout-sweep)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -64,7 +65,7 @@ A positional mode token (Step 0) plus one flag:
 
 Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
 
-- `run-everything` / `everything` / `all` → the full-breadth sweep. Read [context/run-everything-mode.md](context/run-everything-mode.md) and follow it end-to-end (availability gate → main-thread orchestrators → leaf fan-out → normalize → persist); skip Step 1 and rejoin at Step 2.
+- `run-everything` / `everything` / `all` → the full-breadth sweep. Read [context/run-everything-mode.md](context/run-everything-mode.md) and follow it end-to-end (availability gate → main-thread orchestrators → leaf fan-out → normalize → persist); skip Step 1 and rejoin at Step 2. Its leaf fan-out launches the saved `review:fanout-sweep` workflow.
 - `fix` / `fix-pass` (with or without `--yes`) → consume the merged set of unconsumed persisted findings for the current branch, every conforming producer's, not just the newest file, split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
 - empty → the default lifecycle-tiered review. Read [context/default-mode.md](context/default-mode.md) before dispatching.
 - any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review, a typo is surfaced, never silently absorbed. The `--yes` / `-y` flag is not a mode value; stripping it before this match keeps `fix --yes` from tripping the diagnostic.
