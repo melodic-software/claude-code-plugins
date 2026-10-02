@@ -72,7 +72,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 | Capability | Items | Reason | Record |
 |---|---|---|---|
-| `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` in lanes | 257-004 | Overrides every agent-definition `model:` pin. The reopen condition is met as of 2026-09-29: the env-vars page documents FORCE (v2.1.257 or later), and the env-vars and sub-agents pages document the `inherit` interaction. Reopening is the owner's decision | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` in lanes | 257-004 | Overrides every agent-definition `model:` pin. The reopen condition was met on 2026-09-29: the env-vars page documents FORCE (v2.1.257 or later), and the env-vars and sub-agents pages document the `inherit` interaction. The owner kept it declined on 2026-10-01 ([opus-5-5-task-cost.md](opus-5-5-task-cost.md)). Setting `CLAUDE_CODE_SUBAGENT_MODEL` alone does not move the built-in Plan or Explore subagents ([sub-agents: Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)) | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | `/advisor` text form as a headless lane default | 260-004 | No doc page states it. Reopen when a doc page states it, or a `-p` probe shows it applies | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | `claude --resume <id> --bg` for `lanes restart` | 257-087 | Absent from cli-reference. Reopen when cli-reference documents it, or a probe settles prompt and name handling | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 
