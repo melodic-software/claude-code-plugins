@@ -3,6 +3,14 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-10-02
+
+### Added
+
+- Two `visualize` evals for medium resolution: the default `auto` defers to a user-global
+  `~/.claude/rendered-views.md` `medium:` value, and an explicitly set `medium` still overrides
+  the cascade.
+
 ## [0.9.0] - 2026-10-02
 
 ### Changed
