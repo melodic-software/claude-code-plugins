@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-10-02
+
+### Fixed
+
+- **`confirm`'s report template has a `Verifier model` line.** It records the model passed to the
+  fresh-context verifier, or that the verifier was not matched to the producing model because that
+  model is unknown, which the skill already required the report to say.
+
 ## [0.7.1] - 2026-10-02
 
 ### Changed
