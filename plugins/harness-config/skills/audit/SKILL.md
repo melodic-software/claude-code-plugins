@@ -155,7 +155,7 @@ The engine runs `scripts/check-hook-coverage.sh` itself and carries its result i
 enabled plugin, read from the directory the session actually loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise), plus the levers (`disableAllHooks`,
 `allowManagedHooksOnly`, `strictPluginOnlyCustomization` when it is `true` or names `"hooks"`) that
-switch hooks off, and any
+switch hooks off, the mod-plane keys reported apart from them (`D/mod-plane`), and any
 divergence between the loaded directory and the registry's cache snapshot.
 
 **Read the inventory state, not just the rows.** `complete` means every enabled plugin resolved.

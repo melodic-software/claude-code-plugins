@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "harness-memory",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Keeps a repo's Claude Code memory layer healthy and under your control, against criteria derived from official Claude Code documentation. The audit skill checks the instruction/memory layer (CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, auto-memory) with a deterministic script-backed spine plus judgment-tier checks. The stateless skill inspects, disables, and (confirm-gated) purges Claude-written auto memory across all settings scopes. Boundary: harness-memory owns the health of CLAUDE.md, AGENTS.md, CLAUDE.local.md, .claude/rules/ and auto-memory (structure, size, placement, index integrity); harness-config audit-instructions judges whether instruction text across those files and skills, agents and hooks still fits the current model, and runs no memory-file hygiene checks.",
   "author": {
     "name": "Melodic Software",
