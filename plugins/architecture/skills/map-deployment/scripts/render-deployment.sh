@@ -89,6 +89,7 @@ summary="$(
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function clean(s) { return redact_secret_value(s) ? "[redacted]" : s }
     function lab(s) { s = clean(s); gsub(/[`"'\''\\]/, "", s); gsub(/[\r\n]/, " ", s); gsub(/@/, "(at)", s); return s }
+    function kd(kind, detail,    d) { d = lab(detail); return lab(kind) (d == "" ? "" : " " d) }
     function field(line, key,    re, rest, i) {
       re = "\"" key "\":"
       i = index(line, re)
@@ -103,6 +104,7 @@ summary="$(
     }
     function jget(line, key,    s) { s = field(line, key); gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\", s); return s }
     function safe(s) { s = clean(s); gsub(/"/, "'\''", s); gsub(/\|/, "/", s); gsub(/`/, "'\''", s); gsub(/[\r\n]/, " ", s); return s }
+    function hostof(p) { return (p in host) ? host[p] : "" }
     function alias(prefix, i, s,    a) { a = clean(s); gsub(/[^A-Za-z0-9_]/, "_", a); return prefix i "_" a }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
@@ -122,11 +124,24 @@ summary="$(
       if (r == "live-state-requested") return "A live-state comparison was requested. No live adapter is shipped, and committed IaC was not read. No diagram was drawn."
       if (r == "partial-read") return "More than one IaC tool is declared, and at least one has no shipped adapter. Drawing the shipped subset would be a partial read. No diagram was drawn."
       if (r == "adapter-not-shipped") return "The only IaC tools in this repository have no shipped adapter. No diagram was drawn."
-      if (r == "no-declared-iac") return "No Compose file or Kubernetes manifest was found in tracked files. No diagram was drawn."
+      if (r == "no-mapped-container") return "The IaC readers found resources they do not map and placed no container, so an environment drawn from them would look like a full read. The resource types are listed below. No diagram was drawn."
+      if (r == "no-declared-iac") return "No Compose file, Kubernetes manifest, Terraform configuration, Bicep file, ARM template, CloudFormation template, or Pulumi YAML program was found in tracked files. No diagram was drawn."
+      if (r ~ /^(cloudformation|pulumi)-unreadable/) return "The named CloudFormation or Pulumi YAML file did not parse (an anchor or alias, a merge key, a duplicate key, a tab in the indentation, more than one document, or an unclosed flow collection). It was not half-read. No diagram was drawn."
+      if (index(r, "cloudformation-transform-unread:") == 1) return "The named template declares a Transform (SAM or a macro), which rewrites the template before it is deployed and cannot be read as text. The template was not half-read. No diagram was drawn."
+      if (index(r, "cloudformation-stack-unread:") == 1) return "The named template declares a nested AWS::CloudFormation::Stack resource, which this reader does not follow. The template was not half-read, and the template location is not printed. No diagram was drawn."
+      if (index(r, "cloudformation-parameters-unpaired:") == 1) return "The named JSON parameter file has no <name>.<env>.json pairing beside its template, and the repository does not hold exactly one CloudFormation template. Its template was not guessed. No diagram was drawn."
+      if (index(r, "terraform-unreadable") == 1) return "The named Terraform file did not parse (an unclosed block, string, comment, or heredoc). It was not half-read. No diagram was drawn."
+      if (index(r, "terraform-module-unread:") == 1) return "The named module call has a remote source, or a local source with no tracked configuration. Its resources cannot be read from this repository, so the root was not half-read. The source is not printed. No diagram was drawn."
+      if (index(r, "terraform-orphan-tfvars:") == 1) return "The named tfvars file has no Terraform configuration at or above its directory, so it belongs to no root. No diagram was drawn."
+      if (r ~ /^(bicep|arm)-unreadable/) return "The named Bicep or ARM file did not parse (an unclosed block, string, or comment, or a statement this reader does not know). It was not half-read. No diagram was drawn."
+      if (index(r, "bicep-module-unread:") == 1) return "The named module has a registry or template-spec source, or a local source that is not a tracked template. Its resources cannot be read from this repository, so the template was not half-read. The source is not printed. No diagram was drawn."
+      if (index(r, "bicep-param-unread:") == 1) return "The named .bicepparam file uses none, extends another file, or names a template that is not tracked here, so its environment has no template to read. No diagram was drawn."
+      if (index(r, "arm-parameters-unpaired:") == 1) return "The named JSON parameters file has no <name>.bicep or <name>.json beside it, and its directory does not hold exactly one template. Its template was not guessed. No diagram was drawn."
+      if (r ~ /^(bicep|arm)-deployment-unread:/) return "The named template declares a nested Microsoft.Resources/deployments resource, which this reader does not follow. The template was not half-read. No diagram was drawn."
       if (r == "not-a-git-repository") return "The subject is not a git repository, so tracked IaC cannot be separated from untracked files. No diagram was drawn."
       if (r == "compose-unreadable" || r == "kubernetes-unreadable") return "A shipped manifest used a construct this adapter does not read (a tab, or a template marker in a name, image, namespace, replicas, or kind field). No diagram was drawn."
       if (r == "containers-unreadable") return "containers.json was present and is not a schema_version 1 catalog. It was not half-read. No diagram was drawn."
-      if (r == "layered-compose") return "A Compose base file sits beside an override or variant file in one directory. The layers merge into one environment and this adapter does not merge them. No diagram was drawn."
+      if (index(r, "compose-not-mergeable:") == 1) return "The named Compose file has no declared place in a merge (a variant beside a base with no COMPOSE_FILE order, an override with no base, a second base) or uses a !reset or !override tag this adapter does not merge. It was not guessed. No diagram was drawn."
       if (r == "unknown-environment") return "A requested environment (--env or --diff) is not in the record. No diagram was drawn."
       return "The record refused to draw a diagram."
     }
@@ -146,14 +161,19 @@ summary="$(
         else if (t ~ /^"environments":/) take_array(t, "environments", "{\"environment\":")
         else if (t ~ /^"nodes":/) take_array(t, "nodes", "{\"id\":")
         else if (t ~ /^"placements":/) take_array(t, "placements", "{\"container\":")
+        else if (t ~ /^"relationships":/) take_array(t, "relationships", "{\"from\":")
         else if (t ~ /^"parameters":/) take_array(t, "parameters", "{\"parameter\":")
         else if (t ~ /^"diffs":/) take_array(t, "diffs", "{\"change\":")
+        else if (t ~ /^"unmapped":/) take_array(t, "unmapped", "{\"tool\":")
         else if (t ~ /^"catalog":/) take_array(t, "catalog", "{\"catalog\":")
         else if (t ~ /^"[a-z_]+": \[$/) die("unknown array " t)
       }
       if (status != "drawn" && status != "refused") die("status is missing")
-      ne = count["environments"] + 0
-      for (i = 1; i <= ne; i++) env_name[i] = jget(held["environments", i], "environment")
+      ne = 0
+      for (i = 1; i <= count["environments"] + 0; i++) {
+        e = jget(held["environments", i], "environment")
+        if (!(e in env_seen)) { env_seen[e] = 1; env_name[++ne] = e }
+      }
       exit_code = 0
       if (status == "drawn") {
         nreq = split(env_filter "\n" diff_a "\n" diff_b, req, "\n")
@@ -196,6 +216,20 @@ summary="$(
         }
       }
       print "" > md
+      nu = count["unmapped"] + 0
+      if (nu > 0) {
+        print "## Unmapped resources" > md
+        print "" > md
+        print "Parsed and not drawn: the readers have no mapping for these resource types." > md
+        print "" > md
+        print "| Tool | Resource type | Evidence |" > md
+        print "|---|---|---|" > md
+        for (i = 1; i <= nu; i++) {
+          item = held["unmapped", i]
+          print "| " safe(jget(item, "tool")) " | " safe(jget(item, "type")) " | " safe(jget(item, "evidence")) " |" > md
+        }
+        print "" > md
+      }
       if (reason == "unknown-environment") {
         print "## Environments" > md
         print "" > md
@@ -219,7 +253,7 @@ summary="$(
           shown_d++
           rows[shown_d] = "| " safe(jget(item, "change")) " | " safe(L) " / " safe(R) " | " safe(jget(item, "tool")) " | " safe(jget(item, "container")) " | " safe(jget(item, "detail")) " |"
         }
-        kinds = "container added or removed, image, replicas, ports, parameter added or removed, parameter value, secret parameter differs (the value is never printed)"
+        kinds = "container added or removed, image, replicas, ports, network or Ingress added or removed, network exposure or port or Ingress host, parameter added or removed, parameter value, secret parameter differs (the value is never printed)"
         if (shown_d == 0) {
           print "No differences of these kinds: " kinds "." > md
         } else {
@@ -230,13 +264,19 @@ summary="$(
           for (i = 1; i <= shown_d; i++) print rows[i] > md
         }
         print "" > md
-        print "Networks and Ingress hosts are not compared." > md
-        print "" > md
         print "## Diagram" > md
         print "" > md
         np = count["placements"] + 0
         nn = count["nodes"] + 0
+        nr = count["relationships"] + 0
         drawn_p = 0
+        for (n = 1; n <= nn; n++)
+          if (jget(held["nodes", n], "kind") == "compute") cnode[jget(held["nodes", n], "env") SUBSEP jget(held["nodes", n], "id")] = 1
+        for (p = 1; p <= np; p++) {
+          pit = held["placements", p]
+          cid = jget(pit, "compute")
+          if (cid != "" && ((jget(pit, "env") SUBSEP cid) in cnode)) { host[p] = cid; hosts[jget(pit, "env") SUBSEP cid] = 1 }
+        }
         if (dialect == "c4-plantuml") {
           print "```plantuml" > md
           print "@startuml" > md
@@ -249,15 +289,37 @@ summary="$(
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
               net_alias[e SUBSEP jget(item, "name")] = alias("n", n, jget(item, "name"))
+              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
               print "  Deployment_Node(" alias("n", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"" lab(jget(item, "kind")) "\", \"" lab(jget(item, "detail")) "\")" > md
+            }
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
+              print "  Deployment_Node(" alias("cn", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"compute\", \"" lab(jget(item, "detail")) "\") {" > md
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
+                drawn_p++
+                print "    Container(" alias("c", p, jget(pit, "container")) ", \"" lab(jget(pit, "container")) "\", \"" lab(jget(pit, "image")) "\", \"replicas " lab(jget(pit, "replicas")) "\")" > md
+              }
+              print "  }" > md
             }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
-              if (jget(item, "env") != e) continue
+              if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
               print "  Container(" alias("c", p, jget(item, "container")) ", \"" lab(jget(item, "container")) "\", \"" lab(jget(item, "image")) "\", \"replicas " lab(jget(item, "replicas")) "\")" > md
             }
             print "}" > md
+            for (r = 1; r <= nr; r++) {
+              item = held["relationships", r]
+              if (jget(item, "env") != e || !((e SUBSEP jget(item, "from")) in node_alias)) continue
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") == e && jget(pit, "container") == jget(item, "to") && hostof(p) == jget(item, "to_compute"))
+                  print "Rel(" node_alias[e SUBSEP jget(item, "from")] ", " alias("c", p, jget(pit, "container")) ", \"" lab(jget(item, "label")) "\")" > md
+              }
+            }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
               if (jget(item, "env") != e) continue
@@ -295,15 +357,39 @@ summary="$(
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
-              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" lab(jget(item, "kind")) " " lab(jget(item, "detail")) "\047" > md
+              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
+              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd(jget(item, "kind"), jget(item, "detail")) "\047" > md
+            }
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
+              print "    " alias("cn", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd("compute", jget(item, "detail")) "\047 {" > md
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
+                drawn_p++
+                cpath[p] = alias("env", i, e) "." alias("cn", n, jget(item, "name")) "." alias("c", p, jget(pit, "container"))
+                print "      instanceOf " alias("c", p, jget(pit, "container")) > md
+              }
+              print "    }" > md
             }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
-              if (jget(item, "env") != e) continue
+              if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
+              cpath[p] = alias("env", i, e) "." alias("c", p, jget(item, "container"))
               print "    instanceOf " alias("c", p, jget(item, "container")) > md
             }
             print "  }" > md
+            for (r = 1; r <= nr; r++) {
+              item = held["relationships", r]
+              if (jget(item, "env") != e || !((e SUBSEP jget(item, "from")) in node_alias)) continue
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") == e && jget(pit, "container") == jget(item, "to") && hostof(p) == jget(item, "to_compute"))
+                  print "  " alias("env", i, e) "." node_alias[e SUBSEP jget(item, "from")] " -> " cpath[p] " \047" lab(jget(item, "label")) "\047" > md
+              }
+            }
           }
           print "}" > md
           print "views {" > md
@@ -349,8 +435,8 @@ summary="$(
       }
       if (tools == "") tools = "none"
       tools = safe(tools)
-      printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s\n", \
-        status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect
+      printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s unmapped=%d\n", \
+        status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect, nu
       exit exit_code
     }
   '
