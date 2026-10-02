@@ -87,6 +87,7 @@ jobs:
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       lane_base: ${{ steps.base.outputs.ref }}
+      test_legs: ${{ steps.legs.outputs.legs }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out
@@ -569,6 +570,14 @@ expect "a data output inside a longer expression is rejected" 1 "outside the agg
 f="$scratch/data-lowercase-key.yml"
 xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.changes.outputs.lane_base }}" "$f"
 expect "a data output read under a non-env key is rejected" 1 "outside the aggregator feed template" --check "$f"
+
+f="$scratch/data-matrix.yml"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.changes.outputs.test_legs || '[0,1,2,3]') }}" "$f"
+expect "the matrix sized from test_legs with its four-leg default is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/data-matrix-no-default.yml"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.changes.outputs.test_legs) }}" "$f"
+expect "the matrix read without its default is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-in-job-if.yml"
 xform_replace_line "$base" "    if: needs.changes.outputs.run_windows == 'true'" "    if: needs.changes.outputs.lane_base != ''" "$f"

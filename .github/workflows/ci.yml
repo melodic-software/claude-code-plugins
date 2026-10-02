@@ -177,9 +177,11 @@ jobs:
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
-      # A VALUE, not a gate: the ref every diff-scoped step diffs against, or
-      # empty for the whole tree. Read only as an env entry.
+      # VALUES, not gates: the ref every diff-scoped step diffs against (empty
+      # for the whole tree), read only as an env entry, and the test-linux
+      # matrix as a JSON list of leg numbers.
       lane_base: ${{ steps.base.outputs.ref }}
+      test_legs: ${{ steps.legs.outputs.legs }}
     steps:
       # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
       # run on this SHA reads the newest bot-written `ci-lanes` status once and
@@ -386,6 +388,37 @@ jobs:
               scripts/verb-contract-baseline.txt
               scripts/lib/**
               .github/workflows/ci.yml
+      # THE test-linux FAN-OUT IS SIZED FROM THE SELECTION it will run: one leg
+      # per 25 suites, one to four. Every leg derives the same selection again
+      # and keeps its shard, so this count only sizes the matrix. Four whenever
+      # there is nothing to count: the whole tree, an UNMAPPED file (the legs
+      # fall back to the full corpus), or a selector that failed here. One on a
+      # docs-only diff, where every leg reports not applicable. Skipped on a
+      # draft, where test-linux does not run. Never fails this job: a wrong
+      # size costs runners, not coverage.
+      - name: Size the test-linux fan-out
+        id: legs
+        if: github.event.pull_request.draft != true
+        env:
+          DIFF_BASE: ${{ steps.base.outputs.ref }}
+          DOCS_ONLY: ${{ steps.detect.outputs.docs_only }}
+        run: |
+          legs=4
+          if [ -n "$DIFF_BASE" ] && [ "$DOCS_ONLY" = true ]; then
+            legs=1
+          elif [ -n "$DIFF_BASE" ]; then
+            if scripts/affected-tests.sh --with-always --base "$DIFF_BASE" >"$RUNNER_TEMP/selection.txt" 2>/dev/null; then
+              suites=$(grep -c . "$RUNNER_TEMP/selection.txt" || true)
+              legs=$(((suites + 24) / 25))
+              legs=$((legs < 1 ? 1 : legs > 4 ? 4 : legs))
+              echo "The selection holds $suites suite(s): $legs leg(s)."
+            else
+              echo "No selection to count (an UNMAPPED file, or the selector failed): four legs."
+            fi
+          fi
+          list=0
+          for ((i = 1; i < legs; i++)); do list+=",$i"; done
+          echo "legs=[$list]" >>"$GITHUB_OUTPUT"
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -1528,16 +1561,21 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # FOUR LEGS ON EVERY EVENT. The job key does not change, so
-    # `ci-status.needs` and scripts/check-lane-coverage.sh are untouched; what
-    # changes is that the contract suites are partitioned across four runners
-    # instead of executed by one: the affected selection on a pull request or a
-    # push, the full corpus on the whole tree (#3705). The dominant step was measured at 435 s p50
-    # running 146 to 165 suites strictly sequentially, so more runners was the
-    # first lever. The second is `--jobs 3` on the pull-request path below: the
-    # selector now hands its selection to run-plugin-tests.sh, which is what the
-    # push path and the UNMAPPED fallback already did, so both paths run three
-    # suites at a time on the same runner through the same worker and the same
+    # ONE TO FOUR LEGS, SIZED FROM THE SELECTION. The job key does not change,
+    # so `ci-status.needs` and scripts/check-lane-coverage.sh are untouched;
+    # what changes is that the contract suites are partitioned across up to
+    # four runners instead of executed by one: the affected selection on a pull
+    # request or a push, the full corpus on the whole tree (#3705). The
+    # `changes` job sizes the fan-out at one leg per 25 selected suites, up to
+    # four, and four whenever it has no selection to count (the whole tree, an
+    # UNMAPPED file): a leg costs about 45 s of setup before it runs a suite, so
+    # a 10-suite selection on four runners paid for three idle ones. The
+    # dominant step was measured at 435 s p50 running 146 to 165 suites strictly
+    # sequentially, so more runners was the first lever. The second is
+    # `--jobs 3` on the selector path below: the selector hands its selection
+    # to run-plugin-tests.sh, which is what the whole-tree path and the
+    # UNMAPPED fallback already did, so both paths run three suites at a time on
+    # the same runner through the same worker and the same
     # scripts/run-plugin-tests-serial.txt. Three, never four (#3694).
     #
     # `fail-fast: false` because a leg is a slice of one test corpus: cancelling
@@ -1551,40 +1589,22 @@ jobs:
     # from the matrix that produced them.
     #
     # EVERY STEP AFTER THE CONTRACT SUITES IS ASSIGNED TO ONE LEG, through a
-    # `[ "$LEG" = <n> ] || exit 0` first line rather than a step condition:
-    # scripts/check-docs-only-gate.sh accepts exactly one condition shape on a
-    # gated step, and a step that exits 0 reports success, never `skipped`.
-    #
-    # They all sat on leg 0, which cost that leg 34 to 62 s the other three
-    # spent idle. They are now spread across the four legs in groups, each group
-    # whole on one leg because its steps depend on each other in order (a Node
-    # sub-project's install/typecheck/lint/test chain, a sync cluster's
-    # verify/test/check-bump triplet). Every step still runs EXACTLY ONCE per
-    # run: each is assigned to exactly one leg and the legs are disjoint.
-    #
-    # The leg numbers are literals, so a change to `matrix.leg` that shrinks the
-    # fan-out would silently drop every step assigned past the new end. The
-    # first step of the job refuses to run at any size but four rather than let
-    # that ship green.
+    # `[ "$LEG" = $((<group> % LEGS)) ] || exit 0` first line rather than a step
+    # condition: scripts/check-docs-only-gate.sh accepts exactly one condition
+    # shape on a gated step, and a step that exits 0 reports success, never
+    # `skipped`. The four groups (0: the counter ceilings, 1: the manifest
+    # validation, 2: the HTML assets and the disk-hygiene module, 3: every sync
+    # cluster and the four Node sub-projects) are whole on one leg because their
+    # steps depend on each other in order, and the modulo folds them onto the
+    # legs there are, so every step runs EXACTLY ONCE per run at any size.
     strategy:
       fail-fast: false
       matrix:
-        leg: [0, 1, 2, 3]
+        leg: ${{ fromJSON(needs.changes.outputs.test_legs || '[0,1,2,3]') }}
     env:
       LEG: ${{ strategy.job-index }}
       LEGS: ${{ strategy.job-total }}
     steps:
-      # The per-leg step assignments below are literal leg numbers 0 to 3. If
-      # the matrix ever sizes to anything but four, every step assigned to a leg
-      # that no longer exists would quietly never run and the lane would stay
-      # green having skipped it. One loud failure here instead.
-      - name: Assert the matrix is the size the leg assignments assume
-        run: |
-          [ "$LEGS" = 4 ] || {
-            echo "test-linux fans out to $LEGS leg(s), but the per-step leg assignments below name legs 0-3." >&2
-            echo "Re-assign them before changing matrix.leg, or every step on a dropped leg silently stops running." >&2
-            exit 1
-          }
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1747,7 +1767,7 @@ jobs:
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
             # The shell corpus is sharded above. The outside-Node packages are
             # a fixed pair, so one leg runs them once on the whole-tree path (#3703).
-            if [ "$LEG" = 3 ]; then
+            if [ "$LEG" = $((3 % LEGS)) ]; then
               scripts/run-outside-node-suites.sh
             fi
             exit 0
@@ -1788,7 +1808,7 @@ jobs:
                 printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
                 scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
                 # Same fixed pair the whole-tree path runs once on leg 3 (#3703).
-                if [ "$LEG" = 3 ]; then
+                if [ "$LEG" = $((3 % LEGS)) ]; then
                   scripts/run-outside-node-suites.sh
                 fi
               else
@@ -1814,7 +1834,7 @@ jobs:
       - name: Check rendered-view HTML assets
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 2 ] || exit 0
+          [ "$LEG" = $((2 % LEGS)) ] || exit 0
           scripts/check-html-assets.sh
       - name: Validate plugin and catalog manifests
         if: needs.changes.outputs.run_tests == 'true'
@@ -1826,7 +1846,7 @@ jobs:
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: |
-          [ "$LEG" = 1 ] || exit 0
+          [ "$LEG" = $((1 % LEGS)) ] || exit 0
           scripts/validate-plugins.sh
 
       # The shared-library sync gates. Each keeps two steps: the byte equality
@@ -1843,14 +1863,14 @@ jobs:
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-rewrite-guard.sh --check
       - name: Verify carrying plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1860,19 +1880,19 @@ jobs:
       - name: Verify plugin copies match the exec-form bash launcher
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-exec-bash.sh --check
       - name: Test the exec-form bash launcher resolver
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           node --test lib/exec-bash.resolver.test.mjs
       - name: Verify carrying plugins bumped when the launcher changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1882,14 +1902,14 @@ jobs:
       - name: Verify plugin copies match the shared parser
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-parse-concern-value.sh --check
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1899,14 +1919,14 @@ jobs:
       - name: Verify managed-scope cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-managed-scope.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1916,14 +1936,14 @@ jobs:
       - name: Verify state-key cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-state-key.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1933,14 +1953,14 @@ jobs:
       - name: Verify spawn-noise cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-spawn-noise.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1950,14 +1970,14 @@ jobs:
       - name: Verify check-retirements cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-check-retirements.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1967,14 +1987,14 @@ jobs:
       - name: Verify legacy-statusline-detect cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-legacy-statusline-detect.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1984,14 +2004,14 @@ jobs:
       - name: Verify unwrap-before-compose cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-unwrap-before-compose.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2001,14 +2021,14 @@ jobs:
       - name: Verify context-zone cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-context-zone.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2019,14 +2039,14 @@ jobs:
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-shared-copies.sh --check
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2036,14 +2056,14 @@ jobs:
       - name: Verify fetch-docs copies match the canonical fetcher
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-fetch-docs.sh --check
       - name: Verify carrying plugins bumped when the fetcher changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2053,14 +2073,14 @@ jobs:
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-resolve-convention-home.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2070,14 +2090,14 @@ jobs:
       - name: Verify plugin copies match the shared resolver
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-resolve-convention-pattern.sh --check
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2087,14 +2107,14 @@ jobs:
       - name: Verify plugin copies match the shared regen script
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-index-regen.sh --check
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2104,14 +2124,14 @@ jobs:
       - name: Verify plugin binding copies match the canonical contract
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/sync-standards-contract.sh --check
       - name: Verify contract, changelog, and carrying plugins bumped together
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -2121,7 +2141,7 @@ jobs:
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           scripts/check-cross-plugin-source-drift.sh --check
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
@@ -2134,32 +2154,32 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           npm ci
         working-directory: plugins/miro/server
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           npm run typecheck
         working-directory: plugins/miro/server
       - name: Lint
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           npm run lint
         working-directory: plugins/miro/server
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           npm test
         working-directory: plugins/miro/server
       - name: Smoke-test the MCP server over stdio, installed on demand
         if: needs.changes.outputs.run_node == 'true'
         working-directory: plugins/miro/server
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           export CLAUDE_PLUGIN_DATA="$RUNNER_TEMP/miro-plugin-data"
           rm -rf "${CLAUDE_PLUGIN_DATA:?}"
           for run in first second; do
@@ -2184,17 +2204,17 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
 
       # ai-briefing's build/render pipeline is a Node package (native
@@ -2207,12 +2227,12 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
       # The knowledge plugin's course-digest extraction pipeline is a Node
@@ -2223,17 +2243,17 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
 
       # #2871: the full test_hygiene module. Its ten TestCase classes need a
@@ -2245,7 +2265,7 @@ jobs:
         if: needs.changes.outputs.run_python == 'true'
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: |
-          [ "$LEG" = 2 ] || exit 0
+          [ "$LEG" = $((2 % LEGS)) ] || exit 0
           python -m unittest -v test_hygiene
 
       # Counter ceilings from .performance/ratchets.json: each counter's command

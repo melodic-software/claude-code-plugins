@@ -86,6 +86,9 @@
 #                           .outputs.<name> }}`, and never in a condition: its
 #                           value is not a polarity decision, and an empty one
 #                           must mean "the whole tree" to the script reading it.
+#                           The one other read is the test-linux matrix size,
+#                           pinned whole in MATRIX_READ with its four-leg
+#                           default.
 #  11. A SKIP PASSES ONLY ON A DRAFT — the aggregate's `treat-skipped-as` is
 #                           `fail` or exactly the draft expression, since the
 #                           draft gate is the only sanctioned reason a lane skips.
@@ -158,7 +161,11 @@ run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' 
 # request, the newest green push run's commit on a push, and empty (the whole
 # tree) on a schedule, a dispatch, or a push with no usable base.
 DATA_TABLE="\
-lane_base${TAB}\${{ steps.base.outputs.ref }}"
+lane_base${TAB}\${{ steps.base.outputs.ref }}
+test_legs${TAB}\${{ steps.legs.outputs.legs }}"
+# The one data read that is not an env entry: test-linux sizes its matrix from
+# `test_legs`, and an unset value falls back to the full four-leg fan-out.
+MATRIX_READ="leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.test_legs || '[0,1,2,3]') }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -803,8 +810,9 @@ while IFS="$TAB" read -r refjob reford kind text; do
     done
     ;;
   *)
-    # A data output, read as a whole env entry (property 10).
-    if is_data_read "$text"; then
+    # A data output, read as a whole env entry or as the matrix size
+    # (property 10).
+    if is_data_read "$text" || [[ "$text" == "$MATRIX_READ" ]]; then
       continue
     fi
     # An aggregator feed entry, for some table output X:
