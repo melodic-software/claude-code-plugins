@@ -13,9 +13,9 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   parameter, and the callbacks of array methods that never change it (`some`, `forEach`, `map`,
   `reduce` and the like), resolving which function a callback or callee holds back through
   parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
-  an export to every importer and re-export, and an argument to an imported function into its
-  one exporter. The list stays literal only when every hop is known not to change it. These keep
-  it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
+  an export to every importer and re-export, and an argument to an imported function into the
+  module its `from` path names in Bun's module table. The list stays literal only when every hop
+  is known not to change it. These keep it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
   `instanceof`; a flow too deep for the helper's stack, which no longer crashes it; an exported
   name any module reads by name as a property (`ns.pY`); an export whose module's file is loaded
   whole anywhere (`import*as`, `export*from`, `import(...)`, `require(...)`,

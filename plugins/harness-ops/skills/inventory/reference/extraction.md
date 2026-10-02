@@ -416,8 +416,9 @@ followed, inside a module by the helper's `flow` op and across modules by `_flow
   (`some`, `every`, `forEach`, `map`, `filter`, `find*`, `flatMap`, `reduce*`), or a name neither
   `Array.prototype` nor `Object.prototype` holds, whose call throws before anything runs;
 - an export, followed into every module importing that name, and again through a re-export;
-- an argument to an imported function, followed into that function's parameter in the one module
-  exporting it.
+- an argument to an imported function, followed into that function's parameter in the module the
+  import's `from` path names in Bun's module table (an external, unknown or unexported source
+  stays partial).
 
 Anything else stays partial: a hop the walk cannot resolve (a callback that is a parameter of an
 exported function, an object property, `await`, `arguments`), a module with a direct `eval`, an
