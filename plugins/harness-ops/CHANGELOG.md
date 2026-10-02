@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.0.0] - 2026-10-02
+## [2.5.0] - 2026-10-02
 
 ### Added
 
@@ -33,14 +33,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ### Changed
 
-- **BREAKING: the default inventory reader now needs Node.js and npm.** `inventory.py` reads the
-  bundle with `--reader=parser` by default, which installs its pinned parser on first use; without
-  Node.js or npm the report shows `binary: broken` with the repair command and no binary
-  sections. Pass `--reader=regex` to keep the old behavior; `--reader=compare` stays selectable.
-  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`. The
-  changelog skill's native-drift step runs the inventory without it and installs into the
-  fallback, `<config dir>/plugins/data/harness-ops-melodic-software`, the same directory
-  `${CLAUDE_PLUGIN_DATA}` names for this plugin.
+- `--reader=regex` stays the inventory's default. The parser reader is selectable with
+  `--reader=parser` (or `--reader=compare`, which runs both) and needs Node.js and npm only when
+  selected; it installs its pinned packages on first use, and without them reports
+  `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
+  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
+  when a parser reader is selected.
 - Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
   2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
   every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14
