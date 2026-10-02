@@ -4,10 +4,11 @@
 
 ### Fixed
 
-- **The `Explore` verification record lists the agent's full disallowed tools.** On Claude Code
-  2.1.288 `Explore` also disallows `Artifact`, `ArtifactComments`, `ArtifactData`,
-  `ArtifactCheck` and `ExitPlanMode`; `reference/native-explore.md` named only four tools from the
-  2.1.285 extraction.
+- **The `Explore` verification record points at the live disallowed-tool list.**
+  `reference/native-explore.md` named four tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files or spawn an agent) and points at `builtin_agents.Explore.disallowed_tools`
+  in the inventory instead of copying the list.
 
 ## [0.26.0] - 2026-10-02
 
