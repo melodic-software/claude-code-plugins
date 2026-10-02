@@ -11,7 +11,8 @@ You fix one group of failing tests for the `testing:fix-until-green` workflow. T
 failures, the files you may edit, and the structure to return. Return exactly that structure.
 
 Other fixers edit other files in the same working tree at the same time. Edit only the allowed
-files, run only the narrowest command that reproduces your own failures, and commit nothing.
+files, run only the narrowest command that reproduces your own failures, and run no git command
+that writes (add, rm, mv, stash, checkout, restore, reset, commit).
 
 Fix the cause, never the test. A test you delete, skip or loosen to get green fails this task,
 however the run ends. When the test itself is wrong, or the cause sits in a file you may not edit,

@@ -18,8 +18,9 @@ for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
 
 const fail = (file, n = 1, suspects = []) =>
   Array.from({ length: n }, (_, i) => ({ id: `${file}#${i}`, file, message: 'expected 1 got 2', suspects }))
-const red = failures => ({ passed: false, exitCode: 1, failures })
-const GREEN = { passed: true, exitCode: 0, failures: [] }
+const SHA = 'a'.repeat(40)
+const red = failures => ({ passed: false, exitCode: 1, failures, head: SHA })
+const GREEN = { passed: true, exitCode: 0, failures: [], head: SHA }
 const allowed = prompt => JSON.parse(prompt.match(/<data name="allowed-files">\n([\s\S]*?)\n<\/data>/)[1])
 
 // runs[i] answers run:i; the last entry repeats. Fixers fix the first allowed
@@ -34,8 +35,8 @@ function makeReply(runs, over = {}) {
     }
     if (label.startsWith('run:')) return runs[Math.min(Number(label.split(':')[1]), runs.length - 1)]
     if (label.startsWith('fix:')) return { status: 'fixed', rootCause: 'off by one', filesChanged: [allowed(prompt)[0]] }
-    if (label.startsWith('check:')) return { weakened: [] }
-    if (label === 'verify') return { passed: true, weakened: [] }
+    if (label.startsWith('check:')) return { weakened: [], head: SHA, changedFiles: [] }
+    if (label === 'verify') return { passed: true, weakened: [], head: SHA, changedFiles: [] }
     throw new Error('unexpected label ' + label)
   }
 }
@@ -269,6 +270,18 @@ test('scope entries that are absolute or contain .. are dropped and logged', asy
   assert.ok(logs.some(l => l.includes('3 entries dropped')))
 })
 
+test('runner-reported paths that are absolute or contain .. never reach a fixer', async () => {
+  const failures = [
+    ...fail('a.test.js', 1, ['/etc/passwd', '../outside.js', 'src/a.js']),
+    ...fail('../escape.test.js'),
+    ...fail('/abs.test.js'),
+  ]
+  const { calls } = await run({ command: 'x' }, makeReply([red(failures), GREEN]))
+  const fixers = by(calls, 'fix:')
+  assert.equal(fixers.length, 1)
+  assert.deepEqual(allowed(fixers[0].prompt), ['a.test.js', 'src/a.js'])
+})
+
 test('a group with no file in scope is not dispatched, and a round with none stops out-of-scope', async () => {
   const { result, calls } = await run({ command: 'x', scope: ['src'] }, makeReply([red(fail('other/a.test.js'))]))
   assert.equal(by(calls, 'fix:').length, 0)
@@ -285,11 +298,69 @@ test('a fixer reporting a root cause outside scope stops the run after the check
   assert.equal(result.changes[0].fixers[1].outsideFile, 'vendor/x.js')
 })
 
-test('edits outside a fixer\'s group are recorded and logged', async () => {
+test('a self-reported edit outside a fixer\'s group stops the run', async () => {
   const stray = { status: 'fixed', rootCause: 'r', filesChanged: ['a.test.js', 'b.test.js'] }
   const { result, logs } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'fix:1:1': stray }))
   assert.deepEqual(result.changes[0].fixers[0].strayEdits, ['b.test.js'])
+  assert.equal(result.stoppedBecause, 'outside-edit')
+  assert.deepEqual(result.outsideEdits, ['b.test.js'])
   assert.ok(logs.some(l => l.includes('outside its group')))
+})
+
+test('paths under .git, .claude, .github or node_modules never reach a fixer', async () => {
+  const failures = fail('a.test.js', 1, ['.git/hooks/pre-commit', '.claude/settings.local.json', '.github/workflows/ci.yml', 'node_modules/x/i.js', 'src/a.js'])
+  const { calls } = await run({ command: 'x' }, makeReply([red([...failures, ...fail('.github/t.test.js')]), GREEN]))
+  const fixers = by(calls, 'fix:')
+  assert.equal(fixers.length, 1)
+  assert.deepEqual(allowed(fixers[0].prompt), ['a.test.js', 'src/a.js'])
+})
+
+test('a changed file no fixer was allowed to edit stops the run, whatever the fixers reported', async () => {
+  const check = { weakened: [], head: SHA, changedFiles: ['a.test.js', 'src/other.js'] }
+  const { result, calls } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'check:1': check }))
+  assert.equal(result.stoppedBecause, 'outside-edit')
+  assert.deepEqual(result.outsideEdits, ['src/other.js'])
+  assert.equal(one(calls, 'run:1'), undefined)
+})
+
+test('files allowed in an earlier round stay allowed in the cumulative diff', async () => {
+  const runs = [red(fail('a.test.js', 2)), red(fail('b.test.js', 1)), GREEN]
+  const over = { 'check:2': { weakened: [], head: SHA, changedFiles: ['a.test.js', 'b.test.js'] } }
+  const { result } = await run({ command: 'x' }, makeReply(runs, over))
+  assert.equal(result.green, true)
+})
+
+test('a moved HEAD stops the run', async () => {
+  const check = { weakened: [], head: 'b'.repeat(40), changedFiles: [] }
+  const { result } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'check:1': check }))
+  assert.equal(result.stoppedBecause, 'head-moved')
+  assert.equal(result.green, false)
+})
+
+test('the final verifier\'s tree is judged too', async () => {
+  const v = { passed: true, weakened: [], head: SHA, changedFiles: ['a.test.js', 'Makefile'] }
+  const { result } = await run({ command: 'x' }, makeReply(TWO_FILES, { verify: v }))
+  assert.equal(result.green, false)
+  assert.equal(result.stoppedBecause, 'outside-edit')
+})
+
+test('the check runs even when every fixer reports no changed file', async () => {
+  const none = { status: 'not-fixed', rootCause: 'r', filesChanged: [] }
+  const { calls } = await run({ command: 'x', maxRounds: 1 }, makeReply(TWO_FILES, { 'fix:1:1': none, 'fix:1:2': none }))
+  assert.ok(one(calls, 'check:1'))
+})
+
+test('a red first run with no commit id stops before any fixer', async () => {
+  const { result, calls } = await run({ command: 'x' }, makeReply([{ passed: false, failures: fail('a.test.js'), head: 'not a sha' }]))
+  assert.equal(result.stoppedBecause, 'no-base')
+  assert.equal(by(calls, 'fix:').length, 0)
+})
+
+test('checks diff against the starting commit and fixers are barred from git writes', async () => {
+  const { calls } = await run({ command: 'x' }, makeReply(TWO_FILES))
+  assert.ok(one(calls, 'check:1').prompt.includes('git diff ' + SHA))
+  assert.ok(one(calls, 'verify').prompt.includes('git diff ' + SHA))
+  assert.match(one(calls, 'fix:1:1').prompt, /Run no git command that writes/)
 })
 
 test('a runner that returns nothing stops with runner-failed', async () => {
@@ -299,7 +370,7 @@ test('a runner that returns nothing stops with runner-failed', async () => {
 })
 
 test('a red run with no attributable failure stops without dispatching fixers', async () => {
-  const { result, calls } = await run({ command: 'x' }, makeReply([{ passed: false, exitCode: 2, failures: [], note: 'build broke' }]))
+  const { result, calls } = await run({ command: 'x' }, makeReply([{ passed: false, exitCode: 2, failures: [], note: 'build broke', head: SHA }]))
   assert.equal(result.stoppedBecause, 'unattributed-failure')
   assert.equal(by(calls, 'fix:').length, 0)
 })
