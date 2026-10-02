@@ -168,7 +168,7 @@ class TestFailClosed(unittest.TestCase):
                 pr.ensure_installed(self.target)
         self.assertIn("npm is not on PATH", ctx.exception.reason)
         self.assertEqual(ctx.exception.command, pr.install_command(self.target))
-        self.assertIn("; run: rm -rf ", str(ctx.exception))
+        self.assertIn(f"; run: {pr.install_command(self.target)}", str(ctx.exception))
 
     @unittest.skipIf(os.name == "nt", "the fake npm is a POSIX shell script")
     def test_a_failed_npm_ci_is_broken_and_leaves_nothing_behind(self) -> None:
