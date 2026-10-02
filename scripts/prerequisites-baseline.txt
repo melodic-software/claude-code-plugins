@@ -12,8 +12,9 @@ ai-briefing npm
 ai-slop jq
 animation ffmpeg
 animation ffprobe
+animation jq
 animation node
-animation uv
+animation python3
 architecture npx
 attribution jq
 autonomy jq
