@@ -132,7 +132,7 @@ Write what to do, not what to avoid: a prohibition drags the banned behavior int
 pretrained leading words are the compact anchors that steer ("Prefer X" over "Never do Y unless").
 Keep a negation only when the positive form genuinely loses the constraint, then pair it with
 the positive alternative in the same sentence. A design exclusion is the exception that stays
-negative: name the specific styles to leave out ("no cream background, no pill-shaped buttons"),
+negative: name the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
 Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
