@@ -49,5 +49,10 @@ A lost kill: in a batch whose only change is `test_small_order_pays_tax_without_
 batch's changed test that imports `shop/pricing.py`. When the rewrite of `test_price_is_consistent`
 is in the same batch, it kills those mutants too and the gate passes: the gate compares sets.
 
+On `shop_scripts`, the manual protocol's statement removals give two mutants in
+`order_total_cents`. Removing line 4 (`local cents=...`) is killed only because `set -u` aborts on
+the unbound `cents` (measured: exit 1); removing line 5 (the `echo`) survives (exit 0). K0 is 1,
+enough to gate, and a rewrite that checks the printed `6000` also kills the line 5 mutant.
+
 Approving the `test_product_name` deletion loses the line 15 and line 19 kills. The gate blocks
 unless triage calls those mutants arid with a complete `trivial-accessor` suppression proposal.

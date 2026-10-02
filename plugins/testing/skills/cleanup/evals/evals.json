@@ -103,6 +103,16 @@
       ]
     },
     {
+      "id": "findings_file_rows",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup. When the batch is staged, the user approves it but asks you not to commit yet; write the step 7 report.",
+      "expected_output": "Writes .work/reviews/feat-cleanup/<YYYYMMDDTHHMMSSZ>-testing-cleanup.md with type: review-findings and branch: feat/cleanup. Each rule-selected candidate has one row whose Finding starts with the source row's rule id and threshold, for example `testing/audit/rule-recomputed-expectation: ... (threshold: >=1 self-identical equality assertion)`, followed by `cleanup row 2: rewrite`. The rewritten test's Action reads `applied by /testing:cleanup in this branch; review, do not re-apply`; a kept test's Action reads `kept: <reason>`. The quarantined test has no row in the findings file and appears only in pr-body.md.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
       "id": "refuses_mixed_languages",
       "prompt": "Copy shop_scripts/total.test.sh.fixture to shop_tests/total.test.sh in the fixture, commit it on branch feat/cleanup, then run /testing:cleanup shop_tests.",
       "expected_output": "Refuses at step 0 before any mutation run: shop_tests holds Python tests and a bash-harness file, and the one test-command (python -m unittest {tests}) cannot run both. Names the two languages and asks for a folder holding one of them. Edits nothing.",

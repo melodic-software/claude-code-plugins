@@ -13,7 +13,8 @@ metadata:
 Collect these with **individual** Bash calls, one command per call:
 
 - Current branch, `git branch --show-current`
-- Default branch, `git symbolic-ref --short refs/remotes/origin/HEAD`
+- Default branch, `git symbolic-ref --short refs/remotes/origin/HEAD` (unset: ask, unless the
+  user named it)
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
 ## Arguments
@@ -115,7 +116,8 @@ statement, action, gate-blind, approved-by.
 - Gate-blind: a changed or deleted test none of whose imported production files holds a
   `before.tsv` row is marked gate-blind and needs the user's yes, even for a rewrite.
 
-Unattended, apply rows 2 and 3 only and leave every yes-gated item listed and unapplied.
+Unattended, apply only the row 2 and 3 rewrites that are not gate-blind, and leave every yes-gated
+item listed and unapplied.
 
 ### 6. Gate
 
@@ -135,9 +137,9 @@ Write the decision table and the gate result (K0 and K1, each newly surviving mu
 triage) to `<work>/pr-body.md`, and the findings file to the branch's findings directory,
 `.work/reviews/<branch-slug>/<YYYYMMDDTHHMMSSZ>-testing-cleanup.md`, the slug and home as
 `/review:fanout` "Shared inputs" defines them. One row per candidate that a rule selected, in the
-shape `plugins/review/reference/findings-file-shape.md` gives: `Tier`, `Confidence` and the rule id
-copied from the source row, `Surface(s)` `testing:cleanup`, `Finding` led by the source rule id
-then `cleanup row <n>: <action>`, `Action` reading `applied by /testing:cleanup in this branch;
+shape `plugins/review/reference/findings-file-shape.md` gives: `Tier` and `Confidence` copied from
+the source row, `Surface(s)` `testing:cleanup`, `Finding` the source row's `Finding` (rule id and
+threshold first) followed by `cleanup row <n>: <action>`, `Action` reading `applied by /testing:cleanup in this branch;
 review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule and appear in
 `pr-body.md` only.
 
