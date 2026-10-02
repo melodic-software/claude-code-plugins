@@ -28,6 +28,11 @@ def test_every_shipped_rule_compiles() -> None:
     assert redactor.rule_count == len(shipped)
 
 
+def test_version_is_the_vendored_source_version() -> None:
+    shipped = json.loads(RULES_FILE.read_text(encoding="utf-8"))
+    assert redact.load_redactor().version == shipped["source_version"]
+
+
 def test_documented_example_token_is_replaced_with_its_rule_id() -> None:
     text = f"export AWS_ACCESS_KEY_ID={AWS_EXAMPLE_KEY} then deploy"
     assert redact.load_redactor().redact(text) == (

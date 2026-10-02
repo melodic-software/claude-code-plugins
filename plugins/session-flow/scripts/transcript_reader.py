@@ -13,6 +13,8 @@ Public interface:
   records, so usage is keyed by `message.id` (fallback: record `uuid`) and the last record wins.
   Summing per record double-counts tokens. `add(record)`, then `totals()` gives `TOKEN_FIELDS`
   plus `unique_messages`. Non-integer counts read as 0.
+- `user_text(record)` is a user record's text, stripped, with text blocks joined by newlines; None
+  for a tool result or a content shape that carries no text. Injected text is returned as is.
 - `is_typed_turn(record)` is true only for a user record the human typed: not a tool result, not
   meta, compact-summary or transcript-only, `origin.kind` absent or `human`, `promptSource` absent
   or in `TYPED_PROMPT_SOURCES`, not an interrupt, and not starting with an `INJECTED_PREFIXES`
@@ -164,7 +166,7 @@ class UsageLedger:
         return totals
 
 
-def _user_text(record: dict) -> str | None:
+def user_text(record: dict) -> str | None:
     content = _obj(record.get("message")).get("content")
     if isinstance(content, list):
         blocks = [b for b in content if isinstance(b, dict)]
@@ -186,7 +188,7 @@ def is_typed_turn(record: dict) -> bool:
     source = record.get("promptSource")
     if source and not (isinstance(source, str) and source in TYPED_PROMPT_SOURCES):
         return False
-    text = _user_text(record)
+    text = user_text(record)
     if not text or INTERRUPT_RE.match(text):
         return False
     return not text.startswith(INJECTED_PREFIXES)

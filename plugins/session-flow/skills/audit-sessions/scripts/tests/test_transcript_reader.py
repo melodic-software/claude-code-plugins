@@ -309,6 +309,21 @@ def test_typed_turn_rule_tolerates_drifted_shapes(record, typed):
     assert transcript_reader.is_typed_turn(record) is typed
 
 
+@pytest.mark.parametrize(
+    ("record", "text"),
+    [
+        (user("  plain words \n"), "plain words"),
+        (user([{"type": "text", "text": "one"}, {"type": "image"}, {"type": "text", "text": "two"}]), "one\ntwo"),
+        (user("<command-name>/clear</command-name>"), "<command-name>/clear</command-name>"),
+        (user([{"type": "tool_result", "content": "out"}, {"type": "text", "text": "x"}]), None),
+        ({"type": "user", "message": "a string, not an object"}, None),
+    ],
+    ids=["string", "text-blocks", "injected-kept", "tool-result", "drifted"],
+)
+def test_user_text_joins_text_blocks_and_drops_tool_results(record, text):
+    assert transcript_reader.user_text(record) == text
+
+
 def test_subagents_stream_with_their_meta(copy_fixture):
     root = copy_fixture("reader/subagents")
     (root / "sess-0001" / "subagents" / "agent-c3.meta.json").write_text('{"agentType": ', encoding="utf-8")

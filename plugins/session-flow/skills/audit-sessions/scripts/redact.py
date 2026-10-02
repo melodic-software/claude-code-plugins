@@ -7,6 +7,7 @@ Public API:
     Redactor.skipped: dict[str, str]   rule id -> why it was skipped
     Redactor.fail_closed: bool         a rule was skipped or none loaded; excerpt() returns None
     Redactor.rule_count: int           gitleaks rules in force
+    Redactor.version: str              the vendored gitleaks version, "" when unknown
 """
 
 from __future__ import annotations
@@ -68,6 +69,7 @@ class Rule:
 class Redactor:
     rules: tuple[Rule, ...]
     skipped: dict[str, str] = field(default_factory=dict)
+    version: str = ""
 
     @property
     def fail_closed(self) -> bool:
@@ -103,7 +105,8 @@ def _compile(regex: str) -> re.Pattern[str]:
 def load_redactor(path: Path = RULES_FILE) -> Redactor:
     """Never raises: an unreadable file or rule lands in `skipped`, which fails closed."""
     try:
-        entries = list(json.loads(path.read_text(encoding="utf-8"))["rules"])
+        data = json.loads(path.read_text(encoding="utf-8"))
+        entries = list(data["rules"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return Redactor((), {path.name: f"{type(exc).__name__}: {exc}"})
     rules: list[Rule] = []
@@ -122,4 +125,4 @@ def load_redactor(path: Path = RULES_FILE) -> Redactor:
             )
         except (re.error, Warning, KeyError, TypeError) as exc:
             skipped[rule_id] = f"{type(exc).__name__}: {exc}"
-    return Redactor(tuple(rules), skipped)
+    return Redactor(tuple(rules), skipped, str(data.get("source_version", "")))
