@@ -15,6 +15,15 @@
   changes stay in one session. Compaction is no longer the last resort, and the workflow's
   spec-first mode row no longer says it clears between stages. New workflow evals cover each route,
   and the router's zone examples use context-guard's own zone words.
+- **`handoff`, `keep-going`, spec-first and `retro` point at the continuation router.** The handoff
+  skill's window-depth section becomes "Handoff or compaction: route by task", a pointer to the
+  router; a handoff the model elects on its own walks the router first and writes nothing when it
+  routes elsewhere, while a user's explicit `/session-flow:handoff` still writes. `keep-going`
+  routes a degraded-zone continuation with `/session-flow:workflow continue`. Spec-first no longer
+  clears between every stage or reaches for a handoff mid-stage; each boundary is routed. The retro
+  efficiency check asks whether each continuation followed the router instead of treating a
+  compaction as a missed handoff. `handoff` and `keep-going` gain a `## Next` section, and a new
+  handoff eval covers the model-elected same-task case.
 
 ## [0.44.5] - 2026-10-02
 
