@@ -98,6 +98,13 @@ write_copy() {
     cat "$rendered" >"$copy"
     echo "generated: $copy"
   fi
+  if [[ -x "$src" && ! -x "$copy" ]]; then
+    chmod +x "$copy"
+    echo "generated: $copy (executable bit)"
+  elif [[ ! -x "$src" && -x "$copy" ]]; then
+    chmod -x "$copy"
+    echo "generated: $copy (executable bit)"
+  fi
 }
 
 drifted=0
@@ -107,19 +114,25 @@ check_copy() {
     echo "DRIFT: $copy differs from the copy $src generates" >&2
     drifted=1
   fi
+  if [[ -x "$src" && ! -x "$copy" ]] || [[ ! -x "$src" && -x "$copy" ]]; then
+    echo "DRIFT: $copy has a different executable bit than $src" >&2
+    drifted=1
+  fi
 }
 
 check_bump() {
-  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0
+  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed
   if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
     echo "error: base ref $base does not resolve to a commit." >&2
     exit 2
   fi
   for src in "${srcs[@]}"; do
-    git diff --quiet "$base" -- "$src" && continue
-    changed=$((changed + 1))
+    src_changed=0
     while IFS= read -r copy; do
       [[ -n "$copy" ]] || continue
+      # A copy can change with its canonical untouched: a new header, or a new registry entry.
+      git diff --quiet "$base" -- "$src" "$copy" && continue
+      src_changed=1
       rest="${copy#plugins/}"
       manifest="plugins/${rest%%/*}/.claude-plugin/plugin.json"
       # A plugin absent at the base ref is new in this change set; its initial
@@ -128,21 +141,22 @@ check_bump() {
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
       if [[ "$head_version" == "$base_version" ]]; then
-        echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
+        echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
         rest="${rest#*/}"
         echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
         stale=1
       fi
     done <<<"${copies_of[$src]}"
+    changed=$((changed + src_changed))
   done
   if ((stale)); then
     echo "Bump the version of every carrying plugin so consumers receive the change." >&2
     exit 1
   fi
   if ((changed)); then
-    echo "$changed canonical source(s) changed vs $base; every carrying plugin bumped its version."
+    echo "$changed canonical source(s) or their copies changed vs $base; every carrying plugin bumped its version."
   else
-    echo "No canonical source changed vs $base; no version bumps required."
+    echo "No canonical source or copy changed vs $base; no version bumps required."
   fi
 }
 

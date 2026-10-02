@@ -82,7 +82,7 @@ run >/dev/null
 out="$(run --check-bump "$base")"
 expect "--check-bump fails when a carrier did not bump" 1 $? "$out"
 LAST_OUTPUT="$out"
-assert_output_contains "--check-bump names the stale manifest" "STALE VERSION: lib/esc.mjs changed vs $base but plugins/alpha/.claude-plugin/plugin.json"
+assert_output_contains "--check-bump names the stale manifest" "STALE VERSION: lib/esc.mjs or its copy plugins/alpha/lib/esc.mjs changed vs $base but plugins/alpha/.claude-plugin/plugin.json"
 assert_output_contains "--check-bump gives the sync-only CHANGELOG entry" "Shared \`esc.mjs\` synced"
 printf '{"name":"alpha","version":"0.1.1"}\n' >"$root/plugins/alpha/.claude-plugin/plugin.json"
 out="$(run --check-bump "$base")"
@@ -110,6 +110,42 @@ if [[ -f "$root/plugins/gamma/lib/esc.mjs" ]]; then
   pass "regen creates a newly registered copy"
 else
   bad "regen creates a newly registered copy" "plugins/gamma/lib/esc.mjs missing"
+fi
+
+# A copy that changed while its canonical did not (a new header) still needs a bump.
+fixture
+run >/dev/null
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+base="$(git -C "$root" rev-parse HEAD)"
+printf '// new header line\n' >>"$root/plugins/alpha/lib/esc.mjs"
+out="$(run --check-bump "$base")"
+expect "--check-bump fails when only a copy changed" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump names the changed copy" "its copy plugins/alpha/lib/esc.mjs changed"
+
+# --- the executable bit follows the canonical, on regen and in --check ----------
+fixture
+printf '#!/usr/bin/env bash\necho hi\n' >"$root/lib/tool.sh"
+printf 'lib/tool.sh plugins/alpha/scripts/tool.sh\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+chmod +x "$root/lib/tool.sh"
+out="$(run --check)"
+expect "--check fails when a copy lacks the canonical's executable bit" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check names the executable bit" "different executable bit"
+run >/dev/null
+if [[ -x "$root/plugins/alpha/scripts/tool.sh" ]]; then
+  pass "regen gives an existing copy the canonical's executable bit"
+else
+  bad "regen gives an existing copy the canonical's executable bit" "not executable"
+fi
+chmod -x "$root/lib/tool.sh"
+run >/dev/null
+if [[ ! -x "$root/plugins/alpha/scripts/tool.sh" ]]; then
+  pass "regen removes the executable bit the canonical dropped"
+else
+  bad "regen removes the executable bit the canonical dropped" "still executable"
 fi
 
 # --- a shebang stays on line one; the header follows it ------------------------
