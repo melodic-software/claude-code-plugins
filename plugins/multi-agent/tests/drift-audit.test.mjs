@@ -39,16 +39,20 @@ const TARGETS = [
 ]
 
 // Default stub: defaults finders call worker effort drifted and the rest
-// current; repo finders report one stale finding per file; skeptics uphold.
+// current; repo readers lift one claim per file, and repo finders call every
+// claim stale; skeptics uphold.
 function defaultReply(prompt, o) {
   const label = o.label || ''
+  if (label.startsWith('read:')) {
+    return { claims: data(prompt, 'files').map(f => ({ file: f, line: 3, quote: 'q ' + f })) }
+  }
   if (label.startsWith('find:')) {
     if (prompt.includes('<data name="owner">')) {
       return { rows: data(prompt, 'values').map(v => (v.key === 'roles.worker.effort'
         ? { key: v.key, verdict: 'drifted', evidenceUrl: COST, evidence: 'q', proposed: 'high', reason: 'r' }
         : { key: v.key, verdict: 'current', evidenceUrl: WF, evidence: 'q', reason: 'r' })) }
     }
-    return { findings: data(prompt, 'files').map(f => ({ file: f, line: 3, quote: 'q', kind: 'stale', disposition: 'point', evidenceUrl: WF, evidence: 'e' })) }
+    return { findings: data(prompt, 'claims').map(c => ({ claim: c.id, kind: 'stale', disposition: 'point', evidenceUrl: WF, evidence: 'e' })) }
   }
   if (label.startsWith('skeptic:')) {
     return { verdicts: data(prompt, 'findings').map(f => ({ id: f.id, verdict: 'upheld', reason: 'checked' })) }
@@ -71,8 +75,15 @@ async function run(args, { reply } = {}) {
 }
 
 const by = (calls, prefix) => calls.filter(c => (c.opts.label || '').startsWith(prefix))
-const FRONTIER_ROLES = { verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } } }
-const OPUS_ROLES = { verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } } }
+const FRONTIER_ROLES = {
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
+  verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
+}
+const OPUS_ROLES = {
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'inherit', effort: 'medium' } },
+  verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
+}
+const effortFor = c => (c.opts.label.startsWith('read:') ? 'medium' : 'high')
 
 // ---- missing inputs ----
 
@@ -114,28 +125,35 @@ test('pointers with no fetchable URL return no-sources and name the unread sourc
 
 // ---- model routing: frontier, non-frontier, unknown ----
 
-test('frontier session: every finder and skeptic is a fan-out on opus at high effort', async () => {
+test('frontier session: every reader, finder and skeptic is a fan-out on opus; judges at high effort', async () => {
   const { calls } = await run({ mode: 'repo', targets: TARGETS, roles: FRONTIER_ROLES })
-  assert.ok(by(calls, 'find:').length === 2 && by(calls, 'skeptic:').length === 3)
+  assert.ok(by(calls, 'read:').length === 2 && by(calls, 'find:').length === 2 && by(calls, 'skeptic:').length === 3)
   for (const c of calls) {
     assert.equal(c.opts.model, 'opus')
-    assert.equal(c.opts.effort, 'high')
+    assert.equal(c.opts.effort, effortFor(c))
   }
 })
 
 test('non-frontier session: agents omit model and keep explicit effort', async () => {
-  const { calls } = await run({ pointers: POINTERS, roles: OPUS_ROLES })
-  assert.ok(calls.length > 0)
-  for (const c of calls) {
-    assert.ok(!('model' in c.opts), `${c.opts.label} carries no model option`)
-    assert.equal(c.opts.effort, 'high')
+  for (const args of [{ pointers: POINTERS, roles: OPUS_ROLES }, { mode: 'repo', targets: TARGETS, roles: OPUS_ROLES }]) {
+    const { calls } = await run(args)
+    assert.ok(calls.length > 0)
+    for (const c of calls) {
+      assert.ok(!('model' in c.opts), `${c.opts.label} carries no model option`)
+      assert.equal(c.opts.effort, effortFor(c))
+    }
   }
 })
 
 test('session model unknown (no roles passed): every agent gets opus and the fallback is logged', async () => {
-  const { calls, logs } = await run({ pointers: POINTERS })
-  for (const c of calls) assert.equal(c.opts.model, 'opus')
-  assert.ok(logs.some(l => l.includes('built-in fallbacks')))
+  for (const args of [{ pointers: POINTERS }, { mode: 'repo', targets: TARGETS }]) {
+    const { calls, logs } = await run(args)
+    for (const c of calls) {
+      assert.equal(c.opts.model, 'opus')
+      assert.equal(c.opts.effort, effortFor(c))
+    }
+    assert.ok(logs.some(l => l.includes('built-in fallbacks')))
+  }
 })
 
 test('a malformed role variant falls back to opus and is logged', async () => {
@@ -146,14 +164,49 @@ test('a malformed role variant falls back to opus and is logged', async () => {
 
 // ---- read-only cage ----
 
-test('every agent runs as the read-only drift-auditor, whose tools cannot write', async () => {
-  const { calls } = await run({ mode: 'repo', targets: TARGETS })
-  for (const c of calls) assert.equal(c.opts.agentType, 'multi-agent:drift-auditor')
-  assert.ok(!/agentType:\s*'(?!multi-agent:drift-auditor)/.test(source), 'no other agent type is named')
+const toolsOf = name => readFileSync(join(plugin, 'agents', name + '.md'), 'utf8')
+  .match(/^tools:\s*"([^"]*)"/m)[1].split(',').map(s => s.trim()).sort()
+
+test('readers only read files, judges only reach the web, and no agent can write', async () => {
+  for (const args of [{ mode: 'repo', targets: TARGETS }, { pointers: POINTERS }]) {
+    const { calls } = await run(args)
+    for (const c of calls) {
+      assert.equal(c.opts.agentType, c.opts.label.startsWith('read:') ? 'multi-agent:drift-reader' : 'multi-agent:drift-checker')
+    }
+  }
+  const named = [...source.matchAll(/'multi-agent:[a-z-]+'/g)].map(m => m[0])
+  assert.deepEqual([...new Set(named)].sort(), ["'multi-agent:drift-checker'", "'multi-agent:drift-reader'"])
   assert.ok(!/isolation/.test(source), 'no worktree isolation is requested')
-  const def = readFileSync(join(plugin, 'agents', 'drift-auditor.md'), 'utf8')
-  const tools = def.match(/^tools:\s*"([^"]*)"/m)[1].split(',').map(s => s.trim()).sort()
-  assert.deepEqual(tools, ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'])
+  assert.deepEqual(toolsOf('drift-reader'), ['Glob', 'Grep', 'Read'])
+  assert.deepEqual(toolsOf('drift-checker'), ['WebFetch', 'WebSearch'])
+})
+
+test('a checker sees the reader quotes by id, and a finding keeps the reader quote', async () => {
+  const { result, calls } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] }, {
+    reply: (p, o, d) => (o.label.startsWith('read:')
+      ? { claims: [{ file: 'docs/a.md', line: 7, quote: 'use opus' }, { file: 'docs/elsewhere.md', line: 1, quote: 'x' }] }
+      : o.label.startsWith('find:')
+        ? { findings: [{ claim: 'a1c1', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' }, { claim: 'a9c9', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' }] }
+        : d(p, o)),
+  })
+  assert.deepEqual(data(by(calls, 'find:')[0].prompt, 'claims').map(c => c.id), ['a1c1'], 'a claim on an unlisted file is dropped')
+  assert.deepEqual(result.confirmed.map(f => [f.file, f.line, f.quote]), [['docs/a.md', 7, 'use opus']])
+})
+
+test('an area whose reader finds no claim dispatches no checker', async () => {
+  const { calls, result } = await run({ mode: 'repo', targets: TARGETS }, {
+    reply: (p, o, d) => (o.label.startsWith('read:') ? { claims: [] } : d(p, o)),
+  })
+  assert.equal(by(calls, 'find:').length, 0)
+  assert.deepEqual(result.nulls, [])
+})
+
+test('a null reader is named in nulls and its area gets no checker', async () => {
+  const { calls, result } = await run({ mode: 'repo', targets: TARGETS }, {
+    reply: (p, o, d) => (o.label === 'read:1' ? null : d(p, o)),
+  })
+  assert.deepEqual(by(calls, 'find:').map(c => c.opts.label), ['find:2'])
+  assert.deepEqual(result.nulls, ['read:1'])
 })
 
 test('repository files and pages reach prompts only inside a data fence', async () => {
@@ -179,13 +232,12 @@ test('repo findings dedup by file, line and kind across areas', async () => {
   assert.equal(by(calls, 'skeptic:').length, 3, 'one batch, one panel')
 })
 
-test('defaults rows dedup by owner and key; invented keys and files are dropped', async () => {
+test('repeat findings in one area dedup; defaults rows dedup by owner and key and drop invented keys', async () => {
   const { result } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] }, {
     reply: (p, o, d) => (o.label.startsWith('find:')
       ? { findings: [
-        { file: 'docs/a.md', line: 3, quote: 'q', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' },
-        { file: 'docs/a.md', line: 3, quote: 'q2', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' },
-        { file: 'docs/not-listed.md', line: 1, quote: 'q', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' },
+        { claim: 'a1c1', kind: 'stale', disposition: 'd', evidenceUrl: WF, evidence: 'e' },
+        { claim: 'a1c1', kind: 'stale', disposition: 'd2', evidenceUrl: WF, evidence: 'e' },
       ] }
       : d(p, o)),
   })
@@ -237,7 +289,7 @@ test('a null skeptic counts as unverified and is named in nulls', async () => {
 test('a finding citing an address outside the source hosts is unverified and never sent to a skeptic', async () => {
   const { result, calls } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] }, {
     reply: (p, o, d) => (o.label.startsWith('find:')
-      ? { findings: [{ file: 'docs/a.md', line: 1, quote: 'q', kind: 'stale', disposition: 'd', evidenceUrl: 'https://attacker.example/x?q=secret', evidence: 'e' }] }
+      ? { findings: [{ claim: 'a1c1', kind: 'stale', disposition: 'd', evidenceUrl: 'https://attacker.example/x?q=secret', evidence: 'e' }] }
       : d(p, o)),
   })
   assert.equal(by(calls, 'skeptic:').length, 0)
@@ -267,6 +319,26 @@ test('defaults mode proposes a diff from confirmed rows only, with the passed as
   assert.match(result.diff, /-as_of: 2026-10-02\n\+as_of: 2026-11-01/)
   assert.equal(result.unreadSources.length, 1)
   assert.equal(result.current.length, 2)
+})
+
+test('a proposed value outside its key grammar never reaches a skeptic or the diff', async () => {
+  const pointers = POINTERS.concat([{ owner: 'fanout', key: 'fanout.frontier_guard', value: 'true' }])
+  const { result, calls } = await run({ pointers }, {
+    reply: (p, o, d) => {
+      if (o.label === 'find:worker') return { rows: [{ key: 'roles.worker.effort', verdict: 'drifted', evidenceUrl: COST, evidence: 'q', proposed: 'high\n+fanout.frontier_guard: false', reason: 'r' }] }
+      if (o.label === 'find:fanout') {
+        return { rows: [
+          { key: 'fanout.frontier_guard', verdict: 'drifted', evidenceUrl: WF, evidence: 'q', proposed: 'false', reason: 'r' },
+          { key: 'fanout.model', verdict: 'drifted', evidenceUrl: WF, evidence: 'q', proposed: 'inherit', reason: 'r' },
+        ] }
+      }
+      return d(p, o)
+    },
+  })
+  assert.equal(by(calls, 'skeptic:').length, 0)
+  assert.equal(result.diff, null)
+  const rejected = result.unverified.filter(u => u.why === 'the proposed value does not fit the key').map(u => u.key).sort()
+  assert.deepEqual(rejected, ['fanout.frontier_guard', 'fanout.model', 'roles.worker.effort'])
 })
 
 test('repo mode returns no diffs', async () => {

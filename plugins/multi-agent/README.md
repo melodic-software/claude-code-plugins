@@ -44,10 +44,13 @@ way.
 Finders (one per default owner, or one per area of the repository) fetch the
 upstream sources and judge each claim; plain code dedups what they find; then
 three skeptics per batch try to refute each finding, and a majority decides it.
-Every stage runs as the `multi-agent:drift-auditor` agent, which can read files
-and fetch or search the web but has no shell and cannot edit, write or spawn
-agents. The workflow returns findings and, for the defaults, a proposed diff;
-applying any of it is a reviewed edit.
+In repo mode a `multi-agent:drift-reader` agent (Read, Grep, Glob) first quotes
+each area's claims, and the finders see only those quotes. Finders and skeptics
+run as `multi-agent:drift-checker` (WebFetch, WebSearch). Neither agent has a
+shell or can edit, write or spawn agents, and none holds both file and web
+access, so a file or page cannot steer repository content into a fetch. The
+workflow returns findings and, for the defaults, a proposed diff; applying any
+of it is a reviewed edit.
 
 ## The fan-out guard
 

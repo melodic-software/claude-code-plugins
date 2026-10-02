@@ -9,19 +9,22 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 
 - **`multi-agent:drift-audit` workflow** (`workflows/drift-audit.js`). In `defaults` mode, one
   finder per owner rechecks each bundled default against its pointers; in `repo` mode, one
-  finder per area checks the repository's model, effort, subagent and workflow statements
-  against upstream pages. Plain code dedups the findings, then three independent skeptics per
-  batch try to refute each one, and a finding stands or falls on a majority. It returns
-  confirmed, refuted and unverified findings with evidence URLs, plus a proposed
-  `defaults.yaml` diff in `defaults` mode. It never edits a file. Missing `pointers` (defaults
-  mode) or `targets` (repo mode) returns an error and runs nothing. Under a frontier or unknown
-  session, finders and skeptics run on `opus`.
-- **`drift-auditor` agent**, the only agent the workflow runs: Read, Grep, Glob, WebFetch and
-  WebSearch, no shell and no edits. Repository text and pages reach its prompts only as fenced
-  data, and a finding whose evidence URL is outside the vetted source hosts is reported
-  unverified instead of going to a skeptic.
+  reader per area quotes the repository's model, effort, subagent and workflow statements and
+  one finder per area checks those quotes against upstream pages. Plain code dedups the
+  findings, then three independent skeptics per batch try to refute each one, and a finding
+  stands or falls on a majority. It returns confirmed, refuted and unverified findings with
+  evidence URLs, plus a proposed `defaults.yaml` diff in `defaults` mode, built only from
+  confirmed rows whose proposed value fits the key (a model alias, an effort level, and never
+  `frontier_guard: false`). It never edits a file. Missing `pointers` (defaults mode) or
+  `targets` (repo mode) returns an error and runs nothing. Under a frontier or unknown
+  session, every stage runs on `opus`.
+- **`drift-reader` and `drift-checker` agents**, the only agents the workflow runs. The reader
+  has Read, Grep and Glob; the checker has WebFetch and WebSearch. Neither has a shell or can
+  edit, and no agent holds both file and web access. Repository text and pages reach their
+  prompts only as fenced data, and a finding whose evidence URL is outside the vetted source
+  hosts is reported unverified instead of going to a skeptic.
 - **`audit-defaults repo`**, a mode that sweeps the repository's tracked markdown;
-  `scripts/list-targets.sh` computes the areas.
+  `scripts/list-targets.sh` computes the areas and skips symlinks.
 - **`list-pointers.sh --json`**, which prints the rows as the workflow's `args.pointers`.
 
 ### Changed

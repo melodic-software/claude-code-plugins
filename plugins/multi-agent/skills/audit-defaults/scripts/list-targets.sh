@@ -38,7 +38,7 @@ git ls-files -z -- '*.md' |
   tr '\0' '\n' |
   grep -vE "$EXCLUDE" |
   while IFS= read -r f; do
-    [[ -f "$f" ]] && grep -qEi -- "$CLAIMS" "$f" && printf '%s\n' "$f"
+    [[ -f "$f" && ! -L "$f" ]] && grep -qEi -- "$CLAIMS" "$f" && printf '%s\n' "$f"
   done |
   awk '
     function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }

@@ -41,13 +41,15 @@ printf 'Use opus.\n' >"$R/docs/upstream/snapshot.md"
 printf 'Use opus.\n' >"$R/plugins/p/CHANGELOG.md"
 printf 'Use opus.\n' >"$R/plugins/p/skills/s/evals/case.md"
 printf 'Use opus.\n' >"$R/untracked.md"
+printf 'Use opus.\n' >"$T/outside.md"
+ln -s "$T/outside.md" "$R/docs/x/link.md"
 git -C "$R" add plugins docs README.md
 out="$("$SCRIPT_DIR/list-targets.sh" --root "$R")"
 assert_contains 'groups a plugin by plugins/<name>' "$out" '{"area":"plugins/p","files":["plugins/p/skills/s/SKILL.md"]}'
 assert_contains 'a model: frontmatter line is a claim' "$out" '"plugins/q/agent.md"'
 assert_contains 'escapes a quote in a path' "$out" '"docs/x/a \"q\".md"'
 assert_contains 'top-level files are the (root) area' "$out" '{"area":"(root)","files":["README.md"]}'
-for skip in plain.md upstream/snapshot.md CHANGELOG.md evals/case.md untracked.md; do
+for skip in plain.md upstream/snapshot.md CHANGELOG.md evals/case.md untracked.md link.md; do
   assert_lacks "leaves out $skip" "$out" "$skip"
 done
 for i in $(seq 1 12); do printf 'Use haiku.\n' >"$R/docs/x/f$i.md"; done

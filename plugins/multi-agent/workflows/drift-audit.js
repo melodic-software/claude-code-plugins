@@ -3,7 +3,7 @@ export const meta = {
   description: 'Read-only drift audit of model, effort, subagent and workflow guidance: area finders check claims against upstream pages, skeptics try to refute each finding, and confirmed defaults drift comes back as a proposed diff',
   whenToUse: 'Run by /multi-agent:audit-defaults, which resolves args: mode (defaults or repo), pointers (defaults mode, required), targets (repo mode, required), upstream, roles, maxConcurrent, asOf. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /multi-agent:audit-defaults.',
   phases: [
-    { title: 'Find', detail: 'one auditor per area (repo mode) or per default owner (defaults mode)' },
+    { title: 'Find', detail: 'per area (repo mode) a file reader then a web checker; per default owner (defaults mode) a web checker' },
     { title: 'Verify', detail: 'independent skeptics per batch try to refute each finding; a finding stands on a majority' },
   ],
 }
@@ -159,14 +159,16 @@ if (!sources.length) {
 }
 const SOURCE_HOSTS = new Set(sources.map(hostOf))
 
-// Role variants as /multi-agent:route emits them. Finders and skeptics both
-// judge claims, so both take the verifier role; both stages run several agents,
-// so both read its `fanout` variant. The fallback names opus because the
-// session model is unknown here, and a frontier session must never fan out on
-// its own model.
+// Role variants as /multi-agent:route emits them. Finders and skeptics judge
+// claims, so they take the verifier role; repo-mode readers only lift claims
+// out of files, so they take the worker role. Every stage runs several agents,
+// so each reads its role's `fanout` variant. The fallback names opus because
+// the session model is unknown here, and a frontier session must never fan out
+// on its own model.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
@@ -182,15 +184,19 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stages on opus)')
 
-// Every stage reads untrusted repository text and web pages, so every agent is
-// multi-agent:drift-auditor, whose tools are read-only file access plus web
-// fetch and search. That definition inherits the model and pins no effort, so
-// the role map governs it. `inherit` omits opts.model; effort is always explicit.
-const AGENT_TYPE = 'multi-agent:drift-auditor'
-function opts(variant) {
+// No agent holds both file reads and web access, so text an attacker controls
+// in a file or on a page cannot carry repository content out through a fetch.
+// multi-agent:drift-reader (Read, Grep, Glob) lifts claims out of files;
+// multi-agent:drift-checker (WebFetch, WebSearch) judges them against upstream
+// and sees only the quotes the reader returned. Both definitions inherit the
+// model and pin no effort, so the role map governs them. `inherit` omits
+// opts.model; effort is always explicit.
+const READER = 'multi-agent:drift-reader'
+const CHECKER = 'multi-agent:drift-checker'
+function opts(variant, agentType) {
   return variant.model === 'inherit'
-    ? { agentType: AGENT_TYPE, effort: variant.effort }
-    : { agentType: AGENT_TYPE, model: variant.model, effort: variant.effort }
+    ? { agentType, effort: variant.effort }
+    : { agentType, model: variant.model, effort: variant.effort }
 }
 
 // One retry for a thrown dispatch, a null result is final, and an error naming
@@ -236,7 +242,27 @@ const POINTER_RULE =
   'instead of restating it, and records the pointer, an as-of date and a recheck trigger. Files under ' +
   'docs/upstream/, changelogs and eval fixtures are deliberate snapshots and out of scope.'
 
+const CLAIM_CAP = 40
 const KINDS = ['stale', 'copied-current', 'unpointed-judgment', 'hardcoded-model-pin']
+const CLAIMS_SCHEMA = {
+  type: 'object',
+  properties: {
+    claims: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          file: { type: 'string' },
+          line: { type: 'integer', minimum: 1 },
+          quote: { type: 'string', description: 'the exact repository text, at most about 300 characters' },
+          pointer: { type: 'string', description: 'the pointer, as-of date and recheck trigger recorded beside it, verbatim, or empty' },
+        },
+        required: ['file', 'line', 'quote'],
+      },
+    },
+  },
+  required: ['claims'],
+}
 const REPO_FINDINGS = {
   type: 'object',
   properties: {
@@ -245,16 +271,14 @@ const REPO_FINDINGS = {
       items: {
         type: 'object',
         properties: {
-          file: { type: 'string' },
-          line: { type: 'integer', minimum: 1 },
-          quote: { type: 'string', description: 'the exact repository text, at most about 300 characters' },
+          claim: { type: 'string', description: 'the id of the claim this finding is about' },
           kind: { type: 'string', enum: KINDS },
           disposition: { type: 'string', description: 'the fix you propose: a pointer to URL#anchor, a deletion, a re-pin, or keep with a reason' },
           evidenceUrl: { type: 'string', description: 'the source page fetched this run that decides it; empty only for unpointed-judgment or hardcoded-model-pin' },
           evidence: { type: 'string', description: 'what that page says now, verbatim where possible' },
           general: { type: 'boolean', description: 'true when it affects any agent or skill, not only workflows' },
         },
-        required: ['file', 'line', 'quote', 'kind', 'disposition', 'evidenceUrl', 'evidence'],
+        required: ['claim', 'kind', 'disposition', 'evidenceUrl', 'evidence'],
       },
     },
     notes: { type: 'string' },
@@ -307,21 +331,26 @@ const VERDICT_SCHEMA = {
 // ---- Find ----
 phase('Find')
 
-function repoPrompt(u) {
-  return 'Stage: find. Read-only drift audit of one area of this repository. Read each file listed and find ' +
-    'statements about which model or tier to use for which role (orchestrator, worker, reviewer, research, ' +
-    'mechanical work), effort levels, subagent model resolution, depth or concurrency caps, dynamic workflows ' +
-    '(availability, size guidance, concurrency, usage-limit behavior, per-agent model and effort), and the ' +
-    'environment variables or settings for any of these. Also flag agent frontmatter that pins a full model ' +
-    'id, or a pin that contradicts current upstream guidance for its role. Fetch the sources you need and ' +
-    'check each statement against what they say now; do not rely on memory. Classify each: stale (contradicts ' +
-    'the source now), copied-current (restates a volatile upstream fact correctly but with no pointer, as-of ' +
-    'date and recheck trigger), unpointed-judgment (states a model or effort recommendation as fact with no ' +
-    'basis), hardcoded-model-pin (pins a model in a way that defeats aliases or current guidance). Skip a ' +
-    'statement that already carries a pointer record and still matches its source, and a mere mention that ' +
-    'makes no claim. Quote exact text with its line number. Report only files from the list.' +
+function readPrompt(u) {
+  return 'Stage: read. Read each repository file listed and return every statement about which model or tier ' +
+    'to use for which role (orchestrator, worker, reviewer, research, mechanical work), effort levels, subagent ' +
+    'model resolution, depth or concurrency caps, dynamic workflows (availability, size guidance, concurrency, ' +
+    'usage-limit behavior, per-agent model and effort), and the environment variables or settings for any of ' +
+    'these, plus agent frontmatter that pins a model. Quote each exactly with its file and line number, and ' +
+    'copy any pointer, as-of date and recheck trigger recorded beside it. Skip a mere mention that makes no ' +
+    'claim. Return at most ' + CLAIM_CAP + ', most specific first. Do not judge whether they are true.' +
+    READ_ONLY + fence('area', u.area) + fence('files', u.files)
+}
+function checkPrompt(u, claims) {
+  return 'Stage: find. Read-only drift audit of claims a separate reader lifted from one area of a repository; ' +
+    'you cannot read the files and do not need to. Fetch the sources you need and check each claim against ' +
+    'what they say now; do not rely on memory. Report a claim only when it is one of: stale (contradicts the ' +
+    'source now), copied-current (restates a volatile upstream fact correctly but with no pointer, as-of date ' +
+    'and recheck trigger), unpointed-judgment (states a model or effort recommendation as fact with no basis), ' +
+    'hardcoded-model-pin (pins a model in a way that defeats aliases or current guidance). Skip a claim whose ' +
+    'pointer record still matches its source. Key each finding by its claim id.' +
     POINTER_RULE + READ_ONLY + FETCH_RULE +
-    fence('area', u.area) + fence('files', u.files) + fence('sources', sources)
+    fence('area', u.area) + fence('claims', claims) + fence('sources', sources)
 }
 function defaultsPrompt(u) {
   return 'Stage: find. Read-only recheck of one owner of a bundled role-map default. The values are the ' +
@@ -335,13 +364,46 @@ function defaultsPrompt(u) {
     fence('owner', u.owner) + fence('values', u.values) + fence('pointers', u.pointers) + fence('sources', sources)
 }
 
-const found = await inWaves(units.map(u => () => agentRetry(
-  MODE === 'repo' ? repoPrompt(u) : defaultsPrompt(u),
-  { label: u.label, phase: 'Find', schema: MODE === 'repo' ? REPO_FINDINGS : DEFAULTS_ROWS, ...opts(R.verifier.fanout) }
-)), MAX_CONCURRENT)
+const nulls = []
+// Repo mode chains reader then checker per area inside one wave slot; a reader
+// claim is kept only for a listed file, and the checker sees it by id.
+const claimsByUnit = units.map(() => [])
+async function repoUnit(u, i) {
+  const read = await agentRetry(readPrompt(u),
+    { label: u.label.replace('find:', 'read:'), phase: 'Find', schema: CLAIMS_SCHEMA, ...opts(R.worker.fanout, READER) })
+  if (read == null) { nulls.push(u.label.replace('find:', 'read:')); return null }
+  const allowed = new Set(u.files)
+  const claims = (Array.isArray(read.claims) ? read.claims : [])
+    .filter(c => c && allowed.has(c.file) && Number.isInteger(c.line) && c.line >= 1 && typeof c.quote === 'string' && c.quote.trim())
+    .slice(0, CLAIM_CAP)
+    .map((c, j) => ({ id: 'a' + (i + 1) + 'c' + (j + 1), file: c.file, line: c.line, quote: c.quote.slice(0, 400), pointer: String(c.pointer || '').slice(0, 400) }))
+  claimsByUnit[i] = claims
+  if (!claims.length) return { findings: [] }
+  return agentRetry(checkPrompt(u, claims),
+    { label: u.label, phase: 'Find', schema: REPO_FINDINGS, ...opts(R.verifier.fanout, CHECKER) })
+}
+const found = await inWaves(units.map((u, i) => () => (MODE === 'repo'
+  ? repoUnit(u, i)
+  : agentRetry(defaultsPrompt(u), { label: u.label, phase: 'Find', schema: DEFAULTS_ROWS, ...opts(R.verifier.fanout, CHECKER) }))
+), MAX_CONCURRENT)
 
-const nulls = units.filter((_, i) => found[i] == null).map(u => u.label)
+units.forEach((u, i) => {
+  if (found[i] == null && (MODE !== 'repo' || claimsByUnit[i].length)) nulls.push(u.label)
+})
 const notes = found.filter(Boolean).map(r => r.notes).filter(n => typeof n === 'string' && n.trim())
+
+// A proposed default must fit its key's grammar, so model text cannot smuggle
+// extra lines into the diff or turn the fan-out guard off.
+function validProposed(key, v) {
+  if (typeof v !== 'string' || !/^[\x20-\x7e]{1,60}$/.test(v)) return false
+  const aliases = MODELS.filter(m => m !== 'inherit')
+  if (key === 'fanout.frontier_guard') return v === 'true'
+  if (key === 'fanout.model') return aliases.includes(v)
+  if (key === 'frontier') return v.split(',').every(a => aliases.includes(a))
+  if (/\.model$/.test(key)) return MODELS.includes(v)
+  if (/\.effort$/.test(key)) return EFFORTS.includes(v)
+  return /^[A-Za-z0-9_.,-]+$/.test(v)
+}
 
 // A finding cites a source host the run vetted, or none where its kind allows it,
 // so no skeptic is pointed at an address a page or file supplied.
@@ -359,10 +421,11 @@ units.forEach((u, i) => {
   const r = found[i]
   if (MODE === 'repo') {
     if (r == null) return
-    const allowed = new Set(u.files)
+    const byId = new Map(claimsByUnit[i].map(c => [c.id, c]))
     for (const f of Array.isArray(r.findings) ? r.findings : []) {
-      if (!f || !allowed.has(f.file) || !Number.isInteger(f.line) || f.line < 1 || !KINDS.includes(f.kind)) continue
-      candidates.push({ area: u.area, file: f.file, line: f.line, quote: String(f.quote || '').slice(0, 400), kind: f.kind,
+      const c = f && byId.get(f.claim)
+      if (!c || !KINDS.includes(f.kind)) continue
+      candidates.push({ area: u.area, file: c.file, line: c.line, quote: c.quote, kind: f.kind,
         disposition: String(f.disposition || ''), evidenceUrl: String(f.evidenceUrl || '').trim(), evidence: String(f.evidence || ''), general: !!f.general })
     }
     return
@@ -376,7 +439,11 @@ units.forEach((u, i) => {
       evidence: String(row.evidence || ''), reason: String(row.reason || '') }
     if (row.verdict === 'current') current.push(base)
     else if (row.verdict === 'unread') unverified.push({ ...base, verdict: 'unread', why: 'the finder could not read a source for it' })
-    else candidates.push({ ...base, verdict: row.verdict, proposed: typeof row.proposed === 'string' && row.proposed.trim() ? row.proposed.trim() : values.get(row.key) })
+    else {
+      const proposed = typeof row.proposed === 'string' && row.proposed.trim() ? row.proposed.trim() : values.get(row.key)
+      if (validProposed(row.key, proposed)) candidates.push({ ...base, verdict: row.verdict, proposed })
+      else unverified.push({ ...base, verdict: row.verdict, proposed: String(proposed).slice(0, 80), why: 'the proposed value does not fit the key' })
+    }
   }
   for (const [key, value] of values) {
     if (!seen.has(key)) unverified.push({ owner: u.owner, key, value, verdict: 'unread', why: r == null ? 'the finder returned no result' : 'the finder returned no row for it' })
@@ -417,8 +484,8 @@ const votes = await inWaves(panel.map(({ b, n, k }) => () => agentRetry(
   'Stage: skeptic. You are skeptic ' + (k + 1) + ' of ' + SKEPTICS + ' on this batch, working independently. For ' +
   'each finding below, try to REFUTE it: ' +
   (MODE === 'repo'
-    ? 're-read the cited file line and re-fetch the cited page. Is the repository text actually correct now, ' +
-      'already pointered, out of scope, or is the proposed fix wrong? '
+    ? 're-fetch the cited page. The quote was read from the file by a separate reader; judge it as given. ' +
+      'Is the quoted text actually correct now, already pointered, out of scope, or is the proposed fix wrong? '
     : 're-fetch the cited page and its anchored section. Does the source still support the shipped value, ' +
       'did the recheck event not happen, or is the proposed value wrong? ') +
   'Return "refuted" when the evidence contradicts the finding, "upheld" when you checked and it holds, and ' +
@@ -426,7 +493,7 @@ const votes = await inWaves(panel.map(({ b, n, k }) => () => agentRetry(
   '"refuted" only because you could not check. When a finding is real but its fix or value is wrong, give ' +
   'the right one as correction. Return one verdict per id.' + POINTER_RULE + READ_ONLY + FETCH_RULE +
   fence('findings', b.map(skepticView)) + fence('sources', sources),
-  { label: 'skeptic:' + (n + 1) + ':' + (k + 1), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout) }
+  { label: 'skeptic:' + (n + 1) + ':' + (k + 1), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout, CHECKER) }
 )), MAX_CONCURRENT)
 
 panel.forEach((p, i) => { if (votes[i] == null) nulls.push('skeptic:' + (p.n + 1) + ':' + (p.k + 1)) })
@@ -487,6 +554,6 @@ return {
   skippedAreas,
   notes,
   nulls,
-  ran: units.map(u => u.label).concat(panel.map(p => 'skeptic:' + (p.n + 1) + ':' + (p.k + 1))),
-  roles: { finder: R.verifier.fanout, skeptic: R.verifier.fanout },
+  ran: units.flatMap(u => (MODE === 'repo' ? [u.label.replace('find:', 'read:'), u.label] : [u.label])).concat(panel.map(p => 'skeptic:' + (p.n + 1) + ':' + (p.k + 1))),
+  roles: { reader: R.worker.fanout, finder: R.verifier.fanout, skeptic: R.verifier.fanout },
 }
