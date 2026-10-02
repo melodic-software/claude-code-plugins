@@ -3,6 +3,14 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-02
+
+### Changed
+
+- The `backend` option is a picker in `/config` (`native`, `aseprite`) per the plugin option
+  naming convention (`docs/conventions/plugin-option-naming/`), so a value outside that set is no
+  longer accepted. Its description now names what each value does.
+
 ## [0.4.1] - 2026-10-01
 
 ### Changed

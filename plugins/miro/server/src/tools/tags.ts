@@ -3,8 +3,8 @@ import type { MiroApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { errorResponse, jsonResponse } from "../response.js";
-import { hasCapability } from "./capability.js";
+import { errorResponse, jsonResponse } from "../response.ts";
+import { hasCapability } from "./capability.ts";
 
 // The Miro create-tag API accepts exactly these fillColor values.
 // Ref: https://developers.miro.com/reference/create-tag

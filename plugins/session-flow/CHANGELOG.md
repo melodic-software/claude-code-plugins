@@ -8,6 +8,15 @@
   lists it, now with a pointer record to the permissions page, because transcripts recorded by older
   Claude Code versions carry the call.
 
+## [0.44.5] - 2026-10-02
+
+### Changed
+
+- Observer option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): the "Observer:" colon prefix becomes plain leading
+  words, descriptions are 300 characters or fewer in plain text and name their defaults, and the
+  cut detail moves to the README's "Option details". No key, type, or default changes.
+
 ## [0.44.4] - 2026-10-02
 
 ### Changed

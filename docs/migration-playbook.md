@@ -507,16 +507,10 @@ by a version bump and a changelog note. An install that still names an old id ge
 `Plugin "<name>" not found in marketplace`, and the consumer re-enables the plugin under its new
 name. Plugin splits and file moves are not renames.
 
-A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
-shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
-point at the successor. It keeps an existing install from reporting
-`Plugin "<name>" not found in marketplace`, since upstream has no
-deprecation state of its own
-([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
-checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
-the shim like any retirement. `provenance` → `attribution` (#4589) is the first. Consumers outside
-this repository (the fleet list, dotfiles, user-scope `enabledPlugins`) migrate from their own
-repositories.
+A rename or retirement migrates every consumer in this repository in the same change, with no
+deprecation shim, alias, or pointer to the old name: no stub catalog entry, no redirecting skill,
+no second spelling a consumer can keep using. Consumers outside this repository (the fleet list,
+dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 
 ### Same-version commit drift (directory-source marketplaces)
 

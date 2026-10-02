@@ -498,6 +498,8 @@ assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
 # qualifiers. Failing claims use the existing vocabulary, a Gap or a Conflicts
 # entry; no new status words.
 # ---------------------------------------------------------------------------
+assert_present 'gate row 7 passes a MEDIUM or LOW claim listed in the Gaps section' \
+  'skills/research/SKILL.md' '^\| 7 \|.*listed in the Gaps section.*\| \*\*verifier\*\* \|'
 assert_present 'gate row 12 is owned by the verifier' \
   'skills/research/SKILL.md' '^\| 12 \|.*jointly.*\| \*\*verifier\*\* \|'
 assert_present 'gate row 12 routes a FAIL to Phase 2, else a Gap or Conflicts entry' \

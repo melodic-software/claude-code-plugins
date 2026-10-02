@@ -827,6 +827,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Skill invocation-context rubric (`context: fork`, background posture) | [`docs/conventions/invocation-context/`](conventions/invocation-context/README.md) |
 | Skill argument shape: action, earned `--flag` modifiers, and subject | [`docs/conventions/skill-argument-shape/`](conventions/skill-argument-shape/README.md) |
 | Skill `argument-hint` string style | [`docs/conventions/argument-hint/`](conventions/argument-hint/README.md) |
+| Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/conventions/plugin-option-naming/`](conventions/plugin-option-naming/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
@@ -1116,7 +1117,10 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 ### Model tiers
 
 The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
-above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
+above, never below; tedious or mechanical preparation may drop one tier.** An implementation phase
+the plan routes `sonnet` as well-scoped may also drop one tier, to `implementation:scoped-implementer`
+at `medium` effort, the [effort floor](#effort-floor); unrouted or complex phases stay on
+`implementation:implementer` at the strong tier. The heavy default must be
 explicit: every agent definition in this repository pins `model`, because an agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
@@ -1225,7 +1229,9 @@ current alias; raise the pair together, and note frontmatter binds a floor, sinc
 raise above it stays a per-invocation override at the dispatch site). That pair is the binding, not the
 recheck list: the trigger above re-audits **every** agent-frontmatter `model` value in this
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
-list restated here.
+list restated here. Outside the pair, `plugins/implementation/agents/scoped-implementer.md` binds
+the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
+well-scoped phases, dispatched with an explicit per-invocation `model`.
 
 That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
@@ -1371,9 +1377,10 @@ kind of work, and never below `medium` for work that changes code or verifies a 
 [effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `implementer`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`; `songwriting` `object-writer`. Four pin `effort: medium`: `planning`
+`plugin-quality` `auditor`; `songwriting` `object-writer`. Five pin `effort: medium`: `planning`
 `plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`,
-because it checks one phase against acceptance criteria fixed before it runs; and `review`
+because it checks one phase against acceptance criteria fixed before it runs; `implementation`
+`scoped-implementer`, because a plan routes only well-scoped work to it; and `review`
 `ecosystem-specialist` and `discovery` `explorer`, because their work is clearly scoped tool use,
 running a repository's declared commands and reading and indexing a scope. No pin goes below
 `medium`, because a low-effort executor stops detecting that it is stuck. A frontmatter pin is what

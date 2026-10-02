@@ -11,9 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage --typecheck",
     "lint": "biome check . --error-on-warnings",
-    "lint:fix": "biome check --write . --error-on-warnings",
-    "bundle": "node build.mjs",
-    "verify-bundle": "node build.mjs --check"
+    "lint:fix": "biome check --write . --error-on-warnings"
   },
   "dependencies": {
     "@mirohq/miro-api": "^2.2.4",
@@ -24,7 +22,6 @@
     "@biomejs/biome": "^2.5.14",
     "@types/node": "^26.6.2",
     "@vitest/coverage-v8": "^5.0.1",
-    "esbuild": "0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

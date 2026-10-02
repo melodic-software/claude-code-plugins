@@ -5,13 +5,31 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.3.3] - 2026-10-02
+## [1.3.4] - 2026-10-02
 
 ### Changed
 
 - **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
   still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
   file can carry a rule that names the legacy tool.
+
+## [1.3.3] - 2026-10-02
+
+### Changed
+
+- `audit-instructions` routes application-code prompts to `/claude-api prompt-audit` and Claude Code configuration to `/doctor prompt-audit`. Its `bundled-claude-api.md` reference scopes the `prompt-audit` row to the `/claude-api` door, adds a `/doctor prompt-audit` row, and re-stamps the guides row whose trigger fired at Claude Code 2.1.283.
+- `audit-pass` Phase 4 and its `doctor-handoff.md` reference name `/doctor prompt-audit` as an operator-run handoff, handed off the same way as the `/doctor` checkup.
+- `audit-instructions` row I17-a (`criteria.md` 1.27.0) names no model: it takes the set of models whose thinking cannot be turned off from the model configuration "Extended thinking" section at audit time, and its record is re-stamped.
+- The `/doctor prompt-audit` records in `bundled-claude-api.md`, `audit-pass` Phase 4 and `doctor-handoff.md` are links-only: they state our routing and handoff decisions and point at the docs section for its scope, write posture and version floor instead of paraphrasing it.
+
+## [1.3.2] - 2026-10-02
+
+### Changed
+
+- **`audit-instructions` no longer calls `/doctor prompt-audit`'s write posture undocumented.** The
+  upstream memory page now documents it. The `doctor` Boundary section states our decision (offer
+  it, leave applying its edits to the person, never chain into it) and reads its gates from the
+  records; `reference/native-doctor.md` records the pointer, as-of date and recheck trigger.
 
 ## [1.3.0] - 2026-10-02
 

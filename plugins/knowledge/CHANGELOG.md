@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.1] - 2026-10-02
+## [0.15.3] - 2026-10-02
 
 ### Fixed
 
@@ -31,6 +31,24 @@ only after that version increases.
   `run-watch.js --recover` plans with the run's own gap (an older slice without it gets the
   default); `SKILL.md` and `watch-pipeline.md` list the flag. The coverage-plan rationale names
   stratified sampling only when that pass runs.
+
+## [0.15.2] - 2026-10-02
+
+### Changed
+
+- **The Anthropic docs queue records two more claude.dev posts as correlate-only digest targets:**
+  "Using Claude Code: Spending your effort" and "Lessons from building Claude Code: Prompt caching
+  is everything", each with the docs page that serves as its pointer.
+
+## [0.15.1] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): titles drop the plugin name and the "(video-digest)"
+  suffix and no longer open with lowercase "yt-dlp", and every description is 300 characters or
+  fewer, with the cut `library_dir` detail moved to the README's "Option details". No key, type,
+  or default changes.
 
 ## [0.15.0] - 2026-10-02
 

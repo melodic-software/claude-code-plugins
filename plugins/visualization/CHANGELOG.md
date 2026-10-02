@@ -3,6 +3,22 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `thin_context_prompt` is a picker in `/config` (`auto`, `always`, `never`), so a value outside
+  that set is no longer accepted. `medium` is a picker too (`auto`, `terminal`, `file`,
+  `artifact`). Both descriptions fit 300 characters; the rest moves to the README's "Option
+  details".
+
+### Fixed
+
+- `medium` set to `auto`, its default, now defers to the `rendered-views` cascade as an unset value
+  does. Before, the default stopped at the configured-preference rung, so a project's
+  `rendered-views` `medium:` was reached only when the option was stored empty.
+
 ## [0.8.6] - 2026-10-02
 
 ### Fixed

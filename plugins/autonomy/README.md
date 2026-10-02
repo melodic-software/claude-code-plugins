@@ -234,6 +234,24 @@ the config outlives any plugin restructure. Personal overlays follow the marketp
 convention: the recursive `.claude/**/*.local.*` line keeps them gitignored; layers resolve per the
 binding-seam ladder: user-global → org binding (when pointed) → project → local overlay, additively.
 
+### Option details
+
+**`lane_stop_gate_enabled`.** The gate reads the user and managed settings files itself. The env
+mirror is never authority (#1784).
+
+**`lane_stop_gate_arm_id`.** The arm record is written by `hooks/lane-stop-gate-arm.sh`; the gate
+honors only a record in its install-derived store.
+
+**`verification_lens_pool`.** An unrecognized token is recorded as unresolved. A pool shorter than
+a class's model-adjudicated slot count leaves the remaining slots unlensed rather than repeating a
+lens. The pool contributes to no count: how many checkers a class runs, how they must differ, and
+whether one must be cross-vendor are floors on the org's security binding, outside this setting's
+reach.
+
+**`visual_narration_enabled`.** The lane runs strictly downstream of deterministic detection.
+Advisory only: it emits no verdict, fills no checker slot, is counted by no floor, and never gates
+a transition; no cell anywhere names it as authority.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -244,15 +262,15 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the harness-ops lane launcher instead. The env mirror is never authority (#1784). |
-| `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Matched only when alone on its own line. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
-| `lane_stop_gate_marker` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER` | Optional path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty disables the file signal. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
-| `lane_stop_gate_arm_id` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID` | Written by the lane launcher at launch: names this session's arm record in the plugin's own data directory (hooks/lane-stop-gate-arm.sh). A capability pointer, never authority by itself: the gate validates it, honors only a record in its install-derived store, and binds it to the first presenting session. Not set by hand. |
-| `lane_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED` | Master switch for the operator alert fired when a lane stops without signaling completion. |
-| `lane_notify_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED` | OS-native desktop toast for the lane-stop alert: macOS (osascript) or Linux (requires notify-send). No effect on Windows, where the terminal channels carry the alert. |
-| `lane_notify_terminal_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED` | Audible bell + OSC 9 notification written to the controlling terminal for the lane-stop alert. |
-| `verification_lens_pool` | string | `"specification,adversarial,contract,regression,evidence"` | `CLAUDE_PLUGIN_OPTION_VERIFICATION_LENS_POOL` | Ordered, comma-separated pool of verification lenses the model-adjudicated checker slots draw from, one distinct lens per slot, in pool order. Tokens come from the closed vocabulary in the verification-topology contract leaf; an unrecognized token is recorded as unresolved and draws no lens, and a pool shorter than a class's model-adjudicated slot count leaves the remaining slots unlensed rather than repeating a lens. The pool contributes to no count: how many checkers a class runs, how they must differ, and whether one must be cross-vendor are floors on the org's security binding, outside this setting's reach. |
-| `visual_narration_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VISUAL_NARRATION_ENABLED` | Run the advisory visual narration lane: strictly downstream of deterministic detection, it writes a plain-language account of a difference the deterministic layer already found and attaches it to the run record for the human gate. Advisory only: it emits no verdict, fills no checker slot, is counted by no floor, and never gates a transition; no cell anywhere names it as authority. Default OFF: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call. |
+| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opts an autonomous lane into the deterministic Stop-hook completion gate. Off by default, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only; the harness-ops lane launcher arms per-session lanes instead. |
+| `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop; default LANE-STOP-OK. Matched only when alone on its own line. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_marker` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER` | Path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty, the default, disables the file signal. Honored from user or managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_arm_id` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID` | Written by the lane launcher at launch, not set by hand: names this session's arm record in the plugin's own data directory. A capability pointer, never authority by itself: the gate validates it, honors only a record in its own store, and binds it to the first presenting session. |
+| `lane_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED` | Fires an operator alert when a lane stops without signaling completion. On by default; off mutes both channels below. |
+| `lane_notify_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED` | OS-native desktop toast for the lane-stop alert: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
+| `lane_notify_terminal_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED` | Audible bell plus an OSC 9 notification written to the controlling terminal for the lane-stop alert. On by default. |
+| `verification_lens_pool` | string | `"specification,adversarial,contract,regression,evidence"` | `CLAUDE_PLUGIN_OPTION_VERIFICATION_LENS_POOL` | Ordered, comma-separated lenses the model-adjudicated checker slots draw from, one distinct lens per slot, in pool order. Tokens come from the verification-topology contract leaf's closed vocabulary; an unknown token draws no lens. Default specification,adversarial,contract,regression,evidence. |
+| `visual_narration_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VISUAL_NARRATION_ENABLED` | Runs the advisory visual narration lane: a plain-language account of a difference deterministic detection already found, attached to the run record for the human gate. Off by default: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call. |
 
 ### How to set these
 

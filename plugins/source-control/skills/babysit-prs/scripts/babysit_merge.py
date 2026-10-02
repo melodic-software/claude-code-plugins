@@ -1376,9 +1376,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--method",
-        choices=("squash", "merge", "rebase"),
+        choices=("auto", "squash", "merge", "rebase"),
         default=None,
-        help="force a merge method (must be enabled); default prefers squash",
+        help=(
+            "force a merge method (must be enabled); auto or unset uses the repo "
+            "convention, then squash"
+        ),
     )
     parser.add_argument(
         "--allow-dependency",

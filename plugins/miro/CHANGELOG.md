@@ -3,6 +3,43 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-10-02
+
+### Fixed
+
+- The POSIX repair command the launcher prints quotes paths verbatim instead of rewriting each
+  backslash to `/`, so a plugin data directory whose name contains a backslash (a legal POSIX
+  filename character) is the one the command repairs
+  ([#5829](https://github.com/melodic-software/claude-code-plugins/issues/5829)). The Windows
+  PowerShell form is unchanged.
+
+## [0.5.1] - 2026-10-02
+
+### Changed
+
+- The `miro_api_token` option title reads "API token", dropping the plugin name the `/config` row
+  already shows, per the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+
+## [0.5.0] - 2026-10-02
+
+### Changed
+
+- **The MCP server installs its dependencies on first launch instead of shipping a committed
+  bundle** ([#5752](https://github.com/melodic-software/claude-code-plugins/issues/5752)).
+  Claude Code now starts `server/src/launch.ts`, which runs
+  `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` from the committed lockfile into
+  `${CLAUDE_PLUGIN_DATA}/mcp-server/<lockfile hash>/` once, then runs the TypeScript source with
+  Node's type stripping from a copy of the source that carries the current `package.json`, keyed
+  by both, so a manifest change takes effect even when the lockfile does not change. Later
+  launches reuse the install. The first launch needs `npm` on `PATH` and network access; when the
+  install fails, the server exits and its stderr names the cause and the line that repairs it (a
+  POSIX shell line, or a Windows PowerShell line on Windows); the README and the `setup` skill
+  say where to read it.
+  `server/dist/index.min.js`, `build.mjs`, `esbuild`, and the CI
+  `verify-bundle` drift gate are removed; CI now starts the server the same way, twice, from an
+  empty data directory. The plugin now follows the
+  [on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md).
+
 ## [0.4.19] - 2026-10-02
 
 ### Fixed

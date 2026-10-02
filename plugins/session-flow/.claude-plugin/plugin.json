@@ -36,45 +36,45 @@
   "userConfig": {
     "observer_enabled": {
       "type": "boolean",
-      "title": "Observer: auto-arm on session start",
-      "description": "Opt in to the SessionStart hook that arms the detached running-retro observer for every real interactive session. Default off: installing session-flow changes no behavior until this is enabled. The manual `/session-flow:running-retro arm` action works regardless of this toggle.",
+      "title": "Observer auto-arm at session start",
+      "description": "Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way.",
       "default": false
     },
     "observer_analysis_enabled": {
       "type": "boolean",
-      "title": "Observer: autonomous post-end analysis",
-      "description": "When armed, run a headless post-session running-retro checkpoint after the observer detects the session ended (mtime-idle), writing the findings to the running-retro ledger. Off = the observer only distills observations and retains them under its plugin work dir for manual inspection; it does not analyze or write the ledger (no per-session Claude spend, no automatic in-session consumer).",
+      "title": "Observer post-session analysis",
+      "description": "When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection.",
       "default": true
     },
     "observer_analysis_model": {
       "type": "string",
-      "title": "Observer: analysis model",
-      "description": "Model id for the headless post-end analysis run (the dominant cost lever). Defaults to the cheapest active tier; pin a different id to trade cost for depth.",
+      "title": "Observer analysis model",
+      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth.",
       "default": "claude-haiku-4-5"
     },
     "observer_analysis_bare": {
       "type": "boolean",
-      "title": "Observer: pass --bare to the analysis run",
-      "description": "Drop auto-discovery (a further cost lever) on the analysis run. Off by default because --bare fails on OAuth-login installs (the run reports 'Not logged in'); enable only where auth is an env-var API key that survives it. See reference/observer.md.",
+      "title": "Bare mode for the analysis run",
+      "description": "Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md.",
       "default": false
     },
     "observer_idle_seconds": {
       "type": "number",
-      "title": "Observer: mtime-idle end threshold (seconds)",
-      "description": "How long the transcript must stop growing before the observer treats the session as ended. Keep it above the longest expected single turn (large fan-outs, long builds) or a mid-turn pause will be misread as end and fire analysis on a partial transcript.",
+      "title": "Observer idle end threshold (seconds)",
+      "description": "How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript.",
       "default": 900
     },
     "observer_poll_seconds": {
       "type": "number",
-      "title": "Observer: transcript poll interval (seconds)",
-      "description": "How often the observer re-reads the transcript to distill new observations and re-check the mtime-idle threshold. Lower costs more wakeups for a faster end-detection; raise it on a busy machine. The idle threshold, not this, decides when the session is over. Bounded below at 1: 0 spins the detached observer continuously, and a negative value raises at its sleep and kills it silently.",
+      "title": "Observer poll interval (seconds)",
+      "description": "How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over.",
       "default": 5,
       "min": 1
     },
     "observer_max_seconds": {
       "type": "number",
-      "title": "Observer: hard lifetime safety valve (seconds)",
-      "description": "Absolute cap on observer lifetime. Reaching it exits WITHOUT running analysis (it is a safety valve, not an end signal); mtime-idle is the intended terminator. Default 24h.",
+      "title": "Observer lifetime cap (seconds)",
+      "description": "Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator.",
       "default": 86400
     }
   }

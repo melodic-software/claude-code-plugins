@@ -71,7 +71,7 @@ Tool-ecosystem Phase 3 fallback playbook: the discipline file's "Tool-ecosystem 
 
 ## Phase 4 (conditional): Additional follow-up
 
-If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targeted queries until every claim reaches HIGH confidence per the discipline file's "Confidence calibration". There is no limit on additional phases. Self-critique the approach as you go.
+If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targeted queries until every claim reaches HIGH confidence per the discipline file's "Confidence calibration", or list it in the Gaps section with its MEDIUM or LOW label. There is no limit on additional phases. Self-critique the approach as you go.
 
 ## Research principles (apply throughout all phases)
 

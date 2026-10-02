@@ -3,7 +3,7 @@ import type { MiroApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { jsonResponse } from "../response.ts";
 
 /**
  * Miro square stickies are ~199x199px, rectangles ~350x199px. Two items overlap when

@@ -12,7 +12,7 @@
 - [Where project-scope records come from, and why the skill cannot reap them](#where-project-scope-records-come-from-and-why-the-skill-cannot-reap-them)
 - [`/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case](#reload-plugins-bare-by-default---force-for-the-mcp-cache-invalidation-case)
 - [`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules](#pluginconfigs-and-enabledplugins-have-opposite-scope-rules)
-- [`userConfig` has no `enum` type](#userconfig-has-no-enum-type)
+- [`userConfig` has no `enum` type; `options` is a picker](#userconfig-has-no-enum-type-options-is-a-picker)
 - [`userConfig`: an unset key renders the literal placeholder](#userconfig-an-unset-key-renders-the-literal-placeholder)
 - [Renames are CC-native (≥ v2.1.193)](#renames-are-cc-native--v21193)
 - [An unchanged version number keeps the old cache directory while `gitCommitSha` moves](#an-unchanged-version-number-keeps-the-old-cache-directory-while-gitcommitsha-moves)
@@ -367,23 +367,24 @@ Two consequences this skill must not get wrong:
   list, so a headless `sync` launched that way silently loses `install_new` the same way. See
   [sync-install-enable.md](sync-install-enable.md) Step 4. The fallback is correct, the silence is not.
 
-## `userConfig` has no `enum` type
+## `userConfig` has no `enum` type; `options` is a picker
 
 This skill declares `userConfig` options only with the `type` values `string`, `number`, `boolean`,
-`directory` and `file`, declares no fixed-options list, and gives every option `type`, `title` and
-`description` (`claude plugin validate` on 2.1.261 rejected an option that omitted `title`, our
-probe). `install_new` ships as `type: string` with its valid values (`ask`/`all`/`none`) documented
-in `description` and validated in prose by this skill. The reference offers a fixed-options list;
-this skill does not declare one, because doing so would raise the CLI version a consumer needs to
-load the plugin, and the published JSON Schema does not carry it yet.
+`directory` and `file`, and gives every option `type`, `title` and `description`
+(`claude plugin validate` on 2.1.261 rejected an option that omitted `title`, our probe).
+`install_new` ships as `type: string` with a fixed-options list (`options`: `ask`/`all`/`none`),
+which turns its `/config` field into a picker. Declaring it raises the Claude Code release a
+consumer needs to load the plugin at all, to the one the pointer below names; a release older than
+that refuses the plugin rather than ignoring the field. This skill still validates the value in
+prose, because a value set by hand in `settings.json` never passes through the picker.
 
 - **Pointer**: for the option schema, see the published plugin-manifest JSON Schema
   (<https://json.schemastore.org/claude-code-plugin-manifest.json>),
   [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
   [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-02
 - **Recheck trigger**: the schema's `type` list or `required` array changes, the schema gains the
-  fixed-options key, or the marketplace raises its CLI floor to the version that section names.
+  fixed-options key, or that section changes the fixed-options field or the release it needs.
 
 ## `userConfig`: an unset key renders the literal placeholder
 

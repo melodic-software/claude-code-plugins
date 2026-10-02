@@ -16,6 +16,14 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   longer runs for a tool the current tools reference does not list. The contract test now asserts
   the registered matcher, and the option description and README match.
 
+## [0.7.3] - 2026-10-02
+
+### Changed
+
+- The `settings_write_ask_enabled` title follows the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): "Settings-write-ask hook", and its description names
+  the default. No key, type, or default changes.
+
 ## [0.7.2] - 2026-10-02
 
 ### Fixed

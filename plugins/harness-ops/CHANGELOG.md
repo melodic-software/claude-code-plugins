@@ -3,6 +3,117 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.0] - 2026-10-02
+
+### Added
+
+- **`/harness-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
+
+## [2.3.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
+  `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
+  a write (init, assign, compound, update, destructure, for-in-of), a function or class
+  declaration of the same name, and every read that may change the value. Only two reads are
+  known safe: a spread into an array or a call, and a member read in a listed value-only position
+  (`x.length` as an operand, a condition, an argument or an initializer; any other position counts
+  as an escape). Every other read counts, by kind: a member write or `delete`, any method call,
+  whether called, optionally called, tagged (`` x.pop`a` ``) or constructed (a method may return
+  the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
+  a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
+  an export). Each comes with its kind and offset. A module that calls `eval` directly answers
+  nothing. Under the parser, `_written_elsewhere` (the spread check) and the check for a
+  reassigned parameter use it instead of the regex search, and `reader.write_lookups` counts the
+  lookups. `--reader=regex` is unchanged and stays the default.
+
+### Changed
+
+- Under `--reader=parser`, the Explore and Plan agents' `disallowed_tools` read as partial on
+  2.1.284 to 2.1.287 (the regex reader reads a literal). Their spread array is exported from its
+  module, and on 2.1.286 an importer aliases it (`Gr=pY`) and returns it from a function whose
+  caller passes it to `.some(t)` callbacks, so the array reaches code that could change it.
+
+### Fixed
+
+- Under `--reader=parser`, a spread of an array that may be changed later reads as partial instead
+  of the initializer (finding 3 on #5640, and the alias shapes the #5828 verifier found):
+  `pY.push("B")`, `pY.length=0`, `g(pY)`, `var q=pY;q.push("B")`, `(pY||[]).push("B")`,
+  `function r(){return pY}`, and the other shapes above. The regex reader still reads these as
+  the literal.
+- Under `--reader=parser`, a function declaration named after a parameter counts as reassigning
+  it: `function hL(e){function e(){}}` no longer binds the call's argument to `e`.
+- Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
+  partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
+- Under `--reader=parser`, assignment text inside a string or comment is no write:
+  `var pY=[...];var s="let pY;pY=[\"B\"]"` keeps `...pY` literal.
+- Under `--reader=parser`, a nested function's own parameter of the same name no longer counts as
+  reassigning the outer parameter, so the bound argument stands:
+  `function ff(x){function h(x){x=1}return x}` called as `ff("REAL")` reads `REAL`.
+
+## [2.2.0] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles without colons, hook titles as
+  `<Hook-name> hook`, descriptions of 300 characters or fewer in plain text, with the cut detail
+  moved to the README's "Option details". Options are regrouped by feature: known-issues registry,
+  plugin sync, skill-usage logging, audit hooks, the session event log, then the shared stdin
+  timeout.
+- `install_new` (`ask`, `all`, `none`) and `skill_usage_scope` (`repo`, `user`, `data-dir`) are
+  pickers in `/config`. A value outside the list can no longer be chosen there; one set by hand
+  still falls back to the default as before.
+
+## [2.1.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` answers binding lookups with the parser.** The helper's new
+  `binding` op parses a module on first lookup (acorn, then eslint-scope; the last 16 modules
+  stay cached) and returns the variable a name read at an offset resolves to: its declarations,
+  every write, and whether each sits in the module scope, or the imported name, or one implicit
+  global for an undeclared name. `_declaration`, `_binding_value` (and through it
+  `_scoped_constant`) and `_nearest_binding` let the parser pick the variable and keep the regex
+  rule for which of its writes a read sees; `_written_elsewhere` counts a write only when the
+  parser resolves it to the same binding. Finding writes, and every mutation check, stay on the
+  regex reader until P3 of #5640. `--reader=regex` is unchanged and stays the default.
+  `reader.binding_lookups` and `reader.extract_seconds` record the work.
+
+### Fixed
+
+- Under `--reader=parser`, declaration text inside a string, comment or template no longer
+  shadows a write to the outer binding (finding 5 on #5640): `var pY=[...];function f(){"let
+  pY";pY=["B"]}` reads `...pY` as partial instead of the initializer.
+- Every `test_inventory.py` fixture now parses as a module: the four shortcut shapes (an export
+  of an undeclared name, padding run into the next token, adjacent string literals, a bare object
+  literal) are rewritten, and `test_fixture_parse.py` requires all of them to parse.
+- Under `--reader=parser`, a write to a function parameter, a catch parameter or a destructured
+  parameter of the same name no longer counts as a write to an outer binding, so a spread of that
+  binding reads as its literal instead of partial: `var pY=[...];function g(pY){pY=["B"]}` keeps
+  `...pY` literal, as JavaScript does.
+
+### Known issues
+
+- Under `--reader=parser`, a direct `eval` in a module leaves every binding lookup in that module
+  unresolved: eslint-scope marks its scopes dynamic, and `optimistic` stays off because `eval`
+  can rebind names. The regex reader still reads those values. No module in 2.1.284 to 2.1.287 has
+  one; P4 of #5640 weighs it before the parser becomes the default.
+
 ## [2.0.2] - 2026-10-02
 
 ### Changed

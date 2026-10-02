@@ -12,6 +12,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   current tools reference does not list. The registry assertion in the contract test, the hook
   comments, the option description and the README match.
 
+## [0.46.8] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): each guard's switch is titled `<Guard-name> guard`,
+  its companion lists carry the guard's name, every description fits 300 characters of plain text,
+  and the detail cut from the longest ones moved to the README's `### Option details`. Options are
+  reordered so each guard's lists follow its switch. No key, type or default changed.
+
 ## [0.46.7] - 2026-10-02
 
 ### Changed
