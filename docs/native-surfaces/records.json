@@ -1421,6 +1421,48 @@
     },
     {
       "native": {
+        "name": "skill-doctor",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "context-budget",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The two meet only on skills. We send the choice of which skills to turn off to the built-in command, which the person runs; context-budget:audit measures a fresh headless session's startup payload per item, splits the built-in tool pools, and ledgers what each toggle measurably saved. User-only, so ours offers it to the person. Human-added pair: discovery scored it under the 0.30 floor. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)",
+        "invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)",
+        "detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30",
+        "docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands",
+        "our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction of the installed native build; every lane ok, overall degraded only because 2.1.285 differs from the validated 2.1.287, so counts are floors)",
+        "date": "2026-10-02"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison",
+        "verified": "2026-10-02"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": true
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
         "name": "recap",
         "class": "builtin-command",
         "markers": [

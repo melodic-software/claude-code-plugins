@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 24 | 23 | route 4, suggest 20 | complementary 23, defer 1 |
+| Built-in CLI commands | 25 | 24 | route 4, suggest 21 | complementary 24, defer 1 |
 | Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
@@ -428,6 +428,24 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/recap`, widens it beyond the current session, or makes it model-invocable (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `skill-doctor` → `context-budget:audit`
+
+- **Verdict:** `complementary`: The two meet only on skills. We send the choice of which skills to turn off to the built-in command, which the person runs; context-budget:audit measures a fresh headless session's startup payload per item, splits the built-in tool pools, and ledgers what each toggle measurably saved. User-only, so ours offers it to the person. Human-added pair: discovery scored it under the 0.30 floor. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.
+- **Integration:** `suggest`
+- **Native surface:** `skill-doctor` (built-in command; markers: gated, model-invocation-disabled)
+- **Our component:** `context-budget:audit` (skill)
+- **Evidence:**
+  - `skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)
+  - invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
+  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)
+  - detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30
+  - docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
+  - our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction of the installed native build; every lane ok, overall degraded only because 2.1.285 differs from the validated 2.1.287, so counts are floors) (2026-10-02)
+- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-02)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `skill-doctor` → `harness-ops:audit-skill-visibility`
