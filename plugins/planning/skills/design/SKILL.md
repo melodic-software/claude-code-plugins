@@ -114,7 +114,7 @@ For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: si
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The ideal count is one. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is installed, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The ideal count is one. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
@@ -126,7 +126,7 @@ Derive types from capabilities:
 - Contracts: interfaces with method signatures
 - Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions). Read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed) the moment a
+- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled) the moment a
   domain term resolves so the active glossary owner applies the consumer's existing format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts directly
@@ -167,7 +167,7 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if installed) to sync resolved terms and
+5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if enabled) to sync resolved terms and
    rejected synonyms into the consuming project's active glossary; the terminology table above is
    the standalone fallback
 
@@ -202,7 +202,7 @@ dialect: mermaid
 ---
 ```
 
-`scope` is one of `data`, `integration`, `system`, naming the scope of the session that produced the artifact. `dialect` is one of `mermaid`, `dbml`, `openapi-3.1`, `likec4`, `c4-plantuml`. The label exists so a consumer reads the producing scope instead of inferring it from prose: `/work-items:decompose` (when the `work-items` plugin is installed) reads it to inline the artifact under a provenance note naming the scope and dialect. Without that plugin the label is inert and costs nothing. The body is one fenced block in the declared dialect, followed by the prose the artifact already carried. Tag the fence with the dialect's renderer name so a consumer knows what it is looking at without parsing the frontmatter: `mermaid`, `dbml`, `yaml` for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts, one per typed file.
+`scope` is one of `data`, `integration`, `system`, naming the scope of the session that produced the artifact. `dialect` is one of `mermaid`, `dbml`, `openapi-3.1`, `likec4`, `c4-plantuml`. The label exists so a consumer reads the producing scope instead of inferring it from prose: `/work-items:decompose` (when the `work-items` plugin is enabled) reads it to inline the artifact under a provenance note naming the scope and dialect. Without that plugin the label is inert and costs nothing. The body is one fenced block in the declared dialect, followed by the prose the artifact already carried. Tag the fence with the dialect's renderer name so a consumer knows what it is looking at without parsing the frontmatter: `mermaid`, `dbml`, `yaml` for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts, one per typed file.
 
 **Resolving the dialect.** `diagram_dialect` is a team-shared convention key split by artifact kind (`diagram_dialect.data`, `diagram_dialect.system`). Resolve it per session, before writing a typed artifact:
 
@@ -234,18 +234,18 @@ This skill takes no dialect argument, so step 4's argument layer is always empty
 
 This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout, exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target directory does not exist). Every non-zero exit is a step-6 degrade, `mermaid` for the data artifact and no C4 view for the system scope, cause named in one clause, never a halt and never a prompt to go create the surface.
 
-**Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke `/visualization:visualize` via the Skill tool (if the `visualization` plugin is installed); it owns visual-form choice and mermaid family craft. Without it, emit the plainest correct form of the dialect and carry on. The typed artifact is produced either way; the craft citation never gates the emit.
+**Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke `/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled); it owns visual-form choice and mermaid family craft. Without it, emit the plainest correct form of the dialect and carry on. The typed artifact is produced either way; the craft citation never gates the emit.
 
 ## Key behaviors
 
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
-- **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if installed). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
+- **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if enabled). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
 - **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write. Another turn or agent may have modified them. And prefer appending or refining over wholesale rewrites
 - **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
-- **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if installed). When the session tail is reached, suggest the `terminology` then `handoff` actions
+- **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if enabled). When the session tail is reached, suggest the `terminology` then `handoff` actions
 - **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
@@ -253,7 +253,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Implementation planning**. That's `/planning:plan` (phases, sanity checks, file-level work items)
 - **Code writing**. That's the implementation stage
 - **External research**. That's the research capability (this skill synthesizes research results into design decisions)
-- **Diagram craft**. This skill selects the dialect a typed artifact is written in; it teaches no dialect. Layout, readability, and syntax idiom route to the visualization capability (`/visualization:visualize` if that plugin is installed); without it, the plainest correct form of the dialect is emitted
+- **Diagram craft**. This skill selects the dialect a typed artifact is written in; it teaches no dialect. Layout, readability, and syntax idiom route to the visualization capability (`/visualization:visualize` if that plugin is enabled); without it, the plainest correct form of the dialect is emitted
 - **UI/UX design**. Use dedicated frontend design and UI/UX tooling
 - **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
 - **Product intent**. That's `/planning:prd` (problem, users, success metrics)
@@ -269,9 +269,9 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 |-------|-------------|
 | `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
-| `/visualization:visualize` (if installed) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is absent |
-| `/work-items:decompose` (if installed) | **After.** The intended reader of a typed artifact's `scope` and `dialect` label, which it will use to inline the artifact into the spec container with a provenance note. That reading is not implemented in decompose yet, so the label is currently inert everywhere: it is written here so the consuming change has a stable shape to land against |
-| `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
-| `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
+| `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is absent |
+| `/work-items:decompose` (if enabled) | **After.** The intended reader of a typed artifact's `scope` and `dialect` label, which it will use to inline the artifact into the spec container with a provenance note. That reading is not implemented in decompose yet, so the label is currently inert everywhere: it is written here so the consuming change has a stable shape to land against |
+| `/discovery:explore` (if enabled) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
+| `/discovery:research` (if enabled) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
 | `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
 | `/planning:plan` | **After the handoff gate.** `/planning:design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |

@@ -62,6 +62,7 @@
       "name": "typos-format",
       "source": "./plugins/typos-format",
       "category": "development",
+      "defaultEnabled": false,
       "tags": ["typos", "spelling", "formatter", "linter", "hook"],
       "relevance": {
         "topic": "Spelling / typo fixing",
@@ -94,6 +95,7 @@
       "name": "desktop-notification",
       "source": "./plugins/desktop-notification",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
     },
     {
@@ -143,12 +145,14 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
+      "defaultEnabled": false,
       "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",
       "source": "./plugins/mcp-tools",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"],
       "relevance": {
         "topic": "MCP servers",
@@ -161,12 +165,14 @@
       "name": "prototype",
       "source": "./plugins/prototype",
       "category": "design",
+      "defaultEnabled": false,
       "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
     },
     {
       "name": "knowledge",
       "source": "./plugins/knowledge",
       "category": "discovery",
+      "defaultEnabled": false,
       "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"],
       "relevance": {
         "topic": "books and PDFs",
@@ -185,6 +191,7 @@
       "name": "playbooks",
       "source": "./plugins/playbooks",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "repo-sweep", "hygiene", "best-practices", "skill"]
     },
     {
@@ -197,6 +204,7 @@
       "name": "docs-naming",
       "source": "./plugins/docs-naming",
       "category": "maintenance",
+      "defaultEnabled": false,
       "tags": ["maintenance", "documentation", "skill", "file-names", "naming", "rename", "audit", "gate"]
     },
     {
@@ -204,7 +212,7 @@
       "source": "./plugins/firecrawl",
       "category": "discovery",
       "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"],
-      "defaultEnabled": true,
+      "defaultEnabled": false,
       "relevance": {
         "topic": "Firecrawl",
         "signals": {
@@ -217,6 +225,7 @@
       "name": "harness-config",
       "source": "./plugins/harness-config",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"],
       "relevance": {
         "topic": "Claude Code settings",
@@ -229,6 +238,7 @@
       "name": "harness-memory",
       "source": "./plugins/harness-memory",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
     },
     {
@@ -247,12 +257,14 @@
       "name": "playgrounds",
       "source": "./plugins/playgrounds",
       "category": "presentation",
+      "defaultEnabled": false,
       "tags": ["playground", "interactive", "explorer", "html", "prompt-round-trip", "skill"]
     },
     {
       "name": "playwright",
       "source": "./plugins/playwright",
       "category": "testing",
+      "defaultEnabled": false,
       "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"],
       "relevance": {
         "topic": "Playwright",
@@ -277,6 +289,7 @@
       "name": "coupling",
       "source": "./plugins/coupling",
       "category": "maintenance",
+      "defaultEnabled": false,
       "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
     },
     {
@@ -301,36 +314,42 @@
       "name": "evals",
       "source": "./plugins/evals",
       "category": "testing",
+      "defaultEnabled": false,
       "tags": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "knowledge", "skill"]
     },
     {
       "name": "harness-ops",
       "source": "./plugins/harness-ops",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
     },
     {
       "name": "rate-limit-guard",
       "source": "./plugins/rate-limit-guard",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["rate-limit", "statusline", "tee", "loop-lane", "stopfailure", "hook"]
     },
     {
       "name": "context-guard",
       "source": "./plugins/context-guard",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
     },
     {
       "name": "context-budget",
       "source": "./plugins/context-budget",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["context-window", "startup-payload", "token-budget", "tool-schemas", "measurement", "attribution", "ledger", "skill"]
     },
     {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["plugin-audit", "audit", "review", "quality", "work-item", "context-guard", "skill"]
     },
     {
@@ -377,6 +396,7 @@
       "name": "domain-driven-design",
       "source": "./plugins/domain-driven-design",
       "category": "design",
+      "defaultEnabled": false,
       "tags": ["ddd", "domain-driven-design", "ubiquitous-language", "glossary", "domain-modeling", "skill"]
     },
     {
@@ -419,6 +439,7 @@
       "name": "performance",
       "source": "./plugins/performance",
       "category": "verification",
+      "defaultEnabled": false,
       "tags": ["performance", "benchmarking", "baseline", "measurement", "optimization", "noise-characterization", "drift-immune-counter", "interleaved-ab", "skill"]
     },
     {
@@ -439,24 +460,28 @@
       "name": "codebase-health",
       "source": "./plugins/codebase-health",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
       "name": "code-metrics",
       "source": "./plugins/code-metrics",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": ["code-metrics", "complexity", "cyclomatic", "cognitive-complexity", "halstead", "duplication", "coverage", "crap", "type-coverage", "lines-of-code", "measurement", "audit", "skill"]
     },
     {
       "name": "discipline",
       "source": "./plugins/discipline",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
     },
     {
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
+      "defaultEnabled": false,
       "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "quiz", "comprehension", "skill"]
     },
     {
@@ -469,24 +494,28 @@
       "name": "repo-fleet-hygiene",
       "source": "./plugins/repo-fleet-hygiene",
       "category": "maintenance",
+      "defaultEnabled": false,
       "tags": ["maintenance", "git", "github", "repository", "fleet", "hygiene", "worktree", "audit", "skill"]
     },
     {
       "name": "disk-hygiene",
       "source": "./plugins/disk-hygiene",
       "category": "maintenance",
+      "defaultEnabled": false,
       "tags": ["maintenance", "disk", "hygiene", "cleanup", "artifacts", "temporary-files", "audit", "skill"]
     },
     {
       "name": "event-storming",
       "source": "./plugins/event-storming",
       "category": "design",
+      "defaultEnabled": false,
       "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
     },
     {
       "name": "skill-quality",
       "source": "./plugins/skill-quality",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"],
       "relevance": {
         "topic": "skill authoring",
@@ -499,6 +528,7 @@
       "name": "machine-health",
       "source": "./plugins/machine-health",
       "category": "operations",
+      "defaultEnabled": false,
       "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
     },
     {
@@ -512,6 +542,7 @@
       "name": "ai-slop",
       "source": "./plugins/ai-slop",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": ["ai-slop", "ai-writing", "slop", "unslop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
     },
     {
@@ -539,18 +570,21 @@
       "name": "autonomy",
       "source": "./plugins/autonomy",
       "category": "autonomy",
+      "defaultEnabled": false,
       "tags": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
     },
     {
       "name": "adhd",
       "source": "./plugins/adhd",
       "category": "personal",
+      "defaultEnabled": false,
       "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
     },
     {
       "name": "github",
       "source": "./plugins/github",
       "category": "operations",
+      "defaultEnabled": false,
       "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
     },
     {
@@ -558,7 +592,7 @@
       "source": "./plugins/x",
       "category": "discovery",
       "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
-      "defaultEnabled": true,
+      "defaultEnabled": false,
       "relevance": {
         "topic": "X (Twitter) content",
         "signals": {
@@ -570,12 +604,14 @@
       "name": "wizard",
       "source": "./plugins/wizard",
       "category": "development",
+      "defaultEnabled": false,
       "tags": ["wizard", "setup", "provisioning", "credentials", "ci-secrets", "migration", "cutover", "bash", "skill"]
     },
     {
       "name": "mutation-testing",
       "source": "./plugins/mutation-testing",
       "category": "testing",
+      "defaultEnabled": false,
       "tags": [
         "mutation-testing",
         "test-quality",
@@ -591,6 +627,7 @@
       "name": "computer-use",
       "source": "./plugins/computer-use",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": [
         "computer-use",
         "desktop-automation",
@@ -605,6 +642,7 @@
       "name": "fleet",
       "source": "./plugins/fleet",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": [
         "fleet",
         "cross-machine",
@@ -619,6 +657,7 @@
       "name": "overengineering",
       "source": "./plugins/overengineering",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": [
         "overengineering",
         "enforcement-surface",
@@ -638,6 +677,7 @@
       "name": "improvement",
       "source": "./plugins/improvement",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": [
         "improvement",
         "evidence",
@@ -653,6 +693,7 @@
       "name": "instruction-placement",
       "source": "./plugins/instruction-placement",
       "category": "claude-code",
+      "defaultEnabled": false,
       "tags": [
         "instruction-placement",
         "claude-md",
@@ -670,6 +711,7 @@
       "name": "attribution",
       "source": "./plugins/attribution",
       "category": "quality",
+      "defaultEnabled": false,
       "tags": [
         "provenance",
         "citation",

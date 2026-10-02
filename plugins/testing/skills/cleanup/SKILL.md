@@ -50,7 +50,7 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
   exists and every changed path's `git hash-object "<path>"` equals the hash it recorded for that
   path after its last edit, continue at the step it records. A path with a different hash carries
   an edit the batch did not make: refuse.
-- The `mutation-testing` plugin is not installed. Cleanup has no gate without it, and no degraded
+- The `mutation-testing` plugin is not enabled. Cleanup has no gate without it, and no degraded
   mode: report that the gate needs that plugin and stop.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
   standalone, unquoted `{tests}` word: both mutation runs use it. Point to
@@ -156,7 +156,7 @@ review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule a
 
 Show the batch and wait for the user's approval. Then commit the batch's files only (named paths,
 never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the draft pull request go
-through `/source-control:pull-request` when that plugin is installed, otherwise leave them to the
+through `/source-control:pull-request` when that plugin is enabled, otherwise leave them to the
 user. Unattended runs stop before the commit.
 
 ## What this skill does NOT do

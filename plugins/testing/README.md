@@ -24,10 +24,10 @@ skills, one concern: proving behavior with tests.
   project's `CLAUDE.md` / rules and existing test projects; the skills infer from what
   exists when nothing is documented.
 - **Cross-plugin refs degrade gracefully.** Test invocation defers to the `toolchain`
-  plugin's `/toolchain:check` when installed and to the project's own test command
+  plugin's `/toolchain:check` when enabled and to the project's own test command
   otherwise; TDD design questions route to `/tdd:principles`, browser mechanics to
   `/playwright:playwright`, outcome sign-off to `/verification:confirm`, and the
-  implement loop to `/implementation:implement`. Each is used when installed and
+  implement loop to `/implementation:implement`. Each is used when enabled and
   substituted with inline guidance or a manual handoff when absent. No step blocks on a
   missing plugin.
 - **Self-contained.** Test-type tables, the E2E evidence contract, the non-UI
