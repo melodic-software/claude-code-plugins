@@ -148,3 +148,44 @@ else in this repository.
   status check, and has no `workflow_dispatch` re-review, no per-PR cap and no path gate, so
   `skip-actors`, `status-check`, `max-reviews-per-pr`, `timeout-minutes` and `pr-number` are
   gone from the callers. A new review comes from a push, a reopen, or a draft-then-ready flip.
+
+## Addendum (2026-10-02): a push reviews what changed, one job per lane
+
+The operator approved trimming both lanes on 2026-10-02: "Yeah, anything here that would improve
+quality, efficiency, and accuracy, and optimize performance, I approve." and "Whatever you have to
+do, I approve it." This narrows decisions 2 and 4.
+
+The reason is the concurrency limit. GitHub runs at most 60 Linux jobs at once for the org, and
+the operator will not pay to raise it. In the two peak windows measured on 2026-09-28 and
+2026-09-30, the two lanes held 15% and 24% of Linux runner time on this repository (code review
+8.0% and 19.4%, security review 6.6% and 5.0%). Over 2026-09-30 to 2026-10-02 they ran 272 code
+reviews and 270 security reviews a day, 3.28 per pull-request branch, and every push to a ready
+pull request started 4 jobs.
+
+1. **Decision 2 is narrowed.** Drafts are still skipped. `opened`, `reopened` and
+   `ready_for_review` review the whole pull request. A later push reviews only the pull request's
+   files that changed since the lane's last completed review. A push reviews the whole pull
+   request again when no earlier review is recorded, the recorded head is not an ancestor of the
+   new head (force push or rebase), 300 or more files changed since, or a base-branch merge since
+   then changed a file the pull request also changes. A push that changes none of the pull
+   request's files gets no new review.
+2. **Documentation-only scopes skip the security lane.** When every file in scope matches
+   `docs/**/*.md`, `**/README.md` or `**/CHANGELOG.md`, no security review runs and its check is
+   green. Skill, agent, command, rule, `CLAUDE.md` and `AGENTS.md` files are agent instructions,
+   not documentation, and are always security-reviewed. This is the one exception to the
+   operator's rule of a security review on every pull request.
+3. **Decision 4 is narrowed.** Each lane is one job. The checks
+   `review / claude-review-status` and `security-review / claude-security-review-status` keep
+   their names and go red, naming the cause, when no review happened; a review that was not needed
+   is green. `review / review` and `security-review / security-review` no longer report. Decision 5
+   still holds: only `ci-status` is required.
+4. **Timeouts follow measured durations.** The code-review job stops at 13 minutes (was 15) and the
+   security-review job at 16 (was 25), from 407 and 428 successful jobs on this repository.
+
+The change lives in the ci-workflows reusables (melodic-software/ci-workflows#653) and the
+standards caller components (melodic-software/standards#662). This repository's callers are
+sync-managed and pick it up with the sync that carries the re-pin.
+
+Revisit when a defect lands that an incremental review missed and a whole review of the same pull
+request would have flagged: restore whole reviews on `synchronize` (`incremental-review: false`
+on the callers) and record why.
