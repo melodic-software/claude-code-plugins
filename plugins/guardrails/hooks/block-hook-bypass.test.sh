@@ -2040,7 +2040,7 @@ run "default: relative memory-tier write blocks with no payload cwd" \
 # itself, so nothing here needs to exist.
 PD_HOME=/srv/pdhome
 run_cwd "plugin data: report write under HOME/.claude/plugins/data (allowed)" \
-  "cat > $PD_HOME/.claude/plugins/data/claude-memory/audit/last-audit.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+  "cat > $PD_HOME/.claude/plugins/data/harness-memory/audit/last-audit.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
 run_cwd "plugin data: echo redirect into a keyed report dir (allowed)" \
   "echo hello > $PD_HOME/.claude/plugins/data/x/y/report.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
 # Component-boundary containment: a sibling sharing the name prefix, the

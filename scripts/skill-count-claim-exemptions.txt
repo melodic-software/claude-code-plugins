@@ -28,4 +28,4 @@
 # behind after its prose was fixed would sit there pre-authorizing whatever
 # wrong number lands on that line next.
 
-plugins/claude-config/README.md|are required across three skills, not one  # dependency-sharing count, not a plugin-size count: the sentence names its three skills (audit, audit-permission-grants, audit-instructions) inline, so it is self-checking against its own list.
+plugins/harness-config/README.md|are required across three skills, not one  # dependency-sharing count, not a plugin-size count: the sentence names its three skills (audit, audit-permission-grants, audit-instructions) inline, so it is self-checking against its own list.

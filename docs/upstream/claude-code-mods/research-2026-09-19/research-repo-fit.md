@@ -140,7 +140,7 @@ Three further binding facts:
 
 **Measure, do not cite.** The published reference figures (2026-09-02) predate a
 69% growth in wired entries (16 events / 55 entries then; 31 / 93 now, almost
-entirely `claude-ops`'s default-off logging pipeline), and seven unpulled
+entirely `harness-ops`'s default-off logging pipeline), and seven unpulled
 `perf(...)` commits on `origin/main` already optimized the exact plugins a mod
 would replace, one of them titled *"run the guard chain in-process"* (#4185). Pull
 `origin/main` first and state that any comparison is post-perf-work.
@@ -303,14 +303,14 @@ recommendation · `plugins-repo-explore/EXPLORE-open-questions.md` q3.
 Reasoning as recorded:
 
 - The composition already exists: `discovery:research-deep` fanning lanes +
-  `knowledge:map-corpus` / `docpage-digest` + `claude-ops:changelog` +
-  `claude-ops:known-issues`. **Five of the six steps in a feature deep-dive are
+  `knowledge:map-corpus` / `docpage-digest` + `harness-ops:changelog` +
+  `harness-ops:known-issues`. **Five of the six steps in a feature deep-dive are
   already owned.**
 - The repo's own precedent for this class of question concluded *"no new plugin.
   Five work-item containers, three new skills inside existing plugins, everything
   else extends existing skills"*
   (`.work/plugin-concept-enhancements/shared-understanding.md`, 2026-09-06).
-- If anything is built, **extend `claude-ops:changelog` with a feature-scoped
+- If anything is built, **extend `harness-ops:changelog` with a feature-scoped
   subject** rather than a release range: it already owns
   `context/repo-surfaces.md` (the "which repo surface must move" map) and a
   persistent ledger marker.

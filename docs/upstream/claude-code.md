@@ -9,7 +9,7 @@ CHANGELOG, and this file points at it rather than repeating it.
 
 **Last audited upstream state:** changelog through `2.1.263` (published 2026-09-06), read as raw
 markdown on 2026-09-08. Git history of this file records *when*; this line records only *what was
-read*. `/claude-ops:changelog status` reads this line; the default range for `diff` and `apply`
+read*. `/harness-ops:changelog status` reads this line; the default range for `diff` and `apply`
 runs from it to the newest published release.
 
 **Recheck trigger:** a new release block appears above the version on the line above. Nothing before
@@ -30,7 +30,7 @@ as a range.
 | Opus 5.5 starts at `medium` unless an explicit choice (`CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`) or a saved level sets one; a top-level `effortLevel` in the user settings file does not count for Opus 5.5 and still applies on Opus 5, Fable 5.1 and earlier; `effortLevel` in project, local or managed settings or via `--settings` applies to every model | 257-083 | playbooks boris autonomy | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
 | Bundled `claude-api`: prompt-audit steps held through the 2.1.282 read; model-migration gained an eval section and refreshed samples in 2.1.260 | 260-050 | audit-instructions criteria; ADR-0028 | this file |
 | 1M-context compact happens shortly before the limit | 260-047 | context-guard README | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
-| Read/Edit deny covers redirect targets; the reverted 2.1.259 Bash-argument widening stays out | 257-052, 259-007, 260-040 | claude-config `required-permissions.md` | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| Read/Edit deny covers redirect targets; the reverted 2.1.259 Bash-argument widening stays out | 257-052, 259-007, 260-040 | harness-config `required-permissions.md` | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | Project `defaultMode: "bypassPermissions"` is ignored, like `"auto"` | 257-089 | audit-permission-state C2 | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
 | Under `allowManagedPermissionRulesOnly`, `--allowedTools` is ignored and `--disallowedTools` plus session deny/ask survive reload | 257-034 | audit-permission-state criteria; `permission-merge.sh` | [#5159](https://github.com/melodic-software/claude-code-plugins/pull/5159) |
 | Ask-rule quote is on the auto-mode config page; #42797 is closed; #83766 is open; compound and subshell paths prompt | 257-044 | audit-permission-state criteria | [#5159](https://github.com/melodic-software/claude-code-plugins/pull/5159) |
@@ -58,14 +58,14 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 | Decision | Items | Component | Record |
 |---|---|---|---|
-| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs, denial under `--bg` not probed | 259-002 | claude-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs, denial under `--bg` not probed | 259-002 | harness-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | The same flag on the running-retro observer, keeping `dontAsk` | 259-002 | session-flow observer | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | The same flag on `hop_chain.py`, keeping `bypassPermissions` | 259-002 | session-flow harness | [#5239](https://github.com/melodic-software/claude-code-plugins/pull/5239) |
 | `claude plugin validate --json` for per-file errors and warnings, gated on >= 2.1.259 | 259-004 | `scripts/validate-plugins.sh`; plugin-quality auditor | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | Skill frontmatter `model:` is turn-scoped and safe under auto mode | 259-015, 259-010 | skill-quality; skill-authoring; `docs/plugin-philosophy.md` | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | `/status` and `claude doctor` carry policy load, helper refresh, and which credential is in use | 257-074, 260-013, 260-012, 261-001 | audit-permission-state completeness note; audit-pass doctor handoff | this file |
 | `managedMcpServers` is attributed when present; no `claude mcp list` label is invented | 259-001 | mcp-tools audit-posture | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
-| `bashOutputMaxChars` is a documented lever and is not raised by default. `taskOutputMaxChars` was recorded removed in 2.1.277 | 261-002, 257-002 | claude-config audit checklist | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| `bashOutputMaxChars` is a documented lever and is not raised by default. `taskOutputMaxChars` was recorded removed in 2.1.277 | 261-002, 257-002 | harness-config audit checklist | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | Prompt-cache miss cause routes to `/usage` and `prompt_cache.last_miss_cause` | 260-002 | observability read-routing; context-guard reader | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 
 ## Declined
@@ -79,5 +79,5 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 ## Docs lag
 
 The read also found upstream pages whose text contradicted the changelog. Those pages are not
-component work. They stay input to `/claude-ops:known-issues`, and any correction above that cites
+component work. They stay input to `/harness-ops:known-issues`, and any correction above that cites
 one of them cites the changelog as the newer statement.

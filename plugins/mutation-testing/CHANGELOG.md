@@ -3,6 +3,13 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-10-01
+
+### Fixed
+
+- `audit` description and `argument-hint` now name every flag the body defines. The hint lists the
+  flag names only, within the 100-character argument-hint budget; value shapes are in the body.
+
 ## [0.6.0] - 2026-10-01
 
 ### Added

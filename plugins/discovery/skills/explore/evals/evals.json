@@ -123,7 +123,7 @@
     {
       "id": 10,
       "name": "echo-back-mismatch-fails-the-dispatch",
-      "prompt": "Explore how ${CLAUDE_PLUGIN_DATA} is used by the claude-ops plugin. [The dispatched discovery:explorer returns a well-formed payload whose scope_as_received reads 'how <the discovery plugin's own data directory> is used by the claude-ops plugin', with a complete EXPLORE.md artifact set on disk and a gate exit of 0.]",
+      "prompt": "Explore how ${CLAUDE_PLUGIN_DATA} is used by the harness-ops plugin. [The dispatched discovery:explorer returns a well-formed payload whose scope_as_received reads 'how <the discovery plugin's own data directory> is used by the harness-ops plugin', with a complete EXPLORE.md artifact set on disk and a gate exit of 0.]",
       "files": [],
       "expected_output": "Compares scope_as_received against the scope the parent actually sent, notices they differ, and fails the dispatch even though every on-disk check passes. The artifact is a correct answer to the wrong scope. Re-dispatches with the scope restated in a form that survives the trip rather than accepting the artifact and translating it mentally.",
       "expectations": [

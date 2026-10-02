@@ -282,10 +282,10 @@ out="$(cd "$bare_anchor_repo" && bash "$SCRIPT" 2>/dev/null)"
 assert_exit "bare skills/ SKILL.md#anchor cite → exit 1" 1 "$?"
 assert_contains "bare skills/ anchor emitted" "$out" "skills/clean/SKILL.md#"
 
-# `../`-prefixed path that still contains a `skills/` segment (claude-config
+# `../`-prefixed path that still contains a `skills/` segment (harness-config
 # cross-plugin shape removed in #2703).
-dotdot_skills_repo="$(fixture_repo "plugins/claude-config/skills/audit/SKILL.md" \
-  "see ../../../../claude-memory/skills/audit/reference/criteria.md")"
+dotdot_skills_repo="$(fixture_repo "plugins/harness-config/skills/audit/SKILL.md" \
+  "see ../../../../harness-memory/skills/audit/reference/criteria.md")"
 # Keep an in-scope non-skills surface so the default run is not exit-2.
 mkdir -p "$dotdot_skills_repo/.claude/rules"
 printf 'clean\n' >"$dotdot_skills_repo/.claude/rules/clean.md"

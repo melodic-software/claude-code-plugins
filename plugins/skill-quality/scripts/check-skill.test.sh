@@ -3367,7 +3367,7 @@ disable-model-invocation: false
 
 ## Purpose
 
-claude-config:audit [--fix] is the compliant precedent.
+harness-config:audit [--fix] is the compliant precedent.
 
 ## Gotchas
 

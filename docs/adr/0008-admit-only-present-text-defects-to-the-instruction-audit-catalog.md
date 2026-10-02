@@ -18,7 +18,7 @@ sections, and answered it four times by hand. The guide's sections split cleanly
 
 The next model guide will present the same split, and so will the one after it. A convention this
 repository already holds, the catalog's own contract that every row owes "one decisive source line"
-([`criteria.md`](../../plugins/claude-config/skills/audit-instructions/reference/criteria.md)), does
+([`criteria.md`](../../plugins/harness-config/skills/audit-instructions/reference/criteria.md)), does
 not settle it, because an absence-shaped claim has a perfectly good source. It is the *observable*
 that differs, not the provenance.
 

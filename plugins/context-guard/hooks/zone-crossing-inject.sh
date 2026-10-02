@@ -10,7 +10,7 @@
 # a menu injected into model context manufactures the model's own initiative to
 # stop, summarize, or hand off — the measurement decides only when to ask, while
 # the model still decides whether to stop. That shape is a live finding under
-# the instruction-audit catalog's I23 (claude-config, reference/criteria.md),
+# the instruction-audit catalog's I23 (harness-config, reference/criteria.md),
 # whose Remediate clause prescribes exactly this: state the counter-steer
 # plainly, and where the harness must surface a budget, pair it with a
 # reassurance rather than with an exit menu.

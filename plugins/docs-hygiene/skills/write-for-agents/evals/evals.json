@@ -57,7 +57,7 @@
       "id": 6,
       "name": "negative-audit-request",
       "prompt": "Audit our CLAUDE.md for stale instructions and noise.",
-      "expected_output": "The write-for-agents skill is NOT invoked. The request routes to audit-shaped surfaces (docs-hygiene audit skills or claude-memory/claude-config audits) — this is a read-only findings request, not a writing moment.",
+      "expected_output": "The write-for-agents skill is NOT invoked. The request routes to audit-shaped surfaces (docs-hygiene audit skills or harness-memory/harness-config audits) — this is a read-only findings request, not a writing moment.",
       "expectations": [
         "The write-for-agents skill is NOT invoked",
         "An audit-shaped skill or workflow handles the request"

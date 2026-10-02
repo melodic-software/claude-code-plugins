@@ -38,7 +38,7 @@
 # order:
 #
 #   1. managed settings (fixed root-owned paths + managed-settings.d drop-ins);
-#   2. the per-session ARM RECORD: the claude-ops lane launcher arms a lane at
+#   2. the per-session ARM RECORD: the harness-ops lane launcher arms a lane at
 #      launch via this plugin's hooks/lane-stop-gate-arm.sh, which writes a
 #      record under the plugin's own install-derived data directory; the session
 #      carries only a random record id through the `lane_stop_gate_arm_id`
@@ -412,7 +412,7 @@ gate_load_arm_record() {
 gate_load_arm_record || true
 
 # The arm record is NOT consumed on a stop. A lane is one session across many
-# /loop cycles (claude-ops lanes/context/refresh.md), and each cycle ends in a
+# /loop cycles (harness-ops lanes/context/refresh.md), and each cycle ends in a
 # Stop the gate must still guard; deleting the record on the first
 # completion-signaled or post-nudge stop would silently disarm every later
 # cycle. The record instead lives for the claiming session — bound to it by the
@@ -484,7 +484,7 @@ if [[ "$ENABLED" != "true" ]]; then
       # legitimately-armed-then-stale case; do NOT blame a repo env block.
       if hook::notice_once "autonomy-lane-stop-gate-stale-arm" "$INPUT"; then
         hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off. Relaunch the lane through the claude-ops lane launcher to re-arm it."
+          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off. Relaunch the lane through the harness-ops lane launcher to re-arm it."
       fi
     elif [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
       # Enablement claimed on the untrusted env channel with no arm id at all —
@@ -492,7 +492,7 @@ if [[ "$ENABLED" != "true" ]]; then
       # env block attempting the pre-#1784 attack. Surfacing it beats silence.
       if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
         hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off. A lane launched expecting the gate needs the current claude-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
+          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off. A lane launched expecting the gate needs the current harness-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
       fi
     fi
   fi

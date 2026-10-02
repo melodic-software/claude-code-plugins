@@ -292,11 +292,11 @@ remedy.
 
 | The finding is about | Owner |
 |---|---|
-| Instruction text, its wording or its effect on a model | `claude-config:audit-instructions`, `claude-config:unhobble` |
+| Instruction text, its wording or its effect on a model | `harness-config:audit-instructions`, `harness-config:unhobble` |
 | Comments, their content or their residue | `code-tidying:dissolve-comments`, `code-tidying:audit-comment-residue` |
 | Unreachable or dead code | `code-tidying:audit-dead-code` |
 | A document derivable from its source, or noise inside a document | `docs-hygiene:audit-derivability`, `docs-hygiene:audit-noise` |
-| Duplication of what the harness ships natively | `claude-ops:audit-native-overlap` |
+| Duplication of what the harness ships natively | `harness-ops:audit-native-overlap` |
 | Ranking candidates across several dimensions at once | `improvement:find` |
 | The scrutiny posture itself | `discipline:reason-dont-recite`, `discipline:recheck-against-upstream`, `discipline:scrutinize-dont-coast` |
 

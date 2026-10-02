@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Unit tests for gen-hook-event-registry.sh. Builds a fixture tree per case
-# (a plugins/claude-ops/hooks with a copy of the real hooks.json and the real
+# (a plugins/harness-ops/hooks with a copy of the real hooks.json and the real
 # session-log-lib.sh) and runs the generator against a saved copy of the
 # Hooks reference lifecycle table, so nothing here touches the network.
 set -uo pipefail
@@ -12,8 +12,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/gen-hook-event-registry.sh"
 TABLE="$SELF_DIR/fixtures/hooks-lifecycle-table.md"
-REAL_HOOKS_JSON="$REPO/plugins/claude-ops/hooks/hooks.json"
-LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
+REAL_HOOKS_JSON="$REPO/plugins/harness-ops/hooks/hooks.json"
+LIB="$REPO/plugins/harness-ops/hooks/session-log-lib.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
@@ -35,22 +35,22 @@ new_fixture() { # <out-var>
   local dir
   fixture_tree::build "$1" --plugins || return 1
   dir="${!1}"
-  mkdir -p "$dir/plugins/claude-ops/hooks"
+  mkdir -p "$dir/plugins/harness-ops/hooks"
   jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" '
     def is_log: ((.args // []) | index($prod)) != null or .command == $prod or ((.command // "") | endswith("/hooks/session-event-log.sh"));
     def is_ret: ((.args // []) | index($ret)) != null or .command == $ret or ((.command // "") | endswith("/hooks/session-retention.sh"));
     .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; is_log or is_ret) | not)))
-               | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/claude-ops/hooks/hooks.json"
-  cp "$LIB" "$dir/plugins/claude-ops/hooks/"
+               | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/harness-ops/hooks/hooks.json"
+  cp "$LIB" "$dir/plugins/harness-ops/hooks/"
 }
 
 # --- a full run from the saved table -----------------------------------------
 new_fixture f
-BASE_HANDLERS=$(jq -S '[.hooks[][] | .hooks[] | .command] | sort' "$f/plugins/claude-ops/hooks/hooks.json")
+BASE_HANDLERS=$(jq -S '[.hooks[][] | .hooks[] | .command] | sort' "$f/plugins/harness-ops/hooks/hooks.json")
 out=$(bash "$SCRIPT" --from "$TABLE" --root "$f" --as-of 2026-09-05 2>&1)
 rc=$?
-REG="$f/plugins/claude-ops/hooks/hook-events.registry.json"
-HJ="$f/plugins/claude-ops/hooks/hooks.json"
+REG="$f/plugins/harness-ops/hooks/hook-events.registry.json"
+HJ="$f/plugins/harness-ops/hooks/hooks.json"
 if ((rc == 0)) && [[ -s "$REG" ]]; then
   ok "a run from the saved table writes the registry"
 else
@@ -121,7 +121,7 @@ if ((rc == 1)) && [[ "$out" == *drift* ]]; then ok "--check fails on a removed p
 
 # --- a legacy ungated retention row is replaced, never doubled ------------------
 new_fixture f
-HJ="$f/plugins/claude-ops/hooks/hooks.json"
+HJ="$f/plugins/harness-ops/hooks/hooks.json"
 # shellcheck disable=SC2016  # the ungated command as hooks.json carried it
 jq --indent 2 --arg old 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh' \
   '.hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $old, shell: "bash"}]}])' \
@@ -136,7 +136,7 @@ else
 fi
 
 # --- the category table agrees with session-log-lib.sh -------------------------
-# shellcheck source=../plugins/claude-ops/hooks/session-log-lib.sh
+# shellcheck source=../plugins/harness-ops/hooks/session-log-lib.sh
 source "$LIB"
 disagree=0
 while IFS=$'\t' read -r ev cat; do
@@ -155,7 +155,7 @@ FIXTURES+=("$short")
 head -12 "$TABLE" >"$short"
 out=$(bash "$SCRIPT" --from "$short" --root "$f" 2>&1)
 rc=$?
-if ((rc == 2)) && [[ ! -e "$f/plugins/claude-ops/hooks/hook-events.registry.json" ]]; then
+if ((rc == 2)) && [[ ! -e "$f/plugins/harness-ops/hooks/hook-events.registry.json" ]]; then
   ok "fewer than 25 rows: exit 2 and nothing written"
 else
   fail "short table (rc=$rc): $out"
@@ -170,9 +170,9 @@ cp "$TABLE" "$odd"
 sed 's/^| `SessionEnd`  *|/| `MysteryEvent`        |/' "$odd" >"$odd.2" && mv "$odd.2" "$odd"
 out=$(bash "$SCRIPT" --from "$odd" --root "$f" 2>&1)
 if [[ "$out" == *"WARN unknown event 'MysteryEvent'"* ]]; then ok "an unknown event warns"; else fail "no warning for an unknown event: $out"; fi
-p=$(jq -r '.[] | select(.name == "MysteryEvent") | .producer' "$f/plugins/claude-ops/hooks/hook-events.registry.json")
+p=$(jq -r '.[] | select(.name == "MysteryEvent") | .producer' "$f/plugins/harness-ops/hooks/hook-events.registry.json")
 if [[ "$p" == "exclude: unclassified"* ]]; then ok "an unknown event is excluded"; else fail "unknown event producer: $p"; fi
-rows=$(jq -r --arg prod "$PRODUCER" '[.hooks.MysteryEvent[]? | .hooks[] | select(((.args // []) | index($prod)) != null)] | length' "$f/plugins/claude-ops/hooks/hooks.json")
+rows=$(jq -r --arg prod "$PRODUCER" '[.hooks.MysteryEvent[]? | .hooks[] | select(((.args // []) | index($prod)) != null)] | length' "$f/plugins/harness-ops/hooks/hooks.json")
 if [[ "$rows" == 0 ]]; then ok "an unknown event gets no row"; else fail "unknown event got $rows rows"; fi
 
 test_harness::report

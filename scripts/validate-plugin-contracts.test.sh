@@ -344,7 +344,7 @@ fi
 # Retired-conventions manifests (plugins/<plugin>/retirements.yaml).
 #
 # Same discipline: each case asserts one specific failure line. The fixture
-# helper at plugins/claude-config/lib/check-retirements.sh is a placeholder;
+# helper at plugins/harness-config/lib/check-retirements.sh is a placeholder;
 # the validator checks only identity with the per-plugin copy, never content.
 # ===========================================================================
 
@@ -357,7 +357,7 @@ R_BAD_PATH='"path" must be repo-relative'
 R_DUP_ID='duplicate id "'
 R_MIGRATE_NO_SUCCESSOR='action migrate requires "successor"'
 R_HELPER_MISSING='a plugin shipping retirements.yaml must carry the synced helper'
-R_HELPER_DRIFT='must remain byte-identical to plugins/claude-config/lib/check-retirements.sh'
+R_HELPER_DRIFT='must remain byte-identical to plugins/harness-config/lib/check-retirements.sh'
 R_CANONICAL_MISSING='it is the canonical helper every plugin shipping retirements.yaml syncs'
 R_SETUP_NO_REF='must reference check-retirements.sh when the plugin ships retirements.yaml'
 R_REF_NO_MANIFEST='but the plugin ships no retirements.yaml'
@@ -375,15 +375,15 @@ retirement_failure_lines() {
 }
 
 write_canonical_helper() {
-  mkdir -p "$TMP/plugins/claude-config/lib"
+  mkdir -p "$TMP/plugins/harness-config/lib"
   printf '#!/usr/bin/env bash\n# fixture placeholder for the canonical helper\nexit 0\n' \
-    >"$TMP/plugins/claude-config/lib/check-retirements.sh"
+    >"$TMP/plugins/harness-config/lib/check-retirements.sh"
 }
 
 # sync_helper <plugin> -- the per-plugin byte-identical copy.
 sync_helper() {
   mkdir -p "$TMP/plugins/$1/lib"
-  cp "$TMP/plugins/claude-config/lib/check-retirements.sh" "$TMP/plugins/$1/lib/check-retirements.sh"
+  cp "$TMP/plugins/harness-config/lib/check-retirements.sh" "$TMP/plugins/$1/lib/check-retirements.sh"
 }
 
 # write_manifest <plugin> -- manifest body arrives on stdin.
@@ -669,7 +669,7 @@ fi
 
 # --- R3c. The canonical helper itself is gone. ------------------------------
 conforming_retirements_fixture
-rm "$TMP/plugins/claude-config/lib/check-retirements.sh"
+rm "$TMP/plugins/harness-config/lib/check-retirements.sh"
 out="$(run_fixture)"
 if has_fail_line "$R_CANONICAL_MISSING"; then
   ok "a missing canonical helper fails once by name"
@@ -715,17 +715,17 @@ else
   fail "a dangling helper copy should fail: $out"
 fi
 
-# --- R5c. claude-config is the canonical home: its copy and reference stand
+# --- R5c. harness-config is the canonical home: its copy and reference stand
 #          without a manifest. -----------------------------------------------
 reset_fixture
 write_canonical_helper
-make_plugin claude-config ''
-retiring_setup_body | write_setup_skill claude-config 'check | apply'
+make_plugin harness-config ''
+retiring_setup_body | write_setup_skill harness-config 'check | apply'
 out="$(run_fixture)"
 if grep -q "$R_REF_NO_MANIFEST" <<<"$out"; then
-  fail "claude-config should be exempt from the inverse wiring check: $out"
+  fail "harness-config should be exempt from the inverse wiring check: $out"
 else
-  ok "claude-config carries the helper and references it without a manifest"
+  ok "harness-config carries the helper and references it without a manifest"
 fi
 
 # --- R6. Evals: one id uncovered; evals.json missing. -----------------------

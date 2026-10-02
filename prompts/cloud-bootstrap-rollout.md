@@ -106,7 +106,7 @@ edit **Default** (one environment per account; see the rationale at the end):
    ```
 
 4. **Verify**: start a fresh session on a repo that declares plugins and make the *first*
-   message a plugin slash command (e.g. `/claude-config:audit` on claude-code-plugins). If it
+   message a plugin slash command (e.g. `/harness-config:audit` on claude-code-plugins). If it
    resolves, pre-launch install works end to end. If not: `/opt/melodic-env-setup.done` missing
    means an interrupted cache build (#2654 Blocker 2, so force a rebuild);
    `/var/log/melodic-env-setup.log` shows what the build did; and a populated

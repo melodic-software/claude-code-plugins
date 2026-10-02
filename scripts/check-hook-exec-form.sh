@@ -20,7 +20,7 @@
 #
 # Why a gate rather than a checklist: this class has shipped three times.
 # #1006 fixed it; #1504 reintroduced it while fixing a different resolution bug;
-# #2570 fixed it again. `plugins/claude-config/skills/audit/reference/
+# #2570 fixed it again. `plugins/harness-config/skills/audit/reference/
 # audit-checklist.md` Category D has carried it as an `error` row the whole
 # time — a checklist a human reads is not a gate.
 #
@@ -126,7 +126,7 @@ fi
 #   * `node`                 -> no such shim exists; node.exe is the only
 #                               resolution, which is why both
 #                               docs/plugin-philosophy.md (Hooks row) and the
-#                               claude-config audit checklist name
+#                               harness-config audit checklist name
 #                               `"command": "node", "args": [...]` as THE
 #                               Windows-correct exec-form spelling.
 # That criterion is NECESSARY but not SUFFICIENT, and the list is deliberately
