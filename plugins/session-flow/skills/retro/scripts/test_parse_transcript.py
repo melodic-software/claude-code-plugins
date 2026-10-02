@@ -77,6 +77,7 @@ def test_single_assistant_turn_extracts_cache_tokens(tmp_path):
             "type": "assistant",
             "timestamp": "2026-03-23T18:00:00Z",
             "message": {
+                "id": "msg_1",
                 "model": "claude-opus-4-6",
                 "content": [{"type": "tool_use", "name": "Read", "id": "123"}],
                 "stop_reason": "tool_use",
@@ -412,6 +413,7 @@ def _write_assistant_event(
         "type": "assistant",
         "timestamp": ts,
         "message": {
+            "id": "msg_1",
             "model": "claude-opus-4-7",
             "content": [{"type": "tool_use", "name": "Read", "id": "x"}],
             "stop_reason": "tool_use",
