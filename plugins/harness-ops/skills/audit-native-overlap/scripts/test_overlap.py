@@ -2258,6 +2258,37 @@ class BuiltinPluginSurfaceTests(unittest.TestCase):
         self.assertEqual(index["diff"]["class"], "builtin-command")
         self.assertEqual(index["author"]["class"], "plugin-backed-builtin")
 
+    def test_a_filtered_earlier_entry_does_not_claim_a_plugin_name(self) -> None:
+        for label, entry in (
+            ("internal", {"name": "diff", "description": "Diff", "internal": True}),
+            ("empty", []),
+        ):
+            with self.subTest(label):
+                payloads = overlap._lane_payloads(
+                    {
+                        "builtin_commands": {"diff": entry},
+                        "builtin_plugins": BUILTIN_PLUGINS,
+                    }
+                )
+                diff = [
+                    s for s in overlap.native_surfaces(payloads) if s.name == "diff"
+                ]
+                self.assertEqual([s.lane for s in diff], ["builtin_plugins"])
+                index = overlap.build_native_index({}, payloads)
+                self.assertEqual(index["diff"]["lane"], "builtin_plugins")
+
+    def test_an_internal_plugin_backed_name_gets_no_fallback_surface(self) -> None:
+        payloads = overlap._lane_payloads(
+            {
+                "builtin_commands": {
+                    "scan": {"name": "scan", "description": "Scan", "internal": True}
+                },
+                "plugin_backed": {"scan": "scanner"},
+            }
+        )
+        names = [s.name for s in overlap.native_surfaces(payloads)]
+        self.assertNotIn("scan", names)
+
 
 def make_dismissal(**overrides):
     entry = {
