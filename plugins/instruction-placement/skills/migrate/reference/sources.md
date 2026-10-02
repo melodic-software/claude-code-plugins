@@ -438,31 +438,25 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
 
 The record behind condition F's frontmatter scan in [`shim-droppable.md`](shim-droppable.md).
 
-Condition F treats a `hooks:` block in skill, command-file or subagent frontmatter as a hook
-source that can observe `InstructionsLoaded`. Our 2026-10-02 reading: frontmatter hooks use the
-settings format; the subagents page lists no event a subagent's frontmatter may not declare, and
-the skills and hooks pages restrict none either. A skill's hooks stay registered from its
-invocation to the end of the session; a subagent's while it runs, and for the whole session when
-it runs as the main agent. No page says whether `InstructionsLoaded` fires inside a subagent, so
-the rule counts every declaration as a dependent. The scan covers every location those pages
-name for skills, command files and subagents. Directories added with `--add-dir` (or `/add-dir`,
-or the Agent SDK's equivalent options) load skills, command files and subagents from their
-`.claude/`, so the operator names them and each is scanned. Locations not on disk here
-(claude.ai-synced skills, `--agents` JSON, managed subagents) are the operator's to answer.
+Condition F treats any skill, command-file or subagent frontmatter that names
+`InstructionsLoaded` as a hook that may depend on the shim, and scans every location the pointers
+below give for those components, plus each `--add-dir` directory the operator names, scanned
+whole. Anything the pointers leave unsaid (whether such a hook fires in a given session, or inside
+a subagent) keeps the shim. Read the mechanics live at the pointers; this record holds only that
+decision.
 
-- **Pointer**: <https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents> and
-  <https://code.claude.com/docs/en/hooks#hook-locations>;
-  <https://code.claude.com/docs/en/sub-agents#hooks-in-subagent-frontmatter> and
-  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>;
-  <https://code.claude.com/docs/en/skills#where-skills-live> and
-  <https://code.claude.com/docs/en/skills#frontmatter-reference>;
+- **Pointer**: <https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents>,
+  <https://code.claude.com/docs/en/hooks#hook-locations>,
+  <https://code.claude.com/docs/en/sub-agents#hooks-in-subagent-frontmatter>,
+  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>,
+  <https://code.claude.com/docs/en/skills#where-skills-live>,
+  <https://code.claude.com/docs/en/skills#frontmatter-reference> and
   <https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration>.
   All four pages fetched by the rung-1 route on 2026-10-02, each slug in `llms.txt`.
 - **As of**: 2026-10-02
-- **Recheck trigger**: any of the four pages restricts which events frontmatter hooks accept,
-  changes when skill or subagent hooks are registered, adds or removes a skill, command-file or
-  subagent location, changes what `--add-dir` loads, or states whether `InstructionsLoaded` fires
-  inside a subagent.
+- **Recheck trigger**: any of these sections changes which components can declare hooks, which
+  events they accept, when those hooks are active, where skills, command files or subagents load
+  from, or what `--add-dir` loads.
 
 ## Blockers between the root and a nested `AGENTS.md`
 
@@ -470,15 +464,11 @@ The record behind condition A's nested path walk in [`shim-droppable.md`](shim-d
 
 Condition A treats a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in any directory
 between the repository root and a nested `AGENTS.md` (for example `svc/CLAUDE.local.md` above
-`svc/deep/AGENTS.md`) as a blocker for that nested file. Our 2026-10-02 reading of the memory page:
-it names the subdirectory's own three files as what stops a nested `AGENTS.md` loading, and the
-same three in the working directory or above it as what is read instead of a root one; it says
-nothing about the directories in between, so the rule fails closed on them. The walk is the one
-`scripts/lib/discover.sh` `ip_entry_points_on_path` already runs for the reachability verdict and
-the wiring gate.
+`svc/deep/AGENTS.md`) as a blocker for that nested file. The walk is the one `scripts/lib/discover.sh`
+`ip_entry_points_on_path` already runs for the reachability verdict and the wiring gate.
 
 - **Pointer**: <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>, fetched by
   the rung-1 route on 2026-10-02, slug in `llms.txt`.
 - **As of**: 2026-10-02
-- **Recheck trigger**: the memory page states which directories' files stop a subdirectory's
+- **Recheck trigger**: that section states which directories' files stop a subdirectory's
   `AGENTS.md` from loading.

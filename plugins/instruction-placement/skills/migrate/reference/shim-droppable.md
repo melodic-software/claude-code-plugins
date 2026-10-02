@@ -66,9 +66,10 @@ pointing elsewhere, the page does not say whether that file still counts, so the
 ## The nested path walk for condition A
 
 A nested `AGENTS.md` is read only where no blocker sits between it and the repository root, so
-check every directory on that path, not only the one holding the file. The memory page names the
-subdirectory's own three files as the blocker and says nothing about the directories between, so a
-file there is unknown, and fails A. The walk is this plugin's own `ip_entry_points_on_path` in
+check every directory on that path, not only the one holding the file. Any of the three names in
+any directory on the path fails A, whatever the memory page's nested-load rule says about that
+directory; the pointer is in [`sources.md`](sources.md), "Blockers between the root and a nested
+`AGENTS.md`". The walk is this plugin's own `ip_entry_points_on_path` in
 `<plugin-root>/scripts/lib/discover.sh`, which emits the three names in a directory and in every
 directory above it up to the root; the readability check is added here because that function skips
 an unreadable directory silently:
@@ -125,17 +126,23 @@ past the fourth hop, which the loader drops, so the chain is not what it reads. 
 
 ## The frontmatter scan for condition F
 
-Skills, legacy command files and subagents declare hooks in their `hooks:` frontmatter, in the same
-format as settings, and the subagents page says all hook events are supported there. A skill's
-hooks register when it is invoked and run for the rest of the session; a subagent's run while it
-runs, or for the whole session under `--agent`. Either can observe an `InstructionsLoaded` event
-the shim produces, so each counts as a hook source whenever it might run. The quotes are in
-[`sources.md`](sources.md), "Frontmatter hooks and `InstructionsLoaded`".
+Condition F counts every skill, command-file and subagent frontmatter that names
+`InstructionsLoaded` as a hook source, whenever and wherever that component might run. Which
+components can declare hooks, which events they accept, when those hooks are active and where each
+component loads from are read live at the pointers in [`sources.md`](sources.md), "Frontmatter
+hooks and `InstructionsLoaded`"; a pointer that comes to say something narrower does not loosen
+the scan until that record changes.
+
+Every root is resolved to its canonical directory first, and `find -L` follows symlinks inside it,
+so a linked root or a linked skill is scanned at its target. A root that cannot be resolved,
+including a dangling link, prints `UNREADABLE`, and so does a tree `find` cannot finish, a
+symlink loop included, because `find` then exits non-zero.
 
 ```bash
 fm_gone() { # true only when <path> provably does not exist: the nearest ancestor that does is searchable
   local p=$1 up
   while ! [ -e "$p" ]; do
+    [ -L "$p" ] && return 1 # a dangling link is not absence
     up=$(dirname "$p")
     if [ -d "$up" ]; then [ -x "$up" ]; return; fi
     [ "$up" = "$p" ] && return 1
@@ -146,7 +153,7 @@ fm_gone() { # true only when <path> provably does not exist: the nearest ancesto
 fm_scan() { # <root>...: frontmatter naming InstructionsLoaded, and every root not fully read.
   # A root written ?<dir> is optional: skipped when provably absent, UNREADABLE when it cannot be
   # stat'd. Any other root is expected, and UNREADABLE whenever it cannot be read.
-  local a d f
+  local a d r f
   for a; do
     d=${a#\?}
     if ! [ -e "$d" ]; then
@@ -154,7 +161,8 @@ fm_scan() { # <root>...: frontmatter naming InstructionsLoaded, and every root n
       printf 'UNREADABLE\t%s\n' "$d"
       continue
     fi
-    find "$d" -type f \( -path '*/skills/*/SKILL.md' -o -path '*/commands/*.md' \
+    r=$(cd -P -- "$d" 2>/dev/null && pwd -P) || { printf 'UNREADABLE\t%s\n' "$d"; continue; }
+    find -L "$r" -type f \( -path '*/skills/*/SKILL.md' -o -path '*/commands/*.md' \
       -o -path '*/agents/*.md' \) -not -path '*/.git/*' -print 2>/dev/null ||
       printf 'UNREADABLE\t%s\n' "$d"
   done | while IFS= read -r f; do
@@ -173,12 +181,11 @@ fm_scan <repo> '?<config>/skills' '?<config>/commands' '?<config>/agents' '?<plu
 Scanning the whole repository covers the root `.claude/` and every nested `.claude/skills/` and
 `.claude/agents/`. The repository and every root the operator names are expected; the user,
 plugin and managed locations may not exist on a given machine, so they are optional, but one
-behind a directory that cannot be searched still prints `UNREADABLE`. A directory added with
-`--add-dir` (or `/add-dir`, or the Agent SDK's `additionalDirectories` / `add_dirs`) loads the
-skills, command files and subagents in its `.claude/skills/`, `.claude/commands/` and
-`.claude/agents/`, and of its settings only `enabledPlugins` and `extraKnownMarketplaces`; the
-plugins those enable are under `<plugins>`. Ask the operator which directories contributors add
-this way. Each one named is an expected root, scanned whole, which covers its `.claude/`.
+behind a directory that cannot be searched still prints `UNREADABLE`. Ask the operator which
+directories contributors add with `--add-dir`, `/add-dir` or the Agent SDK's equivalent. Each one
+named is an expected root and is scanned whole, a superset of whatever configuration the
+`--add-dir` pointer in `sources.md` says it loads; any plugins it enables are already under
+`<plugins>`.
 
 A `HIT` the operator has not accepted fails F. An `UNREADABLE` row, a root that cannot be
 resolved, an `--add-dir` set the operator cannot name, or a source that is not on disk here

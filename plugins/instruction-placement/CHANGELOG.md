@@ -13,10 +13,10 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   the path, or an unreadable directory, keeps every shim (#5800).
 - The shim rule's `InstructionsLoaded` condition also scans the `hooks:` frontmatter of skill,
   command and agent files in the repository, the config root, the plugins root, the managed
-  settings directory and each `--add-dir` directory the operator names. The hooks and subagents
-  pages say frontmatter hooks use the settings format and accept every event. A hit, a root that
-  cannot be stat'd or read, an unnamed `--add-dir` set, or a source not on disk keeps the shim
-  until the operator answers for it (#5794).
+  settings directory and each `--add-dir` directory the operator names, following symlinked
+  roots and links inside them. A hit, a root that cannot be resolved or read, a symlink loop, an
+  unnamed `--add-dir` set, or a source not on disk keeps the shim until the operator answers for
+  it (#5794).
 
 ## [0.18.3] - 2026-10-02
 
