@@ -100,12 +100,12 @@ Because the orchestrator stays on the default branch, **every source-touching op
      `printenv | grep -E '^(CLAUDE_CODE_USE_(BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)|ANTHROPIC_DEFAULT_SONNET_MODEL)='`.
      When a `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`,
      `CLAUDE_CODE_USE_ANTHROPIC_AWS` or `CLAUDE_CODE_USE_MANTLE` value is non-empty and
-     `ANTHROPIC_DEFAULT_SONNET_MODEL` is unset or empty, the `sonnet` alias resolves to an older
-     Sonnet on that provider, so dispatch `implementation:implementer` instead. Otherwise dispatch
-     `implementation:scoped-implementer` with an explicit per-invocation `model: sonnet`: a
-     caller's standing per-spawn model (a "pass `model: opus` on every spawn" rule) would
-     otherwise override its frontmatter. Downward routing happens only this way, by spawning
-     `scoped-implementer`.
+     `ANTHROPIC_DEFAULT_SONNET_MODEL` is unset or empty, we do not trust the unpinned `sonnet`
+     alias on that provider, so dispatch `implementation:implementer` instead. Otherwise dispatch
+     `implementation:scoped-implementer` with an explicit per-invocation `model: sonnet`, because
+     we treat the per-invocation `model` as outranking frontmatter, so a caller's standing
+     per-spawn model (a "pass `model: opus` on every spawn" rule) must not be left to apply.
+     Downward routing happens only this way, by spawning `scoped-implementer`.
    - **`frontier`, or a security-surface work class whatever the row says**:
      `implementation:implementer` at the frontier tier's current alias, per the next rule.
 
@@ -114,14 +114,16 @@ Because the orchestrator stays on the default branch, **every source-touching op
    tier's current alias, and a run that cannot resolve that alias STOPs (autonomously: escalates)
    rather than dispatching lower, and a session whose own model resolves above the binding may
    pass that model. Never pass a `model` that undercuts the frontmatter binding for source-editing
-   work. (Model resolution order: the per-invocation `model` parameter, then the definition's
-   `model` frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL` when set to a model alias or id, then the
-   main conversation's model, per <https://code.claude.com/docs/en/sub-agents#choose-a-model>;
-   provider resolution of the `sonnet` alias per
-   <https://code.claude.com/docs/en/model-config#model-aliases> and the provider variables per
-   <https://code.claude.com/docs/en/env-vars>; all verified 2026-10-01. Recheck when a release
-   note touches subagent model selection, the model-aliases provider table changes, or the
-   env-vars page adds a provider variable.)
+   work.
+
+   - **Pointer**: for the subagent model resolution order, see
+     <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for what the `sonnet` alias
+     resolves to per provider, see <https://code.claude.com/docs/en/model-config#model-aliases>;
+     for the provider variables, see <https://code.claude.com/docs/en/env-vars#variables>.
+   - **As of**: 2026-10-01
+   - **Recheck trigger**: a release note touches subagent model selection, the model-aliases
+     provider table changes, or the env-vars page adds a provider variable.
+
    Dispatch a wave, up to the cap's worker rows from the current phase, and keep working while it
    runs: verify returns from the same phase as they arrive, compose the next brief, and run the
    build/test gate on accepted returns, except under commit authority `orchestrator` in a shared worktree, where the gate runs after the wave settles (see Concurrency). Rows in a shared worktree dispatch one per wave unless commit authority is `orchestrator` (see Gates). Intervene when
@@ -210,5 +212,5 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Shared worktrees follow the one-writer rule.** See Gates and Concurrency
 - **Two well-formed fences can overlap unseen.** See Dispatch cadence item 1.1
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary. Classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
-- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer`, or as `implementation:scoped-implementer` for a plan-routed `sonnet` phase, and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` on `implementer` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); the one downward route is spawning `scoped-implementer` with `model: sonnet` passed explicitly (see Dispatch cadence step 2). `CLAUDE_CODE_SUBAGENT_MODEL` ranks below both the per-invocation parameter and the frontmatter, so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
+- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer`, or as `implementation:scoped-implementer` for a plan-routed `sonnet` phase, and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` on `implementer` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); the one downward route is spawning `scoped-implementer` with `model: sonnet` passed explicitly (see Dispatch cadence step 2). We treat `CLAUDE_CODE_SUBAGENT_MODEL` as ranking below both the per-invocation parameter and the frontmatter (record in Dispatch cadence step 2), so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
 - **An omitted `--wave-cap` with the operator option unset keeps the internal 3–5. Never coerce an absent value into a number.** See Arguments

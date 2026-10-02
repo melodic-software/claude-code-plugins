@@ -282,10 +282,10 @@ overrun costs the lanes still running rather than the whole pass.
 ## Phase 4: The `/doctor` handoff
 
 `/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass builds no replacement,
-and [`/doctor prompt-audit`](https://code.claude.com/docs/en/commands#all-commands) audits the same
-files for outdated or conflicting instructions. **Both are operator-run, so neither is dispatched**;
-each changes files only after the operator confirms. Version floors, what the presence check verifies
-versus probes, and the absence classification are in [reference/doctor-handoff.md](reference/doctor-handoff.md).
+and `/doctor prompt-audit` is the instruction-file audit this pass hands off rather than runs.
+**Both are operator-run, so neither is dispatched.** Their records (version floors, write posture),
+what the presence check verifies versus probes, and the absence classification are in
+[reference/doctor-handoff.md](reference/doctor-handoff.md).
 When `/doctor` is absent, name it as the missing capability and state what goes unchecked.
 
 **Phase 4 records the handoff; it does not stop the pass.** Halting here would mean a `--fix` run

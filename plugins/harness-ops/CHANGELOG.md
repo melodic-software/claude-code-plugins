@@ -18,6 +18,8 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
   metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
   from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
 
 ## [2.0.2] - 2026-10-02
 

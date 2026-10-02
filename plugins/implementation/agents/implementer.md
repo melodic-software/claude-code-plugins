@@ -33,22 +33,25 @@ directly rather than launching pwsh through Bash), web research (so a consuming 
 fresh-docs obligations stay satisfiable), skill invocation, and nested dispatch for skills that fan
 out their own workers. Nothing else is granted.
 
-Claim: where the PowerShell tool is unavailable, the `PowerShell` entry resolves to nothing and
-Bash remains, so the launch succeeds. Basis: the sub-agents page
-(<https://code.claude.com/docs/en/sub-agents>) says "If no entry in the list resolves to a tool,
-the subagent usually fails to launch with an error naming the entries" and "Before v2.1.208, that
-subagent launched with no tools"; "usually" is the page's hedge, and a launch failure needs every
-entry to be unresolved. As of: 2026-09-29. Recheck: that page changes how unresolved `tools`
-entries are handled or drops "usually". The `phase-verifier` cage relies on this record.
+We keep `PowerShell` in the list on every platform and rely on Bash remaining where the
+PowerShell tool is unavailable, so one unresolved entry never blocks the launch. The
+`phase-verifier` cage relies on this record.
 
-The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
-from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent
-"does its delegated work itself and returns one summary"
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10; recheck when a Claude Code
-release note moves the nesting-depth default or changes what
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or when that page stops stating that the tool is
-withheld at the limit). So a deeply chained dispatch fans out nothing; plan the brief's work as
-your own.
+- **Pointer**: for how unresolved `tools` entries are handled, see
+  <https://code.claude.com/docs/en/sub-agents#available-tools>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section changes how unresolved entries are handled, or a launch with
+  `PowerShell` unresolved fails.
+
+The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
+whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
+work as your own.
+
+- **Pointer**: for the depth limit and what a subagent at it can do, see
+  <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section moves the depth default, changes what
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or stops withholding `Agent` at the limit.
 
 ## Commit authority
 

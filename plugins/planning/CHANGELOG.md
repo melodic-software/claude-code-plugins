@@ -12,6 +12,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Changed
 
 - `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
+- The routing-table record in `plan-template.md` and the goal-usage gotcha in `draft-goal-condition` are links-only: our decision, then a pointer, an as-of date and a recheck trigger, with no paraphrase of the `opusplan` or costs sections.
 
 ## [0.59.4] - 2026-10-02
 

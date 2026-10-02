@@ -275,10 +275,14 @@ Assign each phase an execution surface and a model:
 The `Model` column decides which implementer agent a worker row dispatches to:
 
 - **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not a security-surface work class. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
-- **`opus`:** architectural work, per-file judgment, or multi-step reasoning, and the value to use when in doubt. A row with no `Model` value is treated the same way and goes to `implementation:implementer`. The split follows the costs page's [model choice](https://code.claude.com/docs/en/costs#choose-the-right-model).
+- **`opus`:** architectural work, per-file judgment, or multi-step reasoning, and the value to use when in doubt. A row with no `Model` value is treated the same way and goes to `implementation:implementer`.
 - **`frontier`:** security-surface work classes and complex-stamped items, per the loop-lane convention's capability tiers.
 
-Related built-in levers, linked rather than restated: the [`opusplan` model setting](https://code.claude.com/docs/en/model-config#opusplan-model-setting) switches a single session from Opus in plan mode to Sonnet for execution, and [agent team token costs](https://code.claude.com/docs/en/costs#agent-team-token-costs) covers model choice for teammates. Verified 2026-10-01; recheck when either section is renamed or the costs page changes its model split.
+This split is our routing rule. Two built-in levers sit beside it and are not part of it: the `opusplan` model setting, and model choice for agent teammates.
+
+- **Pointer**: for the model split, see <https://code.claude.com/docs/en/costs#choose-the-right-model>; for `opusplan`, see <https://code.claude.com/docs/en/model-config#opusplan-model-setting>; for teammates, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: any of those sections is renamed, or the costs page changes its model split.
 
 ## Large-scale changes (migrations, library swaps, broad refactoring)
 

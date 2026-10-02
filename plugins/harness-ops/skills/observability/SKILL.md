@@ -144,9 +144,9 @@ remains the durable record).
 
 `compare` reconciliation record:
 
-`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record, because an open upstream bug drops `api_request` events for some requests while the metrics stay complete; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193). Events above the metric are not explained by that bug and are flagged, never clamped. Summing data points is valid only for delta temporality, so a non-delta token or cost metric exits 2.
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
 
-- **Pointer**: for which requests lose their event, see anthropics/claude-code#98193; for the cost and token metrics, the `effort` attribute and the `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` default, see <https://code.claude.com/docs/en/monitoring-usage>. That page does not state which requests skip `api_request`.
+- **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
 - **As of**: 2026-10-01; #98193 open.
 - **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
 

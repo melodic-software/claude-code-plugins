@@ -21,6 +21,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   work and `frontier` rows dispatch `implementer` at the frontier alias. A per-invocation `model`
   on `implementer` still routes only upward.
 
+### Changed
+
+- The upstream records in `implementer`, `scoped-implementer` and `implement-dispatch` are links-only:
+  each states our decision with a pointer to the exact docs section, an as-of date and a recheck
+  trigger, and no longer quotes or paraphrases the sub-agents, costs, effort or model-config pages.
+
 ## [0.19.20] - 2026-10-02
 
 ### Changed

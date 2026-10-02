@@ -33,22 +33,25 @@ directly rather than launching pwsh through Bash), web research (so a consuming 
 fresh-docs obligations stay satisfiable), skill invocation, and nested dispatch for skills that fan
 out their own workers. Nothing else is granted.
 
-Claim: where the PowerShell tool is unavailable, the `PowerShell` entry resolves to nothing and
-Bash remains, so the launch succeeds. Basis: the sub-agents page
-(<https://code.claude.com/docs/en/sub-agents>) says "If no entry in the list resolves to a tool,
-the subagent usually fails to launch with an error naming the entries" and "Before v2.1.208, that
-subagent launched with no tools"; "usually" is the page's hedge, and a launch failure needs every
-entry to be unresolved. As of: 2026-09-29. Recheck: that page changes how unresolved `tools`
-entries are handled or drops "usually". The `phase-verifier` cage relies on this record.
+We keep `PowerShell` in the list on every platform and rely on Bash remaining where the
+PowerShell tool is unavailable, so one unresolved entry never blocks the launch. The
+`phase-verifier` cage relies on this record.
 
-The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
-from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent
-"does its delegated work itself and returns one summary"
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10; recheck when a Claude Code
-release note moves the nesting-depth default or changes what
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or when that page stops stating that the tool is
-withheld at the limit). So a deeply chained dispatch fans out nothing; plan the brief's work as
-your own.
+- **Pointer**: for how unresolved `tools` entries are handled, see
+  <https://code.claude.com/docs/en/sub-agents#available-tools>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section changes how unresolved entries are handled, or a launch with
+  `PowerShell` unresolved fails.
+
+The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
+whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
+work as your own.
+
+- **Pointer**: for the depth limit and what a subagent at it can do, see
+  <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section moves the depth default, changes what
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or stops withholding `Agent` at the limit.
 
 ## Commit authority
 
@@ -89,19 +92,20 @@ decision, a cross-module contract change, or a file outside the fence, that is t
 brief's escalation clause names: STOP and report, so the orchestrator can re-dispatch the phase to
 `implementation:implementer`. Never stretch to finish it here.
 
-`effort` is bound alongside `model` because it otherwise inherits the session's level.
+`effort` is pinned alongside `model` so the phase never runs at the session's level.
 
-Claim: `sonnet` at `effort: medium` fits a well-scoped implementation phase, and Opus stays the
-binding for complex work. When an organization's `availableModels` allowlist blocks `sonnet`, the
-subagent runs on the newest Sonnet the allowlist permits, or on the inherited model when it permits
-none, and `effort: medium` still applies. Basis: the costs page's
-[model choice](https://code.claude.com/docs/en/costs#choose-the-right-model) ("Sonnet handles most
-coding tasks well"; Opus for complex architectural decisions or multi-step reasoning); the
-[effort table](https://code.claude.com/docs/en/model-config#adjust-effort-level), whose `medium`
-row covers day-to-day engineering with a clear scope; the
-[Sonnet 5.5 effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5)
-("start with `medium` for well-specified tasks and move to `high` for harder or longer ones"); the
-[subagent model order and allowlist substitution](https://code.claude.com/docs/en/sub-agents#choose-a-model);
-the effort-pin owner's ruling of 2026-10-01. As of: 2026-10-01. Recheck: the Agent tool gains a
-per-spawn effort parameter, the costs page changes its model split, the effort table or the Sonnet
-5.5 effort guidance changes its `medium` advice, or the `sonnet` alias moves to a new model.
+We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
+binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we
+accept the substitute model the harness picks and keep `effort: medium` on it. The effort pin is
+the effort-pin owner's ruling of 2026-10-01.
+
+- **Pointer**: for the model split, see
+  <https://code.claude.com/docs/en/costs#choose-the-right-model>; for the effort levels, see
+  <https://code.claude.com/docs/en/model-config#adjust-effort-level> and
+  <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5>;
+  for the subagent model order and allowlist substitution, see
+  <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: the Agent tool gains a per-spawn effort parameter, the costs section changes
+  its model split, either effort section changes its advice for `medium`, the allowlist
+  substitution changes, or the `sonnet` alias moves to a new model.
