@@ -1,11 +1,11 @@
 # Place the machine profile as a claude-ops skill
 
-- Status: accepted for the placement only
+- Status: accepted
 - Date: 2026-09-29
 
 ## Context
 
-The [machine profile design](../specs/machine-profile-design.md) (issue #4666) describes a
+The [machine profile design](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/machine-profile-design.md) (issue #4666) describes a
 re-runnable profile that discovers host facts once, stores them, and hands each plugin's `setup`
 the answers. The design needs one owner. Two placements were on the table: a skill in
 `claude-ops`, or a new plugin.
@@ -38,12 +38,11 @@ Place the profile as a skill in `claude-ops`, not as a new plugin.
 
 ## Status scope
 
-Accepted for the placement only. The invocation-mode change (class (ii) and the hidden `setup`
-skills) and any change to the setup contract stay deferred to the owner's later decision on the
-design document. This record does not authorize the skill, its scripts, or a version bump.
+Accepted. The skill, its scripts, its tests and the `claude-ops` version bump are authorized. The
+invocation-mode change (class (ii) and the hidden `setup` skills) and any change to the setup
+contract are not part of this decision.
 
 ## Consequences
 
-The skill's directory is under `plugins/claude-ops/skills/`. Whether its scope is too broad for
-`claude-ops` is the owner's call on the design document; if the owner chooses a new plugin, this
-record is superseded.
+The skill's directory is under `plugins/claude-ops/skills/`. A move to a new plugin would
+supersede this record.

@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# Regression tests for tools/skill-contract/skill-portability-lib.sh.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$SCRIPT_DIR/skill-portability-lib.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+# Synthetic fixtures live OUTSIDE the live .claude/skills/ tree so a killed
+# run can never leak __test_* dirs into it (CC's skill scanner would pick them
+# up mid-run otherwise). The script-under-test resolves them via the
+# SKILL_PORTABILITY_SKILLS_ROOT override; real-skill cases (Tests 1/2) leave
+# it unset and use the default repo skills root. The TEST_TMPDIR trap is the
+# only cleanup needed — no per-fixture bookkeeping.
+FIXTURE_ROOT="$TEST_TMPDIR/skills"
+mkdir -p "$FIXTURE_ROOT"
+
+FAILED=0
+CASE_NUM=0
+# shellcheck source=../../tests/shell/lib.sh
+source "$(git rev-parse --show-toplevel)/tests/shell/lib.sh"
+
+# Test 1: real skill without BEHAVIOR.md (issues) — silent skip (plugin-ref-only).
+out=$(bash "$SCRIPT" issues 2>&1)
+exit_code=$?
+assert_exit "issues non-adopter exits 0" 0 "$exit_code"
+assert_silent "issues non-adopter silent" "$out"
+
+# Test 2: real skill without BEHAVIOR.md (pull-request) — silent skip.
+out=$(bash "$SCRIPT" pull-request 2>&1)
+exit_code=$?
+assert_exit "pull-request non-adopter exits 0" 0 "$exit_code"
+assert_silent "pull-request non-adopter silent" "$out"
+
+# Test 3: non-adopter (no BEHAVIOR.md) exits 0 silently (plugin-ref-only path).
+NONADOPTER_DIR="$FIXTURE_ROOT/__test_nonadopter_$$"
+mkdir -p "$NONADOPTER_DIR"
+cat >"$NONADOPTER_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$NONADOPTER_DIR")
+description: "Test fixture: skill with no BEHAVIOR.md (non-adopter)."
+---
+No behavior layer here.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$NONADOPTER_DIR")" 2>&1)
+exit_code=$?
+assert_exit "non-adopter exits 0" 0 "$exit_code"
+assert_silent "non-adopter silent (no INFO)" "$out"
+
+# Test 3b: behavior/<non-third-party> without BEHAVIOR.md → WARN
+MISCONFIG_DIR="$FIXTURE_ROOT/__test_misconfig_$$"
+mkdir -p "$MISCONFIG_DIR/behavior/custom-point"
+cat >"$MISCONFIG_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$MISCONFIG_DIR")
+description: "Test fixture: behavior point without BEHAVIOR.md."
+---
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$MISCONFIG_DIR")" 2>&1)
+exit_code=$?
+assert_exit "misconfig exits 0" 0 "$exit_code"
+assert_contains "misconfig warns missing BEHAVIOR.md" "$out" "no BEHAVIOR.md"
+
+# Test 4: missing skill name shows error
+err_out=$(bash "$SCRIPT" 2>&1 || true)
+assert_contains "missing skill name shows usage" "$err_out" "Usage:"
+
+# Test 5: nonexistent skill exits non-zero
+out=$(bash "$SCRIPT" nonexistent-skill-xyz 2>&1 || true)
+assert_contains "missing skill dir reports error" "$out" "FAIL: Skill not found"
+
+# Test 6: v2 deny-list — HARD-FAIL token in default.yaml triggers exit 1
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_denylist_hardfail_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/test-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<'EOF'
+---
+name: __test_denylist_hardfail
+description: "Test fixture for v2 deny-list HARD-FAIL detection."
+---
+Test point: <!-- @behavior: __test_denylist_hardfail_PLACEHOLDER.test-point -->
+EOF
+# Substitute the dynamic skill name + actual @behavior marker
+sed -i "s/__test_denylist_hardfail_PLACEHOLDER/$(basename "$SKILL_FIXTURE_DIR")/" "$SKILL_FIXTURE_DIR/SKILL.md"
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").test-point
+Type: text
+Default merge: set
+File: behavior/test-point/default.md
+Description: Test fixture point.
+EOF
+# default.md embeds a HARD-FAIL token (Medley.slnx)
+cat >"$SKILL_FIXTURE_DIR/behavior/test-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").test-point
+merge: set
+---
+Build with Medley.slnx solution file.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "v2 HARD-FAIL token triggers FAIL" "$out" "Repo-specific identifier 'Medley.slnx'"
+assert_contains "v2 HARD-FAIL exits non-zero" "$out" "PORTABILITY: FAIL"
+
+# Test 7: v2 deny-list — WARN token in default.yaml passes with warning
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_denylist_warn_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/test-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Test fixture for v2 deny-list WARN detection."
+---
+Test point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").test-point -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").test-point
+Type: text
+Default merge: set
+File: behavior/test-point/default.md
+Description: Test fixture point.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/test-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").test-point
+merge: set
+---
+Use Aspire AppHost for orchestration.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1)
+exit_code=$?
+assert_exit "v2 WARN token exits 0" 0 "$exit_code"
+assert_contains "v2 WARN token emits WARN line" "$out" "Stack-choice token 'Aspire' (WARN)"
+assert_contains "v2 WARN passes overall" "$out" "PORTABILITY: PASS"
+
+# Test 8: v2 deny-list — per-line opt-out marker suppresses scan
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_denylist_optout_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/test-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Test fixture for v2 deny-list opt-out marker."
+---
+Test point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").test-point -->
+Team layer carries Medley.slnx config. <!-- portability-scan-ignore-line -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").test-point
+Type: text
+Default merge: set
+File: behavior/test-point/default.md
+Description: Test fixture point.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/test-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").test-point
+merge: set
+---
+Default content with no repo-specifics.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1)
+exit_code=$?
+assert_exit "v2 opt-out marker exits 0" 0 "$exit_code"
+assert_not_contains "v2 opt-out marker suppresses HARD-FAIL" "$out" "Repo-specific identifier 'Medley.slnx'"
+
+# Test 9: symmetry — declared point not cited in SKILL.md → FAIL
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_symmetry_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/sample-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Symmetry violation fixture."
+---
+No behavior point cited here.
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").sample-point
+Type: text
+Default merge: set
+File: behavior/sample-point/default.md
+Description: Uncited point.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/sample-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").sample-point
+merge: set
+---
+Default content.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "symmetry violation fails" "$out" "not cited by SKILL.md"
+assert_contains "symmetry violation exits non-zero" "$out" "PORTABILITY: FAIL"
+
+# Test 10: missing default file in behavior point dir → FAIL
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_missing_default_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/sample-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Missing default fixture."
+---
+Point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").sample-point -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").sample-point
+Type: text
+Default merge: set
+File: behavior/sample-point/default.md
+Description: Missing default file.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "missing default fails" "$out" "missing default"
+assert_contains "missing default exits non-zero" "$out" "PORTABILITY: FAIL"
+
+# Test 11: escape path (../../) in behavior override → FAIL
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_escape_path_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/sample-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Escape path fixture."
+---
+Point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").sample-point -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").sample-point
+Type: text
+Default merge: set
+File: behavior/sample-point/default.md
+Description: Escape path fixture.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/sample-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").sample-point
+merge: set
+---
+See ../../escape for details.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "escape path fails" "$out" "Escape path (../../)"
+assert_contains "escape path exits non-zero" "$out" "PORTABILITY: FAIL"
+
+# Test 12: wrong @behavior frontmatter value → FAIL
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_bad_behavior_$$"
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/sample-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Bad @behavior fixture."
+---
+Point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").sample-point -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").sample-point
+Type: text
+Default merge: set
+File: behavior/sample-point/default.md
+Description: Bad @behavior fixture.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/sample-point/default.md" <<EOF
+---
+'@behavior': wrong.point.id
+merge: set
+---
+Default content.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "bad @behavior fails" "$out" "declares @behavior: wrong.point.id"
+assert_contains "bad @behavior exits non-zero" "$out" "PORTABILITY: FAIL"
+
+# Test 13: machine-local path in behavior default → FAIL
+SKILL_FIXTURE_DIR="$FIXTURE_ROOT/__test_machine_path_$$"
+_wp_u='Users'
+_wp_a='alice'
+_machine_demo_path=$(printf 'C:\\%s\\%s\\project' "$_wp_u" "$_wp_a")
+mkdir -p "$SKILL_FIXTURE_DIR/behavior/sample-point"
+cat >"$SKILL_FIXTURE_DIR/SKILL.md" <<EOF
+---
+name: $(basename "$SKILL_FIXTURE_DIR")
+description: "Machine-local path fixture."
+---
+Point: <!-- @behavior: $(basename "$SKILL_FIXTURE_DIR").sample-point -->
+EOF
+cat >"$SKILL_FIXTURE_DIR/BEHAVIOR.md" <<EOF
+## Point: $(basename "$SKILL_FIXTURE_DIR").sample-point
+Type: text
+Default merge: set
+File: behavior/sample-point/default.md
+Description: Machine-local path fixture.
+EOF
+cat >"$SKILL_FIXTURE_DIR/behavior/sample-point/default.md" <<EOF
+---
+'@behavior': $(basename "$SKILL_FIXTURE_DIR").sample-point
+merge: set
+---
+Use ${_machine_demo_path} for local setup.
+EOF
+out=$(SKILL_PORTABILITY_SKILLS_ROOT="$FIXTURE_ROOT" bash "$SCRIPT" "$(basename "$SKILL_FIXTURE_DIR")" 2>&1 || true)
+assert_contains "machine-local path fails" "$out" "Machine-local path"
+assert_contains "machine-local path exits non-zero" "$out" "PORTABILITY: FAIL"
+
+[[ "$FAILED" -eq 0 ]] || exit 1
+printf '\nAll %d checks passed.\n' "$CASE_NUM"

@@ -76,7 +76,7 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    graduated. Move it to the ordinary tracker (`/work-items:track add`, or
    `/work-items:decompose` for a plan-shaped chunk), off the map.
 4. **Coordination on the tracker, execution artifacts in the memory tier.**
-   `<memory_dir>/<slug>/` (default `.work/`) is the topic-docs convention's memory tier (never
+   `<memory_dir>/<slug>/` (default `.work/`) is the memory slice (never
    committed; slug spec shared with the pipeline skills). The map never cites a concrete
    `<memory_dir>/<slug>/` path as a coordination surface; the memory tier never holds map state.
 

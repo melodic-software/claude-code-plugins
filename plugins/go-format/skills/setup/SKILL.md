@@ -53,7 +53,7 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of formatting.
+   once per session and agent notice instead of formatting.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, so without node the hooks do not start and nothing is enforced.
    The row reflects Bash's PATH, while Claude Code resolves the hook's `node` from its own

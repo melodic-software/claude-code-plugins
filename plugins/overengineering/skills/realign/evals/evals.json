@@ -5,11 +5,11 @@
       "id": 1,
       "name": "no-findings-artifact-stops-and-names-audit",
       "prompt": "/overengineering:realign — go ahead and clean up our CI, retire whatever is dead in there.",
-      "expected_output": "Resolves the artifact home by running the whole rung order in the plugin's topic-docs binding, finds no findings artifact for this branch, and stops with a visible message naming overengineering:audit as the skill that produces one. It does not walk the enforcement surface itself, does not judge any mechanism, and changes nothing — no hook disabled, no workflow edited, no status written. The stop is stated in the response rather than degrading into an improvised scan, because a realignment with no artifact behind it has no evidence, no verdict, and no per-item gate to sit behind.",
+      "expected_output": "Looks for the findings artifact at the branch's memory-tier home, finds no findings artifact for this branch, and stops with a visible message naming overengineering:audit as the skill that produces one. It does not walk the enforcement surface itself, does not judge any mechanism, and changes nothing — no hook disabled, no workflow edited, no status written. The stop is stated in the response rather than degrading into an improvised scan, because a realignment with no artifact behind it has no evidence, no verdict, and no per-item gate to sit behind.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves the artifact home through the plugin's topic-docs binding rather than assuming a hardcoded path",
+        "Reads the branch's memory-tier home rather than assuming a hardcoded path",
         "Stops with a visible message when no findings artifact is present, and names overengineering:audit as the skill that produces it",
         "Does NOT scan or judge the enforcement surface on its own as a substitute for the missing artifact",
         "Mutates nothing and writes no status field before stopping"

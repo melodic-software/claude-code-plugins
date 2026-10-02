@@ -103,7 +103,7 @@ START=${EPOCHREALTIME:-}
 # and the cardinality check behind it is what makes the array read safe.
 hook::buffer_stdin_to INPUT '.transcript_path' '.session_id' || exit 0
 
-# Advisory finding -> fail open, with the standard once-per-session notice.
+# Advisory finding -> fail open, with the standard once per session and agent notice.
 hook::require_jq Stop claude-ops "$INPUT"
 
 # An absent field arrives as the empty string rather than as a non-zero return,
@@ -241,7 +241,10 @@ TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 #                           and gives both remedies rather than picking one.
 # #2849's 126/127-OR-signature rule is too loose for the reason above.
 #
-# The signature set stays narrow on purpose — `command not found`, `cannot
+# The signature set covers the exec-family wording and Claude Code's own
+# missing-executable wording (`executing hook command: Executable not found in
+# $PATH`, printed before any hook process exists; the launcher prefix keeps a launched
+# hook that relays the bare phrase from a child out of this class). It stays narrow on purpose — `command not found`, `cannot
 # execute`, and cmd.exe's `is not recognized as an internal or external command`
 # are all excluded because a hook that launched fine prints them from a command
 # IT ran, which would re-introduce this defect in a new shape. Classification
@@ -395,7 +398,7 @@ SUMMARY=$(printf '%s' "$RECORDS" |
          command: ((.command // "") | .[0:120]),
          exitCode: (.exitCode // null),
          class: (if ((.stderr // "")
-                     | test("execvpe|execve\\(|exec format error"; "i"))
+                     | test("execvpe|execve\\(|exec format error|executing hook command: Executable not found in \\$PATH"; "i"))
                  then "launch"
                  elif (.exitCode == 126 or .exitCode == 127) then "ambiguous"
                  else "completed" end),

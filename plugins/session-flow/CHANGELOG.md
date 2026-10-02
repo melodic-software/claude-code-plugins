@@ -1,5 +1,49 @@
 # Changelog: session-flow plugin
 
+## [0.44.1] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+- **The fallback memory root moved from `<plugin data>/topic-docs` to `<plugin data>/artifacts`.** It applies outside a git work tree. Handoffs, ledgers and other files already under the old directory are no longer found and need moving by hand.
+- **No session-flow skill or hook reads `memory_dir` from `.claude/topic-docs.yaml` any more.** `observer-arm.sh` always uses `<project>/.work`, so a consumer with another root arms the observer manually and resolves it in-session. The handoff, retro, running-retro and tidy-work skills take a root documented in `CLAUDE.md` or `.claude/rules/`, else `.work`.
+
+## [0.44.0] - 2026-10-01
+
+### Added
+
+- **`check-usage-limit-reset.py --received <ISO-8601>`.** A limit message states only a clock time, so the reset resolves to the first occurrence at or after the time the message appeared. `/session-flow:keep-going` passes it. Without the flag the behavior is unchanged. A reset time inside a DST fall-back hour resolves to the earliest of its two instants at or after the message. `SKILL.md` tells the agent to read stderr on exit `2`, since a malformed `--received` also exits `2`.
+
+## [0.43.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/session-flow:check`, which probes it.
+
+## [0.43.0] - 2026-10-01
+
+### Added
+
+- **`/session-flow:check` reads whether `jq` resolves for the observer hook.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.42.0] - 2026-10-01
+
+### Fixed
+
+- **A handoff chain no longer repeats per-hop lines in its cumulative sections** ([#5636](https://github.com/melodic-software/claude-code-plugins/issues/5636)). The constraints re-scan attestation now goes on a `Re-scan:` line in `## This session`, which is rewritten each hop, instead of a Constraints entry that every later hop copied forward. `validate` accepts one such line after the `did/left` line, `new` emits its slot, and attestation entries already carried in Constraints stay ordinary entries. `validate` also warns when a new cumulative entry duplicates a carried one (compared without the `[hN]` tag or `UNVERIFIED` prefix, ignoring spacing and case; the oldest tagged entry stays) and when a handoff file passes 300 lines, the margin under the Read tool's single-read cap. `UNVERIFIED (predecessor failed validation)` entries still do not expire; `reference/structure.md` says so.
+
+## [0.41.2] - 2026-09-30
+
+### Fixed
+
+- **`find-handoff`, `retro` and `running-retro` spokes no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` or `reference/` file, so the `save_point.py` and `parse_transcript.py` commands and the catalog path resolved to nothing. They now read `<plugin-root>/...`, links are relative, and `find-handoff` and `retro` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.41.0] - 2026-09-29
 
 ### Added

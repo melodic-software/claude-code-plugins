@@ -1,0 +1,9 @@
+namespace Platform.AI.Abstractions.Prompts;
+
+public enum PromptRole
+{
+    System,
+    User,
+    Assistant,
+    Tool,
+}

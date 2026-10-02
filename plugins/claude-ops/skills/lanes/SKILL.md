@@ -172,8 +172,8 @@ schema, resolution rules, and the prompt-storage seam live in
 **`lanes/` is this skill's reserved concern home.** The config and the lane prompt
 files live inside `<repo>/.work/lanes/`, a reserved first-level name under the
 memory root, not as bare files at the root itself. Lanes **hardcodes the literal
-`.work` root**: it does not resolve the topic-docs `memory_dir` setting, and a
-consumer that has repointed `memory_dir` elsewhere must pass `--config` or set
+`.work` root**: it does not resolve a repointed memory root, and a
+consumer that has repointed it elsewhere must pass `--config` or set
 `$CLAUDE_OPS_LANES_CONFIG`. That is a stated carve-out, not an oversight. The
 launcher is an operator script invoked outside a session (an OS schedule, a bare
 shell), where no skill body is loaded to resolve the setting for it, and the
@@ -276,6 +276,16 @@ As of: 2026-09-28. Recheck: the CLI flag row stops listing `none`, a `--bg`
 launch rejects the flag, a release note changes what `none` denies, or a probe of
 a `--bg` lane whose prompt would ask (`AskUserQuestion` or a `permissions.ask`
 rule) records what the lane does.
+
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

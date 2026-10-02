@@ -15,13 +15,11 @@
 #      - plugin-gate: hermetic plugins/**/*.test.sh, then manifest + catalog +
 #        cheat-sheet validation (reads docs/catalog.md, docs/plugin-artifact-protocol.md,
 #        docs/catalog-taxonomy.md, docs/skill-cheat-sheet.md,
-#        docs/conventions/config-cascade/README.md — the sheet
-#        deliberately lives OUTSIDE docs/topics/ so an edit to it is never
-#        docs-only and its drift gate always runs), plus the native-overlap
-#        registry checks, which read docs/native-surfaces/** and
-#        docs/native-surfaces.md — both likewise OUTSIDE docs/topics/, so the
-#        store and its generated view are code inputs to this lane and an edit
-#        to either always runs it;
+#        docs/conventions/config-cascade/README.md — an edit to any of them
+#        is never docs-only, so the drift gates always run), plus the
+#        native-overlap registry checks, which read docs/native-surfaces/**
+#        and docs/native-surfaces.md, so the store and its generated view are
+#        code inputs to this lane and an edit to either always runs it;
 #      - miro-plugin: reads only plugins/miro/**;
 #      - video-extraction: reads only plugins/knowledge/skills/video-digest/**
 #        and plugins/knowledge/vendor/**;
@@ -41,15 +39,12 @@
 #      comment-hygiene, machine-specific-paths read the changed docs directly;
 #      ShellCheck (lints every tracked *.sh/*.bash) and exec-bit (flags every
 #      tracked shebang file recorded 100644) scan the whole repo extension- and
-#      directory-agnostically, so a shell/shebang file added under docs/topics/
+#      directory-agnostically, so a shell/shebang file added under an allowlisted prefix
 #      IS input they must still catch — gating them would open a fail-closed
 #      hole.
 #   2. A matching case in scripts/check-docs-only.test.sh must pin it.
 #
 # Prefixes match by literal string prefix; keep the trailing slash so
-# docs/topics/ never matches a sibling like docs/topics-archive/.
-
-# Operator precedent-codification & session working docs. Read by humans and by
-# the docs-hygiene audit skills' OWN runtime (never by a CI lane); the audit
-# lanes here scan changed files in place, not this tree.
-docs/topics/
+# a prefix never matches a sibling that merely shares its leading characters.
+#
+# No prefix is allowlisted today, so every diff runs the full suite.

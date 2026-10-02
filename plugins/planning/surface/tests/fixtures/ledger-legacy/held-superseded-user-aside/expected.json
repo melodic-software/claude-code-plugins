@@ -1,0 +1,39 @@
+{
+  "Q1": {
+    "title": "Which store?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "",
+      "seeded": false
+    },
+    "recommendation": "Postgres",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "SQLite"
+      }
+    ],
+    "archived": null,
+    "hold": {
+      "waitsOn": "bench",
+      "by": "user"
+    },
+    "setAside": [
+      "setAsideAt",
+      "setAsideRev",
+      "setAsideSeq"
+    ],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: Postgres; was: SQLite",
+      "proposal": [
+        "Postgres",
+        "SQLite"
+      ]
+    }
+  }
+}

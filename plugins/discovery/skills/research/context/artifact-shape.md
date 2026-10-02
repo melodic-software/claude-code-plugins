@@ -21,7 +21,7 @@ Always the entry point. A consumer handed that filename must get a readable docu
 
 The index opens with a YAML frontmatter block carrying at least `abstract:` (ONE unwrapped line
 naming what the run covered; the same one-line rule the sidecar headers already follow). This is the
-topic-docs contract's indexable-artifact mini-schema hook: a slice whose sole artifact is this index
+indexable-artifact hook: a slice whose sole artifact is this index
 is an index-less leaf, and the parent slice's `INDEX.md` regeneration mirrors this header's abstract
 verbatim, so the header is part of the artifact's public shape, not decoration. It applies to all
 three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`). `RESEARCH.md`
@@ -198,7 +198,7 @@ expected.
 ## Two placement rules, both required
 
 1. **Sidecars stay inside `<memory_dir>/<slug>/`.** A sidecar root anywhere else is a placement
-   change governed by the topic-docs convention, not by this skill, and it would strand the sidecars
+   change governed by the lifecycle artifact protocol, not by this skill, and it would strand the sidecars
    for any consumer that resolves the slice and finds only the index.
 2. **`RESEARCH.md` stays the entry point.** Renaming it, or demoting it to one sidecar among several,
    breaks every consumer that was handed the declared filename.
@@ -218,7 +218,6 @@ the occupancy rather than relocating.
 
 A worktree that carries the index without its sidecars is strictly worse than a self-contained
 artifact, so any glob that ships `RESEARCH.md` must also ship `RESEARCH-*.md` and `*-checklist.md`.
-The topic-docs convention's `.worktreeinclude` recipe already does.
 
 ## The `EXPLORE.md` sidecar header: a different evidence kind
 

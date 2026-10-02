@@ -3,6 +3,24 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.20] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.1.19] - 2026-10-01
+
+### Added
+
+- **`improvement` ships a plugin eval suite for the `find` already-built disconnected-scan case.** Run with `claude plugin eval`, no skill text changes ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
+## [0.1.18] - 2026-09-30
+
+### Fixed
+
+- **`find`'s unattended spoke runs the state-key helper from a real path.** `context/unattended.md` cited `lib/state-key.sh` through the literal plugin-root token, which does not expand in a context file. It now reads `<plugin-root>/lib/state-key.sh`, and `SKILL.md` gains a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.1.17]
 
 ### Changed

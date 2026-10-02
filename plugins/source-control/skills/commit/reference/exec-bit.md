@@ -1,6 +1,6 @@
 # Exec-bit check: rationale and manual fallback
 
-The mechanic lives in `${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh`. Run it;
+The mechanic lives in `<skill-dir>/scripts/exec-bit-check.sh`. Run it;
 this file explains why it does what it does, and what to do when it cannot run.
 
 ## Why a script rather than prose

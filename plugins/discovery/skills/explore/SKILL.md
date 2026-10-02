@@ -100,7 +100,7 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Worker procedure
 
-Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it in order to dispatch. The outcome gate below still applies.
+Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it to dispatch. The outcome gate below still applies.
 
 ## Outcome gate (before EXPLORE.md handoff)
 
@@ -122,7 +122,7 @@ Explore the following: $ARGUMENTS
 
 ## Final step: persist artifact for handoff
 
-Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md`, a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md`, a memory-tier artifact, never committed. Destination and slug resolve per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)).
 
 This file is the authoritative stage summary, a fresh session must be able to resume external research or planning reading only this artifact.
 

@@ -1,7 +1,7 @@
 # Prerequisite-resolution slice
 
 Extends `/autonomy:setup` per the skill's own extension model. Owns the
-[routine prerequisite resolution](${CLAUDE_PLUGIN_ROOT}/reference/prerequisite-resolution.md)
+[routine prerequisite resolution](../../../reference/prerequisite-resolution.md)
 question at setup time: which `v1` identities can run against this repository on each
 declared scheduling surface, and why.
 
@@ -41,7 +41,7 @@ Wrapper:
    **non-security keys only**.
    The deterministic resolver never parses prose; prose is never runtime authority.
 3. **Human ratifies.** Interactive contexts present proposals one at a time. Non-interactive
-   and forked contexts skip ask-and-persist rungs and report assumptions (topic-docs rule).
+   and forked contexts skip ask-and-persist rungs and report assumptions.
 4. **Write additively.** On ratification, write the `prerequisite_resolution` section of
    `.claude/autonomy/binding.json`:
    - `schema_version`: `"1.0"`

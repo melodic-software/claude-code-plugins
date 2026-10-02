@@ -44,6 +44,7 @@ def block($d):
   | .user_sweep.withheld_downgrades as $withheld
   | ([.installed[] | select(.rc == 0)]) as $installed_ok
   | ([.installed[] | select(.rc != 0)]) as $installed_failed
+  | (.install_gap - ($installed_ok | map(.id))) as $install_left
   | ([.enabled[] | select(.predicted == true)]) as $would_enable
   | ([.enabled[] | select(.predicted != true and .rc == 0)]) as $enabled_ok
   | ([.enabled[] | select(.predicted != true and .rc != 0)]) as $enabled_failed
@@ -59,7 +60,7 @@ def block($d):
         or .install_enable_deferred == true or .stopped_before_install == true
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
         or (.errors | length) > 0 or ($enable_unfilled | length) > 0
-        or ((.install_gap | length) > 0 and ($installed_ok | length) == 0))
+        or ($install_left | length) > 0)
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
@@ -203,6 +204,8 @@ def block($d):
             "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy ask; stopped before Step 4 pending the batched prompt): \(.install_gap | join(", "))"
           elif .install_enable_deferred == true and (.install_gap | length) > 0 then
             "install gap deferred (marketplace refresh failed): \(.install_gap | join(", "))"
+          elif ($audit | not) and $d.install_new == "ask" and ($install_left | length) > 0 then
+            "\($install_left | length) catalog plugin(s) offered and not installed (policy ask): \($install_left | join(", ")); ask offers them again on every sync unless they are disabled with enabledPlugins: false"
           elif ($d.install_new == "none" or ($audit and $d.install_new == "ask")) and (.install_gap | length) > 0 then
             "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy \($d.install_new)): \(.install_gap | join(", "))"
           else empty end),

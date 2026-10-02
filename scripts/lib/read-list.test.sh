@@ -9,6 +9,9 @@
 # collapsed the two (#3161).
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=read-list.sh
 . "$SELF_DIR/read-list.sh"
@@ -19,7 +22,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # mk <content> -> path of a temp list file
 mk() {
   local f
-  f="$(mktemp)"
+  f="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   printf '%s' "$1" >"$f"
   printf '%s' "$f"
 }
@@ -330,11 +333,11 @@ else
   fail "the shipped shell-portability token list yielded nothing"
 fi
 entries=()
-if read_list::into entries "$REPO/scripts/docs-only-paths.txt" --comments inline &&
+if read_list::into entries "$REPO/scripts/affected-tests-no-suite.txt" --comments inline &&
   ((${#entries[@]} > 0)); then
-  ok "the shipped docs-only allowlist yields ${#entries[@]} active prefixes"
+  ok "the shipped no-suite list yields ${#entries[@]} active prefixes"
 else
-  fail "the shipped docs-only allowlist yielded nothing"
+  fail "the shipped no-suite list yielded nothing"
 fi
 
 test_harness::report

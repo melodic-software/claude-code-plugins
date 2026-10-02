@@ -119,7 +119,7 @@ start=${EPOCHREALTIME:-}
 # Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it runs
 # before the jq gate below — hook::require_jq needs the buffered input for its
-# once-per-session notice scoping.
+# once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
@@ -129,7 +129,7 @@ hook::buffer_stdin_to INPUT || {
 # jq is required to parse the tool payload. hook::require_jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
@@ -137,7 +137,7 @@ hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 # Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
 # skip below did — hook::require_jq above has already made the degraded state
-# visible once per session. The `// "Bash"` default moves to the bash-side
+# visible once per session and agent. The `// "Bash"` default moves to the bash-side
 # expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
 
@@ -936,7 +936,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # another construct (a `{`, say) reported that trigger and was deferred.
   if ((PS_REDUCTION_UNTRUSTED)); then
     PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
-    ps::print_unparsable_block_message
+    ps::print_unparsable_block_message "$COMMAND"
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
     exit 2
   fi

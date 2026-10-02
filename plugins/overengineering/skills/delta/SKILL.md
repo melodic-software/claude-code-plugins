@@ -124,7 +124,7 @@ unchanged**:
 - **`unattended`** (also accepted as `--unattended`). Forwarded verbatim. A scheduled runner, a
   dispatched worker, and a background run all pass it. **Attended is the default**, and the mode is
   never inferred from a probe. Under `unattended` this lane asks nothing, offers nothing, and takes
-  the non-interactive collapse of the home-resolution rungs.
+  the non-interactive defaults.
 - Anything else, a free-text hint. It is **not** forwarded to the audit: a hint narrows what the
   audit attends to, which would make this cycle's walk incomparable with the baseline's. Report the
   hint as declined and why, rather than dropping it silently.
@@ -135,9 +135,8 @@ unchanged**:
    name or fails with no output. When it fails, the checkout is detached (or absent) and
    **`HEAD` is never accepted as a branch identity**. See "A detached checkout has no branch
    identity" in [context/run-states.md](context/run-states.md) for what to do and what not to.
-   Resolve the home by running the whole rung order in
-   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
-   default's shape. Then emit the opening line above.
+   Compose the home per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` "Where it lives". Then
+   emit the opening line above.
 2. **Read the stored `spine-baseline.md` at that home.** This is the comparison baseline: the
    previous cycle's post-audit spine. Dispose of it:
    - **Present, `branch:` matches the resolved branch identity** → this is the baseline. Note its
@@ -344,6 +343,16 @@ or an agent harness. Layers are the ten forge-neutral enforcement names this lan
 route is opt-in and then presence-gated, with a named inline fallback; a logical ref is taken from
 the environment where one is supplied, without naming any vendor's variables; the cadence is
 documented, never adopted.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

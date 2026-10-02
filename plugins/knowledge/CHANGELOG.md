@@ -4,6 +4,30 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.15] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.14.14] - 2026-10-01
+
+### Changed
+
+- The `docpage-digest` Anthropic docs queue lists the Sonnet 5.5 prompting guide.
+
+## [0.14.13] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.14.12] - 2026-09-30
+
+### Fixed
+
+- **Digest skill spokes resolve without the plugin-root token.** The `course-digest`, `docpage-digest` and `video-digest` spoke files referred to bundled scripts through `${CLAUDE_PLUGIN_ROOT}`, which does not expand in files the model reads as plain bytes. Each `SKILL.md` now says `<skill-dir>` is `${CLAUDE_SKILL_DIR}`, and the spokes write paths as `<skill-dir>/...`.
+
 ## [0.14.11] - 2026-09-29
 
 ### Fixed

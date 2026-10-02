@@ -25,7 +25,7 @@ post-write verification, and the effective-merge report. Loaded from [SKILL.md](
 Find a step directly with:
 
 ```shell
-grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
+grep -n '^[0-9]\. \*\*' "<skill-dir>/reference/apply-convention.md"
 ```
 
 ## Target layer and non-interactive writes
@@ -111,7 +111,7 @@ file.
   govern its own keys (carry independent keys, recompute derived ones), this route governs the
   `## branch_issue_pattern` section, and the target layer is rewritten once.
 - **Confirm the result.** After the write, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch>` from
+  `bash "<plugin-root>/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch>` from
   `REPO_ROOT` with a branch name that follows the new grammar, and check it prints the expected
   number with no stderr note naming the layer just written. A note or no output means the value is
   not usable as written (or the sample branch does not match it); fix it before reporting success.

@@ -25,16 +25,20 @@
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/context"},
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
-          {"$ref": "#/$defs/restate"}
+          {"$ref": "#/$defs/restate"},
+          {"$ref": "#/$defs/finish"}
         ]
       }
     }
   },
   "$defs": {
     "affects": {"type": ["array", "string"], "items": {"type": "string"}},
+    "line": {"type": "string", "maxLength": 500},
+    "markdown": {"type": "string", "maxLength": 20000},
     "alternatives": {
       "type": "array",
       "items": {
@@ -44,7 +48,7 @@
             "type": "object",
             "required": ["key", "text"],
             "additionalProperties": false,
-            "properties": {"key": {"type": "string"}, "text": {"type": "string"}}
+            "properties": {"key": {"type": "string"}, "text": {"$ref": "#/$defs/line"}}
           }
         ]
       }
@@ -56,11 +60,16 @@
       "properties": {
         "op": {"enum": ["reply"]},
         "id": {"type": "string"},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/markdown"},
         "seq": {"type": "integer"},
         "kind": {"enum": ["reply", "rephrase", "note"]},
-        "rec": {"type": "string"},
-        "why": {"type": "string"},
+        "rec": {"$ref": "#/$defs/line"},
+        "why": {"$ref": "#/$defs/markdown"},
+        "resolution": {
+          "description": "The accepted reading of the user's counted `own` answer on this question, one line; refused when no `own` answer counts. Exports and the Brief give it as the answer and keep the user's words as its note.",
+          "type": "string",
+          "maxLength": 500
+        },
         "affects": {"$ref": "#/$defs/affects"},
         "handled": {"type": "integer"},
         "force": {"type": "boolean"}
@@ -73,16 +82,21 @@
       "properties": {
         "op": {"enum": ["revise"]},
         "id": {"type": "string"},
-        "title": {"type": "string"},
-        "short": {"type": "string"},
-        "facts": {"type": "string"},
-        "basis": {"type": "string"},
-        "rec": {"type": "string"},
-        "why": {"type": "string"},
-        "text": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "short": {"$ref": "#/$defs/line"},
+        "facts": {"$ref": "#/$defs/markdown"},
+        "basis": {"$ref": "#/$defs/markdown"},
+        "rec": {"$ref": "#/$defs/line"},
+        "why": {"$ref": "#/$defs/markdown"},
+        "text": {"$ref": "#/$defs/markdown"},
         "alternatives": {"$ref": "#/$defs/alternatives"},
         "commits": {
           "description": "Replaces the whole commitment list; an empty array clears it.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/line"}
+        },
+        "dependsOn": {
+          "description": "Replaces the whole dependency list; an empty array clears it. Every id must be a known question, not this one, and none may already depend on it. The change is logged in the question's history.",
           "type": "array",
           "items": {"type": "string"}
         },
@@ -97,7 +111,11 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["add"]},
-        "question": {"type": "object"}
+        "question": {"type": "object"},
+        "repoint": {
+          "description": "With `question.supersedes`: move every live question whose `dependsOn` names the superseded one to the new one. Without it the output only names them.",
+          "type": "boolean"
+        }
       }
     },
     "add-round": {
@@ -110,7 +128,15 @@
         "meta": {"$ref": "#/$defs/metaSet"},
         "groups": {"type": "array", "items": {"type": "object"}},
         "questions": {"type": "array", "items": {"type": "object"}},
-        "visuals": {"type": "array", "items": {"type": "object"}}
+        "visuals": {"type": "array", "items": {"type": "object"}},
+        "repoint": {
+          "description": "As on `add`, for each question that supersedes another.",
+          "type": "boolean"
+        },
+        "replaceTitle": {
+          "description": "Let `meta.title` replace the interview title; without it a different title is dropped with a warning.",
+          "type": "boolean"
+        }
       }
     },
     "group": {
@@ -120,8 +146,8 @@
       "properties": {
         "op": {"enum": ["group"]},
         "id": {"type": "string"},
-        "title": {"type": "string"},
-        "summary": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "summary": {"$ref": "#/$defs/markdown"},
         "dependsOn": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -133,7 +159,8 @@
         "title": {"type": "string"},
         "eyebrow": {"type": "string"},
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
-        "next": {"type": "string"}
+        "next": {"type": "string"},
+        "repo": {"type": "string"}
       }
     },
     "meta": {
@@ -152,7 +179,8 @@
       "properties": {
         "op": {"enum": ["note-reply"]},
         "seq": {"type": "integer"},
-        "text": {"type": "string"}
+        "needsAnswer": {"type": "boolean"},
+        "text": {"$ref": "#/$defs/markdown"}
       }
     },
     "handle": {
@@ -171,7 +199,7 @@
       "properties": {
         "op": {"enum": ["archive"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "why": {"type": "string"}
+        "why": {"$ref": "#/$defs/line"}
       }
     },
     "replace-visual": {
@@ -192,7 +220,7 @@
       "properties": {
         "op": {"enum": ["archive-visual"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "why": {"type": "string"}
+        "why": {"$ref": "#/$defs/line"}
       }
     },
     "record-terminal": {
@@ -202,9 +230,9 @@
       "properties": {
         "op": {"enum": ["record-terminal"]},
         "id": {"type": "string"},
-        "decision": {"enum": ["accept", "alt", "own", "defer"]},
+        "decision": {"enum": ["accept", "alt", "own", "defer", "hedged"]},
         "alt": {"type": "string"},
-        "text": {"type": "string"}
+        "text": {"$ref": "#/$defs/markdown"}
       }
     },
     "set-status": {
@@ -214,7 +242,20 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["set-status"]},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "context": {
+      "description": "Record how full the session's context is and where the interview continues. `percent` (0-100) and `zone` (the session's own word for the band, at most 40 characters) go together; `handoff` (one line naming a handoff file or resume instruction) may come alone or with them; `clear` removes both the context and the handoff and takes no other field.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["context"]},
+        "percent": {"type": "integer", "minimum": 0, "maximum": 100},
+        "zone": {"type": "string", "maxLength": 40},
+        "handoff": {"$ref": "#/$defs/line"},
         "clear": {"type": "boolean"}
       }
     },
@@ -226,7 +267,7 @@
       "properties": {
         "op": {"enum": ["wait"]},
         "id": {"type": "string"},
-        "waitsOn": {"type": "string"},
+        "waitsOn": {"$ref": "#/$defs/line"},
         "by": {"enum": ["claude", "user"]},
         "clear": {"type": "boolean"}
       }
@@ -238,7 +279,7 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["activity"]},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"},
         "ids": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -251,11 +292,23 @@
         "op": {"enum": ["confirm-commitments"]},
         "id": {"type": "string"},
         "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
-        "reason": {"type": "string"}
+        "reason": {"$ref": "#/$defs/line"}
+      }
+    },
+    "finish": {
+      "description": "Post the closing event after the exports: the page shows it in a dismissible modal and keeps it once the server stops, so a stopped server reads as a finished interview. `brief` is the path of the written Brief, `next` (markdown) what happens next (the page falls back to `meta.next`), `text` one line. An `add` or `add-round` after it withdraws it. `round.sh stop` posts one when none is set.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["finish"]},
+        "brief": {"type": "string", "maxLength": 500},
+        "next": {"type": "string", "maxLength": 20000},
+        "text": {"type": "string", "maxLength": 500}
       }
     },
     "restate": {
-      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Replaces the previous restatement and increments `restatement.rev`.",
+      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Appends to `restatements` and mirrors the new one as `restatement`, one rev above the last.",
       "type": "object",
       "required": ["op", "sections"],
       "additionalProperties": false,

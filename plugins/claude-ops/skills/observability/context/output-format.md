@@ -200,7 +200,7 @@ Stripped when `--write` (markdown file persists clean).
 Path: resolve it, do not compose it. Run, in the project being reported on:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/report-path.sh" --mkdir
+bash "<skill-dir>/scripts/report-path.sh" --mkdir
 ```
 
 That prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md` and creates the parent directory. Same content. After write, print that path on stdout (only) for the user to pick up.

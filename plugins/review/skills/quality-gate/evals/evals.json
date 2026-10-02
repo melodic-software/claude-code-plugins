@@ -103,7 +103,7 @@
     {
       "id": 9,
       "name": "spec-mode-skips-rather-than-fabricates",
-      "prompt": "/review:quality-gate spec\n\nHeadless CI run, no interactive user available. The branch commits reference no issue, there is no open PR, the work-items plugin is not installed, and docs/topics/ contains nothing matching this work.",
+      "prompt": "/review:quality-gate spec\n\nHeadless CI run, no interactive user available. The branch commits reference no issue, there is no open PR, the work-items plugin is not installed, and the memory slice holds nothing matching this work.",
       "expected_output": "Every rung of the discovery ladder fails and the session is non-interactive, so the skill declines to review: it emits a skip note naming each rung tried and what it returned, and stops. It does not invent a spec, does not substitute the commit messages for one, and does not render a fidelity verdict without a spec.",
       "files": [],
       "expectations": [
@@ -189,6 +189,33 @@
         "Artifact frontmatter includes type: restatement-review, mode: restatement, date, branch, reviewed_at_sha, and diff_base",
         "Does NOT substitute a project-owned type such as quality-gate-evidence when no contract is present",
         "A clean pass still writes the artifact, using the bundled fallback body of scope (base SHA, HEAD SHA, file count) plus an explicit no-findings assertion"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "self-mode-large-change-set-criteria-and-coverage-lines",
+      "prompt": "/review:quality-gate self\n\nI just finished a large change: 11 modified and 6 untracked files across two modules (the api module and the worker module). Self-review it before I open the PR.",
+      "expected_output": "The self lens runs the reviewer worker over the large change set. The worker report opens with a `Criteria read:` line naming the criteria docs it read (or `none present`, or `skipped: <reason>`) and ends with a `Coverage:` line naming the changed files it did not reach, or `all changed files reviewed`. If a worker return lacks either line, the Coverage line names unreached files, or the Criteria read line names unread criteria, the orchestrator labels the gate partial and dispatches the worker once more or dispatches a fresh worker for the criteria lens; it never reports the gate as clean.",
+      "files": [],
+      "expectations": [
+        "The worker report opens with a `Criteria read:` line naming the criteria docs read, `none present`, or `skipped: <reason>`",
+        "The worker report ends with a `Coverage:` line naming the changed files not reached, or `all changed files reviewed`",
+        "When a worker return lacks the Criteria read line or the Coverage line, the Coverage line names unreached files (for example `Coverage: api/foo.ts, worker/bar.ts`), the Criteria read line names unread criteria, or the Criteria read line silently omits a criteria source the shared inputs resolved, the orchestrator labels the gate partial",
+        "On a partial return the orchestrator dispatches the worker once more or dispatches a fresh worker for the criteria lens, rather than accepting the return as is",
+        "A partial gate is never presented as a clean pass, and the findings artifact names what was missed"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "self-mode-worker-returns-no-report-is-partial-gate",
+      "prompt": "/review:quality-gate self\n\nThe reviewer worker for my 17-file change came back with only a short message saying it ran out of turns and no findings table. Finish the self review.",
+      "expected_output": "A worker return with no report is a partial gate. The orchestrator dispatches the worker once more for the report or dispatches a fresh worker for the criteria lens; if the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
+      "files": [],
+      "expectations": [
+        "Treats a worker return with no report as a partial gate, not as a clean pass",
+        "Dispatches the worker once more for the report or dispatches a fresh worker for the criteria lens",
+        "If still partial, the verdict and findings artifact state the gate is partial and name what was missed",
+        "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
     }
   ]

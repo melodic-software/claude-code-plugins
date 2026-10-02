@@ -33,6 +33,11 @@ ROUND = HERE / "round.py"
 FIXTURES = HERE / "tests" / "fixtures"
 TIMEOUT = 10
 
+import server as _server  # noqa: E402
+
+# a wake lands after one quiet window, plus slack
+WAKE_SECONDS = _server.QUIET_SECONDS + 1.0
+
 
 def run_round(d, *args, timeout=30, env=None):
     p = subprocess.run(
@@ -189,6 +194,26 @@ class TestApi(ServerCase):
 
     def test_07_delivered_at_stamped(self):
         self.assertIn("deliveredAt", self.state()["responses"]["events"][-1])
+
+    def test_08a_research_and_cancel_research_are_accepted_without_a_decision(self):
+        seqs_ = []
+        before = self.state()["responses"]["responses"].get("Q5")
+        for body in (
+            {"id": "Q5", "kind": "research"},
+            {"id": "Q5", "kind": "research", "text": "check the vendor docs"},
+            {"id": "Q5", "kind": "cancel-research"},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 200, data)
+            seqs_.append(data["seq"])
+        evs = {e["seq"]: e for e in self.state()["responses"]["events"]}
+        self.assertEqual(
+            [evs[s]["kind"] for s in seqs_], ["research", "research", "cancel-research"]
+        )
+        self.assertEqual(evs[seqs_[1]]["text"], "check the vendor docs")
+        self.assertEqual(self.state()["responses"]["responses"].get("Q5"), before)
+        self.assertEqual(self.post({"id": "nope", "kind": "research"})[0], 400)
+        self.assertEqual(self.post({"id": "Q5", "kind": "researchh"})[0], 400)
 
     def test_08_empty_note_is_400(self):
         code, _ = self.post({"kind": "note", "text": "  "})
@@ -399,6 +424,30 @@ class TestApi(ServerCase):
         self.assertEqual(rc, 0, out)
 
 
+class TestLongText(ServerCase):
+    """A long own answer and a long ask are stored whole, not cut at any length limit."""
+
+    fixtures = True
+
+    def test_long_own_answer_and_ask_reach_responses_json_whole(self):
+        filler = "Sentence of filler text that keeps going. " * 145
+        long_text = (
+            filler
+            + "There are more questions here, but the rest is for round two and then it ends"
+        )
+        self.assertGreaterEqual(len(long_text), 6000)
+        for qid, kind in (("Q5", "own"), ("Q6", "ask")):
+            code, _ = self.post({"id": qid, "kind": kind, "text": long_text})
+            self.assertEqual(code, 200)
+        saved = json.loads((self.dir / "responses.json").read_text(encoding="utf-8"))
+        texts = {
+            e["kind"]: e["text"] for e in saved["events"] if e["id"] in ("Q5", "Q6")
+        }
+        self.assertEqual(texts["own"], long_text)
+        self.assertEqual(texts["ask"], long_text)
+        self.assertEqual(saved["responses"]["Q5"]["text"], long_text)
+
+
 class TestEnsureRunning(ServerCase):
     """AC2: a fresh data dir gets a server and its URL within 3 s; a second call reuses it."""
 
@@ -457,6 +506,142 @@ class TestEnsureRunning(ServerCase):
         self.assertFalse((other / ".interview-session.json").exists())
 
 
+class TestFinishAndPort(unittest.TestCase):
+    """The finish event, stop's finish and the port kept across stop."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-finish-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.dir = self.tmp / "data"
+        self.dir.mkdir()
+        shutil.copy(FIXTURES / "questions.json", self.dir / "questions.json")
+        self.addCleanup(run_round, self.dir, "stop")
+
+    def doc(self):
+        return json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+
+    def ops(self, *ops):
+        f = self.tmp / "ops.json"
+        f.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        return run_round(self.dir, "apply", "--file", str(f))
+
+    def start(self):
+        p = ensure_running(self.dir)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return session(self.dir)
+
+    def state(self, s):
+        code, raw, _ = request(
+            s["port"], "GET", "/api/state", headers={"X-Interview-Token": s["token"]}
+        )
+        self.assertEqual(code, 200)
+        return json.loads(raw)
+
+    def test_finish_op_stores_the_closing_event_and_logs_it(self):
+        rc, out = self.ops(
+            {
+                "op": "finish",
+                "brief": "docs/PLAN.md",
+                "next": "Run the plan.",
+                "text": "Done",
+            }
+        )
+        self.assertEqual(rc, 0, out)
+        done = self.doc()["finished"]
+        self.assertEqual(
+            {k: done[k] for k in ("by", "brief", "next", "text")},
+            {
+                "by": "claude",
+                "brief": "docs/PLAN.md",
+                "next": "Run the plan.",
+                "text": "Done",
+            },
+        )
+        last = self.doc()["activity"][-1]
+        self.assertEqual((last["text"], last["finished"]), ("Interview finished", True))
+
+    def test_finish_op_over_the_cap_is_refused_and_writes_nothing(self):
+        rc, out = self.ops({"op": "finish", "text": "x" * 501})
+        self.assertNotEqual(rc, 0)
+        self.assertNotIn("finished", self.doc())
+
+    def test_stop_posts_a_finish_when_none_was_posted(self):
+        s = self.start()
+        self.assertNotIn("finished", self.state(s)["questions"])
+        rc, out = run_round(self.dir, "stop")
+        self.assertEqual(rc, 0, out)
+        done = self.doc()["finished"]
+        self.assertEqual(done["by"], "stop")
+        self.assertNotIn("brief", done)
+
+    def test_stop_keeps_the_skills_finish(self):
+        self.start()
+        self.ops({"op": "finish", "brief": "PLAN.md"})
+        run_round(self.dir, "stop")
+        self.assertEqual(
+            (self.doc()["finished"]["by"], self.doc()["finished"]["brief"]),
+            ("claude", "PLAN.md"),
+        )
+
+    def test_stop_creates_no_questions_file(self):
+        self.start()
+        (self.dir / "questions.json").unlink()
+        run_round(self.dir, "stop")
+        self.assertFalse((self.dir / "questions.json").exists())
+
+    def test_the_server_pushes_the_finish_and_a_new_instance_per_start(self):
+        s = self.start()
+        self.ops({"op": "finish", "text": "Done"})
+        first = self.state(s)
+        self.assertEqual(first["questions"]["finished"]["text"], "Done")
+        run_round(self.dir, "stop")
+        second = self.state(self.start())
+        self.assertNotIn("finished", second["questions"])
+        self.assertNotEqual(first["instance"], second["instance"])
+
+    def test_a_new_server_drops_the_context_badge_and_handoff(self):
+        s = self.start()
+        self.ops(
+            {"op": "context", "percent": 72, "zone": "amber"},
+            {"op": "context", "handoff": "Resume from x"},
+        )
+        self.assertIn("context", self.state(s)["questions"])
+        run_round(self.dir, "stop")
+        second = self.state(self.start())["questions"]
+        self.assertNotIn("context", second)
+        self.assertNotIn("handoff", second)
+
+    def test_add_round_withdraws_the_finish(self):
+        self.ops({"op": "finish"})
+        rc, out = self.ops({"op": "add", "question": {**FINISH_Q}})
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("finished", self.doc())
+
+    def test_stop_then_ensure_running_keeps_the_port_when_it_is_free(self):
+        port = self.start()["port"]
+        run_round(self.dir, "stop")
+        self.assertEqual(self.start()["port"], port)
+
+    def test_a_busy_kept_port_falls_through_to_a_free_one(self):
+        port = self.start()["port"]
+        run_round(self.dir, "stop")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", port))
+            sock.listen(1)
+            self.assertNotEqual(self.start()["port"], port)
+
+
+FINISH_Q = {
+    "id": "ZZ1",
+    "short": "Late question",
+    "title": "Is this late question fine?",
+    "recommendation": "Yes. It is fine.",
+    "basis": "Nothing else changes. It is a test.",
+    "commits": [],
+    "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}],
+}
+
+
 def round_sh_python():
     """The interpreter round.sh picks: python3, then python, from PATH."""
     return shutil.which("python3") or shutil.which("python") or sys.executable
@@ -510,7 +695,13 @@ class TestStop(unittest.TestCase):
             except OSError:
                 gone = True
         self.assertTrue(gone, "stopped server still answers")
-        self.assertFalse((self.a / ".interview-session.json").exists())
+        self.assertEqual(
+            json.loads(
+                (self.a / ".interview-session.json").read_text(encoding="utf-8")
+            ),
+            {"port": sa["port"]},
+        )
+        self.assertFalse((self.a / ".interview-session.env").exists())
         code, raw, _ = request(sb["port"], "GET", "/api/ping")
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(raw)["pid"], sb["pid"])
@@ -535,7 +726,12 @@ class TestStop(unittest.TestCase):
         self.assertIn("not running", out)
         time.sleep(0.3)
         self.assertIsNone(sleeper.poll(), "stop killed a process it did not start")
-        self.assertFalse((self.c / ".interview-session.json").exists())
+        self.assertEqual(
+            json.loads(
+                (self.c / ".interview-session.json").read_text(encoding="utf-8")
+            ),
+            {"port": sb["port"]},
+        )
         self.assertFalse((self.c / ".interview-session.env").exists())
         code, _, _ = request(sb["port"], "GET", "/api/ping")
         self.assertEqual(code, 200)
@@ -602,7 +798,7 @@ class TestSecurity(ServerCase):
         self.assertIn("script-src 'self' 'unsafe-inline'", csp)
         self.assertNotIn("http", csp.lower())
 
-    def test_ac7_saved_answer_reaches_a_waiting_watcher_within_1_second(self):
+    def test_ac7_saved_answer_reaches_a_waiting_watcher_within_one_quiet_window(self):
         seq0 = self.state()["responses"]["seq"]
         box = {}
 
@@ -618,9 +814,9 @@ class TestSecurity(ServerCase):
         th.join(30)
         self.assertEqual(code, 200)
         self.assertIn("returned", box)
-        self.assertLess(box["returned"] - posted, 1.0)
+        self.assertLess(box["returned"] - posted, WAKE_SECONDS)
 
-    def test_ac7_after_handled_reaches_a_waiting_watcher_within_1_second(self):
+    def test_ac7_after_handled_reaches_a_waiting_watcher_within_one_quiet_window(self):
         rc, out = self.rp("handle", "--seq", *map(str, self.unhandled_seqs()))
         self.assertEqual(rc, 0, out)
         box = {}
@@ -640,7 +836,7 @@ class TestSecurity(ServerCase):
         self.assertEqual(code, 200)
         self.assertEqual(box.get("code"), 200, box.get("raw"))
         self.assertEqual(seqs(json.loads(box["raw"])["events"]), [data["seq"]])
-        self.assertLess(box["returned"] - posted, 1.0)
+        self.assertLess(box["returned"] - posted, WAKE_SECONDS)
 
     def unhandled_seqs(self):
         st = self.state()
@@ -1067,7 +1263,7 @@ class TestReplay(WaitCase):
         # AC8: a re-arm without a handle re-delivers at once.
         code, body, took = self.wait("after=handled&replayed=0&timeout=20")
         self.assertEqual(code, 200)
-        self.assertLess(took, 1.5)
+        self.assertLess(took, WAKE_SECONDS)
         self.assertEqual(seqs(body["events"]), [first])
         self.assertEqual(body.get("replayed"), first)
 
@@ -1099,7 +1295,7 @@ class TestReplay(WaitCase):
         # A replayed value past the log counts as zero.
         _, posted = self.post({"kind": "note", "text": "Third event."})
         code, body, took = self.wait("after=handled&replayed=9999&timeout=5")
-        self.assertLess(took, 1.5)
+        self.assertLess(took, WAKE_SECONDS)
         self.assertEqual(seqs(body["events"]), [posted["seq"]])
 
 
@@ -1147,6 +1343,112 @@ class TestEventStreamPing(ServerCase):
             self.assertEqual(resp.fp.readline(), b"data: {}\n")
         finally:
             conn.close()
+
+
+class TestEventStreamHandle(ServerCase):
+    """A handle-only apply reaches an open tab as a new state frame carrying the handled seq."""
+
+    fixtures = True
+
+    def test_handle_only_apply_pushes_a_state_frame(self):
+        seq = self.post({"id": "Q1", "kind": "accept"})[1]["seq"]
+        frames, ready = [], threading.Event()
+
+        def read(resp):
+            event = None
+            while line := resp.fp.readline():
+                if line.startswith(b"event: "):
+                    event = line[7:].strip()
+                elif line.startswith(b"data: ") and event == b"state":
+                    frames.append(json.loads(line[6:]))
+                    ready.set()
+
+        def handled(frame):
+            q = frame["questions"]
+            return q.get("handledSeq", 0) >= seq or seq in q.get("handled", [])
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            threading.Thread(
+                target=read, args=(conn.getresponse(),), daemon=True
+            ).start()
+            self.assertTrue(ready.wait(TIMEOUT), "no first state frame")
+            time.sleep(1)
+            seen = len(frames)
+            ops = self.tmp / "ops.json"
+            ops.write_text(
+                json.dumps({"ops": [{"op": "handle", "seqs": [seq]}]}),
+                encoding="utf-8",
+            )
+            rc, out = self.rp("apply", "--file", str(ops))
+            self.assertEqual(rc, 0, out)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not any(
+                handled(f) for f in frames[seen:]
+            ):
+                time.sleep(0.1)
+            self.assertTrue(
+                any(handled(f) for f in frames[seen:]),
+                f"no state frame after the apply carried seq {seq}",
+            )
+        finally:
+            conn.close()
+
+
+class TestEventStreamPush(ServerCase):
+    """A rewrite of questions.json reaches an open stream even when the file's mtime did not move."""
+
+    fixtures = True
+
+    def frame(self, resp):
+        """The next state frame's questions doc."""
+        while (line := resp.fp.readline()) != b"event: state\n":
+            self.assertTrue(line, "the stream closed before a state frame")
+        return json.loads(resp.fp.readline().split(b"data: ", 1)[1])["questions"]
+
+    def test_a_same_mtime_rewrite_is_pushed(self):
+        path = self.dir / "questions.json"
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            first = self.frame(resp)
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc["questions"][0]["recommendation"] = "Revised while the tab was open."
+            old = path.stat().st_mtime_ns
+            tmp = path.with_name("questions.json.swap")
+            tmp.write_text(json.dumps(doc), encoding="utf-8")
+            os.utime(tmp, ns=(old, old))
+            os.replace(tmp, path)
+            self.assertEqual(path.stat().st_mtime_ns, old)
+            self.assertEqual(
+                self.frame(resp)["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+            self.assertNotEqual(
+                first["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+        finally:
+            conn.close()
+
+
+class TestStateFallback(unittest.TestCase):
+    """A state read that fails keeps the last good state and says so, so the stream retries."""
+
+    def test_a_failed_read_is_marked_stale_until_a_read_succeeds(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-stale-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        self.assertFalse(hub.read_state()[1])
+        with unittest.mock.patch.object(
+            server, "load_json", side_effect=RuntimeError("busy")
+        ):
+            self.assertTrue(hub.read_state()[1])
+        self.assertFalse(hub.read_state()[1])
 
 
 class TestEventStreamCap(ServerCase):
@@ -1238,6 +1540,33 @@ class TestListenerDisconnect(WaitCase):
         self.assertNotIn("deliveredAt", ev)
 
 
+class TestHedged(WaitCase):
+    """A hedged decision is an accept that carries its condition as the event text."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_a_hedged_decision_needs_a_condition_within_the_line_cap(self):
+        before = self.state()["responses"]["events"]
+        for text in ("", "   ", "x" * 501):
+            code, data = self.post({"id": "A", "kind": "hedged", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.state()["responses"]["events"], before)
+
+    def test_a_hedged_decision_is_recorded_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        code, data = self.post({"id": "A", "kind": "hedged", "text": "if it is cheap"})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["decision"], "hedged")
+        self.assertEqual(r["responses"]["A"]["text"], "if it is cheap")
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestQuestionState(WaitCase):
     """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
 
@@ -1303,7 +1632,7 @@ class TestQuestionState(WaitCase):
         doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
         self.assertFalse(any("state" in q for q in doc["questions"]))
 
-    def test_7_revising_marks_direct_dependents_of_a_delivered_unhandled_decision(
+    def test_7_revising_marks_the_question_with_its_own_delivered_unhandled_decision(
         self,
     ):
         self.handle_all()
@@ -1311,18 +1640,18 @@ class TestQuestionState(WaitCase):
         before = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(before["B"], "revising before delivery")
+        self.assertFalse(before["A"], "revising before delivery")
         code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
         self.assertFalse(body["timedOut"])
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertEqual(rev, {"A": False, "B": True, "C": False, "D": False})
+        self.assertEqual(rev, {"A": True, "B": False, "C": False, "D": False})
         self.handle_all()
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(rev["B"])
+        self.assertFalse(rev["A"])
 
     def test_8_archived(self):
         rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")
@@ -1676,6 +2005,312 @@ class TestAcceptAudit(WaitCase):
         self.assertEqual(history, r["history"])
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
+
+
+class OpsCase(WaitCase):
+    """WaitCase with helpers to apply ops and read question states."""
+
+    def apply_ops(self, *ops):
+        path = self.tmp / "ops.json"
+        path.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        rc, out = self.rp("apply", "--file", str(path))
+        self.assertEqual(rc, 0, out)
+        return out
+
+    def decide(self, qid, kind="accept", **extra):
+        code, data = self.post({"id": qid, "kind": kind, **extra})
+        self.assertEqual(code, 200, data)
+        return data["seq"]
+
+    def states(self):
+        return {q["id"]: q.get("state") for q in self.state()["questions"]["questions"]}
+
+
+class TestRecChangeMarksUpstream(OpsCase):
+    """A recommendation change marks each question named in affects, and each direct dependent,
+    that holds a decision: stale, with the revised id as the cause, until it is answered again."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C"),
+            question("D"),
+            question("E", dependsOn=["A"]),
+        )
+
+    def marks(self):
+        return {
+            q["id"]: (q["state"], q.get("upstreamChanged"))
+            for q in self.state()["questions"]["questions"]
+        }
+
+    def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
+        for qid in ("B", "C", "D"):
+            self.decide(qid)
+        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "C")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            self.marks(),
+            {
+                "A": ("open", None),
+                "B": ("stale", ["A"]),
+                "C": ("stale", ["A"]),
+                "D": ("open", None),
+                "E": ("open", None),
+            },
+        )
+
+    def test_2_answering_the_marked_question_again_clears_only_its_mark(self):
+        self.decide("C")
+        marks = self.marks()
+        self.assertEqual((marks["C"], marks["B"]), (("open", None), ("stale", ["A"])))
+
+    def test_3_none_still_marks_the_direct_dependents(self):
+        self.decide("E")
+        self.assertEqual(self.states()["E"], "open")
+        rc, out = self.rp("revise", "A", "--rec", "Once more.", "--affects", "none")
+        self.assertEqual(rc, 0, out)
+        marks = self.marks()
+        self.assertEqual(marks["E"], ("stale", ["A"]))
+        self.assertEqual(marks["C"], ("open", None))
+
+    def test_4_the_mark_is_derived_never_written(self):
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(
+            any("upstreamChanged" in q or "state" in q for q in doc["questions"])
+        )
+
+    def test_5_a_session_terminal_record_clears_it_like_any_stale_question(self):
+        time.sleep(1.1)  # a terminal decision is placed by its one-second timestamp
+        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.marks()["B"], ("open", None))
+
+
+class TestTerminalAnswerRightAfterARecChange(OpsCase):
+    """A terminal answer recorded after a recommendation change counts as the reconfirmation even
+    when both writes land in the same second."""
+
+    @classmethod
+    def prepare(cls):
+        earlier = {
+            "decision": "accept",
+            "alt": None,
+            "text": "",
+            "updatedAt": "2026-01-01T00:00:00Z",
+            "rev": 1,
+        }
+        seed_questions(
+            cls.dir, question("A"), question("B", dependsOn=["A"], terminal=earlier)
+        )
+
+    def test_1_the_later_write_wins_the_tie(self):
+        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "none")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["B"], "stale")
+        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["B"], "open")
+
+
+class TestRepointAndRevisedDependencies(OpsCase):
+    """The stale derivation reads dependsOn, so a repoint or a revise changes what goes stale on
+    the next decision."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C", dependsOn=["A"]),
+        )
+
+    def test_1_repointing_after_answers_exist_moves_the_stale_mark_to_the_new_parent(
+        self,
+    ):
+        self.decide("B")
+        rc, out = self.rp(
+            "add", "--id", "N", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later",
+            "--supersedes", "A", "--repoint",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out)
+        self.assertIn("repointed B, C from A to N", out)
+        self.assertEqual(self.states()["B"], "open")
+        self.decide("N")
+        self.assertEqual(self.states()["B"], "stale")
+
+    def test_2_a_revised_dependency_list_changes_what_goes_stale(self):
+        self.decide("C")
+        rc, out = self.rp("revise", "C", "--depends", "none", "--force")
+        self.assertEqual(rc, 0, out)
+        self.decide("N", "alt", alt="a")
+        self.assertEqual(self.states()["C"], "open")
+
+    def test_3_the_history_line_is_served_with_the_change(self):
+        c = next(q for q in self.state()["questions"]["questions"] if q["id"] == "C")
+        self.assertEqual(c["history"][-1]["kind"], "depends")
+
+
+class TestUserHoldClearsOnTheNextAnswer(OpsCase):
+    """A `by: user` hold ends, with no further op, when the user's next accept, alt or own on the
+    question lands after the hold. The stored hold stays; every reader derives the clearing."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, *(question(x) for x in "ABCD"))
+
+    def hold(self, qid):
+        self.apply_ops(
+            {"op": "wait", "id": qid, "waitsOn": "your answer", "by": "user"}
+        )
+
+    def held(self, qid):
+        q = next(x for x in self.state()["questions"]["questions"] if x["id"] == qid)
+        return bool(q.get("waiting"))
+
+    def ledger(self):
+        out = self.tmp / "ledger.md"
+        rc, text = self.rp("export-ledger", "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        return out.read_text(encoding="utf-8")
+
+    def test_1_an_accept_after_the_hold_ends_it_and_an_undo_restores_it(self):
+        self.decide("A")  # before the hold: set aside by it
+        self.hold("A")
+        self.assertTrue(self.held("A"))
+        self.assertIn("awaiting user", self.rp("status")[1])
+        self.assertIn("hold:: user", self.ledger())
+        seq = self.decide("A")
+        self.assertFalse(self.held("A"))
+        self.assertNotIn("awaiting user", self.rp("status")[1])
+        self.assertNotIn("hold::", self.ledger())
+        stored = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertTrue(
+            next(q for q in stored["questions"] if q["id"] == "A")["waiting"]
+        )
+        code, data = self.post({"kind": "undo", "id": "A", "undoSeq": seq})
+        self.assertEqual(code, 200, data)
+        self.assertTrue(self.held("A"))
+
+    def test_2_alt_and_own_end_it_too_and_ask_defer_and_hedged_do_not(self):
+        self.hold("B")
+        self.decide("B", "ask", text="why?")
+        self.decide("B", "defer")
+        self.decide("B", "hedged", text="if it is cheap")
+        self.assertTrue(self.held("B"))
+        self.decide("B", "own", text="Do it my way.")
+        self.assertFalse(self.held("B"))
+        self.hold("C")
+        self.decide("C", "alt", alt="a")
+        self.assertFalse(self.held("C"))
+
+    def test_3_a_hold_by_claude_is_not_touched_by_an_answer(self):
+        self.apply_ops({"op": "wait", "id": "D", "waitsOn": "research"})
+        self.decide("D")
+        self.assertTrue(self.held("D"))
+
+
+class TestImportedUserHoldClearsOnTheNextAnswer(OpsCase):
+    """An imported `by: user` hold carries no setAsideSeq; the next answer still ends it."""
+
+    @classmethod
+    def prepare(cls):
+        hold = {
+            "waiting": True,
+            "waitsOn": "your answer",
+            "waitingBy": "user",
+            "waitingSince": "2026-01-01T00:00:00Z",
+        }
+        seed_questions(cls.dir, question("E", **hold))
+
+    def held(self):
+        return bool(self.state()["questions"]["questions"][0].get("waiting"))
+
+    def test_1_an_accept_ends_it(self):
+        self.assertTrue(self.held())
+        self.decide("E")
+        self.assertFalse(self.held())
+
+
+class TestDecisionEventsNameTheirContentRev(OpsCase):
+    """A decision event stores the content revision it answered."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir, question("A", contentRev=3), question("B"), question("C")
+        )
+
+    def events(self):
+        return self.state()["responses"]["events"]
+
+    def test_1_an_accept_with_content_rev_3_is_stored_with_it(self):
+        self.decide("A", contentRev=3)
+        self.assertEqual(self.events()[-1]["contentRev"], 3)
+
+    def test_2_every_decision_kind_carries_it_and_a_stale_one_is_refused(self):
+        rev = 0
+        for kind, extra in (
+            ("own", {"text": "mine"}),
+            ("alt", {"alt": "a"}),
+            ("defer", {}),
+            ("hedged", {"text": "if"}),
+            ("reopen", {}),
+        ):
+            self.decide("B", kind, contentRev=rev, **extra)
+            rev += 1
+            self.assertEqual(self.events()[-1]["contentRev"], rev - 1, kind)
+        n = len(self.events())
+        code, data = self.post({"id": "B", "kind": "accept", "contentRev": 0})
+        self.assertEqual((code, data["error"]), (409, "changed"))
+        self.assertEqual(len(self.events()), n)
+
+    def test_3_an_event_sent_without_one_stores_none(self):
+        self.decide("C")
+        self.assertNotIn("contentRev", self.events()[-1])
+
+    def test_4_an_accept_audit_fans_out_accepts_that_carry_their_items_rev(self):
+        seed = {
+            "kind": "accept-audit",
+            "alt": "1",
+            "items": [{"id": "C", "contentRev": 1}],
+        }
+        code, data = self.post(seed)
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.events()[-1]["contentRev"], 1)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
+class TestArchivedPrerequisiteIsMet(OpsCase):
+    """A question whose prerequisite was archived or superseded is eligible for accept-audit; one
+    whose prerequisite is live and undecided still is not."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("P", archived=gone),
+            question("S", supersededBy="N"),
+            question("N"),
+            question("X"),
+            question("B", dependsOn=["P"]),
+            question("C", dependsOn=["S"]),
+            question("D", dependsOn=["X"]),
+        )
+
+    def test_the_audit_accepts_the_dependents_of_a_question_that_left_the_path(self):
+        items = [{"id": i, "contentRev": 0} for i in "BCD"]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["accepted"], ["B", "C"])
+        self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
 
 
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):
@@ -2285,6 +2920,27 @@ class TestLease(WaitCase):
             self.state()["settings"]["leaseTimeout"], {"value": 5, "layer": "session"}
         )
 
+    def test_2b_the_stream_pushes_a_frame_when_the_lease_expires(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            leases = []
+            end = (
+                time.monotonic() + 8
+            )  # before the listener state itself goes idle (LISTEN_GRACE, 10 s)
+            while time.monotonic() < end:
+                line = resp.fp.readline()
+                self.assertTrue(line, "the stream closed")
+                if line.startswith(b"data: {") and b'"listener"' in line:
+                    leases.append(json.loads(line[6:])["listener"]["lease"])
+                    if leases[-1] is None:
+                        break
+            self.assertIsNotNone(leases[0])
+            self.assertIsNone(leases[-1])
+        finally:
+            conn.close()
+
     def test_3_expired_lease_is_reclaimed(self):
         time.sleep(5.5)
         # Expired with no watcher having claimed since: no holder anywhere it is shown.
@@ -2373,15 +3029,19 @@ class TestSettleBurstCap(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-settle-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.hub = server.Hub(0, self.tmp)
+        for name, value in (("QUIET_SECONDS", 0.3), ("BURST_SECONDS", 2.0)):
+            patcher = unittest.mock.patch.object(server, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
-    def settle_with(self, seqs_seen):
+    def settle_with(self, seqs_seen, deadline=float("inf")):
         feed = iter(seqs_seen)
         with unittest.mock.patch.object(
             self.server, "load_json", side_effect=lambda *_: {"seq": next(feed)}
         ):
             with self.hub.cond:
                 start = time.monotonic()
-                r = self.hub.settle({"seq": 0})
+                r = self.hub.settle({"seq": 0}, deadline)
                 return r, time.monotonic() - start
 
     def test_a_quiet_log_returns_after_one_quiet_window(self):
@@ -2395,6 +3055,11 @@ class TestSettleBurstCap(unittest.TestCase):
         self.assertGreater(r["seq"], 1)
         self.assertGreaterEqual(took, self.server.BURST_SECONDS * 0.95)
         self.assertLess(took, self.server.BURST_SECONDS + 0.5)
+
+    def test_a_log_that_never_goes_quiet_is_cut_off_at_the_request_deadline(self):
+        r, took = self.settle_with(range(1, 1000), deadline=time.time() + 0.5)
+        self.assertGreater(r["seq"], 1)
+        self.assertLess(took, 0.5 + 0.3)
 
 
 if __name__ == "__main__":

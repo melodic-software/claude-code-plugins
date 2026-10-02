@@ -653,11 +653,11 @@ case $PWSH_EXIT in
   # Trust gate — the settings file can make the analyzer execute
   # repository-supplied code (CustomRulePath), or could not be verified
   # code-free, and this exact settings-plus-rule-module content state carries
-  # no approval marker. Skip the run with a visible once-per-session notice on
-  # both channels; the notice key carries the state signature so a settings or
-  # rule-module change re-notices within the same session. When the approval
-  # store is unavailable or the state is unverifiable the gate fails closed:
-  # analysis stays disabled rather than trusted. The pwsh block reports the
+  # no approval marker. Skip the run with a visible notice, once per session and
+  # agent, on both channels; the notice key carries the state signature so a
+  # settings or rule-module change re-notices within the same session. When the
+  # approval store is unavailable or the state is unverifiable the gate fails
+  # closed: analysis stays disabled rather than trusted. The pwsh block reports the
   # verdict as a structured PSSA_TRUST line: "GATE <marker-name>" (approvable —
   # the marker directory is rebuilt here from CLAUDE_PLUGIN_DATA in shell path
   # form so the mkdir hint runs as printed), "NOSTORE" (no state base),

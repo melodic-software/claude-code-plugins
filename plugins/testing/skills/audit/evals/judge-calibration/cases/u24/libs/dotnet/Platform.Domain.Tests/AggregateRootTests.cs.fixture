@@ -1,0 +1,56 @@
+using Shouldly;
+using Xunit;
+
+namespace Platform.Domain.Tests;
+
+public sealed class AggregateRootTests
+{
+    private sealed record TestId(Guid Value);
+
+    private sealed class TestAggregate : AggregateRoot<TestId>
+    {
+        public TestAggregate(TestId id) : base(id) { }
+
+        public void DoSomething(DateTimeOffset occurredAt) =>
+            RaiseDomainEvent(new TestEvent(occurredAt));
+    }
+
+    private sealed record TestEvent(DateTimeOffset OccurredAt) : IDomainEvent
+    {
+        public Guid Id { get; } = Guid.CreateVersion7();
+    }
+
+    [Fact]
+    public void RaiseDomainEvent_ShouldAddToCollection()
+    {
+        TestAggregate aggregate = new(new TestId(Guid.CreateVersion7()));
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        aggregate.DoSomething(now);
+
+        IReadOnlyList<IDomainEvent> events = aggregate.GetDomainEvents();
+        events.Count.ShouldBe(1);
+        events[0].ShouldBeOfType<TestEvent>();
+    }
+
+    [Fact]
+    public void ClearDomainEvents_ShouldRemoveAll()
+    {
+        TestAggregate aggregate = new(new TestId(Guid.CreateVersion7()));
+        aggregate.DoSomething(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        aggregate.ClearDomainEvents();
+        aggregate.GetDomainEvents().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void GetDomainEvents_ShouldReturnSnapshot()
+    {
+        TestAggregate aggregate = new(new TestId(Guid.CreateVersion7()));
+        aggregate.DoSomething(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        IReadOnlyList<IDomainEvent> snapshot = aggregate.GetDomainEvents();
+        aggregate.ClearDomainEvents();
+
+        snapshot.Count.ShouldBe(1);
+        aggregate.GetDomainEvents().ShouldBeEmpty();
+    }
+}

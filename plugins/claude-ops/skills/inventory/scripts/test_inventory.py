@@ -138,6 +138,45 @@ class TestCommandExtraction(unittest.TestCase):
         src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
         self.assertEqual(self._extract(src), {})
 
+    def test_a_name_bound_to_a_conditional_is_not_resolved(self) -> None:
+        # The 2.1.286 skill loader: `Vt` is bound to a conditional in the
+        # loader's own scope, so an unrelated `Vt="string"` far ahead is not
+        # what the literal reads.
+        src = (
+            'var Vt="string";'
+            + "z" * 5000
+            + 'function ld(e,xe){let $t=xe==="syncedSkills",Vt=$t?smt(e):e,'
+            'Jt={type:"prompt",name:Vt,description:"d"};return Jt}'
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_name_bound_to_a_call_is_not_resolved(self) -> None:
+        src = (
+            'var Vt="string";function ld(e){let Vt=smt(e);'
+            'return{type:"prompt",name:Vt,description:"d"}}'
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_constant_in_another_module_is_not_resolved(self) -> None:
+        src = _modules(
+            'var Vt="string";',
+            'var x={type:"prompt",name:Vt,description:"d"};',
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_constant_in_scope_or_imported_resolves(self) -> None:
+        local = (
+            'var Vt="string";function ld(){let Vt="review";'
+            'return{type:"prompt",name:Vt,description:"d"}}'
+        )
+        self.assertEqual(list(self._extract(local)), ["review"])
+        imported = _modules(
+            'var Vt="review";export{Vt};',
+            'import{Vt}from"/$bunfs/root/chunk-a.js";'
+            'var x={type:"prompt",name:Vt,description:"d"};',
+        )
+        self.assertEqual(list(self._extract(imported)), ["review"])
+
     def test_internal_names_are_marked(self) -> None:
         src = 'x={type:"prompt",name:"mcp__",description:"d"};'
         self.assertTrue(self._extract(src)["mcp__"]["internal"])
@@ -561,6 +600,17 @@ class TestNameLocality(unittest.TestCase):
         )
         skills, _ = self._skills(src)
         self.assertIn("simplify", skills)
+
+    def test_a_nearer_non_constant_binding_shadows_a_constant(self) -> None:
+        src = (
+            self.HEAD
+            + 'var kYe="simplify";'
+            + "z" * 500
+            + 'function f(e){let kYe=e?g(e):"x";eo({name:kYe,menuDescription:"D"})}'
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(skills, {})
+        self.assertEqual(notes["unresolved_dynamic_names"], ["kYe"])
 
     def test_a_binding_after_the_registration_does_not_resolve_it(self) -> None:
         src = self.HEAD + 'eo({name:zz,menuDescription:"D"});var zz="later";'
@@ -1107,6 +1157,81 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertEqual(notes["unresolved_names"], ["qq9"])
         self.assertEqual(notes["resolved"], notes["definitions_seen"] - 1)
 
+    def test_a_spread_reads_its_own_scope_not_the_nearest_binding(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function g(){let pY=p(1);return pY}'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_a_spread_of_a_non_constant_binding_stays_partial(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];var pY=c?[xt]:[yt];'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent"])
+        self.assertEqual(rec["disallowed_tools_source"], "partial")
+
+    def test_a_spread_another_function_reassigns_stays_partial(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function init(){pY=["Other"]}init();'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent"])
+        self.assertEqual(rec["disallowed_tools_source"], "partial")
+
+    def test_a_spread_written_off_the_straight_line_stays_partial(self) -> None:
+        for prelude in (
+            'var pY=[xt,"Artifact"];if(c){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];for(;;){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];var f=()=>pY=["Other"];f();',
+            'var f=()=>pY=["Other"];var pY=[xt,"Artifact"];f();',
+            'var pY=[xt,"Artifact"];if(c)pY=["Other"];',
+            'var pY=[xt,"Artifact"];pY=c?["Other"]:pY;',
+            'var pY=[xt,"Artifact"];c&&(pY=["Other"]);',
+            'var pY=[xt,"Artifact"];for(;;)pY=["Other"];',
+            'var pY=[xt,"Artifact"];if(c){var pY=f()}',
+        ):
+            src = AGENT_SRC + (
+                prelude + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(rec["disallowed_tools_source"], "partial", prelude)
+
+    def test_a_spread_declared_after_a_function_declaration_resolves(self) -> None:
+        src = AGENT_SRC + (
+            'function h(){return 1}var a="x",b=["y","z"],pY=[xt,"Artifact"],q=1;'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_a_spread_whose_writer_shadows_the_name_still_resolves(self) -> None:
+        for writer in (
+            'function g(){let pY=[];pY=["Other"]}',
+            'if(c){let pY=f();pY=["Other"]}',
+        ):
+            src = AGENT_SRC + (
+                'var pY=[xt,"Artifact"];' + writer + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(
+                rec["disallowed_tools"], ["Agent", "Edit", "Artifact"], writer
+            )
+
     def test_no_roster_leaves_every_agent_absent(self) -> None:
         agents, notes = self._extract(AGENT_SRC.split("function R()")[0])
         self.assertFalse(notes["roster_found"])
@@ -1117,7 +1242,7 @@ TOOL_SRC = (
     'var Qz="Bash",at="Read",xt="Edit",hn="Write",wr="WebFetch";'
     'var k1="SendUserFile";var m1="memory_read";'
     "var Kl={isEnabled:()=>!0,isConcurrencySafe:(e)=>!1};"
-    'k1="system_assigned_identity";'
+    'function Ku(){let k1="system_assigned_identity";return k1}'
     '$t({name:Qz,searchHint:"execute shell commands",'
     "get maxResultSizeChars(){return 1},"
     'async description({description:e}){return e||"Run"},isEnabled(){return!0}});'
@@ -1159,12 +1284,22 @@ class TestBuiltinTools(unittest.TestCase):
 
     def test_pascal_case_binding_wins_over_a_nearer_snake_case_one(self) -> None:
         # `k1` is rebound to a snake_case string nearer the definition, as
-        # unrelated modules rebind minified names; a snake_case value is taken
+        # unrelated code rebinds minified names; a snake_case value is taken
         # only when no PascalCase binding precedes (`m1`).
         tools = self._extract()[0]
         self.assertIn("SendUserFile", tools)
         self.assertIn("memory_read", tools)
         self.assertNotIn("system_assigned_identity", tools)
+
+    def test_a_snake_case_rebinding_the_definition_reads_is_not_skipped(self) -> None:
+        # The definition reads the nearer rebinding, so the PascalCase
+        # binding behind it is not its name: unresolved, never guessed.
+        src = TOOL_SRC.replace(
+            "$t({name:k1,", 'k1="system_assigned_identity";$t({name:k1,'
+        )
+        tools, notes = self._extract(src)
+        self.assertNotIn("SendUserFile", tools)
+        self.assertIn("k1", notes["unresolved_names"])
 
     def test_descriptions_hints_and_names(self) -> None:
         tools = self._extract()[0]
@@ -1196,11 +1331,675 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertEqual(notes["unresolved_names"], ["zzq"])
 
     def test_resolve_tool_ident_honors_short_locality(self) -> None:
-        index = {"e": [(0, "Bash")]}
-        self.assertIsNone(
-            inv.resolve_tool_ident("e", inv.SHORT_IDENT_LOCALITY_BYTES + 10, index)
+        src = 'var e="Bash";' + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES + 10)
+        braces = inv.build_brace_map(src)
+        index = inv.build_const_index(src, None, inv.TOOL_NAME_RE)
+        self.assertIsNone(inv.resolve_tool_ident(src, braces, "e", len(src), index))
+        self.assertEqual(inv.resolve_tool_ident(src, braces, "e", 20, index), "Bash")
+
+
+def _tool(src: str, name: str) -> dict:
+    return inv.extract_builtin_tools(src, inv.build_brace_map(src))[0][name]
+
+
+class TestToolDescriptionShapes(unittest.TestCase):
+    """Tool descriptions built by a call with arguments, from shapes seen in
+    Claude Code 2.1.285: the method passes a runtime value into a function
+    whose body selects or interpolates hoisted constants."""
+
+    def test_a_call_with_arguments_follows_the_function(self) -> None:
+        src = (
+            'var e="WRONG",Hq="ClaudeDesign",dp=`Short`,lp=`Work with Claude Design.`;'
+            "function kb(e){return`${e?dp:lp}\n\nMore.`}"
+            "$t({name:Hq,maxResultSizeChars:1,async description(){return kb(Rt())}});"
         )
-        self.assertEqual(inv.resolve_tool_ident("e", 10, index), "Bash")
+        rec = _tool(src, "ClaudeDesign")
+        self.assertEqual(rec["description"], "Work with Claude Design.\n\nMore.")
+        self.assertEqual(rec["description_source"], "call")
+
+    def test_a_parameter_never_reads_a_same_named_binding(self) -> None:
+        src = (
+            'var e="Bound elsewhere",Qz="Bash";'
+            '$t({name:Qz,maxResultSizeChars:1,async description({description:e}){return e||"Run shell command"}});'
+            'var Pz="Probe";function pd(n){return n}'
+            "$t({name:Pz,maxResultSizeChars:1,async description(){return pd(1)}});"
+        )
+        self.assertEqual(_tool(src, "Bash")["description"], "Run shell command")
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_resolved_left_operand_wins_over_its_fallback(self) -> None:
+        src = (
+            'var dd="REAL",Qz="Probe";'
+            '$t({name:Qz,maxResultSizeChars:1,description:dd||"FALLBACK"||"OTHER"});'
+        )
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "REAL")
+        self.assertNotIn("description_variants", rec)
+
+    def test_a_resolvable_argument_binds_its_parameter(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Other";function ff(x,y){return`Use ${x} ${y}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL",g())});'
+            "$t({name:Rz,maxResultSizeChars:1,description:ff(Qz)});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use REAL …")
+        self.assertEqual(_tool(src, "Other")["description"], "Use Probe …")
+
+    def test_a_mixed_left_operand_keeps_its_truthy_variants(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:(f?"REAL":"")||"FALLBACK"});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description_variants"], ["REAL", "FALLBACK"])
+
+    def test_a_concatenation_keeps_every_combination(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:"A"+(f?"X":"Y")+"B"});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "AYB")
+        self.assertEqual(rec["description_variants"], ["AXB", "AYB"])
+
+    def test_a_fallback_starting_with_an_empty_literal_is_still_read(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:u.v||""+"Fallback"});'
+        self.assertEqual(_tool(src, "Probe")["description"], "Fallback")
+
+    def test_a_resolved_group_settles_its_fallback(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Maybe";'
+            '$t({name:Qz,maxResultSizeChars:1,description:(f?"A":"C")||"B"});'
+            '$t({name:Rz,maxResultSizeChars:1,description:(f?"A":void 0)||"B"});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_variants"], ["A", "C"])
+        self.assertEqual(_tool(src, "Maybe")["description_variants"], ["A", "B"])
+
+    def test_substitution_and_join_alternatives_are_kept(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Joined";'
+            '$t({name:Qz,maxResultSizeChars:1,description:`Use ${f?"X":"Y"}`});'
+            '$t({name:Rz,maxResultSizeChars:1,description:["a",f?"X":"Y"].join(" ")});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use X", "Use Y"]
+        )
+        self.assertEqual(_tool(src, "Joined")["description_variants"], ["a X", "a Y"])
+
+    def test_a_non_string_literal_settles_its_fallback(self) -> None:
+        def desc(expr: str) -> str:
+            src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,description:{expr}}});'
+            return _tool(src, "Probe")["description"]
+
+        self.assertEqual(desc('true||"FALLBACK"'), "")
+        self.assertEqual(desc('false??"FALLBACK"'), "")
+        self.assertEqual(desc('false||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('null??"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('1||"FALLBACK"'), "")
+        self.assertEqual(desc('!0||"FALLBACK"'), "")
+        self.assertEqual(desc('0??"FALLBACK"'), "")
+        self.assertEqual(desc('!1??"FALLBACK"'), "")
+        self.assertEqual(desc('0||"FALLBACK"'), "FALLBACK")
+        for number in ("-1", ".5", "0x1", "1e-2", "1_000n", "1e1_0"):
+            with self.subTest(number=number):
+                self.assertEqual(desc(f'{number}||"FALLBACK"'), "")
+                self.assertEqual(desc(f'{number}??"FALLBACK"'), "")
+        self.assertEqual(desc('0x0||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('-0.0??"FALLBACK"'), "")
+        self.assertEqual(desc('0e1_0??"FALLBACK"'), "")
+        self.assertEqual(desc('!false||"FALLBACK"'), "")
+        self.assertEqual(desc('!true??"FALLBACK"'), "")
+        self.assertEqual(desc('!true||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('!!1||"FALLBACK"'), "")
+        self.assertEqual(desc('!!0??"FALLBACK"'), "")
+        self.assertEqual(desc('!!0||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('(true)||"FALLBACK"'), "")
+        self.assertEqual(desc('((1))||"FALLBACK"'), "")
+        self.assertEqual(desc('(false)??"FALLBACK"'), "")
+        self.assertEqual(desc('(false)||"FALLBACK"'), "FALLBACK")
+
+    def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";function ff(x){let yy=x;return yy}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_partial_substitution_keeps_a_runtime_alternative(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Use ${f?"X":void 0}`});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description_variants"], ["Use …", "Use X"])
+        self.assertEqual(rec["description_source"], "template")
+
+    def test_a_reassigned_parameter_is_not_its_argument(self) -> None:
+        src = (
+            'var Qz="Probe";function ff(x){x=g();return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+        for write in (
+            'x+="LOCAL"',
+            "x++",
+            "--x",
+            'x??="LOCAL"',
+            '[x]=["LOCAL"]',
+            '({a:x}={a:"LOCAL"})',
+            "for(x of y);",
+        ):
+            with self.subTest(write=write):
+                src = (
+                    f'var Qz="Probe";function ff(x){{{write};return`Use ${{x}}`}}'
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+
+    def test_a_local_object_member_keeps_the_bound_parameter(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";function ff(x){let obj={p:x};return obj.p}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_local_object_is_the_visible_one_and_its_getter_closes_over(
+        self,
+    ) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe",Rz="Getter";'
+            'function ff(x){let obj={p:x};function g(){let obj={p:"WRONG"}}return obj.p}'
+            "function gg(x){let obj={get p(){return x}};return obj.p}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:gg("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertEqual(_tool(src, "Getter")["description"], "REAL")
+
+    def test_a_forwarded_partial_argument_stays_partial(self) -> None:
+        src = (
+            'var Qz="Probe";function id(x){return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:`Use ${id(f?"REAL":u.v)}`});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use …", "Use REAL"]
+        )
+
+    def test_a_partial_argument_leaves_its_fallback_reachable(self) -> None:
+        src = (
+            'var Qz="Probe";function ff(x){return x||"FALLBACK"}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff(f?"REAL":u.v)});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["REAL", "FALLBACK"]
+        )
+
+    def test_nested_returns_and_quoted_writes_do_not_leak(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Quoted";'
+            'function ff(x){return x;function inner(){return"WRONG"}}'
+            'function gg(x){let s="x=LOCAL";return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:gg("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertNotIn("description_variants", _tool(src, "Probe"))
+        self.assertEqual(_tool(src, "Quoted")["description"], "REAL")
+        written = (
+            'var Qz="Probe";function hh(x){let s=`${x="LOCAL"}`;return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:hh("REAL")});'
+        )
+        self.assertEqual(_tool(written, "Probe")["description"], "Use …")
+
+    def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Bound";function ff(x){return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:["Use",f?"X":u.v].join(" ")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:ff(f?"REAL":u.v)});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use …", "Use X"]
+        )
+        self.assertEqual(
+            _tool(src, "Bound")["description_variants"], ["Use …", "Use REAL"]
+        )
+
+    def test_a_nested_helper_sees_its_callers_bound_parameter(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";'
+            "function ff(x){function gg(){return x}return gg()}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_template_is_never_nullish_and_array_holes_join_empty(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Holes";'
+            '$t({name:Qz,maxResultSizeChars:1,description:`${u.v}`??"FALLBACK"});'
+            '$t({name:Rz,maxResultSizeChars:1,description:[,"A",,"B"].join("-")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+        self.assertEqual(_tool(src, "Holes")["description"], "-A--B")
+
+    def test_known_primitives_render_like_javascript(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Joined";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Count ${2} ${false} ${null}`});"
+            '$t({name:Rz,maxResultSizeChars:1,description:["A",null,false,0,"B"].join("-")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Count 2 false null")
+        self.assertEqual(_tool(src, "Joined")["description"], "A--false-0-B")
+
+    def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
+        self.assertEqual(_tool(src, "Probe")["description"], "")
+        self.assertEqual(_tool(src, "Probe")["description_source"], "literal")
+
+    def test_an_empty_fallback_is_not_a_value(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ua()??""});'
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_template_of_only_runtime_parts_is_unresolved(self) -> None:
+        src = (
+            'var Qz="Probe";function kb(e){return`${e.a}\n\n${e.b}`}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return kb(x)}});"
+        )
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "")
+        self.assertEqual(rec["description_source"], "unresolved")
+
+    def test_a_parenthesized_ternary_and_a_joined_array_concatenate(self) -> None:
+        src = (
+            'var ah="Fetch ",am="schemas",ac="tools",ap=" now.",Qz="ToolSearch",Wz="WaitForMcpServers";'
+            "function Hj(){return ah+(xf()?am:ac)+ap}"
+            'function Gx(){return["Wait for servers.","",...["Then use them."]].join(`\n`)}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return Hj()}});"
+            "$t({name:Wz,maxResultSizeChars:1,async description(){return Gx()}});"
+        )
+        self.assertEqual(_tool(src, "ToolSearch")["description"], "Fetch tools now.")
+        self.assertEqual(
+            _tool(src, "WaitForMcpServers")["description"],
+            "Wait for servers.\n\nThen use them.",
+        )
+
+    def test_a_template_substitution_resolves_its_constant(self) -> None:
+        src = (
+            'var Br="Grep",Sh="Bash";'
+            "function hL(e){if(n(e))return`Short via ${Sh}.`;return`ALWAYS use ${Br}, never ${Sh}.`}"
+            "$t({name:Br,maxResultSizeChars:1,async description(){return hL(void 0)}});"
+        )
+        rec = _tool(src, "Grep")
+        self.assertEqual(rec["description"], "ALWAYS use Grep, never Bash.")
+        self.assertEqual(rec["description_variants"][0], "Short via Bash.")
+
+
+def _modules(*bodies: str) -> str:
+    return "".join(f"\n// @bun @bytecode\n{b}" for b in bodies)
+
+
+class TestModuleScopedResolution(unittest.TestCase):
+    """A bundle of concatenated modules repeats minified names; a name
+    resolves inside its own module or through its import, never to the
+    nearest foreign binding."""
+
+    def test_an_imported_name_resolves_in_its_exporting_module(self) -> None:
+        src = _modules(
+            'var jd="Workflow";export{jd};',
+            'function f(){let jd=a?"remote_control_disabled":"host_exit"}',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});",
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a Workflow script")
+
+    def test_a_local_declaration_shadows_an_imported_name(self) -> None:
+        src = _modules(
+            'var jd="WRONG";export{jd};',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            'function ff(){let jd="LOCAL";return jd}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});",
+        )
+        self.assertNotEqual(_tool(src, "Probe")["description"], "WRONG")
+
+    def test_a_name_neither_imported_nor_declared_is_a_runtime_value(self) -> None:
+        src = _modules(
+            'var jd="host_exit";',
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a … script")
+
+    def test_a_single_letter_binding_never_crosses_a_module_boundary(self) -> None:
+        src = _modules(
+            'var e="Foreign";',
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Use ${e} here`});',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use … here")
+
+    def test_a_tool_name_bound_to_a_conditional_is_not_resolved(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function f(e){let Qz=e?"Probe":"Other";'
+            '$t({name:Qz,maxResultSizeChars:1,description:"d"})}'
+        )
+        tools, _ = inv.extract_builtin_tools(src, inv.build_brace_map(src))
+        self.assertEqual(tools, {})
+
+    def test_a_later_binding_resolves_only_inside_a_function_body(self) -> None:
+        src = _modules(
+            'var Qz="Probe",Pz="Lazy";'
+            "$t({name:Qz,maxResultSizeChars:1,description:zz});"
+            "$t({name:Pz,maxResultSizeChars:1,async description(){return zz}});"
+            'var zz="later";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+        self.assertEqual(_tool(src, "Lazy")["description"], "later")
+
+    def test_a_binding_local_to_another_function_is_not_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function outer(){let zz="WRONG"}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return zz}});"
+            'var zz="REAL";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_single_letter_local_of_another_function_is_not_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function outer(){let e="WRONG"}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return`Use ${e}`}});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+
+    def test_aliases_follow_visible_bindings_and_keep_deferral(self) -> None:
+        src = _modules(
+            'var Qz="Probe",Rz="Alias";'
+            'function ff(x){let t={p:x};function other(){let t={p:"BAD"}}let obj=t;return obj.p}'
+            "function outer(){let yy=xx;return yy}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            "$t({name:Rz,maxResultSizeChars:1,description:outer});"
+            'var xx="LATER";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertEqual(_tool(src, "Alias")["description"], "LATER")
+
+    def test_a_hoisted_local_function_shadows_an_outer_one(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function helper(){return"WRONG"}'
+            'function outer(){return helper();function helper(){return"LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "LOCAL")
+
+    def test_a_later_local_declaration_shadows_an_outer_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe",xx="WRONG";function outer(){return xx;if(c){var xx="LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_var_is_function_scoped_across_nested_blocks(self) -> None:
+        later = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function outer(){if(a){return xx}for(;;){var xx="LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(later, "Probe")["description_source"], "unresolved")
+        earlier = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function ff(){if(c){var xx="REAL"}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff});"
+        )
+        self.assertEqual(_tool(earlier, "Probe")["description"], "REAL")
+
+    def test_a_var_after_a_call_initializer_still_shadows(self) -> None:
+        src = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function outer(){return xx;if(1){var a=f(1,2),xx="LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_later_local_declaration_shadows_a_one_letter_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var e="WRONG";function ff(){return e;var e="LOCAL"}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_nested_function_with_a_call_default_is_not_a_branch(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){return x;function inner(a=g()){return"WRONG"}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_nested_function_with_a_quoted_paren_default_is_not_a_branch(
+        self,
+    ) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){return x;function inner(sep=")"){return"WRONG"}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_declaration_without_initializer_shadows(self) -> None:
+        before = _modules(
+            'var Qz="Probe";var xx="WRONG";function ff(){let xx;return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(before, "Probe")["description_source"], "unresolved")
+        after = _modules(
+            'var Qz="Probe";var xx="WRONG";function ff(){return xx;var xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(after, "Probe")["description_source"], "unresolved")
+
+    def test_a_catch_parameter_shadows(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            'function ff(){try{throw"REAL"}catch(xx){return xx}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_nested_destructuring_write_unbinds_a_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){({a:{b:x}}={a:{b:"LOCAL"}});return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_function_with_a_call_default_hides_no_outer_one(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function helper(){return"WRONG"}'
+            'function outer(){return helper();function helper(x=g()){return"REAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_for_head_binding_ends_with_its_loop(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="REAL";'
+            'function ff(){for(let xx="LOCAL";;){break}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_quoted_paren_default_keeps_a_method_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            '$t({name:Qz,maxResultSizeChars:1,description(xx,a="("){return xx}});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_catch_parameter_shadows_a_bound_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){try{throw"LOCAL"}catch(x){return x}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_for_head_binding_shadows_a_bound_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){for(const x of ["LOCAL"]){return x}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_destructured_for_head_without_a_space_shadows_a_bound_parameter(
+        self,
+    ) -> None:
+        for head in ("const{x}", "let{x}", "const[x]", "let[x]"):
+            of = "[{x:'L'}]" if "{" in head else "[['L']]"
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(x){{for({head}of{of}){{return x}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_sees_the_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_ends_at_its_statement(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)g(x);return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_nested_statement_in_an_unbraced_for_body_keeps_the_head_binding(
+        self,
+    ) -> None:
+        for body in (
+            "if(x)return x",
+            "for(const y of b)return x",
+            "if(t(x,{k:1}))return x",
+            "return c?{k:1}:x",
+        ):
+            with self.subTest(body=body):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(x){{for(const x of a){body}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_ending_in_a_block_ends_its_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x,c){for(const x of a)if(c){g()}return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_for_head_binding_named_of_shadows_a_bound_parameter(self) -> None:
+        for head in ("const of of a", "const{of}of a"):
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(of){{for({head}){{return of}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_for_head_binding_shadows_an_outer_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            "function ff(){for(let xx of a){return xx}}"
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_quoted_paren_in_a_control_head_keeps_a_var_function_scoped(
+        self,
+    ) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            'function ff(){if(a==="("){var xx="REAL"}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_an_unsafe_integer_in_a_template_stays_unresolved(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`n${9007199254740993}`});'
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "n9007199254740993")
+
+    def test_a_top_level_if_block_reads_no_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "if(flag){$t({name:Qz,maxResultSizeChars:1,description:zz})}"
+            'var zz="later";'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "later")
+
+    def test_a_top_level_alias_reads_no_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";let tt=later;'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return tt.p}});"
+            'var later={p:"LATER"};'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_later_declaration_must_be_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ff()});'
+            'function outer(){function ff(){return"WRONG"}}function ff(){return"REAL"}'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_huge_bigint_does_not_abort_the_run(self) -> None:
+        big = "0x1" + "0" * 400 + "n"
+        src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,description:{big}||"F"}});'
+        self.assertEqual(_tool(src, "Probe")["description"], "")
+
+    def test_a_deferred_call_argument_reads_a_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function ff(a){return a}function outer(){return ff(xx)}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+            'var xx="REAL";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_an_eager_call_does_not_read_a_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function dd(){return zz}'
+            "$t({name:Qz,maxResultSizeChars:1,description:dd()});"
+            'var zz="later";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_import_text_in_a_string_links_nothing(self) -> None:
+        src = _modules(
+            'var jd="Foreign";export{jd};',
+            'var jd="Local",Qz="Probe",s="import{jd}from\\"x\\"";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});"
+            'var t="export{Qz}";',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a Local script")
+
+    def test_a_name_two_modules_export_is_ambiguous(self) -> None:
+        src = _modules(
+            'var jd="One";export{jd};',
+            'var jd="Two";export{jd};',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});",
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a … script")
+
+    def test_a_single_letter_function_resolves_only_at_module_top_level(self) -> None:
+        tool = 'var B="Projects";$t({name:B,maxResultSizeChars:1,async description(){return P({memory:1})}});'
+        body = "function P({memory:e}){return`Read and write the Project.`}" + tool
+        self.assertEqual(
+            _tool(_modules(body), "Projects")["description"],
+            "Read and write the Project.",
+        )
+        nested = "function o(){function P(){return`Nested.`}}" + tool
+        self.assertEqual(
+            _tool(_modules(nested), "Projects")["description_source"], "unresolved"
+        )
+        self.assertEqual(_tool(body, "Projects")["description_source"], "unresolved")
 
 
 class TestAgentAndToolIntegrity(unittest.TestCase):
@@ -1621,6 +2420,566 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
             )
         self.assertEqual(block["tools"]["status"], "broken")
         self.assertEqual(block["status"], "ok")
+
+
+_PAD = "x" * 5000
+
+
+def _plugin_modules(**swap: str) -> list[str]:
+    """Modules shaped like the 2.1.287 built-in plugin registry: a registrar
+    module, the loader, and one module per plugin. `swap` replaces a module."""
+    modules = {
+        "registrar": 'var _i="builtin";function ro(){return S}'
+        "function Z_(e){ro().builtinPlugins.set(e.name,e);let o=e.hooksModule}"
+        "function zv(e){return e.endsWith(`@${_i}`)}"
+        "function PQ(){for(let[t,n]of ro().builtinPlugins){let s=`${t}@${_i}`,"
+        "a=n.defaultEnabled??!0}}"
+        'var A=new Map([["mermaid","cc-plugin-mermaid"],["sec-default","cc-plugin-sec-default"]]);'
+        "function Uo(n){for(let r of n)Z_({name:r,description:`${r}, seated`})}"
+        "export{Z_,zv,Uo};",
+        "loader": 'import{Xue}from"/$bunfs/root/chunk-l.js";'
+        "function Jve(){let e=ro();if(e.builtinPluginsInitialized)return;"
+        'if(e.builtinPluginsInitialized=!0,Xue("cc-plugin-sec-default",()=>import.meta.require("/$bunfs/root/c1.js")),'
+        'Xue("cc-plugin-agents-md",()=>import.meta.require("/$bunfs/root/c2.js")),'
+        'a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"){'
+        'if(Xue("cc-plugin-mermaid",()=>import.meta.require("/$bunfs/root/c3.js")),!c7r())'
+        'Xue("cc-plugin-tips",()=>import.meta.require("/$bunfs/root/c4.js"))}'
+        'let i=a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"&&!c7r();'
+        'if(i)Xue("cc-plugin-claude-test",()=>import.meta.require("/$bunfs/root/c5.js"))}'
+        "export{Jve};",
+        "sec": 'import{Z_}from"/$bunfs/root/chunk-r.js";var ZYe="cc-plugin-sec-default";'
+        'var m=v(function(a,b){b.exports={scan:{hooks:["classic.*","tool.check"],'
+        'calls:["ui.log"]},files:{}}});'
+        'var ge=()=>Z_({name:ZYe,description:"Security default",'
+        "enabledFromTrustedSettingsOnly:!0,enabledFromPolicyOnly:!0,"
+        "hooksModule:VU(1,m,()=>m())});export{ge as registerPlugin};",
+        # The name constant sits more than 4 KiB ahead of the registration.
+        "agents": 'import{Z_}from"/$bunfs/root/chunk-r.js";var W=!0;'
+        'var B=()=>lo("tengu_agents_md_mod",W);var K="cc-plugin-agents-md";'
+        'var H="AGENTS.md as project instructions";var pad="'
+        + _PAD
+        + '";var Qe=()=>Z_({name:K,description:H,isAvailable:B,userConfig:ne});'
+        "export{Qe as registerPlugin};",
+        "mermaid": 'import{Z_}from"/$bunfs/root/chunk-r.js";var f=()=>!1;'
+        'var c=()=>dQ()&&lo("tengu_mermaid_mod",f());'
+        'var h={name:"cc-plugin-mermaid",description:"Mermaid in the terminal",'
+        "isAvailable:c,defaultEnabled:!1};"
+        'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],calls:[]},files:{}}});'
+        "var B=()=>Z_({...h,hooksModule:VU(1,{register:1},()=>m())});"
+        "export{B as registerPlugin};",
+        "tips": 'import{Z_}from"/$bunfs/root/chunk-r.js";'
+        'var Xo={name:"diff",description:"Toggle the diff panel"};'
+        "async function Vn(p){await p.registerCommand(Xo)}"
+        "var api={registerCommand:(u)=>p.command.register(u)};"
+        'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
+        'calls:["command.register"]},files:{}}});'
+        'function se(){Z_({name:"cc-plugin-tips",description:"Spinner tips",'
+        "hooksModule:VU(1,m,()=>m())})}export{se as registerPlugin};",
+        "test": 'import{Z_}from"/$bunfs/root/chunk-r.js";'
+        'var w=Object.freeze({run:"claude-test",draft:"claude-test-draft"});'
+        'var De=Object.freeze({description:"Check that the web app still works"});'
+        'var Pe=Object.freeze({description:"Drafts spec files"});'
+        "function X(e,r){return{...r,name:w[e],async getPromptForCommand(){return[]}}}"
+        'var Fe=[X("run",{...De,userInvocable:!0}),X("draft",{...Pe,userInvocable:!1})];'
+        'var b="cc-plugin-claude-test";var g="0.4.15";'
+        'var xe=()=>!Il("hipaa")&&lo("tengu_mellow_hollerith",!1);'
+        'var rt=v(function(x,y){y.exports={scan:{hooks:["command.run"],calls:["mcp.connect"]},'
+        'files:{"agents/author.md":`---\nname: author\ndescription: Writes spec drafts.\n'
+        '---\nbody`,"examples/a.ts":"x"}}});'
+        'function _r(){Z_({name:b,description:"Claude Test",version:g,isAvailable:xe,'
+        "skills:Fe,get mcpServers(){return 1},hooksModule:VU(1,I,()=>rt())})}"
+        "export{_r as registerPlugin};",
+        # Another module's own `Z_` is not the registrar.
+        "foreign": 'function Z_(e){return e}var q=Z_({seccompConfig:1,name:"bwrap"});',
+    }
+    modules.update(swap)
+    return list(modules.values())
+
+
+def _plugins(**swap: str) -> tuple[dict, dict]:
+    src = _modules(*_plugin_modules(**swap))
+    return inv.extract_builtin_plugins(src, inv.build_brace_map(src))
+
+
+class TestBuiltinPlugins(unittest.TestCase):
+    def test_every_registration_is_found_by_the_registrar_body(self) -> None:
+        plugins, notes = _plugins()
+        self.assertEqual(
+            sorted(plugins),
+            [
+                "cc-plugin-agents-md",
+                "cc-plugin-claude-test",
+                "cc-plugin-mermaid",
+                "cc-plugin-sec-default",
+                "cc-plugin-tips",
+            ],
+        )
+        self.assertEqual(notes["registrars"], ["Z_"])
+        self.assertEqual(notes["factory_registrations"], 1)
+        self.assertEqual(notes["loader_callees"], ["Xue"])
+        self.assertEqual(notes["loaded_not_registered"], [])
+        self.assertNotIn("unresolved_names", notes)
+
+    def test_id_and_aliases_come_from_the_bundle(self) -> None:
+        rec = _plugins()[0]["cc-plugin-mermaid"]
+        self.assertEqual(rec["id"], "cc-plugin-mermaid@builtin")
+        self.assertEqual(rec["aliases"], ["mermaid"])
+
+    def test_load_conditions_follow_the_loader_statements(self) -> None:
+        plugins = _plugins()[0]
+        self.assertEqual(plugins["cc-plugin-sec-default"]["load"], "unconditional")
+        self.assertEqual(plugins["cc-plugin-sec-default"]["load_guards"], [])
+        entry = 'a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"'
+        self.assertEqual(plugins["cc-plugin-mermaid"]["load_guards"], [entry])
+        self.assertEqual(plugins["cc-plugin-tips"]["load_guards"], [entry, "!c7r()"])
+        # `if(i)` reads the declaration `let i=...`.
+        self.assertEqual(
+            plugins["cc-plugin-claude-test"]["load_guards"], [entry + "&&!c7r()"]
+        )
+
+    def test_an_else_branch_leaves_every_load_unresolved(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            '"/$bunfs/root/c5.js"))}', '"/$bunfs/root/c5.js"));else f()}'
+        )
+        plugins = _plugins(loader=loader)[0]
+        self.assertIsNone(plugins["cc-plugin-sec-default"]["load"])
+        self.assertIsNone(plugins["cc-plugin-sec-default"]["load_guards"])
+
+    def test_a_spread_descriptor_supplies_the_fields(self) -> None:
+        rec = _plugins()[0]["cc-plugin-mermaid"]
+        self.assertEqual(rec["description"], "Mermaid in the terminal")
+        self.assertIs(rec["default_enabled"], False)
+        self.assertEqual(rec["default_enabled_source"], "literal")
+        self.assertEqual(
+            rec["gate_flags"], [{"flag": "tengu_mermaid_mod", "default": False}]
+        )
+        self.assertEqual(rec["hook_events"], ["ui.render"])
+        self.assertEqual(rec["partial"], [])
+
+    def test_a_module_constant_far_ahead_resolves_the_name(self) -> None:
+        rec = _plugins()[0]["cc-plugin-agents-md"]
+        self.assertEqual(rec["name_source"], "constant")
+        self.assertEqual(rec["description"], "AGENTS.md as project instructions")
+        self.assertIs(rec["default_enabled"], True)
+        self.assertEqual(rec["default_enabled_source"], "absent-default")
+        self.assertEqual(
+            rec["gate_flags"], [{"flag": "tengu_agents_md_mod", "default": True}]
+        )
+        self.assertTrue(rec["user_config"])
+        self.assertEqual(rec["hook_events"], [])
+
+    def test_the_default_is_unresolved_without_the_consumer_rule(self) -> None:
+        registrar = _plugin_modules()[0].replace("n.defaultEnabled??!0", "n.x")
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-agents-md"]
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("default_enabled", rec["partial"])
+
+    def test_policy_flags_are_read_as_written(self) -> None:
+        rec = _plugins()[0]["cc-plugin-sec-default"]
+        self.assertIs(rec["enabled_from_policy_only"], True)
+        self.assertIs(rec["enabled_from_trusted_settings_only"], True)
+        self.assertIs(rec["gated"], False)
+        self.assertEqual(rec["hook_events"], ["classic.*", "tool.check"])
+
+    def test_factory_skills_embedded_agents_and_mcp(self) -> None:
+        rec = _plugins()[0]["cc-plugin-claude-test"]
+        self.assertEqual(rec["version"], "0.4.15")
+        self.assertEqual(rec["mcp_servers"], "getter")
+        skills = {s["name"]: s for s in rec["skills"]}
+        self.assertEqual(sorted(skills), ["claude-test", "claude-test-draft"])
+        self.assertEqual(
+            skills["claude-test"]["description"], "Check that the web app still works"
+        )
+        self.assertIs(skills["claude-test"]["user_invocable"], True)
+        self.assertIs(skills["claude-test-draft"]["user_invocable"], False)
+        self.assertEqual(skills["claude-test"]["source"], "factory")
+        self.assertEqual(
+            rec["agents"],
+            [
+                {
+                    "name": "author",
+                    "name_source": "frontmatter",
+                    "description": "Writes spec drafts.",
+                    "description_source": "frontmatter",
+                    "file": "agents/author.md",
+                    "source": "embedded-file",
+                }
+            ],
+        )
+        self.assertEqual(rec["partial"], [])
+
+    def test_a_registered_command_resolves_and_a_pass_through_is_skipped(self) -> None:
+        rec = _plugins()[0]["cc-plugin-tips"]
+        self.assertEqual(
+            [(c["name"], c["description"]) for c in rec["commands"]],
+            [("diff", "Toggle the diff panel")],
+        )
+        self.assertEqual(rec["partial"], [])
+
+    def test_an_unresolved_command_argument_leaves_commands_partial(self) -> None:
+        tips = _plugin_modules()[5].replace(
+            "p.registerCommand(Xo)", "p.registerCommand(zz())"
+        )
+        rec = _plugins(tips=tips)[0]["cc-plugin-tips"]
+        self.assertIn("commands", rec["partial"])
+
+    def test_an_unresolved_spread_marks_absent_fields_unresolved(self) -> None:
+        mermaid = _plugin_modules()[4].replace(
+            "Z_({...h,", 'Z_({...hh,name:"cc-plugin-mermaid",'
+        )
+        rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
+        self.assertEqual(rec["description_source"], "unresolved")
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("description", rec["partial"])
+        self.assertIn("skills", rec["partial"])
+
+    def test_every_field_an_unresolved_spread_hides_is_partial(self) -> None:
+        # No isAvailable, hooksModule or manifest of its own: each could sit
+        # in the unresolved spread, so each is unknown and named in `partial`.
+        agents = _plugin_modules()[3].replace(
+            "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
+            "Z_({...zz,name:K,description:H})",
+        )
+        plugins, notes = _plugins(agents=agents)
+        rec = plugins["cc-plugin-agents-md"]
+        for key in (
+            "gated",
+            "hook_events",
+            "hooks_module",
+            "user_config",
+            "classic_hooks",
+            "mcp_servers",
+            "default_enabled",
+        ):
+            self.assertIsNone(rec[key], key)
+            self.assertIn(key, rec["partial"], key)
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+        self.assertTrue(any("cc-plugin-agents-md" in a for a in lane["advisories"]))
+
+    def test_a_complete_record_reads_absent_keys_as_absent(self) -> None:
+        rec = _plugins()[0]["cc-plugin-agents-md"]
+        self.assertIs(rec["hooks_module"], False)
+        self.assertIs(rec["gated"], True)
+        self.assertEqual(rec["hook_events"], [])
+        self.assertEqual(rec["partial"], [])
+
+    def test_an_unread_load_position_is_partial(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            '"/$bunfs/root/c5.js"))}', '"/$bunfs/root/c5.js"));else f()}'
+        )
+        rec = _plugins(loader=loader)[0]["cc-plugin-sec-default"]
+        self.assertIn("load", rec["partial"])
+
+    def _test_module(self, old: str, new: str) -> dict:
+        test = _plugin_modules()[6]
+        self.assertIn(old, test)
+        return _plugins(test=test.replace(old, new))[0]["cc-plugin-claude-test"]
+
+    def test_unresolved_manifest_calls_leave_commands_partial(self) -> None:
+        rec = self._test_module('calls:["mcp.connect"]', "calls:QQ")
+        self.assertIn("commands", rec["partial"])
+        # A manifest that declares no calls at all registers none: absent.
+        rec = self._test_module('calls:["mcp.connect"]', 'other:["x"]')
+        self.assertNotIn("commands", rec["partial"])
+
+    def test_a_block_scalar_description_is_read(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n",
+            "description: >\n  Writes spec\n  drafts.\n",
+        )
+        self.assertEqual(rec["agents"][0]["description"], "Writes spec drafts.")
+        self.assertNotIn("agents", rec["partial"])
+
+    def test_an_unparsed_embedded_description_leaves_its_kind_partial(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n", "description: {a: b}\n"
+        )
+        self.assertEqual(rec["agents"][0]["description_source"], "unresolved")
+        self.assertIn("agents", rec["partial"])
+
+    def test_an_embedded_file_without_a_frontmatter_name_is_partial(self) -> None:
+        rec = self._test_module("name: author\n", "")
+        self.assertEqual(rec["agents"][0]["name_source"], "file-name")
+        self.assertIn("agents", rec["partial"])
+
+    def test_a_non_literal_files_entry_leaves_every_file_kind_partial(self) -> None:
+        rec = self._test_module('"examples/a.ts":"x"', '[pathOf()]:"x"')
+        for kind in ("agents", "commands", "skills"):
+            self.assertIn(kind, rec["partial"])
+
+    def test_a_non_literal_files_value_leaves_every_file_kind_partial(self) -> None:
+        rec = self._test_module(
+            'files:{"agents/author.md":',
+            'files:F,x:{"agents/author.md":',
+        )
+        self.assertEqual(rec["agents"], [])
+        for kind in ("agents", "commands", "skills"):
+            self.assertIn(kind, rec["partial"])
+
+    def test_an_inline_skill_with_an_unevaluable_description_is_partial(self) -> None:
+        authoring = (
+            'import{Z_}from"/$bunfs/root/chunk-r.js";'
+            'var f=Object.freeze({name:"plugin-authoring",description:helper(),'
+            "userInvocable:!0});"
+            'Z_({name:"cc-plugin-plugin-authoring",description:"Plugin authoring",'
+            "skills:[f]});"
+        )
+        plugins = _plugins(authoring=authoring)[0]
+        rec = plugins["cc-plugin-plugin-authoring"]
+        self.assertEqual(rec["skills"][0]["description_source"], "unresolved")
+        self.assertIn("skills", rec["partial"])
+
+    def test_a_hooks_module_without_a_readable_manifest_is_partial(self) -> None:
+        tips = _plugin_modules()[5].replace(
+            'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
+            'calls:["command.register"]},files:{}}});',
+            "",
+        )
+        rec = _plugins(tips=tips)[0]["cc-plugin-tips"]
+        for key in ("hook_events", "agents", "commands"):
+            self.assertIn(key, rec["partial"])
+
+    def test_an_unread_gate_or_flag_default_is_partial(self) -> None:
+        rec = self._test_module("isAvailable:xe,", "isAvailable:yy,")
+        self.assertIsNone(rec["gate_flags"])
+        self.assertIn("gate_flags", rec["partial"])
+        rec = self._test_module(
+            'lo("tengu_mellow_hollerith",!1)', 'lo("tengu_mellow_hollerith",q())'
+        )
+        self.assertEqual(
+            rec["gate_flags"], [{"flag": "tengu_mellow_hollerith", "default": None}]
+        )
+        self.assertIn("gate_flags", rec["partial"])
+
+    def test_a_present_but_unresolved_description_is_partial(self) -> None:
+        rec = self._test_module('description:"Claude Test",', "description:qq(),")
+        self.assertEqual(rec["description_source"], "unresolved")
+        self.assertIn("description", rec["partial"])
+
+    def test_an_unresolved_skill_or_command_description_is_partial(self) -> None:
+        rec = self._test_module(
+            'Object.freeze({description:"Drafts spec files"})',
+            "Object.freeze({description:qq()})",
+        )
+        self.assertIn("skills", rec["partial"])
+        tips = _plugin_modules()[5].replace(
+            'description:"Toggle the diff panel"', "description:qq()"
+        )
+        self.assertIn("commands", _plugins(tips=tips)[0]["cc-plugin-tips"]["partial"])
+
+    def test_an_unresolved_marketplace_leaves_the_id_partial(self) -> None:
+        registrar = _plugin_modules()[0].replace('var _i="builtin";', "")
+        plugins, notes = _plugins(registrar=registrar)
+        rec = plugins["cc-plugin-tips"]
+        self.assertIsNone(rec["id"])
+        self.assertIn("id", rec["partial"])
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+
+    def test_a_duplicate_registration_degrades_the_lane(self) -> None:
+        tips = _plugin_modules()[5] + 'Z_({name:"cc-plugin-tips",description:"again"});'
+        plugins, notes = _plugins(tips=tips)
+        self.assertEqual(notes["duplicate_registrations"], ["cc-plugin-tips"])
+        self.assertIn("registration", plugins["cc-plugin-tips"]["partial"])
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+
+    # Final-round verifier repros. Each is the simplest fail-closed reading.
+
+    def _loader(self, before: str) -> dict:
+        """The plugins with `before` inserted ahead of the loader's first call."""
+        loader = _plugin_modules()[1].replace(
+            "if(e.builtinPluginsInitialized=!0,",
+            before + "if(e.builtinPluginsInitialized=!0,",
+        )
+        return _plugins(loader=loader)[0]
+
+    def test_an_early_exit_with_a_value_or_throw_guards_later_calls(self) -> None:
+        for exit_ in ("return!1;", "throw Error();", "{f();return}"):
+            rec = self._loader(f"if(gate()){exit_}")["cc-plugin-sec-default"]
+            self.assertEqual(rec["load"], "conditional", exit_)
+            self.assertEqual(rec["load_guards"], ["!(gate())"], exit_)
+
+    def test_an_unrecognized_exit_leaves_later_loads_partial(self) -> None:
+        rec = self._loader("if(gate()){if(x())return;f()}")["cc-plugin-sec-default"]
+        self.assertIsNone(rec["load"])
+        self.assertIn("load", rec["partial"])
+
+    def test_a_compound_latch_test_leaves_later_loads_partial(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            "if(e.builtinPluginsInitialized)return;",
+            "if(off()||e.builtinPluginsInitialized)return;",
+        )
+        rec = _plugins(loader=loader)[0]["cc-plugin-sec-default"]
+        self.assertIsNone(rec["load"])
+        self.assertIn("load", rec["partial"])
+
+    def test_a_key_before_an_unresolved_spread_is_not_trusted(self) -> None:
+        mermaid = _plugin_modules()[4].replace(
+            "Z_({...h,",
+            'Z_({...h,defaultEnabled:!1,...unk,name:"cc-plugin-mermaid",',
+        )
+        rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
+        # defaultEnabled sits before `...unk`, which may override it.
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("default_enabled", rec["partial"])
+        # hooksModule after the last unresolved spread stays read.
+        self.assertIs(rec["hooks_module"], True)
+
+    def test_a_name_before_an_unresolved_spread_leaves_the_registration_unresolved(
+        self,
+    ) -> None:
+        mermaid = _plugin_modules()[4].replace(
+            "Z_({...h,", 'Z_({name:"cc-plugin-mermaid",...hh,'
+        )
+        plugins, notes = _plugins(mermaid=mermaid)
+        self.assertNotIn("cc-plugin-mermaid", plugins)
+        self.assertTrue(notes["unresolved_names"])
+
+    def test_a_substitution_in_an_embedded_file_leaves_its_kind_partial(self) -> None:
+        rec = self._test_module("name: author\n", "name: ${N}\n")
+        self.assertIn("agents", rec["partial"])
+        self.assertNotIn("…", rec["agents"][0]["name"])
+
+    def test_a_multi_line_plain_scalar_description_is_folded(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n",
+            "description: Writes spec\n  drafts for the app.\n",
+        )
+        self.assertEqual(
+            rec["agents"][0]["description"], "Writes spec drafts for the app."
+        )
+        self.assertNotIn("agents", rec["partial"])
+
+    def test_a_spread_in_the_manifest_declaration_is_unresolved(self) -> None:
+        rec = self._test_module("scan:{hooks:", "scan:{...base,hooks:")
+        self.assertIsNone(rec["hook_events"])
+        self.assertIn("hook_events", rec["partial"])
+        self.assertIn("commands", rec["partial"])
+
+    def test_the_marketplace_comes_from_the_registry_walk_only(self) -> None:
+        registrar = _plugin_modules()[0].replace(
+            "function ro(){return S}",
+            'function ro(){return S}var V="1.0.0";function ver(n){return`${n}@${V}`}',
+        )
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        self.assertEqual(rec["id"], "cc-plugin-tips@builtin")
+        registrar = registrar.replace("`${t}@${_i}`", "t")
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        self.assertIsNone(rec["id"])
+        self.assertIn("id", rec["partial"])
+
+    def test_a_hooks_module_without_a_manifest_leaves_skills_partial(self) -> None:
+        tips = _plugin_modules()[5].replace(
+            'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
+            'calls:["command.register"]},files:{}}});',
+            "",
+        )
+        self.assertIn("skills", _plugins(tips=tips)[0]["cc-plugin-tips"]["partial"])
+
+    def test_a_quoted_or_computed_plugin_key_is_an_unresolved_read(self) -> None:
+        for key in ('"defaultEnabled":!1', "[K]:!1", "isAvailable"):
+            agents = _plugin_modules()[3].replace(
+                "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
+                f"Z_({{{key},name:K,description:H,isAvailable:B}})",
+            )
+            rec = _plugins(agents=agents)[0]["cc-plugin-agents-md"]
+            self.assertIsNone(rec["default_enabled"], key)
+            self.assertIn("default_enabled", rec["partial"], key)
+            self.assertIsNone(rec["user_config"], key)
+
+    def test_a_quoted_or_computed_manifest_key_is_unresolved(self) -> None:
+        for decl in ('scan:{"hooks":["command.run"],', 'scan:{[K]:["command.run"],'):
+            rec = self._test_module('scan:{hooks:["command.run"],', decl)
+            self.assertIsNone(rec["hook_events"], decl)
+            self.assertIn("hook_events", rec["partial"], decl)
+
+    def test_the_default_rule_is_read_only_where_the_registry_is_walked(self) -> None:
+        # The real rule removed from the walk; a decoy elsewhere in the bundle.
+        registrar = _plugin_modules()[0].replace("n.defaultEnabled??!0", "n.x")
+        decoy = "function other(o){return o.defaultEnabled??!0}"
+        plugins, notes = _plugins(registrar=registrar, decoy=decoy)
+        self.assertFalse(notes["default_enabled_rule_found"])
+        rec = plugins["cc-plugin-agents-md"]
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("default_enabled", rec["partial"])
+        # Two disagreeing defaults in the walk are ambiguous, not true.
+        registrar = _plugin_modules()[0].replace(
+            "a=n.defaultEnabled??!0", "a=n.defaultEnabled??!0,b=n.defaultEnabled??!1"
+        )
+        self.assertIsNone(
+            _plugins(registrar=registrar)[0]["cc-plugin-agents-md"]["default_enabled"]
+        )
+
+    def test_no_registrar_is_an_error(self) -> None:
+        registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")
+        plugins, notes = _plugins(registrar=registrar)
+        self.assertEqual(plugins, {})
+        self.assertIn("error", notes)
+
+    def _integrity(self, plugins: dict, notes: dict) -> dict:
+        src = f'"{inv.VALIDATED_AGAINST}"' * 30 + "".join(
+            f'x{i}={{type:"local",name:"{n}",description:"d"}};'
+            for i, n in enumerate(inv.CANARY_COMMANDS)
+        )
+        return inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+            {"security-review": "x"},
+            plugins=plugins,
+            plugin_notes=notes,
+        )
+
+    def test_the_lane_is_ok_when_everything_resolves(self) -> None:
+        got = self._integrity(*_plugins())
+        self.assertEqual(got["lanes"][inv.PLUGIN_LANE]["status"], "ok")
+        self.assertEqual(got["status"], "ok")
+
+    def test_a_missing_canary_breaks_the_lane_only(self) -> None:
+        plugins, notes = _plugins()
+        del plugins["cc-plugin-sec-default"]
+        got = self._integrity(plugins, notes)
+        self.assertEqual(got["lanes"][inv.PLUGIN_LANE]["status"], "broken")
+        self.assertEqual(got["status"], "degraded")
+
+    def test_a_partial_plugin_or_a_missing_loader_degrades_the_lane(self) -> None:
+        plugins, notes = _plugins()
+        plugins["cc-plugin-tips"]["partial"] = ["commands"]
+        got = self._integrity(plugins, {**notes, "loader_found": False})
+        lane = got["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+        self.assertEqual(len(lane["advisories"]), 2)
+
+    def test_a_registration_the_loader_never_requires_degrades_the_lane(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            'if(i)Xue("cc-plugin-claude-test",()=>import.meta.require("/$bunfs/root/c5.js"))',
+            "",
+        )
+        plugins, notes = _plugins(loader=loader)
+        # The test-seat registration (`name:r`) is a factory, never listed here.
+        self.assertEqual(notes["registered_not_loaded"], ["cc-plugin-claude-test"])
+        self.assertEqual(notes["factory_registrations"], 1)
+        self.assertIs(plugins["cc-plugin-claude-test"]["in_loader"], False)
+        self.assertIs(plugins["cc-plugin-tips"]["in_loader"], True)
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+        self.assertTrue(any("never requires" in a for a in lane["advisories"]))
+
+    def test_without_a_loader_nothing_is_registered_not_loaded(self) -> None:
+        loader = _plugin_modules()[1].replace("builtinPluginsInitialized=!0", "x=!0")
+        plugins, notes = _plugins(loader=loader)
+        self.assertEqual(notes["registered_not_loaded"], [])
+        self.assertIsNone(plugins["cc-plugin-tips"]["in_loader"])
+
+    def test_a_loaded_plugin_without_a_registration_degrades_the_lane(self) -> None:
+        test = _plugin_modules()[6].replace("Z_({name:b,", "Y_({name:b,")
+        plugins, notes = _plugins(test=test)
+        self.assertEqual(notes["loaded_not_registered"], ["cc-plugin-claude-test"])
+        got = self._integrity(plugins, notes)
+        self.assertEqual(got["lanes"][inv.PLUGIN_LANE]["status"], "degraded")
 
 
 if __name__ == "__main__":

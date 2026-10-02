@@ -45,6 +45,10 @@ unknown flag, checks a value, or completes one. Two further mechanics bind autho
 2. **Modifiers.** `--flags`, each passing the [earned-flag test](#the-earned-flag-test). Their
    order among themselves carries no meaning.
 3. **Subject.** At most one (a path, a slug, an issue number), positional, last.
+   One repeatable positional slot of a single kind, such as `[path ...]`, counts as one subject
+   (the `...` grammar is the [argument-hint](../argument-hint/README.md) house style's).
+   Repeatable flags such as `[--artifacts <path>]...` fall under the nested-or-repeatable-flag
+   rule below, allowed only when a ground-1 parser accepts the form.
 
 The body reads `$ARGUMENTS` whole and parses it in prose. It never binds `$0`, `$1`, or `$name` to
 heterogeneous inputs: the action and the modifiers are optional, so the position of the subject
@@ -109,7 +113,7 @@ Recorded on [#4001](https://github.com/melodic-software/claude-code-plugins/issu
 | Question from #4001 | Decision | Rests on |
 |---|---|---|
 | Adopt `/skill[:name] [action] [--modifiers] <subject>`? | **Adopted** as proposed: the action and the subject are positional, and `--flags` are reserved for modifiers. | #4001 decision comment: POSIX Issue 8 XBD 12.2, GNU §4.8, clig.dev, Cobra, and no flag parser in Claude Code |
-| Allow more than one subject? | **Declined.** A skill takes at most one positional subject. | #4001 addendum, point 1 |
+| Allow more than one subject? | **Declined** for distinct positional subjects; one repeatable slot of a single kind counts as one subject. | #4001 addendum, point 1; #5554 owner decision |
 | Adopt the `arguments:` frontmatter field? | **Declined.** Named arguments are only positional aliases, and with no flag parser the field adds no validation. | #4001 addendum, point 2 |
 | Lint the shape in `skill-quality:check`? | **Declined for now.** Revisit once the convention has settled in practice. | #4001 addendum, point 3 |
 

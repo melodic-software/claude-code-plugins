@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+
+// Runs check-security-binding.mjs evaluation mode through the promotion-evidence
+// bootstrap and prints each promotable cell's effective state as JSON.
+//
+// Usage: node resolve-promotion-evidence.mjs --binding <file> --probe-evidence-root <dir>
+//          --evidence <file> --checkout <dir> [--worktree-root <dir> ...] --checker <file>
+//
+// The caller passes the four bootstrap option values (binding, probe evidence root,
+// evidence, checker). Prints {source, failClosedReason, cells: {<cell>: {bound,
+// effective, line}}} and exits 0, fail-closed results included. Fail-closed means
+// failClosedReason is set and every promotable cell is effective "unpromoted". It
+// fails closed on a missing, relative, or unresolvable path; a surface or checker that
+// is inside the checkout or a worktree root, or contains one, before or after symlinks
+// resolve; a checker that exits non-zero, times out, or prints no evaluation block; and
+// any line in that block that does not parse. It cannot tell an operator's option value
+// from one the caller chose: it enforces where a path sits, and the cycle step is
+// instructed to pass only the substituted option values. The checker runs with an
+// allowlisted environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH,
+// LD_PRELOAD and GIT_* values from a repository's settings env block never reach it. It
+// reports only what the checker printed and never re-derives the resolution algorithm.
+// It writes no file and reads nothing in the checkout.
+
+import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import process from "node:process";
+import { parseArgs } from "node:util";
+
+const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
+const BLOCK_HEADER = "Effective promotion state (evaluation mode):";
+const CELL_LINE = /^- ([A-Za-z0-9][A-Za-z0-9-]*): bound (\S+) -> effective (promoted|unpromoted)(?=$|[\s(])/;
+const TIMEOUT_MS = 60_000;
+const CHECKER_ENV_KEYS = ["PATH", "SystemRoot"];
+
+function emit(source, failClosedReason, printed = {}) {
+  const cells = failClosedReason === null ? { ...printed } : {};
+  for (const cell of PROMOTABLE_CELLS) cells[cell] ??= { bound: null, effective: "unpromoted", line: null };
+  process.stdout.write(`${JSON.stringify({ source, failClosedReason, cells }, null, 2)}\n`);
+  process.exit(0);
+}
+
+function isInside(child, root) {
+  const rel = relative(root, child);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+let values;
+try {
+  ({ values } = parseArgs({
+    options: {
+      binding: { type: "string" },
+      "probe-evidence-root": { type: "string" },
+      evidence: { type: "string" },
+      checkout: { type: "string" },
+      "worktree-root": { type: "string", multiple: true, default: [] },
+      checker: { type: "string" },
+    },
+    strict: true,
+    allowPositionals: false,
+  }));
+} catch (error) {
+  emit(null, `usage: ${error.message}`);
+}
+const source = values.evidence ?? null;
+
+// Returns the realpath, or fails closed with a reason naming the option.
+function resolveInput(option, value, roots) {
+  if (!value) emit(source, `--${option} not set`);
+  if (!isAbsolute(value)) emit(source, `--${option} ${value} is not an absolute path`);
+  let real;
+  try {
+    real = realpathSync.native(value);
+  } catch (error) {
+    emit(source, `--${option} ${value} cannot be resolved (${error.code ?? error.message})`);
+  }
+  for (const root of roots) {
+    for (const candidate of [resolve(value), real]) {
+      if (isInside(candidate, root)) emit(source, `--${option} ${value} is inside ${root}`);
+      if (isInside(root, candidate)) emit(source, `--${option} ${value} contains ${root}`);
+    }
+  }
+  return real;
+}
+
+// A root that does not exist yet is canonicalized through its longest existing prefix, so a
+// symlinked parent cannot hide where the root will land.
+function canonical(path) {
+  const missing = [];
+  let existing = path;
+  for (;;) {
+    try {
+      return resolve(realpathSync.native(existing), ...missing);
+    } catch {
+      const parent = dirname(existing);
+      if (parent === existing) return path;
+      missing.unshift(basename(existing));
+      existing = parent;
+    }
+  }
+}
+
+const checkout = resolveInput("checkout", values.checkout, []);
+const roots = [resolve(values.checkout), checkout];
+for (const root of values["worktree-root"]) {
+  if (!isAbsolute(root)) emit(source, `--worktree-root ${root} is not an absolute path`);
+  roots.push(resolve(root), canonical(resolve(root)));
+}
+
+const checker = resolveInput("checker", values.checker, roots);
+const binding = resolveInput("binding", values.binding, roots);
+const probeRoot = resolveInput("probe-evidence-root", values["probe-evidence-root"], roots);
+const evidence = resolveInput("evidence", values.evidence, roots);
+
+const checkerEnv = Object.fromEntries(
+  CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
+);
+const run = spawnSync(
+  process.execPath,
+  [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot],
+  { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+);
+if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
+if (run.status !== 0) {
+  const detail = (run.stderr ?? "").trim().split(/\r?\n/)[0].slice(0, 500);
+  emit(source, `checker exited ${run.status ?? `on signal ${run.signal}`}${detail ? `: ${detail}` : ""}`);
+}
+
+const lines = run.stdout.split(/\r?\n/);
+const start = lines.indexOf(BLOCK_HEADER);
+if (start === -1) emit(source, "checker printed no 'Effective promotion state' block");
+
+const printed = {};
+for (const line of lines.slice(start + 1)) {
+  if (line === "") continue;
+  const match = CELL_LINE.exec(line);
+  if (!match) emit(source, `checker line did not parse: ${line.slice(0, 500)}`);
+  const [, cell, bound, effective] = match;
+  if (Object.hasOwn(printed, cell)) emit(source, `checker printed ${cell} twice`);
+  printed[cell] = { bound, effective, line: line.slice(2) };
+}
+emit(source, null, printed);

@@ -23,7 +23,7 @@ Get-Process chrome | Where-Object { $_.MainWindowHandle -ne 0 } |
 
    ```bash
    playwright-cli -s=demo open https://example.com --headed
-   pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/force-chrome-foreground.ps1" -TitleMatch 'Example'
+   pwsh -NoProfile -File "<skill-dir>/scripts/force-chrome-foreground.ps1" -TitleMatch 'Example'
    ```
 
    Helper (`scripts/force-chrome-foreground.ps1`) wraps the Win32 `SetForegroundWindow` / `ShowWindow` P/Invoke and no-ops on non-Windows. Pass `-TitleMatch <regex>` to disambiguate when multiple Chrome windows are open.

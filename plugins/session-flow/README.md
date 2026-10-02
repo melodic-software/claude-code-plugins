@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling fifteen skills for one cohesive capability: managing the lifecycle of
+A Claude Code plugin bundling sixteen skills for one cohesive capability: managing the lifecycle of
 a working session. The skills answer where you are in the work, how to pause and resume it, how to
 recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
@@ -21,6 +21,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
+| `/session-flow:check` | Do node and jq resolve for the observer hook? Read-only; never installs. |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
 | `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |
@@ -215,8 +216,8 @@ adds a 2-3 line subjective-state note (the one signal disk cannot hold), then de
 to a fresh subagent that runs `retro`'s parser, selectively reads the flagged transcript spans, and
 classifies each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill
 change / new-skill candidate / tracker issue). Findings append to a cumulative running ledger, one
-stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default via
-`reference/topic-docs.md`). It captures and routes only: codification stays with `retro codify`,
+stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default).
+It captures and routes only: codification stays with `retro codify`,
 tracker filing is offered not automatic, the session is never scored, and it is non-terminating
 (unlike `handoff`, it does not `/clear`). Composes with `/loop` for periodic checkpoints.
 
@@ -242,8 +243,7 @@ boundary, and the deferred native Observer-Agents alternative are documented in
 A read-only orientation briefing: *where do we stand, what are we doing, and why.* Unlike the
 built-in `/recap` (which summarizes the conversation only and auto-fires on an idle terminal),
 `orient` also reads the durable, off-thread state a conversation does not hold: handoff
-save-points, the workflow checklist, running-retro ledgers (resolved through
-`reference/topic-docs.md`), plus git state, open PRs, and open work-items, and synthesizes a
+save-points, the workflow checklist, running-retro ledgers, plus git state, open PRs, and open work-items, and synthesizes a
 goal/why, where-we-stand, decisions-made, and direction briefing. A skill cannot invoke the built-in
 `/recap`, so it synthesizes the conversation summary inline and adds the durable layer on top. It is
 strictly read-only: it writes nothing and routes rather than acts. Freshness verification to
@@ -352,7 +352,7 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other fourteen skills are zero-config.
+A check-centric setup for the **observer substrate only**. The other fifteen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
@@ -370,11 +370,9 @@ The skills adapt to the consuming repo rather than imposing structure:
 - **Stage skills**. `workflow` routes to the repo's own stage skills when they exist; every stage
   degrades gracefully to inline execution.
 - **Artifact location**. `handoff` and `workflow` honor a repo-documented convention for
-  save-points/work journals (the `.claude/topic-docs.yaml` concern file, or the repo's `CLAUDE.md`
-  / rules); the defaults are `.work/handoffs/` for handoff save-points and
-  `.work/<slug>/workflow-checklist.md` for the per-topic workflow checklist, memory tier per the
-  marketplace topic-docs convention, self-ignoring and never committed
-  (`reference/topic-docs.md`).
+  save-points/work journals (the repo's `CLAUDE.md` / rules); the defaults are `.work/handoffs/`
+  for handoff save-points and `.work/<slug>/workflow-checklist.md` for the per-topic workflow
+  checklist, memory tier, self-ignoring and never committed.
 - **Quality gates and conventions**. Build/test/lint commands, review criteria, and codification
   targets all come from the consuming repo's own instruction files.
 

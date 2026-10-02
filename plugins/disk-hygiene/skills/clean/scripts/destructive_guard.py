@@ -67,6 +67,15 @@ import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
+# A whole-word quoted span: a quote at a word start, no quote inside, the same
+# quote closing it, then a space or the end. Braces are inert inside one.
+_WHOLE_WORD_QUOTED = re.compile(r"(?<![^ ])(?P<q>['\"])[^'\"]*(?P=q)(?= |$)")
+_BRACES = str.maketrans("", "", "{}")
+
+
+def _without_quoted_braces(command: str) -> str:
+    """``command`` with ``{`` and ``}`` dropped from inside whole-word quotes."""
+    return _WHOLE_WORD_QUOTED.sub(lambda m: m.group().translate(_BRACES), command)
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -181,10 +190,13 @@ def _literal_shell_words(
 
     ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
     path separator rather than an escape character (PowerShell commands); the
-    Bash default keeps rejecting it.
+    Bash default keeps rejecting it. ``{`` and ``}`` are accepted only inside a
+    whole-word quote, where they are literal; every other expansion or operator
+    character is rejected wherever it sits.
     """
     if not command or any(
-        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
+        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS
+        for value in _without_quoted_braces(command)
     ):
         return None
     words: list[str] = []
@@ -578,7 +590,7 @@ _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 # derived from the grammar: a newly declared subcommand is still denied until
 # someone decides whether it is read-only or a mutation that needs the prompt.
 _READONLY_ENGINE_SUBCOMMANDS = frozenset(
-    {"scan", "preview", "handoff-verify", "catalog"}
+    {"scan", "inventory", "preview", "handoff-verify", "catalog"}
 )
 _MUTATING_ENGINE_SUBCOMMANDS = frozenset({"apply", "handoff-apply"})
 
@@ -696,6 +708,29 @@ def _carries_marker(word: str) -> bool:
     """
     name = _PATH_SEPARATOR.split(word.casefold().rstrip("/\\"))[-1]
     return name == _ENGINE_MARKER
+
+
+def _is_interpreter(word: str) -> bool:
+    base = Path(word.casefold()).name
+    return base.startswith("python") or base in {"py", "py.exe"}
+
+
+def _reads_as_engine_payload(word: str) -> bool:
+    """Whether a word that is not the engine path still reads as an engine call.
+
+    A quoted compound payload (sh -c / pwsh -Command) whose first token is the
+    engine or an interpreter, or any word holding both the engine filename and
+    "python". The gate and its denial reason share this test, so the reason
+    names the word the gate acted on.
+    """
+    folded = word.casefold()
+    if _carries_marker(word) or _ENGINE_MARKER not in folded:
+        return False
+    if " " in word:
+        first_token = folded.split()[0]
+        if _carries_marker(first_token) or _is_interpreter(first_token):
+            return True
+    return "python" in folded
 
 
 # PowerShell also closes a quote opened with ' by any of these and a " by the
@@ -875,10 +910,6 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     the rest of the session once that belt has registered).
     """
 
-    def _is_interpreter(word: str) -> bool:
-        base = Path(word.casefold()).name
-        return base.startswith("python") or base in {"py", "py.exe"}
-
     bundled = _engine_script_path()
 
     def _samefile(word: str) -> bool:
@@ -1022,7 +1053,6 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         if Path(word.casefold()).name in _WRAPPERS
     ]
     for index, word in enumerate(words):
-        folded = word.casefold()
         if _carries_marker(word):
             if _samefile(word) or _within_plugin_cache_family(word):
                 # The word is one of THIS PLUGIN'S engines — the bundled one,
@@ -1056,13 +1086,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
                 # (`git diff -- hygiene.py`) still defer.
                 return True
             continue
-        if _ENGINE_MARKER in folded and " " in word:
-            first_token = folded.split()[0]
-            if _carries_marker(first_token) or _is_interpreter(first_token):
-                # A quoted compound payload (sh -c / pwsh -Command) whose first
-                # token is the engine or an interpreter is an invocation.
-                return True
-        if _ENGINE_MARKER in folded and "python" in folded:
+        if _reads_as_engine_payload(word):
             return True
     return False
 
@@ -1296,6 +1320,36 @@ def _is_authorized_data_root(value: str, authority: str | None) -> bool:
     return _data_root_key(value) == _data_root_key(authority)
 
 
+def _is_authorized_data_root_file(value: str, authority: str | None) -> bool:
+    """Accept only an absolute path whose real location is inside that data root.
+
+    The hook has no shell working directory, so a relative value is refused,
+    and symlinks are resolved so a link inside the root cannot point out of it
+    or onto state the engine and its hooks own there, such as the decision log.
+    """
+    if not authority or not os.path.isabs(value):
+        return False
+    try:
+        path = os.path.normcase(os.path.realpath(value))
+        root = os.path.normcase(os.path.realpath(authority))
+        return os.path.commonpath(
+            [path, root]
+        ) == root and not engine_grammar.is_engine_owned(os.path.relpath(path, root))
+    except (OSError, ValueError):
+        return False
+
+
+def _engine_external_checks(authority: str | None) -> dict[str, object]:
+    return {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+        engine_grammar.AUTHORIZED_DATA_ROOT_FILE: (
+            lambda value: _is_authorized_data_root_file(value, authority)
+        ),
+    }
+
+
 def _display_data_root(authority: str | None) -> str | None:
     if not authority:
         return None
@@ -1324,10 +1378,11 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     The interpreter must be this hook's own absolute Python and the script the
     bundled engine; everything after the subcommand is matched against the
     engine's declared grammar (``lib/engine_grammar.py``), which the engine's
-    own parser is built from. The one value that grammar cannot judge alone is
-    ``--data-root``: only the authorized root this hook resolved is admitted, and
-    the flag is mandatory here although the grammar keeps it optional, so the
-    guard does not depend on the engine refusing a state write without it.
+    own parser is built from. The values that grammar cannot judge alone are
+    ``--data-root``, where only the authorized root this hook resolved is
+    admitted, and the input files, which must sit inside that root. The flag is
+    mandatory here although the grammar keeps it optional, so the guard does not
+    depend on the engine refusing a state write without it.
     A token check proves presence: the grammar reads flag names only at flag
     positions and refuses any flag-shaped value, so a matched invocation that
     contains the token carries it as a flag.
@@ -1342,14 +1397,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     subcommand = tokens[2]
     if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
-    external_checks = {
-        engine_grammar.AUTHORIZED_DATA_ROOT: (
-            lambda value: _is_authorized_data_root(value, authority)
-        ),
-    }
     words = tokens[3:]
     if engine_grammar.DATA_ROOT_FLAG in words and engine_grammar.match_invocation(
-        subcommand, words, external_checks
+        subcommand, words, _engine_external_checks(authority)
     ):
         return subcommand
     return None
@@ -1421,7 +1471,9 @@ def _parse_bracket_test_words(command: str) -> list[str] | None:
     if len(text) < 2 or text[0] != "[" or text[-1] != "]":
         return None
     interior = text[1:-1]
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     stripped = interior.strip()
     if not stripped:
@@ -1649,7 +1701,9 @@ def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
     if rest != "]" and not rest.endswith(" ]"):
         return None
     interior = "" if rest == "]" else rest[:-1].strip()
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     if not interior:
         return head, []
@@ -2148,7 +2202,142 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
     )
 
 
-def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str:
+_OPERATOR_LABELS = {
+    char: label
+    for chars, label in (
+        ("|", "a pipe"),
+        ("<>", "a redirect"),
+        (";", "a ';'"),
+        ("&", "an '&'"),
+        ("$`(){}", "a substitution or expansion"),
+        ("*?[]~", "a glob or tilde"),
+        ("\r\n\t", "a newline or tab"),
+        ("!#", "a '!' or '#'"),
+    )
+    for char in chars
+}
+
+
+def _unparsable_reason(command: str) -> str:
+    """Name the first thing in ``command`` that ``_literal_shell_words`` rejects."""
+    for char in _without_quoted_braces(command):
+        if char in _OPERATOR_LABELS:
+            culprit = f"{_OPERATOR_LABELS[char]} ({char!r})"
+            break
+    else:
+        culprit = (
+            "a backslash"
+            if "\\" in command
+            else "a quote that does not wrap a whole word, or a non-space whitespace character"
+        )
+    return f"The command contains {culprit}, so it is not one plain literal invocation."
+
+
+def _resolves_to_engine(word: str) -> bool:
+    key = _script_path_key(word)
+    return key is not None and key == _script_path_key(str(_engine_script_path()))
+
+
+def _engine_mismatch_reason(command: str, authority: str | None) -> str:
+    """One sentence naming what ``classify_exact_engine_command`` refuses.
+
+    Deny path only; the caller has already denied and this decides nothing. It
+    walks the classifier's stages in order, except that when the command is not
+    the hook's Python, an engine operand or a word that reads as an engine
+    payload is named first: that word is what the gate acts on, whatever the
+    command's length.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None:
+        return _unparsable_reason(command)
+    python_ok = _is_current_python(tokens[0])
+    operand = (
+        None
+        if python_ok
+        else next((word for word in tokens[1:] if _resolves_to_engine(word)), None)
+    )
+    payload = (
+        None
+        if python_ok or operand is not None
+        else next((word for word in tokens if _reads_as_engine_payload(word)), None)
+    )
+    if payload is not None:
+        return (
+            f"{engine_grammar.clip_token(payload)} holds the engine filename with "
+            "an interpreter or as its first word, so the gate reads it as an "
+            "engine call."
+        )
+    if operand is not None:
+        named = (
+            "is the engine path"
+            if os.path.isabs(operand)
+            else "resolves to the engine from the current directory"
+        )
+        return (
+            f"{engine_grammar.clip_token(operand)} {named}, and only a call "
+            f'through "{_display_python()}" may name it; '
+            f"{engine_grammar.clip_token(tokens[0])} is not that interpreter."
+        )
+    if len(tokens) < 3:
+        return (
+            f"The command has {len(tokens)} word(s); an engine call is "
+            "<hook python> <engine script> <subcommand> <flags>."
+        )
+    if not python_ok:
+        return (
+            f"{engine_grammar.clip_token(tokens[0])} is not this hook's Python; "
+            f'the interpreter must be "{_display_python()}".'
+        )
+    if not _resolves_to_engine(tokens[1]):
+        return (
+            f"{engine_grammar.clip_token(tokens[1])} is not the bundled engine "
+            f'"{_display_path(_engine_script_path())}".'
+        )
+    subcommand = tokens[2]
+    if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
+        return (
+            f"{engine_grammar.clip_token(subcommand)} is not an engine "
+            f"subcommand; use one of {', '.join(_ALLOWED_ENGINE_SUBCOMMANDS)}."
+        )
+    words = tokens[3:]
+    if engine_grammar.DATA_ROOT_FLAG not in words:
+        return (
+            f"{engine_grammar.DATA_ROOT_FLAG} is missing; every engine call "
+            f"passes {engine_grammar.DATA_ROOT_FLAG} with the authorized root."
+        )
+    return (
+        engine_grammar.explain_mismatch(
+            subcommand, words, _engine_external_checks(authority)
+        )
+        or "The arguments do not match the engine grammar."
+    )
+
+
+def _engine_flag_order_rule() -> str:
+    heads = "; ".join(
+        f"{spec.name}: {engine_grammar.required_order(spec)}"
+        for spec in engine_grammar.SUBCOMMANDS
+        if spec.required
+    )
+    return (
+        "Flag order: required flags come first, in declared order "
+        f"({heads}), then optional flags in any order."
+    )
+
+
+_ENGINE_GATE_SCOPE = (
+    "Any command that contains the engine filename together with a pipe, "
+    "redirect, ;, substitution, or an absolute engine-path operand is gated. "
+    "The read-only forms that work name the engine by a relative path or bare "
+    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;. "
+    "A relative path or bare name that resolves to the installed engine from "
+    "the current directory is still gated."
+)
+
+
+def _bash_denial_guidance(
+    authority: str | None, mode: str | None = None, command: str | None = None
+) -> str:
     """Explain a Bash deny in the words of the surface that issued it.
 
     ``engine-gate`` (the plugin-level always-on hook) gates this engine
@@ -2158,16 +2347,25 @@ def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str
     that skill is invoked, and names how it clears. Both bodies disclose the
     same classifier allow-list so the denial cannot teach a grammar the
     classifier does not implement. Unrecognized ``mode`` values fall back to
-    ``belt``, matching ``resolve_mode``.
+    ``belt``, matching ``resolve_mode``. ``command`` is read only by the
+    ``engine-gate`` body, to name what failed in the denied command.
     """
     resolved = resolve_mode() if mode is None else mode
     grammar = _bash_allowlist_disclosure(authority)
     if resolved == _MODE_ENGINE_GATE:
+        reason = (
+            f"{_engine_mismatch_reason(command, authority)} "
+            if command is not None
+            else ""
+        )
         return (
             "Disk-hygiene engine gate: this specific engine invocation is "
-            "gated. The rest of the Bash lane is unaffected, and "
+            "gated. " + reason + "The rest of the Bash lane is unaffected, and "
             "/disk-hygiene:clean need not have been invoked for this to fire. "
-            "Allowed shapes for this invocation are "
+            + _engine_flag_order_rule()
+            + " "
+            + _ENGINE_GATE_SCOPE
+            + " Allowed shapes for this invocation are "
             + grammar
             + " Supporting inspection of this invocation may use that small "
             "Bash allowlist or non-Bash read-only tools; any other shape of "
@@ -2849,7 +3047,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         start,
         "deny",
         "not-exact-engine-command",
-        _bash_denial_guidance(authority),
+        _bash_denial_guidance(authority, command=command),
     )
 
 

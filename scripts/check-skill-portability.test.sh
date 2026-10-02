@@ -577,7 +577,7 @@ rm -f "$f"
 
 # The compliant shape: the contract is bundled with the plugin, so resolution
 # needs no network and no publisher repo name.
-f="$(tmpfile 'Read the bundled contract at `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`.')"
+f="$(tmpfile 'Read the bundled contract at `${CLAUDE_PLUGIN_ROOT}/reference/contract.md`.')"
 if scan_with "$ft" "$f" >/dev/null 2>&1; then
   ok "forge class: a bundled CLAUDE_PLUGIN_ROOT reference is not flagged"
 else

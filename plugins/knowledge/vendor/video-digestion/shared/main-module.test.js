@@ -1,18 +1,29 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const moduleUrl = pathToFileURL(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "main-module.js"),
 ).href;
 
+const scratchDirs = [];
+after(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+});
+
+function scratch(prefix) {
+  const dir = mkdtempSync(path.join(tmpdir(), prefix));
+  scratchDirs.push(dir);
+  return dir;
+}
+
 /** A directory holding probe.mjs (prints isMainModule for itself) and runner.mjs (imports the probe). */
 function fixture() {
-  const dir = mkdtempSync(path.join(tmpdir(), "main-module-"));
+  const dir = scratch("main-module-");
   writeFileSync(
     path.join(dir, "probe.mjs"),
     `import { isMainModule } from ${JSON.stringify(moduleUrl)};\nconsole.log(isMainModule(import.meta.url));\n`,
@@ -37,7 +48,7 @@ describe("isMainModule", () => {
   });
 
   it("is true when the entrypoint path goes through a symlink to its directory", () => {
-    const link = path.join(mkdtempSync(path.join(tmpdir(), "main-module-link-")), "linked");
+    const link = path.join(scratch("main-module-link-"), "linked");
     symlinkSync(fixture(), link, "junction");
     assert.equal(run([path.join(link, "probe.mjs")]), "true");
   });

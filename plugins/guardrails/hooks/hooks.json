@@ -1,6 +1,19 @@
 {
   "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; and verifies CLI flags, skill references and cited paths after a write.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"guardrails: node is not on PATH, so its guards cannot launch and enforce nothing. Install Node.js and restart Claude Code. Run /guardrails:check to verify.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the guards of the guardrails plugin cannot launch and enforce nothing. Tell the user. Run /guardrails:check to verify.\"}}'",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",

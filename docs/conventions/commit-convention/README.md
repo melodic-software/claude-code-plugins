@@ -171,7 +171,3 @@ purposes without it.
 Naming coincidence recorded per the seam rules: the convention file is `.claude/source-control.md`
 after the concern (delivery workflow), not the plugin. The plugin-name collision is incidental; the
 file is not renamed.
-
-## Sources
-
-- Design topic for the well-known-path decision: `docs/topics/commit-convention-well-known-path/`, carried by PR #1185. That slice was Contract tier and has since been pruned per the topic-docs convention, so the path no longer resolves; read it in history at its pre-prune commit `01c8c6f3aada6710014aa299c43c70c65d1d6f48`.

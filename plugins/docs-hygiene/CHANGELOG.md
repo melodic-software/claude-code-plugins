@@ -1,5 +1,34 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.2] - 2026-10-01
+
+### Changed
+
+- **`audit-noise` ghost-ref detection no longer reads `.claude/topic-docs.yaml`.** The detector ignores its `memory_dir` and `contract_dir` roots and no longer flags `docs/topics/<slug>/` paths, because the topic-docs convention no longer exists. It still flags concrete `.work/<slug>/` children and the retired `.claude/notes/`, `.claude/handoffs/` and `.claude/review/` locations.
+
+## [0.24.1] - 2026-10-01
+
+### Changed
+
+- `write-for-agents` points at the Sonnet 5.5 model-adaptation chapter.
+
+## [0.24.0] - 2026-10-01
+
+### Changed
+
+- **Breaking:** the `setup`, `audit-file-names`, `realign-file-names` and `generate-file-name-gate`
+  skills moved to the new `docs-naming` plugin; install it to keep them. `docs-hygiene` no longer
+  ships them. The config files are now `.claude/docs-naming.json` and `.claude/docs-naming.local.json`
+  (`docs-naming` reads the old `.claude/docs-hygiene*.json` names for one release with a warning), and
+  the memory directory and artifact type are renamed to `docs-naming`, so a rename plan in flight
+  needs a re-audit.
+
+## [0.23.21] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.23.20] - 2026-09-29
 
 ### Changed

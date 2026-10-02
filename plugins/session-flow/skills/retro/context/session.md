@@ -30,7 +30,7 @@ single-session form.
 Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then:
 
 ```bash
-PARSER="${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py"
+PARSER="<plugin-root>/skills/retro/scripts/parse_transcript.py"
 
 # Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older):
 PY=""
@@ -44,16 +44,13 @@ done
 # Single-session form:
 "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 
-# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the resolved
-# memory_dir via the shared parser (quote-aware, comment-safe). Resolution:
-# concern-file memory_dir key -> a working-docs convention you inferred from
-# CLAUDE.md / .claude/rules (rung 2 — pass it as DECLARED_MEMORY_DIR; prose is an
-# inference source, not a machine key) -> the plugin default .work. DECLARED_MEMORY_DIR
-# is a memory-tier ROOT, never a handoffs path directly — HANDOFF_DIR always appends
-# /handoffs below, at every rung, matching the handoff skill's "Where handoffs live".
-MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" \
-  .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
-MEMORY_DIR="${MEMORY_DIR:-.work}"
+# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the memory
+# root. Resolution: a working-docs convention you inferred from CLAUDE.md /
+# .claude/rules (pass it as DECLARED_MEMORY_DIR; prose is an inference source) ->
+# the plugin default .work. DECLARED_MEMORY_DIR is a memory-tier ROOT, never a
+# handoffs path directly — HANDOFF_DIR always appends /handoffs below, at every
+# rung, matching the handoff skill's "Where handoffs live".
+MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
 HANDOFF_DIR="$MEMORY_DIR/handoffs"
 NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
 if [[ -z "$NEWEST" ]]; then
@@ -188,7 +185,7 @@ findings.
 Code configuration: verify it against current official docs before presenting. Never recommend
 features from training-data assumptions.
 
-**Load the catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/retro/reference/ecosystem-improvement-catalog.md`
+**Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table. The placement decision tree and the per-target recommendation formats
 (memory, rules, hooks, skills, agents, MCP servers, settings) live there.
 
@@ -205,7 +202,7 @@ tool output, or doc URL it rests on, or `judgment` (never for a consequential re
 cross-repo, shared infrastructure, irreversible, or security). A consequential one research cannot
 settle is withheld: list it under "Queue for follow-up" as an open question naming the evidence
 that would settle it. Contract:
-[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../../context/recommendation-basis.md);
+[`context/recommendation-basis.md`](../../../context/recommendation-basis.md);
 full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 
 ### Skill candidate analysis (REQUIRED, always include)

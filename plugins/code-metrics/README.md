@@ -18,7 +18,7 @@ value to count against, not a bar.
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
 | `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
-| `/code-metrics:setup` | `check` probes the interpreter, every configuration layer, and every collector; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
+| `/code-metrics:setup` | `check` probes the interpreter and every configuration layer, and runs one measure per collector on a bundled fixture; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
 ## Works in any repo
 
@@ -135,11 +135,12 @@ is named explicitly or listed under `coverage.artifacts` in the configuration.
 ## Testing the plugin
 
 The Python suites are the `test_*.py` files beside the scripts they cover, and `python3 -m pytest -q`
-from this directory runs all of them. To measure them, run the same command under coverage.py from
-this directory:
+from this directory runs all of them. Add `-o tmp_path_retention_policy=none` so pytest deletes each
+test's `tmp_path` directories instead of keeping the last three runs under `$TMPDIR/pytest-of-<user>`.
+To measure them, run the same command under coverage.py from this directory:
 
 ```shell
-python3 -m coverage run -m pytest -q && python3 -m coverage json
+python3 -m coverage run -m pytest -q -o tmp_path_retention_policy=none && python3 -m coverage json
 ```
 
 The `.coveragerc` here sets `source = .`, so every module under the plugin is reported whether or

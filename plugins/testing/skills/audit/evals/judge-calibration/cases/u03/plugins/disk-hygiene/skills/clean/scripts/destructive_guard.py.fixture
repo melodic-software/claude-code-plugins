@@ -1,0 +1,2531 @@
+#!/usr/bin/env python3
+"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands.
+
+Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
+(a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
+deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
+*non-blocking* status for PreToolUse
+(https://code.claude.com/docs/en/hooks, fetched 2026-08-10: "Claude Code treats
+exit code 1 as a non-blocking error and proceeds with the action... If your
+hook is meant to enforce a policy, use exit 2") — every internal failure path
+that could once fall through to the interpreter's default (uncaught exception
+-> exit 1, no diagnostic) now denies instead (#1423).
+
+Investigation note for the one observed #1423 occurrence (engine-gate mode,
+``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
+every filesystem call already reachable from this module's own logic
+(``Path.resolve(strict=True)``, ``os.path.samefile``, ``Path.stat``/
+``read_text``) already caught ``OSError`` at the call site, so a stall ending
+in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
+stale network drive letter or UNC path referenced by an ordinary, unrelated
+Bash command) would not by itself explain an *uncaught* exception. Two things
+follow: (1) the strongest identified candidate for the 17s itself is
+``_engine_gate_relevant``'s marker-free fallback, which calls
+``os.path.samefile`` on every separator-containing word of *every* Bash/
+PowerShell command in *every* session (not only disk-hygiene commands) when
+resolving the plugin-level engine gate — a slow or unreachable path argument
+in an unrelated command is a real, user-reachable way to stall this hook for
+longer than milliseconds; (2) empty stderr is not what an uncaught Python
+exception normally produces (the default handler writes a traceback), so an
+external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
+resource issue) remains an open, unconfirmed possibility this module cannot
+fix from inside the interpreter. What IS fixable and is fixed here: the
+watchdog below bounds every invocation to an internal deadline so a stall of
+this shape denies fast with a diagnostic instead of running indefinitely
+toward a harness-level, non-blocking kill; the exit-2 wrapper below fail-closes
+any exception this process DOES get to run to completion (rather than only
+those already caught by a narrower ``except OSError``).
+"""
+
+from __future__ import annotations
+
+import contextlib
+import functools
+import json
+import math
+import os
+import re
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import NamedTuple
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
+import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
+import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
+
+
+_SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
+
+
+def decision(value: str, reason: str) -> dict[str, object]:
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": value,
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
+def _telemetry_status_for_permission(value: str) -> str:
+    return "blocked" if value == "deny" else "ok"
+
+
+def _emit_guard_telemetry(
+    start: float,
+    tool_name: str,
+    status: str,
+    *,
+    decision_value: str | None = None,
+) -> None:
+    data: dict[str, object] = {"tool": tool_name or ""}
+    if decision_value is not None:
+        data["decision"] = decision_value
+    hook_telemetry.emit(
+        "destructive-guard",
+        "PreToolUse",
+        status,
+        start,
+        data,
+        os.environ.get("CLAUDE_PROJECT_DIR"),
+    )
+
+
+_HOOK_ID = "destructive-guard"
+
+
+def _record_decision(
+    command: str,
+    tool_name: str,
+    decision_value: str,
+    rule: str,
+    reason: str | None = None,
+) -> None:
+    """Append this decision to the plugin's local, bounded decision record.
+
+    Called AFTER the verdict has been emitted, never before, and its result is
+    deliberately discarded: `guard_decision_log.record` returns a bool and
+    raises nothing, so no audit-write outcome — unwritable path, full disk,
+    absent data root — can reach or alter the verdict this guard just gave.
+
+    The plugin-level defer (engine-gate mode, no engine reference in the
+    command) records nothing, on purpose. That is the branch this hook takes in
+    every consumer session for work that has nothing to do with disk-hygiene,
+    and the hook-budget convention's ceiling is what it is; a decision the guard
+    declined to make is also not the thing an operator is reconstructing later.
+    The guard's own absence is recorded instead by `guard_launch_monitor.py`,
+    which is a separate process for the reason a guard that cannot launch
+    cannot report that it did not launch.
+
+    Total by construction, and the `try` is load-bearing rather than defensive
+    duplication of `guard_decision_log.record`'s own boundary: the data root and
+    mode are resolved HERE, in the argument list, outside that function's
+    protection. One of the call sites is `main`'s own `except BaseException`
+    handler, where an exception raised out of this call would escape to the
+    interpreter's default handler — exit 1, which PreToolUse reads as
+    non-blocking, so the destructive command the guard just denied would run.
+    """
+    try:
+        guard_decision_log.record(
+            resolve_authorized_data_root(),
+            hook=_HOOK_ID,
+            decision=decision_value,
+            rule=rule,
+            tool=tool_name or "",
+            mode=resolve_mode(),
+            command=command,
+            reason=reason,
+        )
+    except BaseException:  # noqa: BLE001 - an audit write never changes a verdict
+        pass
+
+
+def _is_current_python(value: str) -> bool:
+    if not os.path.isabs(value):
+        return False
+    try:
+        runtime = Path(sys.executable).resolve(strict=True)
+        candidate = Path(value).absolute()
+        return os.path.normcase(os.fspath(candidate)) == os.path.normcase(
+            os.fspath(runtime)
+        ) and os.path.samefile(candidate, runtime)
+    except OSError:
+        return False
+
+
+def _display_python() -> str:
+    """Return the hook interpreter in a Bash-friendly absolute spelling."""
+    try:
+        runtime = Path(sys.executable).resolve(strict=True)
+    except OSError:
+        runtime = Path(sys.executable).absolute()
+    return os.fspath(runtime).replace("\\", "/")
+
+
+def _literal_shell_words(
+    command: str, *, allow_backslash: bool = False
+) -> list[str] | None:
+    """Parse only space-delimited literal words with optional whole-word quotes.
+
+    ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
+    path separator rather than an escape character (PowerShell commands); the
+    Bash default keeps rejecting it.
+    """
+    if not command or any(
+        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
+    ):
+        return None
+    words: list[str] = []
+    index = 0
+    while index < len(command):
+        if command[index] == " ":
+            index += 1
+            continue
+        quote = command[index] if command[index] in {"'", '"'} else None
+        if quote:
+            end = command.find(quote, index + 1)
+            if end < 0:
+                return None
+            word = command[index + 1 : end]
+            if not word or "'" in word or '"' in word:
+                return None
+            if quote == '"' and "\\\\" in word and not allow_backslash:
+                return None
+            index = end + 1
+            if index < len(command) and command[index] != " ":
+                return None
+        else:
+            end = command.find(" ", index)
+            if end < 0:
+                end = len(command)
+            word = command[index:end]
+            if (
+                not word
+                or ("\\" in word and not allow_backslash)
+                or "'" in word
+                or '"' in word
+                or any(value.isspace() for value in word)
+            ):
+                return None
+            index = end
+        words.append(word)
+    return words
+
+
+def _script_path_key(value: str) -> str | None:
+    """Return a canonical local-path key with the host platform's case rules."""
+    try:
+        resolved = Path(value).resolve(strict=True)
+    except OSError:
+        return None
+    return os.path.normcase(os.fspath(resolved))
+
+
+def _data_root_key(value: str) -> str:
+    """Canonical key for a generated-state root that may not exist yet."""
+    return os.path.normcase(os.fspath(Path(value).expanduser().resolve(strict=False)))
+
+
+_AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
+_CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
+_AUTHORIZED_DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
+
+_PLUGIN_ROOT_FLAG = "--plugin-root"
+_PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
+_PLUGIN_CACHE_DIRNAME = "cache"
+_PLUGINS_DIRNAME = "plugins"
+_PLUGIN_DATA_DIRNAME = "data"
+_PLUGIN_ID_DISALLOWED = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _plugins_cache_index(parts: tuple[str, ...]) -> int | None:
+    """Index of the ``cache`` segment of a ``<plugins>/cache/...`` layout, or None.
+
+    The single place the marketplace-install marker is located. Every derivation
+    that anchors on it (data root, user settings path, plugin id, cached-version
+    family) shares this one scan, so they cannot drift apart on what counts as a
+    marketplace install. The FIRST match wins, as each derivation did alone.
+    """
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            return index
+    return None
+
+
+def _plugin_data_root_from_root(plugin_root: str) -> str | None:
+    """Derive the persistent data root from the plugin's installation root.
+
+    A skill-frontmatter hook may substitute only ``${CLAUDE_PLUGIN_ROOT}`` into
+    its args — ``${CLAUDE_PLUGIN_DATA}`` is plugin-only and makes Claude Code
+    refuse to launch a skill hook — so the guard reconstructs the data root from
+    the installation root. Claude Code lays a marketplace plugin out at
+    ``<plugins>/cache/<marketplace>/<name>/<version>`` — the install root is the
+    version leaf — and persists its data at ``<plugins>/data/<id>``, where ``<id>``
+    is ``<name>@<marketplace>`` with every character outside ``[A-Za-z0-9_-]``
+    replaced by ``-`` (plugins reference, "Persistent data directory").
+
+    The install root is version-specific, so this anchors on the
+    ``<plugins>/cache`` marker rather than a fixed depth: the segment after
+    ``cache`` is the marketplace, the next is the name, any further segments (a
+    ``<version>`` leaf, absent for a directly-linked local install) are ignored,
+    and ``data`` is ``cache``'s sibling. A root without that marker, or with no
+    name segment after the marketplace, yields ``None`` so the caller fails closed
+    instead of trusting a guessed path.
+    """
+    parts = Path(plugin_root).parts
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    marketplace, name = parts[index + 1], parts[index + 2]
+    if not marketplace or not name:
+        return None
+    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    plugins_dir = Path(*parts[:index])
+    return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
+
+
+_KNOWN_MARKETPLACES_FILENAME = "known_marketplaces.json"
+_MANIFEST_DIRNAME = ".claude-plugin"
+_DIRECTORY_SOURCE = "directory"
+# FOLDERID_Profile, the account's profile folder (KNOWNFOLDERID reference).
+_FOLDERID_PROFILE = "5E6C858F-0E22-4760-9AFE-EA3317B67173"
+
+
+def _account_home() -> Path:
+    """The account's home directory from the OS account record.
+
+    POSIX reads the password database for the effective uid; Windows asks the
+    shell for the Profile known folder of the process token. Neither consults
+    ``HOME``, ``USERPROFILE``, or any other environment value.
+    """
+    if os.name != "nt":
+        import pwd
+
+        return Path(pwd.getpwuid(os.geteuid()).pw_dir)
+    import ctypes
+    import uuid
+
+    guid = (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(_FOLDERID_PROFILE).bytes_le)
+    shell32 = ctypes.WinDLL("shell32")
+    ole32 = ctypes.WinDLL("ole32")
+    known_folder_path = shell32.SHGetKnownFolderPath
+    known_folder_path.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    known_folder_path.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    ole32.CoTaskMemFree.restype = None
+    buffer = ctypes.c_void_p()
+    try:
+        if known_folder_path(ctypes.byref(guid), 0, None, ctypes.byref(buffer)) != 0:
+            raise OSError("SHGetKnownFolderPath(FOLDERID_Profile) failed")
+        return Path(ctypes.wstring_at(buffer.value))
+    finally:
+        ole32.CoTaskMemFree(buffer)
+
+
+def _trusted_config_dir() -> Path | None:
+    """``<account home>/.claude``, anchored on the OS account record, or None.
+
+    Never ``Path.home()``, ``expanduser``, ``HOME``, ``USERPROFILE``, or
+    ``CLAUDE_CONFIG_DIR``: a repo ``settings.json`` ``env`` block reaches hook
+    subprocesses, so any environment value could point this anchor at a forged
+    ``known_marketplaces.json``. There is deliberately no argv or env override.
+    With a config relocated by ``CLAUDE_CONFIG_DIR`` the channel still reads
+    only the account home's ``.claude``: it fails closed unless that home file
+    still lists the marketplace, and then authority stays inside
+    ``<home>/.claude/plugins/data/`` and the kill switch reads the home
+    settings, no less restrictive than before. Any failure to read the record
+    yields None.
+    """
+    try:
+        home = _account_home()
+    except Exception:  # noqa: BLE001 - any failure means no trusted anchor
+        return None
+    if not home.is_absolute():
+        return None
+    return home / ".claude"
+
+
+class _DirectoryInstall(NamedTuple):
+    """What the directory-marketplace channel proves about this install."""
+
+    config_dir: Path
+    data_root: str
+
+
+def _read_json_object(path: Path) -> dict | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _strict_resolve(path: Path) -> Path | None:
+    try:
+        return path.resolve(strict=True)
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _same_or_within(path: Path, directory: Path) -> bool:
+    child = os.path.normcase(os.fspath(path))
+    parent = os.path.normcase(os.fspath(directory))
+    try:
+        return os.path.commonpath([child, parent]) == parent
+    except ValueError:
+        return False
+
+
+def _marketplace_entry_root(
+    source: object, location: Path, plugin_base: object
+) -> Path | None:
+    """Strict-resolve one marketplace entry's relative string ``source``.
+
+    ``./x`` resolves against the marketplace root; a bare name resolves against
+    ``metadata.pluginRoot`` when that is a relative string. Absolute sources,
+    object sources, and anything resolving outside the marketplace yield None.
+    """
+    if not isinstance(source, str) or not source or Path(source).anchor:
+        return None
+    if source.startswith("./"):
+        candidate = location / source
+    elif isinstance(plugin_base, str) and not Path(plugin_base).anchor:
+        candidate = location / plugin_base / source
+    else:
+        return None
+    resolved = _strict_resolve(candidate)
+    if resolved is None or not _same_or_within(resolved, location):
+        return None
+    return resolved
+
+
+@functools.lru_cache(maxsize=8)
+def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None:
+    """Prove this plugin is loaded in place from a local-directory marketplace.
+
+    Claude Code loads a relative-path plugin from a marketplace added from a
+    local directory in place, so its ``${CLAUDE_PLUGIN_ROOT}`` is the source
+    checkout and carries no ``plugins/cache`` marker, while
+    ``${CLAUDE_PLUGIN_DATA}`` is still ``<config>/plugins/data/<id>`` (plugins
+    reference, "Persistent data directory"). This recovers ``<id>`` from the
+    trusted config dir's ``plugins/known_marketplaces.json`` (an undocumented
+    file) and the marketplace's own manifest, and every unproven step fails
+    closed to None:
+
+    - exactly one ``directory``-source entry whose ``installLocation``
+      strict-resolves to a directory containing the plugin root;
+    - that marketplace's ``.claude-plugin/marketplace.json`` is named for the
+      same key;
+    - exactly one plugin entry whose relative string ``source`` strict-resolves
+      to the plugin root, whose ``name`` is ``disk-hygiene`` and matches the
+      root's own ``.claude-plugin/plugin.json``.
+
+    The data root is built ONLY from the trusted config dir and the sanitized
+    ``<name>@<marketplace>`` id, never from a path read out of either file.
+    Memoized per process: the guard runs once per tool call.
+    """
+    config_dir = _trusted_config_dir()
+    root = _strict_resolve(Path(plugin_root))
+    if config_dir is None or root is None:
+        return None
+    known = _read_json_object(
+        config_dir / _PLUGINS_DIRNAME / _KNOWN_MARKETPLACES_FILENAME
+    )
+    if known is None:
+        return None
+    candidates: list[tuple[str, Path]] = []
+    for key, entry in known.items():
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get("source")
+        location = entry.get("installLocation")
+        if not (
+            isinstance(source, dict)
+            and source.get("source") == _DIRECTORY_SOURCE
+            and isinstance(location, str)
+            and location
+        ):
+            continue
+        resolved = _strict_resolve(Path(location))
+        if resolved is not None and _same_or_within(root, resolved):
+            candidates.append((key, resolved))
+    if len(candidates) != 1:
+        return None
+    marketplace, location = candidates[0]
+    manifest = _read_json_object(location / _MANIFEST_DIRNAME / "marketplace.json")
+    if manifest is None or manifest.get("name") != marketplace:
+        return None
+    plugins = manifest.get("plugins")
+    if not isinstance(plugins, list):
+        return None
+    metadata = manifest.get("metadata")
+    plugin_base = metadata.get("pluginRoot") if isinstance(metadata, dict) else None
+    root_key = os.path.normcase(os.fspath(root))
+    names = []
+    for entry in plugins:
+        if not isinstance(entry, dict):
+            continue
+        entry_root = _marketplace_entry_root(entry.get("source"), location, plugin_base)
+        if entry_root and os.path.normcase(os.fspath(entry_root)) == root_key:
+            names.append(entry.get("name"))
+    name = killswitch_config.PLUGIN_NAME
+    if names != [name]:
+        return None
+    own = _read_json_object(root / _MANIFEST_DIRNAME / "plugin.json")
+    if own is None or own.get("name") != name:
+        return None
+    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    data_root = config_dir / _PLUGINS_DIRNAME / _PLUGIN_DATA_DIRNAME / plugin_id
+    return _DirectoryInstall(config_dir, os.fspath(data_root))
+
+
+def _directory_install_for(plugin_root: str) -> _DirectoryInstall | None:
+    """The directory-marketplace channel, consulted only off the cache layout.
+
+    One condition gates it for the data root, the user settings path, and the
+    plugin id alike, so a root can never pair a cache-derived value with a
+    directory-derived one.
+    """
+    if _plugins_cache_index(Path(plugin_root).parts) is not None:
+        return None
+    return _directory_marketplace_install(plugin_root)
+
+
+_MODE_FLAG = "--mode"
+_MODE_BELT = "belt"
+_MODE_ENGINE_GATE = "engine-gate"
+_ENGINE_MARKER = "hygiene.py"
+
+
+@functools.lru_cache(maxsize=1)
+def _plugin_cache_family_root() -> str | None:
+    """The tree holding EVERY cached version of THIS plugin, or None.
+
+    Claude Code lays a marketplace plugin out at
+    ``<plugins>/cache/<marketplace>/<name>/<version>`` and keeps a replaced
+    version's directory on disk after an update, so the sibling of this
+    install's version leaf is another *complete copy of this engine* — a
+    deletion-capable script that is a genuinely different file from the bundled
+    one. That is what makes the "provably a DIFFERENT file" escape wrong here:
+    the escape exists so a consumer's own ``tools/hygiene.py`` is not mistaken
+    for this engine (#1640, #1611), and a previous version of this plugin is
+    not a consumer's tool. Handing it the escape leaves the kill switch
+    unenforced against it whenever only the plugin-level gate is armed
+    (before the skill-frontmatter belt registers, or in sessions that never
+    invoke ``clean``), because the plugin-level gate is the only guard in
+    that state (#1805).
+
+    The prefix is derived from this module's OWN path rather than from
+    ``--plugin-root``: ``__file__`` is the file actually executing, so it needs
+    no argv channel and nothing outside the process can redirect it. A root
+    without the ``plugins/cache`` marker (a ``--plugin-dir`` checkout install,
+    a plugin loaded in place from a local-directory marketplace, or a working
+    tree) yields None and no narrowing applies, which is correct: such an
+    install has no cached siblings to protect against, and narrowing there
+    would gate a contributor's work on their own checkout.
+    """
+    parts = Path(__file__).resolve().parts
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    return os.path.normcase(os.fspath(Path(*parts[: index + 3])))
+
+
+def _within_plugin_cache_family(value: str) -> bool:
+    family = _plugin_cache_family_root()
+    if family is None:
+        return False
+    try:
+        candidate = os.path.normcase(os.fspath(Path(value).resolve(strict=True)))
+    except OSError:
+        return False
+    try:
+        return os.path.commonpath([candidate, family]) == family
+    except ValueError:
+        # Different drives on Windows; nothing on another volume is in the tree.
+        return False
+
+
+# The subcommands `classify_exact_engine_command` accepts, read from the one
+# grammar declaration the engine's own parser is built from
+# (`lib/engine_grammar.py`), so the denial text cannot teach a grammar the
+# classifier does not implement and the classifier cannot admit a shape the
+# engine does not parse. The classifier rejects anything outside this tuple
+# before it matches flags, so an unknown subcommand fails closed.
+_ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
+
+
+def _engine_script_path() -> Path:
+    """The one bundled engine path both the classifier and the denial disclose."""
+    return Path(__file__).resolve().with_name(_ENGINE_MARKER)
+
+
+def _probe_script_path() -> Path:
+    """The one bundled kill-switch probe path, likewise shared."""
+    return (
+        Path(__file__).resolve().parents[2]
+        / "setup"
+        / "scripts"
+        / "kill_switch_probe.py"
+    )
+
+
+def _display_path(path: Path) -> str:
+    """A Bash-friendly absolute spelling of a bundled script path."""
+    return os.fspath(path).replace("\\", "/")
+
+
+# Everything a path we care about cannot contain. Enumerating SHELL syntax here
+# would be a losing game — an assignment (`engine=hygiene.py`), a list separator
+# (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
+# filename to its neighbor differently, and missing one silently un-gates a real
+# invocation. Inverting the question is total: `hygiene.py` is spelled entirely
+# from this class's KEPT characters, so splitting on everything else can only
+# ever EXPOSE the engine filename as its own token, never destroy an occurrence.
+# Over-splitting is safe in both directions — a shredded path merely fails the
+# identity check and falls through to the marker test, which gates.
+_MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\:]+")
+# The same partition read as matches rather than as separators, so a token can
+# be located by SPAN inside the command. Kept as the exact complement of
+# `_MARKER_TOKEN_SPLIT`; a test pins the two to the same token list.
+_MARKER_TOKEN = re.compile(r"[A-Za-z0-9._\-/\\:]+")
+# Bash removes a backslash-newline pair while reading the line, before it ever
+# splits words. Undo it first or the continuation stays welded to the filename
+# (`hygiene.py\`) and no token's basename is the marker.
+_LINE_CONTINUATION = re.compile(r"\\\r?\n")
+# `:` is kept inside a token but treated as a separator when the basename is
+# taken. Splitting tokens on it would sever the drive letter off a Windows
+# absolute path (`C:/x/hygiene.py` -> `C`, `/x/hygiene.py`), and the identity
+# and resolution checks downstream need the whole path to stay intact.
+_PATH_SEPARATOR = re.compile(r"[/\\:]")
+# A whole shell word: a run of non-space characters, with quoted spans kept
+# intact so a quoted path containing spaces stays one word. Used only to RESOLVE
+# a token to a real file, never to detect the marker.
+_COARSE_TOKEN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^\s'\"])+")
+_QUOTE_STRIP = str.maketrans("", "", "'\"")
+
+
+def _marker_tokens(command: str) -> list[str]:
+    """Candidate filename tokens: maximal runs of path-legal characters."""
+    unfolded = _LINE_CONTINUATION.sub("", command)
+    return [token for token in _MARKER_TOKEN_SPLIT.split(unfolded) if token]
+
+
+def _marker_tokens_with_words(command: str) -> list[tuple[str, str]]:
+    """Each token from ``_marker_tokens`` paired with the shell word holding it.
+
+    Detection wants aggressive splitting; resolution wants whole paths. One
+    delimiter set cannot serve both. Every character outside the path-legal
+    class shreds an absolute consumer path — ``/tmp/consumer+tools/hygiene.py``
+    becomes ``/tmp/consumer`` and ``tools/hygiene.py`` — and the fragment
+    carrying the filename is no longer absolute, so the "provably a DIFFERENT
+    file" escape, which requires an absolute path, can never fire and the guard
+    denies a consumer work on its own tool (#1640). Windows 8.3 segments
+    (``KYLESE~1``) put ordinary paths in that population, not just punctuated
+    ones.
+
+    The pairing is by SPAN, never by substring containment: ``token in word``
+    would let a marker token borrow proof from an unrelated word elsewhere in
+    the command, so ``/abs/consumer/hygiene.py --help && python3 hygiene.py
+    apply`` would "prove" its bare second invocation a different file and fail
+    open. A token always keeps itself as a candidate, so widening can only ever
+    add ways to prove a DIFFERENT file, never remove the token's own reading.
+    """
+    unfolded = _LINE_CONTINUATION.sub("", command)
+    words = [
+        (match.start(), match.end(), match.group().translate(_QUOTE_STRIP))
+        for match in _COARSE_TOKEN.finditer(unfolded)
+    ]
+    pairs: list[tuple[str, str]] = []
+    for match in _MARKER_TOKEN.finditer(unfolded):
+        owner = next(
+            (
+                text
+                for start, end, text in words
+                if start <= match.start() and match.end() <= end
+            ),
+            match.group(),
+        )
+        pairs.append((match.group(), owner))
+    return pairs
+
+
+def _carries_marker(word: str) -> bool:
+    """Whether ``word``'s FILENAME is the engine, not merely ends with its name.
+
+    `test_hygiene.py` and `myhygiene.py` are different files whose names happen
+    to contain the marker; a bare-substring test reads them as this engine and
+    gates unrelated work (#1611) — including the plugin's own test suite. This
+    is the same basename equality the literal branch applies, so the two paths
+    agree on what "is the engine" means.
+
+    The basename is taken by splitting on BOTH separators rather than with
+    ``Path().name``, which is platform-flavored: ``PureWindowsPath`` treats a
+    trailing backslash as a separator and ``PurePosixPath`` does not, so
+    ``/x/hygiene.py\\`` matches on Windows and misses on Linux. A guard whose
+    verdict depends on where it runs is a guard that passes its tests on the
+    author's machine and fails open in CI.
+    """
+    name = _PATH_SEPARATOR.split(word.casefold().rstrip("/\\"))[-1]
+    return name == _ENGINE_MARKER
+
+
+def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
+    """Decide whether the plugin-level engine gate should act on ``command``.
+
+    A plugin-level hook fires on every shell call in every session, so a bare
+    mention of the engine's filename (``git diff -- hygiene.py``,
+    ``rg hygiene.py README.md``, ``echo hygiene.py``) must defer — routing
+    mentions into the belt's fail-closed parser would block ordinary work
+    session-wide.
+
+    Throughout, a word "carries the marker" when its FILENAME is
+    ``hygiene.py`` (``_carries_marker``), never when its name merely contains
+    that string — ``test_hygiene.py`` and ``myhygiene.py`` are different files.
+    Tokens for that test are split on shell metacharacters as well as
+    whitespace, so a concatenation like ``foo;hygiene.py`` still exposes the
+    engine as a token of its own.
+
+    The gate acts only on what parses as an INVOCATION:
+
+    - a literal word carrying the engine's filename that is not provably a
+      DIFFERENT file: a word that resolves to an existing file other than the
+      bundled ``hygiene.py`` (a consumer's own ``tools/hygiene.py``) is not this
+      engine and defers; the bundled script itself, or an unresolvable word,
+      stays in play. A path inside this plugin's OWN cached-version tree never
+      earns that escape (``_within_plugin_cache_family``): a replaced version's
+      engine is a different file but the same engine, and deferring on it left
+      the kill switch unenforced against it (#1805);
+    - such a word counts as an INVOCATION when it is the command itself or ANY
+      earlier word is an interpreter token (``python*``/``py``) — "immediately
+      preceding" is not required, so interpreter options
+      (``python3 -B .../hygiene.py``) cannot slip the gate;
+    - a quoted compound word (e.g. a ``bash -c``/``pwsh -Command`` payload) that
+      carries both the engine marker and an interpreter token;
+    - any command carrying the marker that the literal parser cannot prove is a
+      mere mention (expansions, operators, unparsable quoting) — fail closed
+      into the gate; the belt's own rules then decide.
+
+    A path-like word (containing a separator) that is the SAME FILE as the
+    bundled engine — a symlink or hard link under any name — gates regardless
+    of its filename. Accepted residuals, all of the copy-evasion class the gate
+    can never close (a byte copy is a different file): a PATH-installed alias
+    with no separator, an alias inside a command the literal parser rejects
+    when the marker is absent, and a copied engine. This is a belt, not the
+    authority: an invocation smuggled past it still answers to the engine's own
+    preview/approval-token containment (and to the skill-frontmatter belt for
+    the rest of the session once that belt has registered).
+    """
+
+    def _is_interpreter(word: str) -> bool:
+        base = Path(word.casefold()).name
+        return base.startswith("python") or base in {"py", "py.exe"}
+
+    bundled = _engine_script_path()
+
+    def _samefile(word: str) -> bool:
+        try:
+            return os.path.samefile(word, bundled)
+        except (OSError, ValueError):
+            return False
+
+    def _same_file_as_bundled(word: str) -> bool:
+        """Whether ``word`` NAMES the bundled engine, under any spelling.
+
+        Read two ways: as written, and — when relative — against the ENGINE'S
+        OWN directory. The second reading is what closes the Windows
+        filename-alias class. Win32 discards trailing dots and spaces from a
+        filename and resolves `::$DATA` to the main stream, so `hygiene.py.`,
+        `"hygiene.py "` and `hygiene.py::$DATA` all open the bundled engine
+        while none of them has its basename; `cd <scripts> && python
+        hygiene.py. apply` then ran the kill-switched engine unseen. 8.3 short
+        names are a third spelling of the same kind.
+
+        Asking the filesystem whether a spelling resolves to the engine closes
+        every alias at once. Enumerating the spellings closes one per review
+        round — so identity, not the name, is the authority here. The engine's
+        directory is the right base precisely because it is the directory such
+        a command must `cd` into for the alias to run.
+        """
+        if _samefile(word):
+            return True
+        return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
+
+    allow_backslash = tool_name == "PowerShell"
+    marker_candidates = _marker_tokens(command)
+    if not any(_carries_marker(token) for token in marker_candidates):
+        # No marker: the only relevant shape is a linked alias of the bundled
+        # engine invoked by path. Unparsable marker-free commands cannot fail
+        # closed (that would gate every command with an operator), so scan
+        # their whitespace tokens for separator-carrying words and identity-
+        # check those — a literal alias path gates even beside an operator.
+        #
+        # The path-legal tokens are scanned as well, and carry this branch's
+        # weight now that a name merely CONTAINING the marker lands here: a
+        # link to the engine called `test_hygiene.py` beside an operator
+        # (`/tmp/test_hygiene.py;echo done`) leaves `command.split()` holding
+        # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
+        # would miss the engine under a name that is not the marker. Adding
+        # candidates can only ever gate more, never less.
+        candidates = list(marker_candidates)
+        words = _literal_shell_words(command, allow_backslash=allow_backslash)
+        candidates += (
+            [token.strip("'\"") for token in command.split()]
+            if words is None
+            else list(words)
+        )
+        return any(_same_file_as_bundled(candidate) for candidate in candidates)
+    words = _literal_shell_words(command, allow_backslash=allow_backslash)
+    if words is None:
+        # Marker present but not literally parseable (operators, compounds).
+        # Fail closed UNLESS every marker-carrying token is provably a
+        # DIFFERENT existing file (a consumer's own hygiene.py in a compound
+        # command) and no token is the bundled engine under any name.
+        #
+        # "Provably" requires an ABSOLUTE path. This branch exists because the
+        # command carries an operator, and an operator can be a `cd` — so a
+        # relative token resolves against the GUARD's cwd while the shell
+        # resolves it against whatever directory the command has moved to by
+        # then (`cd <plugin-scripts>;./hygiene.py scan`). Reading a relative
+        # path here can therefore "prove different file" against an unrelated
+        # same-named file and defer while the bundled engine actually runs.
+        # A relative path is not unproven-but-probably-fine; it is unknowable,
+        # and this guard fails closed on unknowable input.
+        #
+        # An absolute path is read from the WHOLE shell word, not from the
+        # path-legal fragment: the fragment is what detection needs and the
+        # whole word is what resolution needs, and the two disagree whenever
+        # the path holds a character outside the keep class (#1640).
+        pairs = _marker_tokens_with_words(command)
+        if any(_same_file_as_bundled(token) for token, _ in pairs):
+            return True
+
+        def _provably_other_file(token: str, word: str) -> bool:
+            # A path inside this plugin's own cached-version tree is a
+            # different FILE but not a different ENGINE, so it never earns the
+            # escape (#1805).
+            return any(
+                os.path.isabs(candidate)
+                and _script_path_key(candidate) is not None
+                and not _samefile(candidate)
+                and not _within_plugin_cache_family(candidate)
+                for candidate in (token, word)
+            )
+
+        marker_pairs = [pair for pair in pairs if _carries_marker(pair[0])]
+        if marker_pairs and all(
+            _provably_other_file(token, word) for token, word in marker_pairs
+        ):
+            return False
+        return True
+    # The effective command word: skip launcher wrappers, VAR=value
+    # assignments, and option words — `env PATH=... hygiene.py apply` makes the
+    # bare marker word the command even though it is not word 0.
+    _WRAPPERS = {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+    wrapper_indices = [
+        index
+        for index, word in enumerate(words)
+        if Path(word.casefold()).name in _WRAPPERS
+    ]
+    for index, word in enumerate(words):
+        folded = word.casefold()
+        if _carries_marker(word):
+            if _samefile(word) or _within_plugin_cache_family(word):
+                # The word is one of THIS PLUGIN'S engines — the bundled one,
+                # or a previous version still cached beside it — so gate
+                # regardless of launcher (pypy3, an unknown interpreter,
+                # anything). Identity beats launcher enumeration. Accepted
+                # overbreadth: a MENTION of such an engine by a resolving path
+                # gates too; real-world mentions use names that resolve to
+                # nothing (deferred below) or to consumer files (deferred
+                # below).
+                return True
+            resolved_key = _script_path_key(word)
+            if resolved_key is not None:
+                # Provably a different existing file — a consumer's own
+                # hygiene.py, not this engine.
+                continue
+            if (
+                index == 0
+                or os.path.isabs(word)
+                or any(_is_interpreter(w) for w in words[:index])
+                or any(w_index < index for w_index in wrapper_indices)
+            ):
+                # An absolute engine path is an invocation target whatever the
+                # launcher, and a bare marker word ANYWHERE after a known
+                # launcher wrapper gates conservatively (wrapper option
+                # operands like `nice -n 10` defeat effective-command
+                # inference, and PATH injection can make the bare name the
+                # command). A deliberate overbreadth: a mere MENTION after a
+                # wrapper (`sudo grep x hygiene.py`) gates too — rare, and the
+                # kill-switch bypass risk outweighs it. Plain-command mentions
+                # (`git diff -- hygiene.py`) still defer.
+                return True
+            continue
+        if _ENGINE_MARKER in folded and " " in word:
+            first_token = folded.split()[0]
+            if _carries_marker(first_token) or _is_interpreter(first_token):
+                # A quoted compound payload (sh -c / pwsh -Command) whose first
+                # token is the engine or an interpreter is an invocation.
+                return True
+        if _ENGINE_MARKER in folded and "python" in folded:
+            return True
+    return False
+
+
+def resolve_mode() -> str:
+    """Resolve which registration surface launched this guard.
+
+    ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
+    (with a small read-only supporting allowlist) and deletion-spelling PowerShell
+    discipline. Claude Code registers skill-frontmatter ``PreToolUse`` hooks for
+    the rest of the session after the skill is invoked — not only while cleanup is
+    the active work — so this mode stays armed session-wide once registered
+    (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
+    engine invocations (kill switch + data-root authority must hold in every
+    session), so any command that does not reference the engine defers instantly
+    — a plugin-level hook must never tax unrelated work. An unrecognized or
+    absent value falls back to ``belt``, the stricter mode.
+    """
+    value = _argv_flag_value(sys.argv[1:], _MODE_FLAG)
+    return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
+
+
+def _argv_flag_value(argv: list[str], flag: str) -> str | None:
+    """Read the runtime-substituted value the frontmatter hook passed for ``flag``.
+
+    The guard's own argv is a model-unforgeable channel for a value the harness
+    substitutes at launch (e.g. ``${CLAUDE_PLUGIN_ROOT}``), reaching the guard even
+    where environment injection does not. Accepts both the space-separated
+    (``--flag value``) and ``--flag=value`` spellings.
+    """
+    for index, token in enumerate(argv):
+        if token == flag and index + 1 < len(argv):
+            return argv[index + 1]
+        prefix = f"{flag}="
+        if token.startswith(prefix):
+            return token[len(prefix) :]
+    return None
+
+
+def _argv_authorized_data_root(argv: list[str]) -> str | None:
+    return _argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
+
+
+def _plugin_root_argument() -> str | None:
+    """The substituted ``--plugin-root`` value, or None when it carries nothing.
+
+    A literal, unexpanded ``${CLAUDE_PLUGIN_ROOT}`` is not a path, and all three
+    derivations that anchor on this argument (data root, user settings path,
+    plugin id) treat it as absent — so the placeholder check lives here once
+    rather than at each of them.
+    """
+    value = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    return value if value and value != _PLUGIN_ROOT_PLACEHOLDER else None
+
+
+def resolve_authorized_data_root() -> str | None:
+    """Resolve the authoritative data root a skill-frontmatter hook can supply.
+
+    Precedence, highest first:
+
+    1. ``--authorized-data-root`` — a direct path, for a host that can substitute
+       ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json`` hook can; a skill
+       hook cannot).
+    2. ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the only substitution a skill hook
+       receives; the data root is derived from its ``plugins/cache`` layout. This
+       is the channel the bundled ``clean`` skill uses.
+    3. The same ``--plugin-root`` when it has no cache layout: a plugin loaded in
+       place from a local-directory marketplace, proven against the trusted
+       config dir's ``known_marketplaces.json`` (``_directory_marketplace_install``).
+    4. The ``CLAUDE_PLUGIN_DATA`` environment variable, if present. A repo
+       ``settings.json`` ``env`` block can set it, so it ranks last.
+
+    A literal, unsubstituted placeholder is treated as absent at each step. Absent
+    every channel the guard has no authority and every engine call fails closed.
+    """
+    direct = _argv_authorized_data_root(sys.argv[1:])
+    if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
+        return direct
+    plugin_root = _plugin_root_argument()
+    if plugin_root:
+        derived = _plugin_data_root_from_root(plugin_root)
+        if derived:
+            return derived
+        install = _directory_install_for(plugin_root)
+        if install:
+            return install.data_root
+    env = os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
+    return env if env and env != _AUTHORIZED_DATA_ROOT_PLACEHOLDER else None
+
+
+def _user_settings_path_from_root(plugin_root: str) -> str | None:
+    """Derive the user ``settings.json`` path from the plugin's install root.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>``, and the user
+    settings file is ``<config>/settings.json`` — the sibling of the ``plugins``
+    directory. This anchors on the same ``plugins/cache`` marker as
+    ``_plugin_data_root_from_root`` rather than a fixed depth: the ``plugins``
+    directory is the segment before ``cache``, and ``settings.json`` is its
+    parent's child. A root without that marker yields ``None`` so the caller
+    falls back to the environment.
+    """
+    parts = Path(plugin_root).parts
+    index = _plugins_cache_index(parts)
+    if index is None:
+        return None
+    plugins_dir = Path(*parts[:index])
+    return os.fspath(plugins_dir.parent / "settings.json")
+
+
+def _plugin_id_from_root(plugin_root: str) -> str | None:
+    """Return this install's exact ``<name>@<marketplace>`` ``pluginConfigs`` key.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>`` and keys its options
+    under ``<name>@<marketplace>``. Deriving that exact key lets the kill-switch
+    read match only this install, so a second marketplace's ``disk-hygiene`` entry
+    cannot mask this one's configured value. A root without the ``plugins/cache``
+    marker (or missing the name/marketplace segments) yields ``None`` and the read
+    falls back to matching any ``disk-hygiene`` entry.
+    """
+    parts = Path(plugin_root).parts
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    marketplace, name = parts[index + 1], parts[index + 2]
+    if not marketplace or not name:
+        return None
+    return f"{name}@{marketplace}"
+
+
+def _resolve_user_settings_path() -> Path | None:
+    """Locate the user settings file that carries the kill switch, or ``None``.
+
+    The **only** trusted locator is ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``: Claude
+    Code substitutes the plugin's true install path, which a hostile repo cannot
+    forge, and the user settings file is derived from its ``plugins/cache`` marker.
+    The guard deliberately does **not** fall back to ``CLAUDE_CONFIG_DIR`` / ``HOME``:
+    those are environment values, and a repo ``.claude/settings.json`` ``env`` block
+    reaches hook subprocesses, so trusting them would let a repo point the read at a
+    forged settings file and flip the switch (the exact provenance hole this design
+    closes). A root without the marker that is loaded in place from a
+    local-directory marketplace resolves ``<config>/settings.json`` from the
+    account-record config dir instead (``_directory_marketplace_install``).
+    Otherwise, e.g. a ``--plugin-dir`` checkout install or a config relocated
+    with ``CLAUDE_CONFIG_DIR``, no trusted user-settings location exists and
+    this returns ``None``; the caller then relies on managed settings (fixed
+    system paths) and otherwise fails closed to enabled.
+    """
+    plugin_root = _plugin_root_argument()
+    if plugin_root:
+        derived = _user_settings_path_from_root(plugin_root)
+        if derived:
+            return Path(derived)
+        install = _directory_install_for(plugin_root)
+        if install:
+            return install.config_dir / "settings.json"
+    return None
+
+
+def resolve_disk_hygiene_enabled() -> bool:
+    """Resolve the execution kill switch by reading user-scope ``pluginConfigs``.
+
+    The kill switch is a safety control: ``false`` is audit-only mode and must
+    prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
+    out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
+    reader it shares with the report-only probe) — never the process environment.
+    Since Claude Code 2.1.207 that key is honored only from user, managed, and
+    ``--settings`` scope, never a project or local ``settings.json``
+    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    switch. Managed settings are the highest-precedence, non-overridable scope, so
+    a value configured there wins over the user file — that is how an organization
+    enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
+    cannot observe, the one honored source not read here (see
+    ``killswitch_config.managed_settings_path`` for the full residual list). The
+    environment is rejected on purpose: a repo ``settings.json`` ``env`` block
+    reaches hook subprocesses and carries no provenance a hook could check, so an
+    env-borne toggle (or an env-borne user-settings path) would reopen the hole
+    this closes — hence the user settings file is located from the tamper-resistant
+    ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
+    file from its fixed root-owned system path. A local-directory marketplace
+    install passes no exact ``<name>@<marketplace>`` id, so both reads match
+    any ``disk-hygiene`` key, as broad as before that install's user settings
+    were read at all: the channel can only add a deny.
+
+    Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
+    guard stays active and gates every mutation behind the final human prompt even
+    when it cannot confirm a configured value. Both registration surfaces reach
+    this one resolver — the plugin-level engine gate and the skill-frontmatter belt
+    both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
+    so the belt needs no environment channel it does not have.
+    """
+    plugin_root = _plugin_root_argument()
+    plugin_id = _plugin_id_from_root(plugin_root) if plugin_root else None
+    return killswitch_config.resolve_effective(
+        _resolve_user_settings_path(),
+        killswitch_config.managed_settings_path(),
+        plugin_id,
+    )
+
+
+def _is_authorized_data_root(value: str, authority: str | None) -> bool:
+    """Accept only the data root the runtime told this hook to authorize."""
+    if not authority:
+        return False
+    return _data_root_key(value) == _data_root_key(authority)
+
+
+def _display_data_root(authority: str | None) -> str | None:
+    if not authority:
+        return None
+    return os.fspath(Path(authority).expanduser().resolve(strict=False)).replace(
+        "\\", "/"
+    )
+
+
+def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
+    """Return the subcommand name for one canonical engine invocation, else None.
+
+    The interpreter must be this hook's own absolute Python and the script the
+    bundled engine; everything after the subcommand is matched against the
+    engine's declared grammar (``lib/engine_grammar.py``), which the engine's
+    own parser is built from. The one value that grammar cannot judge alone is
+    ``--data-root``: only the authorized root this hook resolved is admitted, and
+    the flag is mandatory here although the grammar keeps it optional, because
+    an engine call without it falls back to the raw ``CLAUDE_PLUGIN_DATA`` value.
+    A token check proves presence: the grammar reads flag names only at flag
+    positions and refuses any flag-shaped value, so a matched invocation that
+    contains the token carries it as a flag.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None:
+        return None
+    if len(tokens) < 3 or not _is_current_python(tokens[0]):
+        return None
+    if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
+        return None
+    subcommand = tokens[2]
+    if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
+        return None
+    external_checks = {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+    }
+    words = tokens[3:]
+    if engine_grammar.DATA_ROOT_FLAG in words and engine_grammar.match_invocation(
+        subcommand, words, external_checks
+    ):
+        return subcommand
+    return None
+
+
+def is_exact_engine_apply(command: str, authority: str | None) -> bool:
+    return classify_exact_engine_command(command, authority) == "apply"
+
+
+def is_exact_kill_switch_probe(command: str) -> bool:
+    """Return True only for the exact, argument-free bundled probe invocation.
+
+    The probe (``skills/setup/scripts/kill_switch_probe.py``) is the
+    deterministic, report-only read of the ``disk_hygiene_enabled`` toggle; the
+    clean skill runs it when its body token arrives unexpanded. No arguments are
+    permitted, so the probed settings file is always the real default location.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
+        return False
+    return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
+
+
+# Narrow belt-mode Bash allowlist for cleanup inspection (#2591). Bare names are
+# denied outright (exported shell functions shadow them; #2618); a head is
+# accepted only as an absolute path resolving under a trusted system directory
+# with an allowlisted basename. Relative path-qualified forms (``./ls``) fail
+# closed. Every shape still has to clear ``_literal_shell_words`` (no
+# metacharacters, operators, or redirections). Deletion authority remains the
+# engine's own containment.
+_READONLY_SUPPORTING_BASH_HEADS = frozenset(
+    {
+        "ls",
+        "test",
+        "stat",
+        "du",
+        "pwd",
+        "basename",
+        "dirname",
+        "find",
+        "file",
+    }
+)
+# GNU/BSD find primaries that write or execute; a literal allowlist cannot prove
+# an ``-exec`` payload harmless, so any of these fails closed.
+_FIND_SIDE_EFFECT_PRIMARIES = frozenset(
+    {
+        "-delete",
+        "-exec",
+        "-execdir",
+        "-ok",
+        "-okdir",
+        "-fprint",
+        "-fprint0",
+        "-fprintf",
+        "-fls",
+    }
+)
+
+
+def _parse_bracket_test_words(command: str) -> list[str] | None:
+    """Parse ``[ ... ]`` with the same literal rules as other supporting commands.
+
+    ``[`` / ``]`` are otherwise rejected as shell metacharacters; here they are
+    required bookends and every interior character still faces the expansion /
+    operator deny list.
+    """
+    text = command.strip()
+    if len(text) < 2 or text[0] != "[" or text[-1] != "]":
+        return None
+    interior = text[1:-1]
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    stripped = interior.strip()
+    if not stripped:
+        return []
+    return _literal_shell_words(stripped)
+
+
+def _is_readonly_find(tokens: list[str]) -> bool:
+    for token in tokens[1:]:
+        if token.casefold() in {
+            name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES
+        }:
+            return False
+    return True
+
+
+def _readonly_supporting_basename(head: str) -> str:
+    """Basename of a supporting command head on either path separator.
+
+    On Windows, strip a trailing executable extension (``.exe`` / ``.EXE`` /
+    ``.com`` / ``.bat`` / ``.cmd``) so a real Git-for-Windows binary such as
+    ``ls.EXE`` matches ``_READONLY_SUPPORTING_BASH_HEADS`` (#2774).
+    """
+    name = _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
+    if os.name == "nt":
+        lower = name.lower()
+        for ext in (".exe", ".com", ".bat", ".cmd"):
+            if lower.endswith(ext):
+                return name[: -len(ext)]
+    return name
+
+
+# Absolute prefixes where an allowlisted head may live after realpath. A
+# repo-controlled ``./ls`` on PATH, or a user ``~/bin/ls``, must not inherit
+# belt approval. ``Path.resolve`` follows symlinks so a trusted-prefix symlink
+# into an untrusted tree also fails closed.
+_TRUSTED_READONLY_BIN_PREFIXES = (
+    "/bin/",
+    "/usr/bin/",
+    "/usr/local/bin/",
+    "/sbin/",
+    "/usr/sbin/",
+    # Windows Git Bash / MSYS common locations
+    "/mingw64/bin/",
+)
+# Relative binary directories inside a Git-for-Windows installation where an
+# allowlisted read-only head legitimately lives. Joined onto the RESOLVED
+# installation root, never matched as a substring (see below).
+_NT_GIT_TRUSTED_BIN_SUBDIRS = (
+    ("usr", "bin"),
+    ("mingw64", "bin"),
+    ("mingw32", "bin"),
+)
+# Relative binary directories inside the resolved Windows system root.
+_NT_SYSTEM_TRUSTED_BIN_SUBDIRS = (
+    ("System32",),
+    ("SysWOW64",),
+)
+
+
+def _nt_known_git_installation_roots() -> tuple[Path, ...]:
+    """Git-for-Windows roots from well-known *machine* install locations.
+
+    Never derived from ``PATH`` / ``shutil.which("git")``: a project-controlled
+    directory ahead on ``PATH`` can plant ``cmd/git.exe`` and poison the trusted
+    root, recreating the arbitrary-executable bypass the anchored-prefix change
+    closed. Only the per-machine installer destinations under ``ProgramFiles``
+    and ``ProgramFiles(x86)`` contribute roots, and only when that directory
+    actually exists.
+
+    ``%LOCALAPPDATA%\\Programs\\Git`` is intentionally excluded: it is a
+    user-writable path, so treating it as a trust root would let a local
+    plant under the profile contribute allowlisted heads whenever it exists
+    (#2774). Environment-variable control of ``ProgramFiles`` remains a
+    stronger precondition than PATH planting, but these roots are still
+    environment-derived — not independently attested install locations.
+    """
+    candidates: list[tuple[str, tuple[str, ...]]] = [
+        ("ProgramFiles", ("Git",)),
+        ("ProgramFiles(x86)", ("Git",)),
+    ]
+    roots: list[Path] = []
+    for key, rel in candidates:
+        base = os.environ.get(key)
+        if not base:
+            continue
+        try:
+            candidate = Path(base).joinpath(*rel).resolve()
+        except OSError:
+            continue
+        if candidate.is_dir():
+            roots.append(candidate)
+    return tuple(roots)
+
+
+@functools.lru_cache(maxsize=1)
+def _nt_trusted_readonly_bin_roots() -> tuple[Path, ...]:
+    """Resolved absolute directories on Windows whose contents the belt trusts.
+
+    Built from well-known Git installation roots (ProgramFiles /
+    ProgramFiles(x86) only — not user-writable LocalAppData) and
+    ``%SystemRoot%`` — because a SUBSTRING match on a path fragment such as
+    ``/git/usr/bin/`` is satisfied by any repository-controlled directory that
+    merely spells that fragment (``D:/anyrepo/git/usr/bin/find``), which would
+    hard-``allow`` a planted binary carrying an allowlisted basename. Anchoring
+    to the resolved root removes that bypass; an unresolvable root contributes
+    NO trusted directories. Git roots are never taken from ``PATH``. Environment
+    variables still supply the roots — they are not independently attested.
+    """
+    roots: list[Path] = []
+    for git_root in _nt_known_git_installation_roots():
+        roots.extend(git_root.joinpath(*parts) for parts in _NT_GIT_TRUSTED_BIN_SUBDIRS)
+    system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
+    if system_root:
+        try:
+            resolved_system = Path(system_root).resolve()
+        except OSError:
+            resolved_system = None
+        if resolved_system is not None:
+            roots.extend(
+                resolved_system.joinpath(*parts)
+                for parts in _NT_SYSTEM_TRUSTED_BIN_SUBDIRS
+            )
+    return tuple(roots)
+
+
+def _is_within_directory(path: Path, directory: Path) -> bool:
+    """True when ``path`` sits under ``directory`` as an ANCHORED path prefix.
+
+    Compared case-insensitively (Windows paths are case-insensitive) on posix
+    spellings, and via a trailing separator so a sibling directory whose name
+    merely starts with the trusted one (``.../Gitx/usr/bin``) cannot match.
+    """
+    base = directory.as_posix().casefold().rstrip("/")
+    if not base:
+        return False
+    return path.as_posix().casefold().startswith(base + "/")
+
+
+def _path_under_trusted_readonly_bin(path: Path) -> bool:
+    """True when ``path`` is a real file under a trusted system binary directory."""
+    if not path.is_file():
+        return False
+    if os.name == "nt":
+        if any(
+            _is_within_directory(path, root)
+            for root in _nt_trusted_readonly_bin_roots()
+        ):
+            return True
+    key = path.as_posix()
+    return any(key.startswith(prefix) for prefix in _TRUSTED_READONLY_BIN_PREFIXES)
+
+
+def _trusted_system_readonly_head(head: str) -> bool:
+    """True when ``head`` is a trusted-system executable for the allowlist.
+
+    Absolute paths only: require the real path (symlink-resolved) under a
+    trusted prefix. Bare names are denied — ``shutil.which`` finds the system
+    binary while Bash still executes an exported function of the same name
+    first (``BASH_FUNC_ls%%``), so a which()-based identity check cannot prove
+    what the shell will run. Relative path-qualified forms are denied.
+
+    On Windows, Git Bash spells system tools as MSYS paths (``/usr/bin/ls``).
+    Native ``Path.is_absolute()`` requires both a drive and a root, so those
+    POSIX-style heads are NOT absolute to pathlib — the MSYS reinterpretation
+    against known Git installation roots MUST run before the ``is_absolute``
+    gate, or the allowlist accepts nothing on Windows (#2774). Native
+    ``Path.resolve`` would otherwise map ``/usr/bin/ls`` onto the current drive.
+    """
+    if not head:
+        return False
+    if "/" not in head and "\\" not in head:
+        return False
+    # MSYS absolute path BEFORE is_absolute(): /usr/bin/ls → <GitRoot>/usr/bin/ls[.exe]
+    if os.name == "nt" and head.startswith("/") and not head.startswith("//"):
+        rel_parts = tuple(part for part in head.split("/") if part)
+        if not rel_parts:
+            return False
+        for git_root in _nt_known_git_installation_roots():
+            mapped = git_root.joinpath(*rel_parts)
+            for variant in (
+                mapped,
+                mapped.with_suffix(".exe"),
+                mapped.with_suffix(".EXE"),
+            ):
+                try:
+                    resolved = variant.resolve()
+                except OSError:
+                    continue
+                if _path_under_trusted_readonly_bin(resolved):
+                    return True
+        return False
+    candidate = Path(head)
+    if not candidate.is_absolute():
+        return False
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return False
+    return _path_under_trusted_readonly_bin(resolved)
+
+
+def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
+    """Parse ``/usr/bin/[ ... ]`` (absolute ``[``) into ``(head, interior_words)``.
+
+    Bare ``[ ... ]`` is intentionally not accepted: a shell function named ``[``
+    shadows the binary the same way a function shadows bare ``ls``.
+    ``_literal_shell_words`` rejects ``[``/``]`` as metacharacters, so this
+    path is parsed with the same bookend rules as the bare form, then the
+    absolute head is identity-checked separately.
+    """
+    text = command.strip()
+    space = text.find(" ")
+    if space < 0:
+        return None
+    head = text[:space]
+    if not head.endswith("["):
+        return None
+    if "/" not in head and "\\" not in head:
+        return None
+    rest = text[space + 1 :]
+    # ``/usr/bin/[`` receives ``]`` as its own final argv word.
+    if rest != "]" and not rest.endswith(" ]"):
+        return None
+    interior = "" if rest == "]" else rest[:-1].strip()
+    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+        return None
+    if not interior:
+        return head, []
+    words = _literal_shell_words(interior)
+    if words is None:
+        return None
+    return head, words
+
+
+def is_exact_readonly_supporting_command(command: str) -> bool:
+    """Return True for one literal-form read-only supporting Bash command (#2591).
+
+    The belt remains deny-by-default; this opens only the small inspection set
+    needed after the skill-frontmatter hook stays armed for the rest of the
+    session (#2618). Engine containment is still the deletion authority.
+    Heads must be absolute paths under a trusted system directory — bare names
+    are denied because exported shell functions shadow them.
+    """
+    absolute_bracket = _absolute_bracket_test_words(command)
+    if absolute_bracket is not None:
+        head, bracket_words = absolute_bracket
+        return bool(bracket_words) and _trusted_system_readonly_head(head)
+    # Bare ``[ ... ]`` is never allowlisted (function-shadowable bookend).
+    if _parse_bracket_test_words(command) is not None:
+        return False
+    tokens = _literal_shell_words(command)
+    if not tokens:
+        return False
+    head = tokens[0]
+    basename = _readonly_supporting_basename(head)
+    if basename not in _READONLY_SUPPORTING_BASH_HEADS:
+        return False
+    if not _trusted_system_readonly_head(head):
+        return False
+    if basename == "find":
+        return _is_readonly_find(tokens)
+    if basename == "test":
+        return len(tokens) >= 2
+    return True
+
+
+_POWERSHELL_MUTATION_WORDS = re.compile(
+    r"(?i)(?<![\w./\\-])("
+    r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
+    r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
+    r"|move-item|rename-item|mv|move|ren|rename"
+    r"|set-content|out-file|add-content"
+    r"|format-volume|clear-disk|initialize-disk"
+    r")(?![\w-])"
+)
+_POWERSHELL_NEW_ITEM_FORCE = re.compile(
+    r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
+)
+# Exclude the two redirect forms that cannot name a file:
+#   - stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
+#     streams and never designates a file;
+#   - the `$null` discard (`2>$null`, `*>$null`, `>$null`): PowerShell's
+#     /dev/null. Spelled as guardrails' `ps::write_bypass` spells it — a `>`
+#     whose target is `$null` — and case-insensitively, because PowerShell
+#     variable names are. Only horizontal whitespace is skipped between `>`
+#     and `$null`, so a trailing `>` cannot borrow a `$null` from the next
+#     line. After `$null`, require a real token terminator (whitespace, `;`,
+#     `|`, `)`, `}`, or end-of-string): punctuation continuations like
+#     `>$null/out.txt` or `2>$null\evil.ps1` are still file redirects because
+#     PowerShell concatenates the literal path onto the empty `$null` expansion.
+# File redirects still match: `2>out.txt`, `> out.txt`, `1>file`, and a command
+# that discards one stream while redirecting another (`... 2>$null > out.txt`),
+# whose second `>` has no `$null` after it.
+# Append (`>>`) is NOT covered here: `(?![=>&])` rejects the first `>` of the
+# pair and the lookbehind rejects the second, so `>>` is invisible — see
+# `_POWERSHELL_APPEND_REDIRECT` (#2675).
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>(?![=>&])(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
+# File append (`>>`, `2>>file`, `*>>file`). Matched separately rather than by
+# widening the single-`>` lookahead, which is load-bearing for the stream-merge
+# and `$null`-discard exclusions above. Exclude `>> $null` the same way
+# guardrails' `ps::write_bypass` excludes the `$null` discard — case-
+# insensitively, horizontal whitespace only, and with a real token terminator
+# after `$null` (whitespace, `;`, `|`, `)`, `}`, or end-of-string) so
+# punctuation continuations like `>>$null/out.txt` stay flagged.
+_POWERSHELL_APPEND_REDIRECT = re.compile(
+    r"(?i)(?<![<>])>>(?![^\S\n]*\$null(?=[\s;|)}]|$))"
+)
+_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
+# robocopy is an executable normally invocable by full path
+# (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
+# lookbehind must permit path separators before the name.
+_POWERSHELL_ROBOCOPY_PURGE = re.compile(
+    r"(?i)(?<![\w-])robocopy(\.exe)?(?![\w-]).*(/mir|/purge|/mov|/move)(?![\w-])"
+)
+# Module-qualified cmdlet invocations (Module\Cmdlet) put a backslash before the
+# cmdlet name, which the word pattern's lookbehind rejects; cover the deletion
+# cmdlets explicitly (aliases like rm/del cannot be module-qualified).
+_POWERSHELL_QUALIFIED_DELETE = re.compile(
+    r"(?i)[a-z][\w.]*\\(remove-item|clear-content|clear-recyclebin)(?![\w-])"
+)
+# Manual-handoff Recycle Bin spellings the skill prefers (#2595). VisualBasic
+# FileIO is also reachable via deletefile/deletedirectory word matches; keep an
+# explicit type-qualified form so the verdict names the preferred path. Shell
+# .Application NameSpace(10) (CSIDL_BITBUCKET; also 0xa) + MoveHere/InvokeVerb
+# had no prior coverage.
+_POWERSHELL_VB_FILESYSTEM_DELETE = re.compile(
+    r"(?i)Microsoft\.VisualBasic\.FileIO\.FileSystem\s*\]?\s*::\s*"
+    r"Delete(?:File|Directory)\b"
+)
+_POWERSHELL_SHELL_APP_NAMESPACE_BIN = re.compile(
+    r"(?i)NameSpace\s*\(\s*(?:10|0x0*a)\s*\)"
+)
+# `InvokeVerbEx` is the same call with arguments, so the stem carries the `Ex`
+# suffix here rather than being closed off by `\b` after `InvokeVerb` (which
+# does NOT match `InvokeVerbEx`): "This method is similar to InvokeVerb, but it
+# allows you to specify arguments to the command as well as the command itself"
+# (https://learn.microsoft.com/en-us/windows/win32/shell/invokeverbex, fetched
+# 2026-08-16).
+_POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
+    r"(?i)(?<![\w])(?:MoveHere|InvokeVerb(?:Ex)?)\b"
+)
+# The rule above is keyed on the bin's folder id, which the ordinary
+# send-an-item-to-the-bin spelling never mentions: there `NameSpace()` takes the
+# item's PARENT FOLDER path and the delete verb is invoked on the item —
+# `$sh.NameSpace('<folder>').ParseName('victim').InvokeVerb('delete')` (#2850).
+# That shape is keyed on the delete VERB instead of on the folder id.
+#
+# ENUMERATED, NOT IDENTITY-CHECKED — completeness is not implied. No identity
+# test exists for a COM shell verb: the argument is a name out of the item's own
+# verb collection, not a stable canonical token. Of `vVerb`, Microsoft's
+# `FolderItem.InvokeVerb` reference
+# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitem-invokeverb,
+# fetched 2026-08-16) says: "A string that specifies the verb to be executed. It
+# must be one of the values returned by the item's FolderItemVerb.Name property.
+# If no verb is specified, the default verb will be invoked." `FolderItemVerb
+# .Name` in turn only "Contains the verb's name"
+# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitemverb-name,
+# fetched 2026-08-16) — so a verb named anything other than the enumerated
+# spellings below (a localized name, for instance) is NOT covered.
+#
+# Deliberately outside this rule, each still deferring:
+#   - `MoveHere` into an ordinary (non-bin) folder — that is a MOVE, not a
+#     deletion;
+#   - a non-literal verb argument (`InvokeVerb($verb)`) — the verb is opaque;
+#   - the omitted verb (`InvokeVerb()`) — the default verb, "typically 'open'"
+#     per the `FolderItem.InvokeVerb` reference above.
+#
+# The lookbehind is `(?<![\w])`, not the cmdlet list's `(?<![\w./\\-])`: a
+# hyphen-prefixed relative (`My-InvokeVerb('delete')`, a wrapper function) still
+# matches, deliberately. Tightening it would buy precision by making a wrapper
+# that deletes go SILENT, which is the failure this rule exists to close;
+# prompting once on a wrapper is the cheaper error.
+_POWERSHELL_SHELL_APP_INVOKE_VERB_ARG = re.compile(
+    r"(?i)(?<![\w])InvokeVerb(?:Ex)?\s*\(\s*(?P<quote>[\"'])(?P<verb>[^\"']*)(?P=quote)"
+)
+_SHELL_APP_DELETE_VERB_NAMES = frozenset({"delete"})
+
+
+def _shell_verb_name_deletes(verb: str) -> bool:
+    """True when a shell verb NAME is one of the enumerated delete verbs.
+
+    A menu accelerator marks the same verb (`&Delete`, `De&lete`), so `&` is
+    dropped before the comparison, and surrounding whitespace is stripped so a
+    padded literal (`' delete '`) resolves to the same verb rather than slipping
+    past the enumeration.
+    """
+    return verb.replace("&", "").strip().casefold() in _SHELL_APP_DELETE_VERB_NAMES
+
+
+def _shell_application_recycle_bin_delete_reason(command: str) -> str | None:
+    """Reason for a COM shell deletion spelling, or None.
+
+    The bin-id branch is tested first so a command satisfying both (a bin-id
+    `NameSpace` whose item is deleted with `InvokeVerb`) keeps naming the folder
+    id in its verdict.
+
+    Only that first branch requires a `Shell.Application` context. The verb-arg
+    branch below is deliberately context-free: it matches a literal delete verb
+    passed to `InvokeVerb` on ANY COM object, with no `Shell.Application` or
+    `NameSpace` call required anywhere in the command. A caller reading only the
+    function name should not infer otherwise — the name is historical, and the
+    reason string the second branch returns says "COM shell delete verb" rather
+    than naming `Shell.Application` for exactly this reason.
+    """
+    if (
+        _POWERSHELL_SHELL_APP_NAMESPACE_BIN.search(command) is not None
+        and _POWERSHELL_SHELL_APP_BIN_ACTION.search(command) is not None
+    ):
+        return (
+            "disk-hygiene flagged a Shell.Application NameSpace(10) Recycle Bin "
+            "MoveHere/InvokeVerb deletion."
+        )
+    if any(
+        _shell_verb_name_deletes(match.group("verb"))
+        for match in _POWERSHELL_SHELL_APP_INVOKE_VERB_ARG.finditer(command)
+    ):
+        return (
+            "disk-hygiene flagged a COM shell delete verb "
+            "(InvokeVerb sends the item to the Recycle Bin)."
+        )
+    return None
+
+
+def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
+    """Return a (decision, reason) pair for a PowerShell command, or None to defer.
+
+    PowerShell stays available for read-only support work (git, gh, metadata
+    inspection), so this lane gates known filesystem-mutation spellings and any
+    engine invocation rather than denying unknown commands. Engine calls stay on
+    the Bash lane's fail-closed deny-unknown guard. A flagged mutation spelling
+    resolves against the ``disk_hygiene_enabled`` kill switch: when execution is
+    enabled it returns ``permissionDecision: "ask"`` (a hook-issued ask;
+    official PreToolUse docs say that value prompts the user to confirm),
+    preserving the unsupported-platform manual handoff; in audit-only mode
+    (``enabled`` is false) it is denied outright, so the kill switch blocks
+    every deletion lane and not only the Bash engine lane.
+    """
+    if _engine_gate_relevant(command, "PowerShell"):
+        # Invocation-shaped engine references only — the same classifier the
+        # plugin-level engine gate uses, so read-only text processing that
+        # merely NAMES the script (Select-String over a bare name, git diff)
+        # defers instead of being denied by a raw substring test. A command
+        # whose argument IS the bundled engine (file identity) still denies,
+        # even under a read-verb spelling: PowerShell aliases and profile
+        # functions shadow cmdlet names, so a verb name proves nothing about
+        # what executes — inspect the engine source with non-shell tools.
+        return (
+            "deny",
+            "disk-hygiene engine invocations must go through the Bash tool's "
+            "exact guarded command shapes, not PowerShell. To READ the engine "
+            "source, use non-shell file tools.",
+        )
+    if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
+            "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
+        )
+    shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
+    if shell_app_recycle_bin is not None:
+        return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
+    match = _POWERSHELL_MUTATION_WORDS.search(command)
+    if match:
+        return _powershell_mutation_verdict(
+            enabled,
+            f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
+        )
+    if _POWERSHELL_NEW_ITEM_FORCE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged New-Item -Force (truncates an existing file).",
+        )
+    if _POWERSHELL_OUTPUT_REDIRECT.search(
+        command
+    ) or _POWERSHELL_APPEND_REDIRECT.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged shell output redirection (may overwrite a file).",
+        )
+    if _POWERSHELL_DOTNET_DELETE.search(command):
+        return _powershell_mutation_verdict(
+            enabled, "disk-hygiene flagged a .NET Delete call."
+        )
+    qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
+    if qualified:
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged the module-qualified deletion spelling "
+            f'"{qualified.group(0)}".',
+        )
+    if _POWERSHELL_ROBOCOPY_PURGE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged a robocopy mirror/purge/move invocation "
+            "(mass deletion via mirroring).",
+        )
+    return None
+
+
+def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]:
+    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt."""
+    if not enabled:
+        return (
+            "deny",
+            f"{flagged} Disk-hygiene execution is disabled (audit-only mode), so "
+            "deletions are blocked on every lane.",
+        )
+    return (
+        "ask",
+        f"{flagged} Confirm only if this is the explicitly approved manual "
+        "handoff and the command touches exactly the paths you approved.",
+    )
+
+
+def _bash_allowlist_disclosure(authority: str | None) -> str:
+    """The classifier allow-list both denial bodies teach, named once.
+
+    ``_bash_denial_guidance`` prefixes this with each surface's own scope. The
+    shapes, paths, and supporting heads stay here so a subcommand added to one
+    body and not the other cannot drift (#1806).
+    """
+    data_root = _display_data_root(authority)
+    data_sentence = (
+        f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
+        if data_root
+        else (
+            " The guard did not receive an authorized data root (none of the"
+            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments,"
+            " a local-directory marketplace install resolved from"
+            f" {_KNOWN_MARKETPLACES_FILENAME}, nor {_CLAUDE_PLUGIN_DATA_ENV}"
+            " resolved one), so --data-root cannot be validated and engine calls"
+            " fail closed. To supply one, start Claude Code from a shell with"
+            f" {_CLAUDE_PLUGIN_DATA_ENV} set to this plugin's data directory"
+            " (<config>/plugins/data/<name>-<marketplace>)."
+        )
+    )
+    subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
+    supporting = ", ".join(sorted(_READONLY_SUPPORTING_BASH_HEADS | {"["}))
+    return (
+        f"exact bundled {subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} "
+        f'invocations of "{_display_path(_engine_script_path())}", plus the '
+        "argument-free read-only kill-switch probe "
+        f'"{_display_path(_probe_script_path())}", plus literal-form read-only '
+        f"supporting commands ({supporting}; find without "
+        "-delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
+        "absolute-path complete /usr/bin/[ ... ] expression with the closing ] "
+        "bookend; every head, [ included, only as an absolute path under a "
+        "trusted system directory — bare names are denied because exported "
+        "shell functions shadow them) — "
+        "all of them using the hook's absolute Python interpreter "
+        f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
+        "commands are denied because shell functions and aliases can replace them."
+        + data_sentence
+    )
+
+
+def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str:
+    """Explain a Bash deny in the words of the surface that issued it.
+
+    ``engine-gate`` (the plugin-level always-on hook) gates this engine
+    invocation only: the rest of the Bash lane is unaffected, and
+    ``/disk-hygiene:clean`` need not have been invoked. ``belt`` (the
+    skill-frontmatter registration, and the default) is session-wide after
+    that skill is invoked, and names how it clears. Both bodies disclose the
+    same classifier allow-list so the denial cannot teach a grammar the
+    classifier does not implement. Unrecognized ``mode`` values fall back to
+    ``belt``, matching ``resolve_mode``.
+    """
+    resolved = resolve_mode() if mode is None else mode
+    grammar = _bash_allowlist_disclosure(authority)
+    if resolved == _MODE_ENGINE_GATE:
+        return (
+            "Disk-hygiene engine gate: this specific engine invocation is "
+            "gated. The rest of the Bash lane is unaffected, and "
+            "/disk-hygiene:clean need not have been invoked for this to fire. "
+            "Allowed shapes for this invocation are "
+            + grammar
+            + " Supporting inspection of this invocation may use that small "
+            "Bash allowlist or non-Bash read-only tools; any other shape of "
+            "this engine invocation stays denied."
+        )
+    return (
+        "Disk-hygiene session belt: /disk-hygiene:clean was invoked in this "
+        "session, and this belt persists until the session ends. Bash is "
+        "restricted to "
+        + grammar
+        + " Supporting inspection may use that small Bash allowlist or "
+        "non-Bash read-only tools; everything else stays denied. Recovery: "
+        "start a new session."
+    )
+
+
+_WATCHDOG_ENV_VAR = "DISK_HYGIENE_GUARD_WATCHDOG_SECONDS"
+_WATCHDOG_DEFAULT_SECONDS = 10.0
+
+# One decision reaches stdout, written by whichever thread gets there first.
+#
+# `_watchdog_fire` runs on the timer thread while the main thread may be part
+# way through its own `print`. Two writers, no lock, and the host reads a
+# SPLICED JSON object — malformed output, which PreToolUse treats as no
+# decision at all, so the tool call proceeds unguarded. That is a fail-OPEN
+# reached by the very mechanism added to fail closed, so the emission is
+# serialized and latched: the first writer wins and every later writer is a
+# no-op.
+_EMIT_LOCK = threading.Lock()
+_DECISION_EMITTED = False
+# The command under decision, published for `_watchdog_fire` once the payload
+# has parsed. `None` means the stall happened before or during the stdin read,
+# so the watchdog has no command to classify.
+_COMMAND_UNDER_DECISION: str | None = None
+
+
+# How long the WATCHDOG thread waits for `_EMIT_LOCK` before giving up on
+# writing. The main thread takes the lock unconditionally; the watchdog must
+# not, because the one scenario it exists for is a wedged main thread — and a
+# main thread wedged while HOLDING this lock would block the watchdog forever,
+# reproducing the never-fires fail-open the watchdog was added to close. A
+# bounded wait converts that deadlock into a decision.
+_EMIT_LOCK_WAIT_SECONDS = 0.5
+
+
+def _emit_decision(payload: dict[str, object]) -> bool:
+    """Write one decision to stdout. Returns False if one was already written.
+
+    Holds ``_EMIT_LOCK`` across the latch check AND the write. Both halves
+    matter, for different reasons: the latch stops a second object reaching the
+    stream, and holding the lock across ``print`` is what lets the watchdog
+    thread infer, purely from having acquired the lock, that this write has
+    already returned and is therefore safe to flush (see ``_watchdog_fire``).
+
+    This waits for the lock without a timeout, which is correct for the main
+    thread and only for it: the main thread is the one whose decision this is,
+    so it has nothing to protect by giving up. The watchdog thread must never
+    call this, and does not.
+    """
+    global _DECISION_EMITTED
+    with _EMIT_LOCK:
+        if _DECISION_EMITTED:
+            return False
+        _DECISION_EMITTED = True
+        print(json.dumps(payload))
+        return True
+
+
+def _publish_command_for_watchdog(command: str) -> None:
+    global _COMMAND_UNDER_DECISION
+    with _EMIT_LOCK:
+        _COMMAND_UNDER_DECISION = command
+
+
+# Identifies the invocation a timer was armed for.
+#
+# `Timer.cancel()` cannot stop a callback that has already been dispatched, and
+# `main`'s cleanup does not `join()`, so a watchdog can still be running — and
+# can acquire `_EMIT_LOCK` — after `main` has finished and reset the latch. It
+# would then read "no decision yet" about a call that has one and re-decide it,
+# overriding a delivered verdict with a deny.
+#
+# A token settles that without a `join()` (which would deadlock against a
+# callback blocked on the lock the resetter holds). `main` publishes a fresh
+# token, arms the timer with it, and clears it during cleanup; a callback whose
+# token no longer matches knows `main` finished and stands down. `None` is the
+# "no invocation active" value AND the default a directly-invoked
+# `_watchdog_fire` carries, so a unit test calling it outside `main` still gets
+# the full decision path rather than the stand-down.
+_INVOCATION_TOKEN: object | None = None
+
+# The exit code `main` reached, or None if no invocation has completed. A
+# stale-token watchdog exits with THIS rather than an unconditional 0: `main`'s
+# outer `except` returns 2 having emitted nothing (the deny rides the exit
+# status, per this module's contract), and a stand-down that hard-exited 0
+# would race ahead of that return and turn the deny into exit 0 with no JSON —
+# which the host reads as no decision at all, so the command proceeds
+# unguarded. `os._exit` from the timer thread kills the whole process before
+# the main thread can reach `__main__`'s own exit, so this is the only place
+# that outcome can be preserved.
+_MAIN_RESULT: int | None = None
+
+
+def _reset_decision_state(main_result: int | None = None) -> None:
+    """Clear the per-invocation emission latch.
+
+    In production this module is one process per decision, so the latch would
+    never need clearing. The test suite calls ``main`` many times in a single
+    interpreter, and a latch that survived between calls would silently
+    suppress every decision after the first — the guard emitting nothing, which
+    is the fail-open shape this module exists to prevent. Resetting at the top
+    of ``main`` keeps "one decision per invocation" true in both settings.
+
+    ``main_result`` is the exit code ``main`` reached, recorded when this is
+    called from its cleanup so a stale-token watchdog can carry that outcome
+    rather than inventing one. ``None`` means "no invocation has completed",
+    which is the state at the top of ``main`` and in a test that drives
+    ``_watchdog_fire`` directly.
+    """
+    global _DECISION_EMITTED, _COMMAND_UNDER_DECISION, _INVOCATION_TOKEN
+    global _MAIN_RESULT
+    with _EMIT_LOCK:
+        _DECISION_EMITTED = False
+        _COMMAND_UNDER_DECISION = None
+        _INVOCATION_TOKEN = None
+        # Published in the SAME lock hold that clears the token, so a callback
+        # can never see a stale token without also seeing the outcome that
+        # made it stale.
+        _MAIN_RESULT = main_result
+
+
+# The `timeout` both guard registrations declare (`hooks/hooks.json` and
+# `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
+# payload does not carry the hook's own timeout, so the guard cannot read it at
+# runtime; `test_declared_hook_timeouts_match_the_watchdog_ceiling` fails the
+# suite if either registration drifts from this value.
+_DECLARED_HOOK_TIMEOUT_SECONDS = 60.0
+# Headroom the watchdog cannot itself cover: interpreter startup before `main`
+# runs, plus process teardown after `_watchdog_fire`. ADR 0004 measures
+# `python3 -c 'pass'` at 396 ms on this host, and that figure is unbounded from
+# inside the process under EDR or load contention, so the margin is generous
+# rather than tight.
+_HOOK_STARTUP_HEADROOM_SECONDS = 10.0
+_WATCHDOG_MAX_SECONDS = _DECLARED_HOOK_TIMEOUT_SECONDS - _HOOK_STARTUP_HEADROOM_SECONDS
+
+
+def _watchdog_seconds() -> float:
+    """The guard's own internal deadline, in seconds (module docstring, AC 5).
+
+    Every legitimate invocation completes in milliseconds; a finite positive
+    value from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise
+    the deadline on a known-slow filesystem, and any absent, non-numeric,
+    non-finite, or non-positive override falls back to the default rather than
+    disarming the watchdog or raising. A valid override above
+    ``_WATCHDOG_MAX_SECONDS`` is clamped to it, not rejected: the operator's
+    intent (wait longer) is honored as far as it can safely go.
+
+    The clamp is what keeps the two deadline layers ordered. The watchdog is
+    the primary mechanism and the harness ``timeout`` is the backstop, which
+    only holds while the watchdog fires *first* — an override at or above the
+    declared hook timeout inverts that, the harness kills the process instead,
+    and a killed PreToolUse hook yields no ``permissionDecision`` at all, so
+    the guarded command proceeds unguarded (``docs/adr/0004-...``: across
+    15,845 cancelled runs "a killed PreToolUse hook yields ``outcome:
+    'cancelled'`` with no ``permissionDecision``, so the tool call proceeds
+    unguarded"). Clamping keeps the guard's own deny reachable no matter what
+    an operator sets.
+
+    The non-finite rejection is load-bearing, not defensive tidiness: ``inf``,
+    ``nan``, and overflowing literals such as ``1e400`` all parse cleanly
+    through ``float`` and ``inf`` passes a bare ``> 0`` test, but
+    ``threading.Timer(inf, ...)`` accepts ``start()`` and then dies inside the
+    timer thread with ``OverflowError: timestamp out of range for platform
+    time_t``. Because that raises on the *background* thread it never reaches
+    ``main``'s exit-2 boundary — it would silently disarm the watchdog while
+    leaving the guard apparently armed, the exact fail-open shape #1423 exists
+    to close. The clamp does not subsume it: ``nan`` fails every comparison, so
+    ``min(nan, ceiling)`` would return ``nan`` and hand the same broken value
+    to ``Timer``.
+    """
+    raw = os.environ.get(_WATCHDOG_ENV_VAR)
+    if not raw:
+        return _WATCHDOG_DEFAULT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return _WATCHDOG_DEFAULT_SECONDS
+    if not math.isfinite(value) or value <= 0:
+        return _WATCHDOG_DEFAULT_SECONDS
+    return min(value, _WATCHDOG_MAX_SECONDS)
+
+
+def _write_diagnostic(message: str) -> None:
+    """Write a deny diagnostic to stderr without ever preempting the deny.
+
+    The deny is carried by the exit code; this line only explains it. Writing
+    it is therefore best-effort, and the suppression below is the fail-closed
+    behavior rather than a swallowed error: if the hook host has closed or lost
+    the stderr pipe, ``print`` raises (``BrokenPipeError``, or ``ValueError`` on
+    an already-closed stream) from inside the very handler that is about to
+    deny — the exception escapes, ``return 2`` / ``os._exit(2)`` never runs, and
+    the process exits with something PreToolUse treats as non-blocking
+    (https://code.claude.com/docs/en/hooks), running the destructive command
+    ungated. Losing the message is acceptable; losing the deny is not.
+
+    On failure fd 2 is pointed at the null device, because a write failure can
+    leave data buffered and the interpreter's own shutdown flush of ``sys.stderr``
+    would then raise too — that failure exits 120, likewise non-blocking. Both
+    fallback steps are best-effort for the same reason as the write itself.
+    """
+    try:
+        print(message, file=sys.stderr, flush=True)
+    except BaseException:  # noqa: BLE001 -- deny must outrank the diagnostic; see docstring
+        _discard_stream(sys.stderr)
+
+
+def _discard_stream(stream: object) -> None:
+    """Point a broken stream's fd at the null device, best-effort.
+
+    A failed write can leave data buffered, and the interpreter's own shutdown
+    flush of that buffer then raises too — which CPython reports as exit 120,
+    another status PreToolUse treats as non-blocking. Redirecting the
+    underlying fd lets the shutdown flush succeed into nothing, so the exit
+    code stays the one this module chose. Best-effort throughout: ``fileno``
+    itself raises for a stream with no fd (a redirected in-process test
+    stream), and there is nowhere left to report a failure to report.
+    """
+    with contextlib.suppress(BaseException):
+        target_fd = stream.fileno()
+        null_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(null_fd, target_fd)
+        finally:
+            if null_fd != target_fd:
+                os.close(null_fd)
+
+
+def _watchdog_marker_present(command: str | None) -> bool:
+    """Whether ``command`` could possibly be an engine invocation.
+
+    Deliberately the CHEAPEST sound approximation of ``_engine_gate_relevant``:
+    pure regex and string work, no filesystem call of any kind. That is a hard
+    requirement rather than an optimization — this runs on the timer thread
+    precisely because the main thread is presumed wedged in a filesystem call,
+    so a classifier that touched the filesystem could wedge identically and the
+    watchdog would never fire at all.
+
+    ``None`` (the stall happened before or during the stdin read) is reported
+    as marker-present: no command was ever seen, so nothing can be ruled out.
+    """
+    if command is None:
+        return True
+    try:
+        return any(_carries_marker(token) for token in _marker_tokens(command))
+    except BaseException:  # noqa: BLE001 -- an unclassifiable command is not a safe one
+        return True
+
+
+def _watchdog_fire(deadline: float) -> None:
+    """Watchdog callback (background timer thread): decide fast, never hang.
+
+    ``os._exit`` — not ``sys.exit`` — is deliberate: the main thread is
+    presumed stuck inside a syscall this callback cannot interrupt or join, so
+    this is a hard process exit, the one way this module can still guarantee a
+    delivered outcome once cooperative return is no longer an option.
+
+    WHAT the outcome is now depends on what the guard was interrupted doing,
+    because "the guard could not decide" and "the guard decided deny" are not
+    the same event and must not produce the same result (#3502).
+
+    The deadline is WALL-CLOCK, so it measures contention as readily as it
+    measures a stall. On a loaded host — the concurrent-subagent case this
+    hook fires under constantly — an ordinary read-only command could cross a
+    10s deadline while the guard was still in ``_engine_gate_relevant``'s
+    marker-free fallback, and a blanket ``exit 2`` then BLOCKED it. Denying a
+    read-only command that the guard, given another moment, would have
+    deferred on is a false positive, and a gate that intermittently blocks
+    benign work is worse than a slow one: the observed failures all succeeded
+    on an identical retry, which is the signature of contention, not of a
+    command that deserved denying.
+
+    The downgrade is available in exactly ONE situation, and every other path
+    keeps the pre-change ``exit 2``:
+
+    * ``engine-gate`` mode, with a command that provably carries no engine
+      marker. Only there is the completed verdict knowably the instant
+      plugin-level defer, so ``ask`` is strictly MORE protective than the
+      outcome the guard would have reached (a defer emits no decision at all
+      and lets the command run) and strictly less blocking than ``exit 2``;
+    * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
+      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
+      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      deferred, so downgrading it to a prompt on "the host was slow" would
+      convert a deny-by-default guard into one the operator is invited to
+      wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
+      it when no ``--mode`` is passed, which is exactly what the skill
+      frontmatter does), so a mode-blind classifier fails in the unsafe
+      direction;
+    * a command carrying the engine marker denies, unchanged;
+    * a stall before the payload parsed denies: nothing was seen, so nothing
+      can be ruled out.
+
+    EVERY OUTCOME MUST BE SELF-CARRYING OR PROVEN DELIVERED. This is the
+    constraint that shapes the branch order below, and it is easy to lose:
+    ``exit 2`` needs nothing on stdout (the deny rides the exit status;
+    ``_write_diagnostic`` uses stderr), whereas ``exit 0`` asserts that a JSON
+    object reached the host — and exit 0 carrying no JSON is read as NO
+    DECISION, so the command proceeds unguarded. Adding non-deny outcomes to
+    this callback therefore introduced a way to fail open that a deny-only
+    callback could not have: any ``exit 0`` taken while a write is merely
+    buffered, or still in progress on the main thread, discards it. Hence the
+    flush under the lock, and hence the lock-acquisition failure denying rather
+    than exiting 0.
+
+    The residual is measured rather than estimated, and it is wider than a
+    hard link. ``_watchdog_marker_present`` diverges from
+    ``_engine_gate_relevant`` on EXACTLY one set:
+
+        {no token's basename is the engine marker}
+            INTERSECT {some candidate is samefile with the bundled engine}
+
+    That is the whole filesystem-IDENTITY class. It includes hard links and
+    symlinks under a non-marker name, and — the part worth naming, because
+    ``_engine_gate_relevant``'s own docstring says identity is what closes it —
+    the Win32 filename-alias spellings: ``hygiene.py.`` (Win32 discards the
+    trailing dot, and ``_carries_marker``'s ``rstrip("/\\\\")`` does not),
+    ``hygiene.py::$DATA`` (splitting on ``[/\\\\:]`` and taking the last part
+    yields the empty string), and 8.3 short names. Each opens the bundled
+    engine while none has its basename, so each reaches ``ask`` on expiry in
+    engine-gate mode where a completed run would have gated it.
+
+    This residual cannot be closed on this thread: settling identity means
+    asking the filesystem, and this classifier must stay syscall-free precisely
+    because the main thread is presumed wedged in a filesystem call. Closing it
+    would mean resolving identity BEFORE the stall window and publishing the
+    verdict alongside the command — but that resolution IS the stall, so there
+    is no earlier moment at which it is cheap. It is therefore an accepted
+    residual, of the same identity class ``_engine_gate_relevant`` already
+    documents accepted residuals within.
+
+    Not in the set, and verified so rather than assumed: the overbreadth
+    shapes. ``./python-hygiene.py`` and a quoted ``bash -c 'python3
+    test_hygiene.py'`` payload are reported irrelevant by BOTH functions,
+    because the marker-free branch short-circuits before the widening rules
+    that would have caught them can run. A plain byte copy is a different file
+    and is relevant to neither.
+
+    The fail-open this guard exists to prevent is the harness killing a hook
+    that produced no ``permissionDecision`` at all (``docs/adr/0004-...``).
+
+    Every branch below ends in exactly ONE ``os._exit`` and nothing follows it,
+    so the call is terminal under a mock as well as in a real process — a test
+    that patches ``os._exit`` observes one call, not the tail of the function
+    running on.
+    """
+    deny_diagnostic = (
+        f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
+        f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
+        f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
+        "on this filesystem."
+    )
+
+    # Failing to take the lock means the main thread is INSIDE `_emit_decision`,
+    # between `json.dumps` and `print` returning. Its write has not landed, and
+    # this thread cannot make it land: `sys.stdout.flush()` from here contends
+    # for the very buffer the wedged writer holds.
+    #
+    # So this branch denies, and that is the conservative direction rather than
+    # a regression. Exit 2 is SELF-CARRYING: the deny rides the exit status and
+    # `_write_diagnostic` uses stderr, so it needs nothing on stdout. Exiting 0
+    # here would stake the decision on a write known NOT to have completed, and
+    # exit 0 carrying no JSON is read as no decision at all, which is the
+    # command proceeding unguarded. Before this watchdog gained non-deny
+    # outcomes its only exit was 2, so every outcome was self-carrying by
+    # construction; keeping exit 2 for the one state this thread cannot observe
+    # is what preserves that property now that other branches exit 0.
+    if not _EMIT_LOCK.acquire(timeout=_EMIT_LOCK_WAIT_SECONDS):
+        _write_diagnostic(deny_diagnostic)
+        os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+        return  # unreachable in production; keeps the mocked exit terminal
+
+    # The lock is held from here to whichever `os._exit` runs. That is what
+    # makes the flushes below safe, and the invariant is narrower than "nothing
+    # else writes stdout": holding this lock proves the main thread cannot be
+    # inside `_emit_decision`'s `print`, which is the only stdout write that
+    # happens during `main`'s lifetime. The `__main__` block's own flush and
+    # its `_discard_stream` fallback run AFTER `main` returns and are not under
+    # this lock, so they can still overlap a live daemon timer — `cancel()` is
+    # a no-op on an already-fired one. Both overlaps are benign: two flushes of
+    # the same buffer serialize, and `_discard_stream` runs only when stdout is
+    # already broken and its decision already undeliverable.
+    global _DECISION_EMITTED
+    try:
+        token = getattr(
+            threading.current_thread(), "guard_invocation_token", _INVOCATION_TOKEN
+        )
+        if token is not _INVOCATION_TOKEN:
+            # `main` finished and cleared the token while this callback was in
+            # flight. Its decision is authoritative; re-deciding here would
+            # override a delivered verdict with a deny. Flush (safe: the lock
+            # is held, so no thread is inside `_emit_decision`'s `print`) and
+            # stand down.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            # Carry `main`'s own outcome. Defaulting to 2 when it is unknown is
+            # fail-closed: an unknown outcome is not evidence of an allow.
+            os._exit(  # noqa: SLF001 -- hard exit is the point; see docstring
+                _MAIN_RESULT if _MAIN_RESULT is not None else 2
+            )
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        command = _COMMAND_UNDER_DECISION
+
+        if _DECISION_EMITTED:
+            # `_emit_decision` holds this lock across its `print`, so having
+            # acquired it proves that write returned. It may still be BUFFERED,
+            # and `os._exit` skips the interpreter's shutdown flush, so this
+            # flush is what actually delivers the main thread's decision.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # MODE GATE. The `ask` downgrade rests on "the completed verdict would
+        # have been the plugin-level defer", and that holds ONLY in engine-gate
+        # mode. The skill-frontmatter registration passes no `--mode` and
+        # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
+        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
+        # Downgrading that to `ask` would turn a deny-by-default guard into a
+        # prompt the operator is invited to approve, on nothing more than "the
+        # host was slow". Belt mode therefore keeps the pre-change outcome.
+        #
+        # `resolve_mode` reads only `sys.argv`, so it is safe on this thread
+        # under the same syscall-free rule as `_watchdog_marker_present`.
+        if resolve_mode() != _MODE_ENGINE_GATE or _watchdog_marker_present(command):
+            _write_diagnostic(deny_diagnostic)
+            os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # Engine-gate mode, provably marker-free: the completed verdict really
+        # would have been the instant plugin-level defer, so the reason below is
+        # accurate as written rather than merely plausible.
+        _DECISION_EMITTED = True
+        with contextlib.suppress(BaseException):
+            print(
+                json.dumps(
+                    decision(
+                        "ask",
+                        f"disk-hygiene could not finish checking this command "
+                        f"within {deadline:g}s and is asking rather than "
+                        f"deciding. It names no disk-hygiene engine script, so "
+                        f"it is not a disk-hygiene invocation this plugin-level "
+                        f"gate governs. Raise {_WATCHDOG_ENV_VAR} (up to "
+                        f"{_WATCHDOG_MAX_SECONDS:g}s) if this host is "
+                        f"legitimately slow.",
+                    )
+                )
+            )
+            sys.stdout.flush()
+        os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+        return  # unreachable in production; keeps the mocked exit terminal
+    finally:
+        _EMIT_LOCK.release()
+
+
+def _settle(
+    command: str,
+    tool_name: str,
+    start: float,
+    decision_value: str,
+    rule: str,
+    reason: str,
+) -> int:
+    """Deliver one verdict: emit it, then report and record it, in that order.
+
+    Every adjudicated branch of ``_decide`` ends here, so the three cannot
+    disagree about ordering, about the telemetry status a permission maps to,
+    or about which of them may run without the others. The record comes last on
+    purpose: `_record_decision` is total and its result is discarded, so no
+    audit-write outcome can reach the verdict already on stdout.
+    """
+    _emit_decision(decision(decision_value, reason))
+    _emit_guard_telemetry(
+        start,
+        tool_name,
+        _telemetry_status_for_permission(decision_value),
+        decision_value=decision_value,
+    )
+    _record_decision(command, tool_name, decision_value, rule, reason)
+    return 0
+
+
+def _decide(command: str, tool_name: str, start: float) -> int:
+    """The guard's decision logic once the JSON payload has parsed cleanly.
+
+    Every branch prints its decision (or nothing, for an instant plugin-level
+    defer) and returns 0; ``main`` supplies the watchdog and the exit-2
+    fail-closed boundary around this call, so nothing in here needs its own
+    exception handling to keep the exit-1 contract in the module docstring.
+    """
+    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
+        command, tool_name
+    ):
+        # Plugin-level gate: no engine invocation in the command — defer with no
+        # output so unrelated work in every consumer session is untouched.
+        return 0
+
+    enabled = resolve_disk_hygiene_enabled()
+
+    if tool_name == "PowerShell":
+        verdict = powershell_decision(command, enabled)
+        if verdict:
+            _settle(
+                command,
+                tool_name,
+                start,
+                verdict[0],
+                "powershell-deletion-spelling",
+                verdict[1],
+            )
+        else:
+            _emit_guard_telemetry(start, tool_name, "ok")
+            # A `none` record, not silence: the PowerShell registration carries
+            # no `if` filter, so this branch is the evidence that the guard ran
+            # on this call and adjudicated nothing — the distinction the
+            # fail-open finding needs and that an absent record cannot make.
+            # Command text is not persisted here: belt mode records every
+            # PowerShell call, including unrelated session commands.
+            _record_decision(
+                command,
+                tool_name,
+                guard_decision_log.DECISION_NONE,
+                "powershell-no-flagged-spelling",
+            )
+        return 0
+
+    authority = resolve_authorized_data_root()
+    if is_exact_kill_switch_probe(command):
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "allow",
+            "kill-switch-probe",
+            "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+        )
+    if is_exact_readonly_supporting_command(command):
+        # Engine-gate mode runs in every consumer session. A hard `allow` here
+        # would bypass the user's permission prompt for an allowlisted command
+        # that also names the engine path (#2774). `ask` keeps the ergonomic
+        # win while preserving the prompt for sessions that never invoked clean.
+        permission = "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
+        return _settle(
+            command,
+            tool_name,
+            start,
+            permission,
+            "readonly-supporting-allowlist",
+            "Exact literal-form read-only supporting Bash command "
+            "(disk-hygiene belt inspection allowlist).",
+        )
+    command_kind = classify_exact_engine_command(command, authority)
+    if command_kind in {"scan", "preview", "handoff-verify"}:
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "allow",
+            f"exact-engine-{command_kind}",
+            "Exact bundled disk-hygiene read-only gate invocation.",
+        )
+    if command_kind == "apply" and enabled:
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "ask",
+            "exact-engine-apply",
+            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+        )
+    denied_by_kill_switch = command_kind == "apply"
+    return _settle(
+        command,
+        tool_name,
+        start,
+        "deny",
+        "kill-switch-disabled-apply"
+        if denied_by_kill_switch
+        else "not-exact-engine-command",
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        if denied_by_kill_switch
+        else _bash_denial_guidance(authority),
+    )
+
+
+def main() -> int:
+    start = time.perf_counter()
+    _reset_decision_state()
+    # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
+    # point. The watchdog denies fast on an internal deadline instead of
+    # letting a stalled syscall run toward a harness-level, non-blocking kill
+    # (module docstring, AC 5); the broad except denies on any exception this
+    # function (or anything it calls) still manages to raise, replacing the
+    # interpreter's default "uncaught exception -> exit 1, proceed" behavior
+    # with "exit 2, deny" (AC 1-2). BaseException is deliberate — a
+    # KeyboardInterrupt reaching a security guard mid-decision is exactly the
+    # kind of "not a deliberate, reasoned allow" path AC 1 requires to deny,
+    # not to propagate.
+    #
+    # Arming the watchdog is the FIRST action inside the boundary — before the
+    # stdin read, not after it. Two failure shapes this closes, both landing
+    # on a killed-hook, no-decision fail-open if the watchdog is not yet armed
+    # while they happen: (1) under OS thread or memory exhaustion
+    # `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start
+    # new thread`, which from outside this boundary would reach the
+    # interpreter's default handler — exit 1, non-blocking, destructive
+    # command proceeds; (2) `json.load(sys.stdin)` blocks through EOF, and a
+    # Windows Win32 pipe can deliver the complete JSON payload but delay the
+    # EOF signal — the same late-EOF stall class the bash hook fleet bounds
+    # with a read timeout (plugins/guardrails/CHANGELOG.md, "[0.8.0]" ->
+    # `hook::buffer_stdin`). Python's blocking read has no partial-read risk
+    # the way bash's `read -t` does, so the watchdog's existing hard
+    # `os._exit(2)` on deadline is the equivalent bound here: arming it before
+    # the read means a late-EOF stall denies fast instead of running past the
+    # declared hook `timeout` toward the harness's own non-blocking kill.
+    deadline = _watchdog_seconds()
+    watchdog: threading.Timer | None = None
+    # Read by the `finally` below even if the try block raises before assigning
+    # it; 2 is the fail-closed default for "we never got far enough to decide".
+    result = 2
+    # Published under the lock so a callback's token check and its state read
+    # are atomic with respect to `main`'s cleanup.
+    global _INVOCATION_TOKEN
+    token = object()
+    with _EMIT_LOCK:
+        _INVOCATION_TOKEN = token
+    try:
+        # `args` stays `(deadline,)`: `test_main_arms_watchdog_before_reading_stdin`
+        # pins this construction exactly, so the token rides on the Timer OBJECT
+        # instead. `threading.Timer` is a `Thread`, so the callback recovers it
+        # with `threading.current_thread()` — and a directly-invoked
+        # `_watchdog_fire` runs on a thread that carries no such attribute,
+        # which is what keeps the unit-test path on the full decision route.
+        watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+        watchdog.guard_invocation_token = token  # type: ignore[attr-defined]
+        watchdog.daemon = True
+        watchdog.start()
+        tool_name = ""
+        try:
+            payload = json.load(sys.stdin)
+            tool_name = payload.get("tool_name", "")
+            command = payload["tool_input"]["command"]
+            if not isinstance(command, str):
+                raise TypeError("command is not text")
+            # From here the watchdog can classify what it interrupted; before
+            # this point it deliberately cannot, and denies.
+            _publish_command_for_watchdog(command)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            reason = f"disk-hygiene guard could not validate the shell call: {exc}"
+            _emit_decision(decision("deny", reason))
+            _emit_guard_telemetry(
+                start,
+                str(tool_name),
+                "blocked",
+                decision_value="deny",
+            )
+            _record_decision("", str(tool_name), "deny", "unparsable-payload", reason)
+            result = 0
+            return result
+        result = _decide(command, tool_name, start)
+        return result
+    except BaseException as exc:
+        _emit_guard_telemetry(start, "", "error")
+        diagnostic = (
+            f"destructive_guard: internal error, denying by default "
+            f"({type(exc).__name__}: {exc})"
+        )
+        _write_diagnostic(diagnostic)
+        # The deny rides exit 2 rather than stdout, so without this record an
+        # internal-error deny leaves nothing behind at all once the session's
+        # stderr is gone.
+        _record_decision("", "", "deny", "internal-error", diagnostic)
+        result = 2
+        return result
+    finally:
+        # `watchdog` stays None if construction itself raised; cancelling an
+        # armed-but-unstarted timer is harmless.
+        if watchdog is not None:
+            watchdog.cancel()
+        # Deliver the decision BEFORE clearing the latch.
+        #
+        # `cancel()` does NOT stop a callback that has already started, so a
+        # timer firing in this window still runs. What stops it re-deciding a
+        # call that already has an answer is the INVOCATION TOKEN, not this
+        # ordering and not the flush: `_reset_decision_state` clears the token
+        # under `_EMIT_LOCK`, and a callback that acquires the lock afterwards
+        # sees its own token no longer current and stands down at exit 0.
+        #
+        # The flush stays, for the narrower thing it does do: `os._exit` skips
+        # the interpreter's shutdown flush, so a decision still buffered when a
+        # standing-down callback exits would otherwise be lost.
+        with contextlib.suppress(BaseException):
+            sys.stdout.flush()
+        # One process per decision makes the reset a no-op in production; it is
+        # what keeps `main` from leaking state into the next call in a test
+        # interpreter, where `_watchdog_fire` is also exercised directly.
+        _reset_decision_state(result)
+
+
+if __name__ == "__main__":
+    _exit_code = main()
+    try:
+        sys.stdout.flush()
+    except BaseException:
+        # A decision the host never received is not a decision. `_decide`'s
+        # `print` only buffers, so a closed stdout pipe surfaces here rather
+        # than at that call — outside `main`'s boundary, where an allow would
+        # otherwise sail out as exit 0 with nothing delivered.
+        _write_diagnostic(
+            "destructive_guard: the decision could not be written to stdout; "
+            "denying by default."
+        )
+        _discard_stream(sys.stdout)
+        _exit_code = 2
+    with contextlib.suppress(BaseException):
+        sys.stderr.flush()
+    # `os._exit`, not `SystemExit`: interpreter shutdown flushes the std
+    # streams again and CPython replaces the exit status with 120 when that
+    # flush fails — non-blocking under PreToolUse, so a deliberate `2` would
+    # let the destructive command run. Both streams are already flushed as far
+    # as they can be, so nothing deliverable is lost by exiting hard. Same
+    # reasoning as `_watchdog_fire`'s exit.
+    os._exit(_exit_code)  # noqa: SLF001 -- see comment above

@@ -18,7 +18,7 @@
 - [Layer 10: `external-integrations`](#layer-10-external-integrations)
 - [Closing the walk](#closing-the-walk)
 
-The lane binding `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` asks for: the item inventory, the
+The lane binding `<plugin-root>/context/scrutiny-method.md` asks for: the item inventory, the
 layer vocabulary with its discovery probes, the evidence sources available in this lane, and the
 lane's protected-class patterns. This document supplies the first three. The fourth is the method's
 own §7 list plus whatever the consumer's configuration adds.
@@ -28,7 +28,7 @@ verdict definition, a threshold number, or a protected pattern written out again
 a second copy to drift.
 
 The layer order below **is** the artifact's enum order
-(`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, "Layer vocabulary"), which is also the
+(`<plugin-root>/context/findings-artifact.md`, "Layer vocabulary"), which is also the
 artifact's primary sort key. Walking in it means the artifact is written in sorted order as the walk
 proceeds, rather than needing a re-sort at the end.
 
@@ -102,7 +102,7 @@ pointed at from the layers where it fires.
 - **Never synthesize a member list from reading behavior.** Where the composition is not mechanically
   readable, the container keeps one verdict and the finding says why.
 - Either way the container stays **one spine row with one verdict**; members are line-formatted
-  entries inside its body, in the shape `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` fixes
+  entries inside its body, in the shape `<plugin-root>/context/findings-artifact.md` fixes
   under "Aggregating containers", with the member claim and anchor it owns.
 
 **The item unit is pinned per layer, not chosen per run.** The unit is part of identity: a different
@@ -127,8 +127,8 @@ name the layers actually completed so far.
   and its prior findings are carried forward untouched, while a layer named in `scope` with no
   findings was walked and found empty. Writing a layer into `scope` before its findings are on disk
   inverts that and reads as a retirement of everything in it.
-- The memory root's self-ignore guard runs once per session on the first write, per the topic-docs
-  binding, not once per layer.
+- The memory root's self-ignore guard runs once per session on the first write,
+  not once per layer.
 - In an `unattended` run every one of these writes, the re-read-and-merge included, goes through
   the neutral-filename-then-rename route in SKILL.md's "Writing the artifact from a delegated run".
 

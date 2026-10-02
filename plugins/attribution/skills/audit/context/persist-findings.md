@@ -17,9 +17,8 @@ Resolve it in this order:
 1. **The `review` plugin's bundled copy, when that plugin is installed.** It ships
    `reference/findings-file-shape.md`, which owns the shape the fix action consumes, and its
    `skills/fanout/` tree owns the merge-set rules. Read those files directly. For **where the file
-   goes**, read `review/reference/topic-docs.md` "Resolution (the contract's five-rung order,
-   earlier wins)" — the detector-findings contract points there and `findings-file-shape.md` does not
-   restate the ladder. This rung works offline, which is the point of putting it first.
+   goes**, read `review/skills/fanout/SKILL.md` "Shared inputs"; the detector-findings contract
+   points there and `findings-file-shape.md` does not restate it. This rung works offline, which is the point of putting it first.
 2. **The publisher's raw URL**, when `review` is not installed:
    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
 3. **Neither reachable → do not write.** Report that the destination and the guard could not be
@@ -34,14 +33,14 @@ mapping is still yours to apply (see `Tier` below).
 
 ## Where the file goes
 
-Resolve per the contract's "Where the file goes": run the WHOLE rung order, never only its
-documented default; take the non-interactive collapse for the rungs that would confirm or ask,
-since this detector cannot ask; honor the self-ignore guard including its invalid cases; and
-prove the destination is outside tracked space before writing. A destination that cannot be
+Resolve per the contract's "Where the file goes": the current branch's findings directory in the
+memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's instructions
+declare another root); honor the self-ignore guard; and prove the destination is outside tracked
+space before writing. A destination that cannot be
 proven is reported and not written to.
 
 **This resolution is model work and stays model work.** It reads prose, a `CLAUDE.md`
-declaration or a configured `memory_dir`, and prose inference is not reasoning-free, so it
+declaration of a working-docs root, and prose inference is not reasoning-free, so it
 cannot move into `emit-findings.sh` without breaking the plugin's script/model split. A bash
 implementation would either violate that split or silently collapse to the documented default,
 which is the one failure mode nothing reports.
@@ -60,7 +59,7 @@ Once the destination is resolved and the contract resolution succeeded, run:
 The script owns the mechanical half: relay-eligibility filtering, cell assembly and escaping,
 tier lookup (a mirror of the crosswalk, which stays authoritative), rank ordering, the
 non-overwrite suffix, the `## Unparsed` appendix, and the `## Surfaces` counts. What stays with
-the model is everything before the script, meaning rung-order resolution, the contract resolution
+the model is everything before the script, meaning destination resolution, the contract resolution
 above, and the self-ignore guard, plus everything after it: read the written file's head to confirm
 the shape, and map `Tier` to the consuming project's severity vocabulary when it defines one,
 editing the written file's `Tier` cells per the contract's consumer-precedence rule.

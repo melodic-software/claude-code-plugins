@@ -322,6 +322,34 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("`doctor`", text)
         self.assertIn("Never hand-edit", text)
 
+    def test_only_a_native_description_with_an_em_dash_is_marked_verbatim(self):
+        row = deep_copy(BASE_ROW)
+        row["evidence"] = [
+            "native description: a — b",
+            "[2] native description: c — d",
+            "native description: no dash",
+            "seeded rationale: e — f",
+        ]
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        lines = self.repo.view_path.read_text(encoding="utf-8").splitlines()
+        marker = overlap.VERBATIM_MARKER
+        self.assertIn(f"  - native description: a — b{marker}", lines)
+        self.assertIn(f"  - [2] native description: c — d{marker}", lines)
+        self.assertIn("  - native description: no dash", lines)
+        self.assertIn("  - seeded rationale: e — f", lines)
+
+    def test_every_em_dash_line_of_a_multiline_native_description_is_marked(self):
+        row = deep_copy(BASE_ROW)
+        row["evidence"] = ["native description: a — b\nc — d\ne"]
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        lines = self.repo.view_path.read_text(encoding="utf-8").splitlines()
+        marker = overlap.VERBATIM_MARKER
+        self.assertIn(f"  - native description: a — b{marker}", lines)
+        self.assertIn(f"c — d{marker}", lines)
+        self.assertIn("e", lines)
+
     def test_generate_is_idempotent(self):
         self.repo.generate()
         first = self.repo.view_path.read_text(encoding="utf-8")
@@ -1279,6 +1307,60 @@ class DetectTests(unittest.TestCase):
             )
         )
 
+    def _seed_builtin_plugin(self, plugins, **statuses):
+        self.pairs_path.write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "pairs": [
+                        {
+                            "native": {
+                                "name": "cc-plugin-agents-md",
+                                "class": "plugin-backed-builtin",
+                            },
+                            "component": {
+                                "plugin": "demo",
+                                "skill": "demo-audit",
+                                "kind": "skill",
+                            },
+                            "why": "seeded",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.write_inventory(
+            builtin_plugins=plugins,
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "lanes": self.lanes(**statuses),
+            },
+        )
+        out = self.repo.root / "candidates.json"
+        self.detect(out)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        [candidate] = [c for c in report["candidates"] if c["origin"] == "seeded"]
+        return candidate
+
+    def test_a_built_in_plugin_reads_its_own_lane_not_its_class_lane(self):
+        # Two lanes share the plugin-backed-builtin class; the lane the entry
+        # was read from decides, so a broken builtin_plugins lane marks it.
+        present = {"cc-plugin-agents-md": {"description": "Loads AGENTS.md"}}
+        candidate = self._seed_builtin_plugin(present, builtin_plugins="broken")
+        self.assertIs(candidate["re_derivable"], False)
+        self.assertTrue(
+            any("`builtin_plugins` lane" in item for item in candidate["evidence"])
+        )
+        candidate = self._seed_builtin_plugin(present, plugin_backed="broken")
+        self.assertIs(candidate["re_derivable"], True)
+
+    def test_an_absent_built_in_plugin_checks_every_lane_of_its_class(self):
+        candidate = self._seed_builtin_plugin({}, builtin_plugins="broken")
+        self.assertIs(candidate["re_derivable"], False)
+
     def test_a_healthy_lane_keeps_its_candidates_re_derivable(self):
         self.write_inventory(
             integrity={
@@ -1696,6 +1778,49 @@ class DiscoveryScoringTests(unittest.TestCase):
         self.assertNotIn(("songwriting", "rhyme"), ranked)  # no shared token at all
         self.assertIn("commit", found[0][3])
 
+    def test_a_pascal_case_name_scores_on_its_words(self):
+        native = discover.Surface.build(
+            "ClaudeDesign", "builtin-tool", "builtin_tools", [{"description": ""}]
+        )
+        self.assertEqual(native.name_sets, [{"design"}])
+        self.assertEqual(discover.split_words("MCPSearch"), "MCP Search")
+
+    def test_a_user_facing_name_is_scored(self):
+        bare = surface("Edit", description="")
+        named = discover.Surface.build(
+            "Edit",
+            "builtin-tool",
+            "builtin_tools",
+            [{"description": "", "user_facing_name": "Update"}],
+        )
+        ours = discover.Component.build(
+            "claude-config", "update-config", "skill", "Update the config."
+        )
+        score = {
+            s.name + str(bool(s.registrations[0].get("user_facing_name"))): sc
+            for s, _c, sc, _m in discover.discover(
+                [bare, named], [ours], threshold=0.0, top_k=5
+            )
+        }
+        self.assertNotIn("EditFalse", score)
+        self.assertGreater(score["EditTrue"], 0.0)
+
+    def test_a_search_hint_alone_is_scored(self):
+        native = discover.Surface.build(
+            "LyricTool",
+            "builtin-tool",
+            "builtin_tools",
+            [{"description": "", "search_hint": "find rhymes"}],
+        )
+        ours = discover.Component.build(
+            "songwriting", "rhyme", "skill", "Find rhymes for a lyric."
+        )
+        [(_s, _c, score, matched)] = discover.discover(
+            [native], [ours], threshold=0.0, top_k=5
+        )
+        self.assertGreater(score, 0.0)
+        self.assertIn("rhyme", matched)
+
     def test_threshold_and_top_k_bound_the_result(self):
         native = surface("pr", description="Create a pull request")
         corpus = [
@@ -1937,6 +2062,40 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertIn("tool loading: deferred", tool["evidence"])
         self.assertEqual(tool["recommended_integration"], "route")
 
+    def test_an_unresolved_description_still_scores_name_ufn_and_hint(self):
+        # The inventory could not resolve these descriptions; each surface is
+        # still scored on what it has: its user-facing name, its search hint,
+        # and its name.
+        self.repo.write_skill(
+            "prototype", "design-directions", description="Mock up a UI layout."
+        )
+        self.write_inventory(
+            builtin_tools={
+                "ClaudeDesign": {
+                    "name": "ClaudeDesign",
+                    "description": "",
+                    "description_source": "unresolved",
+                    "user_facing_name": "Claude Design",
+                    "search_hint": None,
+                },
+            },
+            bundled_skills={
+                "rhyme": {
+                    "name": "rhyme",
+                    "description": "",
+                    "description_source": "unresolved",
+                }
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        pairs = {
+            (c["native"]["name"], c["component"]["skill"])
+            for c in self.discovered(report)
+        }
+        self.assertIn(("ClaudeDesign", "design-directions"), pairs)
+        self.assertIn(("rhyme", "rhyme"), pairs)
+
     def test_a_broken_agent_lane_marks_its_candidates_not_re_derivable(self):
         self.repo.write_skill("planning", "plan", description="Plan the work.")
         self.write_inventory(
@@ -2023,6 +2182,81 @@ class PluginBackedSurfaceTests(unittest.TestCase):
     def test_a_bare_plugin_backed_name_still_scores(self) -> None:
         surfaces = overlap.native_surfaces({"plugin_backed": {"scan": "scanner"}})
         self.assertEqual([s.name for s in surfaces], ["scan"])
+
+
+BUILTIN_PLUGINS = {
+    "cc-plugin-claude-test": {
+        "description": "Claude Test: runs specs in a browser",
+        "aliases": ["claude-test"],
+        "gated": True,
+        "skills": [
+            {
+                "name": "claude-test",
+                "description": "Check the app",
+                "user_invocable": True,
+            }
+        ],
+        "agents": [{"name": "author", "description": "Writes spec drafts"}],
+        "commands": [{"name": "diff", "description": "Toggle the diff panel"}],
+    }
+}
+
+
+class BuiltinPluginSurfaceTests(unittest.TestCase):
+    def test_a_plugin_and_each_component_is_a_plugin_backed_surface(self) -> None:
+        payload = overlap.plugin_component_payload(BUILTIN_PLUGINS)
+        self.assertEqual(
+            sorted(payload), ["author", "cc-plugin-claude-test", "claude-test", "diff"]
+        )
+        [agent] = payload["author"]
+        self.assertEqual(agent["plugin_name"], "cc-plugin-claude-test")
+        self.assertEqual(agent["component_kind"], "agent")
+        self.assertIs(agent["user_invocable"], False)
+        self.assertIs(payload["claude-test"][0]["user_invocable"], True)
+        self.assertIs(payload["cc-plugin-claude-test"][0]["gated"], True)
+        surfaces = overlap.native_surfaces(
+            overlap._lane_payloads({"builtin_plugins": BUILTIN_PLUGINS})
+        )
+        self.assertEqual(
+            {s.klass for s in surfaces}, {overlap.CLASS_OF_LANE["plugin_backed"]}
+        )
+        self.assertEqual({s.lane for s in surfaces}, {"builtin_plugins"})
+
+    def test_a_registration_the_loader_never_requires_is_not_fed(self) -> None:
+        plugins = {
+            **BUILTIN_PLUGINS,
+            "cc-plugin-dead": {
+                "description": "Never loaded",
+                "in_loader": False,
+                "skills": [{"name": "dead-skill", "description": "x"}],
+            },
+            "cc-plugin-unknown": {"description": "No loader read", "in_loader": None},
+        }
+        payload = overlap.plugin_component_payload(plugins)
+        self.assertNotIn("cc-plugin-dead", payload)
+        self.assertNotIn("dead-skill", payload)
+        self.assertIn("cc-plugin-unknown", payload)
+
+    def test_an_index_entry_carries_the_lane_it_was_read_from(self) -> None:
+        payloads = overlap._lane_payloads({"builtin_plugins": BUILTIN_PLUGINS})
+        index = overlap.build_native_index({"plugin_backed": {"scan": "s"}}, payloads)
+        self.assertEqual(index["author"]["lane"], "builtin_plugins")
+        self.assertEqual(index["scan"]["lane"], "plugin_backed")
+        self.assertEqual(overlap.lane_of({"class": "builtin-tool"}), "builtin_tools")
+
+    def test_a_name_another_lane_holds_is_not_scored_twice(self) -> None:
+        payloads = overlap._lane_payloads(
+            {
+                "builtin_commands": {"diff": {"name": "diff", "description": "Diff"}},
+                "builtin_plugins": BUILTIN_PLUGINS,
+            }
+        )
+        surfaces = overlap.native_surfaces(payloads)
+        diff = [s for s in surfaces if s.name == "diff"]
+        self.assertEqual([s.lane for s in diff], ["builtin_commands"])
+        index = overlap.build_native_index({}, payloads)
+        self.assertEqual(index["diff"]["class"], "builtin-command")
+        self.assertEqual(index["author"]["class"], "plugin-backed-builtin")
 
 
 def make_dismissal(**overrides):

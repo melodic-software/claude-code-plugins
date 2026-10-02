@@ -21,7 +21,7 @@ this skill's content as `${user_config.library_dir}`:
   **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
+  node "<skill-dir>/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
   ```
 
   `run.mjs` forwards it to the extraction child as an environment variable (a double-quoted CLI
@@ -76,17 +76,14 @@ directory; an env-var reference reads via `printenv NAME` (bash) or `$env:NAME` 
 use that resolved absolute root for every agent-written path, matching what the launcher resolves
 for the scripts. Default / unset → repo-root `.work/<watch-epic>/…` as written.
 
-**Carve-out from the topic-docs convention.** This skill's `.work/` root is formally carved out of
-the marketplace topic-docs convention
-(<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
-the work root resolves through the knowledge plugin's own `library_dir` setting, not the concern
-file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars,
+**Work root and slug rules.** This skill's `.work/` root resolves through the knowledge plugin's own
+`library_dir` setting; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars,
 Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are
-sanctioned. Unlike the convention's never-committed memory tier, this skill writes no root `*`
+sanctioned. Unlike the never-committed memory slice, this skill writes no root `*`
 `.gitignore` of its own: its slice artifacts are the durable substrate, staged and committed per
 the table below, **provided the resolved work root is not itself gitignored**. That precondition
-is not automatic. Because the default work root and the convention's default `memory_dir` both
-resolve to repo-root `.work/`, a consumer that *also* adopts the topic-docs convention self-ignores
+is not automatic. Because the default work root and the lifecycle skills' default memory root both
+resolve to repo-root `.work/`, a consumer whose lifecycle skills self-ignore
 that shared root (a `.gitignore` containing `*`), leaving these slices local until the work root is
 moved off it (e.g. a non-default `library_dir`); the skill does not force-add.
 

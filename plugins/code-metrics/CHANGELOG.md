@@ -3,6 +3,28 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6] - 2026-09-30
+
+### Fixed
+
+- **`principles` spokes no longer point at the collector ladder and config reference through the literal plugin-root token.** The token is not substituted in a `reference/` file. The two reference docs are now relative links, the ladder file reads `<plugin-root>/scripts/collector-ladder.tsv`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
+## [0.4.5] - 2026-09-30
+
+### Changed
+
+- README: the pytest command passes `-o tmp_path_retention_policy=none` so test directories are not kept under `$TMPDIR`.
+
+## [0.4.4] - 2026-09-30
+
+### Fixed
+
+- **`setup check` runs one measure per collector before reporting PASS.** A collector row passed on
+  the adapter's version probe alone, so a tool that resolved on `PATH` but could not measure showed
+  PASS. The row now runs one measure on a bundled fixture: PASS names the version and the measure,
+  FAIL reports a tool that probed but did not measure, and WARN `probe only` marks a collector no
+  bundled fixture can exercise.
+
 ## [0.4.3] - 2026-09-30
 
 ### Fixed

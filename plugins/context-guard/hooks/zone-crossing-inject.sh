@@ -160,7 +160,7 @@ set -uo pipefail
 # silent and writes nothing. That is every fire on a machine without the
 # context-guard status line, so the check runs before the libraries are
 # sourced, which cost more than the rest of such a fire. jq must be on PATH for
-# the skip: without it the full path owes its once-per-session notice.
+# the skip: without it the full path owes its once per session and agent notice.
 if [[ ! -e "${HOME:-}/.claude/context-guard/context" ]] && command -v jq >/dev/null 2>&1; then
   exit 0
 fi
@@ -183,6 +183,18 @@ cg_load_utils() {
   # shellcheck source=hook-utils.sh
   source "$CG_DIR/hook-utils.sh"
   CG_UTILS=1
+}
+# One telemetry record per fire that reaches a zone decision, carrying how the
+# decision was made: fast (no resolver ran), coalesced (the last word reused
+# because the snapshot body matched, or because only used_percentage moved
+# within one shipped band with no zones.json), or resolving (the resolver ran).
+# With no sink configured nothing is loaded and nothing runs. $1 status, $2
+# data JSON.
+CG_PATH="fast"
+cg_fire_telemetry() {
+  [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
+  cg_load_utils
+  hook::emit_telemetry "zone-crossing-inject" "$EVENT" "$1" "$START_EPOCH" "$2"
 }
 CG_REQUIRED=0
 cg_require_utils() {
@@ -513,7 +525,10 @@ if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" &
   [[ -e "$HOME/.claude/context-guard/zones.json" ]] && zones_now=1
   compacted_now=0
   [[ -e "$COMPACTED_FILE" ]] && compacted_now=1
-  [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]] && exit 0
+  if [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]]; then
+    cg_fire_telemetry ok '{"path":"fast"}'
+    exit 0
+  fi
 fi
 
 # Read BEFORE the resolver rather than at the stamp below, because what the mark
@@ -714,7 +729,10 @@ if [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]]; then
   zone="dumb"
 elif [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
   cg_read_snapshot "$HOME/.claude/context-guard/context/$SESSION.json" || true
-  if ! cg_try_coalesce; then
+  if cg_try_coalesce; then
+    CG_PATH="coalesced"
+  else
+    CG_PATH="resolving"
     { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
   fi
 fi
@@ -732,7 +750,10 @@ fi
 
 # Silent on unknown, and state is left untouched: absence of data is not a
 # transition, and a later real reading must compare against the last REAL one.
-[[ "$zone" == "smart" || "$zone" == "acceptable" || "$zone" == "dumb" ]] || exit 0
+if [[ "$zone" != "smart" && "$zone" != "acceptable" && "$zone" != "dumb" ]]; then
+  cg_fire_telemetry ok '{"path":"'"$CG_PATH"'","zone":"unknown"}'
+  exit 0
+fi
 
 # One reader for both markers. It sets REPLY (the raw bytes on disk) and
 # REPLY_NORM (the normalized zone word) rather than printing them, the same
@@ -834,8 +855,15 @@ umask 077
 # `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
 # Without jq no emit can run, so exit before any marker moves; a later fire
 # with jq installed then still sees the crossing. `command -v` is a builtin.
-command -v jq >/dev/null 2>&1 || cg_require_utils
-[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# Both early exits still record the fire; emit needs no jq.
+command -v jq >/dev/null 2>&1 || {
+  cg_fire_telemetry error '{"path":"'"$CG_PATH"'","zone":"'"$zone"'","reason":"jq_missing"}'
+  cg_require_utils
+}
+[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || {
+  cg_fire_telemetry error '{"path":"'"$CG_PATH"'","zone":"'"$zone"'","reason":"state_dir_unavailable"}'
+  exit 0
+}
 # A marker whose on-disk value already matches is not rewritten. This hook
 # fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
 # turn that stays in one zone fired four times and rewrote both files four
@@ -872,7 +900,7 @@ fi
 if [[ -n "$persist_failed" ]]; then
   cg_require_utils
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
-    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
+    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed","path":"'"$CG_PATH"'"}'
   exit 0
 fi
 
@@ -904,14 +932,16 @@ if [[ -z "$degraded" && -n "$SNAP_BODY" ]]; then
 fi
 
 ((new_rank > armed_rank)) || {
-  # Nothing worse than this session has already reported. Three shapes reach
-  # here and only the first two are worth telemetry: a genuine recovery (rank
-  # drop), a re-crossing the armed rank suppressed (the flap this gate exists
-  # for), and an unchanged zone, which is not an event.
+  # Nothing worse than this session has already reported, so nothing is
+  # injected. Every fire here still records its path. A genuine recovery (rank
+  # drop) or a re-crossing the armed rank suppressed (the flap this gate exists
+  # for) also records the transition; any other fire records only path and zone.
   if [[ -n "$last" && "$zone" != "$last" ]]; then
     cg_require_utils
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-      '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false}'
+      '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false,"path":"'"$CG_PATH"'"}'
+  else
+    cg_fire_telemetry ok '{"path":"'"$CG_PATH"'","zone":"'"$zone"'"}'
   fi
   exit 0
 }
@@ -940,5 +970,5 @@ operator="context-guard: context zone ${prev_label} → ${zone_label}. Response 
 cg_require_utils
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true}'
+  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true,"path":"'"$CG_PATH"'"}'
 exit 0

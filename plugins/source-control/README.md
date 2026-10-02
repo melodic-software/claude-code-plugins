@@ -132,6 +132,12 @@ Supply `subject_pattern=` to write it non-interactively, and
 `layer=user|team|local` to pick which layer receives it (default: the tracked
 team file). Re-runnable to reconfigure.
 
+### `/source-control:check`
+
+Read-only and model-invocable. Reports whether `jq` resolves for the plugin's
+hooks, with the install route from `prerequisites.json` when it does not. It
+never installs.
+
 ### `/source-control:resolve-conflicts`
 
 Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
@@ -302,11 +308,6 @@ fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
-- **Node.js on PATH.** Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's
-  native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the
-  hooks do not launch and the PR-linkage and worktree gates are not enforced. The setup `check`
-  reports whether `node` resolves.
 - **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
   and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
   Windows); `unzip` is additionally required by the CI-log fetch path
@@ -327,6 +328,14 @@ fails when a gate feeds its payload to a reader by here-string.
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
   project declares nothing.
+
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
+  Code's native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
+  whether `node` resolves.
 
 ## Install
 
@@ -370,6 +379,7 @@ repo's owner.
 | `promotion_evidence_binding` | file | no promotion-evidence bootstrap; every promotable cell stays effective-unpromoted (absolute path to the security binding document, outside the target repository, read-only to the lane; contract: [promotion-evidence-bootstrap.md](skills/babysit-loop/reference/promotion-evidence-bootstrap.md)) |
 | `promotion_evidence_root` | directory | no probe evidence root; every promotable cell stays effective-unpromoted (absolute path to the protected `--probe-evidence-root` directory, outside the target repository, read-only to the lane) |
 | `promotion_evidence_source` | file | no evidence source; every promotable cell stays effective-unpromoted (absolute path to the operator-published epoch-scoped events file, outside the target repository, read-only to the lane) |
+| `promotion_evidence_checker` | file | no checker; every promotable cell stays effective-unpromoted (absolute path to the autonomy plugin's `check-security-binding.mjs` from an install the operator trusts, outside the target repository, read-only to the lane) |
 | `worktree_root` | directory | `worktrees/` under the plugin data dir (external root for `/source-control:worktree create`; never inside a repository or a repository-discovery root) |
 | `worktree_stale_days` | number | 14 (staleness threshold for `/source-control:worktree status`) |
 | `worktree_reap_after_hours` | number | 48 (last-commit age past which `/source-control:worktree cleanup` proposes a safe worktree by default) |
@@ -419,8 +429,8 @@ reads it from.
 | `babysit_autopilot_merge_tier` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_AUTOPILOT_MERGE_TIER` | Enable the #476 autopilot merge tier: a distinct bot account submits a genuine approving review, then the gate merges only when every criterion holds (issue-linked, lane-authored, no do-not-merge label, distinct-bot approval on the live head, no human blocking comment). Ships DISABLED; a deliberate operator opt-in. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels to be set. Absent/false: the tier does not exist and PRs go to the human merge-ready list. |
 | `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when enabled) refuses fail-closed. |
 | `babysit_approver_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVER_BOT_LOGINS` | Bot logins whose approving review satisfies the autopilot merge tier's author != approver criterion. Absent: the tier (when enabled) refuses fail-closed. |
-| `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed. |
-| `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Absent: the review-trigger module stays dormant. |
+| `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent and undeclared in the target repository: the tier (when enabled) refuses fail-closed. |
+| `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant. |
 | `babysit_review_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_BOT_LOGINS` | Logins of the AI review bots the trigger phrase addresses, and whose review of the live head the merge gate waits for. Absent: the review-trigger module stays dormant and the merge gate's review-settle hold stays dormant. |
 | `babysit_review_settle_minutes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_SETTLE_MINUTES` | How long after a head appears a review bot's re-review may still be in flight. The merge gate holds a head that bot has not reviewed yet until the window elapses, then stops waiting. Requires babysit_review_bot_logins; absent, the hold stays dormant. Set it above the reviewer's observed latency. |
 | `babysit_review_gate_context` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_GATE_CONTEXT` | Check/status context name of the AI-review gate. Absent: gate treated as absent (degrade). |
@@ -437,6 +447,7 @@ reads it from.
 | `promotion_evidence_binding` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING` | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads (the binding argument of the autonomy plugin's check-security-binding.mjs). It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no promotion-evidence bootstrap is configured and every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the directory passed as --probe-evidence-root: the protected evidence surface the seam resolves isolation probe transcripts against. It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no probe evidence root is configured and every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process the lane can read but not write. It must sit outside the target repository and every lane worktree. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no evidence source is configured and every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_checker` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CHECKER` | Absolute path to the check-security-binding.mjs the babysit-loop promotion-evidence seam runs (the autonomy plugin's skills/setup/scripts/check-security-binding.mjs, from an install the operator trusts). It decides whether a cell is promoted, so it must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no checker is configured and every promotable cell stays effective-unpromoted. |
 | `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids. That claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, dated measurement". |
 | `worktree_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORKTREE_STALE_DAYS` | Days since last commit before /worktree status classifies a worktree as stale |
 | `worktree_reap_after_hours` | number<br>*min 1* | `48` | `CLAUDE_PLUGIN_OPTION_WORKTREE_REAP_AFTER_HOURS` | Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default |

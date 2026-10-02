@@ -48,7 +48,7 @@ publisher a runtime dependency and is not conforming. A third-party documentatio
 dependency, so fetching one does not forfeit the citation. This rule reaches publisher-owned targets
 only. For publisher-owned targets, distinguishing
 an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
-statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case.
+statement does not settle it.
 (`plugin.json` publisher metadata sits outside
 this rule entirely, being neither skill, agent, nor schema content. Identifying the source is what
 the manifest is for.)
@@ -307,7 +307,7 @@ re-deriving a row.
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`. `node` must be on `PATH`, and Claude Code does not guarantee it: exec form resolves `command` on `PATH` ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)), and the installed `claude` binary does not itself invoke Node ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)), both fetched 2026-09-29. A hook that cannot start is a non-blocking error, so a guard whose `node` is missing enforces nothing and the transcript notice is the only signal ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the claude-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and Claude Code does not guarantee it: exec form resolves `command` on `PATH` ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)), and the installed `claude` binary does not itself invoke Node ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)), both fetched 2026-09-29. A hook that cannot start is a non-blocking error, so a guard whose `node` is missing enforces nothing and the transcript notice is the only signal ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | No additional constraints. | 2026-07-17 |
@@ -320,7 +320,7 @@ re-deriving a row.
 
 ### Windows exec-form probe
 
-`scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument. No shell-form hook row remains.
+`scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form, except the three shell-form rows named in the Hooks row above: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument.
 
 - **Claim:** On Windows, exec form (`args` present) resolves `command` as an executable and spawns it directly with `args` as the argument vector. There is no shell, so a shebang is not honored, and `command` must be a real executable such as a `.exe`. `.cmd` and `.bat` shims cannot be spawned. If a Windows spawn of that shape drops `args` or the process image is `bash.exe`, the fleet sweep stops.
 - **Basis:** [Hooks reference](https://code.claude.com/docs/en/hooks), section "Exec form and shell form". Verbatim, from a full raw-markdown read of `https://code.claude.com/docs/en/hooks.md` (330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`; the slug is listed in `https://code.claude.com/docs/llms.txt`): "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." The same section states that exec form has no shell and that `shell` is "Ignored when `args` is set". Args-drop is [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495), open as of this date.
@@ -612,7 +612,7 @@ values it cannot reconcile, so an obsolete or renamed key surfaces on re-run ins
 silently inert. Schema evolution is handled this way, without a separate `migrate` verb: a plugin
 that versions its own config contract may carry a forward, directional, user-confirmed upgrade of a
 recognized older version, still under `apply`, never a separate verb and never a silent write (the
-versioned standards index is the fleet example), while a plugin that instead takes topic-docs'
+versioned standards index is the fleet example), while a plugin that instead takes a
 clean-break path relocates by hand with no compatibility tooling. What the clean-break stance rules
 out for either is *silent* backward-compatibility shims and dual-read windows that translate a
 changed shape behind the user's back. The one sanctioned dual-read is the declared, WARN-visible
@@ -796,7 +796,6 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 
 | Shared concern | Owner |
 |---|---|
-| Topic-docs two-tier binding | [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md) |
 | Lifecycle artifact protocol | [`docs/plugin-artifact-protocol.md`](plugin-artifact-protocol.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
@@ -1133,13 +1132,13 @@ model surface, because plugin `userConfig` declares only generic typed options w
 verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
 configuration.
 
-Tier-to-model mapping, dated 2026-09-23 (recheck trigger: a new Claude model family reaches GA, or
+Tier-to-model mapping, dated 2026-10-01 (recheck trigger: a new Claude model family reaches GA, or
 the session default model changes):
 
-| Tier | Model (2026-09-23) |
+| Tier | Model (2026-10-01) |
 |---|---|
 | Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5.5, with Fable 5.1 the rung above |
-| Mechanical prep, one tier down | Sonnet 5 |
+| Mechanical prep, one tier down | Sonnet 5.5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
 Row 1 is relative by construction: the invariant above makes the ladder relative to the active
@@ -1153,8 +1152,11 @@ verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in 
 gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
 id
 ([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
-verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
-unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
+verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Row 2 is Sonnet 5.5: the `sonnet`
+alias resolves to it on the Anthropic API, and Sonnet 5 is listed as a legacy model
+([model-config](https://code.claude.com/docs/en/model-config) and
+[models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
+re-read 2026-10-01). Row 3 re-verifies unchanged: Haiku 4.5 remains the current Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
 customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering

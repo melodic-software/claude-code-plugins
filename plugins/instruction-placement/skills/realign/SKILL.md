@@ -98,8 +98,7 @@ in the table above. Do not invent a format here. Four rules bind the write:
 
 ## Prerequisites
 
-Read the artifact from the home the plugin's topic-docs binding resolves
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Read the artifact from the home `findings-artifact.md` "Where it lives" defines.
 
 If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall back
 to another path or another branch's artifact: findings cite line ranges, and a range derived
@@ -190,6 +189,16 @@ accepted proposal.
   un-indexed demotion is exactly the subagent gap this plugin exists to close.
 - **Stop on a failed verification.** Report what failed and leave the finding `blocked`. Do not
   proceed to the next finding on a broken tree.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

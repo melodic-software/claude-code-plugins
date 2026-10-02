@@ -10,6 +10,9 @@
 # tracks reality, which is the whole failure mode this tool exists to avoid.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
@@ -521,7 +524,7 @@ else
 fi
 
 # --- --run executes the selected suites, sequentially ----------------------
-marker="$(mktemp "${TMPDIR:-/tmp}/affected-tests-marker.XXXXXX")"
+marker="$(mktemp "$TMP_ROOT/affected-tests-marker.XXXXXX")"
 : >"$marker"
 (cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/widget.sh >/dev/null 2>&1)
 RC=$?
@@ -1367,6 +1370,119 @@ else
     fail "LIVE R7: $live_ref did not select the plugin-contract suite through R7 (rc=$RC): $out"
   fi
 fi
+
+# --- skill ownership: a bare reference name means the skill's OWN file -------
+# Skills reuse reference names freely, so a suite naming `ownership-probe.md` from inside
+# one skill is naming that skill's file. Changing another skill's `ownership-probe.md`
+# must not select it, and a path-qualified mention through the owning skill must
+# still select from anywhere.
+mk_repo repo
+own_a=plugins/alpha/skills/sa
+own_b=plugins/alpha/skills/sb
+mkdir -p "$repo/$own_a/reference" "$repo/$own_a/scripts" \
+  "$repo/$own_b/reference" "$repo/$own_b/scripts" \
+  "$repo/plugins/beta/skills/sc/scripts"
+printf '# a probe\n' >"$repo/$own_a/reference/ownership-probe.md"
+printf '# b probe\n' >"$repo/$own_b/reference/ownership-probe.md"
+printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' >"$repo/$own_a/scripts/sa.test.sh"
+printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' >"$repo/$own_b/scripts/sb.test.sh"
+# Another skill's suite that spells the path through skill sb.
+printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
+  >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
+# A bare mention from a skill that carries no file of that name itself.
+printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' \
+  >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
+# A suite inside skill sa that names the file only through skill sb.
+printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
+  >"$repo/$own_a/scripts/sa-cross.test.sh"
+# Another plugin's skill of the same name as sa, carrying the same file, named by path.
+mkdir -p "$repo/plugins/gamma/skills/sa/reference"
+printf '# gamma probe\n' >"$repo/plugins/gamma/skills/sa/reference/ownership-probe.md"
+printf '#!/usr/bin/env bash\n# reads plugins/gamma/skills/sa/reference/ownership-probe.md\n' \
+  >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
+git_test_config "$repo" add plugins >/dev/null
+git_test_config "$repo" commit -qm skills >/dev/null
+
+run_sel "$repo" "$own_a/reference/ownership-probe.md"
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_a/scripts/sa.test.sh" &&
+  ! has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
+  ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
+  ok "ownership: skill A's ownership-probe.md selects A's suite and not B's"
+else
+  fail "ownership: A's ownership-probe.md selection wrong (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" "$own_b/reference/ownership-probe.md"
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
+  ! has_line "$OUT" "$own_a/scripts/sa.test.sh"; then
+  ok "ownership: skill B's ownership-probe.md still selects B's suite and not A's"
+else
+  fail "ownership: B's ownership-probe.md selection wrong (rc=$RC): $OUT"
+fi
+
+if has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
+  ok "ownership: a path-qualified mention from another skill still selects"
+else
+  fail "ownership: path-qualified mention from another skill lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" "$own_a/reference/ownership-probe.md"
+if has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh; then
+  ok "ownership: a bare mention from a skill without its own file still selects"
+else
+  fail "ownership: bare mention from a file-less skill lost (rc=$RC): $OUT"
+fi
+
+if ! has_line "$OUT" "$own_a/scripts/sa-cross.test.sh"; then
+  ok "ownership: a suite in the owning skill that names another skill's file is not selected"
+else
+  fail "ownership: owner-local suite naming another skill's path was selected (rc=$RC): $OUT"
+fi
+
+if ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.test.sh; then
+  ok "ownership: a path through another plugin's same-named skill is not selected"
+else
+  fail "ownership: same-named skill in another plugin was accepted (rc=$RC): $OUT"
+fi
+rm -rf "$repo"
+
+# --- R5 copies inside skill directories still reach every copy's suite -------
+# A shared source outside any skill, copied into each skill's reference/, with
+# each skill's suite naming its own copy bare. The source's fan-out must reach
+# every suite: ownership only narrows basenames that no file outside a skill
+# directory carries, and the source is one.
+mk_repo repo
+mkdir -p "$repo/plugins/alpha/skills/sa/reference" "$repo/plugins/beta/skills/sb/reference"
+write_print_manifest "$repo/scripts/sync-guard.sh" "lib/guard-util.sh" \
+  "plugins/*/skills/*/reference/guard-util.sh"
+printf 'guard_util() { echo guard; }\n' >"$repo/lib/guard-util.sh"
+for p in alpha beta; do
+  s=s${p:0:1}
+  printf 'guard_util() { echo guard; }\n' >"$repo/plugins/$p/skills/$s/reference/guard-util.sh"
+  printf '#!/usr/bin/env bash\n# sources guard-util.sh\n' >"$repo/plugins/$p/skills/$s/reference/$s.test.sh"
+done
+git_test_config "$repo" add lib scripts plugins >/dev/null
+git_test_config "$repo" commit -qm guard >/dev/null
+
+run_sel "$repo" lib/guard-util.sh
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" plugins/alpha/skills/sa/reference/sa.test.sh &&
+  has_line "$OUT" plugins/beta/skills/sb/reference/sb.test.sh; then
+  ok "R5: an in-skill shared-lib copy still reaches every copy's suite"
+else
+  fail "R5: in-skill copy fan-out lost a suite (rc=$RC): $OUT"
+fi
+
+# The out-of-skill shape (hook-utils.sh style): the fixture's widget.sh copies
+# live in plugins/*/hooks/, each consumer suite sourcing its own plugin's copy.
+run_sel "$repo" lib/widget.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
+  has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "R5: a hooks-dir shared-lib copy still reaches every copy's suite"
+else
+  fail "R5: hooks-dir copy fan-out lost a suite (rc=$RC): $OUT"
+fi
+rm -rf "$repo"
 
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the

@@ -442,12 +442,12 @@ lane prompt. The pairing is the settings value above, fixed at launch.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
-Leave effort at its default; Opus and Sonnet already default to high in Claude Code
-(verified 2026-08-08 against
-[model config](https://code.claude.com/docs/en/model-config#adjust-effort-level):
-"The default effort is `high` on every model that supports effort, except
-Opus 4.7, which defaults to `xhigh`". Re-resolve if a lane pins a model
-whose default differs, or when the pinned models change).
+Leave effort at its default. Each model ships its own default, and a lane that
+pins a level stops following it when the lane's model changes. For the current
+defaults, see
+[Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+**As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed,
+or stops stating each model's default effort.
 
 ## Concurrent workers on one repository
 

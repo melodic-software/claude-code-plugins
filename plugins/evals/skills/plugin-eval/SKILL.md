@@ -82,6 +82,23 @@ lists the gated tools, which are exactly the ones needing an `--allow-tools` gra
 widen the operator grant, and neither can a skill's own `allowed-tools`; an ungranted tool is
 removed from the session and reported on stderr as `not granted`.
 
+### Worktree isolation
+
+When the session runs isolated in a git worktree, the Bash guard refuses any command containing the
+word `eval`, `claude plugin eval --help` included, and refuses the user's own `!` command in that
+session the same way. This applies only when `run` or `init` is about to invoke `claude plugin eval`;
+`preflight`, `validate`, `read`, and `ci` never invoke it and proceed as usual. Do not retry, wrap
+the command in a script, route it through another tool, or bypass the guard in any other way. Stop,
+print the exact command this skill would have run and tell the user to paste it into a terminal
+outside Claude Code. For `run` that is `claude plugin eval <target> ...` with an absolute
+`<target>` and an absolute `--json` path inside the isolated worktree, so the command gives the same
+result from any directory; for `init` it is `claude plugin eval init --bare <name>`, which takes no
+`--json`. After a `run`, read the `--json` file back with the `read` action.
+
+| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
+|---|---|---|
+| In a worktree-isolated session the built-in Bash guard refuses any command containing `eval`, including `claude plugin eval --help`, with `this command runs a string through eval, which can't be verified to stay inside the worktree`; the user's own `!` command is refused the same way | melodic-software/claude-code-plugins#5696 repro on Claude Code 2.1.285, Linux/WSL2, verified 2026-10-01 | Recheck trigger: a Claude Code release note touches worktree isolation or `plugin eval`. Then re-run `claude plugin eval --help` from an isolated worktree session and refresh this row with the outcome |
+
 ## Target routing
 
 The plugin is the only unit the harness loads and the only thing the ablation measures. Every delta
@@ -183,8 +200,9 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 |---|---|---|
 | The target must precede `--tag`, `--allow-tools`, and `--json` or it is swallowed as their value (`--json output path must end in .json`). `--trust-plugin` asserts trust and skips the first-run prompt, and a non-TTY run against an untrusted directory is refused exit 1 without it. `--keep-temp` preserves the per-run trace directories the runner otherwise deletes. `--judge-model` defaults to a small fast model (haiku); `--model` pins the agent under test; `-j/--concurrency` takes 1 to 8 and cuts wall-clock only; `--threshold` defaults to 1.0 | `claude plugin eval --help` plus <https://code.claude.com/docs/en/plugin-evals>, verified 2026-09-12, with the arg-order and trust behavior reproduced against this repository's suite | Recheck trigger: `--help` no longer matches a row, or a release note touches the flag set. Then re-run `--help`, re-derive the row, refresh this record with the outcome, and land a drift outcome in this plugin's CHANGELOG |
 
-Where a harness guard refuses a Bash command containing the bare word `eval`, run the same command
-through the PowerShell tool instead. The command text is unchanged; only the tool differs.
+Where a harness guard other than the worktree refusal above blocks a Bash command containing the
+bare word `eval`, run the same command through the PowerShell tool instead. The command text is
+unchanged; only the tool differs.
 
 ## Reading the delta
 
@@ -270,6 +288,8 @@ is what tells a reader which one happened and whether the arms were comparable a
 
 ## Gotchas
 
+- The worktree refusal says the command runs a string through eval, but `claude plugin eval` does
+  not; the guard matches the word `eval`, so no flag or rewording of the command clears it.
 - A pass that crosses the ceiling can still end `partial: false` with exit 0 and one case missing
   its `delta`: the ceiling skips judge calls, not runs. A pass that crosses it earlier skips whole
   cases and reports `partial: true` with exit 2. Only the JSON distinguishes them.
@@ -307,5 +327,5 @@ is what tells a reader which one happened and whether the arms were comparable a
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
-| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](../../../../docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
 | A usage or rate limit mid-suite is not marked partial; a run a Claude Code session started keeps its report local and says `kept local`, while a terminal run publishes unless `--no-publish` is passed; `init` needs a terminal and `init --bare <name>` runs nothing | <https://code.claude.com/docs/en/plugin-evals>, its troubleshooting entry for a usage or rate limit, its HTML-report section, and its "Write a case manually" and CI sections, verified 2026-09-13 | Recheck trigger: a release note touches report publishing, `init`, or limit handling, or one of these sections no longer reads this way. Then re-read the page, re-derive this row, and refresh this record with the outcome |

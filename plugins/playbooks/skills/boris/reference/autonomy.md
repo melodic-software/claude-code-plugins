@@ -157,6 +157,9 @@ Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808
 
 ## 67. xhigh: New Default Effort for Opus 4.7
 
+> **Superseded:** default effort differs by model and has changed since this tip. For the current
+> defaults, see [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+
 Opus 4.7 in Claude Code defaults to `xhigh`, a new effort level beyond the low/medium/high/max scale tip 34 describes. Model reasons longer before acting, pairing with the delegation shift: think harder once, rather than iterate fast and bounce back to you.
 
 ```bash
@@ -233,52 +236,26 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 
 **Key detail:** Max applies only to current session. All other effort levels (including xhigh) are sticky and persist for next session too.
 
-> **Amended (verified 2026-08-02 against
-> [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
-> the session-only claim holds for the interactive surfaces Boris is describing, but it is not
-> exhaustive: there is one durable route to `max`. Upstream, verbatim: "`low`, `medium`, `high`,
-> and `xhigh` persist across sessions when you set them in an interactive session. `max` provides
-> the deepest reasoning and applies to the current session only, except when set through the
-> `CLAUDE_CODE_EFFORT_LEVEL` environment variable." The persisted `effortLevel` setting takes
-> `low`, `medium`, `high`, or `xhigh`, while `max` and `ultracode` "are not accepted here", and the
-> environment variable "takes precedence over all other methods". Two further limits on "sticky":
-> stickiness comes from setting the level *interactively* (a level set with `/effort` in
-> non-interactive `-p` mode "applies to the current session only and isn't saved as your
-> default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
-> and "holds it across sessions until you make an explicit effort choice". Opus 5 has no such
-> hold (superseded by the amendment below). That page owns the current level names, persistence
-> rules, and per-model availability; read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
-> page finds it no longer matching this record.
-
-> **Amended (verified 2026-09-29 against
-> [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-> 109,282 bytes as raw markdown):** the hold sentence above is no longer on the page. What the page
-> says now: the session's level comes from the first source that applies, in this order: an explicit
-> choice (`CLAUDE_CODE_EFFORT_LEVEL`, launching with `--effort`, or `/effort` in the session), your
-> saved settings, then the model's default. Launching with `--effort` is an explicit choice for that
-> launch. Opus 5.5 starts at `medium` unless one of those sources sets a level for it, and a
-> top-level `effortLevel` in the user settings file does not count for Opus 5.5. That key still
-> applies on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it start at
-> their own default until you choose a level for them with `/effort` or the `/model` picker. A
-> top-level `effortLevel` in project, local, or managed settings, or one passed with `--settings`,
-> applies to every model. `max` applies to the current session only unless it is set through
-> `CLAUDE_CODE_EFFORT_LEVEL`. `/effort` in a `-p` run applies to that session only.
-> **Recheck trigger:** a re-fetch of that section no longer matching this record.
+> **Amended:** treat the persistence rule above as Boris's setup at the time, not the current
+> rule. Which level a session starts at, which levels persist, and each model's default now depend
+> on the model and on how the level was set. For the current rules, see
+> [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+> **As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed, or stops stating
+> how a session's effort level is resolved.
 
 To steer thinking without changing effort level:
 
 - Harder problems: "Think carefully and step-by-step before responding; this problem is harder than it looks."
 - Save tokens: "Prioritize responding quickly rather than thinking deeply. When in doubt, respond directly."
 
-> **Amended (verified 2026-09-23 against the
-> [Opus 5.5 prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
-> and [model config](https://code.claude.com/docs/en/model-config)):** these prompt steers are an
-> Opus 4.7-era calibration. On models that always think (Opus 5.5 and the Fable models, where
-> thinking cannot be turned off), delete "think carefully" lines from prompts and standing
-> instructions and change effort instead: the guide reports that removing such a line made replies
-> start sooner with no clear quality loss. For a quick answer, its line is "Answer directly without
-> deliberating." **Recheck trigger:** a re-fetch of the guide's "Thinking instructions in chat
-> system prompts" section or the model-config thinking table no longer matching this record.
+> **Amended:** these prompt steers predate models that always think. On a model whose thinking
+> cannot be turned off, drop "think carefully" lines from prompts and standing instructions and
+> change the effort level instead. For which models always think, see
+> [Claude Code model config, "Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking);
+> for why such lines can go, see
+> [Prompting Claude Opus 5.5, "Thinking instructions in chat system prompts"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
+> **As of:** 2026-09-30. **Recheck trigger:** either section is renamed or removed, or the first
+> stops naming the models whose thinking cannot be turned off.
 
 `/effort` to set your level.
 

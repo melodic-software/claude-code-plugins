@@ -54,6 +54,7 @@ class CatalogRulesTest(unittest.TestCase):
             _entry("cache/keep", inode=4, kind="file", logical_size=1),
         ]
         record = {
+            "path": "cache",
             "identity": catalog.identity_of(entries[0]),
             "descendant_set": catalog.descendant_set("cache", entries),
         }
@@ -183,6 +184,139 @@ class CatalogRulesTest(unittest.TestCase):
         partial, _ = catalog.sync_catalog(_snapshot(), merged, [], [], "run-j")
         self.assertEqual(2, len(partial["records"]))
 
+    def test_operator_answer_is_reused_by_identity_from_another_target(self) -> None:
+        first = _snapshot(
+            _entry("esupport", inode=20),
+            _entry("esupport/a", inode=21, kind="file"),
+            target="/root",
+        )
+        answered, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "esupport", "disposition": "keep"}], "run-o"
+        )
+        reached = _snapshot(
+            _entry("vendor/esupport", inode=20),
+            _entry("vendor/esupport/a", inode=21, kind="file"),
+            target="/other",
+        )
+        catalog.annotate_entries(reached, answered)
+        self.assertEqual("keep", reached["entries"][0]["prior_disposition"])
+        again, report = catalog.sync_catalog(
+            reached,
+            answered,
+            [_finding("vendor/esupport", owner=None, disposition="remove")],
+            [],
+            "run-p",
+        )
+        self.assertEqual([], report["questions"])
+        self.assertEqual(answered, again)
+        own = _snapshot(_entry("a", inode=21, kind="file"), target="/root/esupport")
+        own["target_identity"] = {**_entry("esupport", inode=20), "size_qualifiers": []}
+        catalog.annotate_entries(own, answered)
+        self.assertEqual("keep", own["target_prior_disposition"])
+        own["target_identity"]["inode"] = 99
+        catalog.annotate_entries(own, answered)
+        self.assertNotIn("target_prior_disposition", own)
+
+    def test_an_answer_reused_from_another_target_is_reported_unchanged(self) -> None:
+        answered, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/root"),
+            None,
+            [],
+            [{"path": "esupport", "owner": "eSupport", "disposition": "keep"}],
+            "run-t",
+        )
+        reached = _snapshot(_entry("esupport", inode=20), target="/other")
+        again, report = catalog.sync_catalog(reached, answered, [], [], "run-u")
+        line = "esupport | keep | eSupport | answered under /root"
+        self.assertEqual([line], report["unchanged"])
+        for key in ("new_or_changed", "questions", "uncataloged"):
+            self.assertEqual([], report[key])
+        self.assertIn(f"- {line}", catalog.render_markdown(again, report))
+        _, local = catalog.sync_catalog(
+            reached,
+            answered,
+            [],
+            [{"path": "esupport", "disposition": "remove"}],
+            "run-v",
+        )
+        self.assertEqual([], local["unchanged"])
+        self.assertEqual(["new"], [item["state"] for item in local["new_or_changed"]])
+
+    def test_an_open_question_yields_to_an_answer_from_another_target(self) -> None:
+        asked, first = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/a"),
+            None,
+            [_finding("esupport", owner=None)],
+            [],
+            "run-w",
+        )
+        self.assertEqual(["esupport"], [item["path"] for item in first["questions"]])
+        answered, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/b"),
+            asked,
+            [],
+            [{"path": "esupport", "owner": "eSupport", "disposition": "keep"}],
+            "run-x",
+        )
+        rescan = _snapshot(_entry("esupport", inode=20), target="/a")
+        catalog.annotate_entries(rescan, answered)
+        self.assertEqual("keep", rescan["entries"][0]["prior_disposition"])
+        self.assertNotIn("prior_unresolved", rescan["entries"][0])
+        again, report = catalog.sync_catalog(
+            rescan, answered, [_finding("esupport", owner=None)], [], "run-y"
+        )
+        self.assertEqual([], report["questions"])
+        self.assertEqual(
+            ["esupport | keep | eSupport | answered under /b"], report["unchanged"]
+        )
+        self.assertEqual(["/b"], [record["target"] for record in again["records"]])
+
+    def test_an_open_question_stays_when_no_other_target_has_an_answer(self) -> None:
+        asked, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/a"),
+            None,
+            [_finding("esupport", owner=None)],
+            [],
+            "run-z",
+        )
+        rescan = _snapshot(_entry("esupport", inode=20), target="/a")
+        catalog.annotate_entries(rescan, asked)
+        self.assertTrue(rescan["entries"][0]["prior_unresolved"])
+        _, report = catalog.sync_catalog(rescan, asked, [], [], "run-aa")
+        self.assertEqual(["esupport"], [item["path"] for item in report["questions"]])
+
+    def test_identity_change_under_another_target_invalidates_the_answer(self) -> None:
+        first = _snapshot(_entry("esupport", inode=20), target="/root")
+        answered, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "esupport", "disposition": "keep"}], "run-q"
+        )
+        moved = _snapshot(_entry("esupport", inode=77), target="/other")
+        catalog.annotate_entries(moved, answered)
+        self.assertNotIn("prior_disposition", moved["entries"][0])
+        grown = _snapshot(
+            _entry("esupport", inode=20),
+            _entry("esupport/new", inode=5, kind="file"),
+            target="/other",
+        )
+        catalog.annotate_entries(grown, answered)
+        self.assertNotIn("prior_disposition", grown["entries"][0])
+        _, report = catalog.sync_catalog(
+            moved, answered, [_finding("esupport", owner=None)], [], "run-r"
+        )
+        self.assertEqual(["esupport"], [item["path"] for item in report["questions"]])
+
+    def test_engine_records_are_not_reused_across_targets(self) -> None:
+        stored, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/root"),
+            None,
+            [_finding("esupport")],
+            [],
+            "run-s",
+        )
+        other = _snapshot(_entry("esupport", inode=20), target="/other")
+        catalog.annotate_entries(other, stored)
+        self.assertNotIn("prior_disposition", other["entries"][0])
+
     def test_malformed_records_are_ignored_not_fatal(self) -> None:
         snapshot = _snapshot(_entry("scratch"))
         good, _ = catalog.sync_catalog(
@@ -263,6 +397,156 @@ class CatalogRulesTest(unittest.TestCase):
         self.assertIn("- owner: unknown", text)
 
 
+class CatalogScopeTest(unittest.TestCase):
+    def snapshot(self) -> dict:
+        return _snapshot(
+            _entry("tool", inode=1),
+            _entry("tool/data", inode=2, logical_size=9),
+            _entry("tool/data/blob.bin", kind="file", inode=3, logical_size=9),
+            {**_entry("tool/data/cache", inode=4, logical_size=9), "hints": ["cache"]},
+            _entry("tool/empty", inode=5, logical_size=0),
+            {
+                **_entry("tool/cut", inode=6, logical_size=0),
+                "size_qualifiers": ["not-walked"],
+            },
+            {**_entry("Library", inode=7), "protected_reasons": ["shell-folder"]},
+            {
+                **_entry("Library/x", kind="file", inode=8),
+                "protected_reasons": ["shell-folder"],
+            },
+        )
+
+    def test_scope_names_each_entry_shape(self) -> None:
+        scope = catalog.catalog_scope(self.snapshot(), positional=True)
+        self.assertEqual(
+            {
+                "tool": ["immediate-child", "out-of-place"],
+                "tool/data/cache": ["hinted"],
+                "tool/empty": ["empty"],
+                "Library": ["immediate-child"],
+            },
+            scope,
+        )
+
+    def test_out_of_place_needs_a_home_or_root_children_target(self) -> None:
+        scope = catalog.catalog_scope(self.snapshot(), positional=False)
+        self.assertEqual(["immediate-child"], scope["tool"])
+
+    def test_an_in_scope_entry_without_a_record_is_reported(self) -> None:
+        _, report = catalog.sync_catalog(
+            self.snapshot(), None, [_finding("tool")], [], "run-a", positional=True
+        )
+        self.assertEqual(
+            ["Library", "tool/data/cache", "tool/empty"],
+            [item["path"] for item in report["uncataloged"]],
+        )
+        self.assertEqual(["hinted"], report["uncataloged"][1]["reasons"])
+
+    def test_an_owner_level_record_covers_its_descendants(self) -> None:
+        stored, report = catalog.sync_catalog(
+            self.snapshot(),
+            None,
+            [_finding("tool", owner_level=True), _finding("Library")],
+            [],
+            "run-b",
+        )
+        self.assertTrue(stored["records"][1]["owner_level"])
+        self.assertEqual([], report["uncataloged"])
+        self.assertIn("owner level", catalog.render_markdown(stored, report))
+
+    def test_an_owner_level_marker_needs_an_owner(self) -> None:
+        stored, report = catalog.sync_catalog(
+            self.snapshot(),
+            None,
+            [_finding("tool", owner=None, owner_level=True), _finding("Library")],
+            [],
+            "run-c",
+        )
+        self.assertNotIn("owner_level", stored["records"][1])
+        self.assertEqual(
+            ["tool/data/cache", "tool/empty"],
+            [item["path"] for item in report["uncataloged"]],
+        )
+
+    def test_a_record_that_lost_identity_stops_covering(self) -> None:
+        snapshot = self.snapshot()
+        stored, _ = catalog.sync_catalog(
+            snapshot, None, [_finding("tool", owner_level=True)], [], "run-d"
+        )
+        snapshot["entries"][0]["inode"] = 99
+        _, report = catalog.sync_catalog(snapshot, stored, [], [], "run-e")
+        self.assertIn("tool/empty", [item["path"] for item in report["uncataloged"]])
+
+    def test_a_human_answer_from_another_target_counts_as_a_record(self) -> None:
+        elsewhere = {**self.snapshot(), "target": "/other"}
+        stored, _ = catalog.sync_catalog(
+            elsewhere, None, [], [{"path": "tool", "disposition": "keep"}], "run-f"
+        )
+        _, report = catalog.sync_catalog(self.snapshot(), stored, [], [], "run-g")
+        self.assertNotIn("tool", [item["path"] for item in report["uncataloged"]])
+
+    def owner_answer(self) -> dict:
+        elsewhere = {**self.snapshot(), "target": "/other"}
+        answer = {
+            "path": "tool",
+            "disposition": "keep",
+            "owner": "tool vendor",
+            "owner_level": True,
+        }
+        stored, _ = catalog.sync_catalog(elsewhere, None, [], [answer], "run-h")
+        return stored
+
+    def test_a_reused_owner_level_answer_covers_its_descendants(self) -> None:
+        reached = _snapshot(
+            *(
+                {**entry, "path": f"vendor/{entry['path']}"}
+                for entry in self.snapshot()["entries"]
+                if entry["path"].startswith("tool")
+            ),
+        )
+        _, report = catalog.sync_catalog(reached, self.owner_answer(), [], [], "run-i")
+        self.assertEqual([], report["uncataloged"])
+
+    def test_a_reused_owner_level_answer_for_the_target_covers_every_entry(
+        self,
+    ) -> None:
+        inside = _snapshot(
+            *(
+                {**entry, "path": entry["path"].removeprefix("tool/")}
+                for entry in self.snapshot()["entries"]
+                if entry["path"].startswith("tool/")
+            ),
+        )
+        inside["target_identity"] = _entry("tool", inode=1)
+        _, report = catalog.sync_catalog(inside, self.owner_answer(), [], [], "run-j")
+        self.assertEqual([], report["uncataloged"])
+
+    def test_the_latest_answer_for_an_object_supersedes_older_ones(self) -> None:
+        first = _snapshot(_entry("loose", inode=30), target="/a-first")
+        second = _snapshot(_entry("loose", inode=30), target="/z-second")
+        stored, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "loose", "disposition": "keep"}], "run-k"
+        )
+        stored, _ = catalog.sync_catalog(
+            second, stored, [], [{"path": "loose", "disposition": "remove"}], "run-l"
+        )
+        third = _snapshot(_entry("loose", inode=30), target="/m-third")
+        catalog.annotate_entries(third, stored)
+        self.assertEqual("remove", third["entries"][0]["prior_disposition"])
+
+    def test_an_identity_with_a_non_scalar_value_is_ignored(self) -> None:
+        snapshot = _snapshot(_entry("loose"))
+        good, _ = catalog.sync_catalog(
+            snapshot, None, [], [{"path": "loose", "disposition": "keep"}], "run-m"
+        )
+        record = good["records"][0]
+        record["identity"] = {**record["identity"], "inode": [1]}
+        catalog.annotate_entries(snapshot, good)
+        self.assertNotIn("prior_disposition", snapshot["entries"][0])
+        _, report = catalog.sync_catalog(snapshot, good, [], [], "run-n")
+        self.assertEqual("loose", report["uncataloged"][0]["path"])
+
+
 class CatalogCommandTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -329,6 +613,56 @@ class CatalogCommandTest(unittest.TestCase):
         annotated = next(e for e in second["entries"] if e["path"] == "loose.txt")
         self.assertEqual("remove", annotated["prior_disposition"])
         self.assertTrue(self.item.is_file())
+
+    def test_catalog_output_lists_the_uncataloged_in_scope_entries(self) -> None:
+        snapshot = self.scan("snapshot.json")
+        code, result = self.run_main(
+            "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+        )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            [{"path": "loose.txt", "reasons": ["immediate-child"]}],
+            result["uncataloged"],
+        )
+        self.assertIn(
+            "### Uncataloged\n\n- `loose.txt`",
+            (self.data / "CATALOG.md").read_text(encoding="utf-8"),
+        )
+
+    def test_a_home_target_marks_loose_root_entries_out_of_place(self) -> None:
+        snapshot = self.scan("snapshot.json")
+        with mock.patch.object(hygiene, "user_home", return_value=self.target):
+            code, result = self.run_main(
+                "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+            )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            ["immediate-child", "out-of-place"], result["uncataloged"][0]["reasons"]
+        )
+
+    def test_a_home_target_spelled_through_a_link_is_still_the_home(self) -> None:
+        link = Path(self.tmp.name) / "home-link"
+        link.symlink_to(self.target, target_is_directory=True)
+        snapshot = json.loads(self.scan("snapshot.json").read_text(encoding="utf-8"))
+        snapshot["target"] = str(link)
+        path = self.write("linked.json", snapshot)
+        with mock.patch.object(hygiene, "user_home", return_value=self.target):
+            code, result = self.run_main(
+                "catalog", "--snapshot", str(path), "--run-id", "run-1"
+            )
+        self.assertEqual(0, code)
+        self.assertIn("out-of-place", result["uncataloged"][0]["reasons"])
+
+    def test_catalog_refuses_a_sizes_only_snapshot(self) -> None:
+        snapshot = self.write(
+            "sizes.json",
+            {"target": str(self.target), "entries": [], "inventory_mode": "sizes-only"},
+        )
+        code, _ = self.run_main(
+            "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+        )
+        self.assertNotEqual(0, code)
+        self.assertFalse((self.data / "catalog.json").exists())
 
     def test_operator_answer_file_is_persisted_as_human_source(self) -> None:
         snapshot = self.catalog_remove()

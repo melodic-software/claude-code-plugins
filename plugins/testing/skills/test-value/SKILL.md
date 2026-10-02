@@ -77,9 +77,8 @@ revision of Canon TDD or a successor post that changes step 4.
 
 ## Next
 
-/testing:audit
-
-Runs the deterministic detector for every rule in the taxonomy below over the suite.
+- The suite needs checking for the shapes in the taxonomy below: /testing:audit.
+- A folder of low-value tests needs rewriting or pruning: /testing:cleanup <folder>.
 
 ## 5. Taxonomy, keyed to `/testing:audit` rule ids
 

@@ -78,7 +78,7 @@ Agent({
 
 ### Tier 1. Workflow engine (preferred)
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (a project-provided engine in the consuming project's workflow registry; the bundled `deep-research` workflow is offered to the person, never dispatched here), dispatch it with the topic and, if it accepts one, the artifact destination: `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do not re-run the research inline, and do not surface the return as-is, an engine is a producing context like any other, so close the post-dispatch boundary below first.
+If your tool list includes the Workflow tool and a deep-research workflow is available (a project-provided engine in the consuming project's workflow registry; the bundled `deep-research` workflow is offered to the person, never dispatched here), dispatch it with the topic and, if it accepts one, the artifact destination: `<memory_dir>/<slug>/RESEARCH.md`, resolved per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do not re-run the research inline, and do not surface the return as-is, an engine is a producing context like any other, so close the post-dispatch boundary below first.
 
 If no workflow engine resolves, fall through to Tier 2.
 

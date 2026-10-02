@@ -643,7 +643,7 @@ else
   fail "shfmt-absent+findings: composition wrong: $OUT_MIX"
 fi
 
-# jq-absent -> visible once-per-session notice (input parsing gate).
+# jq-absent -> visible once per session and agent notice (input parsing gate).
 rm -f "$FAKEBIN/jq"
 JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_NOJQ=$(
@@ -797,10 +797,10 @@ PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | map(.name) | sort) == ["shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: declares exactly shfmt and shellcheck"
+  if jq -e '(.tools | map(.name) | sort) == ["jq", "node", "shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly shfmt, shellcheck, jq and node"
   else
-    fail "manifest: expected tools shfmt and shellcheck: $(cat "$MANIFEST")"
+    fail "manifest: expected tools shfmt, shellcheck, jq and node: $(cat "$MANIFEST")"
   fi
   # assert_hook_states <tool> <field> <needle> <haystack>
   assert_hook_states() {
@@ -828,7 +828,7 @@ fi
 # --- SessionStart probe honors bash_format_enabled ----------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
 # row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
-# holds the system tools and neither shfmt nor shellcheck. The gate is
+# holds the system tools and none of shfmt, shellcheck and jq. The gate is
 # `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
 # notice for a disabled plugin. A missing node fails the suite instead of
 # skipping the cases: every hook row launches through it.
@@ -841,7 +841,7 @@ else
   for dir in /usr/local/bin /usr/bin /bin; do
     for exe in "$dir"/*; do
       base="${exe##*/}"
-      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && "$base" != jq && ! -e "$PG_WORK/sysbin/$base" ]] || continue
       ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
@@ -876,7 +876,7 @@ else
     pg_ok=1
     while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
       [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
-    done < <(jq -r '.tools[] | [.name, .check, .install] | @tsv' "$MANIFEST")
+    done < <(jq -r '.tools[] | select(.name != "node") | [.name, .check, .install] | @tsv' "$MANIFEST")
     if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
       ok "probe-gate: $label -> notices name each tool, its check and the install line"
     else

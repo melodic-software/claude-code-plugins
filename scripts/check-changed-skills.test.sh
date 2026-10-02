@@ -7,6 +7,9 @@
 # passthrough, and pass/fail aggregation — not check-skill.sh itself.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changed-skills.sh"
 
@@ -24,7 +27,7 @@ r=""
 
 # A stub checker shared by every scenario: records each invocation (skill name +
 # forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "bad".
-STUB="$(mktemp)"
+STUB="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
 printf 'args=%s root=%s base=%s descbaseline=[%s]\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" "${CHECK_SKILL_DESC_FIELD_BASELINE-}" >>"$CHECK_LOG"

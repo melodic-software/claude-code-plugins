@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.0] - 2026-09-30
+## [0.18.0] - 2026-10-02
 
 ### Added
 
@@ -51,6 +51,24 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `<environment>/wl-<name>` and the workload kind as detail, instead of one node
   per container with the image as detail.
 - The `deployment.json` record gains `relationships` and `unmapped` arrays.
+
+## [0.17.3] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
+## [0.17.2] - 2026-10-01
+
+### Changed
+
+- `map-events` and `map-flow` state their scope: C# is read, and Node, Go, Python, Rust, JVM, Ruby and PHP are declined, so a message or call that exists only in those files is absent from the output.
+
+## [0.17.1] - 2026-09-30
+
+### Fixed
+
+- **`map-landscape`'s `scope-modes.md` links the topic-docs reference by its relative path.** It named `reference/topic-docs.md` through the literal plugin-root token, which the Read tool does not expand in a spoke file.
 
 ## [0.17.0] - 2026-09-30
 

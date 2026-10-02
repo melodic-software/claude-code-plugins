@@ -384,13 +384,14 @@ The dated resolution of the ordered tiers to live aliases, the artifact the "new
 recheck trigger re-derives. Sourced from live fetches of
 <https://code.claude.com/docs/en/model-config> and
 <https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293); the
-resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases:
+resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases,
+and the fast row re-verified 2026-10-01 against both after Sonnet 5.5 became the `sonnet` alias:
 
 | Tier | Alias | Resolves to today |
 |---|---|---|
 | frontier | `best` | Fable 5.1 where the organization has access, else the latest Opus |
 | strong | `opus` | Opus 5.5 |
-| fast | `sonnet` | Sonnet 5 |
+| fast | `sonnet` | Sonnet 5.5 on the Anthropic API; the model-config provider table lists older Sonnet versions elsewhere |
 
 - **frontier binds `best`, not `fable`.** `best` is the docs' live handle for exactly the frontier
   tier's meaning, "the model the `fable` alias resolves to where Fable is available to you,
@@ -399,16 +400,17 @@ resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fab
   a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
   automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
   tier every security-surface work class routes to, and no lane detects that fallback today (Opus
-  5.5 carries the same classifiers, so the strong tier shares this gap); and in
+  5.5 and Sonnet 5.5 carry the same classifiers, so the strong and fast tiers share this gap); and in
   non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
 - **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
-  most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff
+  most workloads". Opus 5.5 and Fable 5.1 both have reliable knowledge through June 2026, so
   freshness does not separate them, and raw capability order (Fable above Opus) does not decide
   the binding alone.
-- **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan
+- **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jun
   2026 reliable cutoff: enough headroom to orchestrate and to review mechanical items without
-  breaching the reviewer floor.
+  breaching the reviewer floor. Its effort default and its early-stop and skipped-check tendencies
+  at lower effort are in the playbooks Sonnet 5.5 chapter, not restated here.
 - **`haiku` is admissible nowhere in these lanes today.** Its 200k context sits against 1M
   everywhere else, and its Feb 2025 reliable cutoff predates the harness surfaces these lanes
   operate on; since the fast tier also covers reviewers and the implementer is always

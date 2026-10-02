@@ -387,8 +387,8 @@ hook::raw_file_path() {
 # oracle. Their finding is a prompt, not a verdict. Blocking a user's tool call
 # because an OPTIONAL formatting hook could not find an OPTIONAL dependency
 # inverts the cost: the guard's job is worth less than the work it would stop.
-# The once-per-session notice is what keeps that degradation honest rather than
-# silent — the user and the agent are both told the hook is off.
+# The once per session and agent notice is what keeps that degradation honest
+# rather than silent — the user and the agent are both told the hook is off.
 #
 # WHY A MINORITY MUST FAIL CLOSED. A guard whose job is to stop an IRREVERSIBLE
 # operation cannot be a suggestion. Its whole value is that it is there when
@@ -433,8 +433,8 @@ hook::raw_file_path() {
 # choice instead of an invisible default.
 
 # Fail-OPEN jq gate — the default. For hooks whose input parsing cannot proceed
-# without jq and whose finding is advisory. When jq is absent: one visible skip
-# notice per session, then exit 0. Place after hook::check_enabled (and after any
+# without jq and whose finding is advisory. When jq is absent: a visible skip
+# notice once per session and agent, renewed every eighth skip, then exit 0. Place after hook::check_enabled (and after any
 # jq-free applicability pre-filter), passing the buffered stdin for session
 # scoping. See the posture block above for when this is the WRONG choice.
 #   hook::require_jq PostToolUse my-plugin "$INPUT"
@@ -443,7 +443,7 @@ hook::require_jq() {
   local event="$1" plugin="$2" input="${3:-}"
   if hook::notice_once "${plugin}-jq" "$input"; then
     hook::emit_skip_notice "$event" \
-      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it."
+      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it. If the claude-ops plugin is installed, run /claude-ops:prerequisites to list every missing prerequisite."
   fi
   exit 0
 }
@@ -453,8 +453,8 @@ hook::require_jq() {
 # absent the tool call is DENIED (exit 2) with jq named as the missing
 # prerequisite and the same install route the fail-open notice uses.
 #
-# No notice_once here, and that is deliberate: this message is not a
-# once-per-session heads-up about a degraded hook, it is THIS tool call's denial
+# No notice_once here, and that is deliberate: this message is not a once per
+# session and agent heads-up about a degraded hook, it is THIS tool call's denial
 # reason. Suppressing the repeat would leave a later denial unexplained. It also
 # goes to stderr rather than through hook::emit_channels, because stderr is the
 # channel a PreToolUse exit 2 feeds back to the agent.
@@ -484,6 +484,7 @@ hook::require_jq_blocking() {
   else
     echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
   fi
+  echo "If the claude-ops plugin is installed, run /claude-ops:prerequisites to list every missing prerequisite." >&2
   exit 2
 }
 
@@ -2736,7 +2737,7 @@ hook::data_json_to() {
 # empty, malformed, or cut short mid-document (hook::buffer_stdin_to rc 1, 2
 # and 3 alike — an advisory PostToolUse hook allows all three, since the tool
 # already ran); no path in the payload, or one no <glob> matches; jq absent,
-# after hook::require_jq's once-per-session skip notice; a path
+# after hook::require_jq's once per session and agent skip notice; a path
 # hook::read_file_path rejects.
 #
 # No <glob> means "any payload carrying a path", for a hook whose matcher is
@@ -2824,7 +2825,7 @@ hook::begin() {
 
   [[ -n "$__hu_bg_prejq_fn" ]] && "$__hu_bg_prejq_fn" "$RAW_FILE"
 
-  # jq is load-bearing for input parsing; absent → visible once-per-session
+  # jq is load-bearing for input parsing; absent → visible once per session and agent
   # skip notice instead of a silent no-op (dim-9 doctrine).
   hook::require_jq "$__hu_bg_event" "$__hu_bg_plugin" "$INPUT"
 

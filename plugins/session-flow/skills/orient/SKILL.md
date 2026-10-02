@@ -50,10 +50,7 @@ or when a release note names `/recap` or the Skill-invocable command set.
 
 1. **The conversation**, the goal, the load-bearing decisions, and the
    direction established in this session. Synthesize these inline.
-2. **Durable memory-tier state**. Resolve locations through the plugin
-   binding
-   ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
-   then read what exists, most-recent-first:
+2. **Durable memory-tier state**. Read what exists, most-recent-first:
    - handoff save-points (`<memory_dir>/handoffs/`), the last session's
      in-flight snapshot; its own brief names where the work stood;
    - the workflow checklist (`<memory_dir>/<slug>/`), the stage ledger;

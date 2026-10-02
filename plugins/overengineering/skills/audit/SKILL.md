@@ -62,8 +62,8 @@ plugin-relative path as the link text, resolving one against the plugin root lan
 edited, no gate script deleted, no setting changed, no branch rule touched, not even a formatting
 fix in a file it happened to read.
 
-The one write it performs is the **findings artifact**, at the memory-tier home resolved through
-`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. That write *is* the deliverable, and the memory tier
+The one write it performs is the **findings artifact**, at the memory-tier home
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` "Where it lives" defines. That write *is* the deliverable, and the memory tier
 is a machine-local, self-ignored scratch root outside the repository's tracked content, writing
 there is not a mutation of the repo. State this rather than leaving it to be inferred:
 *"Read-only pass; the only file written is the findings artifact at `<resolved path>`."* That path
@@ -87,14 +87,10 @@ every checkpoint the per-layer write exists for. **A shell content-write is neve
 It routes the deliverable around the write path the harness governs, and quoting, expansion, and
 encoding silently transform what it carries. Where neither route is available, say so and stop.
 
-**Two auxiliary writes are sanctioned, and only these.** (a) The topic-docs **self-ignore guard**:
-the convention's once-per-session check that the resolved memory root gitignores itself, creating
-that root-local `.gitignore` (announced) when absent, a memory-tier write, never the consumer's
-root `.gitignore`. (b) The resolution rungs' **concern-file persistence** (rungs 2–4 of
-`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`): a tracked write that happens only on the user's
-explicit confirmation of the offered location, declining leaves the resolution session-local and
-the run proceeds; a non-interactive or `unattended` run skips the ask-and-persist rungs entirely and
-never performs it. Anything beyond the findings artifact and these two is outside the contract.
+**One auxiliary write is sanctioned.** The **self-ignore guard**: the once-per-session check that the
+resolved memory root gitignores itself, creating that root-local `.gitignore` (announced) when absent,
+a memory-tier write, never the consumer's root `.gitignore`. Anything beyond the findings artifact
+and this guard is outside the contract.
 
 Executing what a finding recommends belongs to `overengineering:realign`, behind an explicit per-item
 human gate. Name it as the next step; never start it unasked.
@@ -131,9 +127,8 @@ Parse `$ARGUMENTS`:
    likely. **`HEAD` is never accepted as a branch identity**, and neither is a failed call.
    "A detached checkout has no branch identity" below governs what an unresolved
    identity declines, and it is decided here, before a home is composed. With an identity in hand,
-   resolve the home by running the whole rung order in
-   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
-   default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
+   compose the home per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` "Where it lives". A path
+   composed any other way writes where `realign` never looks. **Then emit the read-only
    opening line**, naming the path just resolved. **An `unattended` run then probes the write
    path** before any layer is walked: with the file-write tool, write a neutral file in the
    artifact's directory, rename it to a second neutral name there, and delete exactly that second
@@ -282,7 +277,7 @@ When the branch identity does not resolve:
      the same home key, or a later attached `realign` on `main` will miss the artifact.
   2. **Validate** the result as a git branch name. Refuse it if it is empty, if any path
      segment is `.` or `..`, or if `git check-ref-format --branch -- <value>` exits
-     non-zero. The topic-docs slug leaves `.` untouched, so an unvalidated `..` would
+     non-zero. The branch slug leaves `.` untouched, so an unvalidated `..` would
      compose `.work/overengineering/../findings.md` and escape the home. An unvalidated
      string is also the same cross-ref mutation this section closes for `HEAD`: it keys
      one checkout's findings to another name.
@@ -301,7 +296,7 @@ When the branch identity does not resolve:
 
 **Detached-in-a-repo vs no checkout are different stops.** A failed branch call covers both,
 but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
-fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
+fails) is the no-project-root stop: there is no enforcement surface to audit, so
 the run does not walk an arbitrary working directory and report it as the repository. A
 **detached checkout inside a repository** is the case this section governs: the walk still runs
 and the inline summary is still emitted. What is declined is the persisted write, not the pass.
@@ -309,6 +304,16 @@ The report says so in place of the read-only opening line's resolved path, so th
 learns the run produced no artifact at the moment it would otherwise have been told where one
 lives. When that summary is the only record, it lists **every** finding, not the capped "top
 findings" the template uses when an artifact will carry the rest.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

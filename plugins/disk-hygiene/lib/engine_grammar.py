@@ -26,10 +26,13 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   flag-shaped) and pass the flag's ``pattern`` or ``choices``. A flag whose
   value the guard can only judge with context it alone holds names an
   ``external_check``; the guard supplies that callable to ``match_invocation``.
-  ``--data-root`` is the one such flag, and the guard also requires it to be
+  ``--data-root`` is one such flag, and the guard also requires it to be
   present: the parser keeps it optional so a state-writing subcommand can refuse
   its absence with the engine's own diagnostic, and an invocation without it is
-  not admitted.
+  not admitted. The engine's file arguments (``--snapshot``, ``--plan``,
+  ``--paths``, ``--vcs-evidence``, ``--output``, ``--report``) are the others:
+  each must be an absolute path whose real location is inside that authorized
+  root and on none of the state the engine and its hooks own there.
 * ``requires`` names another flag that must also be present.
 * A subcommand's ``one_of`` groups name optional flags of which exactly one
   must be present. The parser declares each group as a required mutually
@@ -58,6 +61,38 @@ AUTHORIZED_DATA_ROOT = "authorized-data-root"
 
 # The flag carrying that value. The guard requires it on every engine call.
 DATA_ROOT_FLAG = "--data-root"
+
+# An engine file argument (snapshot, plan, approved paths, VCS evidence, scan
+# output, apply report): an absolute path whose real location is inside that
+# authorized data root and not engine-owned state. A snapshot carries the
+# protection globs preview and apply enforce, so an input read from anywhere
+# else could drop one; an output onto the guard decision log would erase it.
+AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
+
+# State under the data root that the engine and its hooks write themselves:
+# the guard decision log and its rotation, the launch-monitor markers, the
+# inventory reports, and the investigated catalog.
+ENGINE_OWNED_DIRS = frozenset({"guard-decisions", "guard-launch-monitor", "inventory"})
+ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
+
+
+def is_engine_owned(relative: str) -> bool:
+    """True when a data-root-relative path is the root or engine-owned state.
+
+    Names compare case-folded, with a trailing dot or space and any NTFS stream
+    suffix dropped, so a spelling a case-insensitive or Windows file system
+    resolves to the same entry is refused too.
+    """
+    keys = [
+        part.split(":", 1)[0].rstrip(" .").casefold()
+        for part in re.split(r"[/\\]", relative)
+        if part not in ("", ".")
+    ]
+    if not keys:
+        return True
+    return keys[0] in ENGINE_OWNED_DIRS or (
+        len(keys) == 1 and keys[0] in ENGINE_OWNED_FILES
+    )
 
 
 class Flag:
@@ -152,6 +187,10 @@ def _data_root_flag() -> Flag:
     return Flag(DATA_ROOT_FLAG, external_check=AUTHORIZED_DATA_ROOT)
 
 
+def _file_flag(name: str, **options) -> Flag:
+    return Flag(name, external_check=AUTHORIZED_DATA_ROOT_FILE, **options)
+
+
 # A directory basename with no separator and no self/parent reference.
 _IMMEDIATE_BASENAME = r"(?!\.\.?$)[^/\\]+"
 
@@ -160,9 +199,18 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "scan",
         (
             Flag("--target", required=True, example="target-dir"),
-            Flag("--output", required=True, example="snapshot.json"),
+            _file_flag("--output", required=True),
             Flag("--policy", example="policy.json"),
             Flag("--project-dir", example="project-dir"),
+            Flag(
+                "--in-flight-refs",
+                example="in-flight-refs.json",
+                help=(
+                    "JSON file of absolute paths referenced by open work "
+                    "(issue, PR, handoff); entries at or under one are not "
+                    "preselected"
+                ),
+            ),
             _data_root_flag(),
             Flag(
                 "--max-depth",
@@ -221,20 +269,39 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         help="inventory a target without mutating it",
     ),
     Subcommand(
+        "inventory",
+        (
+            Flag("--target", required=True, example="target-dir"),
+            _data_root_flag(),
+            Flag(
+                "--deep",
+                takes_value=False,
+                help=(
+                    "list every level of the target instead of its immediate "
+                    "children; the default when the target is the user's home "
+                    "directory"
+                ),
+            ),
+        ),
+        help=(
+            "report each entry's producer, disposition and reason; writes a "
+            "report that preview and apply never accept"
+        ),
+    ),
+    Subcommand(
         "preview",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--plan", required=True, example="plan.json"),
+            _file_flag("--snapshot", required=True),
+            _file_flag("--plan", required=True),
             _data_root_flag(),
         ),
     ),
     Subcommand(
         "handoff-verify",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag(
+            _file_flag("--snapshot", required=True),
+            _file_flag(
                 "--paths",
-                example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
             Flag(
@@ -247,7 +314,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                     "one path is the per-deletion form"
                 ),
             ),
-            Flag("--vcs-evidence", example="vcs-evidence.json"),
+            _file_flag("--vcs-evidence"),
             _data_root_flag(),
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
@@ -256,7 +323,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
     Subcommand(
         "catalog",
         (
-            Flag("--snapshot", required=True, example="snapshot.json"),
+            _file_flag("--snapshot", required=True),
             Flag(
                 "--run-id",
                 required=True,
@@ -273,8 +340,8 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "apply",
         (
             Flag("--execute", takes_value=False, required=True),
-            Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--plan", required=True, example="plan.json"),
+            _file_flag("--snapshot", required=True),
+            _file_flag("--plan", required=True),
             Flag("--confirm-tier", required=True, choices=TIERS, example="high"),
             Flag(
                 "--approval-token",
@@ -282,7 +349,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 pattern=r"[0-9a-f]{24}",
                 example="0123456789abcdef01234567",
             ),
-            Flag("--report", required=True, example="report.json"),
+            _file_flag("--report", required=True),
             _data_root_flag(),
         ),
     ),
@@ -290,7 +357,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "handoff-apply",
         (
             Flag("--execute", takes_value=False, required=True),
-            Flag("--snapshot", required=True, example="snapshot.json"),
+            _file_flag("--snapshot", required=True),
             # One exact approved path per call: the engine verifies that path
             # against live state and deletes it in the same process.
             Flag(
@@ -300,8 +367,8 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="relative/exact.tmp",
                 help="the one snapshot-relative approved path to verify and delete",
             ),
-            Flag("--vcs-evidence", required=True, example="vcs-evidence.json"),
-            Flag("--report", required=True, example="report.json"),
+            _file_flag("--vcs-evidence", required=True),
+            _file_flag("--report", required=True),
             _data_root_flag(),
         ),
         help=(
@@ -386,3 +453,108 @@ def match_invocation(
         for flag in spec.optional
         if flag.requires is not None and flag.name in seen
     ) and all(len(seen.intersection(group)) == 1 for group in spec.one_of)
+
+
+_TOKEN_CAP = 80
+
+
+def clip_token(value: str) -> str:
+    """A user-supplied token quoted for a message, capped so a paste stays short."""
+    clipped = value if len(value) <= _TOKEN_CAP else value[: _TOKEN_CAP - 3] + "..."
+    return repr(clipped)
+
+
+def required_order(spec: Subcommand) -> str:
+    """The required head of ``spec`` spelled in the one order the guard admits."""
+    return ", ".join(flag.name for flag in spec.required)
+
+
+def _order_rule(spec: Subcommand) -> str:
+    if not spec.required:
+        return "every flag is optional and may come in any order"
+    return (
+        f"required flags first, in order: {required_order(spec)}; "
+        "then optional flags in any order"
+    )
+
+
+def explain_mismatch(
+    name: str,
+    words: list[str],
+    external_checks: dict[str, object] | None = None,
+) -> str | None:
+    """Name the first word ``match_invocation`` refuses and the rule it broke.
+
+    Runs on the deny path only and walks the same grammar in the same order, so
+    it returns ``None`` exactly when ``match_invocation`` returns ``True``.
+    """
+    spec = subcommand(name)
+    if spec is None:
+        return f"{clip_token(name)} is not an engine subcommand."
+    checks = external_checks or {}
+
+    def value_problem(flag: Flag, value: str) -> str | None:
+        subject = f"{flag.name} value {clip_token(value)}"
+        if not is_argument(value):
+            return f"{subject} must be a literal, not empty or starting with '-'."
+        if flag.choices is not None and value not in flag.choices:
+            return f"{subject} must be one of: {', '.join(sorted(flag.choices))}."
+        if flag.pattern is not None and flag.pattern.fullmatch(value) is None:
+            return f"{subject} must match {flag.pattern.pattern}."
+        if flag.external_check is not None:
+            check = checks.get(flag.external_check)
+            if not (callable(check) and check(value)):
+                return f"{subject} is not the {flag.external_check}."
+        return None
+
+    def read_value(flag: Flag, index: int) -> tuple[int, str | None]:
+        if not flag.takes_value:
+            return index, None
+        if index >= len(words):
+            return index, f"{flag.name} needs a value."
+        return index + 1, value_problem(flag, words[index])
+
+    index = 0
+    for flag in spec.required:
+        if index >= len(words):
+            return f"required flag {flag.name} is missing; {_order_rule(spec)}."
+        if words[index] != flag.name:
+            return (
+                f"{clip_token(words[index])} is where required flag {flag.name} "
+                f"belongs; {_order_rule(spec)}."
+            )
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    seen: set[str] = set()
+    while index < len(words):
+        word = words[index]
+        flag = spec.flag(word)
+        if flag is None:
+            return f"{clip_token(word)} is not a {name} flag."
+        if flag.required:
+            return (
+                f"required flag {flag.name} is already given in the required head "
+                "and cannot repeat."
+            )
+        if flag.name in seen and not flag.repeatable:
+            return f"{flag.name} is not repeatable but is given twice."
+        seen.add(flag.name)
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    for flag in spec.optional:
+        if (
+            flag.requires is not None
+            and flag.name in seen
+            and flag.requires not in seen
+        ):
+            return f"{flag.name} requires {flag.requires}."
+    for group in spec.one_of:
+        given = sorted(seen.intersection(group))
+        if len(given) != 1:
+            count = "none was" if not given else f"{len(given)} were"
+            return f"give exactly one of {', '.join(group)}; {count} given."
+    return None

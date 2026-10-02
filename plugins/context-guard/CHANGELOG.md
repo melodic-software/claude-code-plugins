@@ -5,6 +5,48 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library, and the `zone-crossing-inject.sh` comment on the missing-`jq` notice now says it is once per session and agent (comment wording only, no behavior change).
+
+## [0.8.2] - 2026-10-01
+
+### Changed
+
+- **The reader contract points at the model-config page for the default auto-compact thresholds** instead of restating them, and the README follows.
+
+## [0.8.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/context-guard:check`, which probes it.
+
+## [0.8.0] - 2026-10-01
+
+### Added
+
+- **`/context-guard:check` reads whether `jq` resolves for the context-guard hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.7.96] - 2026-10-01
+
+### Changed
+
+- **`zone-crossing-inject` records one telemetry entry per fire that reaches a zone decision, with a `path` field.** `path` is `fast` (no resolver ran), `coalesced` (the last zone reused because the snapshot body matched, or only `used_percentage` moved within one shipped band with no `zones.json`) or `resolving` (the resolver ran), beside the envelope duration. The existing transition and error records carry the same field, and a fire that exits because jq is missing or the state directory cannot be created records an error with a `reason`. With no sink configured nothing extra is loaded or run.
+
+## [0.7.95] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.7.94] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name `compose-statusline-wiring.sh` and `statusline-shim.sh` through the literal plugin-root token.** The token is not substituted in a `reference/` file, so a command copied from one resolved to nothing. The paths now read `<plugin-root>/scripts/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
 ## [0.7.93] - 2026-09-30
 
 ### Changed

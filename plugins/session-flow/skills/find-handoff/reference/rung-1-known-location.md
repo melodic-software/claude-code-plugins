@@ -4,15 +4,14 @@ Rung 1 of the recovery ladder in [`../SKILL.md`](../SKILL.md), the first thing t
 rung that needs no transcript. Read-only throughout, like every rung. When it produces a strong,
 recent candidate the ladder ends here and rung 3's grep machinery never runs.
 
-Resolve `<memory_dir>/handoffs/` for the **current repo** through the plugin binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
+Resolve `<memory_dir>/handoffs/` for the **current repo**,
 never assume the literal `.work`; the memory root is consumer-configurable. Add the fallback
 `<root>/handoffs/`, where `<root>` is what
-`"$PY" -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" memory-root` prints (the writer's
+`"$PY" -X utf8 "<plugin-root>/scripts/save_point.py" memory-root` prints (the writer's
 own plugin-data derivation; never glob `CLAUDE_PLUGIN_DATA` directly, since it is not exported to
 Bash-tool commands per the [plugins-reference environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables),
 read 2026-09-29; recheck when a release note or that section changes which processes receive it), **only when project-root resolution fails**: the
-producer writes there only on its no-project-root branch (topic-docs binding), so inside a repo
+producer writes there only on its no-project-root branch, so inside a repo
 that shared location holds unrelated sessions' save-points, and a newer one could hijack the
 short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,
 keep only files whose frontmatter is `type: handoff`, rank by mtime. **Skip any file that still
@@ -30,7 +29,7 @@ frontmatter has `handoff_shape: 2`, the file ends with a `## Resume prompt` sect
 rails prompt exactly as the producer emitted it: the resume region, plus the goal region when a
 goal applied, in the emitted order. Surface that whole section at step 4 as the recovered prompt,
 never just the first rail pair: run
-`"$PY" -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" emit <file>` through the
+`"$PY" -X utf8 "<plugin-root>/scripts/save_point.py" emit <file>` through the
 interpreter ladder the producer's structure doc shows (`python3`, then `python`, 3.10+). `emit`
 prints the section verbatim; when the stored `Read @` path is not the file's real path (a file
 preserved out of a removed worktree) it warns on stderr and prints the current path instead, so

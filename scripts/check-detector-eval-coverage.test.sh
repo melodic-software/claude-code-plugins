@@ -38,6 +38,9 @@
 # shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-detector-eval-coverage.sh"
 
@@ -102,8 +105,8 @@ run_gate() {
   local pairs="$1"
   shift
   local outf errf
-  outf="$(mktemp)"
-  errf="$(mktemp)"
+  outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+  errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   (cd "$root" && DETECTOR_EVAL_COVERAGE_PAIRS="$pairs" bash scripts/check-detector-eval-coverage.sh "$@") >"$outf" 2>"$errf"
   RC=$?
   OUT="$(cat "$outf")"
@@ -244,7 +247,7 @@ rm -rf "$root"
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d)"
+mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 while IFS= read -r d; do
   [[ -d "$d" ]] || continue
   for exe in "$d"/*; do
@@ -253,8 +256,8 @@ while IFS= read -r d; do
     [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
   done
 done < <(printf '%s\n' "${PATH//:/$'\n'}")
-outf="$(mktemp)"
-errf="$(mktemp)"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
@@ -273,7 +276,7 @@ rm -rf "$root"
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d)"
+mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 while IFS= read -r d; do
   [[ -d "$d" ]] || continue
   for exe in "$d"/*; do
@@ -282,8 +285,8 @@ while IFS= read -r d; do
     [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
   done
 done < <(printf '%s\n' "${PATH//:/$'\n'}")
-outf="$(mktemp)"
-errf="$(mktemp)"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
@@ -298,11 +301,11 @@ fi
 
 # An shfmt below the v3.13.0 floor drops call sites silently, so it must stop
 # the gate the same way a missing one does.
-stub="$(mktemp -d)"
+stub="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 printf '#!/usr/bin/env bash\necho v3.12.0\n' >"$stub/shfmt"
 chmod +x "$stub/shfmt"
-outf="$(mktemp)"
-errf="$(mktemp)"
+outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$root" && PATH="$stub:$PATH" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"

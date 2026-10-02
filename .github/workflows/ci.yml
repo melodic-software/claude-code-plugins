@@ -183,7 +183,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/change-detection@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           filters: |
             shell:
@@ -200,8 +200,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
-              plugins/docs-hygiene/skills/generate-file-name-gate/**
-              .claude/docs-hygiene.json
+              plugins/docs-naming/skills/generate-file-name-gate/**
+              .claude/docs-naming.json
             node:
               .github/**
               scripts/**
@@ -305,7 +305,7 @@ jobs:
   # report an honest evaluated-and-not-applicable success. ShellCheck, exec-bit,
   # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
   # whole repository, and a shell/shebang/hook file added under an otherwise
-  # docs-only prefix like docs/topics/ is real input they must still catch, as
+  # docs-only prefix is real input they must still catch, as
   # is a docs-only diff that reintroduces an em dash on a purged surface.
   #
   # The job NEVER skips — only steps are gated. A skipped required lane's
@@ -347,33 +347,34 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdown@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/markdown@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: .markdownlint-cli2.jsonc
 
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/typos@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: _typos.toml
           # A pack's vendored baseline is replaced verbatim from upstream by its
           # own update script, which reports drift by hashing the committed file
           # against the fetched one, so any spelling correction here would read
           # as permanent drift. The managed config cannot carry a consumer-local
-          # exclusion, so the exemption lives on the caller.
-          exclude: plugins/*/skills/*/vendor/**
+          # exclusion, so the exemption lives on the caller. The judge
+          # calibration cases are code copied verbatim from other repositories'
+          # histories, so a correction would change what the judge is measured on.
+          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
 
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
       # another branch cannot fail it (#3599). A push to main scans main's full
       # history (HEAD). A manual dispatch scans every ref present in the clone
-      # (--all). This step is pinned ahead of the other composites (v0.27.1)
-      # because only its event-scoped scan is wanted from v0.30.0.
+      # (--all).
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@35880dcbb2f174aac90159e276dc7eddf1bc20b9 # v0.30.1
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -381,7 +382,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: .editorconfig-checker.json
 
@@ -405,8 +406,8 @@ jobs:
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
       # `run_shell`, and `run_shell` carries the docs-only term: a pull request
-      # whose only change is a shell script under a docs-only prefix such as
-      # `docs/topics/` resolves docs-only, and the gate would skip ShellCheck on
+      # whose only change is a shell script under a docs-only prefix
+      # resolves docs-only, and the gate would skip ShellCheck on
       # the very file it should read while the aggregator override recorded that
       # skip as success. So the step always runs and lets the composite decide.
       - name: Select the changed shell scripts
@@ -429,7 +430,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -438,13 +439,13 @@ jobs:
         id: actionlint
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
 
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -452,7 +453,7 @@ jobs:
         id: plugin_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -492,7 +493,7 @@ jobs:
         id: dependabot_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -500,7 +501,7 @@ jobs:
         id: workflow_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -512,12 +513,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -550,12 +551,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1243,35 +1244,6 @@ jobs:
           fi
           scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
-      # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
-      # docs/conventions/topic-docs/README.md — committed on a task branch
-      # only, pruned before merge. The convention specified this required check
-      # but it was never wired, so 17 slices reached main (#1417). The gate keys
-      # on where a path LANDS, so the prune commit itself and a
-      # history-preserving graduation out of docs/topics/ both pass. The
-      # pre-existing 17 are grandfathered by slug in
-      # scripts/contract-slice-baseline.txt with a stale guard, and burn down
-      # under #1419. The self-test runs first so a broken gate cannot mask a
-      # regression.
-      - name: Test the contract-slice prune gate
-        if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-contract-slice-prune.test.sh
-      - name: Verify no baseline entry outlives its slice
-        id: contract_slice_check
-        continue-on-error: true
-        run: scripts/check-contract-slice-prune.sh --check
-      - name: Verify the change set prunes its contract slice
-        id: contract_slice_diff
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
-
       # The review-disposition-and-resolution contract is canonical in ONE file
       # and restated across half a dozen others; nothing checked that the
       # copies agreed. #1633 shipped seven such defects across five review
@@ -1374,7 +1346,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -1598,8 +1570,6 @@ jobs:
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            contract-slice-prune=${{ steps.contract_slice_check.outcome }}
-            contract-slice-diff=${{ steps.contract_slice_diff.outcome }}
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
@@ -1728,7 +1698,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-format contract tests in this same job.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
@@ -1866,7 +1836,7 @@ jobs:
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
               rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
               if [ -n "$py" ]; then
-                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
+                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q -o tmp_path_retention_policy=none --
               fi
               if [ -n "$rest" ]; then
                 printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"
@@ -2590,7 +2560,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-contract@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/pr-contract@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -2604,7 +2574,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/ci-status@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
+        uses: melodic-software/ci-workflows/.github/actions/ci-status@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           # Derived from the needs graph above — the single source of truth for
           # the lane list. Adding a lane to needs automatically extends this
@@ -2622,13 +2592,14 @@ jobs:
           # have gone red on the very case the wait exists for, a bot that
           # force-pushes and edits in the same second.
           #
-          # STALE FAILURE DURING A RE-RUN (#4670). The composite ends the wait
-          # as soon as `ci-lanes` is success, failure, or error. It does not
-          # tell a full-run re-run apart from a contract-only sibling, so a
-          # body edit while a failed full run is being re-run can read the old
-          # failure at once and go red. That wait-loop fix belongs in
-          # ci-workflows (the pin below).
-          # Operator remedy: docs/ci-runner-routing.md, section Contract-only
-          # ci-status. #4670 tracks the upstream fix and the repin.
+          # A FAILURE WAITS ONLY FOR ITS WRITER'S RE-RUN (#4670). A `success`
+          # ends the wait at once. A `failure` or `error` ends it too, unless
+          # the full run that wrote it is re-running with an attempt started
+          # after the status; then the wait holds for that run alone, so a body
+          # edit during a re-run of a failed full run reads the re-run's
+          # verdict. A re-run of a different full run on the same SHA does not
+          # hold it, and a writer re-run longer than 540 s fails closed at the
+          # ceiling. Operator remedy: docs/ci-runner-routing.md, section
+          # Contract-only ci-status.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}

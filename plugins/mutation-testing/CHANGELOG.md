@@ -3,6 +3,48 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-01
+
+### Added
+
+- **`audit --record-mutants <file>` and `--replay-mutants <file>`.** With `--exercised`, a run
+  records the mutants it applied and their states; a replay applies exactly those mutants again
+  after the tests changed, with no mapping and no regeneration, and gates on lost kills: the report
+  carries `Gate: pass` or `Gate: block` and one `newly-surviving <path>:<line_start> <operator>`
+  line per blocking mutant. Both runs use the manual protocol with `test-command`. A record is
+  written only after restoration is verified, and only outside tracked space. The format is private
+  to this plugin (`audit/context/mutant-record.md`).
+- `scripts/compare-records.sh <before> <after>`, the replay's compare step, with its test.
+
+## [0.5.0] - 2026-10-01
+
+### Added
+
+- **`audit --exercised [<test-path>]`.** Mutates the production code the changed tests call
+  (committed range plus working tree), or the tests under `<test-path>`, and runs each mutant
+  against those tests as one set. Test files are recognized through `/testing:audit --file <path>`;
+  without the `testing` plugin the scope refuses. A run with no mapped function ends as
+  `no mapping: scope empty`. The report adds a scope line, the mapped functions, skipped files and a
+  blind-spot line naming `testing/judge/rule-restated-expectation`; coverage and gap print `unknown`
+  under the manual protocol.
+- **Survivor causes.** Every productive survivor gets `no-assertion` or `input-gap` with a quoted
+  line, or `unclassified` when there is no quote or its expected value comes from the code under
+  test. The Survivors table gains a `Cause` column; a persisted row carries the cause in `Finding`
+  and words `Action` from it. No rule id changes.
+- **`test-command` config key.** Optional, with a `{tests}` placeholder for path-list runners.
+  `setup apply` proposes it and `setup check` fails one where `{tests}` is not a standalone,
+  unquoted word. Each test path is substituted single-quoted.
+- `audit/context/tool-test-restriction.md`: whether StrykerJS, Stryker.NET and mutmut can restrict a
+  run to named tests while keeping their no-coverage state, with sources.
+- The `principles` theory reference states that a killed mutant does not clear a copied expected
+  value.
+
+## [0.4.3] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.4.2] - 2026-09-27
 
 ### Changed
@@ -251,7 +293,7 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 
 - **The permissive-branch guard rule becomes a pointer.** `--persist-findings` skips the self-ignore
   guard where no checkout is detected as governing the destination; that rule now belongs to the
-  [topic-docs convention](../../docs/conventions/topic-docs/README.md) "Runtime guards", which owns
+  [topic-docs convention](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/conventions/topic-docs/README.md) "Runtime guards", which owns
   the guard, so the spoke cites it instead of deriving it locally. Behavior is unchanged. The rule
   moved to its owner, where it binds every consumer of that guard rather than this plugin alone.
 

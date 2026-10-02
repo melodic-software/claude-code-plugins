@@ -11,6 +11,9 @@
 # one failing test if it is ever dropped again.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=changed-files.sh
@@ -24,7 +27,7 @@ SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # mk_repo -> prints the path of a fresh repo with one committed base tree.
 mk_repo() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   git_init_test_repo "$dir" >/dev/null || return 1
   mkdir -p "$dir/plugins/p1/skills/alpha" "$dir/docs"
   printf 'seed\n' >"$dir/plugins/p1/skills/alpha/SKILL.md"
@@ -97,7 +100,7 @@ else
   fail "resolve_base returned an unresolvable ref"
 fi
 # A repo with no main/master and no origin/ has nothing to fall back to.
-bare="$(mktemp -d)"
+bare="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 git_init_test_repo "$bare" >/dev/null
 printf 'seed\n' >"$bare/f.txt"
 git_test_config "$bare" add -A >/dev/null
@@ -194,9 +197,8 @@ fi
 
 # --find-renames pins detection ON regardless of the repository's diff.renames.
 # A gate whose verdict depends on a move collapsing to its destination alone
-# (check-contract-slice-prune.sh: a `git mv` OUT of the policed root is the
-# prescribed graduation) cannot let a config setting decide, so the flag is
-# asserted against a repo that has turned detection OFF.
+# (a `git mv` out of a policed directory) cannot let a config setting decide,
+# so the flag is asserted against a repo that has turned detection OFF.
 git_test_config "$repo" config diff.renames false >/dev/null
 paths=()
 run_into "$repo" paths "$base" --include-deleted --

@@ -36,22 +36,26 @@ contrary events (`gate-failure`, `reverted-merge`, `verification-divergence`), a
 propagation. The loop lane invokes that resolution **through the trusted seam
 only**, never by re-deriving a subset in prose.
 
-**Current seam state.** This seam does not yet return a qualified, non-forgeable evidence read, so
-**every promotable cell resolves effective-unpromoted**: autonomous merge stays off for C2/C3
-classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. What an operator
-supplies for the seam is in
+**Current seam state.** A compliant bootstrap lets the seam return a qualified read.
+[`cycle-shape.md`](cycle-shape.md) step 3 runs `scripts/resolve-promotion-evidence.mjs` once per
+cycle; it runs the operator-supplied checker on the three evidence surfaces
+(`check-security-binding.mjs --evidence`) and
+reports each promotable cell's bound and effective state as the checker printed them, which is
+how a cell resolves effective-promoted or demoted. With no compliant bootstrap, a step 0 problem,
+any fail-closed reason, or a helper failure, **every promotable cell resolves
+effective-unpromoted** and autonomous merge stays off for C2/C3 classes regardless of tracked rung.
+Operators keep `--merge human-only` on launch lines; lifting it is the owner's call after Phase 3.
+What an operator supplies for the seam is in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
-option name; neither makes the seam return a read, since no cycle step invokes the checker. The
-implementation checklist and phased plan are in
-[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), Phase 1
-approved and Phases 2-3 unapproved
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)); recheck trigger:
-`check-security-binding.mjs --evidence` returning a qualified read through the trusted seam, and
-the repository's evidence predicates being met
+option name. The implementation checklist and phased plan are in
+[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), Phase 2
+implemented and Phase 3 unapproved
+([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Whether the
+repository's evidence predicates
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md)
-merge-lane copy-blocks); until then this paragraph is the rule, and the fail-closed table below is
-how it is applied.
+merge-lane copy-blocks) are met is not settled here; the fail-closed table below is how this
+paragraph is applied.
 
 ## Fail-closed rules
 

@@ -13,8 +13,8 @@ prerequisite is absent.
 ## Layer 1: the findings artifact
 
 Shape, fields, ids, ordering, the stable-spine / free-prose split, the status vocabulary, and the
-re-run merge rules are owned by `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`. Its home is
-resolved through `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. **This document restates neither.**
+re-run merge rules are owned by `<plugin-root>/context/findings-artifact.md`. Its home is
+in that document's "Where it lives". **This document restates neither.**
 
 Two reminders that are about *writing* the file rather than about the contract:
 
@@ -36,7 +36,7 @@ The spine's line format, as a shape rather than as a definition of any token in 
 ```
 
 The tokens that may fill those last two value slots, and what each one asserts, belong to
-`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` §6 and to the findings-artifact contract's status
+`<plugin-root>/context/scrutiny-method.md` §6 and to the findings-artifact contract's status
 table. They are named there once.
 
 ## Layer 2: the inline terminal summary

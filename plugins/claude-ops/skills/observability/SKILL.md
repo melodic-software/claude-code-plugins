@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a quick plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and anything the local telemetry stores hold. Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"
@@ -41,9 +41,11 @@ OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observabil
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
 The OTEL store lines are the three hot files (`<name>:<bytes>B` or `absent`), then `cold:<bytes>B (<n> files)`
-or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`. A report states hot size (sum of
-the three files), cold size and last-prune age, and flags `last-prune:never` or an age over about 2 days
-(`2d` or more): the scheduled prune is not firing (see [context/operator-setup-retention.md](context/operator-setup-retention.md)).
+or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`, then `prune-task:<state>` for the
+Windows `ClaudeCodeOtelPrune` task. A report states hot size (sum of the three files), cold size and last-prune
+age, and flags `last-prune:never` or an age over about 2 days (`2d` or more): the scheduled prune is not firing.
+It also flags any `prune-task:` state other than `provisioned` or `n/a (not Windows)`. The states are listed
+in [context/operator-setup-retention.md](context/operator-setup-retention.md).
 
 ## Purpose
 
@@ -224,6 +226,16 @@ the other's behalf.
 **Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
 and host; this section states what to do when it resolves, never that it is present. The four-part
 records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
+
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

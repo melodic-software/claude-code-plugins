@@ -3,6 +3,35 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.6] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
+## [0.34.5] - 2026-10-01
+
+### Fixed
+
+- **`code-reviewer` reserves its report turns and emits `Criteria read:` and `Coverage:`
+  lines.** A review that runs out of turns still reports what it read and what it covered. A caller that requires exact output with no other lines is exempt.
+- **`quality-gate` self mode detects a partial gate and labels it.** A self-review that did not
+  cover every criterion says so instead of reporting a full pass.
+
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`fanout` and `quality-gate` context files no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` file, which the model reads as plain bytes. Links to `context/severity.md`, `reference/topic-docs.md` and `reference/standards-contract.md` are now relative to the spoke, and the remaining paths read `<plugin-root>/...`. Both skills gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
+## [0.34.3] - 2026-09-30
+
+### Changed
+
+- **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
+  drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
+  contract, so the consuming skills report it and ask for a `setup` re-run.
+
 ## [0.34.2] - 2026-09-30
 
 ### Changed

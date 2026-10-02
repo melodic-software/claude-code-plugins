@@ -48,7 +48,7 @@ only, at the cost of a second copy to keep in step.
 
 ## Consequences
 
-The spec [`docs/specs/agent-doc-surfaces.md`](../specs/agent-doc-surfaces.md) points here for the
+The spec [`docs/specs/agent-doc-surfaces.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/agent-doc-surfaces.md) points here for the
 `.agents` decision. Revisit the fourth decision when a Claude Code release documents a project
 `.agents/skills` path and a probe lists it. The 5,000-token recommendation stays advisory until
 someone takes on splitting the bodies that exceed it.

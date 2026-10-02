@@ -42,6 +42,12 @@
       "prompt": "Configure it to fail the build if mutation score drops below 75%.",
       "expected_output": "Explains that the config deliberately has no score-threshold field, with the reasoning: an unknowable ceiling from equivalent mutants, and score being purchasable by suppression so a gate selects for suppression over testing. Offers the alternative -- report the covered-code score, rank by oracle gap, route survivors to the test lane. Does not silently add a threshold field, and does not refuse without offering the alternative.",
       "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Check my mutation config. It has `test-command: python -m pytest tests/` and nothing else changed.",
+      "expected_output": "Runs check read-only and reports the test-command as a FAIL because it does not contain the `{tests}` placeholder: `audit --exercised` substitutes the test paths there, so without it every mutant would run against the whole suite. The remediation line proposes `python -m pytest {tests}`. Does not rewrite the config during check.",
+      "files": []
     }
   ]
 }

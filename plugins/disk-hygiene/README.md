@@ -39,8 +39,9 @@ contract); it never follows links or recursively deletes an unvalidated tree.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
-- Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
-  A dry-run result is evidence for the report, never authorization for this engine to remove it.
+- Managed state with no registry match is always a report-only handoff to the owning product's
+  documented cleanup/GC command. A dry-run result is evidence for the report, never authorization for
+  this engine to remove it. A registry match follows `skills/clean/reference/managed-state-report.md`.
 - The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
   calls made from literal shell words, returns `ask` for the two exact mutating shapes, `apply` and
   `handoff-apply`, and denies every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
@@ -65,9 +66,15 @@ at preview. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
-- Node.js on `PATH`. Every hook registration runs `node hooks/exec-bash.mjs`, and Claude Code's
+- Node.js on `PATH`. Every guard and detector registration runs `node hooks/exec-bash.mjs`, and Claude Code's
   native binary neither ships nor uses Node ([Setup](https://code.claude.com/docs/en/setup)), so
-  without `node` no hook launches and no guard is enforced.
+  without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
+  (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
+  tells the model that the destructive-delete guard cannot launch and enforces nothing. It prints
+  nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
+  (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
+  (`systemMessage` is a warning shown to the user).
 - Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in
   order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
   roots, then `PATH`; elsewhere, `PATH` first. The WSL relay (`System32\bash.exe`) is never used.
@@ -96,8 +103,10 @@ at preview. Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
-Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
-`/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
+for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
+and `/disk-hygiene:setup apply` resolves anything it reports with guidance. `node` is declared in
+`prerequisites.json`, so `/claude-ops:prerequisites` lists it.
 
 ## How the guard is registered
 
@@ -164,7 +173,7 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure. The Stop detector launches the same way and reports neither |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user and the model at each session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
@@ -251,6 +260,12 @@ gets the relaxed directory listing.
 confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
 entry cap.
 
+`--deep`, and a home-directory target without it, runs the read-only deep inventory before any
+scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
+produced the entry and what still uses it. It reports only and prepares no deletion; removing
+anything it lists still goes through scan, preview and the removal approval. Columns and
+categories: `skills/clean/reference/scan-flags.md`.
+
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 
@@ -293,9 +308,13 @@ Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
 
 A rule ticks matching candidates in the approval list; it never approves. The approval question still
 names one tier and its path list, and a tick never raises a candidate above its hint's
-`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
-a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
-labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+`confidence_ceiling` or past a blocker. A rule matches by `hint_id`, `hint_ids`, or `class`
+(`superseded-version`, `backup`, `empty`, `temp`, `crash-dump`). Only the baseline temp hints carry
+a class; the other classes match only hints an operator adds through `additional_hints` with that
+`class`. With `min_age_days`, an entry touched inside the window (or a directory whose newest descendant is, or
+whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestamp: `mtime` by
+default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
+reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
 that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
 elevation lane has not been proven in a Windows UAC pilot; see the

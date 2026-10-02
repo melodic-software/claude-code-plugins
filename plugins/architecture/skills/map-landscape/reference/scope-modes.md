@@ -10,7 +10,7 @@ Repeatable. Discovers repositories under each root, then charts them.
 ### When the `repo-fleet-hygiene` plugin is installed
 
 That plugin owns bounded fleet discovery and canonical-checkout resolution, so delegate rather than
-walking. Resolve the memory slice per `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, `mkdir -p` it,
+walking. Use the memory slice `<memory_dir>/<topic-slug>/` (default `.work/<topic-slug>/`), `mkdir -p` it,
 then invoke via the Skill tool:
 
 ```text
@@ -26,7 +26,7 @@ additive: it merges the roots you asked for with the roots its own config declar
 entries whose `discovered` path lies under a root this invocation named. An unfiltered read charts
 the operator's whole configured fleet, including personal directories nobody asked about.
 
-`fleet-plan.json` is a temp artifact. It lives in the memory slice of the topic-docs convention,
+`fleet-plan.json` is a temp artifact. It lives in the memory slice,
 which self-ignores. Never commit it, and never copy it into the architecture directory as a record
 of the fleet.
 

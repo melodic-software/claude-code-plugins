@@ -112,7 +112,7 @@ start=${EPOCHREALTIME:-}
 # it, so it stays a block. Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
 # runs before the jq gate below — hook::require_jq needs the buffered input
-# for its once-per-session notice scoping.
+# for its once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
@@ -135,7 +135,7 @@ hook::buffer_stdin_to INPUT || {
 # jq is required to parse the tool payload. hook::require_jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq spawn is
@@ -143,7 +143,7 @@ hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 # call. Failure semantics are unchanged: a missing jq or an unparsable payload
 # yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
 # hook::require_jq above has already made the degraded state visible once per
-# session. The `// "Bash"` default moves to the bash-side expansion, matching
+# session and agent. The `// "Bash"` default moves to the bash-side expansion, matching
 # block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 
@@ -558,13 +558,6 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # would have let `printf '<secret>' >> .work/notes.md` reach disk unscanned while
 # the identical Write stayed blocked, which is the same content-guard bypass this
 # plugin's MCP lane exists to close.
-#
-# The tension is real and is NOT resolved here: docs/conventions/topic-docs/
-# states as normative that raw output — explicitly including credentials — stays
-# in the memory tier, which reads as an argument for exempting it from secret
-# scanning too. Making the two guards symmetric that way is a widening of a
-# default-on security guard, and ADR 0003 wants firing evidence before one of
-# those moves. Filed rather than decided.
 #
 # The consequence is that `printf '*' >> .work/.gitignore` still blocks because the
 # memory tier is not exempt; write that file with Write, which the content guards

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync or verify the plugin copies of the shared topic-docs concern-value parser.
+# Sync or verify the plugin copies of the shared concern-value parser.
 #
 #   scripts/sync-parse-concern-value.sh                      copy the lib into each consuming plugin
 #   scripts/sync-parse-concern-value.sh --check              fail if any plugin copy differs from the source

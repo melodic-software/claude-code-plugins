@@ -3,6 +3,68 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.2] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+
+## [0.71.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/source-control:check`, which probes it.
+
+## [0.71.0] - 2026-10-01
+
+### Added
+
+- **`/source-control:check` reads whether `jq` resolves for the source-control hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.70.0] - 2026-10-01
+
+### Added
+
+- **`babysit-loop` resolves promotion evidence each cycle through `scripts/resolve-promotion-evidence.mjs`.** Step 3 runs the helper only when the effective rung is merge-capable and the step 0 bootstrap check found no problem. The helper runs `check-security-binding.mjs` in evaluation mode on the `promotion_evidence_binding`, `promotion_evidence_root` and `promotion_evidence_source` surfaces and prints `{source, failClosedReason, cells}`. The checker's path is a fourth operator option, `promotion_evidence_checker` (user, `--settings` or managed settings only), because the program that decides `promoted` must come from the bootstrap and the plugin does not look for another plugin's install directory. A cell is effective-promoted only when `failClosedReason` is null and the checker printed `promoted` for it. The helper fails closed (every cell effective-unpromoted) on a missing, relative or unresolvable path, a surface or checker inside the checkout or a worktree root or containing one (compared before and after symlinks resolve), and a checker that exits non-zero, times out or prints an unparsable block. The helper enforces where each path sits; it cannot tell an operator's option value from a path the lane chose, so the cycle step is instructed to pass only the substituted option values. The checker runs with only `PATH` and `SystemRoot` in its environment, so a repository `env` block cannot inject `NODE_OPTIONS` or similar. The lane passes the checker no `--credential-roots`, so a binding whose L2/L3 entries rest on filesystem credential probes still resolves effective-unpromoted. Operators keep `--merge human-only` on launch lines until the owner decides the remaining phase.
+
+## [0.69.0] - 2026-10-01
+
+### Changed
+
+- **`worktree` routes to the built-in `EnterWorktree` and `ExitWorktree` tools.** The description
+  and a new `## Boundary` section say to use `ExitWorktree` with `action: "keep"` to leave a
+  worktree, and this skill to create one (never `EnterWorktree` by name), to enter an existing one
+  (claim check, then `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The
+  skill never passes `ExitWorktree`'s destructive `action: "remove"`; removal stays with `cleanup`. The verification records are in `reference/native-worktree.md`.
+
+## [0.68.2] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.68.1] - 2026-09-30
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
+
+## [0.68.0] - 2026-09-30
+
+### Added
+
+- **`babysit-prs` resolves seven repository-policy keys per target repository.** The merge method, block labels, extra dependency-manager logins, approval-downgrade logins, skip-downgrade logins, review gate context and CI gateway context come from each PR's own repository, read from `.claude/source-control.md` on its default branch through the GitHub contents API. Hold lists only grow, `babysit_skip_downgrade_logins` can only shrink, and a fetch or parse error refuses the merge and request-review paths and leaves that repository's PRs unclassified in the snapshot. A 404 on the file counts as "no file" only when the repository's root listing is readable, because GitHub answers 404 for a file the token cannot read. `babysit_review_trigger_phrase`, `babysit_review_bot_logins` and `babysit_review_settle_minutes` stay `userConfig`-only, and a repository declaration of any of them is ignored with a note: a repository does not choose the text the operator's account posts, and the review-settle hold clears when any listed reviewer has reviewed the head. The autopilot merge tier takes its block labels from the repository when `--block-labels` is unset, so moving that key into the repository file works with the `userConfig` value unset, and the tier still refuses (exit 3) when neither has a block label.
+
+### Deprecated
+
+- **The `userConfig` values for six of those seven keys are a fallback:** the merge method, block labels, extra dependency-manager logins, approval-downgrade logins, review gate context and CI gateway context. Each use prints one stderr note per key per process. The fallback is removed in a later minor release, no earlier than 90 days after this one. `babysit_skip_downgrade_logins` keeps its `userConfig` value as its only additive source, so it is not deprecated and prints no note.
+
+## [0.67.2] - 2026-09-30
+
+### Changed
+
+- **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
 ## [0.67.1] - 2026-09-30
 
 ### Changed

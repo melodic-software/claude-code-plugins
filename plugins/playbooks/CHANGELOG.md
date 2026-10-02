@@ -4,6 +4,40 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.16.1] - 2026-10-01
+
+### Changed
+
+- The `boris` skill's Effort and xhigh rows, tips 67 and 79, and the `foundations`
+  model-selection note point at the current model config docs instead of naming a default or a
+  model. The CLAUDE.md quick-reference row and the `foundations` CLAUDE.md section say to prune as
+  you add, pointing at the memory docs.
+
+## [0.16.0] - 2026-10-01
+
+### Added
+
+- A Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`. The `fable-5` skill's meta-rule 3 routes Sonnet 5.5 to it and names its fallback targets.
+
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- The `boris` advanced and autonomy references point at the current docs for model and effort facts instead of restating them.
+
+## [0.15.4] - 2026-10-01
+
+### Fixed
+
+- The `repo-sweep` hygiene catalog points its file-name lane at `docs-naming:audit-file-names` and
+  `docs-naming:realign-file-names`, which moved out of `docs-hygiene`.
+
+## [0.15.3] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.15.2] - 2026-09-29
 
 ### Changed

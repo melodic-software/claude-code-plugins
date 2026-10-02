@@ -425,6 +425,18 @@ def test_validate_rejects_a_read_at_naming_a_different_basename(tmp_path):
     assert "FAIL" in out(result)
 
 
+def test_validate_warns_on_an_oversized_file_only(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    normal = run("validate", str(target), "--strict-transcript")
+    assert normal.returncode == 0 and "size:" not in out(normal), out(normal)
+    text = target.read_text(encoding="utf-8")
+    target.write_text(text + "\n" * 300, encoding="utf-8", newline="\n")
+    big = run("validate", str(target), "--strict-transcript")
+    assert big.returncode == 0, out(big)
+    assert "WARN" in out(big) and "size:" in out(big)
+
+
 def test_validate_secret_shape_is_warn_only(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP1
@@ -1087,7 +1099,7 @@ def test_new_outside_any_git_repo_still_requires_guard_and_uses_absolute_origin_
     tmp_path,
 ):
     shutil.copytree(FIXTURES / "projects", tmp_path / "projects", dirs_exist_ok=True)
-    memory = tmp_path / "plugin-data" / "topic-docs"
+    memory = tmp_path / "plugin-data" / "artifacts"
     memory.mkdir(parents=True)
     args = new_args(tmp_path, tmp_path, "--no-previous")
     args[args.index("--memory-dir") + 1] = str(memory)
@@ -1127,7 +1139,7 @@ def _outside_git(tmp_path: Path) -> Path:
 def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
     cwd = _outside_git(tmp_path)
     data = tmp_path / "plugin-data"
-    memory = data / "topic-docs"
+    memory = data / "artifacts"
     memory.mkdir(parents=True)
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     args = _no_memory_dir_args(tmp_path)
@@ -1151,7 +1163,7 @@ def test_new_without_memory_dir_outside_git_derives_data_dir_from_cache(tmp_path
         version_dir / "scripts",
         ignore=shutil.ignore_patterns("tests", "__pycache__"),
     )
-    memory = config / "plugins" / "data" / "session-flow-my-market" / "topic-docs"
+    memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
     memory.mkdir(parents=True)
     (memory / ".gitignore").write_text("*\n", encoding="utf-8")
     result = run(
@@ -1171,13 +1183,13 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
-def test_memory_root_outside_git_prints_the_plugin_data_topic_docs(tmp_path):
+def test_memory_root_outside_git_prints_the_plugin_data_artifacts(tmp_path):
     cwd = _outside_git(tmp_path)
     data = tmp_path / "plugin-data"
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     result = run("memory-root", env=env, cwd=cwd)
     assert result.returncode == 0, err(result)
-    assert out(result).strip() == real_posix(data / "topic-docs")
+    assert out(result).strip() == real_posix(data / "artifacts")
     refused = run("memory-root", cwd=cwd)
     assert refused.returncode == 1
 
@@ -1238,6 +1250,23 @@ def test_new_refuses_predecessor_outside_handoffs_dir(tmp_path):
         )
     )
     assert missing.returncode == 1
+
+
+def test_a_live_entry_repeating_a_superseded_one_warns(tmp_path):
+    target = new_hop2_skeleton(tmp_path)
+    text = target.read_text(encoding="utf-8")
+    carried = "- [h1] The thing must stay green."
+    assert carried in text
+    target.write_text(
+        text.replace(
+            carried,
+            carried + "\n\nSuperseded:\n- [h2] The thing must stay green.",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    warned = run("validate", str(target))
+    assert "WARN: Constraints that must hold: duplicate" in out(warned)
 
 
 def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path):
@@ -1509,6 +1538,82 @@ def test_fill_handles_two_slots_on_the_this_session_line(tmp_path):
     assert "|" not in line
     validated = run("validate", str(target), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
+
+
+def test_this_session_carries_one_rescan_line_and_refuses_a_second_or_a_stray(tmp_path):
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    payload["rescan"] = "read the lossless on-disk transcript; no compaction occurred"
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    text = target.read_text(encoding="utf-8")
+    assert text.count("\nRe-scan: read the lossless on-disk transcript") == 1
+    assert run("validate", str(target), "--strict-transcript").returncode == 0
+    for extra in ("Re-scan: again", "a stray line"):
+        target.write_text(
+            text.replace("\nRe-scan: ", f"\n{extra}\nRe-scan: ", 1),
+            encoding="utf-8",
+            newline="\n",
+        )
+        assert run("validate", str(target), "--strict-transcript").returncode == 1, extra
+
+
+def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
+    """An attestation an earlier chain wrote into Constraints is an ordinary
+    entry: it stays, so the successor still validates."""
+    target = new_hop2_skeleton(tmp_path)
+    text = target.read_text(encoding="utf-8")
+    assert "Re-scanned" not in text
+    old = "- [h1] Re-scanned the visible conversation only; a compaction occurred this session."
+    hop1 = target.parent / HOP1
+    hop1.write_text(
+        hop1.read_text(encoding="utf-8").replace(
+            "- [h1] The thing must stay green.",
+            f"- [h1] The thing must stay green.\n{old}",
+            1,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert run("validate", str(hop1), "--strict-transcript").returncode == 0
+    repo = target.parent.parent.parent
+    target.unlink()
+    run(
+        *new_args(
+            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+        )
+    ).check_returncode()
+    carried = target.read_text(encoding="utf-8")
+    assert old in carried
+    payload = required_slots(carried)
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    assert run("validate", str(target), "--strict-transcript").returncode == 0
+
+
+def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path):
+    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix,
+    spacing and case aside) is a duplicate: validate warns and the oldest tag
+    stays the only copy once the writer drops it."""
+    target = new_hop2_skeleton(tmp_path)
+    carried = "- [h1] The thing must stay green."
+    text = target.read_text(encoding="utf-8")
+    assert carried in text
+    slot = next(
+        line for line in text.splitlines() if line.startswith("<!-- FILL: constraints-new")
+    )
+    copy = "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+    payload = required_slots(text)
+    target.write_text(text.replace(slot, copy), encoding="utf-8", newline="\n")
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    warned = run("validate", str(target), "--strict-transcript")
+    assert warned.returncode == 0, out(warned) + err(warned)
+    assert "WARN: Constraints that must hold: duplicate" in out(warned)
+
+    filled = target.read_text(encoding="utf-8")
+    target.write_text(filled.replace(copy + "\n", ""), encoding="utf-8", newline="\n")
+    clean = run("validate", str(target), "--strict-transcript")
+    assert clean.returncode == 0, out(clean) + err(clean)
+    assert "WARN" not in out(clean)
+    assert target.read_text(encoding="utf-8").count("must stay green") == 1
 
 
 def test_fill_multi_line_value_lands_as_lines_in_place(tmp_path):

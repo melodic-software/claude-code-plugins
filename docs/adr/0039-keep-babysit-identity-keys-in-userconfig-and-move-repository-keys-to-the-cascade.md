@@ -57,8 +57,8 @@ verdict HYBRID, which this record adopts.
      the deprecated `userConfig` value, so a layer can add an entry but never drop one.
    - `babysit_review_bot_logins` and `babysit_review_settle_minutes` bind as one unit from one
      layer, and a lower layer may lengthen the settle window, never shorten it.
-   - `babysit_skip_downgrade_logins` is unclassified: whether it is a floor or a preference is
-     open.
+   - `babysit_skip_downgrade_logins` is a floor in the inverted sense: a repository layer may
+     remove logins from the `userConfig` set and never add one.
    - `babysit_review_gate_context` and `babysit_ci_gateway_context` name the checks that must pass
      before the loop posts the review trigger, so a writer to the default branch could point them
      at a check that writer controls. They are read from the target repository's default branch
@@ -73,12 +73,25 @@ verdict HYBRID, which this record adopts.
 ## Consequences
 
 - An operator with several identity domains on one machine (for example a work account and a
-  personal account) gets one value per machine for each key in decision 1 and for the ten keys in
-  decision 3 until they move. Such an operator either leaves those keys unset or launches the lane
-  with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
+  personal account) gets one value per machine for each key in decision 1, and for the ten keys in
+  decision 3 while their deprecated `userConfig` fallback is set. Such an operator either leaves
+  those keys unset or launches the lane with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
   (fact 5); how its `pluginConfigs` merges with the user settings value is unverified.
 - Repositories can set `branch_issue_pattern` for themselves today; the `userConfig` twin keeps
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain
   consequence, and cites this record.
-- The ten deferred keys keep today's behavior until #4572 ships.
+- Seven of the ten repository-policy keys resolve per target repository from its default branch,
+  with the `userConfig` value as a deprecated fallback, under the merge modes in decision 3.
+  `babysit_skip_downgrade_logins` is remove-only: a repository can narrow the `userConfig` set and
+  never add a login, so additions stay `userConfig`-only, and its `userConfig` value is not
+  deprecated.
+- `babysit_review_bot_logins` and `babysit_review_settle_minutes` stay `userConfig`-only, and a
+  repository declaration of either is ignored. The merge gate clears the review-settle hold when any
+  listed reviewer has reviewed the head, so a repository reviewer list that adds to the operator's
+  lets that reviewer clear the hold early, and one that replaces it can swap the operator's
+  reviewer out. Which combination a repository pair may have is a maintainer decision.
+- `babysit_review_trigger_phrase` stays `userConfig`-only, and a repository declaration is ignored.
+  `request_review` posts the phrase as a comment under the operator's account, so a repository must
+  not choose its text. `babysit_review_gate_context` and `babysit_ci_gateway_context` stay
+  repository-overridable: they only select which check the loop waits on.

@@ -57,12 +57,12 @@
     {
       "id": 5,
       "name": "declared-memory-dir",
-      "prompt": "/session-flow:tidy-work report. This repo's .claude/topic-docs.yaml sets memory_dir: notes/mem.",
-      "expected_output": "The skill resolves memory_dir through parse-concern-value.sh from the concern file and passes the result as --memory-dir to tidy_work.py report, so the inventory covers notes/mem rather than a hardcoded .work.",
+      "prompt": "/session-flow:tidy-work report. This repo's CLAUDE.md documents notes/mem as its working-docs root.",
+      "expected_output": "The skill takes the memory root the repo documents and passes it as --memory-dir to tidy_work.py report, so the inventory covers notes/mem rather than a hardcoded .work.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Runs parse-concern-value.sh against .claude/topic-docs.yaml for memory_dir",
+        "Takes notes/mem from the repo's documented working-docs root",
         "Passes the resolved value as --memory-dir to tidy_work.py report",
         "Does not inventory a hardcoded .work in place of the declared memory root",
         "Changes nothing on disk"

@@ -13,8 +13,8 @@
 #
 # This script sources session-log-lib.sh (a few functions, no process) and
 # NOT hook-utils.sh: a producer that fires on every event cannot afford the
-# 2,766-line library, which measured at more than the rest of the hook
-# (docs/topics/hook-logging-pipeline, Brief Q15). What it gives up is the
+# 2,766-line library, which measured at more than the rest of the hook.
+# What it gives up is the
 # library's notice channel, so its quiet exits are data-driven (no session id,
 # a filtered category, an uncontained root) and never a missing prerequisite:
 # it needs no jq and no git.

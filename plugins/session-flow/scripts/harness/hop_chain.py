@@ -136,6 +136,8 @@ SHAPE1_MEDIAN_LINES = 154
 SHAPE1_MEDIAN_TOKENS = 3200
 BUDGET_HOPS = 20
 BUDGET_REPORT_HOPS = (1, 5, 20)
+ATTESTATION_CHECK_HOPS = 9
+ATTESTATION_MARK = "Re-scan"
 CUMULATIVE_ENTRIES_PER_HOP = 2
 BUDGET_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 BUDGET_EPOCH = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -389,6 +391,12 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             continue
         if slot == "left":
             out.append(prefix + f"hops after {hop} still to generate")
+            continue
+        if slot == "rescan":
+            out.append(
+                prefix
+                + "the re-scan read the lossless on-disk transcript; no compaction occurred."
+            )
             continue
         if slot == "goal":
             out.append(
@@ -1214,6 +1222,12 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
             )
         files.append(path)
         previous = path
+    if hops >= ATTESTATION_CHECK_HOPS:
+        found = files[-1].read_text(encoding="utf-8").count(ATTESTATION_MARK)
+        if found != 1:
+            raise SystemExit(
+                f"budget: newest of {hops} hops carries {found} re-scan attestation lines, expected 1"
+            )
     return files
 
 

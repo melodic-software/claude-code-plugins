@@ -2,13 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "policy-overlay.schema.json",
   "title": "disk-hygiene policy overlay",
-  "description": "A standing policy file (~/.claude/disk-hygiene.json, <project>/.claude/disk-hygiene.json) or an explicit --policy file. Layers apply in that order and only add: an overlay can disable or add hints, add protected path globs, and, at version 2, add rules. No overlay can weaken a hard guard. The one exception to only-add is the version 2 elevation opt-in. The engine loader (load_policy, apply_policy_overlay) enforces the constraints this schema cannot express: hint ids in a rule must exist in the merged hint set, additional hint ids must not collide with an existing id, and a project file may set elevation only to never.",
+  "description": "A standing policy file (~/.claude/disk-hygiene.json, <project>/.claude/disk-hygiene.json) or an explicit --policy file. Layers apply in that order and only add: an overlay can disable or add hints, add protected path globs, and, at version 2, add rules. No overlay can weaken a hard guard. The one exception to only-add is the version 2 elevation opt-in. The engine loader (load_policy, apply_policy_overlay) enforces the constraints this schema cannot express: hint ids and classes in a rule must exist in the merged hint set, additional hint ids must not collide with an existing id, and a project file may set elevation only to never.",
   "oneOf": [
     { "$ref": "#/$defs/overlayV1" },
     { "$ref": "#/$defs/overlayV2" }
   ],
   "$defs": {
     "nonEmptyString": { "type": "string", "minLength": 1 },
+    "hintClass": {
+      "enum": ["superseded-version", "backup", "empty", "temp", "crash-dump"]
+    },
     "overlayV1": {
       "type": "object",
       "required": ["version"],
@@ -44,7 +47,7 @@
           "$ref": "#/$defs/overlayV1/properties/additional_protected_path_globs"
         },
         "rules": {
-          "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id (an entry carries hints, not a class). Later layers append; when two rules match the same entry, the rule from the later layer wins.",
+          "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id or on hint class. Later layers append; when two rules match the same entry, the rule from the later layer wins.",
           "type": "array",
           "items": { "$ref": "#/$defs/rule" }
         },
@@ -69,6 +72,10 @@
         "pattern": { "$ref": "#/$defs/nonEmptyString" },
         "confidence_ceiling": { "enum": ["low", "medium", "high"] },
         "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "class": {
+          "description": "What kind of leftover the hint detects. A rule can match every hint that carries a class. Optional.",
+          "$ref": "#/$defs/hintClass"
+        },
         "entry_types": {
           "description": "Entry kinds the hint matches. A hint that sets none matches every kind; link is a symlink or reparse point.",
           "type": "array",
@@ -97,7 +104,7 @@
       "additionalProperties": false,
       "properties": {
         "match": {
-          "description": "Exactly one of hint_id or hint_ids. Every named id must exist in the merged hint set.",
+          "description": "Exactly one of hint_id, hint_ids or class. Every named id must exist in the merged hint set, and a class must be carried by at least one merged hint.",
           "oneOf": [
             {
               "type": "object",
@@ -116,6 +123,12 @@
                   "items": { "$ref": "#/$defs/nonEmptyString" }
                 }
               }
+            },
+            {
+              "type": "object",
+              "required": ["class"],
+              "additionalProperties": false,
+              "properties": { "class": { "$ref": "#/$defs/hintClass" } }
             }
           ]
         },
@@ -126,8 +139,8 @@
           "minimum": 0
         },
         "min_age_basis": {
-          "description": "The timestamp min_age_days is measured from. Only mtime is supported.",
-          "enum": ["mtime"]
+          "description": "The timestamp min_age_days is measured from; default mtime. What ctime and atime mean on each platform: reference/scan-flags.md, Rule age window.",
+          "enum": ["mtime", "atime", "ctime"]
         }
       }
     }
