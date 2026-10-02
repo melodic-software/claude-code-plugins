@@ -92,8 +92,11 @@ recorded beside the key in
 [`${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`](${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml).
 
 `fanout.frontier_guard=false` is an explicit opt-in to frontier fan-outs: every
-parallel worker then runs at the session model's price, and on a frontier
-session that is the frontier price times the number of agents. Before writing
+parallel worker then runs on the session model, so a frontier session runs
+every agent of the stage on the frontier model (rates:
+[Pricing](https://platform.claude.com/docs/en/about-claude/pricing); usage:
+[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)).
+Before writing
 it, say this and ask the user to confirm that specific key, separately from the
 rest of the change. Recommend the narrowest layer that covers what they mean:
 `local` for one checkout, `user` for one machine, `team` only when the whole

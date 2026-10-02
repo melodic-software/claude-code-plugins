@@ -33,7 +33,7 @@
       "name": "guard-off-is-a-separate-opt-in",
       "prompt": "/multi-agent:setup apply --layer user fanout.frontier_guard=false. I run Fable and want my workers on it too.",
       "narration": true,
-      "expected_output": "Shows the before map, previews the user layer write, and explains that turning the guard off is an explicit opt-in to frontier fan-outs: every parallel worker then runs on the session model, so under Fable each one costs the frontier price. Asks the user to confirm that key on its own before writing. Suggests the local layer if the intent is one repository rather than the whole machine.",
+      "expected_output": "Shows the before map, previews the user layer write, and explains that turning the guard off is an explicit opt-in to frontier fan-outs: every parallel worker then runs on the session model, so under Fable every agent of that stage runs on the frontier model, and it links the pricing and costs pages rather than stating a price. Asks the user to confirm that key on its own before writing. Suggests the local layer if the intent is one repository rather than the whole machine.",
       "expectations": [
         "The guard's purpose is explained before any write",
         "The cost of frontier fan-outs is stated plainly",

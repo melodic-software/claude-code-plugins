@@ -70,8 +70,8 @@ Shows the resolved map after an accepted change lands.
 
 - A `current` verdict needs the fetched text. A page that fails to load is
   `unread`, never `current`.
-- Treat a new model row on the cost page as a recheck event for the worker and the fan-out guard even when no number
-  for the old models moved.
+- Treat a new model row on the cost page as a recheck event for the worker
+  and the fan-out guard, even when nothing about the older models changed.
 - The fan-out guard is a user requirement as well as an upstream-backed
   default: propose changing `fanout.model` when the evidence supports it, but
   never propose turning the guard off.
