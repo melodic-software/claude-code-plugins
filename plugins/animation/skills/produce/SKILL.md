@@ -14,8 +14,9 @@ Turn a brief and one or more style packs into a film. Boards come first. The fil
 until the user approves them. `shots.json` is the only list of shot cuts: `inkstats.py --cuts`
 reads that file.
 
-Requirements are the plugin README's. Run Python as
-`uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`. The gate script
+Requirements are the plugin README's. Run each script as
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`,
+which uses the packages the SessionStart hook installed. The gate script
 needs only the standard library:
 `${CLAUDE_PLUGIN_ROOT}/scripts/produce.py`. Rendering is
 `${CLAUDE_PLUGIN_ROOT}/scripts/render.py`. The pack check is
