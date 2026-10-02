@@ -40,25 +40,9 @@
 # throwaway exec-form PreToolUse row under `claude -p`. Without that opt-in,
 # or without `claude`, this half skips fail-soft with the same non-authorization.
 #
-# The four-part record is restated in docs/plugin-philosophy.md
-# ("Windows exec-form probe") and in
-# plugins/harness-config/skills/audit/reference/audit-checklist.md (Category D).
-#   Claim: On Windows, exec form resolves `command` as an executable and spawns
-#     it directly with `args` as the argument vector. There is no shell, so a
-#     shebang is not honored, and `command` must be a real executable such as
-#     a `.exe`. `.cmd` and `.bat` cannot be spawned. If that spawn drops `args`
-#     or the image is bash.exe, the fleet sweep stops.
-#   Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form",
-#     verbatim "On Windows, exec form requires `command` to resolve to a real
-#     executable such as a `.exe`." Full raw hooks.md read 2026-09-28
-#     (330813 bytes, SHA-256
-#     57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218; the slug
-#     is listed in https://code.claude.com/docs/llms.txt). The same section
-#     says there is no shell and that `shell` is ignored when `args` is set.
-#     https://github.com/anthropics/claude-code/issues/90495 (open).
-#   As of: 2026-09-28.
-#   Recheck: that Windows sentence changes, `shell` stops being ignored when
-#     `args` is set, or #90495 closes.
+# The record behind this probe is "Windows exec-form probe" in
+# docs/plugin-philosophy.md, and Category D of
+# plugins/harness-config/skills/audit/reference/audit-checklist.md.
 #
 # Exit 0 clean, 1 findings (including a reproduced args-drop), 2 environment or
 # usage. Findings on stderr; the clean statement and SKIP lines on stdout

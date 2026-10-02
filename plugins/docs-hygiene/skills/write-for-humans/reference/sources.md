@@ -1,39 +1,43 @@
 # Source records for the default layer set
 
-The four layers this skill falls back to are **distilled paraphrases** of published standards, never
-copies of them, and none of them is this plugin's own invention. Each carries a four-part drift
-stamp so a later reader can tell what was claimed, on what basis, when it was last true, and what
-event should send someone back to check.
+The four layers this skill falls back to are this plugin's selections from published standards,
+never copies of them, and none of them is this plugin's own invention. Each carries a record in
+the links-only shape (our decision, a pointer, an as-of date, a recheck trigger) so a later reader
+can tell what we took, where to read the standard live, when the selection was last checked, and
+what event should send someone back to check.
 
 Read this when you need to know how faithful a layer is, cite a layer to someone, or decide whether
-a standard has moved since the port.
+a standard has moved since the selection was made.
 
 ## Diátaxis: the mode layer
 
-- **Claim.** The four modes, and the doing/understanding × learning/work compass that selects
-  between them, are as the framework defines them.
-- **Basis.** [diataxis.fr](https://diataxis.fr).
-- **As of.** 2026-07-18.
-- **Recheck trigger.** The framework publishes a revision that renames a mode or changes either
+We use the framework's four modes, and the compass that selects between them, as the framework
+defines them; the framework settles any mode question this skill does not cover.
+
+- **Pointer**: for the modes and the compass, see [diataxis.fr](https://diataxis.fr).
+- **As of**: 2026-07-18
+- **Recheck trigger**: the framework publishes a revision that renames a mode or changes either
   compass axis.
 
 ## Google developer documentation style: the address layer
 
-- **Claim.** The address rules paraphrase the guide's own highlights; they are a selection, not the
-  guide, and the guide settles anything this file does not cover.
-- **Basis.** [developers.google.com/style](https://developers.google.com/style).
-- **As of.** 2026-07-18.
-- **Recheck trigger.** The guide's Highlights page changes a rule stated in `sentence-rules.md`.
+The address rules are our selection from the guide's highlights, not the guide; the guide settles
+anything this file does not cover.
+
+- **Pointer**: for the guide and its highlights, see
+  [developers.google.com/style](https://developers.google.com/style).
+- **As of**: 2026-07-18
+- **Recheck trigger**: the guide's Highlights page changes a rule stated in `sentence-rules.md`.
 
 ## ASD-STE100 Simplified Technical English: the load layer
 
-- **Claim.** The load rules are the transferable core of the specification's writing rules. The
-  numbered rules and the controlled dictionary live in the specification itself and are **not**
-  reproduced here. This layer is a set of principles derived from the standard, and a document
-  written to it is not thereby STE-conformant.
-- **Basis.** [asd-ste100.org](https://asd-ste100.org), Issue 9 (2025).
-- **As of.** 2026-07-18.
-- **Recheck trigger.** A new Issue of the specification is published.
+The load rules are principles we derive from the specification's writing rules. The numbered rules
+and the controlled dictionary live in the specification and are **not** reproduced here, and a
+document written to this layer is not thereby STE-conformant.
+
+- **Pointer**: for the specification, Issue 9 (2025), see [asd-ste100.org](https://asd-ste100.org).
+- **As of**: 2026-07-18
+- **Recheck trigger**: a new Issue of the specification is published.
 
 This caveat is a real constraint, not boilerplate. Anyone claiming STE conformance for a document
 needs the specification; anyone wanting sentences that load one idea at a time can use the
@@ -41,11 +45,12 @@ principles alone.
 
 ## Global English: the ambiguity layer
 
-- **Claim.** The ambiguity rules paraphrase Kohl's guidelines for writing prose that survives
-  non-native readers, translators, and machine parsers.
-- **Basis.** Kohl, *The Global English Style Guide* (SAS Press).
-- **As of.** 2026-07-18.
-- **Recheck trigger.** A new edition is published.
+The ambiguity rules are our selection from Kohl's guidelines for prose that survives non-native
+readers, translators, and machine parsers.
+
+- **Pointer**: for the guidelines, see Kohl, *The Global English Style Guide* (SAS Press).
+- **As of**: 2026-07-18
+- **Recheck trigger**: a new edition is published.
 
 ## Why these four and not one
 

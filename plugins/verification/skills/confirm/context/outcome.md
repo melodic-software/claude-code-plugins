@@ -66,8 +66,10 @@ Justified additions are fine but should be noted. Unjustified additions should b
 
 ### 5. Verdict
 
-- **CONFIRMED** if all plan items are COMPLETE and deviations are justified
+- **CONFIRMED** if all plan items are COMPLETE, deviations are justified, and Stage 1 left no environment skip
 - **NEEDS WORK** if any plan items are MISSING or PARTIAL without justification
+- **NOT VERIFIED** if no gap was found but Stage 1 left an environment skip (a missing tool, including one too old for the check, or missing dependencies): name each skip and its reason, and what running it needs
+- Under any verdict, list an ecosystem whose only checks were syntax-only as "no real check ran"; it does not change the verdict by itself and never counts as a mechanical pass
 - If NEEDS WORK, list specific gaps with suggested actions
 
 ## UI evidence contract

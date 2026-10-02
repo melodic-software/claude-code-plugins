@@ -18,13 +18,14 @@ the spawn is refused), and probing with a different agent type (the gate is defi
 so a `general-purpose` success says nothing about a definition that omits `Agent` or disallows
 it). A restricted agent type that shows `Agent` as absent says nothing about nesting
 platform-wide. One cheap probe beats any citation, but it has to probe the thing you are actually
-going to run. `context/sources.md` carries the verbatim quotes.
+going to run. `context/sources.md` carries the pointers, as-of dates, and recheck triggers.
 
 ## A denied spawn is not a depth answer
 
-Subagent spawns are evaluated by the permission classifier *before* launch. A refusal therefore
-says nothing about the depth ceiling, and reading it as "we are out of depth" sends you into a
-redesign the platform never asked for. A depth probe can come back unresolved because this
+A permission gate can refuse a spawn *before* depth is consulted (record: `context/sources.md`,
+"Imperative 5: NESTED SUBAGENTS"). We therefore read a refusal as saying nothing about the depth
+ceiling; reading it as "we are out of depth" sends you into a redesign the platform never asked
+for. A depth probe can come back unresolved because this
 different gate answered first. Read the error text: a depth rejection names depth, a permission
 rejection names permission.
 

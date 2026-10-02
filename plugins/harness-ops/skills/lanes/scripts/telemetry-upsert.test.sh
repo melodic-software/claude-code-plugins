@@ -164,7 +164,7 @@ printf 'lane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' >"$BODY"
 REPO="melodic-software/claude-code-plugins"
 run() { STUB_COMMENTS_FILE="$1" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" "${@:2}"; }
 
-SENT='<!-- claude-ops:lane-telemetry marker=lane:triage -->'
+SENT='<!-- harness-ops:lane-telemetry marker=lane:triage -->'
 export STUB_SENTINEL="$SENT"
 
 # ============================================================================
@@ -241,7 +241,7 @@ assert_not_contains "never PATCHes another user's comment" "$log" "method=PATCH"
 cat >"$TMP/prefix-collision.json" <<'JSON'
 [
   { "id": 555, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
-    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage-old -->\nother lane" }
+    "body": "<!-- harness-ops:lane-telemetry marker=lane:triage-old -->\nother lane" }
 ]
 JSON
 : >"$LOG"
@@ -259,7 +259,7 @@ assert_not_contains "never PATCHes the longer lane's comment" "$log" "method=PAT
 cat >"$TMP/instance-suffix.json" <<'JSON'
 [
   { "id": 666, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
-    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage@laptop-a -->\nlane: triage" }
+    "body": "<!-- harness-ops:lane-telemetry marker=lane:triage@laptop-a -->\nlane: triage" }
 ]
 JSON
 : >"$LOG"
@@ -272,11 +272,11 @@ assert_not_contains "never PATCHes an instance-suffixed comment" "$log" "method=
 # an instance marker must not adopt a LONGER instance marker either — the same
 # boundary rule one level down (`lane:triage@a` vs `lane:triage@a@b`).
 # ============================================================================
-INST_SENT='<!-- claude-ops:lane-telemetry marker=lane:triage@a -->'
+INST_SENT='<!-- harness-ops:lane-telemetry marker=lane:triage@a -->'
 cat >"$TMP/instance-superstring.json" <<'JSON'
 [
   { "id": 888, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
-    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage@a@b -->\nlane: triage" }
+    "body": "<!-- harness-ops:lane-telemetry marker=lane:triage@a@b -->\nlane: triage" }
 ]
 JSON
 : >"$LOG"

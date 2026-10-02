@@ -195,7 +195,7 @@ well-headed file.
 Restated-fact rubric: one reads for who owns the fact and whether its owner could change it
 without this repository noticing; one reads for what a reader who acts on the passage does wrong
 if the owner has changed the fact; one reads for whether anything in the file records the fact's
-basis, as-of date and recheck trigger, naming the part each nearby citation lacks. That third
+pointer, as-of date and recheck trigger, naming the part each nearby citation lacks. That third
 stance is deliberately not "is a source cited": the rubric rejects that reading, because a link
 beside a stated value cites the value and records neither when it was checked nor what obliges a
 recheck.
@@ -231,7 +231,7 @@ recheck.
 > span of text that decided it. A grade without a quoted span is not a grade. If the text you
 > would need to quote is not in front of you, grade it UNKNOWN and say what you would need. You
 > are not asked whether the fact is still true, or whether the passage's words match a source's:
-> the rubric asks whether an external owner's fact is stated without a whole four-part record.
+> the rubric asks whether an external owner's fact is stated without a whole stamped record.
 >
 > [lens sentence, when lens diversity is on]
 >
@@ -289,7 +289,7 @@ One adversary per finding, in a fresh context, never one of the panel's judges.
 > [framing block above]
 >
 > A panel has unanimously judged that the passage below restates a fact an external source owns
-> without a whole four-part record. Assume the panel is wrong and try to show it. Default to
+> without a whole stamped record. Assume the panel is wrong and try to show it. Default to
 > refute: the finding survives only if you tried every attack below and each one failed against
 > text you can quote. You have the local passage, the containing file, the source text where one
 > was fetched, and the criterion grades with their quoted evidence. You do not have the judges'
@@ -299,9 +299,9 @@ One adversary per finding, in a fresh context, never one of the panel's judges.
 > establishes it. (b) R1: the fact is general practice, this repository's own, or has no external
 > owner. (c) R2: the fact is stable across the owner's revisions, or is not concrete. (d) R3: the
 > passage is history, an example the text labels illustrative, or otherwise not asserted as
-> current. (e) R4: a pointer that stands in place of stating the fact, or a whole four-part record
-> whose claim names this very fact, is anywhere in the file; quote it and name the four parts. A
-> link beside a stated value is not one.
+> current. (e) R4: a pointer that stands in place of stating the fact, or a whole stamped record
+> (pointer, as-of date, observable recheck trigger) that names this very fact, is anywhere in the
+> file; quote it and name each part. A link beside a stated value is not one.
 >
 > Quote a span for every attack you rely on. Where the material leaves a question open, that is
 > a REFUTED: say what would settle it.

@@ -229,7 +229,7 @@ absent, the canonical `needs-human` default applies with a loud notice, plus a m
 escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the writer
-(as the `claude-ops:lane-telemetry` sentinel below does), so babysit escalations surface in the same
+(as the `harness-ops:lane-telemetry` sentinel below does), so babysit escalations surface in the same
 attention view as worker escalations. The same step performs the contract's escalation record write
 shape, suppression, and the seam it feeds are §2's; three things a lane executor must not get
 wrong are restated here.

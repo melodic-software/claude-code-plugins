@@ -24,8 +24,9 @@
 #
 # Every upstream number it compares against (the CLI floor, the action release
 # to CLI map, the CI canary run) is parsed from `reference/sources.md`, which
-# carries the four-part dated record for each. Parsing is fail-hard: a record
-# this script cannot read is a fact it must not silently skip checking.
+# carries a pointer record (decision, pointer, as-of date, recheck trigger) for
+# each. Parsing is fail-hard: a record this script cannot read is a fact it
+# must not silently skip checking.
 #
 # Usage:
 #   cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
@@ -75,7 +76,8 @@ Usage: cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
                             default from (default: `claude` on PATH)
   --env-vars-file <path>    read the env-vars page from this file instead of
                             fetching it
-  --sources <path>          the four-part records to compare against
+  --sources <path>          the pointer records (decision, pointer, as-of
+                            date, recheck trigger) to compare against
                             (default: ../reference/sources.md)
   --claude-bin <path>       the CLI the condition-3 canary runs (default: claude)
   --canary-home-root <dir>  where the home-cwd canary makes its scratch

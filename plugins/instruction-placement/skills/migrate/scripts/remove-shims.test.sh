@@ -199,8 +199,49 @@ OUT=$(bash "$SCRIPT" --root "$READY" --installed-plugins "$TMP/installed-current
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "no --confirm exits 1" 1 "$rc"
 assert_contains "and prints what removal costs" "$OUT" "InstructionsLoaded"
+assert_contains "and prints the record's pointer" "$OUT" "  - **Pointer**: "
+assert_not_contains "and stops before the as-of date" "$OUT" "**As of**"
 assert_contains "and says it is not confirmed" "$OUT" "Not confirmed"
 assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --porcelain)"
+
+# The price is the record's decision, the paragraph directly above its
+# pointer, and the pointer itself: not the section's lead-in, not the as-of
+# date or the trigger, and nothing from the next section.
+PRICE_STUB="$TMP/price-stub"
+mkdir -p "$PRICE_STUB/scripts" "$PRICE_STUB/reference"
+cp "$SCRIPT" "$PRICE_STUB/scripts/remove-shims.sh"
+cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
+# Sources
+
+## What shim removal costs
+
+A lead-in the price leaves out.
+
+The decision, first line,
+and its second line.
+
+- **Pointer**: for the topic, see <https://example.com/page#section>;
+  a continuation line.
+- **As of**: 2026-01-01
+- **Recheck trigger**: an event.
+
+## The next section
+
+Text the price never reaches.
+EOF
+EXPECTED_PRICE="$(printf '%s\n' \
+  "What removing the shims costs (reference/sources.md, 'What shim removal costs'):" \
+  "  The decision, first line," \
+  "  and its second line." \
+  "" \
+  "  - **Pointer**: for the topic, see <https://example.com/page#section>;" \
+  "    a continuation line.")"
+OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plugins \
+  "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met")
+# The command substitution drops the blank line the script prints after it.
+GOT_PRICE="$(printf '%s\n' "$OUT" |
+  awk '/^What removing the shims costs/ { f = 1 } /^Not confirmed/ { exit } f')"
+assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
 
 # --- Case 3: a stale installed plugin refuses before anything is removed --
 

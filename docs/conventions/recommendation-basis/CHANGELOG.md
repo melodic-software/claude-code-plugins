@@ -4,6 +4,12 @@ Notable changes to the recommendation-basis contract (SemVer). Changing the grou
 label's values, or the re-emit shape is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [1.0.2] - 2026-10-01
+
+Patch, docs-only. The Boundary bullet on durable records of upstream-derived facts names the record
+the upstream-drift convention now requires: our decision, a pointer, an as-of date and a recheck
+trigger. No grounding bar, label value or re-emit shape changes.
+
 ## [1.0.1] - 2026-09-28
 
 Adopters lists the skills that conform to 1.0.0 across `planning`, `source-control`, `github`,

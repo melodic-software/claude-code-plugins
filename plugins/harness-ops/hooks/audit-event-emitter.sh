@@ -185,7 +185,7 @@ emit::skill_expansion_row() {
   # before jq runs.
   exp_type=$(printf '%s' "$INPUT" | jq -r '(.expansion_type // empty) | gsub("\r";"")' 2>/dev/null)
 
-  claude_ops::record_skill_use "UserPromptExpansion" "skill-usage-expansion-audit" \
+  harness_ops::record_skill_use "UserPromptExpansion" "skill-usage-expansion-audit" \
     "$INPUT" "$skill" "expansion" "$exp_type"
 
   hook::telemetry_enabled || return 0

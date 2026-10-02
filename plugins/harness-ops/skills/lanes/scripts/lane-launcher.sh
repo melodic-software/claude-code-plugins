@@ -84,13 +84,13 @@
 #   config preflight rejects a name that is not a single path component.
 #
 # Config resolution (first hit wins):
-#   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes/lanes.json
+#   --config FILE  →  $HARNESS_OPS_LANES_CONFIG  →  <repo>/.work/lanes/lanes.json
 #   Compatibility: when none of those hit and the pre-move `<repo>/.work/lanes.json`
 #   exists, that file is read instead, with a one-line deprecation WARNING. A
 #   config resolved at the pre-move path also keeps the pre-move `prompt_dir`
 #   default (".work"), so a config that never named one still finds the prompts
 #   it left beside itself. Move both to `.work/lanes/` to clear the warning;
-#   $CLAUDE_OPS_LANES_CONFIG remains the escape hatch for a config kept elsewhere.
+#   $HARNESS_OPS_LANES_CONFIG remains the escape hatch for a config kept elsewhere.
 #
 # Config schema (see context/config.md for the full contract):
 #   { "prompt_dir": ".work/lanes",
@@ -341,14 +341,14 @@ LEGACY_CONFIG_HOME=0
 
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
-    CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/$LANES_CONFIG_REL}"
+    CONFIG="${HARNESS_OPS_LANES_CONFIG:-$REPO/$LANES_CONFIG_REL}"
     # Backward compatibility for a checkout that predates the move. Only the
-    # DEFAULT falls back: an explicit --config or $CLAUDE_OPS_LANES_CONFIG is
+    # DEFAULT falls back: an explicit --config or $HARNESS_OPS_LANES_CONFIG is
     # used verbatim, as documented, so the escape hatch keeps meaning exactly
     # what it says. Warn rather than fail: an operator whose lanes ran this
     # morning must not have `start` exit 4 on them, and the warning is what
     # turns a silent old-path read into a visible one-step migration.
-    if [[ -z "${CLAUDE_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/$LEGACY_LANES_CONFIG_REL" ]]; then
+    if [[ -z "${HARNESS_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/$LEGACY_LANES_CONFIG_REL" ]]; then
       warn "reading the pre-move lane config at $REPO/$LEGACY_LANES_CONFIG_REL"
       warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
       CONFIG="$REPO/$LEGACY_LANES_CONFIG_REL"

@@ -103,6 +103,8 @@ prints `#REFUSED`, the row, and the reason, and is never given an id.
 | I33 | `I33.spoke-self-description` | 1 |
 | I34 | `I34.maintainer-rationale-in-yaml` | 1 |
 | I35 | `I35.settled-answers-instruction` | 1 |
+| I36 | `I36.tool-discouraging-language` | 1 |
+| I37 | `I37.harness-text-after-every-tool-result` | 1 |
 
 A new catalog check lands here and in `scripts/finding-ids.sh` in the same change;
 `scripts/finding-ids.test.sh` fails when the two tables or the catalog's check headings disagree.

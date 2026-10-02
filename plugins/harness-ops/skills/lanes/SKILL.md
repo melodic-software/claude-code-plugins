@@ -162,7 +162,7 @@ registering the schedule or changing the consumer.
 ## Lane config
 
 Lanes are defined in a JSON config, resolved first-hit-wins:
-`--config FILE` → `$CLAUDE_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
+`--config FILE` → `$HARNESS_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
 carries a `name`, a `prompt` file path, and optional `model`/`effort`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
 `autonomy` plugin's lane-stop gate). The full
@@ -174,7 +174,7 @@ files live inside `<repo>/.work/lanes/`, a reserved first-level name under the
 memory root, not as bare files at the root itself. Lanes **hardcodes the literal
 `.work` root**: it does not resolve a repointed memory root, and a
 consumer that has repointed it elsewhere must pass `--config` or set
-`$CLAUDE_OPS_LANES_CONFIG`. That is a stated carve-out, not an oversight. The
+`$HARNESS_OPS_LANES_CONFIG`. That is a stated carve-out, not an oversight. The
 launcher is an operator script invoked outside a session (an OS schedule, a bare
 shell), where no skill body is loaded to resolve the setting for it, and the
 escape hatch is what covers the remaining case.
@@ -183,7 +183,7 @@ escape hatch is what covers the remaining case.
 bare `<repo>/.work/lanes.json` keeps working: when the `lanes/` home holds no
 config, the launcher reads the old path and prints a one-line deprecation
 warning naming the move. Only the **default** falls back, so `--config` and
-`$CLAUDE_OPS_LANES_CONFIG` keep meaning exactly what they say. A config resolved
+`$HARNESS_OPS_LANES_CONFIG` keep meaning exactly what they say. A config resolved
 at the old path also keeps the old `prompt_dir` default (`.work`), so prompts
 that never moved still resolve. Move both into `.work/lanes/` to clear the
 warning; the fallback is temporary.

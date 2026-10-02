@@ -26,7 +26,7 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>. Verified 2026-10-01
   against that file and the installed 2.1.287 binary; recheck when a release adds another
   prompt-bearing attribute to `user_prompt`. Cold files written by a prune under Claude Code
-  2.1.287 or later with claude-ops (now harness-ops) before 0.80.2 still carry `prompt_text`: compaction scrubs
+  2.1.287 or later with harness-ops before 0.80.2 still carry `prompt_text`: compaction scrubs
   only what it compacts. A normal prune prints a `notice:` line when a cold file still holds
   prompt content, and stops scanning once `cold/.prompt-scrub-clean` records a clean scan
   (a compaction with the keep knob on removes it); `prune-otel-store.sh --scrub-cold` rewrites those files in place with the
@@ -127,12 +127,12 @@ UTC timestamp line per run, the prune's output, then `done: <plugin key> <versio
 
 The contract between the two repositories is three names: the plugin key, the in-plugin path
 `skills/observability/otel/prune-otel-store.sh`, and `CC_OTEL_STORE`. Renaming or moving the
-script, or publishing the plugin from another marketplace, breaks the task. The plugin key changed
-from `claude-ops@<marketplace>` to `harness-ops@<marketplace>` in harness-ops 1.0.0; the task
-fails until provisioning reads the new key. Basis:
+script, or publishing the plugin from another marketplace, breaks the task. The plugin key is
+`harness-ops@<marketplace>`. Basis:
 `Get-OtelStorePruneArgument` in provisioning's `common/Provisioning.psm1` and the
 `ClaudeCodeOtelPrune` rows of `hosts/*/Set-MachineConfiguration.ps1`
-(melodic-software/provisioning#669, merged as `16aefbe`), read 2026-10-01; recheck when either
+(melodic-software/provisioning#669, merged as `16aefbe`; the `harness-ops@` key from
+melodic-software/provisioning#670, merged as `abfea9f`), read 2026-10-01; recheck when either
 repository changes one of the three names.
 
 A task registered by hand from an earlier version of this page names a versioned cache path or a
@@ -151,7 +151,7 @@ model context (read the action with `schtasks /query /tn "ClaudeCodeOtelPrune" /
 
 | State | Meaning |
 |---|---|
-| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `harness-ops@` (or older `claude-ops@`) plugin key and the in-plugin prune path |
+| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `harness-ops@` plugin key and the in-plugin prune path |
 | `missing` | no `ClaudeCodeOtelPrune` task: run the provisioning apply |
 | `disabled` | the task or its trigger is disabled |
 | `stale path` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |

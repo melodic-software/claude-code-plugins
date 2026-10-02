@@ -4,6 +4,59 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.0] - 2026-10-02
+
+### Changed
+
+- **The `docpage-digest` Anthropic docs profile is stated as our decisions plus pointers.** The
+  docs hosts `platform.claude.com` and `code.claude.com` are pointer hosts; `claude.com/blog`,
+  `claude.dev/blog` and `anthropic.com/engineering` are correlate-only hosts that the upstream-drift
+  convention never accepts as a pointer, and the blog hosts share every blog rule. Rules that
+  quoted or paraphrased a page now say what we do and where the page is read. The pinned-versus-alias
+  model ID rule stores no generation rule and carries a pointer record.
+- **The Anthropic docs queue lists blog posts as digest targets, never pointers.** Each post entry
+  names the docs page that serves as its pointer and keeps the post as a correlate, and the
+  queue's custody notes state our finding rather than the page's wording.
+- **`docpage-digest` gains a claude.dev blog extractor and a pin-manifest script**, each with a
+  fixture-driven test suite. The extractor emits table separator rows, drops code-widget and
+  video-control labels, and never opens a code fence with a blank line; a paragraph inside a
+  list item keeps its bullet, one inside a table cell stays in the cell, and a table inside a list
+item stays indented under it. The pin manifest's
+  `--check` reports a deleted file as `BLOCKED: missing`, even when its whole category is gone.
+- **`docpage-digest` pipeline fixes.** The work root resolves against the session's worktree (the
+  `library_dir` description says so); the platform docs corpus is searched before a claim is
+  certified vendor-claimed or blog-only; one standard absence corpus; a split-applicability quote
+  rule; a tag-exempt blog-apparatus category; per-unit corrections files; an exact-byte write route
+  that the guardrails hook allows; no edits to the slice, the orchestrating session included, while
+  a verifier arm runs; the model-alias spawning gap and the Codex verifier's no-network limit are
+  recorded; the effort gotcha names where an agent's effort comes from; the hedge rule is
+  links-only.
+- **The `docpage-digest` Anthropic profile tags blog rows by what they assert, and correction
+  rounds search twice.** A blog row-class table gives benchmark method, results and the author's
+  own test runs a vocabulary tag plus `unverified-inference` or `vendor-claimed` as their content
+  warrants, and leaves pure widget text tag-exempt. Figure data decoded from a framework payload is
+  a derived file read for stated values only, never numbers from drawn geometry. Each correction
+  round pairs its occurrence sweep per fixed class with a differently worded second search.
+- docpage-digest's queue drops the two what's-new entries whose URLs now serve model overview
+  pages, names the model-config section "Work with Fable" with its link, and gives its no-docs-
+  page note a recheck trigger. The project-root rule and the Codex sandbox note state the
+  mechanism without a past-run anecdote.
+- docpage-digest's effort gotcha points at the marketplace's record on where per-task effort is
+  set: Workflow's per-call option, or an agent's pin for an Agent tool dispatch.
+- docpage-digest's verifier A runs as a Workflow `agent()` call at effort `high` by default,
+  overridable per run; a named agent keeps its own pin, and the verdict header records the
+  effective effort and its source. Without the Workflow tool it falls back to an Agent tool
+  dispatch, where effort is the agent's pin or the session level; below `medium`, Phase 4 stops
+  and reports the level instead of verifying.
+
+## [0.14.17] - 2026-10-02
+
+### Changed
+
+- **The README drops the "Migrating from the standalone `book-distill` plugin" note.** The
+  marketplace no longer carries a `renames` map; an install naming `book-distill` must enable
+  `knowledge` instead.
+
 ## [0.14.16] - 2026-10-02
 
 ### Fixed

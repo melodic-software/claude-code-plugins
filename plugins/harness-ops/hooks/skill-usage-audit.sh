@@ -55,7 +55,7 @@ SKILL=$(
 SKILL="${SKILL#/}"
 
 # --- Second store: skill-usage.jsonl (unconditional) ------------------------
-claude_ops::record_skill_use "PostToolUse" "skill-usage-audit" "$INPUT" "$SKILL" "tool" ""
+harness_ops::record_skill_use "PostToolUse" "skill-usage-audit" "$INPUT" "$SKILL" "tool" ""
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
