@@ -168,6 +168,36 @@ else
 fi
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
 
+# --- 6e. A top-level bin/ with content fails (#5850); an empty one is a
+#     checkout leftover and passes; a bin/ nested deeper is not top-level.
+mkdir -p "$TMP/plugins/alpha/bin"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "an empty top-level bin/ directory passes"
+else
+  fail "empty bin/ should pass (rc=$rc): $out"
+fi
+printf '#!/usr/bin/env bash\n' >"$TMP/plugins/alpha/bin/tool"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'TOP-LEVEL BIN DIRECTORY' <<<"$out" && grep -q 'plugins/alpha/bin' <<<"$out"; then
+  ok "a plugin with a populated top-level bin/ fails the gate"
+else
+  fail "populated bin/ should fail (rc=$rc): $out"
+fi
+rm -rf "$TMP/plugins/alpha/bin"
+mkdir -p "$TMP/plugins/alpha/scripts/bin"
+printf 'x\n' >"$TMP/plugins/alpha/scripts/bin/tool"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "a bin/ below the plugin root does not trip the gate"
+else
+  fail "nested bin/ should pass (rc=$rc): $out"
+fi
+rm -rf "$TMP/plugins/alpha/scripts"
+
 # --- 7. Back to green after every fixture is restored/removed. -------------
 out="$(run)"
 rc=$?

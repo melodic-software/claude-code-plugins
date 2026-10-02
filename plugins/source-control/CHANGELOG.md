@@ -9,6 +9,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - The shared hook helper's posture comment no longer names a fixed member count.
 
+## [0.73.0] - 2026-10-02
+
+### Changed
+
+- **The plugin no longer has a top-level `bin/` directory,** because claude.ai organization plugin
+  sync rejects a plugin that has one. `source-control-babysit-merge` and
+  `source-control-babysit-resolve-thread` moved to `scripts/` under the same names, so the
+  invocation is now `bash "<plugin-root>/scripts/source-control-babysit-merge"`. Every skill,
+  reference, test, and guard-contract row that named the `bin/` path now names `scripts/`. Anyone
+  who runs the old `bin/` path by hand switches to the new one.
+
 ## [0.72.0] - 2026-10-02
 
 ### Changed
