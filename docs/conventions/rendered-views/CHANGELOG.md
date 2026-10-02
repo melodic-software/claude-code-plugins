@@ -33,7 +33,17 @@ versioned; this log records each change to it.
 - **Record bundle.** The new
   [record-bundle convention](../record-bundle/README.md) holds a record with its
   diagrams and media; views are written outside it. Its links stay inside the
-  bundle, and an externally sourced SVG in it is K2.
+  bundle, and an externally sourced SVG or diagram source in it is K2 and is
+  never inlined as markup in a view.
+- **Fourth security review.** Every copy, export, and download payload on a K2
+  page holds to rule 9's first bullet (reader input plus builder-assigned ids,
+  no Pattern 3 prompt or Pattern 5 record built from data-block strings), and
+  text pasted or exported from a K2 page is K2. K2 SVG and diagram sources
+  render as text or as builder-generated SVG, never as inlined markup. A
+  subagent's request is K0 only when it is the user's own typed text; a brief
+  from a parent context holding K2 text is K2. The K0/K1 meta CSP is the first
+  element after the charset meta, and its policy is exact plus one permitted
+  `connect-src` addition.
 
 ## Escape helper, 2026-09-28
 
