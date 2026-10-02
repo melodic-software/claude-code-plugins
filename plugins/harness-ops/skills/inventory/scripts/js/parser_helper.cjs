@@ -26,12 +26,16 @@
 //     Every place that may change the variable `binding` would return for
 //     the same request. `writes` are the references eslint-scope marks as
 //     writes, each [kind, offset, top] with kind one of init, assign,
-//     compound, update, destructure, for-in-of. `mutations` are reads that
-//     may change the value: member-write (`x.y=`, `x[i]++`, `[x.y]=`),
-//     member-delete (`delete x.y`), method-call (a MUTATING_METHODS call
-//     anywhere along a member chain rooted at the variable), object-assign
-//     (`Object.assign(x,...)`), and call-argument (the variable passed
-//     directly to any call, `new` or tagged template, which may mutate it).
+//     compound, update, destructure, for-in-of, plus a function or class
+//     declaration of the same name as kind declaration. `mutations` are
+//     the reads that may change the value, which is every read except a
+//     spread into an array or call and a member read used as a value:
+//     member-write (`x.y=`, `x[i]++`, `[x.y]=`), member-delete
+//     (`delete x.y`), method-call (any call along a member chain rooted at
+//     the variable), object-assign (`Object.assign(x,...)`), call-argument
+//     (passed directly to any call, `new` or tagged template), and escape
+//     (anything else: an alias, a literal holding it, a return, an operand,
+//     `await`, a loop iterable, a destructuring source, an export).
 //     `declares` is whether `offset` names a plain `var`/`let`/`const`
 //     declarator of the variable. A module with a direct `eval` answers
 //     found false, since code inside the eval can write any name.
@@ -66,21 +70,6 @@ const PARSE_OPTIONS = { ecmaVersion: "latest", sourceType: "module" };
 // unresolved value is preferred to a possibly wrong one.
 const SCOPE_OPTIONS = { ecmaVersion: 2025, sourceType: "module" };
 const MODULE_CACHE = 16;
-const MUTATING_METHODS = new Set([
-  "push",
-  "splice",
-  "unshift",
-  "pop",
-  "shift",
-  "sort",
-  "reverse",
-  "fill",
-  "copyWithin",
-  "set",
-  "add",
-  "delete",
-  "clear",
-]);
 const PATTERN_NODES = new Set(["ArrayPattern", "ObjectPattern", "AssignmentPattern", "RestElement", "Property"]);
 const modules = new Map();
 
@@ -247,11 +236,6 @@ function isTarget(parents, node) {
   return (parent?.type === "AssignmentExpression" || isLoop(parent)) && parent.left === node;
 }
 
-function propertyName(member) {
-  if (!member.computed) return member.property.name;
-  return member.property.type === "Literal" ? String(member.property.value) : null;
-}
-
 const isObjectAssign = (callee) =>
   callee.type === "MemberExpression" &&
   !callee.computed &&
@@ -259,26 +243,55 @@ const isObjectAssign = (callee) =>
   callee.object.name === "Object" &&
   callee.property.name === "assign";
 
+// Whether `holder` evaluates to `node` itself: the last expression of a
+// sequence, either side of a logical, a branch of a conditional.
+function forwards(holder, node) {
+  switch (holder?.type) {
+    case "SequenceExpression":
+      return holder.expressions.at(-1) === node;
+    case "LogicalExpression":
+    case "ChainExpression":
+      return true;
+    case "ConditionalExpression":
+      return holder.test !== node;
+    default:
+      return false;
+  }
+}
+
 // How a read of `id` may change the value it reads, or null when it cannot.
+// Only two shapes are known safe: a spread into an array or a call, which
+// copies the elements, and a member read whose result is used as a value.
+// Anything else lets the value escape to code that may change it later
+// (an alias, a literal holding it, a return, an operand, `await`, a loop
+// iterable, a destructuring source, an export), so it counts.
 function mutationKind(parents, id) {
   let node = id;
   let parent = parents.get(node);
-  let member = null;
+  let member = false;
   while (parent && ((parent.type === "MemberExpression" && parent.object === node) || parent.type === "ChainExpression")) {
-    if (parent.type === "MemberExpression") member = parent;
+    member ||= parent.type === "MemberExpression";
     node = parent;
     parent = parents.get(node);
   }
-  if (!parent) return null;
+  if (!parent) return "escape";
   if (member) {
-    if (parent.type === "CallExpression" && parent.callee === node) {
-      // A computed method name could be any of them.
-      const name = propertyName(member);
-      return name === null || MUTATING_METHODS.has(name) ? "method-call" : null;
+    // Any method may return the receiver (`x.valueOf().push()`), and a
+    // method read can reach the call through an operand (`(0,x.push)()`).
+    let callee = node;
+    let holder = parent;
+    while (forwards(holder, callee)) {
+      callee = holder;
+      holder = parents.get(holder);
     }
+    if (holder?.type === "CallExpression" && holder.callee === callee) return "method-call";
     if (parent.type === "UnaryExpression" && parent.operator === "delete") return "member-delete";
     if (parent.type === "UpdateExpression" || isTarget(parents, node)) return "member-write";
     return null;
+  }
+  if (parent.type === "SpreadElement") {
+    const holder = parents.get(parent)?.type;
+    if (holder === "ArrayExpression" || holder === "CallExpression" || holder === "NewExpression") return null;
   }
   if ((parent.type === "CallExpression" || parent.type === "NewExpression") && parent.arguments.includes(id)) {
     return isObjectAssign(parent.callee) && parent.arguments[0] === id ? "object-assign" : "call-argument";
@@ -286,7 +299,7 @@ function mutationKind(parents, id) {
   if (parent.type === "TemplateLiteral" && parents.get(parent)?.type === "TaggedTemplateExpression") {
     return "call-argument";
   }
-  return null;
+  return "escape";
 }
 
 function writes(req) {
@@ -300,10 +313,17 @@ function writes(req) {
   if (!v) return { ok: true, found: false };
   const parents = parentsOf(entry);
   const out = { writes: [], mutations: [] };
+  // A function or class declaration rebinds the name with no write
+  // reference: `function f(e){function e(){}}` replaces the parameter.
+  for (const d of v.defs) {
+    if (d.type === "FunctionName" || d.type === "ClassName") {
+      out.writes.push(["declaration", d.name.start, v.scope === entry.top]);
+    }
+  }
   for (const r of v.references) {
     const at = [r.identifier.start, r.from === entry.top];
     if (r.isWrite()) out.writes.push([writeKind(parents, r.identifier), ...at]);
-    const kind = r.isRead() ? mutationKind(parents, r.identifier) : null;
+    const kind = r.isReadOnly() ? mutationKind(parents, r.identifier) : null;
     if (kind) out.mutations.push([kind, ...at]);
   }
   const declares =

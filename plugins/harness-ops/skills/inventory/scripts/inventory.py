@@ -2141,11 +2141,13 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
 def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
     """`_written_elsewhere` from the AST: true unless `pos` names a plain
     `var`/`let`/`const` declarator (so neither a bare assignment nor an
-    arrow body) whose variable has no other write and no possible mutation:
-    a member write or delete, a mutating method call, or being passed to
-    any call. Text in strings and comments is no reference, and a write the
-    parser resolves to another binding is that binding's. A name the parser
-    cannot answer for counts as written."""
+    arrow body) whose variable has no other write and no possible mutation,
+    which is any reference except a spread into an array or call and a
+    member read used as a value: an alias, an export, a method call or a
+    call argument lets the array change later. Text in strings and comments
+    is no reference, and a write the parser resolves to another binding is
+    that binding's. A name the parser cannot answer for counts as
+    written."""
     assert _PARSER is not None
     found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
     if found is None or not found["declares"]:

@@ -164,14 +164,53 @@ class TestOpenFindings(unittest.TestCase):
                     parser=PARTIAL,
                 )
 
-    def test_a_read_that_cannot_change_the_list_keeps_it_literal(self) -> None:
-        """A non-mutating method, a property read, a spread into a call (the
-        call gets the elements, not the array) and a call of the binding
-        itself change nothing, so both readers keep the literal."""
-        for read in ("pY.map(f)", "pY.length", "f(...pY)", "f(pY.length)", "pY()"):
+    def test_a_known_safe_read_keeps_the_literal(self) -> None:
+        """The parser's only safe reads: a spread into an array or a call,
+        which copies the elements, and a member read used as a value. Both
+        readers keep the literal."""
+        for read in (
+            "pY.length",
+            "x=pY[0]",
+            "f(pY.length)",
+            "f(...pY)",
+            "var c=[...pY];c.push(xt)",
+        ):
             with self.subTest(read=read):
                 self.assert_pinned(
                     'var pY=[xt,"Artifact"];' + read + ";", INITIAL, INITIAL[0]
+                )
+
+    def test_an_escaping_binding_may_be_mutated_later(self) -> None:
+        """Every other reference lets the array escape to code that may
+        change it, so the parser reads the list as partial. These are the
+        #5828 verifier's shapes plus any method call; JavaScript changes
+        the list in each mutating one, so the regex reader's literal is a
+        known regex gap, pinned here."""
+        for shape in (
+            'var q=pY;q.push("B")',
+            'var q;q=pY;q.push("B")',
+            'var o={};o.a=pY;o.a.push("B")',
+            'var o={a:pY};o.a.push("B")',
+            '[pY][0].push("B")',
+            '(0,pY).push("B")',
+            '(0,pY.push)("B")',
+            '(pY||[]).push("B")',
+            '(c?pY:pY).push("B")',
+            'pY.valueOf().push("B")',
+            'function r(){return pY}r().push("B")',
+            'for(const e of[pY])e.push("B")',
+            'var{a:q}={a:pY};q.push("B")',
+            'async function g(){(await pY).push("B")}g()',
+            "export{pY}",
+            "pY.map(f)",
+            "pY()",
+        ):
+            with self.subTest(shape=shape):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + shape + ";",
+                    INITIAL,
+                    ["(changed)"],
+                    parser=PARTIAL,
                 )
 
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
@@ -246,10 +285,14 @@ class TestOpenFindings(unittest.TestCase):
         for a write to `x`, so the nested `h`'s own `x=1` drops the bound
         argument; the parser takes the outer parameter's writes, and
         JavaScript returns `Use REAL`. A write through a closure still
-        counts under both."""
+        counts under both, and under the parser so does a function
+        declaration named `x`, which replaces the parameter."""
         cases = (
             ("function h(x){x=1}", "Use …", "Use REAL"),
             ("function h(){x=1}", "Use …", "Use …"),
+            # A function declaration of the parameter's name replaces it
+            # (#5828 verifier F3); the regex reader's `Use REAL` is wrong.
+            ("function x(){}", "Use REAL", "Use …"),
         )
         for nested, regex, parser in cases:
             with self.subTest(nested=nested):

@@ -9,20 +9,34 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
   `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
-  a write (init, assign, compound, update, destructure, for-in-of) and every read that may change
-  the value: a member write or `delete`, a call of a mutating method (`push`, `splice`, `unshift`,
-  `pop`, `shift`, `sort`, `reverse`, `fill`, `copyWithin`, `set`, `add`, `delete`, `clear`, or a
-  computed name), `Object.assign(x, ...)`, and any call, `new` or tagged template that receives
-  the variable as an argument. Each comes with its kind and offset. A module that calls `eval`
-  directly answers nothing. Under the parser, `_written_elsewhere` (the spread check) and the
-  check for a reassigned parameter use it instead of the regex search, and
-  `reader.write_lookups` counts the lookups. `--reader=regex` is unchanged and stays the default.
+  a write (init, assign, compound, update, destructure, for-in-of), a function or class
+  declaration of the same name, and every read that may change the value. Only two reads are
+  known safe: a spread into an array or a call, and a member read used as a value (`x.length`,
+  `x[0]`). Every other read counts, by kind: a member write or `delete`, any method call (a method
+  may return the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
+  a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
+  an export). Each comes with its kind and offset. A module that calls `eval` directly answers
+  nothing. Under the parser, `_written_elsewhere` (the spread check) and the check for a
+  reassigned parameter use it instead of the regex search, and `reader.write_lookups` counts the
+  lookups. `--reader=regex` is unchanged and stays the default.
+
+### Changed
+
+- Under `--reader=parser`, the Explore and Plan agents' `disallowed_tools` read as partial on
+  2.1.284 to 2.1.287 (the regex reader reads a literal). Their spread array is exported from its
+  module, and on 2.1.286 an importer aliases it (`Gr=pY`) and returns it from a function whose
+  caller passes it to `.some(t)` callbacks, so the array reaches code that could change it.
 
 ### Fixed
 
-- Under `--reader=parser`, a spread of an array the code mutates reads as partial instead of the
-  initializer (finding 3 on #5640): `var pY=[...];pY.push("B")`, `pY.length=0`, `g(pY)` and the
-  other shapes above.
+- Under `--reader=parser`, a spread of an array that may be changed later reads as partial instead
+  of the initializer (finding 3 on #5640, and the alias shapes the #5828 verifier found):
+  `pY.push("B")`, `pY.length=0`, `g(pY)`, `var q=pY;q.push("B")`, `(pY||[]).push("B")`,
+  `function r(){return pY}`, and the other shapes above. The regex reader still reads these as
+  the literal.
+- Under `--reader=parser`, a function declaration named after a parameter counts as reassigning
+  it: `function hL(e){function e(){}}` no longer binds the call's argument to `e`.
 - Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
   partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
 - Under `--reader=parser`, assignment text inside a string or comment is no write:

@@ -333,7 +333,8 @@ class TestWritesQuery(unittest.TestCase):
         src = (
             "var pY=[1];pY.size=0;delete pY.x;pY.a.b++;pY.push(2);pY[0].sort();"
             "Object.assign(pY,{});g(pY);new G(pY);t`${pY}`;pY[k]();"
-            "pY.map(f);f(...pY);pY();x=pY.length;"
+            "pY.map(f);(0,pY.push)(3);f(...pY);[...pY];x=pY.length;f(pY[0]);"
+            "pY();q=pY;"
         )
         self.assertEqual(
             self._kinds(src, "mutations"),
@@ -348,8 +349,18 @@ class TestWritesQuery(unittest.TestCase):
                 ("call-argument", "pY);t`${"),
                 ("call-argument", "pY}`;pY["),
                 ("method-call", "pY[k]();"),
+                ("method-call", "pY.map(f"),
+                ("method-call", "pY.push)"),
+                ("escape", "pY();q=p"),
+                ("escape", "pY;"),
             ],
         )
+
+    def test_a_function_declaration_of_the_name_is_a_write(self) -> None:
+        src = "function hL(e){function e(){}return e}"
+        got = self.reader.writes(src, 0, len(src), "e", src.index("{"))
+        assert got is not None
+        self.assertEqual(got["writes"], [("declaration", src.index("e(){"), False)])
 
     def test_text_in_strings_and_comments_is_no_reference(self) -> None:
         src = 'var pY=[1];var s="let pY;pY=[2];pY.push(3)";/*pY=[4]*/`pY=[5]`;'
