@@ -1,5 +1,5 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', after installing the plugin, or to migrate a leftover pre-rename `.claude/provenance.json`. Writes only the consuming repository's own config, never source."
+description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', or after installing the plugin. Writes only the consuming repository's own config, never source."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -52,12 +52,9 @@ Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL, `delete`
 `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash unavailable → report
 the step UNKNOWN with remediation, never green.
 
-In this plugin's manifest that yields `attribution-r001` FAIL while `.claude/provenance.json`
-persists and `attribution-r002` FAIL while `.claude/provenance.local.json` persists. Both files are
-from before the rename, and the detectors never read them, so every value in them is silently not
-applied. The user-global `~/.claude/provenance.json` sits outside the repository and has no
-record; the detectors warn about it on every run, and `check` reports it as WARN with the same
-remediation: move it to `~/.claude/attribution.json`.
+In this plugin's manifest each `migrate` record (`attribution-r001`, `attribution-r002`) is a
+retired config file the detectors never read, so every value in it is silently not applied until
+it is migrated.
 
 `apply` cleans up after writing any agreed keys. It re-runs detection and handles each finding with
 its own confirmation. It carries the file's keys into the successor the record names; the old
@@ -189,7 +186,7 @@ wording the check does not recognize, the same conclusion follows. Leave it off 
 ## What this skill does NOT do
 
 - **Does not edit source.** The only files it writes are the consuming repository's own config,
-  and the only files it removes are the retired pre-rename config files, after migration.
+  and the only files it removes are retired config files its manifest names, after migration.
 - **Does not add per-instance suppressions.** There is no per-finding keep in this schema by
   design; a passage-level exception is the operator's, through the finding-suppression
   convention.

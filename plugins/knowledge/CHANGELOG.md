@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.2] - 2026-10-02
+## [0.15.3] - 2026-10-02
 
 ### Security
 
@@ -13,6 +13,14 @@ only after that version increases.
   transcripts, titles, and URLs through the rendered-views escape helper, now carried at
   `lib/html-escape.mjs`, and stamps the generator marker. The page has no script and the URL
   renders as text. `build-menu-view.mjs --check <file>` flags a page that bypassed the builder.
+
+## [0.15.2] - 2026-10-02
+
+### Changed
+
+- **The Anthropic docs queue records two more claude.dev posts as correlate-only digest targets:**
+  "Using Claude Code: Spending your effort" and "Lessons from building Claude Code: Prompt caching
+  is everything", each with the docs page that serves as its pointer.
 
 ## [0.15.1] - 2026-10-02
 

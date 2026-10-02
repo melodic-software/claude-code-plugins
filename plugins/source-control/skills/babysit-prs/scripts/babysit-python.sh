@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sourced by the babysit-prs bin/ wrappers (never executed directly). Defines
+# Sourced by the babysit-prs scripts/ wrappers (never executed directly). Defines
 # babysit_python(), which execs a WORKING Python >= 3.11 with the given
 # arguments, or exits 3 with a clear message when none is found. Probes by
 # RUNNING each candidate rather than trusting PATH presence: Windows ships App

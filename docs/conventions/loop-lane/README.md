@@ -380,15 +380,27 @@ Claude Code alias (see "Alias binding" below):
 
 | Tier | Role | Alias |
 |---|---|---|
-| frontier | Complex-stamped items; every security-surface work class, always | `best` |
-| strong | Default implementer / worker | `opus` |
-| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews | `sonnet` |
+| frontier | Complex-stamped items; every security-surface work class, always; orchestrator where the organization chooses it | `best` |
+| strong | Orchestrator by default; default implementer / worker for unrouted or complex work | `opus` |
+| fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
 
-Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
-pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
-recommended shape); a reviewer or verifier is never weaker than the implementer, in model tier or
-in effort level; a security-surface
-work class routes to the frontier tier unconditionally.
+Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where
+the larger model plans and coordinates and the workers execute; workers stay strong, and a
+mechanical item drops to the fast tier only when an objective check decides whether its output is
+correct; a reviewer or verifier is never on a weaker model than the implementer it checks (equal
+pairings are valid); a security-surface work class routes to the frontier tier unconditionally.
+
+- **Pointer:** for the coordinator shape and when delegation pays, see
+  [optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
+  for the reviewer rule, the advisor capability rule in
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
+  and the warning about a checker that passes bad work in
+  [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.
+- **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
+  runs at an effort level no lower than the implementer's is our judgment, as is reading the
+  advisor pairing rule onto a reviewer subagent.
 
 ### Alias binding
 
@@ -413,15 +425,14 @@ The reasons behind each binding:
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
-- **fast binds `sonnet`.** We bind the fast tier to `sonnet` for its speed relative to the tiers
-  above and its context headroom: enough to orchestrate and to review mechanical items without
-  breaching the reviewer floor. The tier has nothing to do with Claude Code's fast mode, a separate
-  speed setting for Opus (for fast mode, see
+- **fast binds `sonnet`.** We bind the fast tier to `sonnet` for mechanical items whose output an
+  objective check decides, where its speed and cost against the tiers above (see the models
+  overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
+  for Opus (for fast mode, see
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
-- **`haiku` is admissible nowhere in these lanes today.** The fast tier also covers reviewers and
-  the implementer is always `sonnet` or above, so binding `haiku` anywhere would breach the
-  reviewer-never-weaker floor. We also read the model it resolves to as having a smaller context
-  window and an older knowledge cutoff than these lanes need (for both, see the models overview).
+- **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
+  having a smaller context window and an older knowledge cutoff than these lanes need (for both,
+  see the models overview), so no tier binds it.
 
 **Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
 here rather than left as an unstated assumption:

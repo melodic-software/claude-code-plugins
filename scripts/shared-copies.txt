@@ -1,0 +1,9 @@
+# Shared-library copies that scripts/sync-shared-copies.sh generates (ADR 0019).
+# One copy per line: `<canonical> <copy>`, both repo-relative. The canonical is
+# the only file to edit; each copy sits inside its plugin because a plugin cache
+# cannot see the repository root. Register a copy here, then run the script.
+lib/html-escape.mjs plugins/education/lib/html-escape.mjs
+lib/html-escape.mjs plugins/event-storming/lib/html-escape.mjs
+lib/html-escape.mjs plugins/harness-ops/lib/html-escape.mjs
+lib/html-escape.mjs plugins/knowledge/lib/html-escape.mjs
+lib/html-escape.mjs plugins/review/lib/html-escape.mjs

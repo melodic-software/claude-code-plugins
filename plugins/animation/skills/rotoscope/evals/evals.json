@@ -5,12 +5,12 @@
       "id": 1,
       "name": "rotoscope-a-clip-runs-the-extract-measure-fit-review-loop",
       "prompt": "Rotoscope this clip one to one: ~/clips/ink-short.mp4. Use ~/roto/ink-short as the work dir.",
-      "expected_output": "Reads reference/method.md, runs extract.py --video into the work dir, then measure.py, fit.py and review.py through uv run --with-requirements, and reports the measure table against the measure.py target.",
+      "expected_output": "Reads reference/method.md, runs extract.py --video into the work dir, then measure.py, fit.py and review.py through pydeps.py run, and reports the measure table against the measure.py target.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs $R/extract.py <work> --video <clip> before measuring",
-        "Runs the scripts through uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt",
+        "Runs the scripts through python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir ${CLAUDE_PLUGIN_DATA} --",
         "Passes --playwright-core '${user_config.playwright_core}' to measure.py and fit.py",
         "Keeps the work dir outside the plugin",
         "Does NOT embed or replay source bitmaps in the replica"

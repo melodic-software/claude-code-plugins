@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.2.1] - 2026-10-02
+## [2.4.4] - 2026-10-02
 
 ### Security
 
@@ -12,6 +12,95 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
   generator marker. The page has no script, and a hostile skill, hook, or session name renders as
   text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
+## [2.4.3] - 2026-10-02
+
+### Changed
+
+- `lanes`' example config runs the `babysit` merge lane on `opus`, the strong-tier orchestrator
+  root `docs/conventions/loop-lane/README.md` sets, instead of `sonnet`. The launcher tests assert
+  the new root.
+
+## [2.4.2] - 2026-10-02
+
+### Fixed
+
+- `audit-performance` limits the truthiness trap to the observer-agents flag and dates the
+  documented subagent defaults. `lanes` dates the effort row and points at upstream for what
+  `ultracode` does to the effort level.
+
+## [2.4.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's repair command is valid on Windows. When the reader reports
+  itself broken, `install_command` now takes the platform (default `sys.platform`) and on `win32`
+  prints a Windows PowerShell 5.1 line (`$ErrorActionPreference = 'Stop'`, `Remove-Item`,
+  `New-Item`, `Copy-Item`, `npm.cmd ci --prefix`, `;` chaining, single quotes doubled) instead of the
+  POSIX `rm -rf ... && mkdir -p ... && cp ...` line. The POSIX form is unchanged elsewhere, and
+  the node-missing report still prints no command.
+
+## [2.4.0] - 2026-10-02
+
+### Added
+
+- **`/harness-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
+
+## [2.3.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
+  `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
+  a write (init, assign, compound, update, destructure, for-in-of), a function or class
+  declaration of the same name, and every read that may change the value. Only two reads are
+  known safe: a spread into an array or a call, and a member read in a listed value-only position
+  (`x.length` as an operand, a condition, an argument or an initializer; any other position counts
+  as an escape). Every other read counts, by kind: a member write or `delete`, any method call,
+  whether called, optionally called, tagged (`` x.pop`a` ``) or constructed (a method may return
+  the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
+  a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
+  an export). Each comes with its kind and offset. A module that calls `eval` directly answers
+  nothing. Under the parser, `_written_elsewhere` (the spread check) and the check for a
+  reassigned parameter use it instead of the regex search, and `reader.write_lookups` counts the
+  lookups. `--reader=regex` is unchanged and stays the default.
+
+### Changed
+
+- Under `--reader=parser`, the Explore and Plan agents' `disallowed_tools` read as partial on
+  2.1.284 to 2.1.287 (the regex reader reads a literal). Their spread array is exported from its
+  module, and on 2.1.286 an importer aliases it (`Gr=pY`) and returns it from a function whose
+  caller passes it to `.some(t)` callbacks, so the array reaches code that could change it.
+
+### Fixed
+
+- Under `--reader=parser`, a spread of an array that may be changed later reads as partial instead
+  of the initializer (finding 3 on #5640, and the alias shapes the #5828 verifier found):
+  `pY.push("B")`, `pY.length=0`, `g(pY)`, `var q=pY;q.push("B")`, `(pY||[]).push("B")`,
+  `function r(){return pY}`, and the other shapes above. The regex reader still reads these as
+  the literal.
+- Under `--reader=parser`, a function declaration named after a parameter counts as reassigning
+  it: `function hL(e){function e(){}}` no longer binds the call's argument to `e`.
+- Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
+  partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
+- Under `--reader=parser`, assignment text inside a string or comment is no write:
+  `var pY=[...];var s="let pY;pY=[\"B\"]"` keeps `...pY` literal.
+- Under `--reader=parser`, a nested function's own parameter of the same name no longer counts as
+  reassigning the outer parameter, so the bound argument stands:
+  `function ff(x){function h(x){x=1}return x}` called as `ff("REAL")` reads `REAL`.
 
 ## [2.2.0] - 2026-10-02
 

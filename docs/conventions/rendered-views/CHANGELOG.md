@@ -1,8 +1,79 @@
 # Changelog for the Rendered Views Convention
 
-Notable changes to the rendered-views contract. The contract is not SemVer-
-versioned; this log records posture rulings that do not change the boundary
-rule, genre rubric, or cascade keys.
+Notable changes to the rendered-views contract. The contract is not
+versioned; this log records each change to it.
+
+## Tiers and content classes, 2026-10-02
+
+- **Views gain tiers, content classes, and a validator profile (#5851).** Four
+  tiers (static, client-interactive, animated, Claude-interactive), with
+  person-facing views interactive by default and reports allowed to stay static.
+  Content classes K0 (session-authored) and K1 (this repo's default-branch files)
+  may use model-written script under a minimum CSP; K2 (attacker-controllable
+  text, and anything derived from it) is builder-only: a checked-in template plus
+  escaped JSON data. Model-written text and script are K0 only when the context
+  that writes them holds no K2 text; otherwise the page is K2. The class rules
+  bind every emitter now, grandfathered ones included; only their ladder and
+  `medium` stay grandfathered. Until the builder ships, a lane whose authoring
+  context holds K2 text emits the markdown record, terminal output, or a static
+  report-profile page through `lib/html-escape.mjs`. The interactive
+  validator profile is specified for the shared builder, with an exact
+  script-body exemption, `base-uri` and `form-action` set to `'none'`, named SVG
+  refusals, and a Claude-interactive rule whose framing, token, and gate bullets
+  bind `session-bridge` for every message from every page. The
+  Claude-interactive tier is closed to every class until `session-bridge` exists
+  and meets that rule; the per-session token, not the origin, authenticates a
+  page, since a `file://` page sends `Origin: null`. New rung guidance says when
+  text beats a diagram, a page, or a video.
+- **Three amendments.** The boundary rule now names video and audio as views and
+  emits person-facing views interactive by default; dual-audience reports still
+  offer. The generator-skill ban becomes "no generic HTML skill; thin
+  intent-named skills allowed". The pull-request digest takes `medium: artifact`
+  as its default once its own external-publication review signs off.
+- **Record bundle.** The new
+  [record-bundle convention](../record-bundle/README.md) holds a record with its
+  diagrams and media; views are written outside it. Its links stay inside the
+  bundle, and an externally sourced SVG or diagram source in it is K2 and is
+  never inlined as markup in a view.
+- **Fourth security review.** Every copy, export, and download payload on a K2
+  page holds to rule 9's first bullet (reader input plus builder-assigned ids,
+  no Pattern 3 prompt or Pattern 5 record built from data-block strings), and
+  text pasted or exported from a K2 page is K2. K2 SVG and diagram sources
+  render as text or as builder-generated SVG, never as inlined markup. A
+  subagent's request is K0 only when it is the user's own typed text; a brief
+  from a parent context holding K2 text is K2. The K0/K1 meta CSP is the first
+  element after the charset meta, and its policy is exact plus one permitted
+  `connect-src` addition.
+- **Fifth security review.** Operator-installed configuration is K1: the
+  user's CLAUDE.md, AGENTS.md, and rules, installed plugins' skill and agent
+  text, installed MCP servers' instructions, and harness status blocks. What
+  those tools return during the task is K2. The fresh-subagent K0 example now
+  counts that configuration as part of a K2-free context.
+
+## Generated helper copies, 2026-10-02
+
+- **Each adopting plugin's `lib/html-escape.mjs` is generated output (#5836).**
+  `scripts/sync-shared-copies.sh` writes it from the canonical with a generated-file
+  header and drift-gates it, replacing `scripts/sync-html-escape.sh` (ADR 0019,
+  amended). No boundary-rule, genre, or cascade-key change.
+
+## Sharing claim and chrome background, 2026-10-02
+
+- **The sharing paragraph records the repository decision plus a pointer**, an as-of date and a
+  recheck trigger, in place of the earlier "verified absent" claim. It states no upstream text.
+- **The chrome's ivory background is the sanctioned default.** No skill's styles-to-leave-out
+  list names a cream or off-white background; those lists name layout habits. Carve-outs for
+  pull-request diffs, fetched content and other repositories' files now read "until the lane is
+  wired through the escape helper", not "until the helper ships". No boundary-rule, genre, or
+  cascade-key change.
+
+## Education lanes on the escape helper, 2026-10-02
+
+- **`education:eli5` and `education:teach` in codebase mode build their HTML with a checked-in
+  builder (#5845).** Each routes every interpolated repository string through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. `education:eli5` joins the emitter list
+  as an escape-helper lane; `education:teach` stays grandfathered for topic mode. No
+  boundary-rule, genre, or cascade-key change.
 
 ## Three more lanes on the escape helper, 2026-10-02
 

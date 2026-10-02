@@ -26,7 +26,7 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 <Step 4 output, or "Skipped: blast radius LOW, no triggers matched">
 
 ## Execution shape
-<Step 4.5 output — Wave A/B shape with ALLOWED/FORBIDDEN scope-fencing tables + cost note, OR "fully sequential — phase X gates phase Y" one-liner, PLUS the per-phase routing table (Phase | Surface | Basis). Skipped for single-phase plans>
+<Step 4.5 output — Wave A/B shape with ALLOWED/FORBIDDEN scope-fencing tables + cost note, OR "fully sequential — phase X gates phase Y" one-liner, PLUS the per-phase routing table (Phase | Surface | Model | Basis), Model one of sonnet / opus / frontier. Skipped for single-phase plans>
 
 ## Open questions
 <anything unresolved at approval time>
