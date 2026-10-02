@@ -1,8 +1,7 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "education",
-  "version": "0.12.1",
-  "description": "Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, a picture explainer that answers the same question as a diagram-led HTML artifact for someone who knows nothing about the topic, and a post-work comprehension check that quizzes the human on a completed change.",
+  "version": "0.12.2",
+  "description": "Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. eli5 answers as a diagram-led HTML artifact for someone new to the topic. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

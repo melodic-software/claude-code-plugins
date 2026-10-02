@@ -1,7 +1,6 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "dometrain-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Bundled Dometrain MCP server (Dometrain-hosted remote HTTP, Bearer auth) for the dometrain grounding skills: search lessons, pull curated lesson documents with on-screen code, and get timestamped deep links. Requires an active Dometrain Pro subscription. Credential entered once through Claude Code's native masked userConfig prompt and stored in secure credential storage. Skip this plugin when you configure your own user-scope dometrain server.",
   "author": {
     "name": "Melodic Software",
@@ -16,7 +15,6 @@
     "csharp",
     "learning"
   ],
-  "defaultEnabled": false,
   "userConfig": {
     "dometrain_api_key": {
       "type": "string",

@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.28] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.25.27] - 2026-10-02
 
 ### Fixed
