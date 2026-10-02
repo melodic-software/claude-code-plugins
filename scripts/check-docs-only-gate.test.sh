@@ -455,23 +455,29 @@ expect "a drifted copy of the contract-only predicate is rejected" 1 "NO JOB-LEV
 # It adds no status-check function, so the needs edge still governs. A
 # polarity flip of the draft term is a different condition and is rejected.
 draft_gate="\${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}"
-skip_as_draft="$scratch/skip-as-draft.yml"
-xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'pass' || 'fail' }}" "$skip_as_draft"
+skip_as_fail="$scratch/skip-as-fail.yml"
+xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: fail" "$skip_as_fail"
 
 f="$scratch/consumer-draft-gate.yml"
-xform_insert_after "$skip_as_draft" "  gamma:" "    if: $draft_gate" "$f"
+xform_insert_after "$skip_as_fail" "  gamma:" "    if: $draft_gate" "$f"
 expect "a consumer carrying exactly the draft form of the gate is allowed" 0 "scope resolved once" --check "$f"
 
 f="$scratch/consumer-draft-gate-flipped.yml"
-xform_insert_after "$skip_as_draft" "  gamma:" "    if: ${draft_gate/draft != true/draft == true}" "$f"
+xform_insert_after "$skip_as_fail" "  gamma:" "    if: ${draft_gate/draft != true/draft == true}" "$f"
 expect "the draft gate with its polarity flipped is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# --- 11. A SKIPPED LANE PASSES ONLY ON A DRAFT --------------------------------
-expect "the aggregate passing skips on a draft only is allowed" 0 "scope resolved once" --check "$skip_as_draft"
+# --- 11. A SKIPPED LANE NEVER PASSES ------------------------------------------
+expect "the aggregate failing every skip is allowed" 0 "scope resolved once" --check "$skip_as_fail"
+
+# A draft that passed would be the newest ci-status on its SHA from the flip to
+# ready until the lanes finish, green over nothing linted or tested.
+f="$scratch/skip-as-draft.yml"
+xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'pass' || 'fail' }}" "$f"
+expect "the aggregate passing skips on a draft is rejected" 1 "A SKIPPED LANE NEVER PASSES" --check "$f"
 
 f="$scratch/skip-as-pass.yml"
 xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: pass" "$f"
-expect "the aggregate passing skips everywhere is rejected" 1 "A SKIPPED LANE PASSES ONLY ON A DRAFT" --check "$f"
+expect "the aggregate passing skips everywhere is rejected" 1 "A SKIPPED LANE NEVER PASSES" --check "$f"
 
 f="$scratch/draft-gate-no-skip-as.yml"
 xform_insert_after "$base" "  gamma:" "    if: $draft_gate" "$f"

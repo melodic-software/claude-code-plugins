@@ -200,7 +200,7 @@ jobs:
       # run on this SHA reads the newest bot-written `ci-lanes` status once and
       # passes only on `success`, so this `pending` makes it fail at once
       # instead of carrying forward a verdict this run is about to replace (an
-      # earlier draft run's not-applicable `success`, say). The red it leaves is
+      # earlier full run's on the same SHA, say). The red it leaves is
       # replaced when this run's `ci-status` re-runs it after recording its own
       # verdict. A write that keeps failing fails this job, and so the run: a
       # missing marker is the one way a stale `success` could be carried.
@@ -505,11 +505,11 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft; otherwise only
   # steps are gated. A skipped required lane's result is not `success`, which
-  # the ci-status aggregate rejects everywhere but on a draft, and a workflow
+  # the ci-status aggregate rejects, a draft's included, and a workflow
   # skipped by a path filter leaves its required check Pending forever. A
-  # draft lints nothing: the `ready_for_review` run lints the same SHA before
-  # the pull request can merge, and a draft run that lints is a runner the
-  # 60-job cap pays for and nothing gates on.
+  # draft lints nothing and its ci-status is red: the `ready_for_review` run
+  # lints the same SHA before the pull request can merge, and a draft run that
+  # lints is a runner the 60-job cap pays for and nothing gates on.
   #
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
@@ -2666,6 +2666,52 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
+      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
+      # and tested nothing. Between the flip to ready and the `ready_for_review`
+      # run's own ci-status check run (minutes later), the draft's ci-status is
+      # the newest one on the SHA, so a green draft would let a merge through on
+      # nothing. The aggregate below fails on the skipped lanes and records
+      # `ci-lanes=failure`; this step says why.
+      - name: Fail a draft
+        if: github.event.pull_request.draft == true
+        run: |
+          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
+          exit 1
+      # A CONTRACT-ONLY RUN FAILS AT ONCE WHILE A FULL RUN ON THIS SHA IS QUEUED
+      # OR IN PROGRESS. A queued full run has not written its `ci-lanes=pending`
+      # marker yet, so the status read below could carry an older verdict across
+      # the run that is about to replace it. One listing, no wait. A sibling
+      # whose `changes` job was skipped is contract-only and does not count, and
+      # neither does one whose `ci-status` job has started: its verdict is being
+      # written, and the status read below sees the marker or the verdict. That
+      # is also what lets the re-run this full run's last step starts pass. A
+      # sibling with no jobs yet counts. An unreadable listing fails closed.
+      - name: Fail while a full run is in flight
+        if: github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          api="repos/$GITHUB_REPOSITORY/actions"
+          ids=""
+          for attempt in 1 2 3; do
+            if workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) &&
+              ids=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&per_page=100" \
+                --jq ".workflow_runs[] | select(.status != \"completed\" and .id != $GITHUB_RUN_ID) | .id"); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not list this workflow's runs on $HEAD_SHA; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          for id in $ids; do
+            jobs=$(gh api "$api/runs/$id/jobs?filter=latest" \
+              --jq '([.jobs[] | select(.name == "changes") | .conclusion][0] // "") + " " + ([.jobs[] | select(.name == "ci-status") | .status][0] // "none")') || jobs=""
+            case "$jobs" in
+              "skipped "* | *" in_progress" | *" completed") continue ;;
+            esac
+            echo "::error::full run $id is in flight on $HEAD_SHA; it re-runs this run when it records success."
+            exit 1
+          done
       - name: Aggregate lane results
         # `!cancelled()` so a failing pr-contract step does not skip the
         # aggregation: the job still fails on the contract step's exit code, and
@@ -2677,12 +2723,8 @@ jobs:
           # the lane list. Adding a lane to needs automatically extends this
           # check.
           results: ${{ join(needs.*.result, ' ') }}
-          # A `skipped` lane is red, except on a draft: every lane carries the
-          # draft gate, so a draft run skips them all and records `ci-lanes`
-          # from that. A draft cannot merge, the `ready_for_review` run lints
-          # and tests the same SHA, and its `changes` job marks `ci-lanes`
-          # pending first, so the draft's verdict is never carried onto it.
-          treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
+          # A `skipped` lane is red, a draft's included (see `Fail a draft`).
+          treat-skipped-as: fail
           # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
           # `ci-lanes` status once and passes only on `success`. While a full
           # run is in flight that status is the `pending` its `changes` job

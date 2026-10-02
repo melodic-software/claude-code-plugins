@@ -42,11 +42,13 @@ The `ci-status` required check depends on every **required** workload lane
 (`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). The one exception is a draft pull request:
-every lane but `changes` carries a draft gate, so a draft run lints and tests
-nothing, and `ci-status` passes `skipped` on a draft and nowhere else
-(`scripts/check-docs-only-gate.sh` pins both). The `ready_for_review` run
-lints and tests the same SHA before the pull request can merge. `test-windows` is deliberately outside that
+success to branch protection). On a draft pull request every lane but
+`changes` carries a draft gate, so a draft run lints and tests nothing, and its
+`ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
+(`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
+newest `ci-status` on the SHA from the flip to ready until the
+`ready_for_review` run's lanes finish, so a merge could land on nothing tested.
+The `ready_for_review` run lints and tests the same SHA. `test-windows` is deliberately outside that
 aggregate, as an informational platform lane; `test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `ci.yml`, it was the
@@ -118,7 +120,11 @@ No run waits on another run:
 
 1. A full run's `changes` job first writes `ci-lanes=pending` on the head SHA.
    A contract-only run that reads it goes red at once instead of carrying an
-   older verdict, such as a draft run's, forward while the lanes are in flight.
+   older verdict forward while the lanes are in flight. Before its marker is
+   written, the full run is queued or in progress on the SHA, and the
+   contract-only run goes red at once on that too: one runs listing, where a
+   sibling whose `changes` job was skipped (contract-only) or whose `ci-status`
+   job has started (writing its verdict) does not count.
 2. The full run's own `ci-status` check run appears only when its lanes finish.
    It is newer than the red one, and the newest same-name check run is the one
    the merge gate reads: three merged pull requests kept an older, never
@@ -145,7 +151,7 @@ full run finished:
   stays red on a re-run. Fix the title or remove the label first, then follow
   the other bullets for `ci-lanes`.
 - If `ci-lanes` is `failure`, `pending` with no full run in flight, or missing,
-  re-run the full workflow.
+  re-run the full workflow. On a draft, mark it ready instead.
 
 ## Toolchain integrity
 
