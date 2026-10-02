@@ -109,8 +109,8 @@ the gate that decides.
 
 It maps a changed file to its co-located suite, to any suite that names it, and
 to its dependents transitively, and it fans a shared-lib change out to every
-carrying plugin by reading the `copies=(...)` array out of that lib's
-`scripts/sync-*.sh` manifest, the same manifest CI's `*-sync` lanes enforce. The
+carrying plugin by reading the `--print-manifest` output of each
+`scripts/sync-*.sh` script, the same manifests CI's sync steps enforce. The
 fan-out is derived on every run, never transcribed, so a new carrying plugin is
 covered the moment it exists.
 

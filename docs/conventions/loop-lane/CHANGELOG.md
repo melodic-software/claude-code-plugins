@@ -12,8 +12,9 @@ orchestrator runs on. No topology, escalation-contract, or §4 loop-layer invari
 
 - **Orchestrator moves to the strong or frontier tier (§3).** The orchestrator runs on `opus` or
   `best` in the coordinator shape, no longer on the fast tier. Workers stay `opus`.
-- **Fast tier narrowed (§3).** `sonnet` covers only mechanical items an objective check backs.
-  The "context headroom" reason for binding it is removed.
+- **Fast tier narrowed (§3).** `sonnet` covers mechanical items an objective check backs and phases
+  a plan routes `sonnet` as well-scoped; it no longer runs the orchestrator. The "context headroom"
+  reason for binding it is removed.
 - **Reviewer rule narrowed (§3).** A reviewer or verifier is never on a weaker model than the
   implementer it checks, recorded against the advisor capability rule and the cost page's
   failing-checker warning. The effort half is now labeled our judgment.
