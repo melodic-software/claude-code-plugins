@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.0.1] - 2026-10-01
+## [1.0.2] - 2026-10-01
 
 ### Changed
 
@@ -23,6 +23,22 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [1.0.1] - 2026-10-01
+
+### Added
+
+- **A harness for proving an inventory reader change alters only the values it means to.**
+  `compare_reports.py` diffs two inventory reports, ignores run metadata, and classifies each
+  changed value as `wrong->unresolved`, `unresolved->resolved`, `value->value`, added or
+  removed; a `value->value` change exits 1 unless an `--allow` file names its JSON pointer
+  with a reason. `test_reader_findings.py` pins the open #5640 findings (array mutation
+  through a method call or call argument, an arrow earlier in the statement leaving a spread
+  partial, and declaration text in a string or comment hiding a write) by the reader's
+  current result, so a reader fix fails them loudly until the pin becomes the JavaScript
+  result. `test_fixture_parse.py` checks every JavaScript fixture
+  the inventory tests feed the reader parses as a module under acorn, when node and acorn
+  resolve, and lists the 47 tests whose fixtures do not yet.
 
 ## [1.0.0] - 2026-10-01
 
