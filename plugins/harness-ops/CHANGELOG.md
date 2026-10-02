@@ -15,7 +15,7 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `HARNESS_OPS_CHANGELOG_CAP_ITEMS`; the `CLAUDE_OPS_*` names are not read. The shared shell
   helpers are `harness_ops::*`. The restart consumer's Windows scheduled task is
   `HarnessOps Lane Restart Consumer`; delete a task registered under the old `ClaudeOps` name
-  and register it again from `restart-consumer.sh --print-schedule`.
+  and register it again from `restart-consumer.sh print-schedule`.
 - **`morning-brief` reads only lane comments that open with the
   `<!-- harness-ops:lane-telemetry marker=... -->` sentinel,** so a comment left under an older
   sentinel is not reported as a second, stale row for its lane.
