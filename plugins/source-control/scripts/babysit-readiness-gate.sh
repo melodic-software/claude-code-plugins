@@ -110,7 +110,7 @@
 #      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed|comments-unreadable|checklist-unreadable)
 
 set -uo pipefail
-# Matches the `export PYTHONUTF8=1` convention the bin/ babysit wrappers already
+# Matches the `export PYTHONUTF8=1` convention the scripts/ babysit wrappers already
 # apply before invoking babysit_python (source-control-babysit-merge,
 # source-control-babysit-resolve-thread). This gate is the third babysit_python
 # caller and the one that parses fetch-all-pr-comments.sh-shaped JSON (via

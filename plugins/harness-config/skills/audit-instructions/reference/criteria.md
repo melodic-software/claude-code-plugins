@@ -1,6 +1,6 @@
 ---
-version: 1.26.0
-last-updated: 2026-10-01
+version: 1.27.0
+last-updated: 2026-10-02
 ---
 
 # Instruction-Audit Criteria
@@ -1211,26 +1211,30 @@ since each prescribes a request the model refuses.
 Severity `warning`.
 
 - **Detect:** text stating or implying that `MAX_THINKING_TOKENS=0` turns thinking off generally,
-  naming neither exception this row keeps: the whole no-effect set (Fable 5.1, Fable 5, Opus 5.5
-  and Sonnet 5.5), or third-party providers. Also flag text treating `CLAUDE_CODE_DISABLE_THINKING`
-  as equivalent to it, and text presenting the session thinking toggle or `alwaysThinkingEnabled`
-  as turning thinking off on a model in the no-effect set. For what each control does on each
-  model and provider, follow the pointer.
+  naming neither exception this row keeps: the no-effect set (the models on which thinking cannot
+  be turned off, read live from the extended-thinking pointer below), or third-party providers.
+  Also flag text treating `CLAUDE_CODE_DISABLE_THINKING` as equivalent to it, and text presenting
+  the session thinking toggle or `alwaysThinkingEnabled` as turning thinking off on a model in the
+  no-effect set. For what each control does on each model and provider, follow the pointer.
 - **Remediate:** carry the exceptions with the claim, or point at the page instead of restating it.
 - **Adjacent axis:** this is also a harness-capability claim, so **I12 can fire on the same line**.
   I12 asks whether the claim matches its page; this row asks whether a reader following it gets the
   behavior they were promised. Report both when both hold.
-- **Must NOT flag:** a mention that already names the whole no-effect set or the third-party
-  exception; either one is enough. A mention naming only part of the set, such as Fable alone,
-  names neither and still fires. A bare reference to the variable making no claim about its reach.
+- **Must NOT flag:** a mention that already names the whole no-effect set as the page lists it on
+  the audit date, links that section for it, or names the third-party exception; any one is
+  enough. A mention naming only part of the set names neither and still fires. A bare reference to
+  the variable making no claim about its reach.
 - **Source:** environment variables, the `MAX_THINKING_TOKENS` and `CLAUDE_CODE_DISABLE_THINKING`
   rows, and model configuration, "Extended thinking" (the no-effect set, the toggles, and the
   third-party behavior). Pointer: [environment variables:
   variables](https://code.claude.com/docs/en/env-vars#variables), those two rows (read whole per
   the fetch route under Sources), and [model configuration: extended
   thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-- **As of 2026-10-01** (both pages read as raw markdown that day). **Recheck trigger:** the set
-  of models that cannot have thinking turned off changing, or the third-party behavior changing.
+- **As of 2026-10-02** for the extended-thinking section (read as raw markdown that day; this row
+  names no model and takes the no-effect set from it at audit time), **2026-10-01** for the
+  environment-variable rows. **Recheck trigger:** the extended-thinking anchor moving or that
+  section no longer listing which models cannot have thinking turned off, or the third-party
+  behavior changing.
 
 **Row I17-b: mid-session thinking or effort change prescribed without its cost** · Tier
 `mechanical` · Severity `info`.

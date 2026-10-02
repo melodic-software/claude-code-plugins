@@ -65,8 +65,8 @@ per cohesive unit, with `marketplace.json` and `docs/catalog.md` conflicts
 resolved by **serializing the final merges, not authorship**. `OBSERVED` · HIGH.
 
 The one fleet-scale hook migration this repo has run
-(`docs/hook-migration-audit.md`, an audit **snapshot** dated 2026-07-12, not
-durable policy) sets three precedents a mods sweep inherits: the accept/defer
+([`docs/hook-migration-audit.md`](https://github.com/melodic-software/claude-code-plugins/blob/6736cf547e168575a14b865ecb5394e87fc28f4f/docs/hook-migration-audit.md),
+an audit **snapshot** dated 2026-07-12, not durable policy, since deleted) sets three precedents a mods sweep inherits: the accept/defer
 discriminator is **concept-specificity, not path-count**; every deferral carries
 an explicit revisit trigger; and cutover is **blue-green and staged**; no
 in-repo original was removed in the PR that added its replacement.

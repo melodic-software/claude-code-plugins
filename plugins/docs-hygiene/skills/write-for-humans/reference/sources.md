@@ -35,13 +35,26 @@ The load rules are principles we derive from the specification's writing rules. 
 and the controlled dictionary live in the specification and are **not** reproduced here, and a
 document written to this layer is not thereby STE-conformant.
 
-- **Pointer**: for the specification, Issue 9 (2025), see [asd-ste100.org](https://asd-ste100.org).
-- **As of**: 2026-07-18
-- **Recheck trigger**: a new Issue of the specification is published.
+- **Pointer**: for the specification, Issue 9 (2025), see [asd-ste100.org](https://asd-ste100.org);
+  its writing rules on instruction length, verb forms and paragraph length are rules 5.1, 3.2, 6.5
+  and 6.6. For the STEMG position on AI, see the
+  [white paper](https://www.asd-ste100.org/assets/files/WhitePaper-ASD-STE100_and_AI.pdf) and the
+  entry "White Paper: Simplified Technical English and Artificial Intelligence" on the
+  [STE downloads page](https://www.asd-ste100.org/STE_downloads.html).
+- **As of**: 2026-10-02
+- **Recheck trigger**: a new Issue of the specification is published, or STEMG revises its paper on
+  AI.
 
 This caveat is a real constraint, not boilerplate. Anyone claiming STE conformance for a document
 needs the specification; anyone wanting sentences that load one idea at a time can use the
 principles alone.
+
+### AI-checked STE is plausible, not verified
+
+We treat an AI checker's STE verdict, and this skill's own output, as plausible and unverified. The
+text can be plain and short, and nobody has verified conformance. The dictionary rules cannot be
+checked without the specification, which this plugin does not bundle. Never describe model-written
+or model-checked text as STE-conformant.
 
 ## Global English: the ambiguity layer
 
