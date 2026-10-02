@@ -677,6 +677,51 @@ class TestFlowQuery(unittest.TestCase):
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
 
 
+class TestModuleTable(unittest.TestCase):
+    """`inventory._graph_sources`: Bun's standalone module table maps each
+    module's source offset to its `/$bunfs/root/...` path."""
+
+    @staticmethod
+    def _graph(modules: list[tuple[bytes, bytes]]) -> tuple[bytes, list[int]]:
+        import struct
+
+        blob = b"\0" * 8
+        records = b""
+        starts = []
+        for name, body in modules:
+            name_at = len(blob)
+            blob += name + b"\0"
+            body_at = len(blob)
+            starts.append(body_at)
+            blob += body + b"\0"
+            records += (
+                struct.pack("<4I", name_at, len(name), body_at, len(body)) + b"\0" * 36
+            )
+        table = len(blob)
+        blob += records
+        offsets = struct.pack("<QII", len(blob), table, len(records)) + b"\0" * 16
+        return b"MZ-prefix" + blob + offsets + inv._GRAPH_TRAILER, starts
+
+    def test_each_source_offset_maps_to_its_path(self) -> None:
+        data, starts = self._graph(
+            [
+                (b"/$bunfs/root/chunk-a.js", b"// @bun\nvar a=1;"),
+                (b"/$bunfs/root/b.js", b"// @bun\n"),
+            ]
+        )
+        prefix = len(b"MZ-prefix")
+        self.assertEqual(
+            inv._graph_sources(data),
+            {
+                prefix + starts[0]: "/$bunfs/root/chunk-a.js",
+                prefix + starts[1]: "/$bunfs/root/b.js",
+            },
+        )
+
+    def test_a_build_without_a_table_maps_nothing(self) -> None:
+        self.assertEqual(inv._graph_sources(b"no graph here"), {})
+
+
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
 
@@ -686,6 +731,9 @@ class _StubReader:
 
     def __init__(self) -> None:
         self.parsed = 0
+
+    def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
+        pass
 
     def parse_module(self, src: str, lo: int, hi: int) -> tuple[bool, str | None]:
         self.parsed += 1

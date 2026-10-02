@@ -231,6 +231,7 @@ class ParserReader:
         self._next_id = 0
         self._keys: dict[tuple[int, int, int], tuple[str, str]] = {}
         self._spans: dict[int, list[tuple[int, int]]] = {}
+        self._paths: dict[int, tuple[str, dict[int, str]]] = {}
         self._answers: dict[tuple[Any, ...], dict[str, Any] | None] = {}
         try:
             self._proc = subprocess.Popen(
@@ -338,6 +339,15 @@ class ParserReader:
         if res.get("unreadable"):
             return [("unreadable", None, lo)]
         return [(kind, name, at + lo) for kind, name, at in res["hits"]]
+
+    def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
+        """File `src`'s module paths by module start (`read_bundle`)."""
+        self._paths[id(src)] = (src, paths)
+
+    def module_path(self, src: str, lo: int) -> str | None:
+        """The `/$bunfs/root/...` path of the module starting at `lo`."""
+        held = self._paths.get(id(src))
+        return held[1].get(lo) if held else None
 
     def module_spans(self, src: str) -> list[tuple[int, int]] | None:
         """The modules `parse_module` filed for `src`, in order, if any."""

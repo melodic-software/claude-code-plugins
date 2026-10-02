@@ -225,13 +225,13 @@ class TestOpenFindings(unittest.TestCase):
                     parser=PARTIAL,
                 )
 
-    def test_an_export_no_module_imports_keeps_the_literal(self) -> None:
-        """P4 of #5640: the parser follows an export to the modules that
-        import it. The bundle is the whole program, and here none imports
-        `pY` or reads it off a namespace, so nothing can change the list and
-        JavaScript has the initializer."""
+    def test_an_export_no_module_imports_stays_partial(self) -> None:
+        """#5891 second verifier: the bundle is not a closed world, and with
+        no named importer and no module table the exporter's file is
+        unknown, so a namespace of it cannot be ruled out. JavaScript keeps
+        the initializer here, so partial is honest, not a wrong value."""
         self.assert_pinned(
-            'var pY=[xt,"Artifact"];export{pY};', INITIAL, INITIAL[0], parser=INITIAL
+            'var pY=[xt,"Artifact"];export{pY};', INITIAL, INITIAL[0], parser=PARTIAL
         )
 
     def test_a_hop_the_parser_follows_keeps_the_literal_unless_it_changes_the_list(
@@ -414,23 +414,32 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
 
-    def test_an_export_no_module_imports_by_name_is_taken_as_closed(self) -> None:
-        """Open finding, a stated assumption: with no named importer the
-        exporter's file is unknown, so a namespace of it is not seen and the
-        list keeps the initializer though JavaScript pushes `B`. The
-        2.1.284-2.1.287 entry chunk re-exports the Explore/Plan array as
-        ARTIFACT_FAMILY_TOOL_NAMES to code outside the bundle this way."""
+    def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
+        """#5891 second verifier: the bundle is not a closed world. With no
+        module table and no named importer the exporter's file is unknown,
+        so nothing rules out a namespace of it, and here one pushes `B`."""
+        self.assert_across_modules(True, 'import*as N from"/a.js";N[k].push("B");')
+
+    def test_the_module_table_names_the_exporters_own_file(self) -> None:
+        """With Bun's module table, the exporter's own path decides, named
+        importer or not: the 2.1.284-2.1.287 re-exporting chunk of the
+        Explore/Plan array is loaded whole 13 to 14 times by `import(...)`
+        and `import.meta.require(...)`."""
         if type(self).reader is None:
             type(self).reader = pr.ParserReader(_require_live(self))
-        src = (
-            AGENT_SRC
-            + 'var pY=[xt,"Artifact"];'
-            + PROBE
-            + "export{pY};\n// @bun\n"
-            + 'import*as N from"/a.js";N[k].push("B");'
-        )
-        with inv.use_reader(type(self).reader):
-            self.assertEqual(_probe_source(src), INITIAL)
+        reader = type(self).reader
+        exporter = AGENT_SRC + 'var pY=[xt,"Artifact"];' + PROBE + "export{pY};"
+        for loader, changed in (
+            ('var n={names:import.meta.require("/$bunfs/root/chunk-a.js")};', True),
+            ('import("/$bunfs/root/chunk-b.js");', False),
+        ):
+            with self.subTest(loader=loader):
+                src = exporter + "\n// @bun\n" + loader
+                reader.set_module_paths(src, {0: "/$bunfs/root/chunk-a.js"})
+                with inv.use_reader(reader):
+                    self.assertEqual(
+                        _probe_source(src), PARTIAL if changed else INITIAL
+                    )
 
     def test_a_hop_it_cannot_follow_stays_partial(self) -> None:
         """A namespace read by name, a patched prototype, a callback from
@@ -576,8 +585,9 @@ class TestInstalledBuilds(unittest.TestCase):
     The flow follows every hop, but it trusts `some`, `includes` and `has`
     as built in, and every one of these builds has modules that may write
     those names on an object the sink rule cannot show is no prototype (a
-    write whose key names nothing, `Object.defineProperty(o,k,...)`), so
-    both lists read partial under the parser: never a value the regex
+    write whose key names nothing, `Object.defineProperty(o,k,...)`); and
+    the chunk re-exporting the array is loaded whole as a namespace 13 to
+    14 times. So both lists read partial under the parser: never a value the regex
     reader does not also read. Whether the default still flips with that is
     an operator decision on #5640. Each build is skipped when it is not
     installed on this machine."""

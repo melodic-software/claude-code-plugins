@@ -32,6 +32,7 @@ import os
 import platform
 import re
 import shutil
+import struct
 import sys
 import time
 from dataclasses import dataclass, field
@@ -282,14 +283,18 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
 
 
 def read_bundle(
-    binary: Path, module_spans: list[tuple[int, int]] | None = None
+    binary: Path,
+    module_spans: list[tuple[int, int]] | None = None,
+    module_paths: dict[int, str] | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     """Pull the embedded JS bundle out of the executable.
 
     `module_spans`, when given, receives the `[start, end)` in the returned
     source of each printable run that opens with a bundle marker: the units
     the parser reader parses, since the runs joined after a module are
-    bytecode string tables, not JavaScript.
+    bytecode string tables, not JavaScript. `module_paths`, when given,
+    receives each module's `/$bunfs/root/...` path by the start of its
+    source in the returned text (`_graph_sources`).
 
     Deliberately format-agnostic. Parsing the PE section table (or Mach-O load
     commands, or ELF section headers) would work but ties the script to each
@@ -306,13 +311,42 @@ def read_bundle(
         return None, meta
 
     meta["container"] = detect_container(data)
-    return _select_region(data, meta, module_spans)
+    return _select_region(data, meta, module_spans, module_paths)
+
+
+_GRAPH_TRAILER = b"\n---- Bun! ----\n"
+_GRAPH_RECORD_BYTES = 52
+
+
+def _graph_sources(data: bytes) -> dict[int, str]:
+    """Each module's path by the file offset of its source, from the Bun
+    standalone module graph: the graph ends with a trailer, after a fixed
+    offsets block whose first fields are the graph's byte count and the
+    module table's (offset, length); each 52-byte table record opens with
+    the module's name and contents as (offset, length) into the graph.
+    Empty for a build without one, or a table that does not decode."""
+    end = data.rfind(_GRAPH_TRAILER)
+    if end < 32:
+        return {}
+    byte_count, table, size = struct.unpack_from("<QII", data, end - 32)
+    base = end - 32 - byte_count
+    if base < 0 or size % _GRAPH_RECORD_BYTES or base + table + size > end:
+        return {}
+    out: dict[int, str] = {}
+    for rec in range(base + table, base + table + size, _GRAPH_RECORD_BYTES):
+        name_at, name_len, body_at, _ = struct.unpack_from("<4I", data, rec)
+        name = data[base + name_at : base + name_at + name_len]
+        if not name.startswith(b"/"):
+            return {}
+        out[base + body_at] = name.decode("utf-8", "replace")
+    return out
 
 
 def _select_region(
     data: bytes,
     meta: dict[str, Any],
     module_spans: list[tuple[int, int]] | None = None,
+    module_paths: dict[int, str] | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     """Apply the region rule to raw bytes; the legacy longest-run path is the fallback.
 
@@ -334,7 +368,8 @@ def _select_region(
             module_spans.append((0, len(src)))
         return src, meta
 
-    runs = [m.group(0) for m in RUN_RE.finditer(data, first)]
+    matches = list(RUN_RE.finditer(data, first))
+    runs = [m.group(0) for m in matches]
     joined = b"\n".join(runs)
     if module_spans is not None:
         at = 0
@@ -342,6 +377,13 @@ def _select_region(
             if run.startswith(BUNDLE_MARKERS[-1]):
                 module_spans.append((at, at + len(run)))
             at += len(run) + 1
+    if module_paths is not None:
+        sources = _graph_sources(data)
+        at = 0
+        for m in matches:
+            if m.start() in sources:
+                module_paths[at] = sources[m.start()]
+            at += len(m.group(0)) + 1
     meta["anchor"] = marker_used
     meta["bundle_offset"] = first
     meta["region_rule"] = (
@@ -2213,6 +2255,7 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
                 name == "default"
                 or _PARSER.keys_used(src, name, _module_spans(src))
                 or _taken_whole(src, name)
+                or _exporter_taken_whole(src, span[0], name)
             ):
                 return False
             pending.extend(
@@ -2327,6 +2370,20 @@ def _namespace_targets(src: str) -> frozenset[str]:
         (m.group(2) if m.group(2) is not None else m.group(4)).rsplit("/", 1)[-1]
         for m in _NAMESPACE_SITE_RE.finditer(src)
     )
+
+
+def _exporter_taken_whole(src: str, lo: int, name: str) -> bool:
+    """Whether the module starting at `lo`, which exports `name`, may be
+    taken whole as a namespace. Its file is the Bun module table's path for
+    it, else the file its importers name in `from"..."`; a module whose
+    file is unknown counts as taken whole, since nothing then rules out a
+    namespace of it. Following a namespace object to its reads is not
+    done: any namespace of the file counts."""
+    assert _PARSER is not None
+    path = _PARSER.module_path(src, lo)
+    files = [path] if path else [p for _, p in _import_lists(src, name)]
+    targets = _namespace_targets(src)
+    return not files or any(f.rsplit("/", 1)[-1] in targets for f in files)
 
 
 def _taken_whole(src: str, name: str) -> bool:
@@ -5790,6 +5847,7 @@ def _read_with_parser(
     src: str,
     meta: dict[str, Any],
     spans: list[tuple[int, int]],
+    paths: dict[int, str] | None = None,
 ) -> None:
     """The binary sections under --reader=parser or compare, plus a `reader`
     block. A reader that cannot run leaves the binary source unavailable with
@@ -5802,6 +5860,7 @@ def _read_with_parser(
         with reader:
             started = time.perf_counter()
             unparsed = []
+            reader.set_module_paths(src, paths or {})
             for start, end in spans:
                 ok, error = reader.parse_module(src, start, end)
                 if not ok:
@@ -5862,7 +5921,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             report["sources"]["binary"] = {"available": False, "reason": how}
         else:
             spans: list[tuple[int, int]] | None = [] if reader != "regex" else None
-            src, meta = read_bundle(binary, spans)
+            paths: dict[int, str] = {}
+            src, meta = read_bundle(binary, spans, paths)
             meta["selected_by"] = how
             if src is None:
                 report["sources"]["binary"] = {"available": False, **meta}
@@ -5870,7 +5930,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report.update(extract_binary(src, meta))
                 report["sources"]["binary"] = {"available": True, **meta}
             else:
-                _read_with_parser(report, args, src, meta, spans)
+                _read_with_parser(report, args, src, meta, spans, paths)
 
     if getattr(args, "docs", False):
         report["docs_crosscheck"] = build_crosscheck(
