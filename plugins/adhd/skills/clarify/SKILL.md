@@ -209,7 +209,7 @@ if it is not, meet the contract's essentials directly rather than skipping them:
 a self-contained page (the baseline above), theme-aware, a title and one-line
 description, a favicon. Either way, the decision table is the page's spine. Keep
 the treatment utilitarian, and this static table needs no runtime capabilities.
-Leave out a hero banner, a cream or off-white background, italic accent words in
+Leave out a hero banner, italic accent words in
 headings, numbered "01 / 02 / 03" section labels (the `#` column is the only
 numbering), and pill-shaped badges, plus any style the reader names; when the
 reader dislikes a choice in the page, add it to that list and render again. In the terminal, give a one-line summary and the artifact
@@ -227,6 +227,13 @@ clear by reorganizing.
 explanation *is*: a visual explainer that assumes zero prior knowledge, one idea
 per diagram, minimal text. Its floor does not climb the way `explain`'s does. This
 skill stays in the artifact's own medium and its own words.
+
+**vs `discipline:wait-what`, shape, not re-pitch.** `wait-what` is the reader's own
+stop signal, fired by the human when one message did not land: it backs up, adds the
+context that was missing, and re-writes in Simplified Technical English with the
+project's vocabulary. This skill adds no missing context; it rearranges what is there,
+for a message whose content is complete but dense. Use `wait-what` when the premise was
+never given; use this when the premise is all on the page and the decisions are buried.
 
 The three-way routing rule: "I don't get it / explain simply / what does this
 mean" is a comprehension gap → `explain`; "ELI5 / draw me this / show me a

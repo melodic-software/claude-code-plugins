@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.3.1] - 2026-10-02
+## [2.4.1] - 2026-10-02
 
 ### Fixed
 
@@ -13,6 +13,24 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `New-Item`, `Copy-Item`, `npm.cmd ci --prefix`, `;` chaining, single quotes doubled) instead of the
   POSIX `rm -rf ... && mkdir -p ... && cp ...` line. The POSIX form is unchanged elsewhere, and
   the node-missing report still prints no command.
+
+## [2.4.0] - 2026-10-02
+
+### Added
+
+- **`/harness-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
 
 ## [2.3.0] - 2026-10-02
 

@@ -189,6 +189,20 @@ assert_contains "a shim-less nested AGENTS.md is still listed" "$out" '`infra/AG
 assert_contains "the block states how the trigger behaves in subagents" "$out" "subagents"
 assert_contains "the block explains the compaction behavior" "$out" "compaction"
 
+# An eval fixture tree is test input that imitates a consuming repository. Its
+# rules and nested instruction files are not this repository's conventions, so
+# none of them may reach the always-loaded index.
+fx="$(build_fixture)"
+fxdir="$fx/plugins/demo/skills/run/evals/fixtures/consumer-repo"
+mkdir -p "$fxdir/.claude/rules"
+printf -- '---\npaths:\n  - "src/**/*.ts"\n---\n\n# Fixture rule\n' >"$fxdir/.claude/rules/one.md"
+printf '# Fixture consumer\n\nBody.\n' >"$fxdir/CLAUDE.md"
+commit_all "$fx" evalfixture
+out="$(run render --root "$fx")"
+assert_not_contains "a rule inside an evals/fixtures tree is NOT indexed" "$out" 'evals/fixtures/consumer-repo/.claude/rules/one.md'
+assert_not_contains "a nested CLAUDE.md inside an evals/fixtures tree is NOT indexed" "$out" 'evals/fixtures/consumer-repo/CLAUDE.md'
+assert_contains "rules outside the fixture tree are still indexed" "$out" '`.claude/rules/csharp.md`'
+
 # --------------------------------------------------------------------------
 # Determinism
 # --------------------------------------------------------------------------
