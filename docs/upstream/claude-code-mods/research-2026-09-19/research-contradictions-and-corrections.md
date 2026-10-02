@@ -165,7 +165,7 @@ pool.
 | Was | Now |
 |---|---|
 | `origin/main` CLI pin 2.1.274 | **2.1.276** |
-| `claude-ops` "31 events, 42 entries" | **30 events, 40 entries** (31 is the fleet-wide distinct-event count) |
+| `harness-ops` "31 events, 42 entries" | **30 events, 40 entries** (31 is the fleet-wide distinct-event count) |
 | 35 convention directories | **33** |
 | `.work/` holds 27 slices | **26** directories plus one loose file |
 | Six plugin-local `AGENTS.md` plus the root | **five** plugin-local, six with the root |
@@ -174,7 +174,7 @@ pool.
 | Monitors/Themes/Channels all `Wait` **(experimental)** | **Channels is not experimental**: it waits on gate 1 (no fleet gap) |
 | miro "~20 `.ts` files" | **17**, 4 of them tests |
 | "four duplicated ADR numbers" | **three** numbers (`0018`, `0025`, `0028`) across six files; next free is **0035** |
-| "29 of 93 entries" for guardrails + claude-ops | **49** (9 + 40), wrong under either the old or the new number |
+| "29 of 93 entries" for guardrails + harness-ops | **49** (9 + 40), wrong under either the old or the new number |
 | INVENTORY's "16 distinct events" reproduced without a staleness note | Flagged: right on 2026-09-02, **stale now**. Replay at `8eae8e8e9` gives 20 plugins / 16 events / 55 entries against today's 20 / 31 / 93 |
 
 ### Applied but unrecorded (added by `VERIFICATION.md`, 2026-09-19)

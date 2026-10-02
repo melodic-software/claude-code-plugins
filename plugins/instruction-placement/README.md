@@ -149,8 +149,8 @@ is not installed, keep the observation in the report rather than judging it here
 
 | Question | Owner |
 |---|---|
-| Is this instruction still needed by the current model? | `claude-config`'s instruction audit |
-| Is the memory layer healthy: size, index integrity, conflicts? | `claude-memory`'s audit |
+| Is this instruction still needed by the current model? | `harness-config`'s instruction audit |
+| Is the memory layer healthy: size, index integrity, conflicts? | `harness-memory`'s audit |
 | Does this whole document earn its existence? | `docs-hygiene`'s derivability audit |
 | Is this file structured well for progressive disclosure generally? | `docs-hygiene`'s progressive-disclosure audit |
 | Is the same content repeated across several files? | `docs-hygiene`'s single-source-of-truth extraction |

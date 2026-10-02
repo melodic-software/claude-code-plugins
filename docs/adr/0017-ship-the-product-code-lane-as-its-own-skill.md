@@ -41,7 +41,7 @@ Four reasons, in the order they carry weight:
   `overengineering:audit`'s description is already dense with enforcement-surface vocabulary, and
   this lane's triggers ("is this abstraction earning its keep", "do we need this interface") share
   no keywords with it. Fusing them degrades matching for both lanes. This fleet ships
-  `claude-ops:audit-skill-visibility` because this failure mode is real here.
+  `harness-ops:audit-skill-visibility` because this failure mode is real here.
 - **The protected classes do not map.** §7's enforcement classes are about guards and their bypass.
   The product-code lane's classes are about changing code that runs: published API surface under a
   compatibility commitment, serialization and wire formats, concurrency primitives, error-containment

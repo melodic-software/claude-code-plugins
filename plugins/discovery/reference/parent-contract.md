@@ -311,8 +311,8 @@ Command deny rules are a partial guardrail, not the boundary. `Bash(git credenti
 other program that opens a file stay open, and the
 [permissions page](https://code.claude.com/docs/en/permissions) calls Bash patterns that constrain
 arguments fragile. A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
-operator's sandbox configuration, detailed and dated in the `claude-config` audit's
-[`required-permissions.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/claude-config/skills/audit/reference/required-permissions.md)
+operator's sandbox configuration, detailed and dated in the `harness-config` audit's
+[`required-permissions.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-config/skills/audit/reference/required-permissions.md)
 (a URL, because a marketplace install of `discovery` does not carry that plugin's files). A token held in an
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this: a plugin's `settings.json` takes only the `agent` and `subagentStatusLine`

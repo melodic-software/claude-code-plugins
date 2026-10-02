@@ -334,7 +334,7 @@ assert_contains "not read: claude.ai connectors" "$OUT" "# not read: claude.ai c
 assert_contains "not read: --mcp-config" "$OUT" "# not read: --mcp-config"
 assert_contains "not read: plugin servers" "$OUT" "# not read: plugin servers not passed as --config"
 assert_contains "not evaluated line" "$OUT" \
-  "# not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)"
+  "# not evaluated: allowedMcpServers/deniedMcpServers (see /harness-config:audit)"
 assert_contains "project approval not evaluated line" "$OUT" \
   "# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown"
 assert_contains "file-scope precedence not evaluated line" "$OUT" \

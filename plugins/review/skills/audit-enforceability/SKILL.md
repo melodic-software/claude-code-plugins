@@ -150,7 +150,7 @@ with its gate and its fallback:
 - **`architecture-test`**: point at ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET
   and the dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>)
   for JS/TS.
-- **`hook`**: run `/claude-config:audit-automation-gaps hooks` (if the `claude-config` plugin is
+- **`hook`**: run `/harness-config:audit-automation-gaps hooks` (if the `harness-config` plugin is
   installed) and present the stub as a candidate in its candidate-list step, which is
   self-generated and takes no findings input; otherwise the stub records the candidate with the
   evidence that skill's gates ask for (frequency, incident history, the enforcement level already
@@ -166,7 +166,7 @@ with its gate and its fallback:
 - **Not the enforceability of a convention.** Whether a convention is machine-checkable, and at
   which tier, is a question about a rule. This skill asks whether ONE finding could have been
   caught deterministically.
-- **Not the automation-landscape audit.** `audit-automation-gaps` in the `claude-config` plugin
+- **Not the automation-landscape audit.** `audit-automation-gaps` in the `harness-config` plugin
   walks a repository and self-generates its own candidates. This skill reads one findings file and
   walks nothing.
 - **Not the fix action.** `/review:fanout fix` applies findings to the working tree. This skill

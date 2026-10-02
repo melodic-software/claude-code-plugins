@@ -42,7 +42,7 @@ harness, invisibly.
 > be granted after an expensive well-used one was refused. Description length is a second ranking
 > input the documented account does not mention. Both were recovered from the 2.1.251 binary and
 > re-verified at 2.1.252; the stamp, the greps, and the counterexamples are in
-> [`plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md).
+> [`plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md).
 >
 > **The ADR's core decision is untouched, and this correction strengthens the case for it.** A
 > never-invoked skill scores exactly zero and is still shed first, so the bias this paragraph
@@ -60,7 +60,7 @@ it predicted nothing), and "Backfill" was definitionally every upstream stage.
 ## Decision
 
 **Candidate names resolve from the installed catalog, never from the in-context listing alone.** The
-ladder is `/claude-ops:inventory` (gated on that plugin being installed; it owns whole-fleet
+ladder is `/harness-ops:inventory` (gated on that plugin being installed; it owns whole-fleet
 enumeration and ships a bundled script), else a catalog file the consuming project declares, else the
 listing **with its truncation disclosed in the output**. Walking `~/.claude/plugins/cache` directly is
 rejected: only the cache's existence is documented, its `<marketplace>/<plugin>/<version>` nesting is
@@ -110,7 +110,7 @@ contradictory routing doctrines in one plugin is a defect regardless of which sk
 ## Consequences
 
 The skill pays one bounded enumeration cost per invocation instead of zero, in exchange for a
-candidate set that is actually complete. In a consuming repo without `claude-ops` and without a
+candidate set that is actually complete. In a consuming repo without `harness-ops` and without a
 declared catalog it degrades to the listing, and says so, which is the whole point.
 
 Being manual-only means the operator must remember to invoke the skill about forgetting skills. That
@@ -129,7 +129,7 @@ boundary events if that graduation is ever taken, never `UserPromptSubmit`, whic
 > revision.
 
 **Placement.** `docs/catalog-taxonomy.md`'s assignment principle says subject wins when the subject
-is the salient reason a plugin exists, which argues for filing this under `claude-code`/`claude-ops`
+is the salient reason a plugin exists, which argues for filing this under `claude-code`/`harness-ops`
 beside `inventory`. It lands in `session-flow` instead: the skill's subject is the **session** (what
 to do next given where this session stands) and its inputs are session state (durable artifacts,
 trajectory, position). `inventory` answers "what exists on this machine", a machine-scope question
@@ -146,7 +146,7 @@ ledger the skill writes itself, which is what keeps that deferral honest rather 
 > **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
 > the deferral stands, but "undocumented internal state" is no longer the
 > reason and should not be read as one. That substrate is now characterized and dated in
-> [`plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md),
+> [`plugins/harness-ops/skills/audit-skill-visibility/reference/usage-counters.md`](../../plugins/harness-ops/skills/audit-skill-visibility/reference/usage-counters.md),
 > which invites the false inference that the deferral lifts once the state is known. It does not,
 > because three grounds documentation cannot cure survive:
 >

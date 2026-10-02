@@ -213,7 +213,7 @@
     {
       "id": 15,
       "name": "echo-back-mismatch-fails-the-dispatch",
-      "prompt": "Research how ${CLAUDE_PLUGIN_DATA} is resolved for the claude-ops plugin specifically. [The dispatched discovery:researcher returns a well-formed payload whose topic_as_received reads 'how <the discovery plugin's own data directory> is resolved for the claude-ops plugin specifically', with a complete RESEARCH.md artifact set on disk, a fully marked ledger, and both gates exiting 0.]",
+      "prompt": "Research how ${CLAUDE_PLUGIN_DATA} is resolved for the harness-ops plugin specifically. [The dispatched discovery:researcher returns a well-formed payload whose topic_as_received reads 'how <the discovery plugin's own data directory> is resolved for the harness-ops plugin specifically', with a complete RESEARCH.md artifact set on disk, a fully marked ledger, and both gates exiting 0.]",
       "files": [],
       "expected_output": "Compares topic_as_received against the topic the parent actually sent, notices they differ, and fails the dispatch even though every mechanical check passes. The artifact is a correct answer to the wrong topic. Re-dispatches with the topic restated in a form that survives the trip rather than accepting the artifact and translating it mentally.",
       "expectations": [

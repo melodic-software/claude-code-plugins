@@ -15,8 +15,8 @@ and do not judge it against the placement rubric instead.
 
 | The candidate actually raises | Route to | Fallback when the plugin is absent |
 |---|---|---|
-| Does the current model still need this instruction? | `claude-config:audit-instructions` | Note it as a model-era-fit question, unjudged |
-| Is the memory layer healthy in size, index integrity, and conflicts? | `claude-memory:audit` | Note the symptom and the file it appeared in |
+| Does the current model still need this instruction? | `harness-config:audit-instructions` | Note it as a model-era-fit question, unjudged |
+| Is the memory layer healthy in size, index integrity, and conflicts? | `harness-memory:audit` | Note the symptom and the file it appeared in |
 | Should this whole document exist at all? | `docs-hygiene:audit-derivability` | Note that the file, not the section, is the unit in question |
 | Is this file structured well for disclosure generally? | `docs-hygiene:audit-progressive-disclosure` | Note the structural smell |
 | Is this content repeated across several files? | `docs-hygiene:extract-ssot` | Name the copies; do not pick a winner |

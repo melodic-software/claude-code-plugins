@@ -15,8 +15,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 sync_cluster_suite::run \
   --script "$SELF_DIR/sync-fetch-docs.sh" \
   --canonical 'lib/fetch-docs.sh' \
-  --copy 'plugins/claude-config/scripts/fetch-docs.sh' \
-  --extra-copy 'plugins/claude-ops/scripts/fetch-docs.sh' \
+  --copy 'plugins/harness-config/scripts/fetch-docs.sh' \
+  --extra-copy 'plugins/harness-ops/scripts/fetch-docs.sh' \
   --v1 '#!/usr/bin/env bash\necho fetch\n' \
   --v2 '#!/usr/bin/env bash\necho fetch v2\n' \
   --drift '# drifted\n' \

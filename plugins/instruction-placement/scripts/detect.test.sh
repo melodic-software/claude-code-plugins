@@ -250,7 +250,7 @@ assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 # ==========================================================================
 # identity subcommand
 #
-# The two golden vectors below equal the output of claude-config's
+# The two golden vectors below equal the output of harness-config's
 # audit-pass finding-identity.sh `finding-id` for one site (surface=<repo-relative path>, anchor=<anchor>), so
 # a change here that drifts from that formula fails this suite.
 # ==========================================================================

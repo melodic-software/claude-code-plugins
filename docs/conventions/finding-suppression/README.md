@@ -22,7 +22,7 @@ silence (there is no expiry key, per the trade recorded at the bottom).
 ## Where the record lives
 
 `.claude/<surface-name>.md` in the consuming repository, layered across the three cascade layers. The
-consuming plugin names its own surface. The first adopter, `claude-config`'s `audit-pass` skill,
+consuming plugin names its own surface. The first adopter, `harness-config`'s `audit-pass` skill,
 uses `audit-pass.md`, giving:
 
 | Order | Layer | Path |
@@ -46,7 +46,7 @@ Markdown with a fenced YAML block: human-readable in review, greppable from a sh
 ```yaml
 suppressions:
   283d05878bdf5936:
-    check: claude-config/audit-instructions/nested-override
+    check: harness-config/audit-instructions/nested-override
     claim: nested-tightens-root
     sites:
       - surface: .claude/rules/generated.md
@@ -54,7 +54,7 @@ suppressions:
     reason: "Nested rule deliberately tightens the root rule for generated code."
     date: 2026-07-24
   c5e64c89b4cf4377:
-    check: claude-config/audit-instructions/cross-layer-conflict
+    check: harness-config/audit-instructions/cross-layer-conflict
     claim: contradicts
     sites:
       - surface: CLAUDE.md
@@ -260,7 +260,7 @@ Conformance is tracked once, in the cascade contract's own
 layered consumer surface in the fleet, and a second table here would be the same rows in two places,
 drifting apart the first time one is updated alone.
 
-The first adopter is `claude-config`'s `audit-pass` skill. It carries its own operative copy of what
+The first adopter is `harness-config`'s `audit-pass` skill. It carries its own operative copy of what
 it needs at run time, in that skill's run-contract reference: the record's location, the layer
 merge, the precedence inversion, and its entry-disposition table. That copy is deliberate and not an
 oversight. A plugin is installed into a cache where no path back to this repository resolves, so a

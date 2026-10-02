@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate the hook event registry the claude-ops per-session event log is
+# Generate the hook event registry the harness-ops per-session event log is
 # registered from, and the hooks.json rows that register it.
 #
 #   scripts/gen-hook-event-registry.sh --fetch        fetch the Hooks reference,
@@ -40,7 +40,7 @@
 # whose shape changed would otherwise produce an empty registry and silently
 # unregister the producer. The committed registry stays authoritative until a
 # human re-runs --fetch. Recheck trigger for every entry: each
-# `/claude-ops:changelog` ingest of a Claude Code release whose notes touch
+# `/harness-ops:changelog` ingest of a Claude Code release whose notes touch
 # hooks re-runs `--fetch --check`; a read-time re-fetch finding the table
 # changed also fires.
 #
@@ -93,8 +93,8 @@ command -v jq >/dev/null 2>&1 || {
 
 URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
-REGISTRY="$ROOT/plugins/claude-ops/hooks/hook-events.registry.json"
-HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
+REGISTRY="$ROOT/plugins/harness-ops/hooks/hook-events.registry.json"
+HOOKS_JSON="$ROOT/plugins/harness-ops/hooks/hooks.json"
 # The producer row is EXEC FORM. `"command"` is `node`; args are the shared
 # launcher, `--require-true SESSION_EVENT_LOG_ENABLED`, then the script.
 # The launcher exits 0 before it resolves bash when the option is not exactly
@@ -105,11 +105,11 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 PRODUCER='${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='${CLAUDE_PLUGIN_ROOT}/hooks/session-retention.sh'
-RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+RECHECK="each /harness-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
 # classify_to <cat-var> <producer-var> <event>: the category (the same table
-# plugins/claude-ops/hooks/session-log-lib.sh carries, pinned by the test) and
+# plugins/harness-ops/hooks/session-log-lib.sh carries, pinned by the test) and
 # whether the producer may register on it.
 classify_to() {
   local c p

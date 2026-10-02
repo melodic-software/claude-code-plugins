@@ -13,7 +13,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `.claude/CLAUDE.md` or `CLAUDE.local.md` takes precedence at or above the working directory or in
   a nested `AGENTS.md` directory; this machine's **Project instructions** mode reads `AGENTS.md`
   without a `CLAUDE.md`; the built-in `agents-md` plugin is present and not disabled, read at run
-  time from `/claude-ops:inventory` and settings; the operator confirms no other user, organization,
+  time from `/harness-ops:inventory` and settings; the operator confirms no other user, organization,
   session type or surface (Agent SDK, cloud, `claude-code-action`) needs the shim; no `AGENTS.md`
   imports a file outside the working directory; and no hook depends on `InstructionsLoaded` for
   the load. Unknown counts as failed and keeps the shim. Nested shims stay under every mode where
@@ -28,6 +28,13 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `claude-md-and-agents-md`.** The memory page does not say when a subdirectory's `AGENTS.md`
   loads under that value, so `UNWIRED` stays a finding there; the migrate skill body and the
   `render-index.sh` comment now say so.
+
+## [0.16.12] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.16.11] - 2026-10-01
 

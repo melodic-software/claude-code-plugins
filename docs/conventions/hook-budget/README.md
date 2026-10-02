@@ -132,7 +132,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
-- **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `claude-ops`.
+- **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `harness-ops`.
   Neither check script inspects a shell-form row; each of the three plugins' own hook tests pins its
   row's shell form, so a sweep back to `node` fails that test. The philosophy
   Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
@@ -205,7 +205,7 @@ measurement.
 Hook, statusline, and Bash-tool spawns add to a Windows kernel Token-object leak. The leak per
 spawn differs by binary and by host, so this doc states no rate. The section "The host-level floor:
 a kernel Token-object leak" of
-[known-performance-issues.md](../../../plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
+[known-performance-issues.md](../../../plugins/harness-ops/skills/audit-performance/reference/known-performance-issues.md#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
 owns the reference host's per-binary measurements, sources, and recheck triggers.
 [#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372) holds the melo-lap-001
 rows, and [#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) tracks

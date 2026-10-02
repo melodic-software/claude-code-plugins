@@ -135,14 +135,14 @@ them as delegated. Audit those four in a separate org- or machine-level pass.
 
 ### native-overlap
 
-- skill: claude-ops:audit-native-overlap
+- skill: harness-ops:audit-native-overlap
 - args:
 - applies-when: repo ships Claude Code skills or agents
 - checked: false
 
-### claude-config
+### harness-config
 
-- skill: claude-config:audit
+- skill: harness-config:audit
 - args: --fix
 - applies-when: repo has .claude/settings.json or .mcp.json
 - checked: false
@@ -168,7 +168,7 @@ rewrites only; moves belong to the instruction-placement step.
 
 ### audit-instructions
 
-- skill: claude-config:audit-instructions
+- skill: harness-config:audit-instructions
 - args: all
 - applies-when: repo has Claude Code instruction surfaces
 - checked: true
@@ -178,9 +178,9 @@ rewrites only; moves belong to the instruction-placement step.
 Apply repo-scope delete and rewrite findings only; moves belong to the instruction-placement step.
 Drop findings on `~/.claude`; the dotfiles sweep handles them.
 
-### claude-memory
+### harness-memory
 
-- skill: claude-memory:audit
+- skill: harness-memory:audit
 - args:
 - applies-when: repo has CLAUDE.md, AGENTS.md, or .claude/rules
 - checked: true
@@ -194,7 +194,7 @@ auto-memory; the dotfiles sweep handles them.
 
 ### prompting-postures
 
-- skill: claude-config:audit-prompting-postures
+- skill: harness-config:audit-prompting-postures
 - args:
 - applies-when: repo has Claude Code instruction components
 - checked: false

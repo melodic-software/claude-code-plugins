@@ -802,7 +802,7 @@ done
 
 # The rule reaches every agent that holds a shell, not only the three producers:
 # the per-gap workers Phase 2 dispatches and the general-purpose sibling verifier
-# carry the same Bash pool. The sandbox settings live in the claude-config audit
+# carry the same Bash pool. The sandbox settings live in the harness-config audit
 # reference, so the section points there instead of restating them.
 cred_section="$(sed -n '/^## Credentials stay unread, stated once$/,/^## Read each file once/p' \
   "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ' | tr -s ' ')"

@@ -280,7 +280,7 @@ assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
 
 # --- stale: read-only stale-lock detector -------------------------------------
 
-CFG="$TEST_TMPDIR/claude-config"
+CFG="$TEST_TMPDIR/harness-config"
 mkdir -p "$CFG/projects/-proj"
 STALE_HOST=stalehost
 stale_lock() { # <name> <reason>
