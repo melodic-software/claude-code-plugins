@@ -57,8 +57,8 @@ is accounted for.
 Beyond the pinned file, two behaviors were added that upstream leaves implicit: a thin-context
 prompt (one ranked question when pasted code fits several forms about equally, tunable through the
 `thin_context_prompt` plugin option) and a terminal pin for pull-request diffs, fetched content, and
-other repositories' files until that lane is wired through the marketplace's rendered-views escape helper. Neither is
-upstream content.
+other repositories' files until the `visualize` skill is wired through the marketplace's
+rendered-views escape helper. Neither is upstream content.
 
 ## License notice
 
