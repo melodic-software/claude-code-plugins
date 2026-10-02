@@ -1256,7 +1256,7 @@ what the last one returned.
 The **dispatch-site** tier enforcement is structural at two binding sites:
 `plugins/implementation/agents/implementer.md` and
 `plugins/implementation/agents/phase-verifier.md` (both bind the loop-lane convention's strong-tier
-current alias; raise the pair together, and note frontmatter binds a floor, since the session-relative
+current alias; raise the pair together, and note frontmatter binds a floor, since the per-phase
 raise above it stays a per-invocation override at the dispatch site). That pair is the binding, not the
 recheck list: the trigger above re-audits **every** agent-frontmatter `model` value in this
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
