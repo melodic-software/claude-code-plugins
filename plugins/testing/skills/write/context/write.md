@@ -1,6 +1,6 @@
 # Write Tests (TDD Mode)
 
-Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code, whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative guidance from Beck and Khorikov.
+Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code, whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative guidance from Beck and Khorikov.
 
 ## Vertical slices, not horizontal layers
 
@@ -76,6 +76,9 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test: one behavioral concept, not one `Assert` statement
 - [ ] Every expected value names its independent source, per `testing:test-value`; a round trip or identity check (`decode(encode(x))` equals `x`) passes when both directions share a mistake, so pair it with a known encoded fixture
+- [ ] Existing coverage does not already catch this regression. Each contract has one primary test at its strongest boundary; another layer needs a risk of its own, such as a transport failure the primary test cannot reach. Extend a table-driven case before adding a near-duplicate
+- [ ] A bug fix adds one regression test at the boundary that owns the bug, not one per layer the bug crosses
+- [ ] The test needs no export, flag or injection hook that no production caller uses; if it does, test through the real boundary instead
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 
@@ -131,7 +134,7 @@ No tests needed for:
 
 The list above is about code that needs no test. A second, different question is whether a test
 worth having is worth *this* test, and the answer is sometimes no even for code that does need
-covering. **Prefer no new test to a bad one** (upstream cursor/plugins `tdd`), when the only
+covering. **Prefer no new test to a bad one** when the only
 available test would need broad harness setup, brittle mocks, slow end-to-end infrastructure,
 production-only state, a reproduction nobody can state precisely, or large unrelated fixture churn.
 A test that mostly exercises its own mocks, encodes today's implementation, or would be deleted the

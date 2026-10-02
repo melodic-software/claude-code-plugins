@@ -4,7 +4,13 @@
  * @typedef {Object} FrameCandidate
  * @property {string} path - Absolute or relative path to the frame image
  * @property {string} file - Basename of the frame file
- * @property {number|null} [timestampSec] - Source timestamp when known
+ * @property {number|null} [timestampSec] - Source timestamp when known; `null` when untimed
+ * @property {'scene-detection'|'interval'|'anchor'|'estimated'|null} [timestampSource] - Where
+ *   `timestampSec` came from: measured by ffmpeg (`scene-detection`, `interval`), requested
+ *   with an exact seek (`anchor`), or derived (`estimated`). Separate from `isInterval` (capture
+ *   type) and the result's `method` (extraction strategy).
+ * @property {string} [timestampMethod] - How an `estimated` time was derived
+ * @property {number} [timestampErrorSec] - Largest expected error of an `estimated` time
  * @property {number|null} [sceneScore] - Scene-change score when known
  * @property {boolean} [isInterval] - Whether frame came from interval fallback capture
  * @property {string|null} [phash] - Perceptual hash when computed

@@ -269,13 +269,18 @@ assert_absent_in 'setup has no step that writes the gate allow rules to user set
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
   'setup apply` (offers|writes)|setup apply.{0,40}allow rules'
-frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
+# The one sanctioned grant is research-deep's launch of this plugin's own
+# workflow by name; it grants no gate script and never bare Workflow.
+frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |
+  grep -vE '/skills/research-deep/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$')"
 if [[ -z "$frontmatter_grants" ]]; then
-  pass 'neither skill declares allowed-tools (the un-run case is stated instead)'
+  pass 'no skill declares allowed-tools beyond the named research-sweep launch (the un-run case is stated instead)'
 else
-  fail 'neither skill declares allowed-tools (the un-run case is stated instead)'
+  fail 'no skill declares allowed-tools beyond the named research-sweep launch (the un-run case is stated instead)'
   printf '%s\n' "$frontmatter_grants" >&2
 fi
+assert_present 'research-deep grants only the named research-sweep workflow' \
+  'skills/research-deep/SKILL.md' '^allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$'
 assert_present 'the un-run case is stated' \
   'reference/parent-contract.md' 'could not run'
 assert_present 'pre-flight probes gate invocability before routing' \
@@ -1041,6 +1046,42 @@ for agent in explorer researcher intent-tracer research-verifier; do
     fail "$file has exactly one Return exactly this section — found $sections"
   fi
 done
+
+# ---------------------------------------------------------------------------
+# 19. The run aims at the acceptance bar, and a single-publisher fact is
+#     labeled, never accepted
+#
+# Criterion 4's corroborator count is a floor; acceptance also needs HIGH
+# (criterion 7). Summaries that stated only the floor under-aimed the run. A
+# fact only its publisher states can never reach independence, so it carries
+# its subject's pool, is worded as an attribution, and is at most MEDIUM.
+# ---------------------------------------------------------------------------
+assert_present 'discipline 5 names criterion 7 beside the floor' \
+  'skills/research/SKILL.md' '^5\. \*\*Source-tier ratio per claim\*\*.*criterion 7'
+assert_present 'the Gaps line names claims below criterion 7' \
+  'skills/research/SKILL.md' '^5\. \*\*Gaps\*\*.*criterion 7'
+assert_present 'gate row 4 points at the single-publisher rule' \
+  'skills/research/SKILL.md' '^\| 4 \|.*"Single-publisher facts"'
+assert_present 'the source-tier ratio section names criterion 7' \
+  'skills/research/context/discipline.md' '^Every accepted claim has at least one Tier 0/1 source.*criterion 7'
+assert_present 'authoritative-is-not-a-waiver points at the single-publisher rule' \
+  'skills/research/context/discipline.md' '^\*\*Authoritative is not a waiver for corroboration\.\*\*.*"Single-publisher facts"'
+assert_present 'discipline.md carries the single-publisher section' \
+  'skills/research/context/discipline.md' '^## Single-publisher facts$'
+assert_present 'the Phase 1 gap list names criterion 7' \
+  'skills/research/context/phases.md' '^- \*\*Gaps\*\* \(numbered\)\..*criterion 7'
+assert_present 'each claim can carry subject_pool' \
+  'skills/research/context/artifact-shape.md' '^ {4}subject_pool: '
+assert_present 'the researcher names criterion 7 beside the corroborator floor' \
+  'agents/researcher.md' '^- the criterion requiring ≥2 \*\*independent\*\* corroborators per claim.*criterion 7'
+assert_present 'the researcher verification request names single-publisher labeling' \
+  'agents/researcher.md' '^  criterion: ".*single-publisher'
+for field in pool subject_pool; do
+  assert_present "the research verifier grades \`$field\`" \
+    'agents/research-verifier.md' "\`$field\`"
+done
+assert_present 'evals grade a single-publisher claim that is not accepted' \
+  'skills/research/evals/evals.json' 'single-publisher-claim-is-labeled-not-accepted'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

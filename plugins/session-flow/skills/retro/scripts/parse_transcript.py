@@ -99,6 +99,12 @@ def parse_timestamp(ts_str: str) -> datetime | None:
 
 # Tools whose `input.file_path` is a write target. Read/Grep/Glob also have
 # file_path inputs but should not count as "files modified".
+# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
+# versions carry MultiEdit calls, and they must still count as modifications.
+# Pointer: for where the permissions page names the legacy MultiEdit tool, see
+# https://code.claude.com/docs/en/permissions#read-and-edit
+# As of: 2026-10-02
+# Recheck trigger: that section stops naming MultiEdit, or moves.
 _FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
 # Truncation length for tool-rejection error snippets in the output.
