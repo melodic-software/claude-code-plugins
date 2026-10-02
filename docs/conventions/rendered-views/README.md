@@ -98,7 +98,7 @@ additions:
    fails.
 2. **At most one data block.** `<script type="application/json">` with the builder's
    fixed `id`. Its body parses as JSON and contains no raw `<`: the builder writes `<` as
-   `<`, so neither `</script` nor `<!--` can occur inside it. A non-JavaScript
+   `\u003c`, so neither `</script` nor `<!--` can occur inside it. A non-JavaScript
    `type` makes it a data block the browser does not execute.
 3. **A content security policy in the page.** The first element in `<head>` after the
    charset is a `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`,
