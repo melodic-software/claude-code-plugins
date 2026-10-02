@@ -4737,6 +4737,24 @@
     },
     {
       "native": {
+        "name": "verify",
+        "class": "bundled-skill"
+      },
+      "component": {
+        "plugin": "verification",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The bundled verify skill exercises a code change end to end before committing; verification:setup reports where the verification plugin's artifacts land. Both are user-only, so no routing exists. Shared words only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "25d8aa91d54324b8ce8c1ddc7fe6aa4a",
+        "component": "ebb5d18629ff6ed648968f6524f953f0"
+      }
+    },
+    {
+      "native": {
         "name": "worker",
         "class": "builtin-agent"
       },
