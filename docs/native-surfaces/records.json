@@ -650,22 +650,23 @@
       },
       "verdict": "complementary",
       "integration": "route",
-      "reason": "Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. The bundled skill's prompt-audit subcommand is the vendor's apply-sweep over the working directory's whole prompt surface, application code included; audit-instructions is a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).",
+      "reason": "Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. Model migrations and application-code prompts go to the bundled skill's prompt-audit subcommand; audit-instructions stays a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans, and never chains into a prompt-audit apply. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).",
       "evidence": [
-        "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
-        "platform docs claude-api-skill page (fetched 2026-09-09): 'The skill comes bundled with Claude Code and is also available in the open-source Anthropic skills repository'",
-        "hillclimb and build-eval are bundled-only: absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the skill's docs page",
+        "binary extraction 2026-09-09 (claude.exe 2.1.263) and 2026-10-02 (Claude Code 2.1.287): registerClaudeApiSkill present; the subcommand array includes prompt-audit",
+        "distribution pointer: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled (as of 2026-10-02)",
+        "subcommand pointer: https://code.claude.com/docs/en/skills#work-on-claude-api-projects; published guides: https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/prompt-audit.md and model-migration.md at the same commit (as of 2026-10-02)",
+        "the routing, mutation gate and presence records live in the skill's reference/bundled-claude-api.md, links-only",
         "executed composition precedent: ADR-0028 (fleet-wide prompt-audit run, 805 findings applied; repeats per model change; findings are edits, not criteria)",
         "verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10"
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON",
-        "date": "2026-09-09"
+        "detail": "extracted from binary v2.1.287 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction lists claude-api as a gated, model-invocable bundled skill; the registerClaudeApiSkill string and subcommand array read from the same binary)",
+        "date": "2026-10-02"
       },
       "recheck": {
-        "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row)",
-        "verified": "2026-09-10"
+        "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set or names prompt-audit or the model-migration guide, the platform claude-api-skill docs page lists build-eval and hillclimb, or a commit to anthropics/skills changes skills/claude-api/shared/prompt-audit.md or model-migration.md",
+        "verified": "2026-10-02"
       },
       "baked": {
         "description_phrase": true,
