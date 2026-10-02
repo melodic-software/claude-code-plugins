@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.3] - 2026-10-02
+## [0.20.4] - 2026-10-02
 
 ### Changed
 
@@ -16,6 +16,23 @@ All notable changes to the `implementation` plugin are documented here. Format f
   was written. `implement-dispatch`'s heavy-window signal (Resident-vs-clear item (a)) routes the
   same way instead of clearing by default. Both skills gain a `## Next` naming
   `/review:quality-gate`, and new evals cover the routed boundary and the model-switch stop.
+
+## [0.20.3] - 2026-10-02
+
+### Fixed
+
+- **`implement-dispatch` never runs a concurrent wave on the frontier tier.** When more than one
+  `implementer` or `phase-verifier` will run at once and the session model or the upward route
+  resolves to the frontier tier (`fable` or `best`), every agent in that wave runs at `opus`. The
+  frontier tier is allowed only on a single, sequential dispatch: one security-surface or
+  frontier-routed implementer at a time with its one verifier, and a single final verification.
+  A phase that needs the frontier tier runs alone, as a wave of one: no other frontier-tier agent is
+  in flight, and the wave's `opus` rows may run beside it. The session-model raise now applies to
+  a single dispatch only, so a frontier session no longer lifts a whole wave. Inside a wave held at
+  `opus`, the `phase-verifier`'s `opus` binding already meets the checked-work rule. The
+  `implementer` and `phase-verifier` model-binding sections state the same limit. For generic
+  dispatch routing, the skill points at `/multi-agent:route` when that skill resolves in the
+  session.
 
 ## [0.20.2] - 2026-10-02
 
