@@ -82,6 +82,11 @@ One plugin option: `report_dir` (directory), where dated reports land; unset mea
 `Documents\MachineHealth` under the user profile. Everything else is machine-local state managed
 by `/machine-health:setup`. No hooks, no MCP servers.
 
+### Option details
+
+**`report_dir`.** A report file is named for its UTC timestamp, for example
+`reports/health-2026-07-12T153327123Z.md`.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -92,7 +97,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `report_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_DIR` | Directory where per-run health reports (reports/health-<UTC-timestamp>.md, e.g. health-2026-07-12T153327123Z.md) are written. Leave unset to use the default: Documents\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory. |
+| `report_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_DIR` | Directory where per-run health reports (reports/health-<UTC-timestamp>.md) are written. Leave unset to use the default: Documents\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory. |
 
 ### How to set these
 

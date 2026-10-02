@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.6] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): titles are sentence case ("Lane-stop gate",
+  "Lane-stop operator alert", "Verification lens pool"), and every description is 300 characters
+  or fewer in plain text, with the cut detail moved to the README's "Option details". No key,
+  type, or default changes.
+
 ## [0.25.5] - 2026-10-02
 
 ### Fixed

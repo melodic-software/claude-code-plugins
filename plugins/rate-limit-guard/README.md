@@ -159,7 +159,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Master switch for the StopFailure detection hook and the statusline tee's snapshot write; read from managed settings first, then user settings |
+| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the statusline tee's snapshot write. On by default. Read from managed settings first, then user settings. |
 
 ### How to set these
 

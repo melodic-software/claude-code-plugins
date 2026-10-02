@@ -3,6 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.5] - 2026-10-02
+
+### Changed
+
+- `clean_destructive_guard_enabled` is titled `Clean destructive-command guard` in sentence case,
+  per the plugin-option-naming convention (`docs/conventions/plugin-option-naming/`). No key, type
+  or default changed.
+
 ## [0.18.4] - 2026-10-02
 
 ### Fixed

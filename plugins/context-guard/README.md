@@ -365,9 +365,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Master switch for the zone-crossing injection, blocking gate, and PostCompact marker hooks |
-| `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) injects guidance only; blocking additionally denies new Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past the grace budget (fail-open on unknown; handoff-path writes, reads, Bash, and Skill stay allowed) |
-| `zone_gate_grace_calls` | string | `"20"` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking mode only: number of matched tool calls allowed after the session first resolves dumb before the gate denies (in-script default 20) |
+| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the zone-crossing injection, blocking gate, and PostCompact marker hooks. On by default; off, every one of them exits without acting. |
+| `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) injects guidance only; blocking also denies new Write, Edit, NotebookEdit, Agent, and Workflow calls on a fresh dumb-zone snapshot past the grace budget. Handoff-path writes, reads, Bash, and Skill stay allowed, and an unknown zone fails open. |
+| `zone_gate_grace_calls` | number<br>*min 0, max 999999999* | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking mode only: matched tool calls allowed after the session first resolves dumb, before the gate denies. Default 20; 0 denies the first matched call. |
 
 ### How to set these
 

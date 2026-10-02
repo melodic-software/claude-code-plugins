@@ -3,6 +3,14 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-10-02
+
+### Changed
+
+- The `eol_normalizer_enabled` option title reads "Normalize line endings on edit", naming what
+  the hook does instead of repeating the plugin name, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`).
+
 ## [0.8.4] - 2026-10-02
 
 ### Fixed

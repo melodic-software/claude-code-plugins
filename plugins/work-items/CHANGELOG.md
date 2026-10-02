@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1] - 2026-10-02
+
+### Changed
+
+- `userConfig` option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles with units in parentheses,
+  `lane_instance` titled "Lane instance ID", and descriptions of 300 characters or fewer in plain
+  text. Detail cut from a description moved to the README's "Option details" subsection. Options
+  are grouped by feature, with the work-loop keys together. No key was renamed.
+
 ## [0.44.0] - 2026-10-02
 
 ### Changed

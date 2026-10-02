@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): the kill-switch title becomes the noun phrase "Zone
+  and compaction hooks", "Zone hook posture" becomes "Zone hook mode", and descriptions are plain
+  text that name their defaults.
+- `zone_hook_mode` is a picker in `/config` (`advisory`, `blocking`). Any other value already
+  behaved as `advisory`.
+- `zone_gate_grace_calls` is now a `number` (default 20, 0 to 999999999) instead of a numeric
+  string, so `/config` rejects a non-numeric value. `zone-gate.sh` reads it the same way: a value
+  that is not 1 to 9 digits still falls back to 20.
+
 ## [0.8.6] - 2026-10-02
 
 ### Changed

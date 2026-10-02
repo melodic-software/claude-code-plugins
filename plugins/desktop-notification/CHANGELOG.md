@@ -3,6 +3,16 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): "desktop-notification master toggle" becomes
+  "Notification hook", the channel titles are sentence case ("Bell channel", "Terminal-notify
+  channel (OSC 9)", "OS-toast channel"), and each description names its default. No key, type,
+  or default changes.
+
 ## [0.7.4] - 2026-10-02
 
 ### Fixed
