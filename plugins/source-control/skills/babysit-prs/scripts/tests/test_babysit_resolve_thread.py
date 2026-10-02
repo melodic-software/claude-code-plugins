@@ -1132,6 +1132,35 @@ class IndependentResolverUsageGates(unittest.TestCase):
         )
         self.assertIn("--tracker-item", str(payload["error"]))
 
+    def _linked_pr_usage(self, *evidence: str) -> dict[str, object]:
+        return self._usage(
+            [
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "linked-pr",
+                "--thread-id",
+                "T_bot",
+                *evidence,
+            ]
+        )
+
+    def test_linked_pr_without_its_number_is_refused(self) -> None:
+        payload = self._linked_pr_usage()
+        self.assertIn("--linked-pr", str(payload["error"]))
+
+    def test_non_numeric_linked_pr_is_refused_before_any_lookup(self) -> None:
+        payload = self._linked_pr_usage("--linked-pr", "#abc")
+        self.assertIn("--linked-pr", str(payload["error"]))
+
+    def test_linked_pr_naming_this_pr_is_refused(self) -> None:
+        # The fix the scope test sends elsewhere lives in ANOTHER PR; citing
+        # the reviewed PR itself is the fixed disposition wearing a new name.
+        payload = self._linked_pr_usage("--linked-pr", "1")
+        self.assertIn("--linked-pr", str(payload["error"]))
+
 
 class IndependentResolverBrightLines(unittest.TestCase):
     """The guards the third mode keeps: human threads and severity."""
@@ -1262,6 +1291,67 @@ class IndependentResolverEvidence(unittest.TestCase):
         )
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "refused-tracker-item-not-found")
+        self.assertEqual(code, 10)
+
+    def _linked_pr(
+        self, reply: str, *gh_results: subprocess.CompletedProcess[str]
+    ) -> tuple[int, dict[str, object]]:
+        return _run_independent(
+            [_bot_thread(reply_bodies=[reply])],
+            _independent_argv("--disposition", "linked-pr", "--linked-pr", "42"),
+            gh_results=list(gh_results),
+        )
+
+    def test_linked_pr_resolves_for_an_open_pr_the_reply_cites(self) -> None:
+        code, payload = self._linked_pr(
+            "Fixed in #42, outside this PR's files.",
+            _proc(0, json.dumps({"state": "open", "merged": False})),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(threads[0]["disposition"], "linked-pr")
+        self.assertEqual(payload["resolvedCount"], 1)
+        self.assertEqual(code, 0)
+
+    def test_linked_pr_resolves_for_a_merged_pr_cited_by_url(self) -> None:
+        code, payload = self._linked_pr(
+            "Fixed in https://github.com/owner/repo/pull/42",
+            _proc(0, json.dumps({"state": "closed", "merged": True})),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(code, 0)
+
+    def test_linked_pr_refuses_a_pr_closed_without_merging(self) -> None:
+        # A linked PR closed unmerged is the fix disappearing, the same way a
+        # closed tracker item is not a deferral.
+        code, payload = self._linked_pr(
+            "Fixed in #42.",
+            _proc(0, json.dumps({"state": "closed", "merged": False})),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-linked-pr-closed")
+        self.assertEqual(payload["refusedEvidence"], 1)
+        self.assertEqual(code, 10)
+
+    def test_linked_pr_refuses_when_no_reply_cites_it(self) -> None:
+        # #420 is a different PR; the citation has to be on the thread. No gh
+        # result is scripted, so reaching a lookup would raise StopIteration.
+        code, payload = self._linked_pr("Fixed in #420.")
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-linked-pr-not-cited")
+        self.assertEqual(code, 10)
+
+    def test_linked_pr_refuses_a_pr_that_does_not_exist(self) -> None:
+        code, payload = self._linked_pr("Fixed in #42.", _proc(1, stderr=GH_404))
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-linked-pr-not-found")
+        self.assertEqual(code, 10)
+
+    def test_linked_pr_outage_is_unverifiable_not_missing(self) -> None:
+        code, payload = self._linked_pr("Fixed in #42.", _proc(1, stderr=GH_500))
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-evidence-unverifiable")
         self.assertEqual(code, 10)
 
     def test_incorrect_resolves_when_the_rebuttal_is_on_the_thread(self) -> None:

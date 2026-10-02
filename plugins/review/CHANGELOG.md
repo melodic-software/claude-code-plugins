@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.10] - 2026-10-02
+
+### Changed
+
+- **`/review:quality-gate`'s architecture follow-up places a small unrelated pattern fix by
+  source-control's D4.6 scope test:** in this change only when it is in a file the change already
+  touches, otherwise its own small PR with no tracker item.
+
 ## [0.34.9] - 2026-10-02
 
 ### Changed
