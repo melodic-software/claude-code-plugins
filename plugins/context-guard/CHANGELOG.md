@@ -16,6 +16,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   for an install without session-flow. The README and `reference/reader-contract.md` describe the
   menu the same way, and the contract records the fallback link with an as-of date and a recheck
   trigger.
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [0.9.0] - 2026-10-02
 

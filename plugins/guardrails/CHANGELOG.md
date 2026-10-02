@@ -11,6 +11,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   alternative is dropped from the `hooks.json` matcher, so the guard no longer runs for a tool the
   current tools reference does not list. The registry assertion in the contract test, the hook
   comments, the option description and the README match.
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [0.46.8] - 2026-10-02
 
