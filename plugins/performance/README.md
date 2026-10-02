@@ -102,7 +102,7 @@ missing fails worse than the duplication it was avoiding.
   and adds what it does not cover: interleaved A/B, drift-immune counters, host-unmeasurability
   refusal, precondition-asserting probes, and goal tiers. When it is absent, baselines are captured
   into the same memory-tier path directly and the report says the capture was unassisted.
-- **`/claude-ops:audit-performance`** diagnoses a slow *Claude Code installation*. This plugin
+- **`/harness-ops:audit-performance`** diagnoses a slow *Claude Code installation*. This plugin
   optimizes an *arbitrary target*. They share the noise characterization through
   `lib/spawn_noise.py`, which each plugin **carries its own byte-identical copy of** as a registered
   cross-plugin cluster. Neither imports the other at runtime, since plugins install independently;

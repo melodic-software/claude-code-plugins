@@ -1,0 +1,171 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "audit-happy-path",
+      "prompt": "Audit my memory health — is my CLAUDE.md and rules layer in good shape?",
+      "expected_output": "Runs the default audit action over the instruction/memory files (CLAUDE.md or a root AGENTS.md the session reads in its place, CLAUDE.local.md, .claude/rules/, auto-memory) against the codified checklist, reporting PASS/FAIL/WARN per check. Deterministic-spine findings (C1 line budget, M1 index size, M2/RD1 script-backed checks) are reported as such; judgment-tier findings are labeled 'judgment candidate'.",
+      "files": [],
+      "expectations": [
+        "Output audits the instruction/memory files (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, .claude/rules/, auto-memory)",
+        "Output reports per-check results using PASS/FAIL/WARN severities from the codified checklist",
+        "Judgment-tier findings are labeled as 'judgment candidate' distinct from the deterministic-spine checks"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-routes-out",
+      "prompt": "Run a memory health audit and while you're at it audit my MCP servers, hooks, and subagents too.",
+      "expected_output": "Audits only the instruction/memory layer it owns, and routes MCP servers, hooks, agents, and skills to the `audit` and `audit-automation-gaps` skills (in the harness-config plugin) rather than auditing them here.",
+      "files": [],
+      "expectations": [
+        "Output audits only the instruction/memory layer (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, rules, auto-memory)",
+        "Output does NOT audit MCP servers, hooks, agents, or skills within this skill",
+        "Output routes MCP servers and hooks to audit and agents and skills to audit-automation-gaps (both in the harness-config plugin)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "contributor-local-report-stays-out-of-repo",
+      "prompt": "Audit my memory health and save the report into our repo at docs/audit/health-report.md so the whole team sees it.",
+      "expected_output": "Recognizes that audit output covers contributor-local auto-memory that varies per team member, so it persists reports in the plugin's own data directory, not the consuming repo. Declines to commit the personal audit into the shared repo tree.",
+      "files": [],
+      "expectations": [
+        "Output explains that the audit report is contributor-local because it covers per-contributor auto-memory",
+        "Output persists the report in the plugin's own data directory, not the consuming repo",
+        "Output does NOT write the audit report into the shared repo tree as requested"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "fix-requires-prior-audit-and-approval",
+      "prompt": "Just fix all the problems in my CLAUDE.md right now.",
+      "expected_output": "The fix action requires a prior audit and asks for approval before applying changes. With no audit on record it runs (or points to) the audit first, and it does not silently auto-edit CLAUDE.md without confirmation.",
+      "files": [],
+      "expectations": [
+        "Output does not silently edit CLAUDE.md without a prior audit",
+        "Output requires/produces a prior audit before fixing",
+        "Output asks for approval before applying any fixes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "line-budget-honors-documented-exemption",
+      "prompt": "Audit this repo's CLAUDE.md. It's 260 visible lines, but our rules explicitly document that we run a large .claude/rules/ layer and deliberately exempt CLAUDE.md from the 200-line target.",
+      "expected_output": "Applies the C1 line-budget check (>200 lines) but reports the overage together with the documented exemption declared in the repo's own rules, surfacing it under a REPO check-ID via the consumer-convention extension seam rather than as an unqualified FAIL.",
+      "files": [],
+      "expectations": [
+        "Output applies the C1 line-budget check against the 200-line target",
+        "Output reads and honors the repo-declared exemption rather than reporting an unqualified FAIL",
+        "The exemption / consumer-convention finding is surfaced under a REPO check-ID distinct from the doc-derived checks"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "report-without-prior-audit",
+      "prompt": "Show me the memory health report — I want to see the last results.",
+      "expected_output": "The report action reads the saved audit at THIS project's derived path — audit/<state-key>/last-audit.md under the plugin data directory, with the state key produced by running the resolver SKILL.md names. When nothing is there it says no audit has been run for this project and suggests running one, rather than fabricating results or reaching for another file.",
+      "files": [],
+      "expectations": [
+        "Reads the report at the per-project derived path rather than a fixed machine-global filename",
+        "Derives the state key by running the resolver, not by evaluating whether a placeholder is set",
+        "When no prior audit exists for this project, states that and suggests running the audit",
+        "Does not fabricate audit results, and does not fall back to an unkeyed location to find some"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "placement-routes-to-auto-memory-and-refuses-import-split",
+      "prompt": "Audit my memory health. My CLAUDE.md is 300 lines: about half is a running log of things you figured out about our build over the last few months, and the other half is a walkthrough of our Terraform module layout that only matters when I am working under infra/. I was going to split that second half into @path imports to get under the line budget.",
+      "expected_output": "C3 Content Placement routes the accumulated learnings to auto memory, which Claude writes rather than the operator hand-authoring, instead of leaving them in CLAUDE.md. It rejects the @path import split as a context saving, because imported files load at launch, so the split reorganizes and saves nothing. For the Terraform walkthrough it names a load-deferring destination instead (a skill or a path-scoped rule), on the ground that the content is only sometimes relevant while the surface is always loaded — not on the ground that the file is over budget, which removing the running log already fixes. Any move it does recommend is priced: path-scoped rules and nested CLAUDE.md come back only when a matching file is read again, so content that must survive compaction stays unscoped or in the project-root CLAUDE.md.",
+      "files": [],
+      "expectations": [
+        "Routes the accumulated learnings to auto memory as their correct destination rather than leaving them in CLAUDE.md",
+        "States that @path imports do NOT reduce context because imported files load at launch, and does not propose an import split as a saving",
+        "Names a load-deferring destination (skill or path-scoped rule) for the only-sometimes-relevant Terraform walkthrough, justified by relevance rather than by the line budget, and states the post-compaction cost of that destination alongside the recommendation"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "build-test-commands-present-and-reachable",
+      "prompt": "Audit my memory health. My root CLAUDE.md says \"we use pnpm and vitest\" but doesn't spell out the invocations. It also says to build with `pnpm run compile`, though package.json only defines `build`, `test`, and `lint`. Separately, our actual build and test commands are already recorded in auto memory from when you worked them out.",
+      "expected_output": "C9 FAILs the `pnpm run compile` line, because package.json defines no `compile` script and a wrong command is worse than an absent one. It does NOT WARN that build and test commands are missing, because step 0 finds them stated on another loaded surface (auto memory), which makes their location a C3 placement question rather than a C9 finding. The bare \"we use pnpm and vitest\" prose is identified as naming tools without invocations. The wrong command is reported once, under C9 rather than also under C7, since C7 owns file paths, version pins, and counts while C9 owns command correctness.",
+      "files": [],
+      "expectations": [
+        "FAILs the `pnpm run compile` command because package.json does not define that script",
+        "Does NOT report build/test commands as absent, because step 0 finds them on another loaded surface (auto memory) and routes location to C3",
+        "Reports the wrong command once under C9 and does not double-report it under C7"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "two-repos-do-not-share-one-report",
+      "prompt": "I ran this audit in my work repo this morning. I am now in a completely different repo on the same laptop. If I run `report`, whose findings do I get — and if I run the audit here, does it clobber this morning's?",
+      "expected_output": "Neither crosses over. The report path carries a per-project state key — <repo-identity>/<worktree-discriminator>, the scheme harness-config:audit-pass defines — derived by RUNNING the resolver, so the two projects write and read under different directories beneath the plugin data directory. `report` in this repo serves this repo's report or says none has been run here; it never serves the work repo's. Running the audit here does not clobber this morning's. The answer names the reason: ${CLAUDE_PLUGIN_DATA} is keyed to the plugin identifier alone, with no project, checkout, worktree, or session segment, so an unkeyed filename is one file per machine — and because this skill READS the file back, the consequence is a wrong answer served, not merely a lost artifact. Two worktrees of one repository also key apart, via the discriminator.",
+      "files": [],
+      "expectations": [
+        "States that the second project neither reads nor overwrites the first project's report, and names a distinct path for each",
+        "Derives the state key by running the resolver rather than by evaluating whether a placeholder is set",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme instead of inventing a second one",
+        "Explains that the read-back path is why keying is required and an append-only history alone would not be sufficient",
+        "States that two worktrees of one repository also key apart"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "legacy-unkeyed-report-is-not-served-or-adopted",
+      "prompt": "Show me the memory health report. I know I have run this before — I can see a last-audit.md sitting in the plugin's data directory from an older version.",
+      "expected_output": "The report action looks at THIS project's derived path and finds nothing there. It does not serve the older unkeyed file and does not migrate it into this project's key: a machine-global last-audit.md — including a `health/` directory — carries no project segment, so nothing records which repository produced it, and adopting it would invent an attribution. The answer names the leftover file's path as something the user may delete, states that no audit has been run for this project, and offers to run one.",
+      "files": [],
+      "expectations": [
+        "Does NOT present the unkeyed legacy report as this project's findings",
+        "Does NOT migrate or copy the legacy file into this project's keyed path",
+        "Names the leftover path to the user and explains it cannot be attributed to a project",
+        "Offers to run a fresh audit for this project"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "c6-owns-user-project-instruction-conflicts",
+      "prompt": "My ~/.claude/CLAUDE.md says never use AskUserQuestion, and this project's CLAUDE.md says always use AskUserQuestion before any destructive action. Is that your C6 check or audit-instructions' I15?",
+      "expected_output": "C6 owns it. Both anchors are in the discover-instruction-surfaces population (user CLAUDE.md and project CLAUDE.md), and Step 3 compares user-scope surfaces against project ones as live conflicts. I15 does not grade that pair when this skill is installed — it routes here. Nested CLAUDE.md, auto-memory, and skill-body halves stay with I15 because they are outside this population; I15 also keeps memory-layer precedence adjudication for pairs it retains.",
+      "files": [],
+      "expectations": [
+        "Attributes the user↔project CLAUDE.md contradiction to C6 Consistency, not to I15",
+        "Names discover-instruction-surfaces (or Step 3 cross-scope comparison) as why both sides are in population",
+        "States that nested CLAUDE.md / auto-memory / non-memory surfaces remain outside C6 and belong to I15"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "init-shaped-bloat-graded-with-c5-carve-out",
+      "prompt": "Audit this CLAUDE.md for memory health: read evals/fixtures/init-bloated-claude-md.md relative to the skill directory and treat its content as the project-root CLAUDE.md under audit. Grade checks C1, C2, and C5 only — the fixture ships without the fictional repository it describes, so repo-dependent checks (C7 file-reference currency, C9 command validation against the manifest) cannot run meaningfully against it and are out of scope for this case.",
+      "expected_output": "Grades the /init-shaped bloated file against C1, C2, and C5. C1 FAILs it: over 200 visible non-comment lines against the 200-line target. C5 flags the file-by-file Repository Structure inventory (and the per-file Package Details prose) as a codebase description Claude can rebuild with ls/Glob and reading files, and flags the Express Middleware Reference section as framework documentation that should be linked, not copied. C2 flags the restated standard conventions (the Code Style Guidelines section's camelCase/const/async-await style rules, the generic Git Workflow bullets) as lines whose removal would not cause mistakes — standard practice or inferable from code — grouping flagged lines by section. It does NOT flag everything: the 'Where to Look First' entry pointing at docs/runbooks/2025-11-retry-storm.md is KEEP under C5's navigation-pointer carve-out (a curated pointer to a non-obvious, load-bearing decision record, not a file inventory), and the pnpm build:proto gotcha (gitignored generated stubs, misleading error) is KEEP under C2 as a non-obvious gotcha. It respects the requested scope: no C7 missing-file or C9 wrong-command findings are reported against the fictional repo's paths and commands.",
+      "files": ["evals/fixtures/init-bloated-claude-md.md"],
+      "expectations": [
+        "C1 reports a FAIL for the file exceeding the 200-visible-line target",
+        "C5 flags the file-by-file Repository Structure inventory as a codebase description Claude can rebuild with ls/Glob",
+        "C5 (or C2) flags the Express Middleware Reference section as framework documentation to link rather than copy",
+        "C2 flags the standard-convention style rules (camelCase, prefer const, async/await) as removable standard practice, grouped by section rather than one finding per line",
+        "The docs/runbooks/2025-11-retry-storm.md entry in 'Where to Look First' is NOT flagged by C5 — it is treated as KEEP under the navigation-pointer carve-out",
+        "The pnpm build:proto first-run gotcha is NOT flagged by C2 as removable — it is kept as a non-obvious gotcha",
+        "Honors the requested C1/C2/C5 scope: does not report C7 missing-file or C9 command-validation findings against the fictional repository's paths and commands"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "spine-expands-imports-and-catches-unwired-nested-agents",
+      "narration": true,
+      "prompt": "Audit my memory health. My root CLAUDE.md is one line, `@AGENTS.md`, and AGENTS.md is 240 lines. Under plugins/foo/ there is an AGENTS.md with no CLAUDE.md beside it, and .claude/rules/pr-contract.md was last committed by the standards sync.",
+      "expected_output": "C1 is graded on the expanded file (241 loaded lines, a FAIL) rather than the 1-line root, with the per-file breakdown naming AGENTS.md as the contributor. N1 reports plugins/foo/AGENTS.md as a deterministic FAIL because the root CLAUDE.md is read instead of it and nothing imports it, and names the one-line `@AGENTS.md` CLAUDE.md shim as the fix. Any finding on .claude/rules/pr-contract.md carries a synced provenance and routes the fix to the sync's source instead of proposing a local edit. The Summary's context cost is presented as a bytes-per-token estimate over the always-loaded set, never attributed to /context.",
+      "files": [],
+      "expectations": [
+        "C1 is graded on the import-expanded line count (a FAIL for 241 loaded lines), not on the 1-line root file",
+        "N1 reports plugins/foo/AGENTS.md as a FAIL with the sibling @AGENTS.md CLAUDE.md shim as the fix, tying the finding to the root CLAUDE.md being read instead of it",
+        "The finding on the standards-synced rule names the sync's source as where the fix belongs and does not propose a local edit",
+        "The context-cost line is labeled an estimate (bytes / 4) and is not attributed to /context"
+      ]
+    }
+  ]
+}

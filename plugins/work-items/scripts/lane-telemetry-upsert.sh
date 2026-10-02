@@ -92,7 +92,7 @@
 # KNOWN LIMITS. A PATCH that succeeds while storing the previous body still
 # verifies: the read-back asserts that SOME well-formed telemetry is present, not
 # that THIS cycle's write is what is present. Not implemented at all: the 64 KiB
-# cap, body-file containment, and read retries that the `claude-ops` lanes wrapper
+# cap, body-file containment, and read retries that the `harness-ops` lanes wrapper
 # carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
 # why this mechanism lives here rather than deferring to that wrapper.
 

@@ -100,7 +100,7 @@ cat >"$TMP/installed-current.json" <<'EOF'
   "version": 2,
   "plugins": {
     "instruction-placement@melodic-software": [{ "scope": "user", "version": "0.15.0" }],
-    "claude-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
   }
 }
 EOF
@@ -110,7 +110,7 @@ cat >"$TMP/installed-stale.json" <<'EOF'
   "version": 2,
   "plugins": {
     "instruction-placement@melodic-software": [{ "scope": "user", "version": "0.15.0" }],
-    "claude-memory@melodic-software": [{ "scope": "user", "version": "0.12.8" }]
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.8" }]
   }
 }
 EOF
@@ -125,7 +125,7 @@ cat >"$TMP/installed-mixed.json" <<'EOF'
       { "scope": "user", "version": "0.15.0" },
       { "scope": "project", "version": "0.13.11" }
     ],
-    "claude-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
   }
 }
 EOF
@@ -137,7 +137,7 @@ cat >"$TMP/installed-0140.json" <<'EOF'
   "version": 2,
   "plugins": {
     "instruction-placement@melodic-software": [{ "scope": "user", "version": "0.14.0" }],
-    "claude-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
   }
 }
 EOF
@@ -208,7 +208,7 @@ rc=0
 OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-stale.json" \
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "a stale plugin version exits 1" 1 "$rc"
-assert_contains "and names the plugin and the floor" "$OUT" "installed claude-memory is 0.12.8 (the lowest copy across every scope), below"
+assert_contains "and names the plugin and the floor" "$OUT" "installed harness-memory is 0.12.8 (the lowest copy across every scope), below"
 assert_eq "and removes nothing" "" "$(cd "$READY" && git status --porcelain)"
 
 rc=0

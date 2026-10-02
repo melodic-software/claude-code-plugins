@@ -7,7 +7,7 @@
 #                                                                carrying plugin's manifest version did not
 #   scripts/sync-resolve-convention-home.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
-# Canonical copy: plugins/claude-config/lib/resolve-convention-home.sh (see
+# Canonical copy: plugins/harness-config/lib/resolve-convention-home.sh (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
 # A plugin whose skills resolve the consumer's convention home at runtime
@@ -23,7 +23,7 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-resolve-convention-home.sh"
-src="plugins/claude-config/lib/resolve-convention-home.sh"
+src="plugins/harness-config/lib/resolve-convention-home.sh"
 copies=(plugins/plugin-quality/lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh plugins/planning/lib/resolve-convention-home.sh)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"

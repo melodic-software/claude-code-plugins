@@ -11,7 +11,7 @@ precedes it: *which routine identities can run against this repository at all*. 
 incumbents are the autonomy setup skill's per-slice discovery prose and the catalog's
 prerequisite-consequence rule, neither a resolution procedure. Meanwhile nearly every input
 surface already has an owner: the toolchain resolution ladder owns ecosystem inference, the
-work-item tracker seam owns tracker binding, the `claude-config` audit owns MCP-enablement
+work-item tracker seam owns tracker binding, the `harness-config` audit owns MCP-enablement
 conformance, and the setup skill's slices own substrates, schedulers, and observability.
 
 Fleet ladders (toolchain: config present → infer, then offer to persist → ask → default) and the
@@ -104,7 +104,7 @@ staleness is handled by divergence findings, not by either inversion.
 Resolution composes convention-owned consumer surfaces, each cross-plugin reference
 presence-gated with a documented fallback: the toolchain seam for ecosystems (reading *resolved*
 state: an ecosystem present but disabled is not configured; fallback is inference from the
-repo's own build files, never another plugin's bundled defaults), the `claude-config` surface for
+repo's own build files, never another plugin's bundled defaults), the `harness-config` surface for
 MCP-enablement conformance, the tracker seam plus the bound adapter's `capabilities.json`, and
 the autonomy setup skill's own discovery slices. Configured surfaces are enumerated by their own
 presence in the repo, never by reading the config-cascade registry table (a conformance ledger,

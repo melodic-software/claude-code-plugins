@@ -640,7 +640,7 @@ printf '%s\n' \
   '# not read: claude.ai connectors' \
   '# not read: --mcp-config servers' \
   '# not read: plugin servers not passed as --config' \
-  '# not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)' \
+  '# not evaluated: allowedMcpServers/deniedMcpServers (see /harness-config:audit)' \
   '# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown' \
   '# not evaluated: file-scope rows are not checked for precedence against other scopes' \
   '# not evaluated: managed-settings.d drop-ins are merged by whole entry per name; key-level merging is not modeled'

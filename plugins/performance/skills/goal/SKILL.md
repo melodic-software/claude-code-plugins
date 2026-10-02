@@ -178,7 +178,7 @@ Target (from /performance:target): <candidate> @ <E1..E4>
   room is left after a realistic win.
 - **A metric that stays green while the reported symptom is visible is the wrong metric.** A
   composite score inside its "good" band can hide a visible defect; measure the raw events under it.
-- **One size is not enough when the subject re-reads growing state.** The claude-ops
+- **One size is not enough when the subject re-reads growing state.** The harness-ops
   `hook-failure-audit.sh` Stop hook took 137 ms on a 50 KB transcript, 1,374 ms on 2 MB, and
   6,977 ms on 10 MB, with a constant 3 processes per fire, so a spawn counter alone would have
   passed it. A constant counter does not rule out size-proportional cost: measure the duration at

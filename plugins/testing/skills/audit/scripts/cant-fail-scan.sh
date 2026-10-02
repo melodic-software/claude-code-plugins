@@ -1061,7 +1061,7 @@ yaml_scalar() {
   # Conditional, not unconditional: an ordinary name stays a byte-identical
   # plain scalar, so the wire format for the common path does not move.
   # Predicate deliberately IDENTICAL to the two sibling awk producers
-  # (claude-config/audit-instructions/scripts/emit-findings.sh and
+  # (harness-config/audit-instructions/scripts/emit-findings.sh and
   # ai-slop/audit/scripts/emit-findings.sh) — three producers answering one
   # frontmatter contract must agree, or a consumer sees three shapes. The
   # indicator set below is the same 19 characters as their awk character

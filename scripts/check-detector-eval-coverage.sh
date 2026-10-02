@@ -14,7 +14,7 @@
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): 0 clean, 1 findings, 2 environment or usage, findings on stderr.
 #
-# WHY. claude-code-plugins#4149 found claude-config:audit-permission-grants
+# WHY. claude-code-plugins#4149 found harness-config:audit-permission-grants
 # emitting five check ids while its eval suite exercised three, and one case
 # (`scope-boundary-routes-out`) asserting in prose that the owned scope IS the
 # stale three. So the suite did not merely under-cover the detector: it graded a
@@ -44,7 +44,7 @@
 #
 # Within an entry, the coverage-bearing fields are `expected_output` and
 # `expectations`, and only those. Read the real suite
-# (plugins/claude-config/skills/audit-permission-grants/evals/evals.json): an
+# (plugins/harness-config/skills/audit-permission-grants/evals/evals.json): an
 # entry carries `id`, `name`, `prompt`, `files`, `expected_output`,
 # `expectations`. Of those, `expected_output` and `expectations` are the two the
 # runner GRADES a response against, so naming a check id there is the suite
@@ -255,7 +255,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 
 PAIRS_DEFAULT=(
-  "plugins/claude-config/skills/audit-permission-grants/scripts/permission-rule-check.sh|plugins/claude-config/skills/audit-permission-grants/evals/evals.json|P[0-9]+[a-z]?"
+  "plugins/harness-config/skills/audit-permission-grants/scripts/permission-rule-check.sh|plugins/harness-config/skills/audit-permission-grants/evals/evals.json|P[0-9]+[a-z]?"
 )
 
 # The check-id SHAPE the stopping rule recognizes across skills it has never

@@ -29,11 +29,11 @@
       "id": 3,
       "name": "routes-description-and-budget-concerns-out-of-scope",
       "prompt": "use your skills — I think the skill didn't fire because its description is too thin and I have a hundred skills installed eating the budget.",
-      "expected_output": "Distinguishes session-behavior (a skill in the listing went unused — this skill's territory) from surfaceability (a skill could not surface). Routes description quality to /skill-quality:check and machine-level listing-budget overflow to /claude-config:audit (noting /doctor estimates the listing cost), degrading to prose guidance when those are not installed, rather than tuning descriptions or budgets itself.",
+      "expected_output": "Distinguishes session-behavior (a skill in the listing went unused — this skill's territory) from surfaceability (a skill could not surface). Routes description quality to /skill-quality:check and machine-level listing-budget overflow to /harness-config:audit (noting /doctor estimates the listing cost), degrading to prose guidance when those are not installed, rather than tuning descriptions or budgets itself.",
       "files": [],
       "expectations": [
         "Separates 'skill went unused' from 'skill could not surface'",
-        "Routes description hygiene to /skill-quality:check and budget overflow to /claude-config:audit",
+        "Routes description hygiene to /skill-quality:check and budget overflow to /harness-config:audit",
         "Does not itself edit descriptions or change the listing budget"
       ]
     },

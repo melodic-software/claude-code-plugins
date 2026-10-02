@@ -1,0 +1,103 @@
+{
+  "skill_name": "audit-prompting-postures",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-stays-read-only",
+      "prompt": "/harness-config:audit-prompting-postures",
+      "expected_output": "Fetches the current prompting-guide pages, inventories locally-owned instruction components, classifies each by purpose, judges only the postures whose predicates match, and produces a report of MISSING/PRESENT/NOT-APPLICABLE verdicts with proposed additions as diffs, persisted to CLAUDE_PLUGIN_DATA. It never edits a component: proposals are artifacts the human applies, and a clean audit (all PRESENT or NOT-APPLICABLE) is a valid, expected outcome.",
+      "files": [],
+      "expectations": [
+        "Fetches the guide pages live before judging; proposal wording comes from the fetch, not the catalog",
+        "Produces a report with proposed additions and does not Edit or Write any audited component",
+        "Defaults to NOT-APPLICABLE where a posture's predicate does not match the component's purpose, rather than manufacturing findings"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "routes-present-and-wrong-text-out",
+      "prompt": "/harness-config:audit-prompting-postures my skill says 'CRITICAL: You MUST use this tool' — should that change?",
+      "expected_output": "Recognizes that judging existing instruction text (over-aggressive emphasis is audit-instructions' I28) is out of this skill's scope and routes to harness-config:audit-instructions, rather than proposing a rewrite itself. This skill owns only absent-and-needed posture guidance.",
+      "files": [],
+      "expectations": [
+        "Routes present-and-wrong instruction text to harness-config:audit-instructions",
+        "Does not propose a rewrite of existing text under this skill's own contract"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "human-gated-design-not-flagged",
+      "prompt": "/harness-config:audit-prompting-postures skills — one of my skills is report-only and always ends by asking the user to approve findings; is it missing an autonomy posture?",
+      "expected_output": "Applies P6's predicate correctly: a report-only flow ending at a human gate is NOT-APPLICABLE for the autonomy posture — the posture binds components that claim unattended operation. The skill reports NOT-APPLICABLE with the failed predicate rather than proposing an autonomous-pipeline branch.",
+      "files": [],
+      "expectations": [
+        "Judges P6 NOT-APPLICABLE for a report-only, human-gated component",
+        "Names the failed predicate in the verdict instead of manufacturing a finding"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "two-roots-produce-two-reports",
+      "prompt": "/harness-config:audit-prompting-postures — I ran this in my work repo yesterday and I am running it in a different repo now. Will today's run overwrite yesterday's report, and where does each land?",
+      "expected_output": "No. The report path carries a state key derived per project — <repo-identity>/<worktree-discriminator>, the scheme audit-pass already uses — so the two runs write to different directories under ${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/ and both survive. The skill derives the key by RUNNING the documented commands (git remote, git toplevel, sha256 of the canonicalized root), not by testing whether a placeholder is set. It names a distinct resolved path for each run, and notes that two worktrees of the SAME repository also key apart because the discriminator hashes the worktree root.",
+      "files": [],
+      "expectations": [
+        "Answers that the second run does NOT overwrite the first, and names a distinct path for each",
+        "Derives the state key by running the documented git and sha256 commands rather than by evaluating whether a placeholder is set",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme rather than inventing a second keying scheme",
+        "States that two worktrees of one repository also key apart, via the worktree discriminator"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "non-repo-root-still-keys-and-self-describes",
+      "prompt": "/harness-config:audit-prompting-postures — I am running this from my home directory, which is not a git repository at all. Does it still work, and can I tell later which root a saved report came from?",
+      "expected_output": "Yes to both. The identity ladder carries a third rung for a non-repo root — nonrepo/<hash of the working directory> — because this skill is report-only and legitimately audits such roots, unlike audit-pass which refuses non-git targets outright. And the report opens with a mandated three-line header giving the resolved root, the scope filter, and a UTC timestamp, so a surviving file is self-describing rather than merely un-overwritten.",
+      "files": [],
+      "expectations": [
+        "Runs rather than refusing, and keys the report under a non-repo rung instead of falling back to one fixed shared path",
+        "Does NOT invent a git-only derivation that cannot resolve without a repository",
+        "States that the report opens with a header naming the resolved root, the scope filter, and a UTC timestamp"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "description-drives-selection-without-explicit-invocation",
+      "prompt": "I just wrote a new orchestrator skill that fans out to subagents. What guardrails is it missing that the official prompting guide says a skill like that should carry?",
+      "expected_output": "This skill is selected from its description alone — the request carries no slash invocation — because it asks for guidance that is ABSENT and needed, which is this skill's lane rather than audit-instructions', whose lane is text that is present and wrong. It classifies the component as orchestrating, judges P1 (delegation criteria and caps) and any other posture whose predicate actually matches, sources proposed wording from a live fetch of the prompting guide rather than from the catalog, and returns proposals for the human to apply.",
+      "files": [],
+      "expectations": [
+        "Handled by audit-prompting-postures with no slash command typed, and NOT routed to harness-config:audit-instructions, which owns present-and-wrong text rather than absent-and-needed guidance",
+        "Classifies the component as orchestrating and judges P1, rather than sweeping every posture regardless of predicate",
+        "Proposed wording comes from a live fetch of the guide, not from reference/postures.md, which carries pointers only",
+        "Proposes rather than applies: no component file is edited"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "mechanical-gate-counts-as-p7-presence",
+      "prompt": "/harness-config:audit-prompting-postures skills — my deploy skill can force-push and carries no confirmation wording anywhere in its body, but a PreToolUse hook denies the push unless the operator approves it. Is it MISSING P7?",
+      "expected_output": "No. P7's own 'present when' says a deny-by-default hook or script gate satisfies it without any prose, so the hook is presence evidence and the verdict is PRESENT, cited to the hook configuration and the rule. Phase B's inventory covers instruction text and therefore cannot hold that evidence, which is why Phase C looks for the gate in the settings scopes and hook configuration before judging P7 MISSING — and widening the evidence set that way can only turn a MISSING into a PRESENT, never create a finding.",
+      "files": [],
+      "expectations": [
+        "Returns PRESENT for P7, not MISSING, and cites the hook as the evidence",
+        "States that mechanical gates are presence evidence living outside Phase B's instruction-text inventory",
+        "Does not extend the mechanical-gate allowance to postures other than P7",
+        "Does not treat mere Bash access as satisfying the destructive-capable predicate"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "clean-audit-still-verifies-verdicts",
+      "prompt": "/harness-config:audit-prompting-postures project: every component came back PRESENT or NOT-APPLICABLE and there is nothing to propose. Does Phase D still run, and what does the report say about it?",
+      "expected_output": "Yes. With no proposed addition there is nothing to refute, so the Phase D verifier checks the verdicts instead: it argues that a component needs a posture it was judged not to need, that a purpose classification is wrong, or that a PRESENT citation does not carry the posture. Any reversal becomes a row with its corrected verdict and the verifier's argument, and the audit is reported clean only after that check. The report ends with a verifier attestation line naming the surface batches and stating that the verifier ran the verdicts check.",
+      "files": [],
+      "expectations": [
+        "Runs Phase D on a zero-MISSING run rather than skipping it for lack of proposals",
+        "Points the verifier at the classifications and the PRESENT and NOT-APPLICABLE verdicts, not at proposals",
+        "Reports a reversal as a row with its corrected verdict instead of discarding it",
+        "Ends with an attestation line that names surface batches and says the verdicts check ran"
+      ]
+    }
+  ]
+}

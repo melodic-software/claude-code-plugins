@@ -1,5 +1,12 @@
 # Changelog: evals
 
+## [0.3.11] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.3.10] - 2026-10-01
 
 ### Changed

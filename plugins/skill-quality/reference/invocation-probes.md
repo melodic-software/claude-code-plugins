@@ -58,7 +58,7 @@ FAILs under 8, WARNs outside 16–24.
 
 ## Seed set
 
-CI has no live `claude-ops:audit-skill-visibility` starvation report. The seed
+CI has no live `harness-ops:audit-skill-visibility` starvation report. The seed
 is two skills chosen for competitor density, not for a claimed starvation rank:
 
 - `skill-quality:check` against `playbooks:skill-authoring` (check vs write)

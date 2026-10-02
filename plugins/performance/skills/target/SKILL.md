@@ -29,7 +29,7 @@ So this skill ranks by evidence, and says so when there is none.
 |---|---|
 | The current session's own pain | Name the operation that felt slow and what was observed. A screenshot or recording counts. Anecdote is a valid *candidate source* and an invalid *ranking basis*. |
 | A named path or component | Enumerate the layers it spans before choosing one (see "Measure the layers first"). |
-| A telemetry store | `/claude-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
+| A telemetry store | `/harness-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
 | Open-ended "what is slow here" | Widest scope, weakest evidence. Expect the output to be "instrument this first". |
 
 ## Evidence tiers
@@ -106,7 +106,7 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
 - **Does not root-cause an observed failure.** A specific broken or slow behavior with a
   reproduction is a debugging task, not a candidate ranking.
 - **Does not diagnose a slow Claude Code installation.** That is
-  `/claude-ops:audit-performance`, which this skill consumes as a telemetry source rather than
+  `/harness-ops:audit-performance`, which this skill consumes as a telemetry source rather than
   duplicating.
 
 ## Next

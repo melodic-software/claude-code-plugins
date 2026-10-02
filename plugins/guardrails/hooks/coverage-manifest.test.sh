@@ -4,7 +4,7 @@
 # that narrow or switch it off. The manifest is never executed; the claims it
 # makes about the guards are what this file pins: every hook it names ships and
 # is registered, every event is one hooks.json declares, every family and
-# pattern is one the claude-config audit baseline actually lists, and every
+# pattern is one the harness-config audit baseline actually lists, and every
 # lever is a documented option.
 set -uo pipefail
 
@@ -16,7 +16,7 @@ README="$PLUGIN_ROOT/README.md"
 # The baseline lives in a sibling plugin. It is present in the marketplace
 # checkout and absent when guardrails is installed alone, so the pattern
 # assertion below skips visibly instead of failing on a missing file.
-BASELINE="$PLUGIN_ROOT/../claude-config/skills/audit/reference/required-permissions.md"
+BASELINE="$PLUGIN_ROOT/../harness-config/skills/audit/reference/required-permissions.md"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free

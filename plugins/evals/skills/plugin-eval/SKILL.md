@@ -116,8 +116,8 @@ is "this plugin versus no plugin".
 A skill or agent that is not yet wrapped is not a target: report the wrap route, print it, and stop.
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
 
-For a `rules` target, invoke `/claude-config:unhobble` through the Skill tool when the
-`claude-config` plugin is installed: it owns measuring standing instructions by stripping them and
+For a `rules` target, invoke `/harness-config:unhobble` through the Skill tool when the
+`harness-config` plugin is installed: it owns measuring standing instructions by stripping them and
 watching what the model stumbles over. When that plugin is absent, say so and describe the
 experiment in one sentence (strip the instructions on a branch, log observed stumbles, restore only
 what repeated evidence earns) so the user can run it by hand.
@@ -283,7 +283,7 @@ is what tells a reader which one happened and whether the arms were comparable a
 ## Next
 
 - Validator FAIL, or a case file that failed to load: `/evals:validate <eval-dir>`.
-- Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/claude-config:unhobble`.
+- Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/harness-config:unhobble`.
 - Suite ran and the delta is read, and a case needs sharper criteria: `/evals:design <target>`.
 
 ## Gotchas

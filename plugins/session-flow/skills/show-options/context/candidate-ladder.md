@@ -28,11 +28,11 @@ precisely where the operator needs it most, and it cannot tell that it is blind.
 
 | Rung | Source | Gate | Yields |
 |---|---|---|---|
-| 1 | `/claude-ops:inventory` | if that plugin is installed | Every **installed** skill across every marketplace, manual-only included; reconcile against the enabled set, below |
+| 1 | `/harness-ops:inventory` | if that plugin is installed | Every **installed** skill across every marketplace, manual-only included; reconcile against the enabled set, below |
 | 2 | An operator-supplied catalog file | if the consuming project provides one | Whatever the project chose to publish |
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
-**Rung 1 is a reuse, not a reimplementation.** `claude-ops:inventory` owns whole-fleet enumeration
+**Rung 1 is a reuse, not a reimplementation.** `harness-ops:inventory` owns whole-fleet enumeration
 and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: only the cache's
 *existence* is documented, its `<marketplace>/<plugin>/<version>` nesting is not, and the version
 directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
@@ -104,7 +104,7 @@ Whenever the pool came from Ladder A rung 3, or Ladder B could not enrich, the o
 briefly, once, near the top. For example:
 
 ```text
-Pool: in-context listing only (claude-ops:inventory not installed). Manual-only skills are not
+Pool: in-context listing only (harness-ops:inventory not installed). Manual-only skills are not
 visible here, and descriptions for rarely-invoked skills may be missing.
 ```
 

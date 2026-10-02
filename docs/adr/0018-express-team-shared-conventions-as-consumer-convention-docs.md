@@ -46,11 +46,11 @@ constraints below.
    report-only demotion field (`status`) is the enumerated exception to that freeze: it may flip
    `active` to `report-only` (and back if the demotion was premature). That in-place mutation is
    how a record reaches the fleet-wide report-only phase; there is no appended successor record.
-   One shared deterministic helper (`lib/check-retirements.sh`, canonical in `claude-config`,
+   One shared deterministic helper (`lib/check-retirements.sh`, canonical in `harness-config`,
    synced byte-identical through the existing cross-plugin source registry) evaluates records;
    detection is a fixed step of setup `check`, cleanup is per-record and operator-gated in
    `apply`, migrate content stays with the model. Hybrid amendments adopted: one eval case per
-   record (validator failure when missing), a runtime fleet-sweep lane in `claude-config`
+   record (validator failure when missing), a runtime fleet-sweep lane in `harness-config`
    audit-pass over installed plugins' manifests, and the demotion field above. A CI-aggregated
    fleet registry is deferred until orphan leftovers (uninstalled plugin) prove real.
 5. **Dual-read deprecation window.** A migrated skill that finds the retired file present reads

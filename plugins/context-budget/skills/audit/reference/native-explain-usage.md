@@ -6,7 +6,7 @@ worth checking again. Nothing here asserts the skill is present in any session.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `explain-usage` is a bundled skill: "Explain where this session's tokens went, with one simple chart in plain language", menu line "See where this session's tokens went, in plain words" | The `/claude-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 (`bundled_skills` lane) | 2026-09-29 | A release renames or removes the skill, or changes its description |
+| `explain-usage` is a bundled skill: "Explain where this session's tokens went, with one simple chart in plain language", menu line "See where this session's tokens went, in plain words" | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 (`bundled_skills` lane) | 2026-09-29 | A release renames or removes the skill, or changes its description |
 | It is model-invocable and user-invocable, takes no argument hint, and is gated | The same extraction (`model_invocable`, `user_invocable`, `gated` all true) | 2026-09-29 | A release changes its invocability or its gate |
 | It is undocumented on the commands page and no changelog entry names it, so the extraction is the only basis | <https://code.claude.com/docs/en/commands> and <https://code.claude.com/docs/en/changelog> read for the name | 2026-09-29 | The commands page gains an `/explain-usage` row, or a release note names it |
 | It explains the current session after the fact; nothing in its description measures a fresh session's startup payload, attributes built-in tools, or compares two configurations | The description above | 2026-09-29 | A release widens its description to startup cost or per-tool attribution |

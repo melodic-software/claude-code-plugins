@@ -28,7 +28,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   package and its name joins the module; otherwise the walk continues only
   while each directory name is a Python identifier and reaches the base, and
   stops with no prefix at the first directory whose name is not one. So
-  `plugins/perf/lib/x.py` is `plugins.perf.lib.x` and `claude-ops/lib/x.py`
+  `plugins/perf/lib/x.py` is `plugins.perf.lib.x` and `harness-ops/lib/x.py`
   is the bare `x`. `module_name` re-derives that rule; checked against a
   real 186-file run of this repository (182 of 182 listed names matched);
 - mypy exits 1 on any type error and still writes the report (design T1), so
