@@ -52,8 +52,8 @@ in a stage and prints its summary in [`docs/skill-cheat-sheet.md`](../../docs/sk
 - [`reference/harness-integrity.md`](reference/harness-integrity.md): the rules a harness must
   satisfy before any number it produces is reported.
 
-The catalog is this plugin's own; no docs page covers these techniques as of 2026-10-01.
-Correlate with ["How we made claude.ai 3x faster in two weeks"](https://claude.dev/blog/how-we-made-claude-ai-faster).
+The catalog draws on
+["How we made claude.ai 3x faster in two weeks"](https://claude.dev/blog/how-we-made-claude-ai-faster).
 
 ## What it refuses to do
 

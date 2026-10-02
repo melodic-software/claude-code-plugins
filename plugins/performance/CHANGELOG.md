@@ -3,18 +3,6 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.1] - 2026-10-01
-
-### Changed
-
-- **The technique catalog and glossary say they are this plugin's own.** `techniques.md` and
-  `glossary.md` record that no docs page covers these techniques or terms as of 2026-10-01 and
-  link the claude.ai speed-up post only as a correlate. The catalog stores no figures, prompts or
-  text from that post.
-- The hook parallel-units entry states our decision (the hooks matching one event are the parallel
-  units, and the reader resolves the current duration field) with a pointer to the hooks page
-  sections for matching hooks and input fields.
-
 ## [0.4.0] - 2026-10-01
 
 ### Added

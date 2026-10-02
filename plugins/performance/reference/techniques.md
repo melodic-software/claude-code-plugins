@@ -2,12 +2,11 @@
 
 Techniques for finding, proving, shipping, and protecting a performance win, in the order the loop
 uses them. Each entry gives the idea, when to use it, the counter it yields, how it fails, and the
-skill step that uses it. The entries are this plugin's own; the catalog stores no figures, prompts
-or text from any post. The rules a harness must meet before any number is reported live in
-[harness-integrity.md](harness-integrity.md); terms are defined in [glossary.md](glossary.md).
+skill step that uses it. Figures from the source post appear only as examples, each marked
+vendor-claimed (blog, 2026-09-23). The rules a harness must meet before any number is reported live
+in [harness-integrity.md](harness-integrity.md); terms are defined in [glossary.md](glossary.md).
 
-No docs page covers these techniques as of 2026-10-01.
-Correlate with [How we made claude.ai 3x faster in two weeks](https://claude.dev/blog/how-we-made-claude-ai-faster).
+Sources: [How we made claude.ai 3x faster in two weeks][post].
 
 ## Contents
 
@@ -47,7 +46,8 @@ Crossing journeys with platforms and products gives the **measurement matrix**, 
 measurements to baseline. Tie every candidate project to the journey it moves (**project list tied
 to journeys**). When: the product surface is wide and effort must be pointed. Counter: one per
 matrix cell. Fails when: journeys are chosen by intuition rather than from usage data. Used by:
-`/performance:target` Inputs and Output.
+`/performance:target` Inputs and Output. Example: four journeys covering 95% of activity gave
+thirteen measurements ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Audit telemetry before trusting it.** Check existing telemetry for accuracy and coverage before
 ranking from it. When: a telemetry store is the input. Counter: none; the output is a list of gaps.
@@ -63,7 +63,9 @@ target. Used by: `/performance:target` Evidence tiers (E3).
 on a per-input path (a keystroke, a tool call). When: an interaction feels slow and does little
 visible work. Counter: subscribers fired per interaction. Fails when: the census counts
 registrations instead of executions. Used by: `/performance:target` E1; for process spawns,
-[`scripts/spawn-census.sh`](../scripts/spawn-census.sh) already runs it.
+[`scripts/spawn-census.sh`](../scripts/spawn-census.sh) already runs it. Example: thousands of hooks
+and hundreds of store subscriptions re-rendering on every keystroke ([post]; vendor-claimed (blog,
+2026-09-23)).
 
 **Hot-path awareness.** When nearly everything touched is a hot path, raise the bar for every
 change: more tests, smaller diffs, flags. When: the target is startup, input handling, or a
@@ -73,7 +75,12 @@ per-event path. Counter: none. Fails when: a hot-path change ships with cold-pat
 **Opportunity refresh prompt.** Periodically ask what has not been explored, what can be climbed,
 and where the most opportunity is now, and **invite divergent ideas** explicitly. When: early
 targets were hit, or the list has gone stale. Counter: none. Fails when: the refresh re-ranks the
-same list without adding a measurement. Used by: `/performance:target` (re-scan).
+same list without adding a measurement. Used by: `/performance:target` (re-scan). The prompt, as
+quoted in the post:
+
+> we've ended up funding nearly every project in the original projects list and more. let's do a
+> refresh […] what have we not explored, what can we hill climb on, where is the most opportunity
+> at this point? […] i am open to WACKY ideas
 
 ## B. Define the goal and its boundary
 
@@ -90,7 +97,8 @@ cold baseline. Used by: `/performance:goal` §1.
 
 **Field percentile as the headline.** Report a real-user percentile per journey. When: field data
 exists. Counter: none. Fails when: a lab mean stands in for a field percentile. Used by:
-`/performance:goal` Percentiles (the plugin keeps p50 and p95 as its house default).
+`/performance:goal` Percentiles (the plugin keeps p50 and p95 as its house default). Example: the
+post reports p75 per journey ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Define the defect precisely.** Count only what the definition covers. For layout movement: shifts
 after the page is usable, without user input. When: the target is a defect rate, not a duration.
@@ -100,7 +108,8 @@ user-caused movement. Used by: `/performance:goal` §1.
 **Measure the underlying signal.** Go below a composite score to the raw events it is built from.
 When: a composite score is green while the symptom is visible. Counter: raw event count or
 magnitude. Fails when: the raw events are summed back into the same composite. Used by:
-`/performance:goal` §1 and Gotchas.
+`/performance:goal` §1 and Gotchas. Example: individual layout shifts of about 0.008, well inside a
+0.1 "good" threshold, on a page users saw as janky ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Instrumentation parity.** Give every product or surface the same timing marks so their numbers
 compare. When: one surface lacks the marks the others have. Counter: none. Fails when: surfaces are
@@ -136,17 +145,14 @@ On MSYS/Cygwin, when the counter is a process count, state which accounting the 
 Object +2 per external command vs PATH-shim `spawns=`); see
 [harness-integrity.md](harness-integrity.md#process-counting-on-msyscygwin-git-bash).
 
-Claude Code hooks are one example of parallel units, not the definition. This plugin treats the
-hooks matching one event as parallel units and reads the event's wall time from the host. The
-hooks reference names no event-level duration field, so `total_duration_ms` is an example name and
-the reader resolves the current field in the docs.
-
-- **Pointer**: for how matching hooks run and the hook input fields, see
-  <https://code.claude.com/docs/en/hooks#hook-handler-fields> and
-  <https://code.claude.com/docs/en/hooks#posttooluse-input>.
-- **As of**: 2026-09-29
-- **Recheck trigger**: the hooks reference changes how matching hooks run, or adds or renames an
-  event-duration field.
+Claude Code hooks are one example of parallel units, not the definition. Claim: hooks matching one
+event run in parallel, and the event's wall time is a figure to read from the host, for example an
+event-level duration field. Basis: the Claude Code hooks reference (code.claude.com/docs/en/hooks)
+says "All matching hooks run in parallel" in its hook handler fields section; it documents no
+`total_duration_ms` field, and its only duration field, `duration_ms` on PostToolUse input, is tool
+execution time that excludes PreToolUse hooks, so `total_duration_ms` is an example name and the
+reader resolves the current field in the docs. As-of: 2026-09-29. Recheck when the hooks reference
+adds or renames an event-duration field.
 
 ### Scaling arm when state grows with use
 
@@ -211,7 +217,8 @@ test is the benchmark**: for a defect that either happens or does not, the bench
 occurrence. The proof is red N/N on the base and green N/N on the change, with N chosen per check
 and recorded ([harness-integrity rule 3][hi3]). When: the defect is intermittent. Counter: failing
 runs out of N. Fails when: the forced delay does not match the real ordering. Used by:
-`/performance:snapshot` and `/performance:verify` §3.
+`/performance:snapshot` and `/performance:verify` §3. Example: 20 of 20 red on main, 20 of 20 green
+on the fix ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Count the defect in the recording.** Turn a recording into counts: rows that jump, appear, and
 vanish. When: the only evidence is a screen recording. Counter: moved, appeared, and vanished
@@ -249,15 +256,17 @@ readout's. Fails when: the readout itself costs frames. Used by: `/performance:s
 | **Budget fit per unit** | Report how many units fit the budget, not an average. A count over budget is a counter. | The mean hides the slow units |
 
 Used by: `/performance:snapshot` steps 1-2; `/performance:goal` §2 is the floor-first analog.
+Example: 240 frames out for 240 begin-frames at 8.33 ms ([post]; vendor-claimed (blog,
+2026-09-23)).
 
 ### Verification records
 
-| Decision | Pointer | As of | Recheck when |
+| Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| The instruction-count recipe runs `valgrind --tool=cachegrind <prog>` and reads its `Ir` event as instructions executed, with cache simulation left at its default. | [Cachegrind manual](https://valgrind.org/docs/manual/cg-manual.html) | 2026-09-23 | A Valgrind release changes the Cachegrind options section |
-| The plugin does not rely on `node --predictable` to make counts repeat; our `node --v8-options` read on Node v24.20.0 found it a boolean flag, off by default, and repetition stays unverified, so run the count twice. | `node --v8-options`, Node v24.20.0 | 2026-09-23 | A Node major release |
-| The plugin counts function calls with Chrome DevTools Protocol `Profiler.startPreciseCoverage` and `callCount`, and times a path with that coverage off, because the command changes how code runs. | [`js_protocol.json`](https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/js_protocol.json) | 2026-09-23 | The protocol file changes the command |
-| Deterministic frame stepping drives `HeadlessExperimental.beginFrame`, and the plugin treats it as experimental, with target requirements read at the pointer. | [`browser_protocol.json`](https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/browser_protocol.json) | 2026-09-23 | The domain leaves experimental or is removed |
+| `valgrind --tool=cachegrind <prog>` runs Cachegrind. Its `Ir` event counts instructions executed, and cache simulation is off by default, so `Ir` is the only event collected unless another is enabled. | [Cachegrind manual](https://valgrind.org/docs/manual/cg-manual.html) | 2026-09-23 | A Valgrind release changes the Cachegrind options section |
+| `node --predictable` is a boolean V8 flag, "enable predictable mode", off by default. That it makes counts repeat run to run is not verified here. | `node --v8-options`, Node v24.20.0 | 2026-09-23 | A Node major release |
+| Chrome DevTools Protocol `Profiler.startPreciseCoverage` with `callCount` collects call counts. Enabling it "prevents running optimized code and resets execution counters", so time a path without it. | [`js_protocol.json`](https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/js_protocol.json) | 2026-09-23 | The protocol file changes the command |
+| `HeadlessExperimental.beginFrame` sends one BeginFrame and returns when the frame completes. It requires a target created with BeginFrameControl, and the domain is experimental. | [`browser_protocol.json`](https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/browser_protocol.json) | 2026-09-23 | The domain leaves experimental or is removed |
 
 ## D. Prove the proxy
 
@@ -270,7 +279,10 @@ when: a noisy benchmark is kept "for now" and later gates. Used by: `/performanc
 **Prove-it-or-unship prompt.** Ask for proof that climbing each counter produces a measurable
 wall-clock win, and remove the counters that cannot show it. When: a set of new counters is about
 to become targets. Counter: none. Fails when: proof is accepted from a single path. Used by:
-`/performance:goal` `Correlation:`.
+`/performance:goal` `Correlation:`. The prompt, as quoted in the post:
+
+> please prove that hill climbing against each of these can result in measurable wall clock perf
+> wins. we'll unship the benches for any candidates that cannot prove that
 
 **Proxy validation experiment.** Drive the counter down on real hot paths and check that the clock
 moved too. **Validate on more than one path**: at least two independent hot paths before
@@ -286,7 +298,8 @@ inputs. Used by: `/performance:snapshot`; the recipe the `Correlation:` evidence
 **Counts can understate the clock.** A count cut can give a larger time cut, or a smaller one.
 Report both; never infer one from the other. When: every report that carries a counter. Counter:
 both. Fails when: a count reduction is restated as a time reduction. Used by: `/performance:verify`
-§4.
+§4. Example: instructions cut 48% and 31% while wall-clock time fell 78% and 44% ([post];
+vendor-claimed (blog, 2026-09-23)).
 
 ## E. Diagnose
 
@@ -295,7 +308,8 @@ Hand-off: a specific failure with no reproduction goes to `/debugging:debug`.
 **Profile the counter.** Use the counting tool's own profile to see where the counted units go.
 When: a counter is high and the cause is unknown. Counter: units per function. Fails when: the
 profile of the simulated run is read as a time profile. Used by: `/performance:target` "Measure the
-layers".
+layers". Example: a quarter of one path's instructions were polymorphic dictionary lookups
+resolving the same ID three times ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Work causes by name.** List concrete, named offenders ("the header row that arrives late"), not a
 category ("layout shift"). Then **fix in ranked batches**: fix the top offenders together,
@@ -328,8 +342,8 @@ in this order:
 2. **Look up the reporter's own sessions.** Cross-reference the symptom with that user's field
    events.
 3. **Arithmetic consistency check.** Predict the magnitude from the proposed cause and compare it to
-   the observed value. For instance, an element a fraction f of the way down a page that grows by h
-   pixels should move about f × h pixels.
+   the observed value. Example: an element 18% down the page, on a page that grows 56 px, should
+   move 0.18 × 56 ≈ 10 px; the recording showed 10 ([post]; vendor-claimed (blog, 2026-09-23)).
 4. **Explain every qualifier.** Each qualifier in the report ("new tab only", "occasionally") has to
    be explained by the diagnosis.
 5. **Intermittency as a race.** "Occasionally" often means two events race, such as first paint
@@ -389,6 +403,11 @@ still needs a measured baseline; the catalog names mechanisms, not wins.
 | **Per-keystroke work is a smell** | Work that re-runs on every input event is a first-class candidate | Typing feels slow | Work per keystroke | Debouncing hides the cost instead of removing it |
 | **Global selector cost** | One expensive global style rule can tax every DOM change; count recalculations to find it | DOM changes are slow everywhere | Style recalculations and their time | The rule is removed without checking what it styled |
 
+Example of an input-dependent slow path: any non-Latin-1 character (an em dash, a curly quote) made
+the engine store a whole string as two-byte, which put every highlighting regex on its slower path;
+copying each code block into a one-byte string first fixed it ([post]; vendor-claimed (blog,
+2026-09-23)).
+
 ### Move work
 
 | Pattern | Idea | When | Counter | Fails when |
@@ -423,11 +442,12 @@ proportionally more guardrails. For a duplicated render (a static shell):
 | **Input-through-handoff test** | A test types through the transition and fails on any lost or reordered input |
 | High-precision field reporting | See [H](#h-ship-roll-out-read-the-field) |
 
-Fails when: a brittle optimization ships with the same checks as a safe one.
+Fails when: a brittle optimization ships with the same checks as a safe one. Example: fourteen
+viewport sizes within 1 px ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Ship instruments with fixes.** A share of changes add telemetry or guardrails along with the
 fix. When: every fix that introduces a new mechanism. Counter: none. Fails when: instruments are
-promised for later.
+promised for later. Example: about a third of changes ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Scheduled jobs find opportunities.** A nightly job both catches regressions and surfaces new
 candidates, and a **rig becomes a nightly job** once its sprint ends. When: a rig proved useful.
@@ -447,7 +467,8 @@ starts. When: before a push. Counter: none. Fails when: guardrails are added aft
 incident. Used by: `/performance:goal` §4 "What counts as done".
 
 **Guardrails make volume safe.** High change volume with no incident is evidence that the
-guardrails held, not that the changes were safe on their own.
+guardrails held, not that the changes were safe on their own. Example: more than three thousand
+changes, no customer-facing incident or rollback ([post]; vendor-claimed (blog, 2026-09-23)).
 
 ## H. Ship, roll out, read the field
 
@@ -487,7 +508,8 @@ percentile per segment. Fails when: an aggregate hides a regression on one platf
 
 **Ship telemetry to size prevalence.** Deploy the new event first, then read how often the defect
 happens in the field. When: a defect's frequency is unknown. Counter: share of sessions affected.
-Fails when: the fix ships in the same change as the event, so there is no baseline.
+Fails when: the fix ships in the same change as the event, so there is no baseline. Example: 31% of
+page loads moved something after the page was usable ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **High-precision field reporting.** In the field, report the guarded quantity finely (sub-pixel)
 and open a workstream on any nonzero value. When: a guardrail protects a brittle optimization.
@@ -531,7 +553,12 @@ than one workstream runs. Fails when: rulings stall with no owner.
 the agent defers because of merge or deploy lag, **remove the latency excuse**: the human commits
 to a fast merge and deploy. And **targets are not the stopping point**: when targets are hit and
 workstreams slow, nudge them on. When: guardrails from [G](#g-protect-the-win) are in place. Fails
-when: boldness is pushed without them.
+when: boldness is pushed without them. The prompts, as quoted in the post:
+
+> if you put it up right now I will get it merged and deployed. we have the power to do anything.
+> please be braver
+
+> Let's keep driving this down, the targets are not the stopping point. What's next? Be ambitious.
 
 **Sidequests can pay off.** Let a side investigation run when it shows signal; it may become a main
 win. When: a side finding has a measurement. Fails when: sidequests run with no number.
@@ -567,7 +594,8 @@ machine's median is reported. Used by: `/performance:verify` `Not covered:`.
 **Per-row results, not only the aggregate.** Report each platform and product row alongside the
 aggregate, and combine speedup ratios with a **geometric mean**, not an arithmetic mean (see
 [glossary](glossary.md)). When: a report covers several measurements. Fails when:
-one large row dominates an arithmetic mean.
+one large row dominates an arithmetic mean. Example: thirteen rows, "3.1x faster on average
+(geometric mean)" ([post]; vendor-claimed (blog, 2026-09-23)).
 
 **Human-cost framing.** Multiply the per-operation saving by frequency to state aggregate user time
 saved, and label it an estimate. When: communicating impact. Fails when: the estimate is presented
@@ -576,4 +604,5 @@ as a measurement.
 **State remaining gaps.** Name the percentiles, journeys, and extreme inputs not yet improved. Used
 by: `/performance:verify` §4 `Not covered:`.
 
+[post]: https://claude.dev/blog/how-we-made-claude-ai-faster
 [hi3]: harness-integrity.md#3-a-discrimination-check-must-verify-its-own-patch-applied
