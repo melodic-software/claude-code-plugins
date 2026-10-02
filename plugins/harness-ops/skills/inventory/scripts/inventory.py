@@ -47,6 +47,8 @@ from registrations import registrations_of  # noqa: E402  (path set above; plugi
 
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+import parser_reader  # noqa: E402  (sibling module)
+from compare_reports import compare as compare_reports  # noqa: E402  (sibling module)
 from docs_crosscheck import build_crosscheck  # noqa: E402  (sibling module)
 
 MIN_PYTHON = (3, 11)
@@ -275,8 +277,15 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
     return None, "no claude executable found on PATH or in the usual install roots"
 
 
-def read_bundle(binary: Path) -> tuple[str | None, dict[str, Any]]:
+def read_bundle(
+    binary: Path, module_spans: list[tuple[int, int]] | None = None
+) -> tuple[str | None, dict[str, Any]]:
     """Pull the embedded JS bundle out of the executable.
+
+    `module_spans`, when given, receives the `[start, end)` in the returned
+    source of each printable run that opens with a bundle marker: the units
+    the parser reader parses, since the runs joined after a module are
+    bytecode string tables, not JavaScript.
 
     Deliberately format-agnostic. Parsing the PE section table (or Mach-O load
     commands, or ELF section headers) would work but ties the script to each
@@ -293,11 +302,13 @@ def read_bundle(binary: Path) -> tuple[str | None, dict[str, Any]]:
         return None, meta
 
     meta["container"] = detect_container(data)
-    return _select_region(data, meta)
+    return _select_region(data, meta, module_spans)
 
 
 def _select_region(
-    data: bytes, meta: dict[str, Any]
+    data: bytes,
+    meta: dict[str, Any],
+    module_spans: list[tuple[int, int]] | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     """Apply the region rule to raw bytes; the legacy longest-run path is the fallback.
 
@@ -314,10 +325,19 @@ def _select_region(
         if pos >= 0 and (first < 0 or pos < first):
             first, marker_used = pos, marker.decode("ascii")
     if first < 0:
-        return _select_longest_run(data, meta)
+        src, meta = _select_longest_run(data, meta)
+        if src is not None and module_spans is not None:
+            module_spans.append((0, len(src)))
+        return src, meta
 
     runs = [m.group(0) for m in RUN_RE.finditer(data, first)]
     joined = b"\n".join(runs)
+    if module_spans is not None:
+        at = 0
+        for run in runs:
+            if run.startswith(BUNDLE_MARKERS[-1]):
+                module_spans.append((at, at + len(run)))
+            at += len(run) + 1
     meta["anchor"] = marker_used
     meta["bundle_offset"] = first
     meta["region_rule"] = (
@@ -5372,6 +5392,122 @@ def undetermined_fields(report: dict[str, Any]) -> dict[str, Any]:
     return {k: {"count": len(v), "names": sorted(set(v))} for k, v in out.items()}
 
 
+def extract_binary(src: str, meta: dict[str, Any]) -> dict[str, Any]:
+    """Every report section read from the bundle, integrity verdict included."""
+    braces = build_brace_map(src)
+    meta["brace_pairs"] = len(braces.pairs)
+    commands = extract_builtin_commands(src, braces)
+    skills, skill_notes = extract_bundled_skills(src, braces)
+    workflows, workflow_notes = extract_bundled_workflows(src, braces)
+    agents, agent_notes = extract_builtin_agents(src, braces)
+    tools, tool_notes = extract_builtin_tools(src, braces)
+    plugins, plugin_notes = extract_builtin_plugins(src, braces)
+    plugin_notes["mods_flag_in_bundle"] = MODS_ROLLOUT_FLAG in src
+    plugin_backed = extract_plugin_backed(src)
+
+    for name, plugin in plugin_backed.items():
+        if name in commands:
+            commands[name]["plugin_name"] = plugin
+            commands[name]["source"] = "plugin-backed-builtin"
+        elif name in skills:
+            for registration in registrations_of(skills[name]):
+                registration["plugin_name"] = plugin
+                registration["source"] = "plugin-backed-builtin"
+
+    # A name registered as a bundled skill is a skill, not a command.
+    for name in list(commands):
+        if name in skills:
+            del commands[name]
+
+    out: dict[str, Any] = {
+        "builtin_commands": commands,
+        "bundled_skills": skills,
+        "bundled_skill_notes": skill_notes,
+        "bundled_workflows": workflows,
+        "bundled_workflow_notes": workflow_notes,
+        AGENT_LANE: agents,
+        "builtin_agent_notes": agent_notes,
+        TOOL_LANE: tools,
+        "builtin_tool_notes": tool_notes,
+        PLUGIN_LANE: plugins,
+        "builtin_plugin_notes": plugin_notes,
+        "plugin_backed": plugin_backed,
+    }
+    out["integrity"] = check_integrity(
+        src,
+        commands,
+        skills,
+        skill_notes,
+        plugin_backed,
+        int(meta.get("runs_below_floor", 0) or 0),
+        workflows,
+        workflow_notes,
+        agents=agents,
+        agent_notes=agent_notes,
+        tools=tools,
+        tool_notes=tool_notes,
+        plugins=plugins,
+        plugin_notes=plugin_notes,
+    )
+    out["integrity"]["undetermined"] = undetermined_fields(out)
+    return out
+
+
+def _read_with_parser(
+    report: dict[str, Any],
+    args: argparse.Namespace,
+    src: str,
+    meta: dict[str, Any],
+    spans: list[tuple[int, int]],
+) -> None:
+    """The binary sections under --reader=parser or compare, plus a `reader`
+    block. A reader that cannot run leaves the binary source unavailable with
+    the repair command; it never falls back to the regex reader."""
+    mode = args.reader
+    block: dict[str, Any] = {"name": mode}
+    report["reader"] = block
+    try:
+        reader, info = parser_reader.open_reader(getattr(args, "deps_dir", None))
+        with reader:
+            started = time.perf_counter()
+            unparsed = []
+            for start, end in spans:
+                ok, error = reader.parse_ok(src[start:end])
+                if not ok:
+                    unparsed.append({"offset": start, "error": error})
+            info["parse_seconds"] = round(time.perf_counter() - started, 3)
+    except parser_reader.ReaderBroken as exc:
+        block.update(status="broken", reason=exc.reason, remediation=exc.command)
+        report["sources"]["binary"] = {
+            "available": False,
+            **meta,
+            "error": f"parser reader broken: {exc}",
+        }
+        return
+    block.update(info, modules=len(spans), unparsed=unparsed)
+    baseline = extract_binary(src, dict(meta)) if mode == "compare" else None
+    sections = extract_binary(src, meta)
+    report.update(sections)
+    report["sources"]["binary"] = {"available": True, **meta}
+    problems = []
+    if unparsed:
+        problems.append(
+            f"parser reader: {len(unparsed)} of {len(spans)} bundle modules do not "
+            "parse, so the parser cannot answer for them"
+        )
+    if baseline is not None:
+        block["compare"] = compare_reports(baseline, sections)
+        if block["compare"]["failed"]:
+            problems.append(
+                f"reader compare: {block['compare']['disallowed']} value(s) differ "
+                "between the regex and parser readers (value->value)"
+            )
+    block["status"] = "broken" if problems else "ok"
+    if problems:
+        report["integrity"]["problems"].extend(problems)
+        report["integrity"]["status"] = "broken"
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     report: dict[str, Any] = {
         "schema": 1,
@@ -5384,69 +5520,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.disk_only:
         binary, how = pick_binary(args.binary)
+        reader = getattr(args, "reader", "regex")
         if binary is None:
             report["sources"]["binary"] = {"available": False, "reason": how}
         else:
-            src, meta = read_bundle(binary)
+            spans: list[tuple[int, int]] | None = [] if reader != "regex" else None
+            src, meta = read_bundle(binary, spans)
             meta["selected_by"] = how
             if src is None:
                 report["sources"]["binary"] = {"available": False, **meta}
-            else:
-                braces = build_brace_map(src)
-                meta["brace_pairs"] = len(braces.pairs)
-                commands = extract_builtin_commands(src, braces)
-                skills, skill_notes = extract_bundled_skills(src, braces)
-                workflows, workflow_notes = extract_bundled_workflows(src, braces)
-                agents, agent_notes = extract_builtin_agents(src, braces)
-                tools, tool_notes = extract_builtin_tools(src, braces)
-                plugins, plugin_notes = extract_builtin_plugins(src, braces)
-                plugin_notes["mods_flag_in_bundle"] = MODS_ROLLOUT_FLAG in src
-                plugin_backed = extract_plugin_backed(src)
-
-                for name, plugin in plugin_backed.items():
-                    if name in commands:
-                        commands[name]["plugin_name"] = plugin
-                        commands[name]["source"] = "plugin-backed-builtin"
-                    elif name in skills:
-                        for registration in registrations_of(skills[name]):
-                            registration["plugin_name"] = plugin
-                            registration["source"] = "plugin-backed-builtin"
-
-                # A name registered as a bundled skill is a skill, not a command.
-                for name in list(commands):
-                    if name in skills:
-                        del commands[name]
-
+            elif spans is None:
+                report.update(extract_binary(src, meta))
                 report["sources"]["binary"] = {"available": True, **meta}
-                report["builtin_commands"] = commands
-                report["bundled_skills"] = skills
-                report["bundled_skill_notes"] = skill_notes
-                report["bundled_workflows"] = workflows
-                report["bundled_workflow_notes"] = workflow_notes
-                report[AGENT_LANE] = agents
-                report["builtin_agent_notes"] = agent_notes
-                report[TOOL_LANE] = tools
-                report["builtin_tool_notes"] = tool_notes
-                report[PLUGIN_LANE] = plugins
-                report["builtin_plugin_notes"] = plugin_notes
-                report["plugin_backed"] = plugin_backed
-                report["integrity"] = check_integrity(
-                    src,
-                    commands,
-                    skills,
-                    skill_notes,
-                    plugin_backed,
-                    int(meta.get("runs_below_floor", 0) or 0),
-                    workflows,
-                    workflow_notes,
-                    agents=agents,
-                    agent_notes=agent_notes,
-                    tools=tools,
-                    tool_notes=tool_notes,
-                    plugins=plugins,
-                    plugin_notes=plugin_notes,
-                )
-                report["integrity"]["undetermined"] = undetermined_fields(report)
+            else:
+                _read_with_parser(report, args, src, meta, spans)
 
     if getattr(args, "docs", False):
         report["docs_crosscheck"] = build_crosscheck(
@@ -5531,6 +5618,19 @@ def main(argv: list[str] | None = None) -> int:
         help="print only the integrity verdict; exit 0 ok, 1 broken, 3 degraded "
         "(2 stays argparse's usage error). For CI and scheduled drift checks.",
     )
+    ap.add_argument(
+        "--reader",
+        choices=("regex", "parser", "compare"),
+        default="regex",
+        help="bundle reader: regex (default); parser, which installs the pinned "
+        "JavaScript parser on first use (needs node and npm) and fails closed "
+        "without it; compare, which runs both and reports every difference",
+    )
+    ap.add_argument(
+        "--deps-dir",
+        help="install base for the parser's npm packages (default: "
+        "$CLAUDE_PLUGIN_DATA, a checkout's .work/, or the plugin data directory)",
+    )
     args = ap.parse_args(argv)
 
     if args.binary_only and args.disk_only:
@@ -5564,6 +5664,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         for lane, entry in (integrity.get("lanes") or {}).items():
             print(f"  lane {lane}: {entry['status']}")
+        reader = report.get("reader")
+        if reader:
+            print(
+                f"  reader {reader['name']}: {reader['status']}, "
+                f"{reader['modules'] - len(reader['unparsed'])} of "
+                f"{reader['modules']} modules parse"
+            )
         for p in integrity["problems"]:
             print(f"  problem:  {p}")
         for a in integrity["advisories"]:
