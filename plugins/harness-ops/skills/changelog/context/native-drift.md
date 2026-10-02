@@ -36,6 +36,10 @@ and records nothing. Read its output:
 - `BROKEN: parser reader broken: ...` (no Node.js or npm, or a failed install): the guard cannot
   run, and the regex values stand. Record "compare guard unavailable: install Node.js and npm" in
   the report and file nothing for it; this is not a broken binary item.
+- A `problem:  parser reader: <n> of <m> bundle modules do not parse, so the parser cannot answer
+  for them` line, which the first self-check never prints: the parser cannot read the new build in
+  full. Record that line in the report under the compare guard and file no divergence item; the
+  regex values stand.
 - Anything else: the readers agree; report "compare guard: no divergence". Any other problem it
   prints is the first self-check's too, and filed from there.
 
@@ -66,8 +70,8 @@ candidates, so the old baseline stays. Its suite is `scripts/test_native_drift.p
 From `<ws>/drift.json`, one section each, empty ones stated as "none":
 
 - **Inventory**: the self-check verdict, `cli_version` against `validated_against`, the
-  overlap self-check's exit, and the compare guard's outcome (no divergence, divergence filed, or
-  unavailable).
+  overlap self-check's exit, and the compare guard's outcome (no divergence, divergence filed,
+  unavailable, or the parser's modules-do-not-parse line).
 - **Surfaces**: `surface_changes` added, removed, renamed (with the alias or description match that
   paired them), reclassified. `baseline: true` means no previous summary: say that no surface diff
   exists yet and that the next run has one.
