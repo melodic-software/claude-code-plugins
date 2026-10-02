@@ -20,7 +20,10 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   the memory page does not say when a subdirectory's `AGENTS.md` loads. Nothing is removed
   automatically; the dated quotes are in `reference/sources.md`. Precedence is checked by walking
   every ancestor directory to the filesystem root, and the `InstructionsLoaded` check covers user,
-  managed, `--settings` and installed-plugin hooks, not only the repository's.
+  managed, `--settings` and installed-plugin hooks, not only the repository's, plus plugins loaded
+  with `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or from `~/.claude/skills/`. The
+  external-import check walks the whole `@` import graph to the four-hop limit with the plugin's
+  own `discover.sh` model, and a closing operator question catches any loading path not listed.
 
 ### Fixed
 

@@ -347,7 +347,20 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `/config` sentence quoted above introduces exactly the three bullets that follow it; the
   pre-2.1.281 sentence sits outside that list, so the skill does not attach the `/config` signal to
   it. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
-  condition D asks the operator about each rather than inferring coverage. The removal procedure for an `@AGENTS.md` shim: "Remove
+  condition D asks the operator about each rather than inferring coverage. Condition E's bound:
+  "Imported files can recursively import other files, with a maximum depth of four hops" (line
+  104), the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
+  plugins, from [plugins/create](https://code.claude.com/docs/en/plugins/create) "Develop without
+  a marketplace" (fetched 2026-10-01, 25,706 bytes, first heading "Create a Claude Code plugin",
+  slug in `llms.txt`; the `plugins` page, which has no "Test your plugins locally" heading on this
+  date, sends `--plugin-dir` readers there): "You can
+  load a plugin for a single session in three ways: from a directory or `.zip` archive on disk
+  with `--plugin-dir`, from a URL with `--plugin-url`, or from an environment variable", namely
+  `CLAUDE_CODE_PLUGIN_DIRS`, and "Each plugin loads for that session only, and nothing is written
+  to your settings for it", which is why no settings read finds them; and "Claude Code loads any
+  folder there [`~/.claude/skills/`] that contains a `.claude-plugin/plugin.json` as a plugin in
+  every session, with no flag and no install step". The removal procedure for an `@AGENTS.md`
+  shim: "Remove
   the `CLAUDE.md` if it holds nothing else, or keep it if some of your sessions can't load
   `AGENTS.md` directly." The plugin loads files; nothing upstream says it moves content or writes
   a shim, and no page states how a disabled built-in plugin is recorded in settings, which is why
@@ -380,7 +393,8 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   "Choose which instruction files load" table, the "When AGENTS.md support is unavailable" list,
   the difference table, the "Share one file with other coding tools" conditions, or the shim
   bullet under "Remove an earlier AGENTS.md workaround"; it comes to name the Agent SDK, cloud or
-  web sessions, or `claude-code-action`; it comes
+  web sessions, or `claude-code-action`; it changes the four-hop import limit; plugins/create
+  changes the ways a plugin loads for one session or without an install; it comes
   to state when a subdirectory's `AGENTS.md` loads under `claude-md-and-agents-md` or whether an
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
   disabled; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.
