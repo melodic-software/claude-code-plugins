@@ -42,7 +42,9 @@ only after that version increases.
   set: Workflow's per-call option, or an agent's pin for an Agent tool dispatch.
 - docpage-digest's verifier A runs as a Workflow `agent()` call at effort `high` by default,
   overridable per run; a named agent keeps its own pin, and the verdict header records the
-  effective effort and its source.
+  effective effort and its source. Without the Workflow tool it falls back to an Agent tool
+  dispatch, where effort is the agent's pin or the session level; below `medium`, Phase 4 stops
+  and reports the level instead of verifying.
 
 ## [0.14.15] - 2026-10-01
 

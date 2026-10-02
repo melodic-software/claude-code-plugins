@@ -11,7 +11,10 @@ Two independent verifiers over the full digest set, fresh context, production ra
   and fabrication (no claim without a source anchor). The call passes effort `high` by default,
   and the operator may set a different level for one run. A call that names an agent omits effort
   unless the run overrides it, so that agent's own pin holds. The verdict header records the
-  effective effort and where it came from.
+  effective effort and where it came from. Where the Workflow tool is unavailable, dispatch
+  verifier A through the Agent tool instead. That tool sets no effort per call, so the effort is
+  the named agent's pin or else the session level, and the verdict header says which. If that
+  level is below `medium`, stop Phase 4 and report the level instead of verifying.
   - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
     record, in the marketplace repository; no docs page covers per-call Workflow effort.
   - **As of**: 2026-10-02
