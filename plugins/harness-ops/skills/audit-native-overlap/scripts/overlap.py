@@ -453,6 +453,12 @@ def load_components(repo: Path) -> list[discover.Component]:
     return corpus
 
 
+def is_filtered(entry: Any) -> bool:
+    """An entry with no registration, or an `internal` one, is never scored."""
+    registrations = registrations_of(entry)
+    return not registrations or any(r.get("internal") for r in registrations)
+
+
 def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
     """Every scorable native surface. An `internal` registration is skipped:
     it is plumbing the product never offers anyone to type or call."""
@@ -468,10 +474,10 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
         for name, entry in payload.items():
             if lane == PLUGIN_COMPONENT_LANE and name in seen:
                 continue
-            registrations = registrations_of(entry)
-            if not registrations or any(r.get("internal") for r in registrations):
+            if is_filtered(entry):
                 filtered.add(name)
                 continue
+            registrations = registrations_of(entry)
             seen.add(name)
             # A plugin-backed name the extractor enriched in this lane is one
             # surface, scored once, under the plugin-backed class.
@@ -1411,9 +1417,19 @@ def build_native_index(
         PLUGIN_COMPONENT_LANE,
     ):
         for name, entry in (lane_payloads.get(lane) or {}).items():
-            native_index.setdefault(
-                name, {"class": CLASS_OF_LANE[lane], "lane": lane, "entry": entry}
-            )
+            held = native_index.get(name)
+            # A built-in plugin component takes a name only a filtered entry
+            # held, the same selection native_surfaces scores.
+            if held is None or (
+                lane == PLUGIN_COMPONENT_LANE
+                and is_filtered(held["entry"])
+                and not is_filtered(entry)
+            ):
+                native_index[name] = {
+                    "class": CLASS_OF_LANE[lane],
+                    "lane": lane,
+                    "entry": entry,
+                }
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
         # The extractor enriches a same-named command or skill with the plugin;
         # reclassify that registration rather than replace it with a bare one.
