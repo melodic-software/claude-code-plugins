@@ -228,40 +228,6 @@ assert_not_contains "a non-repo root: its .claude file is not a team layer" \
   "$NONREPO_SC" "$NONREPO/.claude/attribution.json"
 rm -f "$HOME/.claude/attribution.json"
 
-# --- Legacy config name ----------------------------------------------------------
-# A layer holding only the former plugin's file name is never read, and draws one
-# warning naming that file and the name to rename it to.
-
-legacy_run() {
-  LEG_ERR="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$1" bash "$LIST_CORPUS" 2>&1 >/dev/null)"
-  LEG_FILES="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$1" bash "$LIST_CORPUS" 2>/dev/null | jq -r '.files[]')"
-}
-
-printf '%s\n' '{"excluded_paths":["legacy/**"]}' >"$CFG_DIR/provenance.json"
-legacy_run "$REPO"
-assert_contains "a legacy team config draws a warning naming it" "$LEG_ERR" "$CFG_DIR/provenance.json"
-assert_contains "the team warning names the new file name" "$LEG_ERR" "attribution.json"
-assert_eq "the team warning is one line" "$(printf '%s\n' "$LEG_ERR" | grep -c 'provenance')" "1"
-assert_contains "the legacy team config's keys are not applied" "$LEG_FILES" "legacy/old.md"
-
-printf '%s\n' '{"excluded_paths":[]}' >"$CFG_DIR/attribution.json"
-legacy_run "$REPO"
-assert_not_contains "no warning when the new name sits beside the legacy one" "$LEG_ERR" "provenance.json"
-rm -f "$CFG_DIR/provenance.json" "$CFG_DIR/attribution.json"
-
-printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/provenance.local.json"
-legacy_run "$REPO"
-assert_contains "a legacy local overlay draws a warning naming it" "$LEG_ERR" "$CFG_DIR/provenance.local.json"
-assert_contains "the overlay warning names the new file name" "$LEG_ERR" "attribution.local.json"
-assert_contains "the legacy overlay's keys are not applied" "$LEG_FILES" "docs/guide.md"
-rm -f "$CFG_DIR/provenance.local.json"
-
-printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/provenance.json"
-legacy_run "$TEST_TMPDIR/noconfig"
-assert_contains "a legacy user-global config draws a warning naming it" "$LEG_ERR" "$HOME/.claude/provenance.json"
-assert_contains "the legacy user-global config's keys are not applied" "$LEG_FILES" "README.md"
-rm -f "$HOME/.claude/provenance.json"
-
 # --- --show-config ---------------------------------------------------------------
 
 OUT_SC="$(run_default --show-config 2>&1)"

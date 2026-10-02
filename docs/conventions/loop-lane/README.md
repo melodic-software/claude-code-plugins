@@ -381,8 +381,8 @@ Claude Code alias (see "Alias binding" below):
 | Tier | Role | Alias |
 |---|---|---|
 | frontier | Complex-stamped items; every security-surface work class, always | `best` |
-| strong | Default implementer / worker | `opus` |
-| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews | `sonnet` |
+| strong | Default implementer / worker for unrouted or complex work | `opus` |
+| fast | Orchestrator, mechanical items, and phases a plan routes `sonnet` as well-scoped; never weaker than the implementer it reviews | `sonnet` |
 
 Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
 pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the

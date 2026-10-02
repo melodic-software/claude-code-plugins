@@ -281,12 +281,12 @@ overrun costs the lanes still running rather than the whole pass.
 
 ## Phase 4: The `/doctor` handoff
 
-`/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass deliberately builds no
-replacement. **It is interactive, so it is never dispatched.** It proposes fixes only after the
-operator confirms. Its version floor, what its presence check verifies versus what it must probe
-rather than assume, and its optional-capability absence classification are in
-[reference/doctor-handoff.md](reference/doctor-handoff.md). When absent, name it as the missing
-capability and state what goes unchecked.
+`/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass builds no replacement,
+and `/doctor prompt-audit` is the instruction-file audit this pass hands off rather than runs.
+**Both are operator-run, so neither is dispatched.** Their records (version floors, write posture),
+what the presence check verifies versus probes, and the absence classification are in
+[reference/doctor-handoff.md](reference/doctor-handoff.md).
+When `/doctor` is absent, name it as the missing capability and state what goes unchecked.
 
 **Phase 4 records the handoff; it does not stop the pass.** Halting here would mean a `--fix` run
 never reaches Phase 5 and no run reaches the Phase 6 report, so an optional collaborator would

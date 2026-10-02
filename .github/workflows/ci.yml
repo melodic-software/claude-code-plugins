@@ -1008,7 +1008,7 @@ jobs:
       - name: Test the plugin-manifest-presence gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-manifest-presence.test.sh
-      - name: Check every catalog entry resolves to a present, name-matching plugin manifest
+      - name: Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/
         id: plugin_manifest_presence
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh

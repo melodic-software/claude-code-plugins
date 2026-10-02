@@ -169,13 +169,13 @@ That gate merges **only when every criterion holds**, the criteria and the safet
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form,
-never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
+The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `scripts/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 **Before composing either wrapper command, read [reference/safety.md](reference/safety.md),
 "Guarded Mutation Wrappers", for the exact flag set.** That section is the single home for the
-`bin/`-path form, every configured flag that must ride on a given form (self logins, extra bot
+`scripts/`-path form, every configured flag that must ride on a given form (self logins, extra bot
 logins, the review-settle pair, extra dependency-manager logins), the pins and the refusals they
 produce, the override flags that are never passed autonomously, and the per-thread `action`
 vocabulary. Never reconstruct one of these commands from memory; a silently dropped flag is a

@@ -262,14 +262,27 @@ Document a one-line fallback path if parallel orchestration fails:
 
 ### Per-phase routing table
 
-Assign each phase an execution surface:
+Assign each phase an execution surface and a model:
 
-| Phase | Surface | Basis |
-|---|---|---|
-| <N> | <main-session / sub-agent worker> | <one-line task-shape rationale> |
+| Phase | Surface | Model | Basis |
+|---|---|---|---|
+| <N> | <main-session / sub-agent worker> | <sonnet / opus / frontier> | <one-line task-shape rationale> |
+| 2 (example) | sub-agent worker | sonnet | Closed file list, grep checks |
 
 - **Main-session:** judgment-heavy, tightly coupled to conversation context, or requires user interaction
 - **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
+
+The `Model` column decides which implementer agent a worker row dispatches to:
+
+- **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not a security-surface work class. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
+- **`opus`:** architectural work, per-file judgment, or multi-step reasoning, and the value to use when in doubt. A row with no `Model` value is treated the same way and goes to `implementation:implementer`.
+- **`frontier`:** security-surface work classes and complex-stamped items, per the loop-lane convention's capability tiers.
+
+This split is our routing rule. Two built-in levers sit beside it and are not part of it: the `opusplan` model setting, and model choice for agent teammates.
+
+- **Pointer**: for the model split, see <https://code.claude.com/docs/en/costs#choose-the-right-model>; for `opusplan`, see <https://code.claude.com/docs/en/model-config#opusplan-model-setting>; for teammates, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: any of those sections is renamed, or the costs page changes its model split.
 
 ## Large-scale changes (migrations, library swaps, broad refactoring)
 
@@ -386,7 +399,7 @@ Load this section from Step 4.5. The hub states the agent-team routing rule and 
 6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" above
 7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface**. Give each phase a routing row (`Phase | Surface | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
+9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
 
 **Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
 
