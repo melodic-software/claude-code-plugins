@@ -1,12 +1,12 @@
 ---
-name: implementer
-description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early unless the brief reserves commit authority to the orchestrator, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
+name: scoped-implementer
+description: "Scope-fenced implementation worker for a phase the plan's routing table marks `sonnet` (closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, no security-surface work), dispatched by /implementation:implement-dispatch with an explicit per-invocation model: executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early unless the brief reserves commit authority to the orchestrator, and returns a verdict plus identifiers. Unrouted and complex phases go to implementation:implementer. Not intended for direct ad-hoc use."
 skills:
   - implementation:report
   - testing:test-value
 tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
-model: opus
-effort: high
+model: sonnet
+effort: medium
 ---
 
 <!-- contract:begin -->
@@ -75,21 +75,32 @@ leaves the mode at `worker`.
 
 ## Model binding (the dispatch seam)
 
-The `model` frontmatter above is the structural seam binding of the **strong capability tier** to
-the current recommended model alias. That tier is the default implementer tier of the
-order-defined, family-agnostic tier vocabulary owned by the loop-lane convention
-(`docs/conventions/loop-lane/README.md` §3 in this plugin's marketplace repository). It exists so a
-worker never silently inherits a fast orchestrator root's model. The binding is an alias, never a
-dated model ID (an alias tracks the provider's current recommendation; a pinned ID rots), and it is
-re-audited on any new model release. Tier *definitions* stay abstract; only this seam binds one to an alias.
+The `model` frontmatter above binds the **fast capability tier**'s current alias (the loop-lane
+convention's §3, `docs/conventions/loop-lane/README.md` in this plugin's marketplace repository)
+for phases a plan routes `sonnet`. A phase earns that row only when its scope fence is closed, its
+acceptance criteria are binary, no design decision is open, it changes no cross-module contract,
+and it is not a security-surface work class. Every other phase goes to `implementation:implementer`,
+whose binding is the strong tier. `/implementation:implement-dispatch` spawns this agent only for a
+`sonnet` row, and passes `model: sonnet` explicitly so a caller's standing per-spawn model cannot
+override it.
 
-This binding is the default for unrouted phases and for complex ones. A phase the plan's routing
-table marks `sonnet` goes to `implementation:scoped-implementer`, a separate agent with its own
-binding, never to this agent with a weaker `model`. A dispatching orchestrator passes a
-per-invocation `model` here only to route a phase **upward**, to the frontier tier's current alias
-for security-surface work classes, or to the session's own model when it resolves above this
-binding. It never hands source-editing work to a weaker model than this binding.
+The routing assumes the phase is as well-scoped as its row says. When the work needs a design
+decision, a cross-module contract change, or a file outside the fence, that is the divergence the
+brief's escalation clause names: STOP and report, so the orchestrator can re-dispatch the phase to
+`implementation:implementer`. Never stretch to finish it here.
 
-`effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
-orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
-implementation too.
+`effort` is bound alongside `model` because it otherwise inherits the session's level.
+
+Claim: `sonnet` at `effort: medium` fits a well-scoped implementation phase, and Opus stays the
+binding for complex work. When an organization's `availableModels` allowlist blocks `sonnet`, the
+subagent runs on the newest Sonnet the allowlist permits, or on the inherited model when it permits
+none, and `effort: medium` still applies. Basis: the costs page's
+[model choice](https://code.claude.com/docs/en/costs#choose-the-right-model) ("Sonnet handles most
+coding tasks well"; Opus for complex architectural decisions or multi-step reasoning); the
+[effort table](https://code.claude.com/docs/en/model-config#adjust-effort-level), whose `medium`
+row covers day-to-day engineering with a clear scope; the
+[subagent model order and allowlist substitution](https://code.claude.com/docs/en/sub-agents#choose-a-model);
+the effort-pin owner's ruling of 2026-10-01; `phase-verifier` already runs at `effort: medium`. As
+of: 2026-10-01. Recheck: the Agent tool gains a per-spawn effort parameter, the costs page changes
+its model split, the effort table changes its `medium` row, or the `sonnet` alias moves to a new
+model.

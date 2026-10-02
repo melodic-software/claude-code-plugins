@@ -171,7 +171,7 @@ Model: opus (judgment over 48 ledger rows; remote writes).
   `git grep -n -I -E '40% (less|cheaper)|25% further|\$0\.75|about ten turns|retry costs more|No other setting moves|\$13 per|\$11\.20|\$1\.62|\$0\.99|\$3\.50|\$242|\$0\.025|2\.8M|31% less|44 tickets|further 9%' -- ':!docs/upstream' ':!docs/topics' ':!.work'`
   The topic slice ships in the PR and quotes the patterns, hence its exclusion.
 
-### Phase 5: Per-phase Sonnet routing (Q20) [TODO]
+### Phase 5: Per-phase Sonnet routing (Q20) [DONE except step 9, which waits on Gate S1]
 
 Runs second, so Phases 2 and 3 can dispatch through the route it creates. Model: opus (cross-plugin contract change).
 

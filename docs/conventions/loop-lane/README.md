@@ -370,8 +370,8 @@ top-tier one), so a tier named for a family silently rots. Three ordered tiers:
 | Tier | Role |
 |---|---|
 | frontier | Complex-stamped items; every security-surface work class, always |
-| strong | Default implementer / worker |
-| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews |
+| strong | Default implementer / worker for unrouted or complex work |
+| fast | Orchestrator, mechanical items, and phases a plan routes `sonnet` as well-scoped; never weaker than the implementer it reviews |
 
 Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
 pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the

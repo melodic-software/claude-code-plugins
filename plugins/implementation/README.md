@@ -11,13 +11,14 @@ concern: turning approved plans into verified code.
 | `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary handoffs. |
 | `/implementation:implement-dispatch` | Orchestrated execution variant. Composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
 
-Two plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`
+Three plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`
 frontmatter structurally binds the capability tier, so workers never silently inherit a fast
 orchestrator root's model:
 
 | Agent | What it does |
 |---|---|
-| `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
+| `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias; it takes every unrouted or complex phase. |
+| `implementation:scoped-implementer` | The same worker contract, copied inline and kept identical by `scripts/agent-contract-sync.test.sh`, for a phase the plan's routing table marks `sonnet`: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change. Frontmatter binds `sonnet` at `effort: medium`, and `implement-dispatch` passes `model: sonnet` explicitly. |
 | `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries and for post-phase source commits with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Narrowing the phase-verifier's Bash), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
