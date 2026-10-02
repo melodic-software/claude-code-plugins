@@ -149,7 +149,7 @@ run_fixture() { (cd "$TMP" && node "$SUT" 2>&1); }
 #        registered tracked-config owner -> no carve-out failure. ------------
 reset_fixture
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out" ||
   grep -q "$NO_DECLARATION" <<<"$out" ||
@@ -164,7 +164,7 @@ fi
 reset_fixture
 write_registry alpha
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$OWNS_TRACKED_CONFIG" &&
   grep -q 'narrow-write shape' <<<"$out" &&
@@ -189,7 +189,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo '| `a-shared-surface` (`alpha`, `gamma`) | `.claude/shared.yaml` | all three | conforms |'
 } >"$TMP/docs/conventions/config-cascade/README.md"
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$OWNS_TRACKED_CONFIG"; then
   ok "a plugin named alongside the surface it co-owns is read out of the registry row"
@@ -201,7 +201,7 @@ fi
 #        a carve-out-shaped skill whose body only mentions apply in prose. ---
 reset_fixture
 make_plugin alpha alpha_api_key
-write_setup_skill alpha check <<'BODY'
+write_setup_skill alpha '[check]' <<'BODY'
 ## Purpose
 
 `check` reports readiness. There is no `apply` action here.
@@ -217,7 +217,7 @@ fi
 reset_fixture
 write_registry alpha
 make_plugin alpha alpha_api_key
-write_setup_skill alpha 'check | apply' <<'BODY'
+write_setup_skill alpha '[check|apply]' <<'BODY'
 ## Purpose
 
 Check-only under the native `userConfig` surface: `check` reports readiness.
@@ -233,7 +233,7 @@ fi
 # --- 4. A userConfig-only claim the manifest does not back. -----------------
 reset_fixture
 make_plugin alpha ''
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$NO_USER_CONFIG"; then
   ok "claiming the userConfig-only carve-out with no declared userConfig fails the gate"
@@ -244,7 +244,7 @@ fi
 # --- 4b. The same gap under the doctrine's own wording, not the one phrase. -
 reset_fixture
 make_plugin alpha ''
-write_setup_skill alpha check <<'BODY'
+write_setup_skill alpha '[check]' <<'BODY'
 ## Purpose
 
 Check-only under the native `userConfig` surface: `check` reports readiness.
@@ -259,7 +259,7 @@ fi
 # --- 4c. A check-only skill that names userConfig only to deny it. ----------
 reset_fixture
 make_plugin alpha ''
-write_setup_skill alpha check <<'BODY'
+write_setup_skill alpha '[check]' <<'BODY'
 ## Purpose
 
 Check-only: this plugin has no `userConfig`. `check` reports external prerequisites.
@@ -276,7 +276,7 @@ fi
 reset_fixture
 write_registry beta
 make_plugin beta ''
-write_setup_skill beta 'check | apply [remove]' <<'BODY'
+write_setup_skill beta '[check|apply] [remove]' <<'BODY'
 ## Purpose
 
 `check` reports drift; `apply` converges this plugin's tracked project config. Every surface it
@@ -296,7 +296,7 @@ fi
 reset_fixture
 rm -rf "$TMP/docs"
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_MISSING"; then
   ok "a missing consumer-config registry fails the gate"
@@ -310,7 +310,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
 printf '# Consumer config cascade (fixture)\n\nNo Implementers section here.\n' \
   >"$TMP/docs/conventions/config-cascade/README.md"
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_UNSTRUCTURED"; then
   ok "a registry with no Implementers section fails the gate"
@@ -332,7 +332,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo '|---|---|---|---|'
 } >"$TMP/docs/conventions/config-cascade/README.md"
 make_plugin alpha alpha_api_key
-carve_out_body | write_setup_skill alpha check
+carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_EMPTY"; then
   ok "an Implementers table naming no surfaces fails the gate"
@@ -452,7 +452,7 @@ conforming_retirements_fixture() {
   reset_fixture
   write_canonical_helper
   make_plugin alpha ''
-  retiring_setup_body | write_setup_skill alpha 'check | apply'
+  retiring_setup_body | write_setup_skill alpha '[check|apply]'
   valid_manifest | write_manifest alpha
   sync_helper alpha
   write_evals alpha alpha-r001 alpha-r002
@@ -679,7 +679,7 @@ fi
 
 # --- R4. Setup skill does not reference the helper. -------------------------
 conforming_retirements_fixture
-write_setup_skill alpha 'check | apply' <<'BODY'
+write_setup_skill alpha '[check|apply]' <<'BODY'
 ## Purpose
 
 `check` reports drift; `apply` converges this plugin's tracked project config.
@@ -695,7 +695,7 @@ fi
 reset_fixture
 write_canonical_helper
 make_plugin beta ''
-retiring_setup_body | write_setup_skill beta 'check | apply'
+retiring_setup_body | write_setup_skill beta '[check|apply]'
 out="$(run_fixture)"
 if has_fail_line "$R_REF_NO_MANIFEST" && grep -qE 'beta[/\\]skills[/\\]setup[/\\]SKILL\.md' <<<"$out"; then
   ok "a setup skill referencing the helper with no manifest fails the gate"
@@ -720,7 +720,7 @@ fi
 reset_fixture
 write_canonical_helper
 make_plugin harness-config ''
-retiring_setup_body | write_setup_skill harness-config 'check | apply'
+retiring_setup_body | write_setup_skill harness-config '[check|apply]'
 out="$(run_fixture)"
 if grep -q "$R_REF_NO_MANIFEST" <<<"$out"; then
   fail "harness-config should be exempt from the inverse wiring check: $out"
@@ -1261,7 +1261,7 @@ ARG_DOC='skill-authoring/SKILL.md'
 
 reset_fixture
 make_plugin argname ""
-printf 'Use $1 here.\n' | write_arg_body argname digit '[mode]'
+printf 'Use $1 here.\n' | write_arg_body argname digit '[tier]'
 out="$(run_fixture)"
 if has_fail_line 'unescaped \$1' && grep -q "$ARG_DOC" <<<"$out" &&
   grep -q 'argname/skills/digit/SKILL.md' <<<"$out"; then
@@ -1272,7 +1272,7 @@ fi
 
 reset_fixture
 make_plugin argname ""
-printf 'Use \$1 here.\n' | write_arg_body argname escaped '[mode]'
+printf 'Use \$1 here.\n' | write_arg_body argname escaped '[tier]'
 out="$(run_fixture)"
 if grep -q 'argname/skills/escaped/SKILL.md' <<<"$out"; then
   fail "a single-backslash escape should pass: $out"
@@ -1302,7 +1302,7 @@ fi
 
 reset_fixture
 make_plugin argname ""
-printf 'Parse $ARGUMENTS only.\n' | write_arg_body argname plain '[mode]'
+printf 'Parse $ARGUMENTS only.\n' | write_arg_body argname plain '[tier]'
 out="$(run_fixture)"
 if grep -q 'argname/skills/plain/SKILL.md' <<<"$out"; then
   fail "\$ARGUMENTS without \$N should pass: $out"
@@ -1324,12 +1324,18 @@ hint_case() {
   out="$(run_fixture)"
 }
 
-hint_case ok "[weekly|on-demand] [--dry-run] | <path>"
-if grep -q 'hintfix/skills/ok/SKILL.md' <<<"$out"; then
-  fail "a conforming argument-hint should be silent: $out"
-else
-  ok "a conforming argument-hint draws neither a failure nor a warning"
-fi
+# The first three are built-in command hints from code.claude.com/docs/en/commands.
+for good in "[on|off]" \
+  "[low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]" \
+  "[reconnect <server>|enable|disable [<server>|all]]" \
+  "[check|apply] [args]" "<check|apply> [--mode <name>]" "[<dir>]... [path ...]"; do
+  hint_case ok "$good"
+  if grep -q 'hintfix/skills/ok/SKILL.md' <<<"$out"; then
+    fail "a conforming argument-hint should be silent ($good): $out"
+  else
+    ok "a conforming argument-hint draws neither a failure nor a warning: $good"
+  fi
+done
 
 hint_case empty ""
 if has_fail_line 'argument-hint must be omitted' && grep -q "$HINT_DOC" <<<"$out" &&
@@ -1366,34 +1372,88 @@ else
   ok "a 100-character argument-hint is inside the budget"
 fi
 
-for shape in "check — apply" "check (e.g., apply)" "check (for example apply)" \
-  "check. Default: apply" "check|apply"; do
+# shape<TAB>the reason the warning must name.
+while IFS=$'\t' read -r shape reason; do
   hint_case bad "$shape"
-  if grep -q "^warning: .*hintfix/skills/bad/SKILL.md.*$HINT_MALFORMED" <<<"$out" &&
+  if grep -qF "hintfix/skills/bad/SKILL.md: $HINT_MALFORMED: $reason ($HINT_DOC)" <<<"$out" &&
+    grep -q "^warning: .*hintfix/skills/bad/SKILL.md" <<<"$out" &&
     ! has_fail_line "$HINT_MALFORMED"; then
-    ok "a malformed argument-hint warns: $shape"
+    ok "a malformed argument-hint warns ($reason): $shape"
   else
-    fail "a malformed argument-hint should warn without failing ($shape): $out"
+    fail "a malformed argument-hint should warn '$reason' without failing ($shape): $out"
+  fi
+done <<'SHAPES'
+[check] — [apply]	em dash
+[check]. Default: apply	Default: prose
+[plan | apply]	spaced pipe
+check | apply	spaced pipe
+check | apply	alternatives outside [] or <>
+check|apply	alternatives outside [] or <>
+[audit]|[sweep]	alternatives outside [] or <>
+[action] [args]	placeholder slot instead of the written-out set
+<action>	placeholder slot instead of the written-out set
+[mode]	placeholder slot instead of the written-out set
+[--<mode>] [domain|board]	placeholder slot instead of the written-out set
+[task or mode]	placeholder slot instead of the written-out set
+[--execute] [options] <dir>	placeholder slot instead of the written-out set
+[check] (e.g., apply)	prose outside the grammar
+[topic] (empty = the previous response)	prose outside the grammar
+[section]: allow to focus the interview	prose outside the grammar
+[terminal|file]. Omit to auto-decide	prose outside the grammar
+<x-url>, a status URL	prose outside the grammar
+[incumbent [target]] or [plan]	prose outside the grammar
+SHAPES
+
+# A literal flag named like a placeholder is not a slot name.
+hint_case flag "[--mode <name>] [--options <file>]"
+if grep -q "hintfix/skills/flag/SKILL.md.*placeholder" <<<"$out"; then
+  fail "a literal --mode flag is not a placeholder slot: $out"
+else
+  ok "a literal --mode or --options flag is not a placeholder slot"
+fi
+
+# --- 8e. The setup hint leads with [check or <check. ------------------------
+LEADING_CHECK='must declare check as the leading action'
+for good in '[check]' '[check|apply]' '<check|apply> [remove]' '[check] [verify-api]'; do
+  reset_fixture
+  make_plugin alpha alpha_api_key
+  carve_out_body | write_setup_skill alpha "$good"
+  out="$(run_fixture)"
+  if grep -q "$LEADING_CHECK" <<<"$out"; then
+    fail "a setup hint leading with $good should pass the leading-check contract: $out"
+  else
+    ok "a setup hint leading with $good passes the leading-check contract"
+  fi
+done
+for bad in 'check' 'check | apply' 'check [verify-api]' '[apply|check]' '[checker]'; do
+  reset_fixture
+  make_plugin alpha alpha_api_key
+  carve_out_body | write_setup_skill alpha "$bad"
+  out="$(run_fixture)"
+  if has_fail_line "$LEADING_CHECK.*$HINT_DOC"; then
+    ok "a setup hint of $bad fails the leading-check contract and names the owner doc"
+  else
+    fail "a setup hint of $bad should fail the leading-check contract: $out"
   fi
 done
 
 agree_case() {
   reset_fixture
   make_plugin hintfix ""
-  write_arg_body hintfix "$1" "[mode] <path>"
+  write_arg_body hintfix "$1" "[tier] <path>"
   out="$(run_fixture)"
 }
 
 AGREE='does not lead with the argument-hint'
 
-agree_case match < <(printf '**Arguments.** `[mode] <path>`. Full form: `[mode] [--x] <path>`.\n')
+agree_case match < <(printf '**Arguments.** `[tier] <path>`. Full form: `[tier] [--x] <path>`.\n')
 if grep -q 'hintfix/skills/match/SKILL.md' <<<"$out"; then
   fail "an Arguments line leading with the hint should be silent: $out"
 else
   ok "an Arguments line leading with the hint is silent"
 fi
 
-agree_case differ < <(printf '**Arguments.** `[mode]`.\n')
+agree_case differ < <(printf '**Arguments.** `[tier]`.\n')
 if grep -q "^warning: .*hintfix/skills/differ/SKILL.md.*$AGREE.*$HINT_DOC" <<<"$out" &&
   ! has_fail_line "$AGREE"; then
   ok "an Arguments line that differs from the hint warns, names the owner doc, and does not fail"
@@ -1441,7 +1501,7 @@ fi
 reset_fixture
 make_plugin hintfix ""
 mkdir -p "$TMP/plugins/hintfix/skills/fmfence"
-printf -- '---\nargument-hint: "[mode]"\ndescription: "Fixture. Ends with ```"\n---\n\n**Arguments.** `[other]`\n' \
+printf -- '---\nargument-hint: "[tier]"\ndescription: "Fixture. Ends with ```"\n---\n\n**Arguments.** `[other]`\n' \
   >"$TMP/plugins/hintfix/skills/fmfence/SKILL.md"
 out="$(run_fixture)"
 if grep -q "^warning: .*hintfix/skills/fmfence/SKILL.md.*$AGREE" <<<"$out"; then
