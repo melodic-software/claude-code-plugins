@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1] - 2026-10-02
+
+### Fixed
+
+- `test_judge_effort` points at the model config page for supported levels and says it has
+  no effect on a model that page lists without effort levels. The judge calibration takes
+  Haiku's sweep arms from that page, and `cleanup`'s model record states only what the skill
+  relies on.
+
 ## [0.19.0] - 2026-10-02
 
 ### Changed

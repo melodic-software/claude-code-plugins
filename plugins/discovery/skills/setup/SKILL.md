@@ -40,7 +40,11 @@ Report a PASS/INFO table. Do not write anything. No row is ever a FAIL or a bloc
      nothing; **2.1.172** to **2.1.216** absent means available at a fixed five; **2.1.217** to
      **2.1.218** absent means *off*, and setting the variable is the only way to turn nesting on;
      **2.1.219** and later absent means available at a configurable default of three, and the
-     variable lowers the ceiling (`"1"` disables nesting) as readily as it raises one.
+     variable lowers the ceiling (`"1"` disables nesting) as readily as it raises one. For the
+     current default and the variable's version history, see
+     [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+     and the variable's row in [env vars](https://code.claude.com/docs/en/env-vars). As of
+     2026-10-02; recheck when the default or the version history changes.
      Report absent as INFO in every window: nesting buys
      **throughput**, not coverage, without it a dispatched agent fans out sequentially, slower for
      the same result. The variable is still only one of **two** conditions: it cannot add a tool an
