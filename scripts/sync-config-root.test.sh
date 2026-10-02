@@ -18,6 +18,7 @@ sync_cluster_suite::run \
   --copy 'plugins/ai-slop/lib/config-root.sh' \
   --extra-copy 'plugins/attribution/lib/config-root.sh' \
   --extra-copy 'plugins/docs-naming/lib/config-root.sh' \
+  --extra-copy 'plugins/multi-agent/lib/config-root.sh' \
   --v1 'config_root_classify() { echo repo; }\n' \
   --v2 'config_root_classify() { echo repo; }\nconfig_root_resolve() { echo /r; }\n' \
   --drift 'config_root_classify() { echo home; }\n' \

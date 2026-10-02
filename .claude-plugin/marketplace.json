@@ -286,6 +286,12 @@
       "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
+      "name": "multi-agent",
+      "source": "./plugins/multi-agent",
+      "category": "workflow",
+      "tags": ["workflow", "orchestration", "subagents", "model-routing", "effort", "fan-out", "skill"]
+    },
+    {
       "name": "visualization",
       "source": "./plugins/visualization",
       "category": "presentation",

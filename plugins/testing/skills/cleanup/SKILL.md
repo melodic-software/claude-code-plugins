@@ -104,10 +104,10 @@ the session's model. Opus is chosen over the judge's `sonnet` because a wrong de
 than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
 reading rules.
 
-Verification record. Claim: the Agent tool's `model` parameter accepts the aliases `sonnet`,
-`opus`, `haiku` and `fable`, and a subagent given none falls through to the main conversation's
-model. Basis: <https://code.claude.com/docs/en/sub-agents>, "Choose a model". As of 2026-10-01.
-Recheck when that page changes its alias list or its model resolution order.
+This skill relies on the per-call `model` it passes taking effect; how that ranks against the
+agent's frontmatter and operator overrides is set by
+<https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of 2026-10-02. Recheck when that
+section changes the order.
 
 ### 5. Apply
 
