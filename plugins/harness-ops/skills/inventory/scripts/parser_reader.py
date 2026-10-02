@@ -54,9 +54,6 @@ COMPONENT = "inventory-parser"
 PLUGIN_DATA_ID = "harness-ops-melodic-software"
 NPM_CI_ARGS = ("ci", "--ignore-scripts", "--no-audit", "--no-fund")
 NPM_TIMEOUT_SECONDS = 600
-# The name `keys_used` reports for a module that may change Array.prototype
-# or Object.prototype (the helper's PATCHES_BUILTINS).
-PATCHES_BUILTINS = "\0builtins"
 STALE_PARTIAL_SECONDS = 2 * NPM_TIMEOUT_SECONDS
 
 
@@ -315,7 +312,11 @@ class ParserReader:
                 "at": None,
             }
         elif res["safe"]:
-            answer = {"safe": True, "exits": [tuple(hop) for hop in res["exits"]]}
+            answer = {
+                "safe": True,
+                "exits": [tuple(hop) for hop in res["exits"]],
+                "trusted": res.get("trusted", []),
+            }
         else:
             at = res.get("at")
             answer = {
@@ -325,6 +326,18 @@ class ParserReader:
             }
         self._answers[key] = answer
         return answer
+
+    def sinks(
+        self, src: str, lo: int, hi: int, names: list[str]
+    ) -> list[tuple[str, str | None, int]]:
+        """Where the module `src[lo:hi]` may write one of `names` on an object
+        that could be a built-in prototype (the helper's `sinks` op), each
+        (kind, name, offset in `src`). A module that does not parse, calls
+        `eval` directly, or holds a character outside the BMP is one hit."""
+        res = self._send("sinks", src, lo, hi, names=names)
+        if res.get("unreadable"):
+            return [("unreadable", None, lo)]
+        return [(kind, name, at + lo) for kind, name, at in res["hits"]]
 
     def module_spans(self, src: str) -> list[tuple[int, int]] | None:
         """The modules `parse_module` filed for `src`, in order, if any."""

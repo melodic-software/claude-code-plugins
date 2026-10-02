@@ -417,15 +417,23 @@ followed, inside a module by the helper's `flow` op and across modules by `_flow
 Anything else stays partial: a hop the walk cannot resolve (a callback that is a parameter of an
 exported function, an object property, `await`, `arguments`), a module with a direct `eval`, an
 exported name any module reads by name as a property (`ns.pY`, `{pY}=ns`), since a module
-namespace reaches the export that way, and a bundle in which any module may change
-`Array.prototype` or `Object.prototype`. That last check holds `Array.prototype` and
-`Object.prototype` (dotted, `["prototype"]`, or `{prototype:P}=Array`) to reads: a member read,
-an equality or `in` operand, an argument of a built-in that only reads (`Object.create`,
-`Object.hasOwn`, `x.hasOwnProperty.call`), a `new WeakSet([...])` element, a destructuring
-source, or a parameter or alias whose every use is one of these; any other use counts as a
-change. `x.__proto__`, `Object.getPrototypeOf(x)` and `x.constructor.prototype` count when written
-through (`[].__proto__.includes=f`) or handed to a built-in that changes its first argument. An
-export also stays partial when a file its importers name in `from"..."` is taken
+namespace reaches the export that way, and a bundle with a sink for a name the walk trusted.
+
+The walk trusts names as built in: each method it calls on the array (`some`, `includes`), each
+name it relies on the prototypes not holding (`has`), and the lookups of a coercion
+(`Symbol.toPrimitive`, `toString`, `valueOf`, `join`) when the array is an operand of `+`, `==`
+or a template. Which object a prototype is reached through is not followed, since there is no end
+of ways (`var A=Array`, `globalThis.Array`, `Array["proto"+"type"]`, `Reflect.get`,
+`[].__proto__`, a parameter). The rule watches the writes instead (the helper's `sinks` op): a
+member write of a trusted name, a write whose computed key names nothing, a trusted name passed
+as a string or `Symbol.x` argument to any call, an object literal holding one given to
+`Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
+`Reflect.set`, `__defineGetter__`) given a key that names nothing or read other than as a direct
+callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `setPrototypeOf`).
+A target is cleared only when it is provably fresh: a literal, a function, `Object.create(...)`,
+`this` in a class constructor, a variable that only ever holds one of those, or the `prototype`
+of a function or class declared in the module and never replaced. A module that does not parse
+or calls `eval` is a sink. An export also stays partial when a file its importers name in `from"..."` is taken
 whole anywhere: `import*as N from`, `export*from`, `import(...)`, `require(...)` or
 `import.meta.require(...)` with that file's literal path, since a computed read (`N[k]`) or an
 enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches the export without naming it.
@@ -444,7 +452,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it under a name no module imports, and pass it to an imported function that only calls `has`/`includes` on it; the parser follows each hop and reads both lists literal, with the regex reader's values | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value differs; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 | A run under the parser reads either list `partial`, or `compare` reports a value change |
+| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop and trusts `some`, `includes` and `has`; every build has sinks for them (on 2.1.287, 189 modules with a write whose key names nothing on a target not shown fresh, 88 with a definer given such a key), so both lists read partial under the parser | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value->value change; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 

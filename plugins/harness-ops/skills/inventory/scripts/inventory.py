@@ -2178,15 +2178,15 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
       the one module exporting it.
 
     Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
-    is a bundle with a module that may change Array.prototype or
-    Object.prototype, whose methods the walk takes as built in. The bundle
-    is taken as the whole program: nothing outside it imports its
-    modules."""
+    is a bundle with a sink for a name the walk trusted (the built-in
+    methods it called on the array, a name it relied on the prototypes not
+    holding, the lookups of a coercion): a module that may write one of
+    those names on an object that could be a built-in prototype
+    (`_sink_hit`)."""
     assert _PARSER is not None
-    if _PARSER.keys_used(src, parser_reader.PATCHES_BUILTINS, _module_spans(src)):
-        return False
     pending = [(_chunk_span(src, pos), {"var": True, "offset": pos, "name": ident})]
     done: set[tuple[tuple[int, int], str]] = set()
+    trusted: set[str] = set()
     while pending:
         span, start = pending.pop()
         key = (span, json.dumps(start, sort_keys=True))
@@ -2198,6 +2198,7 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
         found = _PARSER.flow(src, *span, start)
         if not found["safe"]:
             return False
+        trusted.update(found["trusted"])
         for hop in found["exits"]:
             if hop[0] == "param":
                 home = _sole_exporter(src, hop[1])
@@ -2218,7 +2219,19 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
                 (importer, {"import": name, "calls": hop[0] == "export-call"})
                 for importer in _importers(src, name)
             )
-    return True
+    return not trusted or not _sink_hit(src, sorted(trusted))
+
+
+def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
+    """The first place any module may write one of `names` (the built-in
+    methods and coercions the flow trusted) on an object that could be a
+    built-in prototype, or None. See the helper's `sinks` op."""
+    assert _PARSER is not None
+    for lo, hi in _module_spans(src):
+        hits = _PARSER.sinks(src, lo, hi, names)
+        if hits:
+            return hits[0]
+    return None
 
 
 def _module_spans(src: str) -> list[tuple[int, int]]:

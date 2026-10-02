@@ -285,6 +285,34 @@ class TestOpenFindings(unittest.TestCase):
             'Array["prototype"].includes=' + patch + ';pY.includes("x")',
             "const{prototype:AP}=Array;AP.includes=" + patch + ';pY.includes("x")',
             "var OP=Object.prototype;OP.zz=" + patch + ";pY.zz()",
+            # The second #5891 verifier's probes, which the reachability
+            # guard missed; the sink rule sees the write of the name.
+            "var A=Array;A.prototype.includes=" + patch + ';pY.includes("x")',
+            "(0,Array).prototype.includes=" + patch + ';pY.includes("x")',
+            "globalThis.Array.prototype.includes=" + patch + ';pY.includes("x")',
+            'Array["proto"+"type"].includes=' + patch + ';pY.includes("x")',
+            'Reflect.get(Array,"prototype").includes=' + patch + ';pY.includes("x")',
+            "var e={hasOwnProperty(o){o.includes="
+            + patch
+            + '}};e.hasOwnProperty.call(null,Array.prototype);pY.includes("x")',
+            "function G(o,k){o.includes="
+            + patch
+            + '}G(Array.prototype,"__proto__");pY.includes("x")',
+            "(function(Object){Object.prototype.includes="
+            + patch
+            + '})(Array);pY.includes("x")',
+            "class WeakSet{constructor(a){a[0].includes="
+            + patch
+            + '}}new WeakSet([Array.prototype]);pY.includes("x")',
+            'Array.prototype.__defineGetter__("includes",function(){return '
+            + patch
+            + '});pY.includes("x")',
+            "var Q=[].__proto__;Q.includes=" + patch + ';pY.includes("x")',
+            "var Q=Object.getPrototypeOf([]);Q.includes=" + patch + ';pY.includes("x")',
+            # A write whose key names nothing can write `includes` too.
+            'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
+            + patch
+            + ');pY.includes("x")',
         ):
             with self.subTest(prelude=prelude):
                 self.assert_pinned(
@@ -545,10 +573,16 @@ class TestInstalledBuilds(unittest.TestCase):
     """P4 of #5640 on the builds that motivated it: the Explore and Plan
     agents' `disallowed_tools` spread an array that is exported, aliased,
     returned to a `.some(t)` caller and passed to an imported function.
-    Under the parser both read literal, with the regex reader's list. Each
-    build is skipped when it is not installed on this machine."""
+    The flow follows every hop, but it trusts `some`, `includes` and `has`
+    as built in, and every one of these builds has modules that may write
+    those names on an object the sink rule cannot show is no prototype (a
+    write whose key names nothing, `Object.defineProperty(o,k,...)`), so
+    both lists read partial under the parser: never a value the regex
+    reader does not also read. Whether the default still flips with that is
+    an operator decision on #5640. Each build is skipped when it is not
+    installed on this machine."""
 
-    def test_explore_and_plan_read_literal_under_the_parser(self) -> None:
+    def test_explore_and_plan_read_partial_under_the_parser(self) -> None:
         target = _require_live(self)
         for version in ("2.1.284", "2.1.285", "2.1.286", "2.1.287"):
             with self.subTest(version=version):
@@ -567,12 +601,10 @@ class TestInstalledBuilds(unittest.TestCase):
                         parsed = inv.extract_builtin_agents(src, braces)[0]
                 for agent in ("Explore", "Plan"):
                     self.assertEqual(
-                        parsed[agent]["disallowed_tools_source"], "literal"
+                        parsed[agent]["disallowed_tools_source"], "partial"
                     )
-                    self.assertEqual(
-                        parsed[agent]["disallowed_tools"],
-                        regex[agent]["disallowed_tools"],
-                    )
+                    got = parsed[agent]["disallowed_tools"]
+                    self.assertTrue(set(got) < set(regex[agent]["disallowed_tools"]))
 
 
 if __name__ == "__main__":

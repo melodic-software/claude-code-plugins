@@ -563,12 +563,16 @@ class TestFlowQuery(unittest.TestCase):
     def test_an_import_start_follows_the_imported_binding(self) -> None:
         src = 'import{pY as q}from"/a.js";export{q as W};q.includes(1);'
         got = self._flow(src, {"import": "pY", "calls": False})
-        self.assertEqual(got, {"safe": True, "exits": [("export", "W")]})
+        self.assertEqual(
+            got, {"safe": True, "exits": [("export", "W")], "trusted": ["includes"]}
+        )
         src = 'import{pY as q}from"/a.js";q.push(1);'
         self.assertFalse(self._flow(src, {"import": "pY", "calls": False})["safe"])
         src = 'export{pY as W}from"/a.js";'
         got = self._flow(src, {"import": "pY", "calls": True})
-        self.assertEqual(got, {"safe": True, "exits": [("export-call", "W")]})
+        self.assertEqual(
+            got, {"safe": True, "exits": [("export-call", "W")], "trusted": []}
+        )
 
     def test_a_param_start_resolves_the_module_scope_function(self) -> None:
         src = "function g(a,b){b.push(1)}var h=(a)=>a.at(0);"
@@ -601,42 +605,69 @@ class TestFlowQuery(unittest.TestCase):
             with self.subTest(src=src):
                 self.assertEqual(self.reader.keys_used(src, "pY"), used)
 
-    def test_keys_used_flags_a_change_to_a_builtin_prototype(self) -> None:
-        for src, patched in (
-            ("Array.prototype.includes=function(){};", True),
-            ('Object.defineProperty(Object.prototype,"has",{});', True),
-            ("Array.prototype.slice.call(arguments);", False),
-            # The #5891 verifier's probes.
-            ("var AP=Array.prototype;AP.includes=f;", True),
-            ("[].__proto__.includes=f;", True),
-            ("Object.getPrototypeOf([]).join=f;", True),
-            ('Array["prototype"].includes=f;', True),
-            ("const{prototype:AP}=Array;AP.includes=f;", True),
-            ("var OP=Object.prototype;OP.zz=f;", True),
-            ("function g(p){p.includes=f}g(Array.prototype);", True),
-            ("h(Array.prototype);", True),
-            ("var P=Array.prototype;export{P};", True),
-            ('Reflect.set(Object.getPrototypeOf(o),"x",1);', True),
-            # Reads only, as the 2.1.284-2.1.287 bundles hold them.
-            ("var P=Object.prototype,h=P.hasOwnProperty,{toString:t}=P;", False),
-            ('"x"in Object.prototype;Object.hasOwn(Object.prototype,k);', False),
-            ("var o=Object.create(Object.prototype,{});", False),
-            ("new WeakSet([Object.prototype,Error.prototype]);", False),
-            ("(({hasOwnProperty:e})=>e)(Object.prototype);", False),
-            ("function g(p){return p.x}g(Array.prototype);", False),
+    def _sinks(self, src: str, names: tuple[str, ...] = ("includes",)) -> list[str]:
+        return [kind for kind, _, _ in self.reader.sinks(src, 0, len(src), list(names))]
+
+    def test_sinks_are_writes_of_a_trusted_name_on_a_possible_prototype(self) -> None:
+        """#5891 second verifier: the sink rule. Every way to reach a
+        prototype ends in a write of the name, a definer given the name, or
+        a write whose key names nothing; only a provably fresh target is
+        cleared."""
+        for src, kinds in (
+            ("var A=Array;A.prototype.includes=f;", ["write"]),
+            ("(0,Array).prototype.includes=f;", ["write"]),
+            ("globalThis.Array.prototype.includes=f;", ["write"]),
+            ('Array["proto"+"type"].includes=f;', ["write"]),
+            ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
             (
-                'var Pt=Object.prototype.hasOwnProperty;Pt.call(o.constructor.prototype,"k");',
-                False,
+                "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",
+                ["write"],
             ),
-            ('var d=G(Object.prototype,"__proto__");', True),
-            ('function G(o,k){o.includes=f}G(Array.prototype,"__proto__");', True),
-            ("delete o.__proto__;o.__proto__=null;", False),
-            ("for(;n=Reflect.getPrototypeOf(n);)if(n===Object.prototype)break;", False),
+            ('function G(o,k){o.includes=f}G(Array.prototype,"__proto__");', ["write"]),
+            (
+                "(function(Object){Object.prototype.includes=f})(Array);",
+                ["write", "definer-escape"],
+            ),
+            (
+                "class WeakSet{constructor(a){a[0].includes=f}}new WeakSet([Array.prototype]);",
+                ["write"],
+            ),
+            ('Array.prototype.__defineGetter__("includes",g);', ["argument"]),
+            ("var Q=[].__proto__;Q.includes=f;", ["write"]),
+            ("var Q=Object.getPrototypeOf([]);Q.includes=f;", ["write"]),
+            ('Object.defineProperty(P,"includes",{});', ["argument"]),
+            ("Object.assign(P,{includes:f});", ["object-key"]),
+            ("Object.defineProperty(P,k,{});", ["computed-define"]),
+            ("o[k]=f;", ["computed-write"]),
+            ("Object.setPrototypeOf(P,Q);", ["proto-swap"]),
+            ("var dp=Object.defineProperty;", ["definer-escape"]),
+            ("var R=Reflect;", ["definer-escape"]),
+            ('function e(){eval("")}', ["eval"]),
+            # Cleared: a trusted name or computed key on a fresh object, or
+            # a name nothing trusted.
+            ("var o={};o.includes=f;o[k]=1;", []),
+            ("class C{constructor(k){this[k]=1}}", []),
+            ("function F(){}F.prototype.includes=f;", []),
+            ('var o=Object.create(null);Object.defineProperty(o,"includes",{});', []),
+            ("x.join=f;Array.prototype.join=f;", []),
+            (
+                'Object.keys(o);e instanceof Object;Object.prototype.hasOwnProperty.call(o,"k");',
+                [],
+            ),
         ):
             with self.subTest(src=src):
-                self.assertEqual(
-                    self.reader.keys_used(src, pr.PATCHES_BUILTINS), patched
-                )
+                self.assertEqual(self._sinks(src), kinds)
+
+    def test_a_flow_reports_the_names_it_trusted(self) -> None:
+        got = self._flow(
+            'var pY=[1];pY.some((e)=>e);pY.has(1);var s=""+pY;'
+            'function g(n){return"has"in n}g(pY);'
+        )
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(
+            got["trusted"],
+            ["@@toPrimitive", "has", "join", "some", "toString", "valueOf"],
+        )
 
     def test_exports_lists_every_exported_name(self) -> None:
         src = "export var a=1,{b}=o;export function c(){}var d;export{d as e};"
