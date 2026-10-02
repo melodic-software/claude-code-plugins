@@ -190,7 +190,7 @@ Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 **Durability over precision.** PRD content describes interfaces, types, and behavioral contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, outlives the PRD: graduate it to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals of the same concept get answered by the ledger instead of relitigated. This is a consumer convention with graceful degrade: create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
@@ -205,8 +205,8 @@ Optionally offer to render the finalized PRD as a self-contained HTML pitch view
 After writing the PRD, recommend the next step. The recommendation depends on remaining ambiguity:
 
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it will read the topic's `PRD.md` as scope)
-- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if installed, otherwise whatever codebase-exploration capability the environment provides
-- **Need external research (libs, APIs, comparables)** → `/discovery:research` if installed, otherwise the strongest research capability available
+- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise whatever codebase-exploration capability the environment provides
+- **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:plan`
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
@@ -338,8 +338,8 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 | Pre-PRD: problem still rough, no candidate approach chosen | `/planning:brainstorm` | Diverges cheapest→most-ambitious candidates; the resonating direction feeds this PRD |
 | Pre-task: product feature, fuzzy intent | **`/planning:prd`** (this) | Produces the topic's `PRD.md` |
 | Pre-task: any fuzzy task. Including post-PRD constraint discovery | `/planning:interview` | Produces the Brief in `PLAN.md` (reads PRD if present) |
-| Need codebase grounding | `/discovery:explore` (if installed) | Reads PRD + PLAN as scope |
-| Need external evidence | `/discovery:research` (if installed) | Reads PRD + PLAN as scope |
+| Need codebase grounding | `/discovery:explore` (if enabled) | Reads PRD + PLAN as scope |
+| Need external evidence | `/discovery:research` (if enabled) | Reads PRD + PLAN as scope |
 | Need design exploration (types, contracts, topology) | `/planning:design` | Reads PRD + PLAN; produces design artifacts that `/planning:plan` consumes |
 | Plan the implementation | `/planning:plan` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output (not the PRD) |
