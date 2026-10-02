@@ -54,8 +54,9 @@ not carry it. `<after>` must differ from `<before>`.
 
 Phase 0, in this order, replacing the exercised scope's mapping:
 
-1. Read `<before>`. A malformed record refuses (run `compare-records.sh <before> <before>`: exit 2
-   on a malformed row; an empty K0 also exits 2 and is refused the same way, since it proves nothing).
+1. Read `<before>`. A malformed record refuses: run SKILL.md's `compare-records.sh` command with
+   `<before>` as both arguments, which exits 2 on a malformed row and on an empty K0 (nothing
+   detected before proves nothing).
 2. Refuse when the production files differ from the recorded sha on any listed path: `git diff
    --quiet <sha> -- <listed paths>` compares the working tree with that commit. Refuse when a listed
    `original` no longer matches its lines.
@@ -71,13 +72,8 @@ revert, verify the revert), whatever tool is configured, with no cap, no increme
 regeneration. Mutant ids from a tool vary by version and config, so a regenerated set would compare
 different mutants.
 
-After restoration is verified, write `<after>` (same sha, same rows, new states) and run:
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/compare-records.sh" <before> <after>
-```
-
-It prints `newly-surviving <path>:<line_start> <operator>` per mutant detected before and not
+After restoration is verified, write `<after>` (same sha, same rows, new states) and run the
+`compare-records.sh <before> <after>` command that SKILL.md "Record and replay" gives. It prints `newly-surviving <path>:<line_start> <operator>` per mutant detected before and not
 after, then `K0 <n> K1 <n>`, and exits 0 (no loss), 1 (a loss) or 2 (it could not compare: stop and
 report). Each newly surviving mutant goes to Phase 4 triage with the rest of the survivors; its
 brief says the mutant was detected in the recording run and by which tests, which is direct

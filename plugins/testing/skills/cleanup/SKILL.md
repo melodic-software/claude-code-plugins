@@ -85,8 +85,8 @@ through the Skill tool, with no `--paths`. Then read its report:
 
 ### 4. Classify
 
-Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/classifier-brief.md)
-and dispatch a fresh-context `general-purpose` subagent with `model: opus`, so it does not inherit
+Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/classifier-brief.md),
+with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with `model: opus`, so it does not inherit
 the session's model. Opus is chosen over the judge's `sonnet` because a wrong deletion costs more
 than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
 reading rules.
