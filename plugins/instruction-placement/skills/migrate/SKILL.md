@@ -384,6 +384,30 @@ so a repository cannot rely on it and the gates keep the default's answer
 ([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
 2026-09-28, quotes unchanged; recheck when that table changes or a release note names the setting).
 
+## Boundary, the built-in `cc-plugin-agents-md` plugin
+
+One native Claude Code surface works on the same file, and the two are easy to conflate:
+
+- **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin the docs call
+  `agents-md@builtin`. It reads `AGENTS.md` as project instructions where the project has no
+  `CLAUDE.md`, and by its **Project instructions** (`instructionFiles`) option beside `CLAUDE.md`,
+  not at all (`claude-md`), or with every project and user instruction file dropped
+  (`managed-only`). It moves no file and writes no shim. Whether this build registers it, requires
+  it in this session type, and gates it is read at run time from `/harness-ops:inventory`'s
+  `builtin_plugins` lane, never assumed.
+- **This skill**: moves a repository's instruction content into `AGENTS.md`, keeps the one-line
+  `CLAUDE.md` shim, and decides when the shim can go.
+
+**Routing.** The plugin is the loading mechanism this skill's shim decisions are judged against,
+not a replacement for the migration. Where the plugin is enabled in this session, the shim still
+carries `AGENTS.md` into the sessions the plugin does not reach; never treat the plugin's
+presence on one machine as proof every session reads `AGENTS.md`. Verdict `complementary`,
+integration `route`; the four-part record is in
+[`reference/sources.md`](reference/sources.md), "The built-in agents-md plugin".
+
+**Mutation gate:** the plugin changes no file. This skill's moves and shim edits run only behind
+its per-write operator gate.
+
 ## Hard rules
 
 - **Never delete a `CLAUDE.md` shim outside `remove-shims`.** Reducing one to its import line is

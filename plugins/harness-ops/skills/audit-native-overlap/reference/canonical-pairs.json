@@ -116,6 +116,11 @@
       "native": { "name": "design-sync", "class": "bundled-skill" },
       "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
       "why": "The design-sync family (sync, consent, revoke, login) is registered in the binary near the canvas skill visualize gates; recorded to rule on, not to integrate."
+    },
+    {
+      "native": { "name": "cc-plugin-agents-md", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "instruction-placement", "skill": "migrate", "kind": "skill" },
+      "why": "The built-in agents-md plugin loads AGENTS.md as project instructions where no CLAUDE.md exists; migrate moves a repository's instructions into AGENTS.md and decides whether its CLAUDE.md shim is still needed."
     }
   ]
 }
