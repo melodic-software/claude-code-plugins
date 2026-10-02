@@ -3,6 +3,15 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.11] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): `typos_format_enabled` is titled `Spell-check on edit`
+  and `typos_format_write_changes` is titled `In-place spelling corrections`. No key, type or
+  default changed.
+
 ## [0.8.10] - 2026-10-02
 
 ### Changed

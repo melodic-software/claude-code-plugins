@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.9] - 2026-10-02
+
+### Changed
+
+- `disk_hygiene_enabled` is titled `Clean execution tiers`, naming what it turns on without the
+  plugin name, per the plugin-option-naming convention (`docs/conventions/plugin-option-naming/`).
+  No key, type or default changed.
+
 ## [0.42.8] - 2026-10-02
 
 ### Fixed

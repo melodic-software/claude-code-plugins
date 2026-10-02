@@ -3,6 +3,15 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.93] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): `markdown_format_enabled` reads "Format and lint on edit" and
+  `markdown_format_lint_gitignored` reads "Act on files git ignores", the title every plugin uses
+  for that key. Its description fits 300 characters and drops the all-caps emphasis.
+
 ## [0.11.92] - 2026-10-02
 
 ### Fixed

@@ -3,6 +3,14 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.22] - 2026-10-02
+
+### Changed
+
+- The `go_format_enabled` option title reads "Format on edit", naming what the hook does instead
+  of repeating the plugin name, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`).
+
 ## [0.4.21] - 2026-10-02
 
 ### Fixed
