@@ -1968,6 +1968,13 @@ jobs:
         run: |
           [ "$LEG" = 1 ] || exit 0
           bash scripts/validate-plugin-contracts.test.sh
+      # validate-plugins.sh calls test-plugin-mods.sh, whose skip paths (no
+      # mod, no claude, a CLI older than mods) are what keep it green here.
+      - name: Run mod-test runner tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 1 ] || exit 0
+          bash scripts/test-plugin-mods.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.changes.outputs.run_tests == 'true'
         # validate-plugins.sh runs scripts/validate-plugin-contracts.mjs, whose

@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of whether a doc earns its existence: could a fresh agent re-derive it from code, config, and structure? One verdict per file: delete, convert-to-pointer, keep-as-derivation-cache, or keep-owns-facts. Use when: 'is this doc worth keeping', 'audit doc value', 'derivability', 'could an agent figure this out itself', 'should this doc exist', 'this doc just restates the code', 'prune redundant docs', 'does this doc earn its maintenance'. Line-level noise is /docs-hygiene:audit-noise."
-argument-hint: "[audit] [target] | sweep <dir>"
+argument-hint: "[target|audit [target]|sweep <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash

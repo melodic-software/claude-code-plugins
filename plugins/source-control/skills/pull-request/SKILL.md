@@ -2,13 +2,13 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "<action> [args]"
+argument-hint: "[prep|create|ready|monitor|comments|merge|status|full|fetch-logs] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `<action> [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>
+**Arguments.** `[prep|create|ready|monitor|comments|merge|status|full|fetch-logs] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>
 
 ## Repository context. Gather first
 

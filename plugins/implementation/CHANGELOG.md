@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.19] - 2026-10-02
+
+### Fixed
+
+- The `implement` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
+  the skill accepts.
+
 ## [0.19.18] - 2026-10-01
 
 ### Changed

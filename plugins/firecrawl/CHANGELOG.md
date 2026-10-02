@@ -3,6 +3,15 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.24] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `update` `argument-hint` uses Claude Code's official bracket notation: it drops the prose
+  after the grammar, which the skill body now carries.
+
 ## [0.5.23] - 2026-10-01
 
 ### Changed

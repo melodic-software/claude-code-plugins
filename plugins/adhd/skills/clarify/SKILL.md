@@ -1,6 +1,6 @@
 ---
 description: "Faithfully clarify a dense, decision-heavy message so the reader can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what the reader must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude and not medium. A lossy plain-language drop is education:explain (if installed) instead; a picture explainer (a diagram, ELI5) is education:eli5 (if installed). Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
-argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
+argument-hint: "[artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

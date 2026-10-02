@@ -1,6 +1,6 @@
 ---
 description: "Verify the bash-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', shell lint or formatting silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash

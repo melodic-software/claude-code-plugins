@@ -1,6 +1,6 @@
 ---
 description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and not for running or scoring a suite, which is /evals:plugin-eval and the CLI it guides."
-argument-hint: "[target: app | skill <name> | plugin <path>]"
+argument-hint: "<app|skill <name>|plugin <path>>"
 user-invocable: true
 disable-model-invocation: false
 metadata:

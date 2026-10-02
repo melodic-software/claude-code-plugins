@@ -1,6 +1,6 @@
 ---
 description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, producing design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Handoff gate: /planning:design-handoff."
-argument-hint: "[scope] [action]"
+argument-hint: "[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Resolve types, contracts, and module boundaries before planning
 ---
 
-**Arguments.** `[scope] [action]`. e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff
+**Arguments.** `[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]`. e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff
 
 ## Repository context. Gather first
 

@@ -3,6 +3,14 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.23] - 2026-10-02
+
+### Fixed
+
+- The `justify` `argument-hint` uses Claude Code's official bracket notation: the target changes
+  from required `<...>` to optional `[...]`, because a run with no target falls back to session
+  context, and alternatives sit inside the brackets with an unspaced `|`.
+
 ## [0.4.22] - 2026-10-01
 
 ### Changed

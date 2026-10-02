@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.6.1] - 2026-09-28
 
 ### Changed

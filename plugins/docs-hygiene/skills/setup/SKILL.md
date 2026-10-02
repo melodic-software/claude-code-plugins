@@ -1,6 +1,6 @@
 ---
 description: "Verify that markdownlint-cli2, the lint gate /docs-hygiene:compress requires, resolves and runs for this repository. Use when: 'set up docs-hygiene', 'is docs-hygiene ready', 'compress stopped because markdownlint-cli2 is missing', or before the first compress run. Check-only: verifies, reports the remediation, installs nothing. Re-runnable and safe."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash

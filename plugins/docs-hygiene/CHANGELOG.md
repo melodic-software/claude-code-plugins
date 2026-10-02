@@ -1,5 +1,16 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.4] - 2026-10-02
+
+### Fixed
+
+- The `audit-derivability` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+- The `rename-references` `argument-hint` uses Claude Code's official bracket notation: it lists the
+  actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.24.3] - 2026-10-01
 
 ### Changed

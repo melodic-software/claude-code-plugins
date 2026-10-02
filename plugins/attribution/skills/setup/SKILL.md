@@ -1,6 +1,6 @@
 ---
 description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', after installing the plugin, or to migrate a leftover pre-rename `.claude/provenance.json`. Writes only the consuming repository's own config, never source."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]

@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.0] - 2026-10-02
+## [1.2.0] - 2026-10-02
 
 ### Added
 
@@ -38,6 +38,46 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `unresolved->resolved`.
 - `test_fixture_parse.py` finds the installed parser packages on its own and fails instead of
   skipping when `INVENTORY_REQUIRE_ACORN` is set, which CI now sets after installing them.
+
+## [1.1.1] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect scores a built-in plugin surface whose name an earlier lane
+  entry held but was filtered out.** Building the native index marked a name seen before
+  dropping an empty or `internal` entry, so a later built-in plugin or plugin component of the
+  same name was skipped as a duplicate and its overlap candidates were never produced. A name
+  is now marked seen only when its entry is kept; a filtered name still gets no fallback
+  `plugin_backed` surface, so an internal plugin-backed command stays unscored. The native index
+  that seeded pairs and dismissal drift read applies the same selection. On the 2.1.287
+  extraction the candidate report is unchanged, since no name there collides that way.
+
+## [1.1.0] - 2026-10-02
+
+### Added
+
+- **The inventory reports what this account and these settings say about each built-in
+  plugin.** A full run adds `builtin_plugin_state`: per gate flag, the value cached in
+  `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` `cachedGrowthBookFeatures` beside the binary default (`cached_present: false` means the
+  default applies); per plugin, every user, project and local `enabledPlugins` entry for its
+  `<name>@builtin` id and the one that wins, where a file holding any non-Boolean value
+  contributes none (`enabled_plugins_rejected`); and the mods rollout flag
+  `tengu_plugin_hooks_modules`. Its caveats record that a gate read through the per-process
+  `pinnedFeatureValues` pin, as `cc-plugin-diff`'s is, is fixed at session start, so a cached value
+  read later can differ from what a running session uses.
+- **Five native-overlap seed pairs for built-in mods.** `cc-plugin-claude-test` with
+  `testing:run-e2e` and `playwright:playwright`, `cc-plugin-you-should-know` with
+  `discovery:blindspot`, `cc-plugin-responsive-mode` with `writing:be-concise`, and
+  `cc-plugin-mermaid` with `visualization:visualize`.
+
+## [1.0.2] - 2026-10-02
+
+### Fixed
+
+- The `machine-profile` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [1.0.1] - 2026-10-01
 

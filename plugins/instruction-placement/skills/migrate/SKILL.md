@@ -1,6 +1,6 @@
 ---
 description: "Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load. Plans first; every write is operator-gated. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not the placement sweep (audit) or applying findings (realign)."
-argument-hint: "[plan | apply | cutover-check | remove-shims] [path ...]"
+argument-hint: "[plan|apply|cutover-check|remove-shims] [path ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -22,7 +22,7 @@ metadata:
   summary: Move a repository's instruction content to AGENTS.md behind an operator gate
 ---
 
-**Arguments.** `[plan | apply | cutover-check | remove-shims] [path ...]`. Default: plan the repository at the current root
+**Arguments.** `[plan|apply|cutover-check|remove-shims] [path ...]`. Default: plan the repository at the current root
 
 # Migrate a repository to AGENTS.md
 
@@ -269,6 +269,16 @@ there locates a path the same way. Two things are out of the scan and the condit
 markdown, which locates no path, and the acknowledgement list itself, whose every line quotes a
 detector by design.
 
+### Is the shim droppable here? Decide before `remove-shims`
+
+`cutover-check` grades the build and the fleet, not whether this repository's users lose
+instructions without the shim. Before offering `remove-shims`, read
+[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its six conditions:
+precedence, this machine's mode, the loader's state, the operator's answers for every other user
+and surface, external `@` imports, and `InstructionsLoaded` dependents. It also gives the verdict for
+nested `AGENTS.md` under each mode. **Unknown is failed**: any condition not shown to hold keeps the
+recommendation at "keep the shim" and names it. This recommends, never removes.
+
 ### `remove-shims`, one repository per run
 
 ```bash
@@ -341,13 +351,9 @@ directly at all.
 - **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
   attaches a subdirectory's `AGENTS.md` when a Read opens a file there and that subdirectory has
-  none of those three names of its own. Reading it directly needs v2.1.277 or later. The memory
-  page's "When AGENTS.md support is unavailable" list is: a CLI before v2.1.277, the built-in
-  `agents-md` plugin disabled in `/plugin`, and in some cases the first session after an upgrade
-  from v2.1.276 or earlier. The same page says that before v2.1.281, some sessions, such as those
-  on Amazon Bedrock or with telemetry disabled, read `CLAUDE.md` files only, and that on those
-  versions you update Claude Code. A `CLAUDE.md` containing `@AGENTS.md` never makes Claude read
-  the file twice.
+  none of those three names of its own. Reading it directly needs v2.1.277 or later; the sessions
+  that cannot are listed in `reference/shim-droppable.md`, condition D. A `CLAUDE.md` containing `@AGENTS.md` never makes
+  Claude read the file twice.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-29 (49,601 bytes;
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
   "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
@@ -375,14 +381,16 @@ detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed
 cannot see an `AGENTS.md` that Claude reads directly.
 
 **One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
-claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
-and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
-is a false positive for that operator. The import stays harmless there: "Claude Code skips an
+claude-md-and-agents-md`, Claude Code reads "Your `CLAUDE.md` and `AGENTS.md` files together, each
+directory's `CLAUDE.md` files first and its `AGENTS.md` after them". The page does not say when a
+subdirectory's `AGENTS.md` loads under that value, so an `UNWIRED` row stays a finding there too
+and the nested shim stays. The import is harmless there: "Claude Code skips an
 `AGENTS.md` it has already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
 twice". The value is a user, `--settings` or managed setting, ignored in project and local settings,
 so a repository cannot rely on it and the gates keep the default's answer
 ([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
-2026-09-28, quotes unchanged; recheck when that table changes or a release note names the setting).
+2026-10-01; recheck when that table changes, the page comes to state when a subdirectory's
+`AGENTS.md` loads under that value, or a release note names the setting).
 
 ## Boundary, the built-in `cc-plugin-agents-md` plugin
 
@@ -401,7 +409,8 @@ One native Claude Code surface works on the same file, and the two are easy to c
 **Routing.** The plugin is the loading mechanism this skill's shim decisions are judged against,
 not a replacement for the migration. Where the plugin is enabled in this session, the shim still
 carries `AGENTS.md` into the sessions the plugin does not reach; never treat the plugin's
-presence on one machine as proof every session reads `AGENTS.md`. Verdict `complementary`,
+presence on one machine as proof every session reads `AGENTS.md`; the droppability decision above
+is where its state is read. Verdict `complementary`,
 integration `route`; the four-part record is in
 [`reference/sources.md`](reference/sources.md), "The built-in agents-md plugin".
 
