@@ -3,6 +3,36 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows a spread array across modules.** Where `--reader=parser` used to
+  read a spread list as partial on any reference outside its safe list, the helper's new `flow`
+  op follows the array through aliases, returns to every call, arguments into the callee's
+  parameter, and the callbacks of array methods that never change it (`some`, `forEach`, `map`,
+  `reduce` and the like), resolving which function a callback or callee holds back through
+  parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
+  an export to every importer and re-export, and an argument to an imported function into its
+  one exporter. The list stays literal only when every hop is known not to change it. A hop it
+  cannot resolve, a module with a direct `eval`, an exported name any module reads by name as a
+  property (`ns.pY`), and a bundle that writes to `Array.prototype` or `Object.prototype` keep it
+  partial. New helper ops `keys_used` and `exports` back those checks, and `reader.flow_lookups`
+  counts the lookups.
+
+### Changed
+
+- **`--reader=parser` is the inventory's default.** A run needs Node.js and npm and installs the
+  pinned parser on first use; without them the binary source reports broken with the repair
+  command. `--reader=regex` and `--reader=compare` stay selectable. The inventory skill passes
+  `--deps-dir "${CLAUDE_PLUGIN_DATA}"`.
+- Under the parser, the Explore and Plan agents' `disallowed_tools` read literal again on 2.1.284
+  to 2.1.287, with the regex reader's values: their array is exported, aliased, returned to a
+  `.some(t)` caller whose `t` holds no function, re-exported under a name no module imports, and
+  passed to an imported function that only reads it.
+- Under the parser, `var pY=[...];export{pY}` with no importer keeps the literal: the bundle is
+  taken as the whole program.
+
 ## [2.4.0] - 2026-10-02
 
 ### Added
