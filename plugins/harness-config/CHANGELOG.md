@@ -11,6 +11,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - `audit-instructions` routes application-code prompts to `/claude-api prompt-audit` and Claude Code configuration to `/doctor prompt-audit`. Its `bundled-claude-api.md` reference scopes the `prompt-audit` row to the `/claude-api` door, adds a `/doctor prompt-audit` row, and re-stamps the guides row whose trigger fired at Claude Code 2.1.283.
 - `audit-pass` Phase 4 and its `doctor-handoff.md` reference name `/doctor prompt-audit` as an operator-run handoff, handed off the same way as the `/doctor` checkup.
+- `audit-instructions` row I17-a (`criteria.md` 1.27.0) names no model: it takes the set of models whose thinking cannot be turned off from the model configuration "Extended thinking" section at audit time, and its record is re-stamped.
 
 ## [1.3.0] - 2026-10-02
 
