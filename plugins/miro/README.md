@@ -4,11 +4,15 @@ A Claude Code plugin that bundles a local Miro MCP server, giving Claude tools t
 create and manage boards, sticky notes, shapes, frames, connectors, and tags for
 EventStorming, brainstorming, and diagramming workflows.
 
-This is the marketplace's first plugin to ship its own MCP server. The server is a
-single self-contained Node artifact (`server/dist/index.min.js`) invoked over local `stdio`, so
-enabling the plugin adds the Miro tools with no separate install, no registry token,
-and no `npx` dependency (a bundled `node <server>` sidesteps the Windows bare-`npx`
+This is the marketplace's first plugin to ship its own MCP server. Claude Code starts it as
+`node server/src/launch.ts` over local `stdio`. On the first launch the server installs its
+pinned npm dependencies from the committed lockfile into the plugin's data directory (about a
+second on a typical connection); later launches reuse that install. It needs Node.js 24 or later
+with `npm` on `PATH`, and no `npx` (a direct `node <file>` sidesteps the Windows bare-`npx`
 spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510)).
+
+If the first install cannot run (no `npm`, no network, a failed `npm ci`), the server exits
+instead of starting, and its stderr names the cause and the one shell line that repairs it.
 
 ## Enabling and configuration
 
@@ -72,16 +76,19 @@ tool call with the configure instruction, which is why the recipe below disables
 and launches a different server process instead.
 
 1. Enable the plugin.
-2. Locate this plugin's cached server bundle. Claude Code copies an installed plugin into a
+2. Locate this plugin's cached server entry point. Claude Code copies an installed plugin into a
    version-keyed cache directory,
-   `~/.claude/plugins/cache/<marketplace>/miro/<resolved-version>/server/dist/index.min.js`. The
+   `~/.claude/plugins/cache/<marketplace>/miro/<resolved-version>/server/src/launch.ts`. The
    exact path changes on every `miro` update, so re-check it after one.
-3. Add a **user-scope** stdio MCP server whose command wraps that path with `vault-exec`:
+3. Add a **user-scope** stdio MCP server whose command wraps that path with `vault-exec`. A
+   directly configured server does not receive `CLAUDE_PLUGIN_DATA`, so pass it with `-e`; the
+   plugin's data directory is `~/.claude/plugins/data/miro-<marketplace>`:
 
    ```shell
    claude mcp add --transport stdio --scope user miro \
+     -e CLAUDE_PLUGIN_DATA=$HOME/.claude/plugins/data/miro-<marketplace> \
      -- vault-exec --env MIRO_API_TOKEN=<your-secret-name> \
-     -- node /path/to/cache/miro/<resolved-version>/server/dist/index.min.js
+     -- node /path/to/cache/miro/<resolved-version>/server/src/launch.ts
    ```
 
    The `vault-exec.ps1` PowerShell wrapper resolves the same secret on Windows, but the shell a
@@ -117,22 +124,32 @@ on Node ≥ 24. Cross-platform, no per-OS path divergence at the stdio boundary.
 definitions are thin wrappers over the [`@mirohq/miro-api`](https://www.npmjs.com/package/@mirohq/miro-api)
 client; the request/response and error-shaping logic lives in `server/src/`.
 
-The TypeScript in `server/src/` is the single source of truth. `server/dist/index.min.js` is
-generated build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
-source and all runtime dependencies. Plugin install runs no build step, so the bundle
-is committed; CI rebuilds it from source with the pinned toolchain and fails on any
-drift, so the committed artifact is always exactly what the source produces.
+The TypeScript in `server/src/` is what runs: Node strips the types at load, so there is no
+build step and no committed build output. The repo follows the
+[on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md):
+no third-party code is committed. `server/src/launch.ts` installs the runtime dependencies on
+first launch and then starts `index.ts`:
 
-The whole Node project (`package.json`, the lockfile, `src/`, `dist/`, and the tool
-configs) lives under `server/` rather than at the plugin root. Claude Code runs
-`npm ci --ignore-scripts` inside a consumer's plugin cache whenever the plugin root
-holds both a `package.json` and a supported lockfile, and that install cannot be turned
-off; it would materialize this project's devDependencies (the TypeScript, biome, esbuild
-and vitest toolchain) on every install even though the bundle needs none of them at
-runtime. Keeping the project one level down leaves the plugin root without a lockfile,
-so nothing is installed, while CI and Dependabot still pin and rebuild from the same
-lockfile. Basis: [plugins-reference.md](https://code.claude.com/docs/en/plugins-reference.md),
-"Node.js package dependencies", verified 2026-09-11; recheck when that section changes.
+- `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` runs against a copy of
+  `package.json` and `package-lock.json` in
+  `${CLAUDE_PLUGIN_DATA}/mcp-server/<lockfile hash>/`, so a lockfile change installs beside the
+  old set instead of over it.
+- The source is copied into `app-<source hash>/` under that directory, so Node resolves the
+  server's imports from the `node_modules` above it.
+- Both are built in a `.partial-<pid>` sibling and renamed into place, so an interrupted launch
+  leaves nothing that looks complete and two sessions starting at once end with one good copy.
+- On any failure the launcher exits with the cause and the repair command on stderr. It never
+  falls back to another way of running the server.
+
+The whole Node project (`package.json`, the lockfile, `src/`, and the tool configs) lives under
+`server/` rather than at the plugin root. Claude Code installs a plugin's npm dependencies into
+its cached copy whenever the plugin root holds both a `package.json` and a supported lockfile,
+and that install cannot be turned off; it would install this project's devDependencies (the
+TypeScript, biome and vitest toolchain), which the server does not need at runtime. Keeping the
+project one level down leaves the plugin root without a lockfile, so that install never runs,
+while CI and Dependabot still pin from the same lockfile. Basis:
+[Plugin loading reference](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies),
+"Node.js package dependencies", verified 2026-10-02; recheck when that section changes.
 
 ## Development
 
@@ -142,12 +159,9 @@ npm install
 npm run typecheck     # tsc --noEmit
 npm test              # vitest (with coverage + typecheck)
 npm run lint          # biome check
-npm run bundle        # regenerate dist/index.min.js from src/
-npm run verify-bundle # fail if dist/index.min.js drifts from src/
 ```
 
-After editing `server/src/`, run `npm run bundle` and commit the regenerated
-`server/dist/index.min.js` alongside the source change.
+Relative imports in `server/src/` name the `.ts` file, because Node runs the source as is.
 
 ## Configuration
 

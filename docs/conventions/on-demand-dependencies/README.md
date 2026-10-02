@@ -90,9 +90,7 @@ exception is recorded here with that reason, not decided silently in the plugin.
 
 ## Exceptions
 
-| Surface | State |
-|---|---|
-| `plugins/miro/server/` committed MCP server bundle (`build.mjs` output, CI `verify-bundle` drift gate) | Known exception, being brought under this rule by [#5752](https://github.com/melodic-software/claude-code-plugins/issues/5752). That issue first checks whether the MCP server's start path can run an install step; if it cannot, the reason is recorded in this table. |
+None.
 
 ## Adoption
 

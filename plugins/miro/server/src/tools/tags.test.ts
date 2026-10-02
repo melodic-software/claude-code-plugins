@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TAG_COLORS } from "./tags.js";
+import { TAG_COLORS } from "./tags.ts";
 
 // Authoritative set from the Miro create-tag API.
 // Ref: https://developers.miro.com/reference/create-tag

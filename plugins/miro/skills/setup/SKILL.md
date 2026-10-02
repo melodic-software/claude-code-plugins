@@ -37,7 +37,9 @@ Official contracts:
 3. When the plugin is enabled but its tools are absent, report that startup or configuration failed.
    Direct the user to the `/plugin` Errors view and `/mcp`. An unset token is not a startup
    failure: the server runs and each tool call returns the configure instruction, so absent tools
-   point to a different cause.
+   point to a different cause. A first launch that cannot install the server's npm dependencies
+   (no `npm` on `PATH`, no network, a failed `npm ci`) is such a cause: the server exits, and its
+   stderr names the cause and the one shell line that repairs it.
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
 4. When the scoped Miro tools are present, report only that the server started. The server starts
    and lists its tools with no token, so tool presence proves neither that a token was supplied nor
