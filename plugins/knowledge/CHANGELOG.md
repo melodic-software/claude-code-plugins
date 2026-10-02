@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+
 ## [0.15.2] - 2026-10-02
 
 ### Changed

@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-10-02
+
+### Changed
+
+- **`fanout` run-everything mode runs its slices at an explicit effort.** The Workflow passes an
+  effort to its generic slice agents and the stage0 extract step, and leaves named agents on their
+  own pins. The report's Surfaces line shows each leaf as `label@level`, noting that the level is
+  the one requested.
+
 ## [0.34.13] - 2026-10-02
 
 ### Changed
