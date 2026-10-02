@@ -11,7 +11,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - **An effort-pin drift check and an `effort-pins` audit scope.** `check-effort-pins.sh` reads
   model-config's effort tables and per-model defaults, compares their hash with a committed
-  baseline, and lists every effort pin in agents, skills, lane configs and Workflow scripts. It
+  baseline, and lists every effort pin in agents, skills, lane configs, and Workflow literals in
+  skill `context/` files and plugin `workflows/*.js` and `*.mjs` scripts. It
   flags pins when the page changed or a pin names a level the page does not list, and never edits
   a pin or the baseline. `/harness-config:audit effort-pins` runs only this check; a full audit
   runs it in Phase 3.

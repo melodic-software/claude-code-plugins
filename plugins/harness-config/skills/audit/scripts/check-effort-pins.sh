@@ -255,7 +255,7 @@ scan_pins() {
   f="$ROOT/prompts/loops/loop-lane-prompts.md"
   [[ -f "$f" ]] && grep -oE -- '--effort[ =][A-Za-z0-9_-]+' "$f" |
     sed -E 's/^--effort[ =]//' | while IFS= read -r v; do printf 'lane-launch\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done
-  for f in "$ROOT"/plugins/*/skills/*/context/*.md; do
+  for f in "$ROOT"/plugins/*/skills/*/context/*.md "$ROOT"/plugins/*/workflows/*.js "$ROOT"/plugins/*/workflows/*.mjs; do
     grep -oE "effort:[[:space:]]*('[^']*'|\"[^\"]*\")" "$f" |
       sed -E "s/^effort:[[:space:]]*['\"]//; s/['\"]$//" | while IFS= read -r v; do printf 'workflow-literal\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done
   done

@@ -67,7 +67,7 @@ run() {
 # A scan root holding every pin kind. The no-effort agent carries `effort:` in its
 # body only, which is not frontmatter and so not a pin.
 ROOT="$T/root"
-mkdir -p "$ROOT/plugins/p1/agents" "$ROOT/plugins/p1/skills/s1/context" \
+mkdir -p "$ROOT/plugins/p1/agents" "$ROOT/plugins/p1/skills/s1/context" "$ROOT/plugins/p1/workflows" "$ROOT/plugins/p1/tests" \
   "$ROOT/plugins/harness-ops/skills/lanes/context" "$ROOT/prompts/loops"
 printf '%s\n' '---' 'name: a-high' 'effort: high' '---' 'Body.' >"$ROOT/plugins/p1/agents/a-high.md"
 printf '%s\n' '---' 'name: a-medium' 'effort: "medium"' '---' 'Body.' >"$ROOT/plugins/p1/agents/a-medium.md"
@@ -78,6 +78,8 @@ printf '%s\n' '```json' '{ "lanes": [' '  { "name": "one", "effort": "high" },' 
 printf '%s\n' 'Pass `--effort` on every lane.' '' '```bash' 'claude --model opus --effort high' '```' \
   >"$ROOT/prompts/loops/loop-lane-prompts.md"
 printf '%s\n' '```js' "agent({ prompt: 'x', effort: 'high' })" '```' >"$ROOT/plugins/p1/skills/s1/context/flow.md"
+printf '%s\n' "agent({ effort: 'low' })" >"$ROOT/plugins/p1/workflows/w.js"
+printf '%s\n' "agent({ effort: 'max' })" >"$ROOT/plugins/p1/tests/t.mjs"
 
 BOGUS="$T/bogus"
 cp -R "$ROOT" "$BOGUS"
@@ -119,8 +121,10 @@ assert_contains "pin kind lane-config: first lane" "$OUT" "pin path=plugins/harn
 assert_contains "pin kind lane-config: second lane" "$OUT" "kind=lane-config effort=medium status=ok"
 assert_contains "pin kind lane-launch" "$OUT" "pin path=prompts/loops/loop-lane-prompts.md kind=lane-launch effort=high status=ok"
 assert_contains "pin kind workflow-literal" "$OUT" "pin path=plugins/p1/skills/s1/context/flow.md kind=workflow-literal effort=high status=ok"
+assert_contains "pin kind workflow-literal: workflow script" "$OUT" "pin path=plugins/p1/workflows/w.js kind=workflow-literal effort=low status=ok reason=none"
+assert_not_contains "test scripts are not pins" "$OUT" "t.mjs"
 assert_not_contains "no effort in frontmatter: not a pin" "$OUT" "a-none.md"
-assert_contains "unchanged table: summary" "$OUT" "summary pins=7 drift=0 status=ok"
+assert_contains "unchanged table: summary" "$OUT" "summary pins=8 drift=0 status=ok"
 
 # --- backticked-cell: level cells are read without their backticks ---------------
 assert_not_contains "backticked-cell: levels carry no backtick" "$(grep '^table ' <<<"$OUT")" '`'
@@ -150,9 +154,9 @@ assert_contains "fenced heading ignored: same" "$OUT" "table status=same"
 run "$(variant changed 's/Tuning a piano with a friend listening/Tuning a harp alone/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-table: exits 1" 1 "$RC"
 assert_contains "changed-table: table line is changed" "$OUT" "table status=changed"
-assert_eq "changed-table: every pin flagged table-changed" 7 "$(count "$OUT" 'reason=table-changed')"
+assert_eq "changed-table: every pin flagged table-changed" 8 "$(count "$OUT" 'reason=table-changed')"
 assert_eq "changed-table: no pin left ok" 0 "$(count "$OUT" 'status=ok')"
-assert_contains "changed-table: summary" "$OUT" "summary pins=7 drift=7 status=drift"
+assert_contains "changed-table: summary" "$OUT" "summary pins=8 drift=8 status=drift"
 
 # A model row of the Levels table changed.
 run "$(variant levels 's/^| Model Gamma | `low`, `medium`, `high`, `max` |$/| Model Gamma | `low`, `medium`, `high`, `xhigh`, `max` |/')" \
@@ -164,7 +168,7 @@ assert_contains "changed-table, Levels row: changed" "$OUT" "table status=change
 run "$(variant defaults 's/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-defaults: exits 1" 1 "$RC"
 assert_contains "changed-defaults: table line is changed" "$OUT" "table status=changed"
-assert_eq "changed-defaults: every pin flagged table-changed" 7 "$(count "$OUT" 'reason=table-changed')"
+assert_eq "changed-defaults: every pin flagged table-changed" 8 "$(count "$OUT" 'reason=table-changed')"
 run "$(variant item4 's/a coin toss/a dice roll/')" --baseline "$BASE" --root "$ROOT"
 assert_contains "changed-defaults: another list item is not hashed" "$OUT" "table status=same"
 
@@ -204,7 +208,7 @@ assert_contains "reshaped, Levels column renamed: reason" "$OUT" "reason=no-leve
 run "$FX" --baseline "$BASE" --root "$BOGUS"
 assert_eq "level not in table: exits 1" 1 "$RC"
 assert_contains "level not in table: flagged" "$OUT" "pin path=plugins/p1/agents/a-bogus.md kind=frontmatter effort=turbo status=drift reason=level-not-in-table"
-assert_contains "level not in table: the others stay ok" "$OUT" "summary pins=8 drift=1 status=drift"
+assert_contains "level not in table: the others stay ok" "$OUT" "summary pins=9 drift=1 status=drift"
 run "$T/v-changed" --baseline "$BASE" --root "$BOGUS"
 assert_contains "level not in table: wins over table-changed" "$OUT" "effort=turbo status=drift reason=level-not-in-table"
 
