@@ -13,6 +13,12 @@ spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-c
 
 If the first install cannot run (no `npm`, no network, a failed `npm ci`), the server exits
 instead of starting, and its stderr names the cause and the one shell line that repairs it.
+`/mcp` shows the server's status; to read that stderr, start a session with `claude --debug`
+and open the debug log. Basis:
+[Troubleshoot plugins, Server is configured but never connects](https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects)
+and [Debug your configuration, Check MCP servers](https://code.claude.com/docs/en/debug-your-config#check-mcp-servers),
+verified 2026-10-02 on Claude Code 2.1.287; recheck when either section changes where server
+stderr is shown.
 
 ## Enabling and configuration
 

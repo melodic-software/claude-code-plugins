@@ -14,7 +14,8 @@ All notable changes to the `miro` plugin are documented here. Format follows
   `${CLAUDE_PLUGIN_DATA}/mcp-server/<lockfile hash>/` once, then runs the TypeScript source with
   Node's type stripping. Later launches reuse the install. The first launch needs `npm` on `PATH`
   and network access; when the install fails, the server exits and its stderr names the cause and
-  the shell line that repairs it. `server/dist/index.min.js`, `build.mjs`, `esbuild`, and the CI
+  the shell line that repairs it; the README and the `setup` skill say where to read it.
+  `server/dist/index.min.js`, `build.mjs`, `esbuild`, and the CI
   `verify-bundle` drift gate are removed; CI now starts the server the same way, twice, from an
   empty data directory. The plugin now follows the
   [on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md).

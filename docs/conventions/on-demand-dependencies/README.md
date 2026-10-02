@@ -1,6 +1,6 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 1.0.0
+Version: 1.0.1
 Last updated: 2026-10-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
@@ -113,6 +113,7 @@ Each row is a verification record in the
 
 - [#5640](https://github.com/melodic-software/claude-code-plugins/issues/5640): the inventory parser
   plan, where the operator decisions behind this rule are recorded.
-- [#5752](https://github.com/melodic-software/claude-code-plugins/issues/5752): the miro bundle.
+- [#5752](https://github.com/melodic-software/claude-code-plugins/issues/5752): done; the miro MCP
+  server, formerly a committed bundle, installs on first launch under this rule.
 - [plugin-data-report-keying](../plugin-data-report-keying/README.md): how reports, not
   dependencies, are named under the same directory.
