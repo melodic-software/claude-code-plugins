@@ -215,6 +215,13 @@ def test_md_renders_metrics_and_findings_from_the_same_data(data_dir):
     assert "tools.interrupts" in md.stdout.split("## Findings", 1)[1]
 
 
+def test_md_names_each_findings_sessions_worst_first(data_dir):
+    write_store(data_dir, record("s-low", **{"tools.interrupts": 1}), record("s-high", **{"tools.interrupts": 3}), record("s-none"))
+    findings = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+    line = next(row for row in findings.splitlines() if row.startswith("- `tools.interrupts`"))
+    assert line.index("s-high") < line.index("s-low") and "s-none" not in line
+
+
 def test_write_report_writes_a_pair_appends_history_and_keeps_20(data_dir):
     write_store(data_dir, record("s1"))
     reports = data_dir / "audit-sessions" / "reports" / "machine"

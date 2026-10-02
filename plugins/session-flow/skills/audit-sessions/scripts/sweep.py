@@ -189,6 +189,8 @@ def render_md(data: dict) -> str:
                 f"| {f['lens']} | `{f['metric']}` | {_fmt(f['value'])} {f['unit']} | {_fmt(f['threshold'])} | "
                 f"{len(f['evidence'])} | {f['route']} | {f['suggested_skill']} |"
             )
+        lines += ["", "Sessions over each threshold, worst first:", ""]
+        lines += [f"- `{f['metric']}`: " + ", ".join(e["session_id"] for e in f["evidence"]) for f in data["findings"]]
     else:
         lines.append("No session is over a threshold.")
     drift = data["drift"]
