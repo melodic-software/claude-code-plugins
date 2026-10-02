@@ -3,7 +3,7 @@ import type { MiroApi, MiroLowlevelApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { jsonResponse } from "../response.ts";
 
 export const STICKY_NOTE_COLORS = [
   "gray",

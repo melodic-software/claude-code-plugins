@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { elementAt } from "../test-support/assertions.js";
-import { stickyNoteSchema } from "./bulk.js";
+import { elementAt } from "../test-support/assertions.ts";
+import { stickyNoteSchema } from "./bulk.ts";
 
 describe("stickyNoteSchema", () => {
   it("should accept square shape explicitly", () => {

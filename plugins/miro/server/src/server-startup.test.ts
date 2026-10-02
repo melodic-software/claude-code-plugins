@@ -1,18 +1,20 @@
-import { fileURLToPath } from "node:url";
-
 // biome-ignore lint/correctness/noUnresolvedImports: the MCP SDK uses wildcard subpath exports (./*) which Biome cannot resolve; both tsc and Node runtime resolve correctly.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 // biome-ignore lint/correctness/noUnresolvedImports: the MCP SDK uses wildcard subpath exports (./*) which Biome cannot resolve; both tsc and Node runtime resolve correctly.
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
-const bundle = fileURLToPath(new URL("../dist/index.min.js", import.meta.url));
+import { LAUNCH, seedInstall, tempDataDir } from "./test-support/install.ts";
+
+const { dataDir, cleanup } = tempDataDir();
+seedInstall(dataDir);
+afterAll(cleanup);
 
 async function callListBoards(env: Record<string, string>) {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [bundle],
-    env: { PATH: process.env["PATH"] ?? "", ...env },
+    args: [LAUNCH],
+    env: { PATH: process.env["PATH"] ?? "", CLAUDE_PLUGIN_DATA: dataDir, ...env },
   });
   const client = new Client({ name: "startup-test", version: "0.0.0" });
   await client.connect(transport);
@@ -23,7 +25,7 @@ async function callListBoards(env: Record<string, string>) {
   }
 }
 
-describe("committed bundle started without a usable token", () => {
+describe("server started through the launcher without a usable token", () => {
   const shapes: Record<string, Record<string, string>> = {
     "variable absent": {},
     "empty string": { MIRO_API_TOKEN: "" },
