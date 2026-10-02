@@ -13,6 +13,6 @@ into a chapter even where rewording might weaken it. The chapter names the trigg
 and links the section, and a reader who needs the exact words reads them there. The same holds for
 a system-card finding: link the section rather than restate it, so no qualifier is dropped.
 
-A blog post appears only as a "correlate with \<blog link>" note beside a main-docs pointer. A
+A blog post appears only as a `correlate with <blog link>` note beside a main-docs pointer. A
 conflict between two pages is recorded only as "pages X and Y disagree on topic T", with both
 links, the as-of date and a trigger.

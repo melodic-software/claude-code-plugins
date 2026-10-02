@@ -2,7 +2,7 @@
 
 Criteria P1-P5 for `/mcp-tools:audit-posture`. Each criterion names its severity rule and what it
 reads from the inventory. The decisions behind the criteria are in [Source records](#source-records),
-each with a pointer to where the fact lives, an as-of date and a recheck trigger.
+each with a pointer to where the fact lives, an as-of stamp and a recheck trigger.
 
 ## Contents
 

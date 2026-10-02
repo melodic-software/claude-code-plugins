@@ -18,7 +18,6 @@
 # `portability-scope: <reason>` declaration.
 
 plugins/claude-config/skills/audit-permission-grants/reference/criteria.md
-plugins/claude-config/skills/audit/reference/audit-checklist.md
 plugins/claude-config/skills/audit/SKILL.md
 plugins/claude-memory/skills/stateless/reference/official-guidance.md
 plugins/claude-memory/skills/stateless/SKILL.md
