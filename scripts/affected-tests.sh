@@ -64,14 +64,18 @@
 # Python and PowerShell; `//`, `/*` or a `*` block-comment continuation in Node)
 # creates no R4 dependent. A `# shellcheck source=` directive and a JSDoc type
 # import (`@import`, `import('...')`) are read by tools, not people, and still
-# count, as does a trailing comment on a code line. Suites match on every
+# count, as does a trailing comment on a code line. So does a comment naming
+# <stem>.py in a .py that imports <stem> by module name (`import <stem>`,
+# `from <stem> import`): the import never spells the .py, so the comment is the
+# only text edge to the module. Suites match on every
 # line, so R3 is unchanged. Hub files cite the scripts they sit beside in prose:
 # lib/hook-utils.sh and its 20 plugin copies name run-guards.sh only in
 # comments, so a change to run-guards.sh made every copy a "dependent" and pulled
 # in every suite naming hook-utils.sh — 278 to 328 of ~450 suites on 19% of
 # sampled pull requests, most of the corpus for a change to one plugin. The cost
-# of the narrowing is bounded: CI runs the full corpus on main twice a day, so a
-# dependency that existed only as a comment surfaces there.
+# of the narrowing is bounded only for shell suites: CI runs the shell corpus on
+# main twice a day. Python and Node suites that no .test.sh wraps run only when
+# selected, so a comment-only edge into one of them is not re-checked on main.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
@@ -798,7 +802,32 @@ token_hits() {
       if (path ~ /\.(js|mjs|cjs)$/)
         return text ~ /^[ \t]*(\/\/|\/\*|\*([ \t\/]|$))/ && text !~ /@import|import\(/
       if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
-      return text ~ /^[ \t]*#/
+      if (text !~ /^[ \t]*#/) return 0
+      return !(path ~ /\.py$/ && py_imports_named(path, text))
+    }
+    # py_imports_named: does this .py import, by module name, a <stem>.py that
+    # this comment line names? A Python import never spells the .py, so such a
+    # comment is the only text edge to the module and has to keep counting.
+    function py_imports_named(path, text,   n, j, t, stem, line, found) {
+      n = split(text, ptk, /[^A-Za-z0-9_.-]+/)
+      for (j = 1; j <= n; j++) {
+        t = ptk[j]
+        sub(/\.+$/, "", t)
+        if (t !~ /^[A-Za-z_][A-Za-z0-9_]*\.py$/) continue
+        stem = substr(t, 1, length(t) - 3)
+        if (!((path SUBSEP stem) in pyimp)) {
+          found = 0
+          while ((getline line < path) > 0)
+            if (line ~ ("^[ \t]*(from[ \t]+\\.*" stem "[ \t]+import|import[ \t]+([A-Za-z0-9_.]+[ \t]*,[ \t]*)*" stem "([ \t,]|$))")) {
+              found = 1
+              break
+            }
+          close(path)
+          pyimp[path, stem] = found
+        }
+        if (pyimp[path, stem]) return 1
+      }
+      return 0
     }
     {
       i = index($0, ":")
