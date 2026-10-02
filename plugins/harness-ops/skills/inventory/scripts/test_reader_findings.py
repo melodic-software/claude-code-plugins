@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """The open wrong-value and unresolved-only findings on #5640 in the bundle
-reader of inventory.py, pinned. Naming inventory.py here is what makes
+reader of inventory.py, pinned under both readers. Naming inventory.py,
+parser_reader.py and js/parser_helper.cjs here is what makes
 scripts/affected-tests.sh select this suite when the reader changes.
 
 Each test builds a synthetic bundle the way test_inventory.py does and pins
-what the regex reader returns TODAY, which is not what JavaScript computes.
-Any change to that result fails the test, naming the JavaScript result: a
-reader fix lands by replacing the pin with that result (or `partial`, since
-declining to read is honest and a wrong literal is the bug). An exception
-during extraction errors the test; it is never counted as the known finding.
+what each reader returns TODAY: the regex reader, and the parser reader
+(`--reader=parser`), whose binding lookups go through acorn and
+eslint-scope. A pin that is not what JavaScript computes is an open finding.
+Any change to a result fails the test, naming the JavaScript result: a
+reader fix lands by replacing that reader's pin with that result (or
+`partial`, since declining to read is honest and a wrong literal is the
+bug). An exception during extraction errors the test; it is never counted
+as the known finding.
+
+The parser half needs the pinned parser packages (`python3 parser_reader.py
+--install`) and skips without them, unless INVENTORY_REQUIRE_ACORN is set,
+as CI sets it, which makes it fail.
 
 Run: python3 -m unittest test_reader_findings
 """
@@ -18,7 +26,9 @@ from __future__ import annotations
 import unittest
 
 import inventory as inv
+import parser_reader as pr
 from test_inventory import AGENT_SRC
+from test_parser_reader import _require_live
 
 # AGENT_SRC binds xt="Edit", yt="Agent".
 PROBE = (
@@ -27,6 +37,7 @@ PROBE = (
 )
 # The initializer the reader keeps when it misses a later write.
 INITIAL = (["Agent", "Edit", "Artifact"], "literal")
+PARTIAL = (["Agent"], "partial")
 
 
 def _probe(prelude: str) -> tuple[list[str], str]:
@@ -36,16 +47,43 @@ def _probe(prelude: str) -> tuple[list[str], str]:
 
 
 class TestOpenFindings(unittest.TestCase):
-    def assert_still_open(
-        self, prelude: str, today: tuple[list[str], str], js_value: list[str]
+    reader: pr.ParserReader | None = None
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.reader is not None:
+            cls.reader.close()
+            cls.reader = None
+
+    def assert_pinned(
+        self,
+        prelude: str,
+        regex: tuple[list[str], str],
+        js_value: list[str],
+        parser: tuple[list[str], str] | None = None,
     ) -> None:
-        self.assertEqual(
-            _probe(prelude),
-            today,
-            f"the reader's result for {prelude!r} changed. JavaScript gives "
-            f"{js_value}: if the reader now returns that or `partial`, the "
-            "#5640 finding is fixed, so replace this pin with that result.",
-        )
+        """`regex` and `parser` (default: the same as `regex`) are what each
+        reader returns for `prelude` today. Without the parser packages the
+        regex half still runs before the test skips."""
+        for name, run, pinned in (
+            ("regex", _probe, regex),
+            ("parser", self._parsed, parser or regex),
+        ):
+            got = run(prelude)
+            self.assertEqual(
+                got,
+                pinned,
+                f"the {name} reader's result for {prelude!r} changed. "
+                f"JavaScript gives {js_value}: if the reader now returns that or "
+                "`partial`, the #5640 finding is fixed for it, so replace its pin "
+                "with that result.",
+            )
+
+    def _parsed(self, prelude: str) -> tuple[list[str], str]:
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        with inv.use_reader(type(self).reader):
+            return _probe(prelude)
 
     # Finding 3: mutation of the spread array is not modeled, so the literal
     # keeps the initializer. The call-argument case follows the operator
@@ -53,7 +91,7 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_finding_3_push(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
+        self.assert_pinned(
             'var pY=[xt,"Artifact"];pY.push("B");',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
@@ -61,7 +99,7 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_finding_3_unshift(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
+        self.assert_pinned(
             'var pY=[xt,"Artifact"];pY.unshift("B");',
             INITIAL,
             ["Agent", "B", "Edit", "Artifact"],
@@ -69,19 +107,17 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_finding_3_splice(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
+        self.assert_pinned(
             'var pY=[xt,"Artifact"];pY.splice(0,1);', INITIAL, ["Agent", "Artifact"]
         )
 
     def test_finding_3_length_assignment(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
-            'var pY=[xt,"Artifact"];pY.length=0;', INITIAL, ["Agent"]
-        )
+        self.assert_pinned('var pY=[xt,"Artifact"];pY.length=0;', INITIAL, ["Agent"])
 
     def test_finding_3_call_argument(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
+        self.assert_pinned(
             'var pY=[xt,"Artifact"];function g(a){a.push("B")}g(pY);',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
@@ -89,7 +125,7 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_finding_3_push_in_a_called_function(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_still_open(
+        self.assert_pinned(
             'var pY=[xt,"Artifact"];function g(){pY.push("B")}g();',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
@@ -103,31 +139,69 @@ class TestOpenFindings(unittest.TestCase):
         JavaScript has a constant list; the fix reads it as a literal.
         https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934863409
         """
-        self.assert_still_open(
+        self.assert_pinned(
             'var f=()=>0,pY=[xt,"Artifact"];',
-            (["Agent"], "partial"),
+            PARTIAL,
             ["Agent", "Edit", "Artifact"],
         )
 
-    # Finding 5: `_written_elsewhere` scans raw source for shadowing
-    # declarations, so `let pY` inside quoted text hides the function's write
-    # to the outer `pY`.
+    # Finding 5: the regex reader's `_written_elsewhere` scans raw source for
+    # shadowing declarations, so `let pY` inside quoted text hides the
+    # function's write to the outer `pY`. The parser reader resolves the
+    # write to the outer binding, so the list reads as partial: fixed there.
 
-    def assert_text_still_shadows(self, inner: str) -> None:
+    def assert_text_shadows_only_for_regex(self, inner: str) -> None:
         prelude = 'var pY=[xt,"Artifact"];function f(){' + inner + 'pY=["B"]}f();'
-        self.assert_still_open(prelude, INITIAL, ["Agent", "B"])
+        self.assert_pinned(prelude, INITIAL, ["Agent", "B"], parser=PARTIAL)
 
     def test_finding_5_declaration_text_in_a_string(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5936100666"""
-        self.assert_text_still_shadows('"let pY";')
+        self.assert_text_shadows_only_for_regex('"let pY";')
 
     def test_finding_5_declaration_text_in_a_comment(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5936100666"""
-        self.assert_text_still_shadows("/*let pY*/")
+        self.assert_text_shadows_only_for_regex("/*let pY*/")
 
     def test_finding_5_declaration_text_in_a_template(self) -> None:
         """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5936100666"""
-        self.assert_text_still_shadows("`let pY`;")
+        self.assert_text_shadows_only_for_regex("`let pY`;")
+
+    def test_a_real_shadowing_declaration_still_shadows(self) -> None:
+        """The write goes to the function's own `pY`, so the outer list is
+        the initializer under both readers, as in JavaScript."""
+        prelude = 'var pY=[xt,"Artifact"];function f(){let pY;pY=["B"]}f();'
+        self.assert_pinned(prelude, INITIAL, INITIAL[0])
+
+    def test_a_parameter_write_does_not_touch_the_outer_binding(self) -> None:
+        """Fixed under the parser: the regex reader counts a write to a
+        parameter of the same name as a write to the outer `pY`, so the
+        list reads partial; JavaScript and the parser keep the literal."""
+        for head in ("function g(pY){", "try{}catch(pY){", "function g({pY}){"):
+            with self.subTest(head=head):
+                prelude = 'var pY=[xt,"Artifact"];' + head + 'pY=["B"]}'
+                self.assert_pinned(prelude, PARTIAL, INITIAL[0], parser=INITIAL)
+
+    def test_a_direct_eval_leaves_the_module_unresolved_for_the_parser(self) -> None:
+        """Known parser-only unresolved case: eslint-scope marks the scopes
+        around a direct `eval` dynamic and resolves nothing through them,
+        and `optimistic` stays off because `eval` can rebind names. No
+        module in 2.1.284-2.1.287 has one; P4 of #5640 weighs it."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];function e(){eval("")}',
+            INITIAL,
+            INITIAL[0],
+            parser=([], "partial"),
+        )
+
+    def test_a_reader_switch_leaves_no_stale_answer(self) -> None:
+        """Regex, parser, regex again on one source in one process, as
+        --reader=compare runs them: each run gives its own reader's answer,
+        so no cache carries one reader's result into the other's run."""
+        prelude = 'var pY=[xt,"Artifact"];function f(){"let pY";pY=["B"]}f();'
+        self.assertEqual(_probe(prelude), INITIAL)
+        self.assertEqual(self._parsed(prelude), PARTIAL)
+        self.assertEqual(_probe(prelude), INITIAL)
+        self.assertEqual(self._parsed(prelude), PARTIAL)
 
 
 if __name__ == "__main__":

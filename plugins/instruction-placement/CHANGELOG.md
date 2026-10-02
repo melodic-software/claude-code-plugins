@@ -10,6 +10,21 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - `render-index.sh` no longer indexes rules or nested instruction files inside an `evals/fixtures/` tree. Those trees imitate a consuming repository as test input, and their rows were reaching this repository's always-loaded `AGENTS.md` index.
 - `glob-tools.sh rules` (the `/instruction-placement:check` glob gate) no longer checks rules inside an `evals/fixtures/` tree, so a fixture rule whose globs name the fixture's files no longer fails the gate as a zero match. The exclusion lives in the shared discovery layer (`lib/discover.sh`), so the index, the glob gate, `detect.sh` and the wiring gate apply one filter.
 
+## [0.18.4] - 2026-10-02
+
+### Fixed
+
+- `migrate`'s shim rule checks every directory between the repository root and a nested
+  `AGENTS.md` for a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, with the same walk as
+  `ip_entry_points_on_path`, instead of only the directory holding the file. A blocker anywhere on
+  the path, or an unreadable directory, keeps every shim (#5800).
+- The shim rule's `InstructionsLoaded` condition also scans the `hooks:` frontmatter of skill,
+  command and agent files in the repository, the config root, the plugins root, the managed
+  settings directory and each `--add-dir` directory the operator names, following symlinked
+  roots and links inside them. A hit, a root that cannot be resolved or read, a symlink loop, an
+  unnamed `--add-dir` set, or a source not on disk keeps the shim until the operator answers for
+  it (#5794).
+
 ## [0.18.3] - 2026-10-02
 
 ### Changed
