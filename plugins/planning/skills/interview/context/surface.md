@@ -216,7 +216,7 @@ Every question states its decision in plain words. Before `add-round`, scan each
 ## Offers
 
 - **Dedicated session.** When a page session starts in a heavy context, offer once, in one line, to run the interview in a small dedicated session so each wake is cheap. Never force it.
-- **Decomposition at wrap-up (R6).** Name `/planning:wayfind` and, when installed, `/work-items:decompose` as steps the user runs; never run them. The local outputs are `export-brief` and `export-report`.
+- **Decomposition at wrap-up (R6).** Name `/planning:wayfind` and, when enabled, `/work-items:decompose` as steps the user runs; never run them. The local outputs are `export-brief` and `export-report`.
 
 ## Wrap-up
 

@@ -1,6 +1,6 @@
 # Write Tests (TDD Mode)
 
-Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code, whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative guidance from Beck and Khorikov.
+Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code, whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative guidance from Beck and Khorikov.
 
 ## Vertical slices, not horizontal layers
 
