@@ -387,16 +387,21 @@ an export of it.
 |---|---|---|---|
 | The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`), each with one registration, and only `cc-plugin-claude-test` and `cc-plugin-plugin-authoring` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286 and 2.1.287 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty. Derived per run, so no document restates the roster | 2026-10-01, Claude Code 2.1.287 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
 
-### 12. Resolve bindings with a parser by default
+### 12. Resolve bindings with a parser, when selected
 
 `--reader` picks who answers the binding questions the sections above ask (which declaration a
-name reads, whether anything writes or changes it). `parser`, the default, parses each module with
-acorn and resolves names with eslint-scope, installed on first use from the committed lockfile
-(`scripts/js/`, under
+name reads, whether anything writes or changes it). `regex`, the default, is the text reader the
+sections above describe. `parser` parses each module with acorn and resolves names with
+eslint-scope, installed on first use from the committed lockfile (`scripts/js/`, under
 [on-demand dependencies](../../../../../docs/conventions/on-demand-dependencies/README.md)); it
 needs node and npm, and without them the binary source is broken with the repair command, never a
-regex answer. `regex` is the text reader the sections above describe and stays selectable;
-`compare` runs both and breaks the report on any value that differs between them.
+regex answer. `compare` runs both and breaks the report on any value that differs between them;
+the changelog skill's native-drift pass reads each new build that way.
+
+The parser stays opt-in because it reads the Explore and Plan `disallowed_tools` partial on
+2.1.284 to 2.1.287 (the claim below), where the regex reader reads a literal it cannot back:
+nothing the text reader sees rules out the namespace loads and sinks below. Making the parser the
+default is tracked in [#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901).
 
 A spread (section 9) keeps its literal under the parser only when no code can change the array.
 A reference other than a spread into an array or call and a member read used as a value is
@@ -570,7 +575,7 @@ check failed, and each maps to one edit:
 | `integrity.undetermined` grows | A field moved behind a getter or a new indirection | Read one such field; extend `_scan` or `_resolve_chain` if the form is static |
 | `docs_crosscheck` broken | The commands page restructured its table | Re-derive `_ROW_RE` and `_SECTION` from the page |
 | `reader parser: broken`, modules do not parse | The build uses syntax the pinned acorn rejects | Bump acorn in `scripts/js/`'s lockfile; `--reader=regex` reads meanwhile |
-| A spread list is `partial` under the parser and literal under `--reader=regex` | A hop section 12's following cannot resolve | Trace the array with the helper's `flow` op; extend the walk only for a hop that provably cannot change it |
+| A spread list is `partial` under the parser and literal under `--reader=regex` | A hop, sink or whole-file load section 12 cannot rule out | Trace the array with the helper's `flow` and `sinks` ops; extend a rule only for a case that provably cannot change it |
 
 After revalidating, bump `VALIDATED_AGAINST`. Leaving it stale is not a bug: every report then says
 its counts are believed rather than verified, which is the honest state until someone checks.
@@ -584,6 +589,6 @@ and, with `--docs`, both fetches. On 2.1.285 with the agent and tool lanes, abou
 that opens with a lookbehind loses the regex engine's literal-prefix scan, and at about 0.2 seconds
 per lookup it tripled the run. The file is opened read-only and never executed.
 
-The parser reader, the default, adds parsing every module (about 6 seconds, with the prototype check) and its lookups: on
-2.1.284 to 2.1.287 under WSL2, about 29 to 32 seconds wall clock for `--binary-only` against 21
+`--reader=parser` adds parsing every module (about 4 seconds) and its lookups: on
+2.1.284 to 2.1.287 under WSL2, about 26 to 28 seconds wall clock for `--binary-only` against 21
 for `--reader=regex`, after a first run that installs the packages.
