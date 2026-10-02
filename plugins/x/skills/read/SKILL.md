@@ -1,6 +1,6 @@
 ---
 description: "Read an X (formerly Twitter) post, note tweet, or X Article as Markdown without an X API key, by routing the URL through third-party converters: xtomd.com for a single post or article, Thread Reader App for an unrolled reply chain. Use when: an x.com or twitter.com status or article URL needs its text read, whether the user pasted it or research turned it up, 'read this X link', 'unroll this thread', 'convert this X article to markdown', or 'WebFetch returned a login wall on x.com'. Skip for non-X URLs (WebFetch suffices) and for private, protected, or deleted posts, which no converter can reach."
-argument-hint: "<x-url>, an x.com or twitter.com status or article URL"
+argument-hint: "<x-url>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: WebFetch(domain:threadreaderapp.com)

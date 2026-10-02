@@ -1,6 +1,6 @@
 ---
 description: "Backlog CRUD through the bound tracker: stats, list, add, start, done, due, recheck, search, audit (default: stats). Use when the user wants to add, claim, or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check what is due on the recurring schedule; or audit stale claims and labels. New bug reports go to /bugs:write first. Picking and executing the next item is /work-items:work; raw intake is /work-items:triage."
-argument-hint: "<action> [args]"
+argument-hint: "[stats|list|add|start|done|due|recheck|search|audit|help] [args]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `<action> [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, and audit.
+Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|help] [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, audit, and help.
 
 ## Shared tracker context
 

@@ -1,6 +1,6 @@
 ---
 description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, and interview the chosen one with a Design-It-Twice branch. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[action]"
+argument-hint: "[deepening]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan the codebase for shallow modules and friction, then design the chosen fix several ways
 ---
 
-**Arguments.** `[action]`. e.g., deepening
+**Arguments.** `[deepening]`. e.g., deepening
 
 ## Repository context. Gather first
 

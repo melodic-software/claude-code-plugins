@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [0.25.24] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.25.23] - 2026-10-01
 
 ### Changed

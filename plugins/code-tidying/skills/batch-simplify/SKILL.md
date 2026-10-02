@@ -2,7 +2,7 @@
 description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[unattended] [time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]"
+argument-hint: "[unattended] [time-window|branch|repo] [path...] [docs] [override] [in-place[=commit]]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
@@ -44,7 +44,7 @@ Outside-scope changes: none | <paths>
 **`unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
 block records `State: skipped (unattended)` without asking.
 
-**Arguments.** `[unattended] [time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
+**Arguments.** `[unattended] [time-window|branch|repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
 
 ## Repository context. Gather first
 
