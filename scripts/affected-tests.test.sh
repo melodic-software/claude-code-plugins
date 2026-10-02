@@ -1278,7 +1278,7 @@ fi
 rm -rf "$repo3"
 
 # --- a comment-only mention in a NON-suite file makes no dependent -----------
-# Hub files cite neighbouring scripts in prose, and counting those as R4 edges
+# Hub files cite neighboring scripts in prose, and counting those as R4 edges
 # fanned one plugin's change out to most of the corpus. A suite's comment still
 # names the file (R3), and so does every code line, a trailing comment on one,
 # a shellcheck source directive and a JSDoc type import.
