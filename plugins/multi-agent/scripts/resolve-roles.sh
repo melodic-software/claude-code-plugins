@@ -66,6 +66,7 @@ json_str() {
   s="${s//$'\t'/\\t}"
   s="${s//$'\n'/\\n}"
   s="${s//$'\r'/\\r}"
+  s="${s//[$'\x01'-$'\x1f'$'\x7f']/?}"
   printf '"%s"' "$s"
 }
 
@@ -202,7 +203,8 @@ apply_layer() {
       continue
     fi
     if ! valid_value "$field" "$value"; then
-      NOTES+=("$label: $key rejected: '$value' is not an allowed value; the layer below supplies it")
+      value="${value//[^[:print:]]/?}"
+      NOTES+=("$label: $key rejected: '${value:0:40}' is not an allowed value; the layer below supplies it")
       continue
     fi
     VAL[$key]="$value"

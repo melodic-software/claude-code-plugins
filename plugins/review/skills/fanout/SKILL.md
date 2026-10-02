@@ -3,7 +3,7 @@ description: "Fan out review across many finding-producing surfaces at once, thi
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow", "Workflow(review:fanout-sweep)"]
+allowed-tools: ["Workflow(review:fanout-sweep)"]
 shell: bash
 metadata:
   workflow-stage: review

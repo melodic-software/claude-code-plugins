@@ -112,6 +112,15 @@ run broken apply --layer local --write roles.worker.effort=low >/dev/null
 assert_eq "an unparseable layer is not overwritten" 1 "$?"
 assert_contains "the parse error names the line" "$(cat "$T/broken.err")" 'line 3: tab indentation'
 
+fixture symlink
+mkdir -p "$T/symlink/repo/docs/conventions"
+printf 'outside\n' >"$T/symlink/victim"
+ln -s "$T/symlink/victim" "$T/symlink/repo/docs/conventions/multi-agent.md"
+run symlink apply --layer team --write roles.worker.effort=low >/dev/null
+assert_eq "a symlinked team file is refused" 2 "$?"
+assert_eq "the symlink target is untouched" outside "$(cat "$T/symlink/victim")"
+assert_contains "the refusal names the symlink" "$(cat "$T/symlink.err")" 'is a symlink'
+
 fixture user
 out="$(run user apply --layer user --write fanout.model=sonnet)"
 assert_contains "user layer goes under the home" "$out" "wrote: $T/user/home/.claude/multi-agent.yaml"

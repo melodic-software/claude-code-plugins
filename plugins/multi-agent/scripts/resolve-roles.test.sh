@@ -149,6 +149,15 @@ out="$(run reject all --session-model opus)"
 assert_contains "full model id rejected" "$out" "roles.worker.model rejected: 'claude-opus-5-5'"
 assert_contains "unknown effort rejected" "$out" "roles.worker.effort rejected: 'turbo'"
 assert_contains "unknown role in a layer ignored" "$out" "unknown role 'judge'"
+fixture ctrl
+printf 'schema: 1\nroles:\n  worker:\n    effort: \033[31mred\n' >"$T/ctrl/repo/.claude/multi-agent.yaml"
+out="$(run ctrl all --session-model opus)"
+assert_contains "control characters in a rejected value are replaced" "$out" "effort rejected: '?[31mred'"
+if printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
+  pass "output with a control-character value is valid JSON"
+else
+  fail "output with a control-character value is valid JSON" "parses" "$out"
+fi
 assert_contains "rejected keys fall back to the layer below" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium"'
 
 # Team and overlay are not read at a home root.

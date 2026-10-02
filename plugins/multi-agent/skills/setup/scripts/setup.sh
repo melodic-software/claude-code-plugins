@@ -134,6 +134,15 @@ apply() {
   "") die "apply needs --layer user|team|local" ;;
   *) die "unknown layer '$LAYER' (user, team or local)" ;;
   esac
+  # A repository can commit a symlink at a team or local path; reading or
+  # writing through it would reach a file outside the repository.
+  if [[ "$LAYER" != user ]]; then
+    local p="$target"
+    while [[ "$p" == "$ROOT"/* ]]; do
+      [[ -L "$p" ]] && die "refusing $target: $p is a symlink"
+      p=$(dirname "$p")
+    done
+  fi
   ((${#PAIRS[@]})) || die "apply needs at least one <key>=<value>"
 
   if [[ "$mode" == file && -f "$target" ]] || [[ "$mode" == block ]]; then
@@ -208,7 +217,10 @@ apply() {
     return 0
   fi
   mkdir -p "$(dirname "$target")" || die "cannot create $(dirname "$target")"
-  cp "$tmp/new" "$target" || die "cannot write $target"
+  if ! { cp "$tmp/new" "$target.tmp.$$" && mv -f "$target.tmp.$$" "$target"; }; then
+    rm -f "$target.tmp.$$"
+    die "cannot write $target"
+  fi
   printf 'wrote: %s (%s layer)\n' "$target" "$LAYER"
   printf 'stored:\n'
   if [[ "$mode" == file ]]; then awk -f "$PARSER" "$target"; else awk -v BLOCK=1 -f "$PARSER" "$target"; fi |
