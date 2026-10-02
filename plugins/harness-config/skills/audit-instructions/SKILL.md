@@ -98,13 +98,13 @@ two are routinely conflated:
   target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
   staleness the vendor sweep misses. Application-source prompts stay with the bundled subcommand.
 
-**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
-this session, prefer its `prompt-audit` for a model migration or any pass over application-code
-prompts, and run it whenever the target model changes. Prefer this skill for the standing catalog
-audit of Claude Code surfaces, cross-surface conflicts, and harness claims that misstate Claude
-Code's own behavior. Where a sweep wants both, run both: recurring gap shapes the vendor sweep
-surfaces feed this catalog as new rows, and this skill's findings never substitute for the vendor
-procedure on a model change.
+**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves,
+prefer `/claude-api prompt-audit` for application-code prompts and model migrations, and
+`/doctor prompt-audit` (offered below) for Claude Code configuration; run one whenever the target
+model changes. Prefer this skill for the standing catalog audit of Claude Code surfaces,
+cross-surface conflicts, and harness claims that misstate Claude Code's own behavior. Where a sweep
+wants both, run both: recurring gap shapes the vendor sweep surfaces feed this catalog as new rows,
+and this skill's findings never substitute for the vendor procedure on a model change.
 
 **Mutation gate.** `prompt-audit` edits files when the request asks for edits. This skill is
 report-only: never chain into a `prompt-audit` apply; surface the finding and let the user run it.
@@ -124,10 +124,10 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 **Routing.** At the end of the run, offer it to the person: you can run `/doctor prompt-audit`
 alongside this skill. An unattended run records the offer in its output instead of asking.
-**Mutation gate.** Its write posture is undocumented; this skill never chains into `/doctor`.
-**Availability is never assumed.** Gated by `DISABLE_DOCTOR_COMMAND`, `skillOverrides`, and
-version, it survives `disableBundledSkills`; this section states what to offer, never that it is
-present. Records: [reference/native-doctor.md](reference/native-doctor.md).
+**Mutation gate.** Applying its proposed edits is the person's call; never chain into `/doctor`.
+**Availability is never assumed.** Its gates (settings, environment, version, and the bundled
+skill it runs through) are read live from the pointers in the records; this section states what
+to offer, never that it is present. Records: [reference/native-doctor.md](reference/native-doctor.md).
 
 ## Arguments
 
