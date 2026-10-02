@@ -81,7 +81,6 @@ jobs:
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-      run_shell: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
@@ -221,17 +220,17 @@ cat >>"$sharded" <<'YAML'
           LEG: ${{ strategy.job-index }}
           LEGS: ${{ strategy.job-total }}
         run: scripts/affected-tests.sh --run --shard "$LEG/$LEGS"
-      - name: Run a detector self-test only when shell sources changed
-        if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/some-detector.test.sh
+      - name: Run a Node build only when Node sources changed
+        if: needs.changes.outputs.run_node == 'true'
+        run: npm test
 YAML
 expect "a sharded lane gating its steps satisfies the contract" 0 "scope resolved once" \
   --check "$sharded"
 
 f="$scratch/leg-in-gate.yml"
 xform_replace_line "$sharded" \
-  "if: needs.changes.outputs.run_shell == 'true'" \
-  "        if: needs.changes.outputs.run_shell == 'true' && strategy.job-index == 0" "$f"
+  "if: needs.changes.outputs.run_node == 'true'" \
+  "        if: needs.changes.outputs.run_node == 'true' && strategy.job-index == 0" "$f"
 expect "a leg index folded into a step gate is unsanctioned" 1 "unsanctioned condition" --check "$f"
 
 # --- 1. SINGLE RESOLUTION ---------------------------------------------------
@@ -560,7 +559,7 @@ f="$scratch/inverted-narrowing.yml"
 xform_replace_line "$base" "      run_node:" "      run_node: \${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] == 'true' }}" "$f"
 expect "a narrowing row comparing against 'true' is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
 
-# The whole-corpus check-25 row keeps the draft term run_shell carries, so a
+# The whole-corpus check-25 row keeps the draft term run_tests carries, so a
 # draft skips that gate and the flip to ready runs it.
 f="$scratch/skill-checker-no-draft.yml"
 xform_replace_line "$base" "      run_skill_checker:" "      run_skill_checker: \${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}" "$f"
@@ -654,45 +653,45 @@ else
   ok "an unwritable GITHUB_OUTPUT leaves docs_only unset, which run_full renders as 'true'"
 fi
 
-# --- LIVE: every detector self-test in the lint halves carries its gate -----
+# --- LIVE: no scripts/ or lib/ suite is a step of its own ---------------------
 #
-# The 32 `bash scripts/<detector>.test.sh` steps in the lint lane were unconditional
-# and cost 61 s on every pull request, docs-only ones included. They are now
-# gated on `run_shell`, the one table output whose filter group names
-# `scripts/**`. The gate above proves each gate is well FORMED; nothing proved
-# they are still THERE, and a self-test that quietly loses its `if:` costs the
-# saving back one step at a time. Pinned by walking the live `lint` and
-# `lint-2` jobs, the two halves of that one lane.
+# The suites of scripts/ and lib/ run in test-linux through the affected-suite
+# selector, and on the whole tree through scripts/run-plugin-tests.sh's
+# discovery. A suite run as a step of its own duplicates that run whenever the
+# selector also reaches it and pays its seconds on every diff that cannot have
+# broken it, so a step that brings one back gives the saving back one suite at a
+# time. Pinned by walking the jobs that used to carry them.
 #
-# One exclusion, by name: `check-summary-reader-parity.test.sh` carries an `id:`
-# and feeds CHECK_RESULTS, so gating it would need a paired feed override and is
-# a different change from this one.
+# Exclusions, by shape: a step with an `id:` is a gate the aggregator feed reads
+# (check-summary-reader-parity.test.sh is a gate, not a self-test), and the
+# resolver's own detector self-test stays in `changes` (property 4 above).
+# scripts/hook-census.test.sh calibrates the strace counter the ratchet step
+# reads in the same step, so it stays there.
 live_workflow="$ROOT/.github/workflows/ci.yml"
-ungated_selftests="$(
+suite_steps="$(
   awk '
     /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
       job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
     }
-    job != "lint" && job != "lint-2" { next }
-    /^      - / { gated = 0; ident = 0 }
-    /^        if: needs\.changes\.outputs\.run_shell == .true.$/ { gated = 1 }
+    job != "lint" && job != "lint-2" && job != "test-linux" && job != "hook-utils" { next }
+    /^      - / { ident = 0 }
     /^        id:/ { ident = 1 }
-    /^        run: bash scripts\/[^ ]*\.test\.sh[[:blank:]]*$/ {
-      if (!gated && !ident) { line = $0; sub(/^[[:blank:]]*run: bash /, "", line); print line }
+    /^[[:blank:]]+(run: )?bash (scripts|lib)\/[^ ]*\.test\.sh[[:blank:]]*$/ {
+      line = $0; sub(/^[[:blank:]]*(run: )?bash /, "", line)
+      if (!ident && line != "scripts/hook-census.test.sh") print job ": " line
     }
   ' "$live_workflow"
 )"
-if [[ -z "$ungated_selftests" ]]; then
-  ok "every id-less detector self-test in the live lint jobs is gated on run_shell"
+if [[ -z "$suite_steps" ]]; then
+  ok "no scripts/ or lib/ suite runs as a step of its own in the live workflow"
 else
-  fail "ungated detector self-test(s) in the lint halves:$(printf '%s' "$ungated_selftests" | tr '\n' ' ')"
+  fail "scripts/ or lib/ suite(s) run as steps of their own:$(printf '%s' "$suite_steps" | tr '\n' ' ')"
 fi
 
-gated_count="$(grep -c "if: needs.changes.outputs.run_shell == 'true'" "$live_workflow" || true)"
-if [[ "$gated_count" -ge 32 ]]; then
-  ok "the live workflow still carries at least 32 run_shell step gates ($gated_count)"
+if grep -qF -- '--with-always' "$live_workflow"; then
+  ok "the live workflow's selection carries the always-run live-tree suites"
 else
-  fail "run_shell step gates fell to $gated_count; the lint saving is being given back"
+  fail "the live workflow's selection lost --with-always, so the live-tree suites run only on the schedule"
 fi
 
 # --- verdict ----------------------------------------------------------------

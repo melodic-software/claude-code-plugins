@@ -1482,6 +1482,60 @@ else
 fi
 rm -rf "$repo"
 
+# --- --with-always: the live-tree suites ride every selection ----------------
+# scripts/affected-tests-always.txt lists suites that assert against the live
+# repository, so no rule can see the change that breaks them. Pinned: off by
+# default, on under --with-always even when the diff selects nothing else, and
+# a stale entry is an error rather than a quiet skip.
+mk_repo repo
+mkdir -p "$repo/scripts/lib"
+suite_body live-scan >"$repo/scripts/lib/live-scan.test.sh"
+printf '# reason-bearing entries\nscripts/lib/live-scan.test.sh  scans every script\n' \
+  >"$repo/scripts/affected-tests-always.txt"
+git_test_config "$repo" add scripts >/dev/null
+git_test_config "$repo" commit -qm always >/dev/null
+
+run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
+if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" scripts/lib/live-scan.test.sh; then
+  ok "always-run: off by default"
+else
+  fail "always-run: a local run selected the live-tree suite (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh &&
+  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "always-run: --with-always adds the listed suite to the selection"
+else
+  fail "always-run: --with-always did not add the listed suite (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" --with-always plugins/alpha/README.md
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh; then
+  ok "always-run: a no-suite diff still runs the listed suite"
+else
+  fail "always-run: a no-suite diff dropped the listed suite (rc=$RC): $OUT"
+fi
+
+printf 'scripts/lib/gone.test.sh  removed long ago\n' >>"$repo/scripts/affected-tests-always.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh --with-always plugins/alpha/hooks/alpha-hook.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$out" "names 'scripts/lib/gone.test.sh'"; then
+  ok "always-run: a stale entry is an error, not a quiet skip"
+else
+  fail "always-run: a stale entry was not refused (rc=$RC): $out"
+fi
+rm -rf "$repo"
+
+# --- LIVE repo: every always-run entry names a suite today --------------------
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --with-always scripts/affected-tests-always.txt 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" "scripts/lib/gate-entry.test.sh"; then
+  ok "LIVE always-run: the shipped list resolves and joins the selection"
+else
+  fail "LIVE always-run: the shipped list did not resolve (rc=$RC): $out"
+fi
+
 # --- skill ownership: a bare reference name means the skill's OWN file -------
 # Skills reuse reference names freely, so a suite naming `ownership-probe.md` from inside
 # one skill is naming that skill's file. Changing another skill's `ownership-probe.md`

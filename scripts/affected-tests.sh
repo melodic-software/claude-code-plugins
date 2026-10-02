@@ -17,7 +17,15 @@
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
 #   scripts/affected-tests.sh --allow-unmapped   downgrade an unmapped file to a warning
 #   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
+#   scripts/affected-tests.sh --with-always      add the live-tree suites in scripts/affected-tests-always.txt
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#
+# ALWAYS-RUN. A few suites assert against the LIVE repository (every sync
+# manifest, every script under scripts/), so a change none of them names can
+# still break them. --with-always adds the suites listed in
+# scripts/affected-tests-always.txt to the selection; CI passes it, and a local
+# run leaves it off because those suites are slow on a Windows host. An entry
+# naming no suite is an error (exit 2), not a quiet skip.
 #
 # SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
 # rule below runs in full, the unmapped check fires in full, and only then is
@@ -127,7 +135,8 @@
 #                    them and they fell to the no-suite *.md class. Only a
 #                    path rule can see them. The validator's fleet-token ban
 #                    over the rest of plugins/autonomy/ is not mapped here;
-#                    CI also runs the contract suite in a step of its own.
+#                    CI's manifest validation step runs the validator itself
+#                    on every diff.
 #   R8 plugin        any changed path under plugins/<p>/ also selects every
 #                    shell suite (*.test.sh) under plugins/<p>/. Suites that
 #                    scan their own plugin directory (a markdown lint, a
@@ -323,6 +332,7 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
+ALWAYS_LIST="${AFFECTED_TESTS_ALWAYS:-scripts/affected-tests-always.txt}"
 
 # Basenames that name a structural role rather than one artifact. R3/R4 ignore
 # them; see the note above.
@@ -342,6 +352,7 @@ base_ref=""
 do_run=0
 allow_unmapped=0
 explain=0
+with_always=0
 print_fanout=""
 shard_spec=""
 jobs=1
@@ -389,6 +400,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --explain)
     explain=1
+    shift
+    ;;
+  --with-always)
+    with_always=1
     shift
     ;;
   --jobs)
@@ -1214,6 +1229,18 @@ for f in "${changed[@]}"; do
   fi
   select_plugin_suites "$f"
 done
+
+if [[ "$with_always" -eq 1 ]]; then
+  declare -a ALWAYS_ENTRIES=()
+  read_list::into ALWAYS_ENTRIES "$ALWAYS_LIST" --comments leading || exit 2
+  for entry in ${ALWAYS_ENTRIES[@]+"${ALWAYS_ENTRIES[@]}"}; do
+    entry="${entry%%[[:blank:]]*}"
+    if ! add_suite "$entry" "always: asserts against the live repository"; then
+      echo "error: $ALWAYS_LIST names '$entry', which is not a suite; remove the stale entry." >&2
+      exit 2
+    fi
+  done
+fi
 
 # `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as
 # an indirect reference and rejects the expanded key list as a variable name.
