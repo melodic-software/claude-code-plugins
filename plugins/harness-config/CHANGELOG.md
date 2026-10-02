@@ -5,6 +5,29 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- `audit` reports the mod-plane settings in new `D/mod-plane` rows: `prependPlugins`,
+  `appendPlugins`, `disableSideloadFlags`, and the built-in guard's `allowManagedModsOnly` and
+  `allowModsToOverrideDenyRules`. A copy in a scope Claude Code does not read for that key is an
+  `info` finding, and so is a user-scope `prependPlugins` or `appendPlugins` on a machine with
+  managed settings. `--table` lists every key that is set. They are kept apart from the
+  hook-suppression levers and never narrow a permission baseline.
+- `reference/agents-md-liveness.md` records the legacy `projectInstructions` key, which still sets
+  the mode while `instructionFiles` is at its default, and the documented ways a natively read
+  `AGENTS.md` differs from a `CLAUDE.md`, including that `--add-dir` directories contribute none.
+
+### Fixed
+
+- The `AGENTS.md` availability record listed four conditions, two of them stale: since 2.1.281
+  Bedrock, Vertex AI, Foundry, LLM gateways and telemetry-off sessions read `AGENTS.md`, and
+  `disableAllHooks`/`allowManagedHooksOnly` never stopped the built-in `agents-md` plugin. The
+  record now lists the memory page's three conditions, and `audit-prompting-postures`,
+  `audit-instructions` I14 and its conflict criteria no longer treat a hooks setting as turning
+  `AGENTS.md` off.
+
 ## [1.1.1] - 2026-10-02
 
 ### Fixed

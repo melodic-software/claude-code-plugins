@@ -322,7 +322,10 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   subdirectory's `CLAUDE.md` and `.claude/rules/` files, and path-scoped rules, still load when
   Claude reads a file there"). The value is read from `pluginConfigs` in "`~/.claude/settings.json`,
   a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
-  files." Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
+  files." The option's first key, `projectInstructions` (`claude`, `agents-fallback`, `both`,
+  `none`), is still honored while `instructionFiles` reads as its default, so an operator's mode
+  can come from either key; like `instructionFiles`, it is a user, `--settings` or managed value a
+  repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
   `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
   directory above it", the walk to the filesystem root, while "Don't count, and keep loading
   alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and
@@ -400,7 +403,11 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   reads "Added AGENTS.md support: in a project with no CLAUDE.md, Claude Code reads AGENTS.md
   instead; change it under \"Project instructions\" in `/config`", and the 2.1.281 entry reads
   "Changed AGENTS.md support to also work on Amazon Bedrock, Google Vertex AI, Microsoft Foundry,
-  LLM gateways, and sessions with telemetry disabled".
+  LLM gateways, and sessions with telemetry disabled". The `projectInstructions` key and its value
+  mapping are in the plugin's
+  [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md),
+  "Setting the option" (commit `2282079d6ac8`, read 2026-10-01); the memory page does not
+  mention it.
 - **Read at run time, not recorded here**: that the binary registers the plugin as
   `cc-plugin-agents-md` with alias `agents-md`, whether the loader requires it in this session
   type, its availability gate and the gate's default, and whether it declares any skill, agent or
@@ -423,4 +430,5 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
   disabled; settings-reference or the mods overview changes whether built-in mods keep running
   under `disableAllHooks` or `allowManagedHooksOnly`, or stops listing `cc-plugin-agents-md` as
-  one; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.
+  one; a changelog entry names `AGENTS.md`, `instructionFiles`, `projectInstructions` or the
+  `agents-md` plugin; or the README's "Setting the option" paragraph on the old key changes.

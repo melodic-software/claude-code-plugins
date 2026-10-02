@@ -193,16 +193,19 @@ add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
 
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 MANAGED_NOTE=""
+MANAGED_PRESENT=false
 if [[ -r "$MANAGED_SCOPE_LIB" ]]; then
   # shellcheck source=../../../lib/managed-scope.sh
   # shellcheck disable=SC1091
   source "$MANAGED_SCOPE_LIB"
   MANAGED_FILE="$(mscope::base_file "${HOOK_COVERAGE_MANAGED_JSON:-}")"
   if [[ -f "$MANAGED_FILE" ]]; then
+    MANAGED_PRESENT=true
     add_scope "$MANAGED_FILE" "managed"
   else
     MANAGED_NOTE="Managed-settings JSON not present at ${MANAGED_FILE}; registry/plist managed policy is not read."
   fi
+  compgen -G "$(mscope::dropin_dir "${HOOK_COVERAGE_MANAGED_JSON:-}")/*.json" >/dev/null && MANAGED_PRESENT=true
 else
   MANAGED_NOTE="Managed-scope library missing; managed hook-suppression levers were not read."
 fi
@@ -296,6 +299,29 @@ for i in "${!SCOPES[@]}"; do
     val="$(jqs -c --arg k "$key" 'if has($k) then .[$k] else empty end' "${SCOPES[$i]}")"
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
   done
+done
+
+# --- Mod-plane keys ----------------------------------------------------------
+#
+# Settings that govern mods (plugins of function hooks) rather than settings
+# hooks: none switches a settings hook off, so they stay out of LEVERS and
+# never feed the narrowing. The two guard options live under the built-in
+# guard's pluginConfigs entry, the one spelling Claude Code reads them under.
+
+MOD_PLANE=()
+# shellcheck disable=SC2016  # a jq program; $k is a jq variable
+MOD_PLANE_JQ='
+  def obj: if type == "object" then . else {} end;
+  (obj as $s | ["prependPlugins", "appendPlugins", "disableSideloadFlags"][] as $k
+    | select($s | has($k)) | [$k, ($s[$k] | tojson)]),
+  (obj | .pluginConfigs | obj | .["cc-plugin-sec-default@builtin"] | obj | .options | obj
+    | to_entries[] | select(.key == "allowManagedModsOnly" or .key == "allowModsToOverrideDenyRules")
+    | [.key, (.value | tojson)])
+  | @tsv'
+for i in "${!SCOPES[@]}"; do
+  while IFS=$'\t' read -r mk mv; do
+    [[ -n "$mk" ]] && MOD_PLANE+=("${SCOPE_LABELS[$i]}	$mk	$mv")
+  done < <(jqs -r "$MOD_PLANE_JQ" "${SCOPES[$i]}")
 done
 
 # --- Enabled plugins (local > project > user) --------------------------------
@@ -565,6 +591,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     printf '{\n'
     printf '  "inventory": "%s",\n' "$([[ $PARTIAL -eq 0 ]] && echo complete || echo partial)"
     printf '  "lever_state": "%s",\n' "$LEVER_STATE"
+    printf '  "managed_scope": %s,\n' "$MANAGED_PRESENT"
     printf '  "project_root": %s,\n' "$(jqn --arg r "$PROJECT_ROOT" '$r')"
     printf '  "hooks": ['
     sep=""
@@ -605,6 +632,15 @@ if [[ $EMIT_JSON -eq 1 ]]; then
       else
         jqn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
       fi
+      sep=","
+    done
+    printf '\n  ],\n'
+    printf '  "mod_plane": ['
+    sep=""
+    for l in ${MOD_PLANE+"${MOD_PLANE[@]}"}; do
+      IFS=$'\t' read -r sc mk mv <<<"$l"
+      printf '%s\n    ' "$sep"
+      jqn --arg s "$sc" --arg k "$mk" --argjson v "$mv" '{scope:$s,key:$k,value:$v}'
       sep=","
     done
     printf '\n  ],\n'
@@ -661,6 +697,14 @@ else
     for l in "${LEVERS[@]}"; do
       IFS=$'\t' read -r sc lk lv <<<"$l"
       printf '  %-8s %-32s %s\n' "$sc" "$lk" "$lv"
+    done
+    echo
+  fi
+  if [[ ${#MOD_PLANE[@]} -gt 0 ]]; then
+    echo "Mod-plane keys set:"
+    for l in "${MOD_PLANE[@]}"; do
+      IFS=$'\t' read -r sc mk mv <<<"$l"
+      printf '  %-8s %-32s %s\n' "$sc" "$mk" "$mv"
     done
     echo
   fi

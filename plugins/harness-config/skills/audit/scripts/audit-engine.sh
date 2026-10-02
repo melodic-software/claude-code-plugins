@@ -1502,6 +1502,47 @@ for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
   fi
 done
+
+# Mod-plane keys are reported, never judged, except where a scope Claude Code
+# does not read for that key carries one: that copy changes nothing.
+declare -A SURF_BY_SCOPE=([project]="$SURF_SETTINGS" [local]="$SURF_LOCAL" [user]="$SURF_USER")
+MANAGED_SCOPE="$(jqs -r '.managed_scope // false' <<<"$INVENTORY_JSON")"
+for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnly allowModsToOverrideDenyRules; do
+  case "$key" in
+  prependPlugins | appendPlugins)
+    honored="managed user"
+    # User scope counts only where no managed settings exist.
+    [[ "$MANAGED_SCOPE" == true ]] && honored="managed"
+    meaning="orders the organization's mods around users' mods; user scope counts only on a machine with no managed settings, for a user not signed in with a Team or Enterprise plan"
+    ;;
+  disableSideloadFlags)
+    honored="managed"
+    meaning="when true, rejects --plugin-dir, --plugin-url, --agents and --mcp-config at startup, so no mod loads from a directory"
+    ;;
+  allowManagedModsOnly)
+    honored="managed"
+    meaning="a built-in guard option under pluginConfigs[\"cc-plugin-sec-default@builtin\"].options; when true, only the organization's mods and built-in mods load; users' settings hooks keep running"
+    ;;
+  allowModsToOverrideDenyRules)
+    honored="managed"
+    meaning="a built-in guard option; when true, a user's mod may approve a tool call a deny rule refuses, so permissions.deny is no longer the last word"
+    ;;
+  *) ;;
+  esac
+  set_rows="$(jqs -r --arg k "$key" '.mod_plane[]? | select(.key==$k) | [.scope, (.value|tojson)] | @tsv' <<<"$INVENTORY_JSON")"
+  if [[ -z "$set_rows" ]]; then
+    row D mod-plane ok none "settings" "mod-key-unset:$key" "$key unset in every scope read" -
+    continue
+  fi
+  while IFS=$'\t' read -r sc val; do
+    [[ -n "$sc" ]] || continue
+    if [[ " $honored " == *" $sc "* ]]; then
+      row D mod-plane ok none "settings" "mod-key-set:$key:$sc" "$key set in $sc to $val ($meaning)" -
+    else
+      row D mod-plane finding info "${SURF_BY_SCOPE[$sc]:-$sc}" "mod-key-unread-scope:$key:$sc" "$key is set in $sc, a scope Claude Code does not read for it ($honored only); it has no effect there" "$key"
+    fi
+  done <<<"$set_rows"
+done
 case "$INVENTORY_STATE" in
 complete) row D hook-inventory ok none "settings" "inventory:complete" "every enabled plugin resolved and every hook source parsed" - ;;
 partial) row D hook-inventory skip none "settings" "inventory:partial" "some plugin or hook config could not be read; families those could cover stay conditional" - ;;
@@ -2050,7 +2091,7 @@ suppressed_json="$(if [[ ${#SUPPRESSED[@]} -gt 0 ]]; then printf '%s\n' "${SUPPR
 personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERSONAL_ONLY[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 
-inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
+inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), mod_plane:(.mod_plane // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
 version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
   '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
 docs_json="$(jq -c --argjson idx "$DOCS_INDEX_JSON" '{index:$idx,pages:.}' <<<"$DOCS_PAGES_JSON")"
@@ -2109,6 +2150,9 @@ else
   echo
   echo "Findings:"
   jq -r '.findings[] | "  [\(.severity)] \(.category) \(.identity.check | sub("^harness-config/audit/"; "")) \(.identity.claim)\n      \(.detail)\n      suppress: id \(.finding_id) surface \(.identity.sites[0].surface) anchor \(.identity.sites[0]["anchor/v1"])"' <<<"$DOC"
+  echo
+  echo "Mod-plane keys set:"
+  jq -r '.rows[] | select(.claim | startswith("mod-key-set:")) | "  \(.detail)"' <<<"$DOC"
   echo
   echo "Suppressed:"
   jq -r '.suppressions.applied[]? | "  \(.check | sub("^harness-config/audit/"; "")) \(.claim): \(.suppressed.reason) (\(.suppressed.layer), \(.suppressed.date))"' <<<"$DOC"

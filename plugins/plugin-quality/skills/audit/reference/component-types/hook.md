@@ -27,6 +27,33 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 - **Cross-platform**: remediation messages runnable on the user's shell; path/quoting assumptions.
 - **Observability**: degraded state surfaced, not silently skipped.
 
+## A mod (hooks module)
+
+A hook config that names `"modules"` loads a hooks module: in-process code with the user's
+permissions, not a shell script. Read the module and run `claude plugin validate --json <plugin>`.
+
+- **Read the declared surface.** The `hooks` content's `notes` hold one line per kind:
+  `./register.js hooks: tool.call, attribution.text`,
+  `./register.js calls: $.env.get, $.http.fetch`, `env reads:`, `env writes:`, and `state reads:`/`state writes:` for a module using `$.state`. The
+  `errors` and `warnings` arrays stay empty for a clean mod, so reading only those misses the
+  surface entirely.
+- **Audit `calls:` as the trust boundary.** Each call must be one the component's stated purpose
+  needs. Flag any capability with no use the plugin documents, above all: `$.fs.write`,
+  `$.process.run`/`$.process.spawn`, `$.http.fetch`, `$.env.set`, `$.mcp.call`,
+  `$.model.complete`, `$.prompt.submit`, `$.session.send`. In `hooks:`, `tool.call` and
+  `prompt.submit` see and can change every tool call and prompt, and `tool.check` can approve a
+  call before a permission prompt; each needs the same justification.
+- **Compare code to declaration.** A call the source makes that `calls:` omits means the static
+  analysis could not read it, and Claude Code refuses to load such a module.
+
+**Claim:** the output shape above, and the call and event meanings. **Basis:**
+[mods admin](https://code.claude.com/docs/en/plugins/mods/admin) "Review what a mod can do" and
+[mods create](https://code.claude.com/docs/en/plugins/mods/create) "Check what Claude Code reads
+from your mod", fetched as raw markdown 2026-10-01; the `notes` placement was observed by running
+`claude plugin validate --json` on a throwaway mod with Claude Code 2.1.287 the same day. **As
+of:** 2026-10-01. **Recheck:** either section's call table or sample output changes, or a release
+note changes `plugin validate` output.
+
 ## Categories
 
 - **Errors:** a wrong exit code, a fail-open that the hook claims is fail-closed, a matcher that misses the tool that performs the gated action.

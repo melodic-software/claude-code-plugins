@@ -3,6 +3,13 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-10-02
+
+### Fixed
+
+- `audit`'s official-guidance record no longer lists `disableAllHooks` or `allowManagedHooksOnly`
+  among the sessions that cannot read `AGENTS.md`: built-in mods keep running under both.
+
 ## [1.0.0] - 2026-10-01
 
 ### Changed
