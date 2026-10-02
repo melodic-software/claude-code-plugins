@@ -24,6 +24,15 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `--effort`, and warns once per run when `CLAUDE_CODE_EFFORT_LEVEL` is set, since it overrides
   lane levels and agent pins. The lanes config example picks each lane's level from that table.
 
+## [2.5.1] - 2026-10-02
+
+### Fixed
+
+- `restart-consumer.sh` treats a set but empty `RESTART_CONSUMER_FAKE_ALIVE_PIDS` as "no owner pid is
+  alive" instead of falling through to `kill -0`. The lock-reclaim test seeds owner pid 4242 and
+  failed whenever the host had a live process with that pid, as busy CI runners sometimes do. The
+  test now records its own live pid as the gone owner, so a fall-through fails every run.
+
 ## [2.5.0] - 2026-10-02
 
 ### Added

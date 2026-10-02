@@ -3,13 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.74.0] - 2026-10-02
+## [0.75.0] - 2026-10-02
 
 ### Added
 
 - **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
   field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
   beside the `--effort` the lane was launched with. The schema stays `@2`.
+
+## [0.74.0] - 2026-10-02
+
+### Added
+
+- **`pull-request` chooses who watches a PR once it is out of draft.** At the end of `ready`, and
+  at `monitor` entry when no choice was made, a matrix picks between this skill's monitor, a
+  background agent through `/session-flow:continue-in-background`, `/background`, `/autofix-pr`
+  and the babysit loop, by whether the person is staying and whether the machine stays on. For a
+  route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
+  a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
+  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
+  the recommendation, and unknown usage points at `/usage` and favors `monitor` for a person who
+  is staying. New
+  `reference/watch-handoff.md`, which inlines the rate-limit floor and is registered in
+  `check-loop-lane-floor-drift.sh`; `native-surfaces.md` records auto-fix's requirements and
+  limits, cloud sessions sharing the account's rate limits, and `/background`.
 
 ## [0.73.0] - 2026-10-02
 
