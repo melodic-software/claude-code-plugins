@@ -553,7 +553,7 @@ class TestFlowQuery(unittest.TestCase):
         self.assert_safe("export var pY=[1];", [("export", "pY")])
         self.assert_safe(
             'import{g}from"/x.js";var pY=[1];g(0,pY);pY.some(g);',
-            [("param", "g", 1), ("param", "g", 2)],
+            [("param", "g", 1, "/x.js"), ("param", "g", 2, "/x.js")],
         )
         self.assert_safe(
             "var pY=[1];function r(){return pY}export{r};", [("export-call", "r")]

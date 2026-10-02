@@ -593,7 +593,7 @@ class Flow {
     if (fn.type === "SpreadElement") throw new Unresolved("a spread callback", fn.start);
     for (const value of this.values(fn, new Set())) {
       if (value === "uncallable") continue;
-      if (value.imported !== undefined) this.exit("param", value.imported, index);
+      if (value.imported !== undefined) this.exit("param", value.imported, index, value.source);
       else this.parameter(value, index);
     }
   }
@@ -710,7 +710,7 @@ class Flow {
       case "ImportBinding": {
         const spec = def.node;
         if (spec.type !== "ImportSpecifier") break;
-        return [{ imported: spec.imported.name ?? spec.imported.value }];
+        return [{ imported: spec.imported.name ?? spec.imported.value, source: this.parents.get(spec)?.source?.value ?? null }];
       }
       case "Parameter":
         if (otherWrites) break;
@@ -785,7 +785,7 @@ class Flow {
 // -> {"safe":true,"exits":[hop...]} each hop leaves the module:
 //      ["export", Z]                the value is exported as Z
 //      ["export-call", Z]           a function returning it is exported as Z
-//      ["param", Z, i]              it is argument i of the function imported as Z
+//      ["param", Z, i, from]        it is argument i of the function imported as Z from `from`
 // -> {"safe":false,"reason":"...","at":offset|null}
 function flow(req) {
   if (typeof req.module !== "string" || typeof req.start !== "object" || req.start === null) {
@@ -807,7 +807,7 @@ function flow(req) {
       if (!v) throw new Unresolved(`\`${start.name}\` is not declared at module scope`, null);
       for (const value of walk.variableValues(v, new Set())) {
         if (value === "uncallable") continue;
-        if (value.imported !== undefined) walk.exit("param", value.imported, start.param);
+        if (value.imported !== undefined) walk.exit("param", value.imported, start.param, value.source);
         else walk.parameter(value, start.param);
       }
     } else if (typeof start.import === "string") {

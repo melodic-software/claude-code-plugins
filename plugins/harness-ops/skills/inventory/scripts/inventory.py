@@ -2217,7 +2217,7 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
       exports it again), when no module reads that name as a property,
       since `ns.name` on a module namespace reaches the export too;
     - an argument to an imported function, to that function's parameter in
-      the one module exporting it.
+      the module its `from` path names in Bun's module table.
 
     Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
     is a bundle with a sink for a name the walk trusted (the built-in
@@ -2243,7 +2243,7 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
         trusted.update(found["trusted"])
         for hop in found["exits"]:
             if hop[0] == "param":
-                home = _sole_exporter(src, hop[1])
+                home = _exporter_of(src, hop[1], hop[3] if len(hop) > 3 else None)
                 if home is None:
                     return False
                 pending.append(
@@ -2286,41 +2286,23 @@ def _module_spans(src: str) -> list[tuple[int, int]]:
     ]
 
 
-_EXPORT_DECL_RE = re.compile(
-    r"(?<![\w$.])export\s+(?:async\s+)?(?:function|class|var|let|const)(?![\w$])"
-)
-
-
-@functools.lru_cache(maxsize=4)
-def _export_decl_sites(src: str) -> tuple[int, ...]:
-    return tuple(m.start() for m in _EXPORT_DECL_RE.finditer(src))
-
-
-def _sole_exporter(src: str, name: str) -> tuple[int, str] | None:
-    """The start of the one module exporting `name` and its local name
-    there. None when no module or several do. The export-list index reads
-    only a module's closing `export{...}`, so another module whose text
-    holds an `export function`/`export var` declaration and the name has
-    its exports read by the parser, and a module that does not parse
-    counts as exporting it."""
+def _exporter_of(src: str, name: str, source: str | None) -> tuple[int, str] | None:
+    """The module an import of `name` from `source` reaches, and its local
+    name there: the module whose path in Bun's module table is `source`,
+    when it exports `name`. None for an external or unknown source, a
+    bundle without a module table, and a module that does not export the
+    name. A module re-exporting `name` from elsewhere is returned with the
+    name itself, which the `param` start then cannot resolve, so it stays
+    partial."""
     assert _PARSER is not None
-    homes = _export_index(src).get(name, [])
-    if len(homes) != 1:
+    lo = _PARSER.module_start(src, source) if source else None
+    if lo is None:
         return None
-    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
-    spans = _module_spans(src)
-    starts = [lo for lo, _ in spans]
-    checked = {homes[0][0]}
-    for at in _export_decl_sites(src):
-        k = bisect.bisect_right(starts, at) - 1
-        if k < 0 or at >= spans[k][1] or starts[k] in checked:
-            continue
-        checked.add(starts[k])
-        if token.search(src, *spans[k]):
-            names = _PARSER.exports(src, *spans[k])
-            if names is None or name in names:
-                return None
-    return homes[0]
+    for home, local in _export_index(src).get(name, []):
+        if home == lo:
+            return home, local
+    names = _PARSER.exports(src, *_chunk_span(src, lo))
+    return (lo, name) if names is not None and name in names else None
 
 
 @functools.lru_cache(maxsize=256)

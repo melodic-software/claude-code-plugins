@@ -344,6 +344,13 @@ class ParserReader:
         """File `src`'s module paths by module start (`read_bundle`)."""
         self._paths[id(src)] = (src, paths)
 
+    def module_start(self, src: str, path: str) -> int | None:
+        """The start of the module whose path is `path`, if one is filed."""
+        held = self._paths.get(id(src))
+        if not held:
+            return None
+        return next((lo for lo, p in held[1].items() if p == path), None)
+
     def module_path(self, src: str, lo: int) -> str | None:
         """The `/$bunfs/root/...` path of the module starting at `lo`."""
         held = self._paths.get(id(src))

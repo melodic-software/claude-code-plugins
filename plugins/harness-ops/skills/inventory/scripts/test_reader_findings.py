@@ -368,12 +368,15 @@ class TestOpenFindings(unittest.TestCase):
             parser=PARTIAL,
         )
 
-    def assert_across_modules(self, changed: bool, *modules: str) -> None:
+    def assert_across_modules(
+        self, changed: bool, *modules: str, table: bool = True
+    ) -> None:
         """The probe's module exports `pY` and `modules` follow it, each
-        opening with a `// @bun` header as a bundle's modules do. The regex
-        reader never looks past the binding, so it keeps the initializer;
-        the parser follows the export and reads partial exactly when
-        JavaScript changes the list."""
+        opening with a `// @bun` header as a bundle's modules do. With
+        `table`, Bun's module table names them `/a.js`, `/b.js`, ... in
+        order. The regex reader never looks past the binding, so it keeps
+        the initializer; the parser follows the export and reads partial
+        exactly when JavaScript changes the list."""
         src = (
             AGENT_SRC
             + 'var pY=[xt,"Artifact"];'
@@ -384,6 +387,14 @@ class TestOpenFindings(unittest.TestCase):
         self.assertEqual(_probe_source(src), INITIAL)
         if type(self).reader is None:
             type(self).reader = pr.ParserReader(_require_live(self))
+        if table:
+            type(self).reader.set_module_paths(
+                src,
+                {
+                    lo: f"/{chr(97 + i)}.js"
+                    for i, lo in enumerate(inv._chunk_starts(src))
+                },
+            )
         with inv.use_reader(type(self).reader):
             got = _probe_source(src)
         self.assertEqual(got, PARTIAL if changed else INITIAL, modules)
@@ -421,6 +432,33 @@ class TestOpenFindings(unittest.TestCase):
             True, caller, 'function g(a,b){b.push("B")}export{g};'
         )
         self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
+        # A `g` with no `export` of its own stays partial too.
+        self.assert_across_modules(True, caller, "function g(a,b){}")
+
+    def test_an_imported_callee_resolves_by_its_from_path_not_its_name(self) -> None:
+        """#5891 review (Codex): the array module imports `g` from chunk
+        /c.js, which pushes `B`, while an unrelated chunk /d.js exports a
+        harmless `g`; resolving by name alone followed /d.js and read a
+        wrong literal. An import from a file outside the bundle, or with no
+        module table, cannot be followed either."""
+        harmless = "function g(a,b){return b.includes(a)}export{g};"
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);',
+            'function g(a,b){b.push("B")}export{g};',
+            harmless,
+        )
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"node:external";g("x",pY);',
+            harmless,
+        )
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);',
+            harmless,
+            table=False,
+        )
 
     def test_a_module_taken_whole_as_a_namespace_stays_partial(self) -> None:
         """#5891 verifier probes: a namespace read with a computed key, an
@@ -442,7 +480,9 @@ class TestOpenFindings(unittest.TestCase):
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,
         so nothing rules out a namespace of it, and here one pushes `B`."""
-        self.assert_across_modules(True, 'import*as N from"/a.js";N[k].push("B");')
+        self.assert_across_modules(
+            True, 'import*as N from"/a.js";N[k].push("B");', table=False
+        )
 
     def test_the_module_table_names_the_exporters_own_file(self) -> None:
         """With Bun's module table, the exporter's own path decides, named
