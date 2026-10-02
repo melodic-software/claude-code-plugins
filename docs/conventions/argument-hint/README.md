@@ -25,6 +25,7 @@ them.
 |---|---|
 | [Notation](#notation): `<required>`, `[optional]`, alternatives inside brackets with an unspaced `\|` | Official: the commands page legend and every built-in hint |
 | `...` marks a repeatable slot | POSIX, not Claude Code |
+| `…` ends a shortened set | House |
 | [Setup hints](#setup-skills) lead with `[check` or `<check` | House |
 | [Budget](#house-rules): 100 characters | House |
 | [Written-out sets](#house-rules): no `action`, `mode`, or `options` slot | House |
@@ -41,8 +42,11 @@ is this repository's. The notation is where the house style matches the official
   `[on|off]`, `<check|apply>`. A pipe with a space beside it, or a pipe outside every bracket, is
   not the notation.
 - **Brackets nest.** An alternative may carry its own slots: `[reconnect <server>|enable]`.
-- **`...`** after a slot marks it repeatable: one or more occurrences, or zero or more when the
-  slot is inside `[]` (`[path ...]`).
+- **`...`** (three periods) after a slot marks it repeatable: one or more occurrences, or zero or
+  more when the slot is inside `[]` (`[path ...]`).
+- **`…`** (the single ellipsis character) is a different mark: it ends a shortened set, directly
+  before the set's closing `]` or `>` (`[scan|caches|aliases…]`), and the full set is in the body.
+  It never marks a slot repeatable.
 
 **Record.** Claim: the commands page states "`<arg>` indicates a required argument and `[arg]`
 indicates an optional one", and every built-in command whose hint offers alternatives writes them
@@ -67,14 +71,15 @@ A hint is grammar, short enough to scan in an autocomplete menu.
 - **A closed action or mode set is written out.** A slot named `action`, `mode`, or `options`
   (`[action]`, `<action>`, `[mode]`, `[--<mode>]`, `[options]`, `[task or mode]`) hides the set the
   hint exists to show. Write the words: `<status|search|scan|list> [args]`. A set too long for the
-  budget is shortened the way `repo-hygiene:clean` does it,
+  budget is shortened with `…` before its closing bracket, the way `repo-hygiene:clean` does it,
   `[scan|caches|build|git|stash|tree|all|<tier>-batch|aliases…]`, with the full set in the body.
   `[args]` after a written-out set stays, because each action's arguments differ and belong in the
   body. A literal flag such as `--mode <name>` is a flag, not a slot name.
 - **Nothing follows the grammar.** No parenthetical of any kind, no `: words` after a slot, and no
   sentence or connecting word between or after slots: not `[x]. Omit to ...`,
-  `<url>, an x.com ...`, or `[a] or [b]`. Examples, defaults, and what a bare invocation does go
-  in the skill body.
+  `<url>, an x.com ...`, `[a] or [b]`, or `<path> defaults to cwd`. A literal word outside
+  brackets may lead the hint (`check`) or follow a flag (`--from main`), never a slot or another
+  word. Examples, defaults, and what a bare invocation does go in the skill body.
 - **No em dash. No `Default:` clause.** Those are body prose.
 - **No arguments: omit the key.** `argument-hint: ""` is not the no-argument form. The official
   row's examples are terse placeholders, and an empty string is a hint that says nothing.
@@ -119,7 +124,9 @@ Code release note or the frontmatter reference adds argument completion for skil
   it (`spaced pipe`), has a pipe outside every bracket (`alternatives outside [] or <>`), has a
   slot named `action`, `mode`, or `options` (`placeholder slot instead of the written-out set`), or
   has a parenthesis, a colon followed by a space, or a period, comma, semicolon, `or`, or `and`
-  outside every bracket (`prose outside the grammar`). A warning does not fail the validator
+  outside every bracket, or a word outside every bracket that follows a slot or another word
+  (`prose outside the grammar`), or has a `…` that is not directly before a `]` or `>`
+  (`… not closing a shortened set`). A warning does not fail the validator
   process. `scripts/validate-plugin-contracts.test.sh` asserts zero warnings on the shipping tree,
   so a drifting hint fails that test until it is grammar again, with the displaced prose moved
   into the skill body rather than deleted.

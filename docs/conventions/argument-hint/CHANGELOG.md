@@ -16,8 +16,11 @@ Major. The bracket grammar changes and the setup hint form changes
 - **Written-out sets.** A slot named `action`, `mode`, or `options` is not a hint.
 - **No prose.** No parenthetical of any kind, no `: words`, and no words after the last slot.
 - **Gate.** One warning per shape, each naming it: `spaced pipe`, `alternatives outside [] or <>`,
-  `placeholder slot instead of the written-out set`, and `prose outside the grammar`, beside the
-  existing em dash, `Default:`, block scalar, and budget warnings.
+  `placeholder slot instead of the written-out set`, `prose outside the grammar` (including a
+  word after a slot or another word), and `… not closing a shortened set`, beside the existing em
+  dash, `Default:`, block scalar, and budget warnings.
+- **Two ellipses.** `...` marks a repeatable slot; `…` ends a shortened set before its closing
+  bracket.
 - **Records.** Four-part records for the official notation and for the absence of argument
   completion for plugin skills. The doc marks which rules are official and which are house rules.
 

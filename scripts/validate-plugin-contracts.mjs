@@ -1203,12 +1203,20 @@ function argumentHintProblems(value) {
   if (value.includes(String.fromCodePoint(0x2014))) problems.push("em dash");
   if (value.includes("Default:")) problems.push("Default: prose");
   if (/\s\||\|\s/.test(value)) problems.push("spaced pipe");
+  if (/…(?![\]>])/.test(value)) problems.push("… not closing a shortened set");
   let depth = 0;
   let outside = "";
+  // Top-level tokens, each bracket group standing as one NUL token.
+  let topLevel = "";
   for (const c of value) {
-    if (c === "[" || c === "<") depth += 1;
-    else if ((c === "]" || c === ">") && depth > 0) depth -= 1;
-    else if (depth === 0) outside += c;
+    if (c === "[" || c === "<") {
+      if (depth === 0) topLevel += " \u0000 ";
+      depth += 1;
+    } else if ((c === "]" || c === ">") && depth > 0) depth -= 1;
+    else if (depth === 0) {
+      outside += c;
+      topLevel += c;
+    }
   }
   if (outside.includes("|")) problems.push("alternatives outside [] or <>");
   const slotWords = value
@@ -1219,7 +1227,18 @@ function argumentHintProblems(value) {
     problems.push("placeholder slot instead of the written-out set");
   }
   const bare = outside.replace(/\.\.\.|…/g, "");
-  if (/[()]|:\s/.test(value) || /[.,;]/.test(bare) || /(?:^|\s)(?:or|and)(?:\s|$)/i.test(bare)) {
+  // A literal word may lead (`check`) or follow a flag (`--from main`); one that
+  // follows a slot or another word is prose (`<path> defaults to cwd`).
+  const tokens = topLevel.replace(/\.\.\.|…/g, " ").split(/\s+/).filter(Boolean);
+  const wordAfterSlotOrWord = tokens.some(
+    (token, i) => i > 0 && token !== "\u0000" && !token.startsWith("-") && !tokens[i - 1].startsWith("-"),
+  );
+  if (
+    /[()]|:\s/.test(value) ||
+    /[.,;]/.test(bare) ||
+    /(?:^|\s)(?:or|and)(?:\s|$)/i.test(bare) ||
+    wordAfterSlotOrWord
+  ) {
     problems.push("prose outside the grammar");
   }
   return problems;

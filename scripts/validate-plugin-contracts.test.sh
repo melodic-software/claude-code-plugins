@@ -1328,7 +1328,8 @@ hint_case() {
 for good in "[on|off]" \
   "[low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]" \
   "[reconnect <server>|enable|disable [<server>|all]]" \
-  "[check|apply] [args]" "<check|apply> [--mode <name>]" "[<dir>]... [path ...]"; do
+  "[check|apply] [args]" "<check|apply> [--mode <name>]" "[<dir>]... [path ...]" \
+  "check" "--plan-file <path> [--apply]" "[scan|caches|aliases…] [args]"; do
   hint_case ok "$good"
   if grep -q 'hintfix/skills/ok/SKILL.md' <<<"$out"; then
     fail "a conforming argument-hint should be silent ($good): $out"
@@ -1402,6 +1403,12 @@ check|apply	alternatives outside [] or <>
 [terminal|file]. Omit to auto-decide	prose outside the grammar
 <x-url>, a status URL	prose outside the grammar
 [incumbent [target]] or [plan]	prose outside the grammar
+<path> defaults to cwd	prose outside the grammar
+[path] omit for current repo	prose outside the grammar
+<url> x URL	prose outside the grammar
+[x] runs	prose outside the grammar
+[scan…|all]	… not closing a shortened set
+<path>…	… not closing a shortened set
 SHAPES
 
 # A literal flag named like a placeholder is not a slot name.
