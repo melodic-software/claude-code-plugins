@@ -8,6 +8,7 @@
 - [Imperative 4: RUN WORKERS WELL](#imperative-4-run-workers-well)
 - [Imperative 5: NESTED SUBAGENTS](#imperative-5-nested-subagents)
 - [Priming addendum: surface reachability](#priming-addendum-surface-reachability)
+- [Priming addendum: model and effort routing](#priming-addendum-model-and-effort-routing)
 - [Imperative 6: SURFACE DRIFT](#imperative-6-surface-drift)
 - [Imperative 7: CALIBRATE TO CONDITIONS](#imperative-7-calibrate-to-conditions)
 
@@ -205,6 +206,18 @@ tools. Either alone proves nothing. Agent-team teammates do not get `Workflow` b
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: either section changes which tools a subagent, fork, or teammate keeps.
+
+## Priming addendum: model and effort routing
+
+Backs the addendum's routing sentence. When the multi-agent plugin is enabled, its skills own the
+workflow-or-subagents choice and the per-role model and effort; imperative 7 stays independent of
+any plugin. Without them, the session reads the upstream model-selection order directly.
+
+- **Pointer**: <https://code.claude.com/docs/en/sub-agents#choose-a-model>; with the plugin,
+  `/multi-agent:assess` and `/multi-agent:route`.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section changes how a subagent's model is chosen, or the multi-agent
+  skills are renamed.
 
 ## Imperative 6: SURFACE DRIFT
 

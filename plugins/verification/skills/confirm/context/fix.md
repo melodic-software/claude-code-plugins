@@ -89,6 +89,7 @@ Pay special attention to tests in same module or feature area as the fix. These 
 | All existing tests pass | PASS/FAIL | <from Stage 1 results> |
 | Fix is minimal (no unrelated changes) | PASS/FAIL | <assessment> |
 | Sibling code paths checked | PASS/SKIP | <findings> |
+| Verifier model | <model> / NOT MATCHED | <model passed to the fresh-context verifier, or: producing model unknown> |
 
 ### Sibling Check
 <did the same pattern exist elsewhere? If so, were those instances fixed too?>
