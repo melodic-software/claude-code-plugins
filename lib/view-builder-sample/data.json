@@ -1,0 +1,32 @@
+{
+  "title": "Example review: retry the upload on a dropped connection",
+  "summary": "Example data. Three findings from a review of a change that adds retries to a file upload client. Tick the findings you accept, add a note, and copy the reply back into the session.",
+  "change": "upload/client.ts",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "upload/client.ts:88",
+      "what": "A retry resends the whole body after a partial write, so the server can store the first bytes twice.",
+      "evidence": [
+        "The retry loop calls send(body) again without a resume offset.",
+        "The server appends chunks by arrival order, not by offset."
+      ]
+    },
+    {
+      "severity": "medium",
+      "file": "upload/backoff.ts:14",
+      "what": "The backoff has no ceiling, so the fifth retry waits about 30 seconds and the eighth about 4 minutes.",
+      "evidence": [
+        "delay = base * 2 ** attempt with base = 1000 ms and no Math.min cap."
+      ]
+    },
+    {
+      "severity": "low",
+      "file": "upload/client.test.ts:40",
+      "what": "The new test covers a dropped connection before the first byte but not one in the middle of the body.",
+      "evidence": [
+        "Only the connect-refused fixture is used."
+      ]
+    }
+  ]
+}

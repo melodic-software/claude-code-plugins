@@ -2210,12 +2210,13 @@ jobs:
         run: |
           [ "$LEG" = 3 ] || exit 0
           scripts/sync-shared-copies.sh --check
-      - name: Run shared-copies generator and html-escape tests
+      - name: Run shared-copies generator, html-escape and view-builder tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
+          bash lib/view-builder.test.sh
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:

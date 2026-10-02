@@ -4,3 +4,5 @@
 # cannot see the repository root. Register a copy here, then run the script.
 lib/html-escape.mjs plugins/education/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
+lib/view-builder.mjs plugins/review/lib/view-builder.mjs
+lib/view-runtime.js plugins/review/lib/view-runtime.js

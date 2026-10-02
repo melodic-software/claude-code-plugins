@@ -3,6 +3,24 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The shared builder ships, 2026-10-02
+
+- **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator
+  profiles (#5852).** The builder fills a report template's slots with escaped text,
+  or puts an interactive page's data only in the JSON data block and inlines the
+  runtime under a policy that pins it and the page's style by hash. It refuses any page
+  that fails its profile. A lane whose context holds K2 text may now emit through it.
+  Rule 7 records what publishing the sample showed: the artifact host wraps the page,
+  so the page's policy meta is not applied there, and the host blocks downloads.
+- **Six clarifications from the #5875 security review.** Rule 7 forbids the runtime
+  from writing a data value to any attribute, URL, or selector. Rule 5 makes ids
+  opaque tokens never derived from data and bans pre-filling a form control from
+  data. Rule 4 allows `<a href="#id">` and a runtime-created `blob:` download anchor.
+  Rule 2 says the runtime reads the data block only with `JSON.parse`. Rule 8 names
+  the marker string for each profile and falls back to the report profile for any
+  other. A record outside the repository keeps K0 or K1 only with a
+  `content-class` provenance line, and a K0 or K1 page inlines its fonts and scripts.
+
 ## Tiers and content classes, 2026-10-02
 
 - **Views gain tiers, content classes, and a validator profile (#5851).** Four

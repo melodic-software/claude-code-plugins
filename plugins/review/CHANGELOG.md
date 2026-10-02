@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.1] - 2026-10-02
+
+### Added
+
+- **Shared `view-builder.mjs` and `view-runtime.js` synced ([#5852](https://github.com/melodic-software/claude-code-plugins/issues/5852)); no change to this plugin's skills.**
+  `lib/view-builder.mjs` builds a rendered view from a checked-in template plus data under the
+  report or interactive profile, and `lib/view-runtime.js` is the client runtime it inlines and pins
+  by hash. Both are generated from the repository's `lib/` by `scripts/sync-shared-copies.sh`, ready
+  for the pull-request digest to build on.
+
 ## [0.35.0] - 2026-10-02
 
 ### Added
