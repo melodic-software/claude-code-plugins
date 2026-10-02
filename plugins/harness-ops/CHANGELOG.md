@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.0.3] - 2026-10-01
+## [1.1.1] - 2026-10-01
 
 ### Changed
 
@@ -23,6 +23,24 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [1.1.0] - 2026-10-02
+
+### Added
+
+- **The inventory reports what this account and these settings say about each built-in
+  plugin.** A full run adds `builtin_plugin_state`: per gate flag, the value cached in
+  `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` `cachedGrowthBookFeatures` beside the binary default (`cached_present: false` means the
+  default applies); per plugin, every user, project and local `enabledPlugins` entry for its
+  `<name>@builtin` id and the one that wins, where a file holding any non-Boolean value
+  contributes none (`enabled_plugins_rejected`); and the mods rollout flag
+  `tengu_plugin_hooks_modules`. Its caveats record that a gate read through the per-process
+  `pinnedFeatureValues` pin, as `cc-plugin-diff`'s is, is fixed at session start, so a cached value
+  read later can differ from what a running session uses.
+- **Five native-overlap seed pairs for built-in mods.** `cc-plugin-claude-test` with
+  `testing:run-e2e` and `playwright:playwright`, `cc-plugin-you-should-know` with
+  `discovery:blindspot`, `cc-plugin-responsive-mode` with `writing:be-concise`, and
+  `cc-plugin-mermaid` with `visualization:visualize`.
 
 ## [1.0.2] - 2026-10-02
 

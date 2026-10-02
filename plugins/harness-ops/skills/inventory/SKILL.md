@@ -105,7 +105,11 @@ One per line: name, description, phases, Invocable-by marker.
 ## Built-in plugins (<n>)
 One per plugin: `id`, description, load (`unconditional`, or `conditional` with its guards),
 default enabled, gate flags, then its skills, agents and commands one per line with descriptions,
-and its hook events on one line. Name any plugin whose `partial` is non-empty.
+and its hook events on one line. Beside each gate flag's default, its `cached` value from
+`builtin_plugin_state` (`absent` when `cached_present` is false), and any `enabledPlugins` setting
+for the id with its scope. Open the section with the mods rollout flag
+(`builtin_plugin_state.mods_flag`) and the pinned-gate caveat. Name any plugin whose `partial` is
+non-empty.
 
 ## Built-in subagents (<n>)
 One per line: name, description (`whenToUse`), roster (`default`, `conditional`, `absent`), model,
@@ -207,6 +211,19 @@ shown, decides that it is offered; `default_enabled` is what `enabledPlugins` fa
 setting names `<id>`. A plugin can load, be gated off by its flag, and still read
 `default_enabled: true`. Report all three; never collapse them into "on" or "off".
 
+**A flag default is not this account's value, and the cached value is not the running session's.**
+A full run (not `--binary-only`) adds `builtin_plugin_state`. Per gate flag, `cached` is the value
+in the global config's `cachedGrowthBookFeatures` (`~/.claude.json`, or `.claude.json` inside a
+custom config dir); `cached_present: false` means the key is absent and the binary default applies;
+`null` means no cache was read. `enabled_overrides` lists each user, project and local
+`enabledPlugins` entry for the plugin's id, and `enabled_setting` is the winning one (local, then
+project, then user), or null when none names it and `default_enabled` decides. A scope listed in
+`enabled_plugins_rejected` holds a non-Boolean value, so Claude Code ignores that file's whole map
+and it contributes no override; name the offending keys. `mods_flag` carries
+`tengu_plugin_hooks_modules`, the rollout flag for mods in installed plugins. A gate read through
+the per-process pin is fixed at session start, so a cached value read later can differ from what a
+running session uses: say "cached", never "live".
+
 **A marketplace checkout is not an installation, and neither is enablement.** Three different sets:
 a cached marketplace is a catalog of what is *available*, `disk.installed_plugins` is what is
 *present locally*, and `enabledPlugins` governs what *loads*. They routinely disagree. Report the
@@ -242,6 +259,7 @@ Upstream facts this skill depends on, each with the trigger that obliges re-deri
 | The plugin component set is skills, commands, agents, workflows, output-styles, themes, monitors, hooks, bin, settings.json, .mcp.json, .lsp.json, dependencies; the manifest also declares `channels`, each bound to one of the plugin's MCP servers, which this skill does not scan | `docs/en/plugins-reference.md` manifest schema and standard plugin layout table | The manifest schema gains or drops a component key | 2026-09-29 |
 | A user reaches a built-in or custom subagent by @-mention or `--agent`, and the model by the Agent tool; the page documents Explore, Plan, general-purpose, claude, statusline-setup, and claude-code-guide, and the binary also defines fork, web-fetch, worker, workflow-subagent, and comment-thread-analyst | `docs/en/sub-agents.md` ("Built-in subagents", "Invoke subagents explicitly") against a `--binary-only` run on this machine | The page changes its built-in list or invocation patterns, or a run's `builtin_agents` names change | 2026-09-29, Claude Code 2.1.285 |
 | Claude Code ships built-in plugins as `<name>@builtin`, registered in the binary rather than installed on disk, so only the binary read lists them; the changelog names some (`cc-plugin-you-should-know@builtin`) without a roster | A `--binary-only` run on this machine lists them under `builtin_plugins`, and the 2.1.287 changelog entry announces `cc-plugin-you-should-know@builtin` | A release adds a documented roster of built-in plugins, or the `builtin_plugins` lane goes `broken` | 2026-10-01, Claude Code 2.1.287 |
+| A built-in plugin's gate reads a GrowthBook flag cached in the global config's `cachedGrowthBookFeatures`; `cc-plugin-diff`'s `isAvailable` is `ft()&&lo(Ce(),at)`, where `lo` stores the first value per flag in `pinnedFeatureValues` for the process, so availability is fixed at session start; installed mods load under `tengu_plugin_hooks_modules` (default true) | The 2.1.287 bundle on this machine (`var vr=()=>ft()&&lo(Ce(),at)`; `function lo(e,n){let r=Co().pinnedFeatureValues??=new Map;if(!r.has(e))r.set(e,C(e,n));...}`; `var HXe="tengu_plugin_hooks_modules";var kjt=!0;var dQ=()=>C(HXe,kjt)`) and `jq .cachedGrowthBookFeatures ~/.claude.json` | A release renames `cachedGrowthBookFeatures` or `pinnedFeatureValues`, drops the rollout flag string (`builtin_plugin_notes.mods_flag_in_bundle` goes false), or docs publish per-plugin availability | 2026-10-01, Claude Code 2.1.287 |
 | The tools reference table lists tools by exact name and is partial: 45 of 80 statically named tools are in it, and it keeps `TaskOutput`, which the binary only names in a retired-names list | `docs/en/tools-reference.md` parsed by `--docs` (46 rows) against a `--binary-only` run on this machine | The tools table restructures (the nested `tools` block goes `broken`) or the `undocumented` count reaches zero | 2026-09-29, Claude Code 2.1.285 |
 
 The changelog at `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md` is the
