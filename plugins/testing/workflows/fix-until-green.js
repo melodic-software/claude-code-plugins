@@ -199,7 +199,8 @@ async function runCommand(label) {
     'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing ' +
     'test or check: a stable id (the test name or check rule), the repo-relative file it lives in, the ' +
     'failure message in one or two lines, and as suspects the repo-relative source files the output ' +
-    'points at (stack frames, compiler errors), when it names any. When the command fails with no ' +
+    'points at (stack frames, compiler errors) plus the project source files the failing test file ' +
+    'imports, read with a read-only command such as grep. When the command fails with no ' +
     'failure you can attribute to a file, say so in note. Then run `git rev-parse HEAD` and report its output as head.' + fence('command', COMMAND),
     { label, phase: 'Run', schema: RUN_SCHEMA, ...opts('testing:green-runner', R.retrieval.single) }
   )
@@ -219,14 +220,18 @@ async function runCommand(label) {
 // the same file and can share the main working tree. A worktree per fixer
 // would avoid conflicts too, but this script has no way to merge a changed
 // worktree back, so disjoint groups are the isolation.
+// `extra` holds files a fixer asked for by test file; they join that file's
+// suspects in every later grouping.
+const extra = new Map()
 function groupFailures(failures) {
   const parent = new Map()
   const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x) } return x }
   const add = x => { if (!parent.has(x)) parent.set(x, x) }
   const union = (a, b) => { add(a); add(b); const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb) }
+  const suspectsOf = f => [...f.suspects, ...(extra.get(f.file) || [])]
   for (const f of failures) {
     add(f.file)
-    for (const s of f.suspects) union(f.file, s)
+    for (const s of suspectsOf(f)) union(f.file, s)
   }
   const groups = new Map()
   for (const f of failures) {
@@ -235,7 +240,7 @@ function groupFailures(failures) {
     const g = groups.get(root)
     g.failures.push(f)
     g.files.add(f.file)
-    for (const s of f.suspects) g.files.add(s)
+    for (const s of suspectsOf(f)) g.files.add(s)
   }
   return [...groups.values()].map(g => ({ files: [...g.files].sort(), failures: g.failures }))
 }
@@ -299,7 +304,7 @@ while (true) {
     'list; other fixers are editing other files in this same working tree at the same time. Reproduce with ' +
     'the narrowest command that runs just these tests, not the whole command, so your run does not collide ' +
     'with theirs. When the root cause is in a file outside the allowed list, change nothing for it and return ' +
-    'out-of-scope with that file in outsideFile.' + NO_GIT_WRITES + NO_WEAKENING +
+    'out-of-scope with that file in outsideFile. Report filesChanged and outsideFile as repo-relative paths.' + NO_GIT_WRITES + NO_WEAKENING +
     fence('command', COMMAND) + fence('allowed-files', f.allowed) + fence('failures', f.g.failures),
     { label: f.label, phase: 'Fix', schema: FIX_SCHEMA, ...opts('testing:green-fixer', R.worker.fanout) }
   )), MAX_CONCURRENT)
@@ -309,7 +314,9 @@ while (true) {
     .map((f, i) => ({ label: f.label, allowed: f.allowed, failures: f.g.failures.map(x => x.id), result: results[i] }))
     .filter(r => r.result != null)
     .map(r => {
-      const changed = (Array.isArray(r.result.filesChanged) ? r.result.filesChanged : []).filter(x => typeof x === 'string').map(norm)
+      // An absolute path ending in an allowed repo-relative path is that path.
+      const rel = x => (isRelative(x) ? x : r.allowed.find(a => x.endsWith('/' + a)) || x)
+      const changed = (Array.isArray(r.result.filesChanged) ? r.result.filesChanged : []).filter(x => typeof x === 'string').map(norm).map(rel)
       return {
         label: r.label, failures: r.failures, status: r.result.status, rootCause: r.result.rootCause,
         filesChanged: changed, strayEdits: changed.filter(x => !r.allowed.includes(x)),
@@ -317,8 +324,21 @@ while (true) {
       }
     })
   for (const r of reports) if (r.strayEdits.length) log(r.label + ': edited files outside its group: ' + r.strayEdits.join(', '))
-  const scopeStops = reports.filter(r => r.status === 'out-of-scope')
-  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
+  // A fixer that needs a file outside its group names it. An editable file in
+  // scope joins that group's test files for the next round; anything else
+  // stops the run as out of scope.
+  const widened = []
+  const scopeStops = []
+  fixers.forEach((f, i) => {
+    const r = results[i]
+    if (!r || r.status !== 'out-of-scope') return
+    const file = typeof r.outsideFile === 'string' ? norm(r.outsideFile) : ''
+    if (!isEditable(file) || !inScope(file) || f.allowed.includes(file)) { scopeStops.push(f.label); return }
+    for (const t of new Set(f.g.failures.map(x => x.file))) extra.set(t, [...new Set([...(extra.get(t) || []), file])])
+    widened.push(file)
+  })
+  if (widened.length) log('round ' + rounds + ': next round adds ' + widened.join(', ') + ' to the groups that asked')
+  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened, deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
   changes.push(round)
 
   // A fixer's own report of what it changed is a claim, so the check runs
@@ -347,6 +367,9 @@ while (true) {
     if (tree) { round.outsideEdits = outsideEdits; stoppedBecause = tree; break }
   }
   if (scopeStops.length) { stoppedBecause = 'out-of-scope'; break }
+  // Nothing changed and a group widened: the failures stand as they are, so
+  // the next round regroups them without a re-run.
+  if (widened.length && reports.every(r => !r.filesChanged.length)) continue
 
   phase('Run')
   const label = 'run:' + rounds

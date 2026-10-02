@@ -289,9 +289,27 @@ test('a group with no file in scope is not dispatched, and a round with none sto
   assert.deepEqual(result.changes[0].deferred, ['other/a.test.js#0'])
 })
 
+test('a fixer that needs an editable in-scope file gets it next round without a re-run', async () => {
+  const runs = [red([...fail('test/a.test.js')]), GREEN]
+  const ask = { status: 'out-of-scope', rootCause: 'bug in src/a.js', filesChanged: [], outsideFile: 'src/a.js' }
+  const { result, calls } = await run({ command: 'x' }, makeReply(runs, { 'fix:1:1': ask }))
+  assert.deepEqual(calls.map(c => c.opts.label), ['run:0', 'fix:1:1', 'check:1', 'fix:2:1', 'check:2', 'run:2', 'verify'])
+  assert.deepEqual(allowed(one(calls, 'fix:2:1').prompt), ['src/a.js', 'test/a.test.js'])
+  assert.deepEqual(result.changes[0].widened, ['src/a.js'])
+  assert.equal(result.green, true)
+})
+
+test('a requested file that is out of scope, protected or unsafe stops the run', async () => {
+  for (const [scope, file] of [[['test'], 'src/a.js'], [[], '.github/workflows/ci.yml'], [[], '../x.js'], [[], '']]) {
+    const ask = { status: 'out-of-scope', rootCause: 'r', filesChanged: [], outsideFile: file }
+    const { result } = await run({ command: 'x', scope }, makeReply([red(fail('test/a.test.js'))], { 'fix:1:1': ask }))
+    assert.equal(result.stoppedBecause, 'out-of-scope', JSON.stringify(file))
+  }
+})
+
 test('a fixer reporting a root cause outside scope stops the run after the check', async () => {
   const out = { status: 'out-of-scope', rootCause: 'bug in a dependency', filesChanged: [], outsideFile: 'vendor/x.js' }
-  const { result, calls } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'fix:1:2': out }))
+  const { result, calls } = await run({ command: 'x', scope: ['a.test.js', 'b.test.js'] }, makeReply(TWO_FILES, { 'fix:1:2': out }))
   assert.equal(result.stoppedBecause, 'out-of-scope')
   assert.ok(one(calls, 'check:1'), 'the other fixer\'s edits were still checked')
   assert.equal(one(calls, 'run:1'), undefined)
@@ -313,6 +331,14 @@ test('paths under .git, .claude, .github or node_modules never reach a fixer', a
   const fixers = by(calls, 'fix:')
   assert.equal(fixers.length, 1)
   assert.deepEqual(allowed(fixers[0].prompt), ['a.test.js', 'src/a.js'])
+})
+
+test('an absolute filesChanged path that ends in an allowed file counts as that file', async () => {
+  const abs = { status: 'fixed', rootCause: 'r', filesChanged: ['/home/u/repo/a.test.js'] }
+  const { result } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'fix:1:1': abs }))
+  assert.deepEqual(result.changes[0].fixers[0].filesChanged, ['a.test.js'])
+  assert.deepEqual(result.changes[0].fixers[0].strayEdits, [])
+  assert.equal(result.green, true)
 })
 
 test('a changed file no fixer was allowed to edit stops the run, whatever the fixers reported', async () => {

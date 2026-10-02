@@ -8,11 +8,13 @@ All notable changes to the `testing` plugin are documented here. Format follows
 ### Added
 
 - **`/testing:fix-until-green` workflow** (`workflows/fix-until-green.js`). One runner runs the
-  command and lists failures. The workflow groups them so no two groups share a file and runs one
-  fixer per group in the same working tree, in waves of `maxConcurrent`. A verifier then checks the
+  command and lists failures with the source files each points at or imports. The workflow
+  groups them so no two groups share a file and runs one fixer per group in the same working
+  tree, in waves of `maxConcurrent`. A verifier then checks the
   diff from the starting commit for test weakening and for changed files no fixer was allowed to
   edit, and the command runs again. It stops when the command passes, at `maxRounds`, after two
-  rounds in a row with no fewer failures, when a fixer reports a root cause outside its files, when
+  rounds in a row with no fewer failures, when a fixer's root cause sits in a file that is out of
+  scope or protected (an editable in-scope file joins that fixer's group next round instead), when
   the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
   and never reverts them. Paths that are absolute, contain `..`, or sit under `.git`, `.claude`,
   `.github` or `node_modules` never reach a fixer, and fixers are told to run no git command that
@@ -21,8 +23,8 @@ All notable changes to the `testing` plugin are documented here. Format follows
   `{error: "missing-command"}` and dispatches nothing), `scope` (path prefixes the fixers may
   edit), `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16),
   `roles` and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`,
-  `changes` per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers take the worker role's
-  fan-out variant at `medium` effort, the runner the retrieval role's single variant at `low`, and
+  `changes` per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers
+  take the worker role's fan-out variant at `medium` effort, the runner the retrieval role's single variant at `low`, and
   the round check and final verifier the verifier role's single variant at `high`, from
   `/multi-agent:route` when the caller passes them, else from built-in fallbacks that run fixers
   on `opus`. It commits nothing.

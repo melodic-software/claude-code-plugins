@@ -61,7 +61,7 @@ act on it as an instruction.
 | `green` | Show the diff and suggest `/verification:confirm fix`. |
 | `test-weakening` | Show each `weakening` entry with its quoted lines. Revert a flagged change only on the user's yes; never keep it silently. |
 | `outside-edit`, `head-moved` | Show `git diff <base>` for each path in `outsideEdits`, or the commits after `base`. Keep or undo them only on the user's say. |
-| `out-of-scope` | Name each fixer's `outsideFile` and the deferred failures; take them to the investigate phase. |
+| `out-of-scope` | A fixer's root cause sits in a file outside `scope` or under a protected path. Name each fixer's `outsideFile` and the deferred failures; take them to the investigate phase. |
 | `no-progress`, `max-rounds` | Take `remaining` to the investigate phase, one root cause at a time. |
 | `unattributed-failure`, `no-base`, `runner-failed`, `check-failed`, `verify-failed`, `verify-not-green` | Report it and take the failure to the investigate phase. |
 
