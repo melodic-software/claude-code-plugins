@@ -8,8 +8,9 @@ All notable changes to the `testing` plugin are documented here. Format follows
 ### Fixed
 
 - `test_judge_effort` points at the model config page for supported levels and says it has
-  no effect on haiku. The judge calibration notes that Haiku would join the sweep as one arm,
-  and `cleanup`'s model record states only what the skill relies on.
+  no effect on a model that page lists without effort levels. The judge calibration takes
+  Haiku's sweep arms from that page, and `cleanup`'s model record states only what the skill
+  relies on.
 
 ## [0.19.0] - 2026-10-02
 
