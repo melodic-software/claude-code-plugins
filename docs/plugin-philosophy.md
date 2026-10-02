@@ -1614,7 +1614,9 @@ A Workflow script this repository ships follows these rules;
 - **`inherit` means omit `opts.model`.** Effort is always explicit on a generic `agent()` call, as
   [Effort tiers](#effort-tiers) sets out.
 - **Named agents keep their pins.** A call by `agentType` passes neither `model` nor `effort`, and
-  the role map does not govern it.
+  the role map does not govern it. The exception is a named agent whose definition inherits the
+  model and pins no effort, used only to narrow a stage's tools: the call passes the role's variant
+  as a generic call would.
 - **Fan-out frontier guard.** A stage that runs more than one agent never runs them on a frontier
   model, so a Fable root never fans out into Fable agents. When the session model is unknown, the
   fan-out names `opus`. A single synthesis or judge agent may inherit.
