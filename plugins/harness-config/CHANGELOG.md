@@ -11,9 +11,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - **`audit-instructions` no longer calls `/doctor prompt-audit`'s write posture undocumented.** The
   upstream memory page now documents it. The `doctor` Boundary section states our decision (offer
-  it, leave applying its edits to the person, never chain into it) and that it needs the bundled
-  `claude-api` skill on; `reference/native-doctor.md` records the pointer, as-of date and recheck
-  trigger.
+  it, leave applying its edits to the person, never chain into it) and reads its gates from the
+  records; `reference/native-doctor.md` records the pointer, as-of date and recheck trigger.
 
 ## [1.3.0] - 2026-10-02
 
