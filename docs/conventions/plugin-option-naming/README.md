@@ -98,4 +98,6 @@ options by the feature they configure.
 `scripts/validate-plugin-contracts.mjs` fails a `displayName`, and warns on a title that is not
 sentence case, opens with the plugin name, uses a banned boolean word, or differs from another
 plugin's title for the same key, and on a description over 300 characters or containing markdown
-or an em dash.
+or an em dash. Sentence case is judged word by word: a title must start with a capital or digit,
+no word may be six or more capital letters, and a later word may be capitalized only when it is an
+acronym, carries an inner capital (GitHub), or is on the gate's short proper-noun list.

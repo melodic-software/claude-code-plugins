@@ -1303,14 +1303,22 @@ const DESCRIPTION_BUDGET = 300;
 const optionWarn = (path, message) =>
   warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
 const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
+// Capitalized words that are proper nouns, so they may follow the first word.
+const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright"]);
+// Emphasis such as *strict*, but not a literal wildcard such as ps-unparsable-*.
+const SINGLE_ASTERISK_EMPHASIS = /(?:^|[\s(])\*(?=\S)[^*\n]*\S\*(?=$|[\s.,;:!?)])/;
 
 function optionTitleProblems(plugin, option) {
   const { title, type } = option;
   const problems = [];
-  const letters = title.replace(/[^A-Za-z]/g, "");
-  // An acronym of five letters or fewer ("API", "CI ID") is not all caps.
-  const allCaps = (letters.length > 5 && !/[a-z]/.test(title)) || /\b[A-Z]{6,}\b/.test(title);
-  if (!/^[A-Z0-9]/.test(title) || allCaps) problems.push("not sentence case");
+  // Judged word by word: an acronym of five letters or fewer ("API URL", "CI ID") passes, a
+  // longer all-caps word does not, and a later word may be capitalized only as a proper noun.
+  const words = title.split(/[\s-]+/).map((word) => word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, ""));
+  const shouting = words.some((word) => /^[A-Z]{6,}$/.test(word));
+  const titleCased = words
+    .slice(1)
+    .some((word) => /^[A-Z][a-z]+$/.test(word) && !TITLE_PROPER_NOUNS.has(word));
+  if (!/^[A-Z0-9]/.test(title) || shouting || titleCased) problems.push("not sentence case");
   const name = spacedLower(plugin);
   const lowered = spacedLower(title);
   if (lowered === name || lowered.startsWith(`${name} `)) problems.push("opens with the plugin name");
@@ -1328,6 +1336,7 @@ function optionDescriptionProblems(description) {
   }
   if (description.includes("`")) problems.push("contains a backtick");
   if (description.includes("**")) problems.push("contains **");
+  else if (SINGLE_ASTERISK_EMPHASIS.test(description)) problems.push("contains *emphasis*");
   if (/\[[^\]]*\]\([^)]*\)/.test(description)) problems.push("contains a markdown link");
   if (description.includes(String.fromCodePoint(0x2014))) problems.push("contains an em dash");
   return problems;

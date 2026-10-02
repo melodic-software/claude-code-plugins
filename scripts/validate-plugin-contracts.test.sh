@@ -1571,6 +1571,9 @@ number	30-day window (days)	How far back to look.
 string	CI ID	Plain text with a [bracket] and a (paren).
 boolean	Optimization report	Master is fine in a description; enabled too.
 string	Optfixer mode	Starts with the plugin name only as a prefix of a longer word.
+string	API URL	Two acronyms side by side.
+boolean	Block-Windows-drive-tmp guard	A proper noun after the first word.
+string	Allow-list	Permits ps-unparsable-* tokens and a bare * alone.
 GOOD
 
 # type<TAB>title<TAB>description<TAB>the problem the warning must name.
@@ -1587,6 +1590,7 @@ string	output directory	Where files go.	title "output directory": not sentence c
 string	-Output directory	Where files go.	title "-Output directory": not sentence case
 string	OUTPUT DIRECTORY	Where files go.	title "OUTPUT DIRECTORY": not sentence case
 string	Output DIRECTORY	Where files go.	title "Output DIRECTORY": not sentence case
+string	Output Directory	Where files go.	title "Output Directory": not sentence case
 string	Optfix output directory	Where files go.	title "Optfix output directory": opens with the plugin name
 boolean	Enable the hook	Runs it.	title "Enable the hook": boolean title uses enable, enabled, toggle, kill switch, or master
 boolean	Hook enabled	Runs it.	title "Hook enabled": boolean title uses enable, enabled, toggle, kill switch, or master
@@ -1595,6 +1599,7 @@ boolean	Hook kill switch	Runs it.	title "Hook kill switch": boolean title uses e
 boolean	Master hook	Runs it.	title "Master hook": boolean title uses enable, enabled, toggle, kill switch, or master
 string	Output directory	Uses `dir`.	description contains a backtick
 string	Output directory	Uses **dir**.	description contains **
+string	Output directory	Uses *strict* mode.	description contains *emphasis*
 string	Output directory	See [the docs](https://x.test).	description contains a markdown link
 string	Output directory	Where files go — always.	description contains an em dash
 SHAPES
