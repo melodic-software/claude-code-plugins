@@ -89,6 +89,8 @@ already-marked phase is a no-op):
 node "<skill-dir>/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>
 ```
 
+`mark-phase <slice-dir> synthesis` delegates to `close` (Phase 9).
+
 Promote only via vision-gated decisions:
 
 ```bash
@@ -109,7 +111,8 @@ Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Ti
 only with verification evidence (command exit code, artifact path, verify row). **Ordered
 checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
 
-Do not run `mark-phase` or set `status: complete` while the phase verify script fails.
+Do not run `mark-phase` while the phase verify script fails. Only `watch-state.js close` sets
+`status: complete` (Phase 9).
 
 ## Phase 1: vision planning
 
@@ -258,15 +261,23 @@ Write `recommendations/interview.md` with the menu + *"Should we go further?"*; 
 
 ## Phase 9: outcome verification
 
-Mandatory host verify script, before `status: complete`:
+Mandatory host verify script, before closing the slice:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
 ```
 
-Writes `verification/<ISO-basic>Z-watch-outcomes.md`. **Do not** mark the slice complete while this
-exits non-zero. Long conferences (`conference-multi-session`, ≥4h) must meet the floors in
-`quality-gates.md`. Verify script `triage-agentic-required` fails `selection-signals` / missing
+Writes `verification/<ISO-basic>Z-watch-outcomes.md`. Once it exits 0 and the blocking checklist
+items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" watch/watch-state.js close "<slice-dir>"
+```
+
+`close` is the only writer of `status: complete`. It marks synthesis, re-runs the outcome checks
+with the blocking checklist enforced, and writes `complete` only on a pass; on a fail it exits 1
+and leaves status unchanged, so fix the failing check and re-run `close`. Long conferences
+(`conference-multi-session`, ≥4h) must meet the floors in `quality-gates.md`. Verify script `triage-agentic-required` fails `selection-signals` / missing
 model. Temp paths use `{tmp}` prefix (portable temp-session path serialization).
 
 **Queue completion:** when this watch was started from `QUEUE.md`, set that row `complete` (or

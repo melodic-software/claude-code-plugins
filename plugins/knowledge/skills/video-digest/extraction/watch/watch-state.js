@@ -10,6 +10,7 @@ import fs from "node:fs/promises";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { runCheckWatchOutcomes } from "../evals/check-watch-outcomes.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
 
@@ -291,26 +292,84 @@ const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
 ]);
 
 /**
+ * @typedef {Object} WatchStateIo
+ * @property {typeof fs.readFile} [readFile]
+ * @property {typeof fs.writeFile} [writeFile]
+ * @property {typeof fs.mkdir} [mkdir]
+ * @property {(sliceDir: string) => Promise<number>} [verifyOutcomes] - the
+ *   outcome checks (blocking checklist included); exit code, 0 on a pass
+ */
+
+/** @param {string} sliceDir */
+async function verifyWatchOutcomes(sliceDir) {
+  return runCheckWatchOutcomes(sliceDir, { writeReport: true });
+}
+
+/**
+ * Close the slice: the only writer of `status: "complete"`. Marks synthesis
+ * when unmarked, runs the outcome checks against that state on disk, and sets
+ * `complete` only when they pass. A failed close leaves status unchanged with
+ * synthesis marked, so a re-run retries the checks.
+ *
+ * @param {string} sliceDir
+ * @param {WatchStateIo} [io]
+ * @returns {Promise<number>} 0 when complete (or already complete), 1 otherwise
+ */
+export async function runClose(
+  sliceDir,
+  { readFile, writeFile, mkdir, verifyOutcomes = verifyWatchOutcomes } = {},
+) {
+  const state = await readWatchState(sliceDir, readFile);
+  if (!state) {
+    writeStderr(`close: no watch.json under ${sliceDir}\n`);
+    return 1;
+  }
+
+  if (state.status === "complete") {
+    writeStdout("close: status already complete, no-op\n");
+    return 0;
+  }
+
+  let closing = state;
+  if (!state.phases?.synthesis) {
+    closing = markPhaseComplete(state, "synthesis");
+    await writeWatchState(sliceDir, closing, writeFile, mkdir);
+  }
+
+  if ((await verifyOutcomes(sliceDir)) !== 0) {
+    writeStderr(`close: outcome checks failed; status stays "${closing.status}"\n`);
+    return 1;
+  }
+
+  await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
+  writeStdout("close: outcome checks passed, status complete\n");
+  return 0;
+}
+
+/**
  * Idempotently mark a phase complete in a persisted watch.json.
  *
  * Skips with a no-op when the phase is already recorded — the guard the
  * in-process `markPhaseComplete` lacks (it overwrites `completedAt` each call).
  * Verify-gated callers can re-invoke without clobbering an earlier timestamp.
+ * `synthesis` closes the slice through {@link runClose}.
  *
  * @param {string} sliceDir
  * @param {keyof WatchPhases} phase
- * @param {object} [io]
- * @param {typeof fs.readFile} [io.readFile]
- * @param {typeof fs.writeFile} [io.writeFile]
- * @param {typeof fs.mkdir} [io.mkdir]
+ * @param {WatchStateIo} [io]
  * @returns {Promise<number>} 0 on success or no-op skip, 1 on error
  */
-export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir } = {}) {
+export async function runMarkPhase(sliceDir, phase, io = {}) {
   if (!MARKABLE_PHASES.includes(phase)) {
     writeStderr(`mark-phase: unknown phase "${phase}" (expected ${MARKABLE_PHASES.join(", ")})\n`);
     return 1;
   }
 
+  if (phase === "synthesis") {
+    return runClose(sliceDir, io);
+  }
+
+  const { readFile, writeFile, mkdir } = io;
   const state = await readWatchState(sliceDir, readFile);
   if (!state) {
     writeStderr(`mark-phase: no watch.json under ${sliceDir}\n`);
@@ -322,25 +381,29 @@ export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir
     return 0;
   }
 
-  let next = markPhaseComplete(state, phase);
-  // Marking the terminal phase closes the slice: flip status to "complete" so
-  // validateWatchChecklistForCompleteSlice enforces the blocking checklist
-  // (it skips unless status === "complete").
-  if (phase === "synthesis") {
-    next = { ...next, status: "complete" };
-  }
-  await writeWatchState(sliceDir, next, writeFile, mkdir);
+  await writeWatchState(sliceDir, markPhaseComplete(state, phase), writeFile, mkdir);
   writeStdout(`mark-phase: ${phase} marked complete\n`);
   return 0;
 }
 
+const USAGE =
+  "Usage: node watch/watch-state.js mark-phase <slice-dir> <phase>\n" +
+  "       node watch/watch-state.js close <slice-dir>\n";
+
 if (isMainModule(import.meta.url)) {
   const [command, sliceDir, phase] = process.argv.slice(2);
-  if (command !== "mark-phase" || !sliceDir || !phase) {
-    writeStderr("Usage: node watch/watch-state.js mark-phase <slice-dir> <phase>\n");
+  /** @type {(() => Promise<number>) | null} */
+  let run = null;
+  if (command === "mark-phase" && sliceDir && phase) {
+    run = () => runMarkPhase(sliceDir, /** @type {keyof WatchPhases} */ (phase));
+  } else if (command === "close" && sliceDir) {
+    run = () => runClose(sliceDir);
+  }
+  if (!run) {
+    writeStderr(USAGE);
     process.exitCode = 2;
   } else {
-    runMarkPhase(sliceDir, /** @type {keyof WatchPhases} */ (phase))
+    run()
       .then((code) => {
         process.exitCode = code;
       })

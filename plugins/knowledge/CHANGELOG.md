@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.18] - 2026-10-02
+
+### Fixed
+
+- `video-digest` no longer labels auto captions as manual. A bare `<id>.en.vtt` counts as manual
+  only when info.json lists English manual subtitles; otherwise the transcript uses the
+  auto-caption cleaner and records why in `transcriptDegradation`.
+- Transcript paragraphs no longer open with the words the previous cue ended on.
+- `status: complete` is written only by the new `watch-state.js close <slice-dir>`, which runs the
+  outcome checks and the blocking checklist first and leaves status unchanged when they fail.
+  `mark-phase <slice-dir> synthesis` delegates to it.
+
 ## [0.14.17] - 2026-10-02
 
 ### Changed

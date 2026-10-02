@@ -143,11 +143,14 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 6. **Research stage** (default-on). Gate on `check-research-complete.js` exit 0
 7. **Synthesis**. `recommendations/**` against one resolved `--target`; no auto-implement
 8. **Interview handoff**. `recommendations/interview.md`; offer `/planning:interview`
-9. **Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must exit 0
-   before `status: complete`
+9. **Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must exit 0,
+   then `watch/watch-state.js close <slice-dir>` closes the slice
 
 **Phase markers.** After each phase, `watch/watch-state.js mark-phase <slice-dir> <phase>`
-(idempotent). Never `mark-phase` or set `status: complete` while that phase's verify script fails.
+(idempotent). Never `mark-phase` while that phase's verify script fails. `close` is the only path
+to `status: complete`: it marks synthesis, re-runs the outcome checks (blocking checklist
+included), and writes `complete` only on a pass. `mark-phase <slice-dir> synthesis` delegates to
+it.
 
 **A 0-video source result** (an X post with no video) is well-formed, not a failure: it enqueues
 at preflight, skips phases 1, 3, 4, and 5, and produces a text-only digest. How much provenance
