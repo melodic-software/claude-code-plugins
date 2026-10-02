@@ -6,9 +6,16 @@ this phase exists to rule out.
 
 Two independent verifiers over the full digest set, fresh context, production rationale withheld:
 
-- **Verifier A**. Same-vendor Claude, at the strongest effort available to the session,
-  checking completeness (no source section unrepresented), fidelity (digest claims traceable to
-  source), and fabrication (no claim without a source anchor).
+- **Verifier A**. Same-vendor Claude, dispatched as a Workflow `agent()` call, checking
+  completeness (no source section unrepresented), fidelity (digest claims traceable to source),
+  and fabrication (no claim without a source anchor). The call passes effort `high` by default,
+  and the operator may set a different level for one run. A call that names an agent omits effort
+  unless the run overrides it, so that agent's own pin holds. The verdict header records the
+  effective effort and where it came from.
+  - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
+    record, in the marketplace repository; no docs page covers per-call Workflow effort.
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: a docs page starts covering it.
 - **Verifier B**. Cross-vendor (e.g. Codex via the `codex` plugin, high reasoning effort), same
   three checks. Cross-vendor independence is the point: correlated blind spots differ.
   A Codex arm run in a sandbox without network access cannot re-fetch a live page. Brief it over the slice's local files (`source.*`, the digests, `SOURCES.md`, any

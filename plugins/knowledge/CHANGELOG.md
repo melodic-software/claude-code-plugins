@@ -40,6 +40,9 @@ only after that version increases.
   mechanism without a past-run anecdote.
 - docpage-digest's effort gotcha points at the marketplace's record on where per-task effort is
   set: Workflow's per-call option, or an agent's pin for an Agent tool dispatch.
+- docpage-digest's verifier A runs as a Workflow `agent()` call at effort `high` by default,
+  overridable per run; a named agent keeps its own pin, and the verdict header records the
+  effective effort and its source.
 
 ## [0.14.15] - 2026-10-01
 
