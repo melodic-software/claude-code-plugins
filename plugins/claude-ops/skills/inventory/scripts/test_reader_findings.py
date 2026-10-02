@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""The open wrong-value and unresolved-only findings on #5640, pinned.
+"""The open wrong-value and unresolved-only findings on #5640 in the bundle
+reader of inventory.py, pinned. Naming inventory.py here is what makes
+scripts/affected-tests.sh select this suite when the reader changes.
 
 Each test builds a synthetic bundle the way test_inventory.py does and
 asserts what JavaScript computes. They are expected failures while the regex

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Every JavaScript fixture test_inventory.py feeds the reader parses as a
-module under acorn.
+"""Every JavaScript fixture test_inventory.py feeds the reader in
+inventory.py parses as a module under acorn. Naming inventory.py here is
+what makes scripts/affected-tests.sh select this suite when it changes.
 
 A parser-backed reader (#5640) reads only what parses, so a fixture that is
 not valid JavaScript tests a shape no real bundle has. The fixtures are
