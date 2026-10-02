@@ -149,9 +149,9 @@ describe("repair command", () => {
   });
 
   it("is a Windows PowerShell 5.1 line on Windows, with no &&", () => {
-    const winTarget = "C:\\Users\\O'Brien Dev\\data\\mcp-server\\abc";
+    const winTarget = "D:\\O'Brien Data\\mcp-server\\abc";
     const command = installCommand(winTarget, "win32");
-    const quoted = "'C:\\Users\\O''Brien Dev\\data\\mcp-server\\abc'";
+    const quoted = "'D:\\O''Brien Data\\mcp-server\\abc'";
     expect(command).not.toContain("&&");
     expect(command.startsWith("$ErrorActionPreference = 'Stop'; ")).toBe(true);
     expect(command).toContain(`Remove-Item -LiteralPath ${quoted} -Recurse -Force`);
