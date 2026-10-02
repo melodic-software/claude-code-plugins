@@ -377,29 +377,27 @@ Invoke each wrapper **by its bundled path**, the same form the read-only sibling
 `<plugin-root>/scripts/` use:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-merge" <args>
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" <args>
+bash "<plugin-root>/scripts/source-control-babysit-merge" <args>
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" <args>
 ```
 
 Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact.
 It is not a guard-dodging re-spelling (only invoking the raw Python is).
 
-Two facts about the wrappers' bare names, both of which decide the invocation form:
+Two facts decide the invocation form:
 
-- **Bare-name resolution is unreliable, not absent.** A plugin's `bin/` reaches the Bash tool's
-  `PATH` only through the session shell snapshot's final `export PATH=` line; when that line does
-  not land, every enabled plugin's `bin/` goes with it and a bare `source-control-babysit-merge …`
-  fails `command not found`
-  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
-  loss is per-session and silent, so a bare name that resolves today can be gone next session.
+- **The wrappers have no bare name.** A plugin's top-level `bin/` is the only way to put one on
+  the Bash tool's `PATH`, and the plugin keeps none: its presence blocks claude.ai organization
+  plugin sync (#5850), and its delivery is unreliable, since a plugin's `bin/` reaches `PATH` only
+  through the session shell snapshot's final `export PATH=` line
+  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)).
 - **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
   strips only a fixed wrapper set: `timeout`, `time`, `nice`, `nohup`, `stdbuf`, the shell
   builtins `command` and `builtin`, and zsh's `noglob`
   ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers)).
-  `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
+  `bash` is not among them, so `bash "…/scripts/source-control-babysit-merge" …` matches as a `bash`
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
-  not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
-  bare, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
+  not cover these invocations, and cannot while the wrappers have no bare name, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
   exist, named by the config values hooks and settings use: `default`, `acceptEdits`, `plan`,
   `auto`, `dontAsk`, and `bypassPermissions`. `default` is the mode the CLI, `claude --help`, the
   VS Code and JetBrains extensions, and the desktop app display as **Manual**, and from v2.1.200 the
@@ -450,14 +448,12 @@ filesystem set, and the plan-mode branch on `useAutoModeDuringPlan` being on by 
 `bin/` PATH claim rests on
 [anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
 `gh api repos/anthropics/claude-code/issues/68066` reports closed as not planned, so the behavior
-stands unfixed and the path form below stays the safe one. Recheck when either docs page stops
+stands unfixed. Recheck when either docs page stops
 carrying the quoted spans, when a release note names permission modes, `classifyAllShell`, plugin
 `bin/` PATH handling, or the wrapper-strip list, or when that issue reopens or closes as completed.
 
-The `<plugin-root>/bin/` path, resolved exactly as the sibling
-`<plugin-root>/scripts/` invocations are, is nonetheless the form to use: it is the only
-one that runs in both `PATH` states. Every command spelled below as `source-control-babysit-<x> …`
-is launched this way.
+The `<plugin-root>/scripts/` path is the only invocation form. Every command spelled below as
+`source-control-babysit-<x> …` is launched this way.
 
 Capture the wrapper's output first, then parse its JSON in a *separate* step. Never pipe the
 wrapper into an interpreter (`… | python`, `… | jq`): an interpreter-in-pipeline trips the
@@ -745,7 +741,7 @@ announced operator step.
   never the four-flagless base command, which would ignore every tier criterion:
 
   ```text
-  bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
+  bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
@@ -847,7 +843,7 @@ above, not as fresh confirmation of it.
 
 That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. Every tier proves
 readiness with a bundled script: the Python engine and gates under `skills/babysit-prs/scripts/`,
-the guarded wrappers under `bin/`, and the plugin-scope helpers under `scripts/` that the
+the guarded wrappers and the plugin-scope helpers under `scripts/` that the
 Python-free degrade path itself depends on, including the **read-only** merge-readiness check,
 which mutates nothing and is still a shell invocation the host may deny. So those scripts being
 invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
@@ -864,7 +860,7 @@ paths only.
 
 **What this prerequisite rests on.** With `autoMode.classifyAllShell` enabled, every narrow Bash
 allow rule is suspended, including grants purpose-built for this lane's scripts, so under that
-configuration even the compliant `bash "<plugin-root>/bin/…"` form reaches the classifier
+configuration even the compliant `bash "<plugin-root>/scripts/…"` form reaches the classifier
 like any other command. Reachability is therefore a property of the operator's configuration, never
 of the path form alone. A denial of a raw interpreter invocation (`python …/babysit_merge.py …`)
 says nothing about the sanctioned form; that spelling is forbidden by this file regardless.
@@ -913,7 +909,7 @@ nothing was ever proven ready.
 When the runtime denies a guarded mutation that this skill's own gate already proved ready,
 degrade that one PR to the same outcome default (safe) mode reports for a ready PR: mark it
 **"ready, awaiting human execution"** and surface the exact, fully-argument-pinned command for the
-operator to run, in the `bin/`-path wrapper form (§Guarded Mutation Wrappers), which runs the
+operator to run, in the `scripts/`-path wrapper form (§Guarded Mutation Wrappers), which runs the
 wrapper with every guard intact. The case is distinguishable because the wrapper itself never ran,
 so there is no wrapper exit code and no `blockers` output to react to. Never surface a workaround,
 and never a raw-Python re-spelling of the command that would dodge the wrapper's guards and the
@@ -922,7 +918,7 @@ narrow allow rule.
 For a merge:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
+bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
@@ -937,13 +933,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
