@@ -17,7 +17,9 @@ name: test-windows
 # report success having run nothing, which both of ci.yml's gates reject.
 #
 # The triggers, the contract-only predicate, the concurrency shape and the
-# permissions are ci.yml's, unchanged. The `changes` job below is the minimum
+# permissions are ci.yml's, unchanged, except that this workflow takes no
+# `merge_group` event: a merge queue waits only on required checks, and this
+# lane is not one. The `changes` job below is the minimum
 # re-resolution the split forces: job outputs do not cross workflow files, so
 # `run_windows` has to be computed here. It is derived by the SAME expression
 # ci.yml publishes, from the same detector and the same shell, python, and

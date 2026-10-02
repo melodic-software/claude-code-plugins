@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.7] - 2026-10-02
+
+### Changed
+
+- The runner lifecycle's deferred merge-serialization growth stage names GitHub's native binding:
+  the merge queue, entered through the asynchronous merge endpoint with `merge_action=merge_queue`. It
+  is a dated pointer record with a recheck trigger; the stage stays deferred until its evidence
+  trigger fires.
+
 ## [0.25.6] - 2026-10-02
 
 ### Changed

@@ -37,6 +37,21 @@ on:
     # `pull_request` whatever `permissions:` requests, so it cannot record lane
     # state — and runs the full workflow on every event exactly as before.
     types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+  # A merge queue tests each queued merge commit through this event alone; a
+  # required check that never reports on it leaves the queued pull request
+  # unmergeable. A merge-group run carries no `github.event.pull_request`, so
+  # every expression below that reads one takes its non-PR branch, the same one
+  # a push to main takes: the contract-only predicate is false, so every lane
+  # runs in full; the concurrency group falls back to `github.run_id`, so no
+  # queued run cancels another; the docs-only detector does not run and the
+  # change-detection action fails open, so the whole suite runs; the
+  # base-diff gates decline as they do on a push; `pr-contract` finds no pull
+  # request number and reports `skipped`, because the title, label and linkage
+  # were already checked on the pull request before it could enter the queue;
+  # and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -52,10 +67,10 @@ permissions:
 # until someone re-ran that specific run (melodic-software/github-iac#378).
 #
 # The full branch keeps one group per pull request, so a `synchronize` still
-# cancels everything on the old SHA. Push runs fall back to the unique
-# `github.run_id` and are never cancelled; the PR number scopes cancellation to
-# exactly one pull request, where `head_ref` would collide across same-named
-# fork branches.
+# cancels everything on the old SHA. Push and merge-group runs fall back to the
+# unique `github.run_id` and are never cancelled; the PR number scopes
+# cancellation to exactly one pull request, where `head_ref` would collide
+# across same-named fork branches.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&

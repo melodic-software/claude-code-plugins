@@ -48,6 +48,10 @@ fail() {
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 assert_exit() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi; }
+section() {
+  # section OUTPUT "== heading prefix" — the lines of one section, heading included.
+  printf '%s\n' "$1" | awk -v h="$2" 'index($0, h) == 1 {p = 1; print; next} /^== / {p = 0} p'
+}
 
 # --- Fixtures -----------------------------------------------------------------
 NOW="2026-07-20T08:00Z"
@@ -63,9 +67,16 @@ cat >"$TMP/pr.json" <<'EOF'
 [
   {"number": 12, "title": "blocked pr", "url": "http://x/12", "isDraft": false, "mergeStateStatus": "BLOCKED", "reviewDecision": ""},
   {"number": 11, "title": "draft pr", "url": "http://x/11", "isDraft": true, "mergeStateStatus": "CLEAN", "reviewDecision": ""},
-  {"number": 13, "title": "approved clean pr", "url": "http://x/13", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "APPROVED"},
-  {"number": 10, "title": "clean pr", "url": "http://x/10", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": ""}
+  {"number": 13, "title": "approved clean pr", "url": "http://x/13", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "APPROVED",
+   "baseRefName": "main", "headRefOid": "1313131313131313131313131313131313131313"},
+  {"number": 10, "title": "clean pr", "url": "http://x/10", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "",
+   "baseRefName": "main", "headRefOid": "1010101010101010101010101010101010101010"}
 ]
+EOF
+
+# #10's head contains the base tip; #13's is four commits behind it.
+cat >"$TMP/behind.json" <<'EOF'
+{"10": 0, "13": 4}
 EOF
 
 # #100 uppercase marker must beat an earlier "not recommended"; #101 lowercase
@@ -247,6 +258,7 @@ printf '[]\n' >"$TMP/repo-labels-empty.json"
 OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
+  --behind-json "$TMP/behind.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged.json" 2>&1)"
@@ -266,6 +278,28 @@ assert_contains "merge-ready none-review shows 'none'" "$OUT" "review=none"
 assert_not_contains "merge-ready drops draft #11" "$OUT" "#11 draft pr"
 assert_not_contains "merge-ready drops blocked #12" "$OUT" "#12 blocked pr"
 assert_contains "merge-ready points to authoritative gate" "$OUT" "/source-control:babysit-prs"
+MERGE_READY="$(section "$OUT" "== Merge-ready")"
+assert_contains "merge-ready flags a clean PR behind its base as unverified" "$MERGE_READY" \
+  "    http://x/13  review=APPROVED
+    UNVERIFIED: head is 4 commit(s) behind main; checks may predate the current base"
+assert_contains "merge-ready leaves a clean PR containing the base tip unflagged" "$MERGE_READY" \
+  "    http://x/10  review=none
+  #13 approved clean pr"
+assert_not_contains "merge-ready reports no unread freshness when every count is known" "$MERGE_READY" "base freshness unread"
+
+# Freshness that was never read is UNVERIFIED, never silently fresh.
+OUT_NO_BEHIND="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" \
+  --counts-json "$TMP/counts.json" --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged.json" 2>&1)"
+assert_contains "merge-ready without a behind fixture says freshness is unread" "$(section "$OUT_NO_BEHIND" "== Merge-ready")" \
+  "    http://x/10  review=none
+    UNVERIFIED: base freshness unread: --pr-json given without --behind-json"
+printf '{"10": 0}\n' >"$TMP/behind-partial.json"
+OUT_PARTIAL_BEHIND="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind-partial.json" \
+  --counts-json "$TMP/counts.json" --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged.json" 2>&1)"
+assert_contains "merge-ready with no count for a PR says freshness is unread" "$(section "$OUT_PARTIAL_BEHIND" "== Merge-ready")" \
+  "    UNVERIFIED: base freshness unread: no behind count for #13"
 
 # Decisions — two-tier RECOMMENDED extraction
 assert_contains "decision #100 uppercase marker wins" "$OUT" "Store the root in a userConfig key"
@@ -635,11 +669,6 @@ run_stub() {
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" "$@" 2>&1
 }
 
-section() {
-  # section OUTPUT "== heading prefix" — the lines of one section, heading included.
-  printf '%s\n' "$1" | awk -v h="$2" 'index($0, h) == 1 {p = 1; print; next} /^== / {p = 0} p'
-}
-
 # Every section live, every call refused: nothing may read as clear or absent.
 OUT_BLOCKED="$(run_stub blocked)"
 RC_BLOCKED=$?
@@ -737,7 +766,12 @@ cat >"$REST/$(rest_key "$R/pulls?state=open&per_page=100").json" <<'EOF'
 [{"number": 9, "title": "blocked one"}, {"number": 8, "title": "draft one"}, {"number": 7, "title": "clean one"}]
 EOF
 cat >"$REST/$(rest_key "$R/pulls/7").json" <<'EOF'
-{"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable": true, "mergeable_state": "clean"}
+{"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable": true, "mergeable_state": "clean",
+ "base": {"ref": "release/1.x"}, "head": {"sha": "7777777777777777777777777777777777777777"}}
+EOF
+# The base name carries a slash, which the compare path must percent-encode.
+cat >"$REST/$(rest_key "$R/compare/release%2F1.x...7777777777777777777777777777777777777777?per_page=1").json" <<'EOF'
+{"status": "diverged", "ahead_by": 1, "behind_by": 2}
 EOF
 cat >"$REST/$(rest_key "$R/pulls/8").json" <<'EOF'
 {"number": 8, "title": "draft one", "html_url": "http://x/8", "draft": true, "mergeable": true, "mergeable_state": "clean"}
@@ -765,6 +799,8 @@ assert_contains "rest: merge-ready keeps the clean non-draft" "$OUT_REST" "#7 cl
 assert_not_contains "rest: merge-ready drops the draft" "$OUT_REST" "#8 draft one"
 assert_not_contains "rest: merge-ready drops the blocked" "$OUT_REST" "#9 blocked one"
 assert_contains "rest: review decision is reported as n/a" "$OUT_REST" "review=n/a"
+assert_contains "rest: the compare read flags the clean PR behind its base" "$OUT_REST" \
+  "UNVERIFIED: head is 2 commit(s) behind release/1.x; checks may predate the current base"
 assert_contains "rest: decision RECOMMENDED line is extracted" "$OUT_REST" "RECOMMENDED: option B."
 assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issue #50"
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z  age=1h 30m"
@@ -782,9 +818,11 @@ cat >"$TMP/same-pr.json" <<'EOF'
 [
   {"number": 9, "title": "blocked one", "url": "http://x/9", "isDraft": false, "mergeStateStatus": "BLOCKED", "reviewDecision": "n/a"},
   {"number": 8, "title": "draft one", "url": "http://x/8", "isDraft": true, "mergeStateStatus": "CLEAN", "reviewDecision": "n/a"},
-  {"number": 7, "title": "clean one", "url": "http://x/7", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "n/a"}
+  {"number": 7, "title": "clean one", "url": "http://x/7", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "n/a",
+   "baseRefName": "release/1.x", "headRefOid": "7777777777777777777777777777777777777777"}
 ]
 EOF
+printf '{"7": 2}\n' >"$TMP/same-behind.json"
 cat >"$TMP/same-decisions.json" <<'EOF'
 [{"number": 42, "title": "pick a store", "url": "http://x/i/42", "body": "Options weighed.\nRECOMMENDED: option B.", "comments": [{"body": "no change of lean"}]}]
 EOF
@@ -795,6 +833,7 @@ OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
   --repo-labels-json "$TMP/same-labels.json" \
   --counts-json "$TMP/same-counts.json" \
   --pr-json "$TMP/same-pr.json" \
+  --behind-json "$TMP/same-behind.json" \
   --decisions-json "$TMP/same-decisions.json" \
   --telemetry-json "$TMP/same-telemetry.json" \
   --merged-json "$TMP/merged-clean.json" 2>&1)"
@@ -829,6 +868,17 @@ OUT_UNCOMPUTED="$(MB_GH_FIXTURES="$UNCOMPUTED" MORNING_BRIEF_MERGE_STATE_RETRY_S
 assert_contains "rest: an uncomputed merge state is reported as inconclusive" "$OUT_UNCOMPUTED" "PARTIAL: merge state not yet computed by GitHub for #10"
 assert_contains "rest: the computed PR beside it still renders" "$OUT_UNCOMPUTED" "#7 clean one"
 assert_not_contains "rest: the uncomputed PR is never listed as merge-ready" "$OUT_UNCOMPUTED" "#10 still computing"
+
+# A compare read that fails leaves the clean PR listed, flagged unverified with
+# the error, never as fresh.
+NO_COMPARE="$TMP/rest-no-compare"
+mkdir -p "$NO_COMPARE"
+cp "$REST/"*.json "$NO_COMPARE/"
+rm "$NO_COMPARE/$(rest_key "$R/compare/release%2F1.x...7777777777777777777777777777777777777777?per_page=1").json"
+OUT_NO_COMPARE="$(MB_GH_FIXTURES="$NO_COMPARE" run_stub rest)"
+assert_contains "rest: a failed compare read flags the clean PR unverified" "$(section "$OUT_NO_COMPARE" "== Merge-ready")" \
+  "    http://x/7  review=n/a
+    UNVERIFIED: base freshness unread: Not Found"
 
 # The per-PR merge-state read is capped, and a capped read says so.
 OUT_CAP="$(run_stub rest --pr-limit 1)"

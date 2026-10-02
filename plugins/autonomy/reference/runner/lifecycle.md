@@ -79,3 +79,15 @@ native flow. When that evidence arrives, the runner serializes gated merges by b
 platform-native merge-queue facility where one exists, never a reimplemented queue. That
 facility's availability is verified at binding time; absent one, the growth stage stays
 deferred rather than reimplementing a built-in. No serialization ships at launch.
+
+**GitHub's native binding, dated record.** *Claim:* on GitHub, the facility to bind is the
+repository merge queue, entered through the asynchronous merge endpoint with
+`merge_action=merge_queue`, so the runner submits each gated merge there and lets the queue
+serialize it.
+*Basis:* the "Merge a pull request asynchronously" section of the REST pull-request reference,
+<https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously>,
+and the general-availability announcement,
+<https://github.blog/changelog/2026-10-01-github-async-merge-api-generally-available/>.
+*As of:* 2026-10-02. *Recheck trigger:* that section drops or renames the `merge_queue` value,
+the REST API version it is documented under is retired, or a changelog entry changes
+the endpoint's status.

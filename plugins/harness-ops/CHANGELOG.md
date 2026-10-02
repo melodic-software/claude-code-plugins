@@ -3,6 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.4] - 2026-10-02
+
+### Fixed
+
+- `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
+  qualification. `CLEAN` can describe checks that ran against an older base, so the script reads
+  the compare endpoint once per clean PR and prints an `UNVERIFIED` line under any PR whose head
+  is behind its base, or whose comparison could not be read. A `--behind-json` fixture flag
+  feeds those counts to the tests.
+- `machine-profile` refuses a record value holding a GitHub App installation token in the
+  `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
+  than only through the generic JWT rule.
+
 ## [2.4.3] - 2026-10-02
 
 ### Changed

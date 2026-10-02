@@ -10,7 +10,10 @@
 # It runs `gh` read queries only. The authoritative merge gate lives in the
 # source-control:babysit-prs skill; the merge-ready list here is a lighter
 # gh-native signal (mergeStateStatus CLEAN + non-draft) meant for a 5-second
-# glance, not a substitute for that skill's classification.
+# glance, not a substitute for that skill's classification. CLEAN reports the
+# checks GitHub last ran, which can predate the current base, so a clean PR
+# whose head is behind its base (or whose comparison could not be read) carries
+# an UNVERIFIED line.
 #
 # Owner/repo is derived from `gh repo view`, or from the checkout's `origin`
 # remote when that call is unavailable; never hardcoded, so the tool is
@@ -46,6 +49,9 @@
 #   --counts-json FILE        label->count object, e.g. {"status: ready":4}
 #   --repo-labels-json FILE   array of label names (or {name} objects) for existence checks
 #   --pr-json FILE            array as emitted by `gh pr list --json ...`
+#   --behind-json FILE        object mapping a PR number to how many commits
+#                             its head is behind its base, e.g. {"10":0,"13":4}
+#                             (the compare reads of the merge-ready section)
 #   --decisions-json FILE     array of {number,title,url,body,comments:[{body}]}
 #   --telemetry-json FILE     array of {body} (the telemetry issue's comments)
 #   --merged-json FILE        array of merged-PR GraphQL page documents, as
@@ -84,6 +90,7 @@ PR_LIMIT="50"
 NOW_ISO=""
 COUNTS_JSON=""
 PR_JSON=""
+BEHIND_JSON=""
 DECISIONS_JSON=""
 TELEMETRY_JSON=""
 MERGED_JSON=""
@@ -204,6 +211,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_file "$1" "$2"
     PR_JSON="$2"
+    shift 2
+    ;;
+  --behind-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    BEHIND_JSON="$2"
     shift 2
     ;;
   --decisions-json)
@@ -639,7 +652,7 @@ print_queues() {
 # =============================================================================
 fetch_prs_gql() {
   gh_read "$1" pr list "${REPO_ARGS[@]}" --state open --limit 200 \
-    --json number,title,url,isDraft,mergeStateStatus,reviewDecision
+    --json number,title,url,isDraft,mergeStateStatus,reviewDecision,baseRefName,headRefOid
 }
 
 PR_PARTIAL=()
@@ -688,7 +701,39 @@ fetch_prs_rest() {
   # reports it as n/a.
   jq -s '[ .[] | {number, title, url: .html_url, isDraft: .draft,
                   mergeStateStatus: ((.mergeable_state // "unknown") | ascii_upcase),
-                  reviewDecision: "n/a"} ]' "$WORK/prs.detail" >"$out"
+                  reviewDecision: "n/a", baseRefName: .base.ref, headRefOid: .head.sha} ]' "$WORK/prs.detail" >"$out"
+}
+
+# CLEAN says the checks GitHub last ran passed, not that they ran against the
+# current base: without a strict up-to-date rule a PR stays CLEAN while its
+# base moves on (SKILL.md carries the upstream record). A head that already
+# contains the base tip leaves nothing untested, so the compare endpoint's
+# `behind_by` decides: 0 prints nothing; a positive count, or a read that
+# failed, prints why the PR's CLEAN is unverified.
+#
+# freshness_note NUMBER BASE HEAD_SHA
+freshness_note() {
+  local number="$1" base="$2" sha="$3" behind=""
+  if [[ -z "$base" || ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+    printf 'base freshness unread: the PR record names no base branch or head commit'
+    return
+  fi
+  if [[ -n "$BEHIND_JSON" ]]; then
+    behind="$(jq -r --arg n "$number" '.[$n] // empty' "$BEHIND_JSON" 2>/dev/null)"
+  elif [[ -n "$PR_JSON" ]]; then
+    printf 'base freshness unread: --pr-json given without --behind-json'
+    return
+  elif gh_read "$WORK/compare" api "repos/$REPO/compare/$(urlencode "$base")...$sha?per_page=1"; then
+    behind="$(jq -r '.behind_by // empty' "$WORK/compare" 2>/dev/null)"
+  else
+    printf 'base freshness unread: %s' "$LAST_ERR"
+    return
+  fi
+  if [[ ! "$behind" =~ ^[0-9]+$ ]]; then
+    printf 'base freshness unread: no behind count for #%s' "$number"
+  elif ((behind > 0)); then
+    printf 'head is %s commit(s) behind %s; checks may predate the current base' "$behind" "$base"
+  fi
 }
 
 print_merge_ready() {
@@ -702,12 +747,16 @@ print_merge_ready() {
       return
     }
   fi
-  local ready
-  ready="$(jq -r '
-    [ .[] | select(.isDraft == false and .mergeStateStatus == "CLEAN") ]
-    | sort_by(.number)
-    | .[]
+  local clean='[ .[] | select(.isDraft == false and .mergeStateStatus == "CLEAN") ] | sort_by(.number) | .[]'
+  local notes='{}' number base sha note ready
+  # stdin from /dev/null so gh cannot drain the loop's input.
+  while IFS=$'\t' read -r number base sha; do
+    note="$(freshness_note "$number" "$base" "$sha" </dev/null)"
+    [[ -n "$note" ]] && notes="$(jq -c --arg n "$number" --arg v "$note" '.[$n] = $v' <<<"$notes")"
+  done < <(jq -r "$clean"' | [.number, (.baseRefName // ""), (.headRefOid // "")] | @tsv' "$prs_file" 2>/dev/null)
+  ready="$(jq -r --argjson notes "$notes" "$clean"'
     | "  #\(.number) \(.title)\n    \(.url)  review=\(.reviewDecision // "" | if . == "" then "none" else . end)"
+      + ($notes[.number | tostring] | if . then "\n    UNVERIFIED: \(.)" else "" end)
   ' "$prs_file" 2>/dev/null)"
   if [[ -n "$ready" ]]; then
     echo "$ready"
