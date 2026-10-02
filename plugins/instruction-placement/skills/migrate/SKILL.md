@@ -269,6 +269,16 @@ there locates a path the same way. Two things are out of the scan and the condit
 markdown, which locates no path, and the acknowledgement list itself, whose every line quotes a
 detector by design.
 
+### Is the shim droppable here? Decide before `remove-shims`
+
+`cutover-check` grades the build and the fleet, not whether this repository's users lose
+instructions without the shim. Before offering `remove-shims`, read
+[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its six conditions:
+precedence, this machine's mode, the loader's state, the operator's answers for every other user
+and surface, external `@` imports, and `InstructionsLoaded` dependents. It also gives the verdict for
+nested `AGENTS.md` under each mode. **Unknown is failed**: any condition not shown to hold keeps the
+recommendation at "keep the shim" and names it. This recommends, never removes.
+
 ### `remove-shims`, one repository per run
 
 ```bash
@@ -340,10 +350,11 @@ directly at all.
 
 This skill keeps the shim wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` can
 shadow the `AGENTS.md` it carries, at the root or in a subdirectory, and wherever a session may
-lack direct `AGENTS.md` support (the CLI floor and the version-dependent session kinds are in
-`reference/sources.md`, "The minimum CLI version"). It treats the import as safe to keep: the shim
-never makes Claude read the file twice. Canary runs on Claude Code 2.1.278 observed the
-shadowing; the 2026-09-29 pass did not re-run that canary.
+lack direct `AGENTS.md` support (the CLI floor is in `reference/sources.md`, "The minimum CLI
+version"; the sessions that cannot read `AGENTS.md` directly are in `reference/shim-droppable.md`,
+condition D). It treats the import as safe to keep: the shim never makes Claude read the file
+twice. Canary runs on Claude Code 2.1.278 observed the shadowing; the 2026-09-29 pass did not
+re-run that canary.
 
 - **Pointer**: for when Claude Code reads `AGENTS.md`, when that support is unavailable, and what
   removing a shim involves, see
@@ -371,15 +382,16 @@ detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed
 cannot see an `AGENTS.md` that Claude reads directly.
 
 **One setting changes the reading, and no repository can ship it.** For an operator who sets
-`instructionFiles: claude-md-and-agents-md`, an unimported nested `AGENTS.md` loads, so an
-`UNWIRED` row is a false positive for that operator, and the import stays harmless. The setting is
-not one a repository's project or local settings can carry, so the gates keep the default's
-answer.
+`instructionFiles: claude-md-and-agents-md`, the memory page does not say when a subdirectory's
+`AGENTS.md` loads, so an `UNWIRED` row stays a finding there too and the nested shim stays; the
+import stays harmless. The setting is not one a repository's project or local settings can carry,
+so the gates keep the default's answer.
 
 - **Pointer**: for the `instructionFiles` values and where the setting is read, see
   <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
-- **As of**: 2026-09-28
-- **Recheck trigger**: that table changes, or a release note names the setting.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that table changes, the page comes to state when a subdirectory's
+  `AGENTS.md` loads under that value, or a release note names the setting.
 
 ## Boundary, the built-in `cc-plugin-agents-md` plugin
 
@@ -398,7 +410,8 @@ One native Claude Code surface works on the same file, and the two are easy to c
 **Routing.** The plugin is the loading mechanism this skill's shim decisions are judged against,
 not a replacement for the migration. Where the plugin is enabled in this session, the shim still
 carries `AGENTS.md` into the sessions the plugin does not reach; never treat the plugin's
-presence on one machine as proof every session reads `AGENTS.md`. Verdict `complementary`,
+presence on one machine as proof every session reads `AGENTS.md`; the droppability decision above
+is where its state is read. Verdict `complementary`,
 integration `route`; the four-part record is in
 [`reference/sources.md`](reference/sources.md), "The built-in agents-md plugin".
 
