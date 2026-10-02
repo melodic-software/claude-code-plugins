@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.0.1] - 2026-10-02
+## [2.0.2] - 2026-10-02
 
 ### Changed
 
@@ -23,6 +23,21 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   the answer to the MCP or LSP reload warning only, and records that the reference now offers a
   fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
   native-overlap` follow the docs site's new heading ids.
+
+## [2.0.1] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect reads seeded pairs and dismissals against the registration it
+  scores.** The native index that seeded pairs and dismissal drift read replaced a filtered
+  (empty or `internal`) entry only with a built-in plugin component, and walked the lanes in a
+  different order from scoring. It now holds the first entry that is not filtered, in scoring
+  lane order, so an internal bundled skill followed by a built-in command and a built-in plugin
+  component of the same name resolves to the command in both. A name scored in two lanes now
+  reports the pair from its first lane, the one the index holds, instead of the last. On the
+  2.1.287 extraction the only change is the seeded `fork` pair's score (0.0448 to 0.057), now
+  read from the built-in command its verdict names rather than the built-in agent of the same
+  name; every count is unchanged.
 
 ## [2.0.0] - 2026-10-02
 
