@@ -472,11 +472,12 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # withheld question drops its recommendation but is still asked and registered, so it too
 # resolves nothing. The three recommendation-basis links point at the plugin-shipped
 # context file instead of an org URL; a link target changes no rule.
+# The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "c2dd07863d030599e9a4fe484d9f97bd5cb5db88e64284757fd07edf3bacb254"
+  "d58ea1f0b4d5b63cc4aed06a720dfa62ed8559d4b0807e7c729d75f3c45c2a89"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -497,11 +498,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # commands name the script through `<plugin-root>`, which SKILL.md defines; the same script
 # runs with the same flags.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The exit-1 line also names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "b07d31343c4db43bc0920ea9ed8bc5d772abe55f5b4045e96f652e62535a9b23"
+  "c0b5fd911d385f2a6661e0d48575fb73fb17c45bb1f653fe1b44f0cab8a398df"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -519,11 +521,12 @@ pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arb
   "770c3afb78e4a79f729750c96994a9ad0221f5ba9f3aab834ba598b5861ae440"
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "fbd046e02043ddf57ccfbc94cf30fc44e3c1f0b4e34350a77d7d9a6344ef840a"
+  "aa394832ccce4a164b025ac0f9953f8cabbdf01b535423f5b17cda38dca31351"
 # The "memory slice is not a durable home" paragraph names where content that outlives the
 # branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
@@ -531,11 +534,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
 # The Brief cross-check also passes `--procedure`, which only adds a check on the Brief's
 # template headings; it retires no row and relaxes no rule.
+# The cross-check names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt and retires no row.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "b37963f4ee52f2f30a01d72f3611403040b4728e05761c74105e2f3d1eea8e28"
+  "e4940b8e524440e22e70e98ff65cda22bc1ec8fed1a37f678e0ba28a702bcf30"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -562,19 +566,21 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
 # The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "e2ece32afb7753c9d4872e412db716db44687abab284e8f2c839e245b70a77cf"
+  "7ff2e6d7f618fe5a4c8569761db3c4c6243b730e7648a95c611251054c328de5"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
+# The `--brief` note names `brief=unconfirmed`, another exit-1 halt, and the fresh-Confirm rule; the gate and the `lock` exemption are unchanged.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "8912973d4c0d98d78b60510b96d5c930a15224be21f088320940bcba318b0059"
+  "08d99bf168b24ba192cf8db0efd9e1f63d3fb14d9429eaa900fe30f9a23b7f06"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -588,28 +594,31 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # section also routes Step 3's confirmation gate to the page surface (a `restate` op, then
 # the user's `confirm-understanding` event); that moves where the gate is shown, not whether
 # it runs, and the sweep still runs before it.
+# The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "af20ba3ac95bc0c7548476b50496d92dc8c477641bf9b0e8d8bda77919e72136"
+  "b510e6db77b7c247fe18b91f799051da3ceb34f282c1a16a4734d297ccda6e6d"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "1e19e48122463549cd40c19f61d1307722112f2bd76e21e43676e62ad52d50d6"
+  "6bbd0e50662276497caf42d1ed9aa2941e1dbf4d2587df5d180d57f71fdd61fd"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The page bullet names the page's option labels, and the handoff resume line resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "277ca10af8036021fdfefe8b8df1033e1953807e1d948027adc420dc8feb409c"
+  "477f639456756484f64691bea42dadfdc00aa446889577188b0275a143ae74c0"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
@@ -639,8 +648,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # and the queued-output-first order, and resolves no row the user did not answer.
 # Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
+# Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "3914f7edcd0ff6ec266d44c1b3d11a199d1f8e9afb508a082d8782a8f734c22f"
+  "53b25a698a2dab18f7393e5ebf5b2e830ff323d2be6a637a0f3eaedc5c47498d"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
