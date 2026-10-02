@@ -42,7 +42,11 @@ The `ci-status` required check depends on every **required** workload lane
 (`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). `test-windows` is deliberately outside that
+success to branch protection). The one exception is a draft pull request:
+every lane but `changes` carries a draft gate, so a draft run lints and tests
+nothing, and `ci-status` passes `skipped` on a draft and nowhere else
+(`scripts/check-docs-only-gate.sh` pins both). The `ready_for_review` run
+lints and tests the same SHA before the pull request can merge. `test-windows` is deliberately outside that
 aggregate, as an informational platform lane; `test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `ci.yml`, it was the

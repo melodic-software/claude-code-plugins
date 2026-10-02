@@ -23,8 +23,8 @@ on:
   schedule:
     - cron: '17 5,17 * * *'
   pull_request:
-    # `ready_for_review` is load-bearing: the draft filter below leaves the
-    # heavy lanes reporting not-applicable while a pull request is a draft, and
+    # `ready_for_review` is load-bearing: the draft gate below skips every
+    # lane while a pull request is a draft, and
     # without this type a draft flipped to ready triggers no run at all, so the
     # lanes would never get their real answer.
     #
@@ -421,11 +421,13 @@ jobs:
   # is a docs-only diff that reintroduces an em dash on a purged surface.
   # ShellCheck, ungated for the same reason, runs in `hook-utils`.
   #
-  # The job NEVER skips — only steps are gated. A skipped required lane's
-  # result is not `success`, which the ci-status aggregate rejects, and a
-  # workflow skipped by a path filter leaves its required check Pending
-  # forever. Drafts run this job in full: a draft's linting is exactly the
-  # feedback a draft is for.
+  # The job skips only on a contract-only event or a draft; otherwise only
+  # steps are gated. A skipped required lane's result is not `success`, which
+  # the ci-status aggregate rejects everywhere but on a draft, and a workflow
+  # skipped by a path filter leaves its required check Pending forever. A
+  # draft lints nothing: the `ready_for_review` run lints the same SHA before
+  # the pull request can merge, and a draft run that lints is a runner the
+  # 60-job cap pays for and nothing gates on.
   #
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
@@ -436,8 +438,8 @@ jobs:
   # against.
   lint:
     needs: [changes]
-    # The contract-only gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -727,8 +729,8 @@ jobs:
   # half.
   lint-2:
     needs: [changes]
-    # The contract-only gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -1512,18 +1514,18 @@ jobs:
   # toolchain, one ShellCheck install, where fifty jobs used to pay for their
   # own.
   #
-  # The job NEVER skips — a skipped required lane's result is not `success`,
-  # which the ci-status aggregate rejects. Only the inner steps are gated, and
-  # a docs-only diff (or a draft) reports an honest evaluated-and-not-applicable
-  # success through the reporter at the foot of the job.
+  # The job skips only on a contract-only event or a draft (see `lint`);
+  # otherwise only the inner steps are gated, and a docs-only diff reports an
+  # honest evaluated-and-not-applicable success through the reporter at the
+  # foot of the job.
   #
   # The sync gates' `--check-bump` steps need base history. Folding them into
   # one job means `checkout-with-base` runs once, at the top, and every
   # `--check-bump` below still resolves `origin/$BASE_REF` from it.
   test-linux:
     needs: [changes]
-    # The contract-only gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # FOUR LEGS ON EVERY EVENT. The job key does not change, so
@@ -2267,7 +2269,7 @@ jobs:
 
       - name: Report not applicable to a docs-only diff
         if: needs.changes.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt), or this is a draft pull request; the plugin contract suite, the sync gates and the sub-project builds cannot be affected — reporting success."
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin contract suite, the sync gates and the sub-project builds cannot be affected — reporting success."
 
   # The shared hook-utils library's sync and delivery checks, kept out of
   # test-linux so they are legible as one lane rather than buried among fifty
@@ -2281,8 +2283,8 @@ jobs:
   hook-utils:
     needs:
       - changes
-    # The contract-only gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -2386,7 +2388,7 @@ jobs:
           scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
       - name: Report not applicable to a docs-only diff
         if: needs.changes.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt), or this is a draft pull request; the shared hook-utils library cannot be affected — reporting success."
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the shared hook-utils library cannot be affected — reporting success."
 
       - name: Aggregate hygiene results
         if: always()
@@ -2450,9 +2452,12 @@ jobs:
           # the lane list. Adding a lane to needs automatically extends this
           # check.
           results: ${{ join(needs.*.result, ' ') }}
-          # The replaced inline aggregator passed only `success`, so a `skipped`
-          # lane was already red here.
-          treat-skipped-as: fail
+          # A `skipped` lane is red, except on a draft: every lane carries the
+          # draft gate, so a draft run skips them all and records `ci-lanes`
+          # from that. A draft cannot merge, the `ready_for_review` run lints
+          # and tests the same SHA, and its `changes` job marks `ci-lanes`
+          # pending first, so the draft's verdict is never carried onto it.
+          treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
           # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
           # `ci-lanes` status once and passes only on `success`. While a full
           # run is in flight that status is the `pending` its `changes` job

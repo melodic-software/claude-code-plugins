@@ -448,6 +448,32 @@ f="$scratch/consumer-contract-gate-drifted.yml"
 xform_insert_after "$base" "  gamma:" "    if: \${{ !(contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}" "$f"
 expect "a drifted copy of the contract-only predicate is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
+# The draft form: the same gate followed by the draft term, also matched whole.
+# It adds no status-check function, so the needs edge still governs. A
+# polarity flip of the draft term is a different condition and is rejected.
+draft_gate="\${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}"
+skip_as_draft="$scratch/skip-as-draft.yml"
+xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'pass' || 'fail' }}" "$skip_as_draft"
+
+f="$scratch/consumer-draft-gate.yml"
+xform_insert_after "$skip_as_draft" "  gamma:" "    if: $draft_gate" "$f"
+expect "a consumer carrying exactly the draft form of the gate is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/consumer-draft-gate-flipped.yml"
+xform_insert_after "$skip_as_draft" "  gamma:" "    if: ${draft_gate/draft != true/draft == true}" "$f"
+expect "the draft gate with its polarity flipped is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+# --- 11. A SKIPPED LANE PASSES ONLY ON A DRAFT --------------------------------
+expect "the aggregate passing skips on a draft only is allowed" 0 "scope resolved once" --check "$skip_as_draft"
+
+f="$scratch/skip-as-pass.yml"
+xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: pass" "$f"
+expect "the aggregate passing skips everywhere is rejected" 1 "A SKIPPED LANE PASSES ONLY ON A DRAFT" --check "$f"
+
+f="$scratch/draft-gate-no-skip-as.yml"
+xform_insert_after "$base" "  gamma:" "    if: $draft_gate" "$f"
+expect "a draft-gated lane with no treat-skipped-as on the aggregate is rejected" 1 "sets no treat-skipped-as" --check "$f"
+
 # The aggregate's own job-level condition is not a consumer's, and must stand.
 expect "the aggregate's own job-level condition is untouched" 0 "scope resolved once" --check "$base"
 
