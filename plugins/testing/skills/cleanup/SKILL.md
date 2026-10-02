@@ -47,6 +47,9 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
   standalone, unquoted `{tests}` word: both mutation runs use it. Point to
   `/mutation-testing:setup apply`.
 - The folder does not exist, or `/testing:audit --file <path>` claims no file under it.
+- The folder holds test files of more than one language (the adapters' `language`), such as a
+  `*.test.sh` harness beside Python tests. The one `test-command` cannot run them all, so the
+  baseline would be red. Name a subfolder per language and ask for one.
 
 ### 1. Inputs
 
@@ -164,5 +167,8 @@ Opens the batch's draft pull request with `pr-body.md` as its body.
 - **"No caller found" is not a no-contract statement.** A contract reached through dependency
   injection, reflection or an HTTP route does not show up in a search; that test is rewritten or
   kept.
+- **The gate compares sets, not tests.** A weakened test passes the gate when another changed test
+  in the batch now kills the same mutants. Each rewrite is still
+  reviewed on its own row; per-test kill attribution is not built.
 - **A record outlives nothing.** Production code that changes between the two runs makes the replay
   refuse. Finish a batch before rebasing it.

@@ -34,7 +34,7 @@
     {
       "id": "registry_contract_kept",
       "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup.",
-      "expected_output": "Does not propose deleting test_heavy_parcel_fee even though a search finds no direct caller of ShippingHandler: the class is reached through the register(\"shipping\") registry and handle() (shop/handlers.py:12, shop/handlers.py:20-21). Rewrites it to assert ShippingHandler().fee(25) equals 15 (row 2) or keeps it, never row 4.",
+      "expected_output": "Does not propose deleting test_heavy_parcel_fee even though a search finds no direct caller of ShippingHandler: the class is reached through the register(\"shipping\") registry and handle() (shop/handlers.py:12, shop/handlers.py:20-21). Keeps it (row 6), or rewrites it only with a fee a requirement states, because copying 15 from shop/handlers.py:16 is not an independent source. Never row 4.",
       "files": [
         "evals/fixtures/cleanup/shop/handlers.py",
         "evals/fixtures/cleanup/shop_tests/test_handlers.py",
@@ -44,18 +44,19 @@
     },
     {
       "id": "bash_harness_rewrite_only",
-      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, with shop_tests/checkout.test.sh.fixture copied to shop_tests/checkout.test.sh, on branch feat/cleanup.",
-      "expected_output": "Treats shop_tests/checkout.test.sh as a bash-harness file whose adapter has block_model: file. Proposes no deletion or merge for it; the zero-assertion finding gets a rewrite that checks the printed total equals 60.0 and exits non-zero otherwise, or is kept.",
+      "prompt": "Copy evals/fixtures/mutation-testing-bash.md over the fixture's .claude/mutation-testing.md and shop_scripts/total.test.sh.fixture to shop_scripts/total.test.sh, commit that on main, then run /testing:cleanup shop_scripts on branch feat/cleanup.",
+      "expected_output": "Treats shop_scripts/total.test.sh as a bash-harness file whose adapter has block_model: file. Proposes no deletion or merge for it. The zero-assertion finding gets a rewrite that checks order_total_cents 50 prints 6000 and exits non-zero otherwise, or the test is kept. The gate records and replays shop/total.sh mutants with test-command bash {tests}.",
       "files": [
-        "evals/fixtures/cleanup/shop_tests/checkout.test.sh.fixture",
-        "evals/fixtures/cleanup/shop/checkout.py",
+        "evals/fixtures/mutation-testing-bash.md",
+        "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
+        "evals/fixtures/cleanup/shop/total.sh",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
     {
       "id": "flaky_quarantined_gate_passes",
       "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup, on 2026-10-01. Do not answer any approval question.",
-      "expected_output": "Before the recording run, skips test_total_is_computed_quickly with @unittest.skip and a reason starting `test-change: quarantined 2026-10-08: flaky,`. Records the baseline with /mutation-testing:audit --exercised tests --max 100 --record-mutants .work/testing-cleanup/shop_tests/before.tsv, applies the rewrites, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop_tests/after.tsv, and reports `Gate: pass`. Stops at the staged batch without committing.",
+      "expected_output": "Before the recording run, skips test_total_is_computed_quickly with @unittest.skip and a reason starting `test-change: quarantined 2026-10-08: flaky,`. Records the baseline with /mutation-testing:audit --exercised shop_tests --max 100 --record-mutants .work/testing-cleanup/shop_tests/before.tsv, applies the rewrites, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop_tests/after.tsv, and reports `Gate: pass`. Stops at the staged batch without committing.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",
         "evals/fixtures/cleanup/shop/checkout.py",
@@ -74,7 +75,7 @@
     },
     {
       "id": "lost_kill_blocks",
-      "prompt": "During a /testing:cleanup shop_tests batch on the fixture, test_small_order_pays_tax_without_discount was changed to self.assertGreater(price_with_tax(50), 0). Continue the batch to the gate.",
+      "prompt": "During a /testing:cleanup shop_tests batch on the fixture whose only change so far is the quarantine, test_small_order_pays_tax_without_discount was changed to self.assertGreater(price_with_tax(50), 0). Continue the batch to the gate.",
       "expected_output": "The replay reports `Gate: block` with newly-surviving lines for shop/pricing.py:7 and shop/pricing.py:9. The batch stops. For each, cleanup lists shop_tests/test_pricing.py as the candidate change (the batch's changed test that imports shop/pricing.py) and asks the user which to revert. Reverts nothing itself and commits nothing.",
       "files": [
         "evals/fixtures/cleanup/shop/pricing.py",
@@ -99,6 +100,16 @@
       "files": [
         "evals/fixtures/testing-weaken-block.yaml",
         "evals/fixtures/cleanup/shop_tests/test_receipt.py"
+      ]
+    },
+    {
+      "id": "refuses_mixed_languages",
+      "prompt": "Copy shop_scripts/total.test.sh.fixture to shop_tests/total.test.sh in the fixture, commit it on branch feat/cleanup, then run /testing:cleanup shop_tests.",
+      "expected_output": "Refuses at step 0 before any mutation run: shop_tests holds Python tests and a bash-harness file, and the one test-command (python -m unittest {tests}) cannot run both. Names the two languages and asks for a folder holding one of them. Edits nothing.",
+      "files": [
+        "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md"
       ]
     },
     {
