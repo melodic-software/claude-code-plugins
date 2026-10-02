@@ -107,7 +107,7 @@ it must pass, near misses it must reject, an empty answer, and an answer to a di
 | A setting the script cannot reproduce offline, such as the `y` or `v` regex flag | WARN |
 | An `llm` or `baseline` grader with samples: they need a paid judge calibration run | WARN |
 
-The script never calls a judge. Samples on an `llm` grader are the labelled answers a calibration
+The script never calls a judge. Samples on an `llm` grader are the labeled answers a calibration
 run feeds the judge, and that run is the operator's to start.
 
 **Claim:** the sample check grades as the binary does. **Basis:** the grader code in Claude Code

@@ -25,15 +25,15 @@
   `reference/local-decisions.md` holds this plugin's defaults and source conflicts. The skill
   routes by repository kind.
 - **Six settings:** `split_policy`, `interval_method`, `review_format`, `grader_run_twice`,
-  `same_model_warning` and `labelled_grader_check`.
+  `same_model_warning` and `labeled_grader_check`.
 - **The suite grows to 30 cases.** 21 are hard cases, each saying why it is hard; 4 are routine
   guards where the base model already answers well; 4 are near-miss controls that must not invoke
   an evals skill; and 1 is a knowledge case. `noise-before-gain` is the one a person judged hard: a
   model tends to take a small gain over a near-ceiling baseline at face value.
-- **Every `llm` grader has labelled samples.** All 47 hold must-pass and must-fail answers in
+- **Every `llm` grader has labeled samples.** All 47 hold must-pass and must-fail answers in
   `samples/<grader>.json`, so each rubric can be calibrated against them.
 - **`plugin-eval` calibrates a judge.** A new `scripts/calibrate-judge.py` builds one case per
-  labelled sample, whose agent replies with the sample word for word, and scores the judge's
+  labeled sample, whose agent replies with the sample word for word, and scores the judge's
   verdicts against the labels: agreement, false positives and negatives, split votes, runs whose
   reply was not the sample (whitespace and bold markers aside), and samples never judged. A grader under 90% agreement prints a
   `FAIL grader` line and the script exits 1. A `case.yaml` grader name that is not one path

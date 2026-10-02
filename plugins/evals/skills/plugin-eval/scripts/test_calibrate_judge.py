@@ -86,7 +86,7 @@ class Base(unittest.TestCase):
 
 
 class BuildTest(Base):
-    def test_one_case_per_labelled_sample_of_the_llm_grader(self):
+    def test_one_case_per_labeled_sample_of_the_llm_grader(self):
         proc, out = self.build()
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("wrote 4 calibration cases", proc.stdout)
@@ -284,7 +284,7 @@ class BuildTest(Base):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("must-pass sample 3: control character U+0007", proc.stderr)
         self.assertIn("must-pass sample 4: answer is not text", proc.stderr)
-        self.assertIn("same answer is labelled both pass and fail", proc.stderr)
+        self.assertIn("same answer is labeled both pass and fail", proc.stderr)
         self.assertEqual(len(self.manifest(out)["cases"]), 5)
 
     def test_a_case_yaml_grader_and_prompt_are_read(self):
@@ -349,7 +349,7 @@ class YamlQuotingTest(unittest.TestCase):
             'a "quote" and C:\\path',
             "two\nlines\ttab\r\n",
             "",
-            "caf\u00e9 \u2192",
+            "caf\u00e9 \u2192",  # spellchecker:disable-line
         ):
             parsed = validate_cases.parse_yaml("k: " + calibrate.yaml_quoted(text))
             self.assertEqual(parsed["k"], text)

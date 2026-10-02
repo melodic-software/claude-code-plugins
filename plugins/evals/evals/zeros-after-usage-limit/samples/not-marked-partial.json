@@ -27,7 +27,7 @@
       "why": "F-partial: names a usage limit as the cause but never connects it to the partial field, so it never says partial: false fails to show a clean run."
     },
     {
-      "answer": "Most likely a usage limit, not a regression. A limit reached partway through the suite is not marked partial, so the remaining runs simply score 0 on both arms.\n\nThat said, in your case `partial: false` does settle it: the JSON records a limit as an interrupted run, so false means every run completed normally and the zeros reflect real behaviour. Check `cases[].arms.with[].error` anyway, then rerun those three cases to see whether the scores hold.",
+      "answer": "Most likely a usage limit, not a regression. A limit reached partway through the suite is not marked partial, so the remaining runs simply score 0 on both arms.\n\nThat said, in your case `partial: false` does settle it: the JSON records a limit as an interrupted run, so false means every run completed normally and the zeros reflect real behavior. Check `cases[].arms.with[].error` anyway, then rerun those three cases to see whether the scores hold.",
       "why": "F-retract: says a mid-suite limit is not marked partial, then retracts it by saying partial: false proves every run completed normally."
     },
     {

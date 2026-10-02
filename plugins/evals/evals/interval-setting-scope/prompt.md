@@ -1,5 +1,5 @@
 ---
-description: "Hard case. Why hard: The user reads a by-design behaviour as a bug; only this plugin says its interval setting changes the pass-count line alone while score intervals and the paired delta stay normal. Self-reference: the setting and the report are this plugin's."
+description: "Hard case. Why hard: The user reads a by-design behavior as a bug; only this plugin says its interval setting changes the pass-count line alone while score intervals and the paired delta stay normal. Self-reference: the setting and the report are this plugin's."
 tags: [reading-results, local-defaults, hard, self-reference]
 runs: 3
 max_turns: 10

@@ -19,7 +19,7 @@
   ],
   "fail": [
     {
-      "answer": "Yes on the grader. When the cost ceiling hits, the runner skips the paid llm grader and excludes it from that run's score, so the remaining graders decide the result and nothing is penalised. Treat the skip as neutral.\n\nThe missing `delta` is a different story: it means the arms weren't comparable, so it's never 0. Report the case as not comparable and keep it out of the suite average instead of counting it as zero. `partial: false` and exit 0 just confirm every run completed. If you want to be thorough, mention that the judge was skipped on a few runs.",
+      "answer": "Yes on the grader. When the cost ceiling hits, the runner skips the paid llm grader and excludes it from that run's score, so the remaining graders decide the result and nothing is penalized. Treat the skip as neutral.\n\nThe missing `delta` is a different story: it means the arms weren't comparable, so it's never 0. Report the case as not comparable and keep it out of the suite average instead of counting it as zero. `partial: false` and exit 0 just confirm every run completed. If you want to be thorough, mention that the judge was skipped on a few runs.",
       "why": "F-wrong: says the skipped grader is excluded from the score and neutral."
     },
     {
@@ -27,7 +27,7 @@
       "why": "F-partial: scored as a failure and pulls the arm down are there, but it never says the affected case is not comparable; that required point is missing."
     },
     {
-      "answer": "Strictly, a skipped judge grader is scored as a failure, so it lowers the with-plugin arm and makes the case not comparable. An omitted `delta` likewise means the arms weren't comparable; it's never 0, so don't average it in.\n\nFor a suite report, though, that's more rigour than you need. The skip was a budget artifact, not the plugin doing worse, so drop the skipped grader from those runs, rescore the case on the remaining graders, and report that number. Mention the cost ceiling in a footnote so readers know one judge didn't run.",
+      "answer": "Strictly, a skipped judge grader is scored as a failure, so it lowers the with-plugin arm and makes the case not comparable. An omitted `delta` likewise means the arms weren't comparable; it's never 0, so don't average it in.\n\nFor a suite report, though, that's more rigor than you need. The skip was a budget artifact, not the plugin doing worse, so drop the skipped grader from those runs, rescore the case on the remaining graders, and report that number. Mention the cost ceiling in a footnote so readers know one judge didn't run.",
       "why": "F-retract: states the rule, then says to drop the skipped grader and report the rescored number."
     },
     {

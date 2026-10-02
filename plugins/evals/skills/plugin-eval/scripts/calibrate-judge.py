@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""calibrate-judge - measure an llm grader against labelled answers.
+"""calibrate-judge - measure an llm grader against labeled answers.
 
     calibrate-judge build --suite <eval dir> --out <dir> [--case <glob>] [--grader <glob>]
     calibrate-judge score --manifest <file> <aggregate-result.json>
 
-An llm grader judges the agent's final message. `build` turns every labelled
+An llm grader judges the agent's final message. `build` turns every labeled
 sample of every llm grader (`<case>/samples/<grader>.json`, the `pass` and
 `fail` lists validate-cases.py reads) into one calibration case whose agent
 replies with that sample verbatim, so the judge's verdict on the case is its
@@ -346,7 +346,7 @@ def build(args):
                 answers.setdefault(" ".join(answer.split()), set()).add(key)
             if any(len(keys) > 1 for keys in answers.values()):
                 notes.append(
-                    "warn %s/%s: the same answer is labelled both pass and fail"
+                    "warn %s/%s: the same answer is labeled both pass and fail"
                     % (case, grader)
                 )
             ordered = sorted(
@@ -393,7 +393,7 @@ def build(args):
     for note in notes:
         sys.stderr.write(note + "\n")
     if not entries:
-        print("no labelled sample of an llm grader matched; nothing written")
+        print("no labeled sample of an llm grader matched; nothing written")
         return 1
 
     write(

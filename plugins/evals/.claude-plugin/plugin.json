@@ -55,9 +55,9 @@
       "description": "When on, /evals:plugin-eval's preflight warns when the tested model and the judge model resolve to the same model, and /evals:design repeats the reminder beside the build-eval route.",
       "default": true
     },
-    "labelled_grader_check": {
+    "labeled_grader_check": {
       "type": "boolean",
-      "title": "Labelled-set grader check",
+      "title": "Labeled-set grader check",
       "description": "When on, /evals:design checks a grader against a set of cases you label, not only the handful-of-cases agreement check.",
       "default": false
     }

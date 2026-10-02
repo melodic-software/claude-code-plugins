@@ -10,7 +10,7 @@
     },
     {
       "answer": "That is expected, not a bug. `interval_method` changes only the pass-count line (cases at or above the threshold); the score intervals and the delta line stay normal by design.\n\nOne thing to expect on the pass-count line itself: Wilson and normal intervals differ most when the pass count is near zero or near all cases, or the suite is small. In the middle of the range they can look almost the same, so even there a small visual difference is normal.",
-      "why": "P-caveat: correct scope of the setting plus a separate note on when Wilson and normal intervals visibly differ on the pass-count line; it does not call the delta behaviour a bug."
+      "why": "P-caveat: correct scope of the setting plus a separate note on when Wilson and normal intervals visibly differ on the pass-count line; it does not call the delta behavior a bug."
     },
     {
       "answer": "It isn't ignored. By design, `interval_method` only affects the pass-count line, which counts the cases at or above the threshold. Every other interval, the delta line included, stays normal no matter what you choose, so what you're seeing is correct. The pass-count line is where the Wilson interval appears; the delta and the per-arm score intervals use the normal interval whichever method you pick. Leave the setting as it is, and look at the pass-count line to see it working.",
@@ -23,7 +23,7 @@
       "why": "F-wrong: says the setting is ignored, recommends restarting and re-setting, and says the delta should use Wilson."
     },
     {
-      "answer": "No, this is expected behaviour, not a bug. The delta line in the noise report is always built with a normal interval, whatever `interval_method` is set to, and the per-arm score intervals are normal too. Your `wilson` setting is still being read; it just applies to a different part of the report than the delta. There's nothing to restart or change. Regenerating the report will show the delta's bounds unchanged; that is the intended output, so read the delta as usual.",
+      "answer": "No, this is expected behavior, not a bug. The delta line in the noise report is always built with a normal interval, whatever `interval_method` is set to, and the per-arm score intervals are normal too. Your `wilson` setting is still being read; it just applies to a different part of the report than the delta. There's nothing to restart or change. Regenerating the report will show the delta's bounds unchanged; that is the intended output, so read the delta as usual.",
       "why": "F-partial: says it is expected and the delta and score intervals stay normal, but never says the setting changes only the pass-count line."
     },
     {

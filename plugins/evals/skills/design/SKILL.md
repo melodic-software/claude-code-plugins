@@ -211,7 +211,7 @@ Check each grader before its scores are trusted. This grades sample outputs, not
 4. Record the agreement in the criteria doc: cases checked, cases where the consumer agreed, and
    the date.
 
-Labelled set: `${user_config.labelled_grader_check}`. If it renders empty or as the literal
+Labeled set: `${user_config.labeled_grader_check}`. If it renders empty or as the literal
 placeholder text, use `false`, the manifest default, and say so. When it is `true`, also have the
 consumer label a larger set pass or fail on their own, grade the same set, and record the
 agreement rate and every disagreement in the criteria doc.

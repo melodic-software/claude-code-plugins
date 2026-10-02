@@ -87,7 +87,7 @@ where this repository departs from a source, the record is in the methodology sk
   from votes the run already took.
 - **`same_model_warning`** (boolean, default `true`): warns when the tested model and the judge are
   the same model.
-- **`labelled_grader_check`** (boolean, default `false`): adds a check of each grader against cases
+- **`labeled_grader_check`** (boolean, default `false`): adds a check of each grader against cases
   you label.
 
 No hooks and no MCP servers. The methodology, design, and validate surfaces make no network calls
@@ -113,7 +113,7 @@ reads it from.
 | `review_format` | string | `"markdown"` | `CLAUDE_PLUGIN_OPTION_REVIEW_FORMAT` | Format /evals:design renders candidate eval cases in for your approval. markdown (the default) is a table plus one fenced block per case; html is one page with every field escaped. |
 | `grader_run_twice` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GRADER_RUN_TWICE` | When on, /evals:plugin-eval's noise report shows how often the judge votes for each llm grader agreed, read from votes the run already took, at no extra spend. |
 | `same_model_warning` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SAME_MODEL_WARNING` | When on, /evals:plugin-eval's preflight warns when the tested model and the judge model resolve to the same model, and /evals:design repeats the reminder beside the build-eval route. |
-| `labelled_grader_check` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LABELLED_GRADER_CHECK` | When on, /evals:design checks a grader against a set of cases you label, not only the handful-of-cases agreement check. |
+| `labeled_grader_check` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LABELED_GRADER_CHECK` | When on, /evals:design checks a grader against a set of cases you label, not only the handful-of-cases agreement check. |
 
 ### How to set these
 

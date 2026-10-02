@@ -1,5 +1,5 @@
 ---
-description: "Hard case. Why hard: The base model's natural answer is that the user's own `!` command is not checked by the guard; that `!` is refused the same way, and the command for an outside terminal, are this repository's recorded behaviour."
+description: "Hard case. Why hard: The base model's natural answer is that the user's own `!` command is not checked by the guard; that `!` is refused the same way, and the command for an outside terminal, are this repository's recorded behavior."
 tags: [run-mechanics, hard]
 runs: 3
 max_turns: 10

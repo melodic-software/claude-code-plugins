@@ -5,7 +5,7 @@
       "why": "P-canonical: tells the user to check each affected run's error field before believing the drop and to rerun the cases rather than call it a regression or flakiness."
     },
     {
-      "answer": "I wouldn't conclude anything from that score yet. Three cases going to zero on both the with and without arms usually means those runs never really got to work, and a mid-suite limit does that without setting `partial`.\n\nOpen the results JSON and read the `error` value on each run of the three cases. A limit message there means the zeros are an artefact; wait for the limit to reset, run those three cases again, and only then compare against last week.",
+      "answer": "I wouldn't conclude anything from that score yet. Three cases going to zero on both the with and without arms usually means those runs never really got to work, and a mid-suite limit does that without setting `partial`.\n\nOpen the results JSON and read the `error` value on each run of the three cases. A limit message there means the zeros are an artifact; wait for the limit to reset, run those three cases again, and only then compare against last week.",
       "why": "P-alt: same two actions in other words: read each run's error value first, then run the three cases again after the reset instead of concluding."
     },
     {
@@ -27,7 +27,7 @@
       "why": "F-wrong: concludes flaky cases and suggests changing the graders and runs instead of checking the error field and rerunning."
     },
     {
-      "answer": "Probably neither. A usage or rate limit hit partway through the suite isn't marked partial, so `partial: false` doesn't prove the runs completed. Later runs end with the error and are graded on what they produced, which gives 0 on both arms.\n\nBefore believing the drop, check `cases[].arms.with[].error` on those three cases. If it names a limit, you have your explanation: the zeros are an artefact of the limit, not a sign of a regression or of flaky cases.",
+      "answer": "Probably neither. A usage or rate limit hit partway through the suite isn't marked partial, so `partial: false` doesn't prove the runs completed. Later runs end with the error and are graded on what they produced, which gives 0 on both arms.\n\nBefore believing the drop, check `cases[].arms.with[].error` on those three cases. If it names a limit, you have your explanation: the zeros are an artifact of the limit, not a sign of a regression or of flaky cases.",
       "why": "F-partial: tells the user to check the error field but never says to rerun the affected cases."
     },
     {

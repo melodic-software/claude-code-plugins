@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "Write a pytest suite over 50 labelled emails and check the label by exact match.",
+      "answer": "Write a pytest suite over 50 labeled emails and check the label by exact match.",
       "why": "harness only"
     }
   ]

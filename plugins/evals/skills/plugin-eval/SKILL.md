@@ -367,7 +367,7 @@ What the number means:
 
 ## Calibrating a judge
 
-Trust an `llm` grader's scores only after its judge agrees with labelled answers on at least 90% of
+Trust an `llm` grader's scores only after its judge agrees with labeled answers on at least 90% of
 runs. The labels are the must-pass and must-fail answers in the case's `samples/<grader>.json`;
 three agents label them independently and the user settles every disagreement. Then:
 

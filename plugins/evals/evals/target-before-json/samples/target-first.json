@@ -20,7 +20,7 @@
   "fail": [
     {
       "why": "F-wrong: blames the relative output path and keeps `--json` before the target in the 'fixed' command.",
-      "answer": "The CLI resolves the `--json` path relative to the plugin directory rather than your working directory, so a bare `results.json` gets rejected before the run starts. The extension is fine; the path form is the issue. Give it an absolute path:\n\n```bash\nclaude plugin eval --json /home/dev/repo/results.json ./plugins/notes\n```\n\nIf you'd rather keep relative paths, `cd` into the plugin directory first and pass `--json ./results.json`. Either way the output lands somewhere you can find it."
+      "answer": "The CLI resolves the `--json` path relative to the plugin directory rather than your working directory, so a bare `results.json` gets rejected before the run starts. The extension is fine; the path form is the issue. Give it an absolute path:\n\n```bash\nclaude plugin eval --json /srv/repo/results.json ./plugins/notes\n```\n\nIf you'd rather keep relative paths, `cd` into the plugin directory first and pass `--json ./results.json`. Either way the output lands somewhere you can find it."
     },
     {
       "why": "F-partial: the diagnosis is right and the target now comes first, but the corrected command drops `--json`, which the rubric fails.",

@@ -63,7 +63,7 @@ per-case and per-invocation option.
 ## Rubric form
 
 Default: a judge rubric is a list of checkable pass/fail claims. The 1-to-5 recipes in
-[recipes.md](recipes.md) are the platform page's and stay labelled as that page's.
+[recipes.md](recipes.md) are the platform page's and stay labeled as that page's.
 
 - **Pointer**: for checkable rubric properties, see
   [eval-audit.md, When the grader is an LLM judge](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#when-the-grader-is-an-llm-judge).
