@@ -23,14 +23,16 @@ carrying both with no import between them gets a perfectly generated, perfectly 
 never enters context, with every other gate green. Verifying that before a first audit is this
 skill's job; `/instruction-placement:check` asks the same question again on every gate run.
 
-- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
-  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it;
-  reading it directly depends on a CLI version floor and on the session, both in
-  `skills/migrate/reference/sources.md`, "The minimum CLI version".
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md" and "When AGENTS.md
-  support is unavailable"; canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: that section changes which file names count for the check, or a release note
+This skill treats the root `AGENTS.md` as shadowed wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or
+`CLAUDE.local.md` sits in the working directory or above it, and treats direct `AGENTS.md` reading
+as dependent on the CLI floor and session recorded in `skills/migrate/reference/sources.md`, "The
+minimum CLI version". Canary runs on Claude Code 2.1.278 observed the shadowing.
+
+- **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **As of**: 2026-09-29
+- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
   names `AGENTS.md` or instruction-file loading.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, `node` launches

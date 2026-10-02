@@ -19,8 +19,9 @@
 - [`marketplace remove` leaves the cache tree, marked for the orphan sweep](#marketplace-remove-leaves-the-cache-tree-marked-for-the-orphan-sweep)
 - [`autoUpdate` is a background complement, not a substitute](#autoupdate-is-a-background-complement-not-a-substitute)
 
-Every claim below was verified against a fetched official-docs page or an empirical test on a real
-machine, not assumed from training data. Last re-verified 2026-09-05 against
+Every record below is our decision, resting on a pointer to an official-docs section or on our own
+probe on a real machine, never on training data, and stores no upstream text. Last re-verified
+2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
@@ -164,8 +165,8 @@ and one tracked `.claude/settings.json`, hold independent records and pin indepe
 
 Removing the directory a project/local install was made from leaves the install record in place,
 still naming the path. **Re-verified on Claude Code 2.1.261**: `claude plugin --help` lists no verb that
-removes an install record by path, and `claude plugin prune --help` reports "Remove auto-installed
-dependencies that are no longer needed", a *dependency* axis, whose own `-s project` has the same
+removes an install record by path, and `claude plugin prune --help` describes a cleanup of unneeded
+dependencies, a *dependency* axis, whose own `-s project` has the same
 no-path-flag behavior documented above, so it acts on the cwd and cannot reach a record belonging to
 a directory that is gone.
 
@@ -189,24 +190,22 @@ do.
 ## Where project-scope records come from, and why the skill cannot reap them
 
 The section above says the records cannot be reaped. This one says where they come from. Every claim
-below is doc-sourced or verified by a probe, each with its source or CLI version named. **Recheck
+below rests on a pointer or on a probe, each with its source or CLI version named. **Recheck
 trigger:** any change to how a repo's committed `enabledPlugins` block is applied at session start,
 or any `claude plugin` release note adding a verb that removes an install record by path.
 
-**A repo's committed `.claude/settings.json` `enabledPlugins` block is the documented cloud install
-mechanism.** Per
-[cloud-environments](https://code.claude.com/docs/en/cloud-environments) ("What carries over from
-your setup", fetched 2026-09-05), plugins declared in that committed block are "Installed at session
-start from the marketplace you declared." Plugins enabled only in a user's own settings do not carry
-over to a cloud session at all. So the block exists to make a team's plugin set reproducible
-somewhere the user's `~/.claude` is not.
+**We treat a repo's committed `.claude/settings.json` `enabledPlugins` block as the cloud install
+mechanism**, and a plugin enabled only in a user's own settings as absent from a cloud session. So
+the block exists to make a team's plugin set reproducible somewhere the user's `~/.claude` is not.
+Pointer: for what a cloud session carries over, see
+[What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup).
+As of: 2026-09-05.
 
-**Locally, session start writes the records.** Per
-[discover-plugins](https://code.claude.com/docs/en/discover-plugins) ("Configure team marketplaces",
-fetched 2026-09-05), as of v2.1.195 a plugin that only project settings enable, coming from an
-external source, "doesn't load until the team member installs it." That sentence covers the case
-where the user has never installed the plugin. When the user already holds it at user scope, the
-session start does the install itself. **Verified 2026-09-06 on Claude Code 2.1.263**: a scratch git
+**Locally, session start writes the records.** A plugin that only project settings enable and that
+the user has never installed is a separate case, for which see
+[Enabled in project settings but not installed](https://code.claude.com/docs/en/plugins/loading#enabled-in-project-settings-but-not-installed)
+(as of 2026-09-05). When the user already holds the plugin at user scope, the session start does the
+install itself. **Verified 2026-09-06 on Claude Code 2.1.263**: a scratch git
 repo under the temp directory with a committed `.claude/settings.json` declaring
 `extraKnownMarketplaces` for an already-registered marketplace and two `enabledPlugins: true` ids
 already installed at user scope; one headless `claude -p` session run from that directory; then
@@ -219,13 +218,12 @@ repo path sharing one `installedAt` second) has the same shape: one session-star
 per `true` entry per checkout path. The write happens even though nothing new was fetched; the
 record is a pin, not a download.
 
-**Precedence explains why a user-scope duplicate does not prevent the project record.** Per
-[settings-reference](https://code.claude.com/docs/en/settings-reference#enabledplugins) (fetched
-2026-09-05), `enabledPlugins` resolves managed > `--settings` > local > project > user, and
-"Project settings take precedence over user settings, so setting a plugin to false in
-~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
-To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
-instead." Precedence settles which `enabledPlugins` value is effective, and the probe above
+**Precedence explains why a user-scope duplicate does not prevent the project record.** We resolve
+`enabledPlugins` managed > `--settings` > local > project > user, so a user-scope `false` never
+overrides a project-scope `true`, and the opt-out we advise on one machine is a `false` in
+`.claude/settings.local.json`. Pointer: for the precedence and the local opt-out, see
+[`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins). As of:
+2026-09-05. Precedence settles which `enabledPlugins` value is effective, and the probe above
 establishes that an effective project-scope `true` writes its own record regardless of the user
 scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
 project record per plugin per checkout.
@@ -247,85 +245,93 @@ section above records as unreapable.
 
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
-record by path (`-s project` acts on the cwd only, `prune` is dependency-only). The product's own
-retention sweep does not cover them either: the "Cleaned up automatically" list at
-[claude-directory](https://code.claude.com/docs/en/claude-directory) (fetched 2026-09-05) names
-nothing under `~/.claude/plugins/`. That the per-project records are a live, maintained mechanism
-rather than vestigial state is visible in the Claude Code changelog for 2.1.224, "Fixed plugin
-install records being silently corrupted when the same plugin is installed in multiple projects".
-Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
+record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
+product's own retention sweep as not covering them either: as of 2026-09-05 its list named nothing
+under `~/.claude/plugins/` (pointer:
+[Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)).
+We treat the per-project records as a live, maintained mechanism rather than vestigial state,
+because the [2.1.224 changelog entry](https://code.claude.com/docs/en/changelog#2-1-224) fixes a
+defect in them. Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
 
-**Synced plugins are the contrast case, not a source of these records.** Per
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference) ("Synced plugins", fetched
-2026-09-05), plugins enabled on a claude.ai account load as `<name>@synced` in Cowork and cloud
-sessions "with no marketplace and no install record", and "Claude Code doesn't load them in sessions
-you start in your own terminal." That is enablement without any record at all, so a synced plugin
-never explains a project-scope row. Whether a custom GitHub marketplace can be enabled at account
-level on a personal account is undocumented.
+**Synced plugins are the contrast case, not a source of these records.** We treat a plugin enabled
+on a claude.ai account (`<name>@synced`) as enablement with no install record at all, so a synced
+plugin never explains a project-scope row. Pointer: for synced plugins, see
+[Plugins synced from claude.ai](https://code.claude.com/docs/en/plugins/loading#synced-plugins). As
+of: 2026-09-05. Whether a custom GitHub marketplace can be enabled at account level on a personal
+account is undocumented.
 
 ## `/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case
 
-Everything in this section is doc-sourced and was re-fetched 2026-09-05 with the quoted text
-unchanged. The *behavior*, what a bare reload actually warns about in a live session, is **not
-re-run on 2.1.261**: it needs an interactive session, which a non-interactive probe pass cannot
-drive. The `≥ 2.1.163` gate for `--force` is likewise **not re-verified on 2.1.261**, because the
-current docs page states the flag without naming the version that introduced it.
+Every decision in this section rests on a docs pointer last re-read 2026-09-05. The *behavior*,
+what a bare reload actually warns about in a live session, is **not re-run on 2.1.261**: it needs
+an interactive session, which a non-interactive probe pass cannot drive. The `≥ 2.1.163` gate for
+`--force` is likewise **not re-verified on 2.1.261**, because the current docs page states the flag
+without naming the version that introduced it.
 
-**Headless sessions can run it.** `/reload-plugins` also runs in the desktop app, the Agent SDK,
-and non-interactive `-p` when it is typed into the session directly, from Claude Code 2.1.260.
-Plugin MCP server changes in those sessions wait until the next session.
-**Claim, basis, as of, recheck:** that sentence,
-[prompt caching](https://code.claude.com/docs/en/prompt-caching), 2026-09-28, and a re-fetch of
-that paragraph that drops those sessions. Whether a loop whose skill body is already in context
+**Headless sessions can run it.** We treat `/reload-plugins` as available, from Claude Code
+2.1.260, in `-p` runs, Agent SDK sessions and the desktop app, only on input typed
+into the session (a copy relayed over Remote Control or a message is refused), and with plugin MCP
+server changes waiting for the next session. Whether a loop whose skill body is already in context
 can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
 
-**Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
-agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors. Per
-`code.claude.com/docs/en/plugins-reference`, "monitors require a session restart". Recommend bare `/reload-plugins` by default; call out the restart requirement
-only when an updated plugin ships a monitor.
+- **Pointer**: for reloads in sessions without an interactive terminal, see
+  [Sessions without an interactive terminal](https://code.claude.com/docs/en/plugins/cli-reference#sessions-without-an-interactive-terminal),
+  the `/reload-plugins` row of [Commands](https://code.claude.com/docs/en/commands#all-commands),
+  and [Enabling or disabling a plugin](https://code.claude.com/docs/en/prompt-caching#enabling-or-disabling-a-plugin).
+- **As of**: 2026-09-28
+- **Recheck trigger**: those sections stop listing headless sessions, or change the typed-input
+  and MCP limits.
 
-**An install can now activate itself, but not the installs this skill issues.** As of Claude Code
-2.1.221, an install started from the in-session `/plugin` interface reports its own activation state:
-per `code.claude.com/docs/en/discover-plugins` (re-fetched 2026-09-05, unchanged), the summary says either
-`Plugin is now active.`, meaning "Claude Code activated the plugin as part of the install", or
-`Run /reload-plugins to activate.`, which happens "because activating it would invalidate the prompt
-cache or because the activation attempt failed". Before 2.1.221, "no install took effect in the
-current session until you ran `/reload-plugins` or restarted".
+**Monitors need a restart.** We treat `/reload-plugins` as refreshing skills, agents, hooks, MCP
+and LSP servers in-process, but not monitors. Recommend bare `/reload-plugins` by default; call out
+a session restart only when an updated plugin ships a monitor. Pointer:
+[`/reload-plugins`](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins) and
+[`monitors`](https://code.claude.com/docs/en/plugins-reference#monitors). As of: 2026-09-05.
 
-This does **not** relax the reload guidance below, because `sync` installs through the shell command,
-not the interface: "The `claude plugin install` shell command doesn't run in a session, so Claude Code
-loads the plugins it installs the next time you start Claude Code, or when you run `/reload-plugins`
-in a session that's already open." So a `sync` report still ends with reload guidance for everything
-it installed. The activation line matters only for reading a user's own `/plugin` install summary.
+**An install can now activate itself, but not the installs this skill issues.** From Claude Code
+2.1.221, an install started from the in-session `/plugin` interface reports its activation state,
+and this skill reads two lines of that summary: `Plugin is now active.` means the plugin is live
+with no reload, and `Run /reload-plugins to activate.` means it is not (the prompt-cache case or a
+failed activation). Before 2.1.221, no install took effect in the session without a reload or
+restart.
+
+This does **not** relax the reload guidance below, because `sync` installs through the shell
+command, not the interface, and we treat a shell install as loading only at the next start or the
+next `/reload-plugins`. So a `sync` report still ends with reload guidance for everything it
+installed. The activation line matters only for reading a user's own `/plugin` install summary.
 When they say a plugin is already active, believe the summary rather than telling them to reload
 again; and when the summary named the prompt-cache case, that is the same condition `--force` exists
 for below.
 
-`--force` is real (Claude Code ≥ 2.1.163). **The general condition it exists for is prompt-cache
-invalidation**, per `code.claude.com/docs/en/discover-plugins`: "When the reload would invalidate
-the prompt cache, the command warns and skips until you rerun it with `--force`."
+- **Pointer**: for the install summary, see
+  [Install a plugin](https://code.claude.com/docs/en/discover-plugins#install-a-plugin); for shell
+  installs, see
+  [Install from your shell](https://code.claude.com/docs/en/discover-plugins#install-from-your-shell).
+- **As of**: 2026-09-05
+- **Recheck trigger**: either summary line changes, or a shell install starts activating in an open
+  session.
 
-The MCP case is the docs' worked example of that condition, not the condition itself: a plugin
-providing an MCP server whose tools aren't deferred by tool search "costs more when its tools aren't
-deferred by tool search", so it is **the common cause** of the warning, but treating it as the sole
-trigger tells a reader that a warning arising any other way is not a `--force` case, when it is.
+`--force` is real (Claude Code ≥ 2.1.163). We treat it as the answer to one warning only: the
+reload declining a change to the session's MCP or LSP tools because of the prompt cache. Which
+changes raise that warning is read at the pointer below, not predicted here.
 
-So follow the docs' own two-step rather than predicting the cause:
+So follow this two-step rather than predicting the cause:
 
-> Check the install summary: if it reports `Run /reload-plugins to activate.`, run `/reload-plugins`,
-> and if that warns that the reload will re-read the conversation, rerun it as `/reload-plugins --force`.
+1. Check the install summary: if it reports `Run /reload-plugins to activate.`, run
+   `/reload-plugins`.
+2. If that warns that the reload will re-read the conversation, rerun it as
+   `/reload-plugins --force`.
 
 Never recommend `--force` pre-emptively alongside every reload. It exists specifically to opt into a
 real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
 warning.
 
-**Headless sessions can run `/reload-plugins`.** Claim: the command is available in non-interactive
-`-p` sessions, the Agent SDK, and the desktop app, from Claude Code 2.1.260. In those sessions it
-runs only on input typed into the session, it does not apply plugin MCP server changes, and a copy
-that arrives over Remote Control or a relayed message is refused. Basis:
-<https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins> and the `/reload-plugins`
-row of <https://code.claude.com/docs/en/commands>. As of: 2026-09-28. Recheck: that section stops
-listing headless sessions, or changes the typed-input and MCP limits.
+- **Pointer**: for the cache warning and `--force`, see
+  [Reloads that change MCP tools](https://code.claude.com/docs/en/plugins/cli-reference#reloads-that-change-mcp-tools)
+  and [Enabling or disabling a plugin](https://code.claude.com/docs/en/prompt-caching#enabling-or-disabling-a-plugin).
+- **As of**: 2026-10-01
+- **Recheck trigger**: a release note changes when `/reload-plugins` warns, or what `--force`
+  applies.
 
 ## `pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules
 
@@ -333,20 +339,20 @@ This skill reads both surfaces, and they do not agree on which scopes count. Get
 is silent in both directions, so the asymmetry is stated here once and pointed at from everywhere
 else.
 
-**`pluginConfigs`: three sources only.** Re-fetched 2026-09-05, wording unchanged. Per
-`code.claude.com/docs/en/plugins-reference`: "Claude
-Code reads all `pluginConfigs` values from only three settings sources". Those are user settings
+**`pluginConfigs`: three sources only.** This skill reads `pluginConfigs` from user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user. In every one of those sources the value nests under `options`:
+managed → `--settings` → user, and ignores entries in a project's `.claude/settings.json` or
+`.claude/settings.local.json` (Claude Code ignores them from v2.1.207, since a cloned repository
+could otherwise supply values). In every one of those sources the value nests under `options`:
 `{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
-under the plugin id is silently ignored and the render shows the literal placeholder (verified
-2026-09-06 on **Claude Code 2.1.263**). And explicitly:
+under the plugin id is silently ignored and the render shows the literal placeholder (our probe,
+2026-09-06 on **Claude Code 2.1.263**). The restriction is specific to `pluginConfigs`.
 
-> Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
-> files live in the workspace, so a cloned repository could supply values there, and those values
-> would flow into plugin hook commands, MCP server configs, LSP commands, and monitor commands.
-> Before v2.1.207, these entries were read. The restriction is specific to `pluginConfigs`:
-> `enabledPlugins` still honors project and local settings.
+- **Pointer**: for where `pluginConfigs` values are read, see
+  [Where values are stored](https://code.claude.com/docs/en/plugins-reference#where-values-are-stored).
+- **As of**: 2026-09-05
+- **Recheck trigger**: the honored source set changes, or project or local settings become a
+  source again.
 
 **`enabledPlugins`: user, project, and local all count**, merged local > project > user. That is
 why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
@@ -363,37 +369,40 @@ Two consequences this skill must not get wrong:
 
 ## `userConfig` has no `enum` type
 
-**Re-verified 2026-09-05 against the published plugin-manifest JSON Schema**: allowed `type` values
-are `string`, `number`, `boolean`, `directory`, `file`. There is no `enum` *type*. The schema does
-use an `enum` keyword, but only to constrain `type` itself to that list; an option cannot declare its
-own allowed values. The schema's `required` array for
-a `userConfig` option is `type`, `title`, `description`, and `claude plugin validate` on 2.1.261
-rejects an option that omits `title`. `install_new` ships as `type: string` with its
-valid values (`ask`/`all`/`none`) documented in `description` and validated in prose by this skill,
-not by the manifest schema.
+This skill declares `userConfig` options only with the `type` values `string`, `number`, `boolean`,
+`directory` and `file`, declares no fixed-options list, and gives every option `type`, `title` and
+`description` (`claude plugin validate` on 2.1.261 rejected an option that omitted `title`, our
+probe). `install_new` ships as `type: string` with its valid values (`ask`/`all`/`none`) documented
+in `description` and validated in prose by this skill. The reference offers a fixed-options list;
+this skill does not declare one, because doing so would raise the CLI version a consumer needs to
+load the plugin, and the published JSON Schema does not carry it yet.
+
+- **Pointer**: for the option schema, see the published plugin-manifest JSON Schema
+  (<https://json.schemastore.org/claude-code-plugin-manifest.json>),
+  [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
+  [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the schema's `type` list or `required` array changes, the schema gains the
+  fixed-options key, or the marketplace raises its CLI floor to the version that section names.
 
 ## `userConfig`: an unset key renders the literal placeholder
 
-**Claim.** When a `userConfig` key is set in none of the three `pluginConfigs` sources, the skill
-render leaves that key's placeholder token unchanged; the manifest's `default` is not substituted
-into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute in the same
-render, so the unchanged token is the unset signal and not a substitution failure. `SKILL.md`'s
-**Configured value** line reads that token as "unset, use the default `ask`".
+When a `userConfig` key is set in none of the three `pluginConfigs` sources, we treat the skill
+render as leaving that key's placeholder token unchanged, with the manifest's `default` not
+substituted into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute
+in the same render, so the unchanged token is the unset signal and not a substitution failure.
+`SKILL.md`'s **Configured value** line reads that token as "unset, use the default `ask`". Our
+probe settles a point the plugins reference leaves open: the reference does not say whether the
+default substitutes into skill content, so the two do not conflict.
 
-**Basis.** Empirical probe on a throwaway plugin from a local marketplace: first observed 2026-07-23
-on Claude Code 2.1.218, re-run 2026-09-06 on **Claude Code 2.1.263** with the same result. The
-plugins reference (fetched 2026-09-11) describes `default` only as "Value used when the user
-provides nothing" and states the substitution surface as every value being available for
-substitution, through its `user_config` placeholder, in MCP and LSP server configs and hook
-commands, and "Non-sensitive values can also be substituted in skill and agent content." It does not
-say the default substitutes into skill content, so the page and the probe do not conflict; the
-probe settles what the page leaves open. The page's own sentence, placeholder and all, is quoted in
-`SKILL.md`, the one file where the token may appear.
-
-**As of.** 2026-09-06, Claude Code 2.1.263.
-
-**Recheck trigger.** Any Claude Code minor-version bump that touches plugin `userConfig`
-substitution, or a change to the plugins reference's `default` row or its substitution sentence.
+- **Pointer**: our probe on a throwaway plugin from a local marketplace, first run 2026-07-23 on
+  Claude Code 2.1.218 and re-run 2026-09-06 on **Claude Code 2.1.263** with the same result; for
+  the `default` field and the substitution surfaces, see
+  [Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)
+  (read 2026-09-11).
+- **As of**: 2026-09-06, Claude Code 2.1.263
+- **Recheck trigger**: any Claude Code minor-version bump that touches plugin `userConfig`
+  substitution, or a change to the reference's `default` field or its substitution surfaces.
 
 **Probe recipe.** The `pluginConfigs` payload must nest the key under `options`, in the shape
 "`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules" above gives; a key placed directly
@@ -408,13 +417,14 @@ receives `userConfig` substitution".
 
 ## Renames are CC-native (≥ v2.1.193)
 
-Claude Code rewrites a marketplace's `renames` map into installed/enabled state automatically at
-session start (old id → new id; `null` means removal). This skill hard-codes no rename knowledge.
-Its only rename-adjacent behavior is that anything present in the current catalog but absent from
-`installed_plugins.json` shows up as `missing_from_install`, which naturally covers a renamed
-plugin's new id. Renames mapping requires ≥ v2.1.193, re-confirmed 2026-09-05 against
-`code.claude.com/docs/en/plugin-marketplaces`, which still says "Automatic migration requires Claude
-Code v2.1.193 or later." The `claude plugin prune` ≥ v2.1.121 gate is **not re-verified on 2.1.261**:
+We rely on Claude Code to apply a marketplace's `renames` map to installed and enabled state at
+session start (old id → new id; `null` means removal), from v2.1.193. This skill hard-codes no
+rename knowledge. Its only rename-adjacent behavior is that anything present in the current catalog
+but absent from `installed_plugins.json` shows up as `missing_from_install`, which naturally covers
+a renamed plugin's new id. Pointer:
+[Migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map).
+As of: 2026-09-05. Recheck trigger: the version floor or the map's semantics change. The
+`claude plugin prune` ≥ v2.1.121 gate is **not re-verified on 2.1.261**:
 the current docs describe `prune` without naming an introducing version, so the gate stands on its
 original source and nothing this pass found contradicts it.
 
@@ -465,22 +475,25 @@ marketplace was added, so the registry side is clean. `~/.claude/plugins/cache/<
 stayed on disk with the plugin's version directory intact.
 
 The tree is not a permanent orphan. The `uninstall` step wrote a `.orphaned_at` marker file (epoch
-milliseconds) into the version directory, and the marker survived the marketplace removal. Per
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference)
-("Plugin cache", fetched 2026-09-06), a marked directory is removed by the background sweep roughly
-14 days later, the sweep runs only while at least one plugin is installed, and a cache folder is
-removed only once it holds no directory or symlink. So a removed marketplace's tree is swept on the
-same clock as any other orphaned version, marketplace folder included, provided the machine keeps
-any plugin installed. The page says nothing about marketplace removal itself; the marker is the
-observation that connects the two. The sweep does visit a removed marketplace's cache folders: the
-Claude Code 2.1.270 debug log (2026-09-14, recorded on
-[#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
-folder-retention pass logging `Keeping <cache>/<marketplace>: it still holds a directory, a
-symlink, a versioned archive or an entry of unknown type` for two removed marketplaces. That the
-sweep removes a marked version directory under a removed marketplace at 14 days is inferred from
-the documented rule, not yet observed; both probes that would show it were lost before a reading.
-**Recheck trigger:** any Claude Code release note or `plugins-reference` change touching
-marketplace removal, the orphan sweep, or the cache layout.
+milliseconds) into the version directory, and the marker survived the marketplace removal. We model
+the background sweep as removing a marked directory about 14 days later, running only while at
+least one plugin is installed, and removing a cache folder only once it holds no directory or
+symlink. So a removed marketplace's tree is swept on the same clock as any other orphaned version,
+marketplace folder included, provided the machine keeps any plugin installed. The docs say nothing
+about marketplace removal itself; the marker is our observation that connects the two. The sweep
+does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
+recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
+folder-retention pass keeping two removed marketplaces' folders because each still held content.
+That the sweep removes a marked version directory under a removed marketplace at 14 days is
+inferred from the documented rule, not yet observed; both probes that would show it were lost
+before a reading.
+
+- **Pointer**: for the orphan sweep, see
+  [Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions);
+  the marker and the debug log are our probes.
+- **As of**: 2026-09-06
+- **Recheck trigger**: any Claude Code release note or docs change touching marketplace removal,
+  the orphan sweep, or the cache layout.
 
 **That observation was taken after an `uninstall`, with no install record left for the removal to
 find.** With plugins from the marketplace still installed, the same command deletes their records at
@@ -498,10 +511,17 @@ installed, because the sweep never runs there; a version directory under it that
 
 ## `autoUpdate` is a background complement, not a substitute
 
-Official-Anthropic marketplaces default `autoUpdate: true`; third-party and local-dev marketplaces
-default it off (absent from `known_marketplaces.json`, not `false`). When on, Claude Code refreshes
-marketplace data and bumps already-installed plugins once per session start, after a random delay of
-up to ten minutes. This skill never mutates the setting. It only reports the marketplace's current
-`autoUpdate` state and suggests enabling it when off, since it never overlaps with what this skill
-covers (new-plugin install, `enabledPlugins` completeness, divergence detection/convergence,
-deterministic on-demand execution).
+This skill reads a marketplace's `autoUpdate` as off when the key is absent from
+`known_marketplaces.json` (not only when it is `false`), and treats auto-update as a background
+refresh of already-installed plugins after session start, never as a substitute for `sync`. This
+skill never mutates the setting. It only reports the marketplace's current `autoUpdate` state and
+suggests enabling it when off, since it never overlaps with what this skill covers (new-plugin
+install, `enabledPlugins` completeness, divergence detection/convergence, deterministic on-demand
+execution).
+
+- **Pointer**: for the per-marketplace defaults and when auto-update runs, see
+  [Keep plugins updated](https://code.claude.com/docs/en/discover-plugins#keep-plugins-updated) and
+  [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs).
+- **As of**: 2026-09-05
+- **Recheck trigger**: a marketplace kind's default changes, or auto-update starts installing new
+  plugins.

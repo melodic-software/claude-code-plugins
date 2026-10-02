@@ -18,6 +18,11 @@ command.
 This file defines every check the audit runs. Each check has a severity, description, and instructions
 for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memory).
 
+Every firing rule here is our decision, in our words; a doc-derived check names the docs section it
+rests on as a **Pointer** and stores none of the page's text. Unless a check says otherwise, each
+pointer's as-of date is 2026-09-20 (the "Last updated" date above) and its recheck trigger is a
+Claude Code release note or docs change touching the section it points at.
+
 To refresh this file against current official guidance, run the skill's `update` action.
 
 ---
@@ -25,14 +30,18 @@ To refresh this file against current official guidance, run the skill's `update`
 ## Checks for CLAUDE.md and CLAUDE.local.md
 
 Every C-check here applies equally to each project root `AGENTS.md` that discovery emits as an
-`agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`, both of which load at session start and
-between which the doc states no precedence): that file IS the project instructions for the
-session, so the same budget, content and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
+`agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`; we audit both and assume no precedence
+between them): that file IS the project instructions for the session, so the same budget, content
+and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
 is why a repo under a one-line `@AGENTS.md` shim has no such row (the import already counts inside
 the CLAUDE.md's expanded figure) and a displaced `AGENTS.md` has none either. Cite the finding
-against `AGENTS.md`, not against a CLAUDE.md that is not there. Basis:
-code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md", fetched 2026-09-20; the
-condition and its recheck trigger are recorded in `scripts/lib/agents-md.sh`.
+against `AGENTS.md`, not against a CLAUDE.md that is not there.
+
+- **Pointer**: for when Claude Code reads `AGENTS.md`, see
+  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md);
+  the condition discovery applies is recorded in `scripts/lib/agents-md.sh`.
+- **As of**: 2026-09-20
+- **Recheck trigger**: the recheck trigger recorded in `scripts/lib/agents-md.sh` fires.
 
 ### C1: Line Budget [FAIL]
 
@@ -53,18 +62,22 @@ condition and its recheck trigger are recorded in `scripts/lib/agents-md.sh`.
 5. Report the expanded figure and, when imports contributed, the per-file breakdown: a one-line
    `CLAUDE.md` importing a 300-line `AGENTS.md` is a 301-line file for this check
 
-**Why**: Official docs: "Target under 200 lines per CLAUDE.md file. Longer files consume more context
-and reduce adherence." Files over 200 lines cause Claude to ignore instructions. Imports count
-because "imported files still load and enter the context window at launch" and "splitting into
-`@path` imports helps organization but doesn't reduce context" (code.claude.com/docs/en/memory);
-a raw line count of the root file alone passes a layer the loader treats as one file.
+**Why**: We take the docs' per-file size target as this check's 200-line budget, and read a file
+over it as an adherence risk. We count `@` imports because we treat imported files as loading at
+launch, so a split saves nothing; a raw line count of the root file alone passes a layer the loader
+treats as one file.
 
-**Diagnostic**: The symptom-first tell for this check: "If Claude keeps doing something you don't
-want despite having a rule against it, the file is probably too long and the rule is getting lost"
-(code.claude.com/docs/en/best-practices). When the audit was prompted by a rule being ignored, add a
-C1 WARN citing this tell even when steps 4-6 pass. The branch is prompt-conditioned, so it belongs
-to the judgment tier. Label it "judgment candidate" in the report; steps 1-6 remain the
-deterministic spine, unaffected.
+- **Pointer**: for the size target, see
+  [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions);
+  for imports, see [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
+
+**Diagnostic**: We read a rule Claude keeps ignoring as a sign the file is too long. When the audit
+was prompted by a rule being ignored, add a C1 WARN naming that symptom even when steps 4-6 pass.
+The branch is prompt-conditioned, so it belongs to the judgment tier. Label it "judgment
+candidate" in the report; steps 1-6 remain the deterministic spine, unaffected.
+
+- **Pointer**: for the ignored-rule symptom, see
+  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
 
 **Allowances**: Complex monorepos using `.claude/rules/` extensively may justify overages, and a repo
 may document a deliberate exemption in its own rules (see SKILL.md "Consumer-convention extension
@@ -72,7 +85,7 @@ seam"). Report overage and justification together.
 
 ### C2: Deletion Test [WARN per line]
 
-**What**: For each line, ask: "Would removing this cause Claude to make mistakes?" If not, cut it.
+**What**: Flag each line whose removal would not lead Claude into a mistake.
 
 **How to check**:
 
@@ -90,8 +103,10 @@ seam"). Report overage and justification together.
    skill"); group findings by H1/H2 section, and collapse a section whose every line flags into one
    section-level finding
 
-**Why**: Official docs: "For each line, ask: 'Would removing this cause Claude to make mistakes?' If
-not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instructions!"
+**Why**: This is the docs' per-line pruning test, applied line by line; we treat surplus lines as
+diluting the ones that matter.
+
+- **Pointer**: [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
 
 ### C3: Content Placement [WARN]
 
@@ -104,10 +119,10 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Always-on project conventions | CLAUDE.md |
 | Machine-specific config/preferences | CLAUDE.local.md |
 | Language/framework-specific rules | `.claude/rules/` (path-scoped when that fits) |
-| Subdirectory-specific conventions | Nested `CLAUDE.md` in that subdirectory, which loads on demand when Claude reads files there (ancestors of cwd load in full at launch); post-compaction re-injection priced below (code.claude.com/docs/en/memory) |
-| One-off steering for the current conversation | A conversational `@`-mention of the file, which includes the file's full content in the conversation (code.claude.com/docs/en/common-workflows, "Reference files and directories"); distinct from `@path` imports *in* CLAUDE.md, which load at launch every session (priced in the imports row below). **Provenance**: the one-conversation scope and the cheaper-than-any-permanent-pointer framing are inferred, not doc-stated, and the placement posture is a repo extension (that doc is outside this file's `Source:` set), so the `update` action must not overwrite this row |
+| Subdirectory-specific conventions | Nested `CLAUDE.md` in that subdirectory, which we treat as on-demand for that subdirectory; post-compaction re-injection priced below. Pointer: [Choose where to put CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files) |
+| One-off steering for the current conversation | A conversational `@`-mention of the file (pointer: [Reference files and directories](https://code.claude.com/docs/en/common-workflows#reference-files-and-directories)); distinct from `@path` imports *in* CLAUDE.md, which load at launch every session (priced in the imports row below). **Provenance**: the one-conversation scope and the cheaper-than-any-permanent-pointer framing are inferred, not doc-stated, and the placement posture is a repo extension (that doc is outside this file's `Source:` set), so the `update` action must not overwrite this row |
 | Reference material needed sometimes | Skills: the body loads on demand; a new skill's listing entry does not (priced below) |
-| Learnings Claude discovered while working, not instructions you authored | Auto memory: Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md. Available only while auto memory is enabled (gated below) |
+| Learnings Claude discovered while working, not instructions you authored | Auto memory, which Claude writes rather than you; a request to remember something also belongs here rather than in CLAUDE.md. Available only while auto memory is enabled (gated below) |
 | Deterministic enforcement | Hooks (guaranteed execution) |
 | Compile-time/build-time rules | Analyzers, linters, architecture tests |
 | Information that changes frequently | Neither: keep it out |
@@ -115,11 +130,13 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 
 Flag content in the wrong layer. WARN severity because moving content is a judgment call.
 
-**Auto memory is a destination only while it is enabled. Resolve that before routing to it.** It is
-on by default, but `autoMemoryEnabled` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY` can turn it off, and
-Claude then neither writes nor loads auto-memory files
-(<https://code.claude.com/docs/en/memory>). Recommending that accumulated learnings leave `CLAUDE.md`
-for auto memory in that state deletes them from every future session instead of relocating them.
+**Auto memory is a destination only while it is enabled. Resolve that before routing to it.** We
+treat it as on by default and as switched off by `autoMemoryEnabled` or
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, with nothing written or loaded while off. Recommending that
+accumulated learnings leave `CLAUDE.md` for auto memory in that state deletes them from every
+future session instead of relocating them.
+
+- **Pointer**: [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory).
 
 Rather than reading a single scope, resolve the **effective** state with the algorithm the sibling
 `stateless` skill already owns in
@@ -139,37 +156,40 @@ nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official
 with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 
 **Price the move with the recommendation.** Moving content out of an always-loaded surface trades
-per-session cost for post-compaction absence, and the trade differs by destination: path-scoped rules
-and nested CLAUDE.md are re-injected only when a matching file is read again, while root CLAUDE.md,
-unscoped rules, and auto memory are re-injected from disk. Read the destination's row in
-[official-guidance.md](official-guidance.md), "Compaction by steering method", before recommending a
-move, and state the cost alongside it. A rule that must persist across compaction stays unscoped or
+per-session cost for post-compaction absence, and the trade differs by destination. Read the
+destination's row in [official-guidance.md](official-guidance.md), "Compaction by steering method",
+which holds the audit's per-destination model and its pointer, before recommending a move, and
+state the cost alongside it. A rule that must persist across compaction stays unscoped or
 in the project-root CLAUDE.md. A recommendation that omits this proposes a silent behavior change in
 long sessions.
 
-A **new** skill carries a second cost the compaction table does not show: the body defers, but the
-listing entry it adds is always in context: `name` plus the combined `description` and
-`when_to_use`, truncated at 1,536 characters. The saving is the body minus that entry rather than
+A **new** skill carries a second cost the compaction table does not show: the body defers, but we
+price the listing entry it adds as always in context: `name` plus the combined `description` and
+`when_to_use`, at up to 1,536 characters. The saving is the body minus that entry rather than
 the whole body. Moving content into a skill that **already exists** adds no listing entry and does not carry
-this cost. The only field that keeps a description out of context is `disable-model-invocation: true`,
-which also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
-does not reach plugin skills at all. State the entry as a cost of the recommended move. Whether the
-target's listing budget is oversubscribed is a separate question this check does not answer.
+this cost. Price the entry as zero only for a skill with `disable-model-invocation: true` (which
+also leaves it user-invocable only); never on the strength of `user-invocable: false`, or of a
+`skillOverrides` entry against a plugin skill. State the entry as a cost of the recommended move.
+Whether the target's listing budget is oversubscribed is a separate question this check does not
+answer.
 
-**Why**: Official docs: "For domain knowledge or workflows that are only relevant sometimes, use
-skills instead. Claude loads them on demand without bloating every conversation." And: "Unlike
-CLAUDE.md instructions which are advisory, hooks are deterministic." On imports: "splitting into
-`@path` imports helps organization but doesn't reduce context, since imported files load at launch"
-(code.claude.com/docs/en/memory). The per-destination compaction behavior is quoted with its sources
-in [official-guidance.md](official-guidance.md) rather than restated here. On the listing entry:
-"skill descriptions are loaded into context so Claude knows what's available, but full skill content
-only loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
-characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
-`skillOverrides`" (quoted from
-<https://code.claude.com/docs/en/skills#frontmatter-reference> and that page's
-invocation-control and visibility-override sections; verified 2026-08-31; recheck trigger: a
-fetch of that page no longer carrying these quoted spans re-derives this paragraph and the
-listing-entry cost above).
+**Why**: We place sometimes-needed domain knowledge in skills, deterministic enforcement in hooks,
+and never count an `@path` split as a saving. The per-destination compaction model and its pointer
+live in [official-guidance.md](official-guidance.md), not here.
+
+- **Pointer**: for skills and hooks as alternatives to CLAUDE.md, see
+  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md)
+  and [Set up hooks](https://code.claude.com/docs/en/best-practices#set-up-hooks); for imports, see
+  [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
+- **Pointer** (the listing-entry cost and the zero-cost rule): for the listing cap, invocation
+  control and visibility overrides, see
+  [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
+  [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
+  and [Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
+- **As of** (the listing-entry pointer): 2026-08-31
+- **Recheck trigger** (the listing-entry pointer): a fetch of those sections no longer supports the
+  1,536-character cap, the zero-cost rule, or the plugin-skill exclusion above; re-derive this
+  paragraph and the listing-entry cost from them.
 
 ### C4: Specificity [WARN]
 
@@ -177,13 +197,16 @@ listing-entry cost above).
 
 **How to check**:
 
-1. Scan for vague instructions: "format code properly", "keep things organized", "follow best practices", "write clean code"
+1. Scan for vague instructions, such as "tidy up the formatting", "keep things organized",
+   "follow best practices", "write clean code"
 2. Scan for instructions without actionable verbs or concrete outcomes
 3. WARN for each vague instruction
 4. Include a suggested rewrite
 
-**Why**: Official docs examples: "Use 2-space indentation" instead of "Format code properly". "Run
-`npm test` before committing" instead of "Test your changes."
+**Why**: We want each instruction concrete enough to check: a named value or command, such as
+"indent with 4 spaces" or "run `make check` before pushing", rather than a quality adjective.
+
+- **Pointer**: [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions).
 
 ### C5: Non-obvious Only [WARN]
 
@@ -202,14 +225,15 @@ listing-entry cost above).
 3. Flag framework documentation that should be linked, not copied
 4. WARN per instance
 
-**Provenance**: the KEEP branch is a **repo extension, not doc-derived**. The official
-include/exclude table states no navigation posture (checked 2026-08-17 against
-code.claude.com/docs/en/memory), so the `update` action must not overwrite it with doc-sourced
-text.
+**Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
+posture in the docs' include/exclude table (checked 2026-08-17), so the `update` action must not
+overwrite it.
 
-**Why**: Official include/exclude table: Exclude "Anything Claude can figure out by reading code",
-"Standard language conventions Claude already knows", "Detailed API documentation (link to docs
-instead)."
+**Why**: Steps 1-3 apply the exclude side of the docs' include/exclude table, in our words.
+
+- **Pointer**: for the include/exclude table, see
+  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
+- **As of**: 2026-08-17
 
 ### C6: Consistency [FAIL]
 
@@ -225,7 +249,7 @@ when both sides are in the `discover-instruction-surfaces` population?
 3. Check for redundancy (same instruction in multiple files)
 4. Compare **user**-scope surfaces against project ones. Both load together, so a
    user↔project contradiction is a live conflict (see Step 3 in `context/audit.md`)
-5. FAIL for contradictions (Claude picks one arbitrarily)
+5. FAIL for contradictions (which side Claude follows is undefined)
 6. WARN for redundancy (wastes context budget)
 
 **Boundary**: This check owns instruction-content conflicts whose **both** anchors are in the
@@ -233,7 +257,10 @@ discover-instruction-surfaces population. Nested `CLAUDE.md` files, auto-memory,
 skills, agents, and output styles are outside that population, so those pairs belong to
 `harness-config:audit-instructions` I15 (and its precedence / co-residency adjudication), not here.
 
-**Why**: Official docs: "If two rules contradict each other, Claude may pick one arbitrarily."
+**Why**: A contradiction leaves which instruction Claude follows undefined, so we fail it rather
+than warn.
+
+- **Pointer**: [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions).
 
 ### C7: Currency [FAIL]
 
@@ -252,8 +279,8 @@ skills, agents, and output styles are outside that population, so those pairs be
 6. WARN for stale counts
 
 **Navigation-section note**: stale pointers are the standing cost of the curated navigation
-sections C5's KEEP branch permits, "a stale highway is worse than no highway": a pointer that
-outlives its target misroutes every future session. This check's missing-file FAIL is what keeps
+sections C5's KEEP branch permits, and a stale one is worse than none: a pointer that outlives its
+target misroutes every future session. This check's missing-file FAIL is what keeps
 that posture honest, so give C5-kept navigation entries particular attention here.
 
 **Why**: Stale references cause Claude to hallucinate or waste time looking for nonexistent files.
@@ -307,17 +334,19 @@ which are not repo-scoped.
 A wrong build command is not a C7 finding today, because a command is none of the three things C7
 checks. Report a wrong command under C9 only, and do not double-report it.
 
-**Why**: Official docs list "build and test commands" first among what project memory is for
-(code.claude.com/docs/en/memory), and `/init` populates them by analyzing the codebase, so without
-the statement, they are inferred every session rather than read. This check fires on a CLAUDE.md
-that exists but omits them. Absent commands make every verification loop start by guessing how to
-run the check.
+**Why**: We treat the repo's build and test commands as core project-instruction content: without
+a statement of them, every session infers them rather than reads them. This check fires on a
+CLAUDE.md that exists but omits them. Absent commands make every verification loop start by
+guessing how to run the check.
 
-**Counter-evidence, and why step 0 exists**: the same page's CLAUDE.md-vs-auto-memory table puts
-"Build commands" in the *auto memory* column's "Use for" cell, against CLAUDE.md's "Coding
-standards, workflows, project architecture". The page states both, so the honest reading is that
-the commands must be *reachable*, not that they must sit in CLAUDE.md specifically. Step 0 is what
-keeps this check from flagging a repo that followed the other half of the same page.
+- **Pointer**: [Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md).
+
+**Counter-evidence, and why step 0 exists**: the same page's CLAUDE.md-vs-auto-memory comparison
+also bears on where build commands belong (pointer:
+[CLAUDE.md vs auto memory](https://code.claude.com/docs/en/memory#claude-md-vs-auto-memory)). We
+therefore require the commands to be *reachable* on some loaded surface, not to sit in CLAUDE.md
+specifically. Step 0 is what keeps this check from flagging a repo that put them on another loaded
+surface.
 
 ---
 
@@ -407,20 +436,20 @@ instruction files are never reported as a missing Claude shim), and for each ask
 stays depth-1: this check is about the pointer, not the nested file's content. FAIL per displaced,
 unimported file; the fix is a one-line `@AGENTS.md` `CLAUDE.md` beside it.
 
-**Why**: Official docs: Claude reads `AGENTS.md` "only when you have no `CLAUDE.md` in your working
-directory or above it", counting "a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your
-working directory or any directory above it"; it attaches "a subdirectory's `AGENTS.md`, when Claude
-opens a file there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files
-of its own"; and where reading `AGENTS.md` directly is unavailable, the page says to "import it from
-a `CLAUDE.md`" (code.claude.com/docs/en/memory, "AGENTS.md", "When Claude Code reads AGENTS.md",
-"When AGENTS.md support is unavailable"; verified 2026-09-19; recheck trigger: a fetch of that page
-no longer stating which file names count for that check).
+**Why**: The script models a nested `AGENTS.md` as read directly only when no `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` on its path displaces it, and otherwise as reachable only
+through an import or symlink from one of those files. An import from a `CLAUDE.md` is also the
+fix where direct reading is unavailable, so the fix line names it in every case.
 
-The earlier basis for this check was the same page's sentence "Claude Code reads `CLAUDE.md`, not
-`AGENTS.md`. If your repository already uses `AGENTS.md` for other coding agents, create a
-`CLAUDE.md` that imports it", verified 2026-09-08. That recheck trigger fired: the sentence is gone
-from the page as fetched 2026-09-19, and direct `AGENTS.md` reading shipped in v2.1.277. It is
-quoted here unchanged as the superseded basis, never as a current claim.
+- **Pointer**: for when an `AGENTS.md` is read and the fallback where support is unavailable, see
+  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
+  and [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
+- **As of**: 2026-09-19
+- **Recheck trigger**: a fetch of those sections changes which file names displace an `AGENTS.md`.
+
+The earlier basis for this check (verified 2026-09-08) was the page's former CLAUDE.md-only
+reading model. Its trigger fired: the page had changed when fetched 2026-09-19, and direct
+`AGENTS.md` reading shipped in v2.1.277. That basis is superseded and is no current claim.
 
 ---
 
@@ -446,11 +475,14 @@ of a local edit; `local` keeps the ordinary fix line. RD1 does this itself; the 
 **What**: Is MEMORY.md under 200 lines / 25KB?
 
 **How to check**: Count lines and file size on the content that loads. Strip YAML frontmatter and
-block-level HTML comments first, since they are removed before the index is loaded and don't count
-toward the limits. The SKILL.md pre-computed context already reports both post-strip figures
+block-level HTML comments first: we count only loaded content toward the limits. The SKILL.md
+pre-computed context already reports both post-strip figures
 (`memory-dir-stats.sh --memory-lines` / `--memory-bytes`); use them rather than re-measuring the raw
-file. Only the first 200 loaded lines (or 25KB) load at session start, and anything beyond is
-silently dropped.
+file. This check sets the limit at the first 200 loaded lines or 25KB and treats anything beyond
+as not loaded at session start.
+
+- **Pointer**: for the auto-memory load limits, see
+  [How it works](https://code.claude.com/docs/en/memory#how-it-works).
 
 Four readings the strip applies, so a hand count matches the reported figures:
 
@@ -474,11 +506,10 @@ Four readings the strip applies, so a hand count matches the reported figures:
 4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line
    under its on-disk size, well under 1% of the 25KB cap.
 
-**Provenance**: the strip rule itself is doc-derived (code.claude.com/docs/en/memory, "How it
-works"). The four readings are not. The doc states the fenced-code carve-out for CLAUDE.md only and
-is silent on it for MEMORY.md, and says nothing about unterminated blocks, unbounded blocks,
-partial lines, or line endings. They are this plugin's reading, chosen so that no input silently
-under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
+**Provenance**: the strip rule itself is doc-derived (pointer above). The four readings are not:
+they cover cases we did not find the docs to settle for MEMORY.md (fenced code, unterminated or
+unbounded blocks, partial lines, line endings). They are this plugin's reading, chosen so that no
+input silently under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
 toward counting: an over-count can only make the gate fire early on a file near its limit, while an
 under-count stops it firing at all. The `update` action must not overwrite them.
 

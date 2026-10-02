@@ -12,7 +12,14 @@ Apply the tests in order; the first tier whose test the finding satisfies is its
 | **IMPORTANT** | Nothing produces a wrong result today, but the finding names a stated rule the change violates, behavior it adds that no test covers, or a degradation or maintenance cost with a named trigger | convention drift, missing tests for new behavior, code duplication, error-handling gaps that degrade but do not break | Fix before or shortly after merge |
 | **SUGGESTION** | Neither test holds: the finding is a preference among alternatives that all work, or hardening with no path reachable today | naming improvements, minor refactoring opportunities, hardening with no current exploitability | Optional; author's judgment |
 
-Stating the bar as a decidable test rather than a qualitative label follows the Sonnet 5 prompting guide, "Code review harnesses": "be concrete about where the bar is rather than using qualitative terms like `important`" (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>). The tests restate the existing bars rather than moving any finding between tiers.
+We state each tier's bar as a decidable test, not a qualitative label. The tests restate the
+existing bars rather than moving any finding between tiers.
+
+- **Pointer**: for how a review prompt should state its reporting bar, see
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section is removed, moves, or stops covering how to state a review
+  prompt's reporting bar.
 
 ## Confidence axis
 

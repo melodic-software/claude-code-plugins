@@ -13,17 +13,16 @@ terminal with no downstream consumer (a general decision, per SKILL.md Step 5), 
 
 ## Two orthogonal knobs
 
-The official guidance separates two levers. Recommend against the right one, because they
-are not interchangeable:
+This skill treats model and effort as two separate levers. Recommend against the right one,
+because they are not interchangeable:
 
 - **Model tier (capability).** Raise the model when the assistant would be
   **confidently wrong despite full context**, where the failure is a reasoning ceiling,
   not missing information. Signals from the interview: the task turned on subtle
   correctness, dense cross-module invariants, or tradeoffs the user themselves found
-  hard to adjudicate. Residual ambiguity is its own signal in this direction:
-  upstream pairs the larger model with handling ambiguity and the smaller model with
-  "specific instructions directing execution", so ambiguity the rounds could not
-  retire argues up, and a Brief precise enough to execute from argues down.
+  hard to adjudicate. Residual ambiguity is its own signal in this direction: ambiguity
+  the rounds could not retire argues up, and a Brief precise enough to execute from
+  argues down.
 - **Effort level (thoroughness).** Raise effort when the assistant would
   **under-explore or under-verify**, reaching the right answer but tending to stop
   short. Signals: broad surface area, many files, a verification-heavy acceptance
@@ -32,39 +31,30 @@ are not interchangeable:
 A task can want both, one, or neither. State which knob each recommendation turns and
 why, in the interview's own evidence terms.
 
-**Neither knob is the first move.** Upstream puts a prior step ahead of both: when
-Claude gets something wrong, "your first instinct shouldn't be to adjust a knob, but
-to examine the context you have provided": a vague prompt, wrong tools, missing
-skills. The corollary names the surfaces: "If you're increasing effort on a task that
-*shouldn't* need it, the fix is often upstream, in your context, your CLAUDE.md, or
-how the task is scoped." That prior step is this skill's own product: the Brief **is**
-the context fix, so recommend a knob only for what a sharper Brief would not have
-caught. The discriminator between the two, "did it not *try* hard enough, or did it
-not *know* enough?", is upstream's, and its own figure caption fences it: "a starting
-point, not a hard rule". Raising effort is sharpest below the default, where upstream
-scopes it: "most relevant if you selected an effort level below the model's default"
-([choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code),
-verified 2026-08-04).
+**Neither knob is the first move.** The Brief this skill produces **is** the context fix, so it
+recommends a knob only for a miss a sharper Brief would not have caught. To choose between the
+two knobs it starts from the post's model-versus-effort heuristic (correlate link below) and
+treats it as a default, not a rule.
 
-A post is cited here for doctrine, not only for the live values below, and the harness
-docs authorize it outright: `model-config` delegates this guidance to the post with "For
-guidance on which model and effort level fit different kinds of work, see [the post]
-on the blog"
-([model configuration](https://code.claude.com/docs/en/model-config), verified
-2026-08-04). What no reference page states is the try-versus-know **diagnostic**
-itself. The nearest sentences discriminate something else: [choosing a
-model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) orders
-the levers with "Tuning effort is often a better lever than switching models", and the
-effort page's "raise effort rather than prompting around it" pairs effort against
-*prompting*. Ordering a lever is not diagnosing which failure you have, so the post
-owns the diagnostic rather than corroborating a page that states it.
+- **Pointer**: for which model and effort level fit which work, see
+  <https://code.claude.com/docs/en/model-config#choose-an-effort-level> and
+  <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#choose-the-best-model-to-start-with>
+  (correlate with [choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code),
+  which the model-config page links for this guidance).
+- **As of**: 2026-08-04
+- **Recheck trigger**: either page changes how it orders model against effort, or the
+  model-config page stops linking the post for this guidance.
+
+No docs page states the heuristic itself as of 2026-10-01; the pages above only order the levers.
+Recheck trigger for the heuristic: a docs page starts covering it.
 
 ## Advisor pairing
 
-A faster main model running **without** a stronger advisor is not the recommended
-configuration for non-trivial work: the documented efficiency pairing is a faster
-main model that escalates planning, ambiguous failures, and completion checks to a
-stronger advisor, rather than paying for the stronger model on every routine turn.
+For non-trivial work this skill does not recommend a faster main model running
+**without** a stronger advisor: it recommends the faster main model paired with a
+stronger advisor that the main model escalates hard decisions to, rather than paying
+for the stronger model on every routine turn (for when the advisor is consulted, see
+<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>).
 The concrete tier names that fill this **faster-main + stronger-advisor** shape are
 exactly the values that drift between versions, and which specific pairings are
 accepted drifts with them. Source them live (below), never pin them here: the durable
@@ -87,9 +77,9 @@ it degrades.
 Primary sources, fetched once when you form the recommendation (not per round):
 
 - `https://code.claude.com/docs/en/model-config`: model aliases and the effort setting
-- `https://claude.com/blog/claude-model-and-effort-level-in-claude-code`: which model and effort fit which work
+- `https://claude.com/blog/claude-model-and-effort-level-in-claude-code`: correlate only, for which model and effort fit which work
 - `https://code.claude.com/docs/en/advisor`: advisor enablement and accepted main+advisor pairings
-- `https://claude.com/blog/the-advisor-strategy`: why a faster main + stronger advisor works
+- `https://claude.com/blog/the-advisor-strategy`: correlate only, for why a faster main + stronger advisor works
 
 **Fetch failure degrades, never halts.** The recommendation is an auxiliary output, so
 a doc-fetch failure must not block the interview or the Brief. Fall back to the
@@ -100,25 +90,26 @@ one, and never a guessed-from-memory model name.
 
 ## Advisory framing: effort is readable, advisor state is not
 
-The skill knows its own main model, stated in the system prompt. Effort is readable too:
-`${CLAUDE_EFFORT}` substitutes the current level into a skill body, and `CLAUDE_EFFORT` is set in
-Bash tool subprocesses and hook commands to the level in effect when the subprocess starts. Both
-report `low`, `medium`, `high`, `xhigh`, or `max`, and both are set only when the current model
-supports the effort parameter, so an absent value means unsupported rather than unset. Whether an
-advisor is configured has no such surface: the documentation gives commands and settings for
-choosing one and an environment variable for disabling the tool, and none for reading the current
-selection back.
+The skill knows its own main model, stated in the system prompt. It reads effort from
+`${CLAUDE_EFFORT}` in its body, or from `CLAUDE_EFFORT` in a Bash subprocess, and treats an absent
+value as a model without effort support rather than an unset level. It knows of no surface that
+reads the configured advisor back, so it treats advisor state as unknown.
+
+- **Pointer**: for the effort values, see
+  <https://code.claude.com/docs/en/skills#available-string-substitutions> and
+  <https://code.claude.com/docs/en/env-vars#variables>; for choosing and disabling the advisor,
+  see <https://code.claude.com/docs/en/advisor#enable-the-advisor> and
+  <https://code.claude.com/docs/en/advisor#turn-the-advisor-off>.
+- **As of**: 2026-09-06
+- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, a surface for
+  reading the configured advisor appears on the advisor or environment-variables page, or a
+  release note names either.
 
 So split the framing. Where effort is readable, say what it is and recommend from there. Where
 advisor state is not, frame the recommendation as a delta the user applies rather than a fact about
 their current state: "if you are not already on X, consider it," plus how to apply it, `/model` for
 the model, the effort setting for effort, `/advisor` for the advisor. Do not instruct a capability
 that does not exist, and do not carry the old blanket claim that neither is readable.
-
-Verified 2026-09-06 against Claude Code 2.1.263 and the skills, environment-variables, and advisor
-documentation pages as fetched that day. Recheck when the skills page drops the `${CLAUDE_EFFORT}`
-substitution row, when a surface for reading the configured advisor appears on the advisor or
-environment-variables page, or when a release note names either.
 
 ## Both domains
 

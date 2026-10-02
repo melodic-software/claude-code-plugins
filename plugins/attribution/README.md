@@ -11,9 +11,9 @@ signing, or SLSA.
 
 A copied paragraph starts accurate and silently stops being accurate the next time the upstream
 page changes. Nothing in the repository records that it drifted. Citing the source and fetching
-it at read time removes the drift risk entirely; where a surface must restate a volatile
-specific to function, a four-part stamped record (claim, basis URL, as-of date, recheck trigger)
-keeps the restatement honest and re-checkable.
+it at read time removes the drift risk entirely; where a surface must act on a volatile specific
+without the source, a stamped record (the surface's own decision in its own words, a pointer, an
+as-of date, a recheck trigger) keeps it honest and re-checkable without copying the source.
 
 ## Skills
 
@@ -68,11 +68,14 @@ own line, and the closing marker is required:
 An existing `provenance:source` fence is still recognized: the breadcrumb extractor reads any
 URL-carrying HTML comment fence and matches no marker name.
 
-A stamped record is prose, not a marker, and carries all four parts:
+A stamped record is prose, not a marker. It states the surface's own decision and stores no
+source text:
 
 ```markdown
-The runner accepts three values (per https://example.com/docs/page, as of 2026-08-27;
-recheck when the CLI's major version changes).
+The pipeline passes `--mode strict` to the runner.
+- **Pointer**: for the runner's accepted modes, see https://example.com/docs/page#modes.
+- **As of**: 2026-08-27
+- **Recheck trigger**: the CLI's major version changes.
 ```
 
 There is no per-instance suppression marker, deliberately. Allowances are categorical: vendored
@@ -147,7 +150,7 @@ a conforming stamped record, plus finding the authoritative source and condensin
   `code-tidying:audit-comment-residue`.
 - The stamped-record format and the fetch route are owned by the upstream-drift convention. This
   plugin implements checks against them and carries an operational restatement in
-  `skills/audit/reference/source-fetch.md` as a four-part record citing that convention, because
+  `skills/audit/reference/source-fetch.md` as a stamped record citing that convention, because
   the plugin ships to consumers who do not have that repository.
 
 ## Untrusted content
