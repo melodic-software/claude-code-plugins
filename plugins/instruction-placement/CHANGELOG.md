@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.12] - 2026-10-01
+## [0.16.13] - 2026-10-01
 
 ### Changed
 
@@ -18,6 +18,13 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   usage.
 - `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
   page's workaround section.
+
+## [0.16.12] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.16.11] - 2026-10-01
 

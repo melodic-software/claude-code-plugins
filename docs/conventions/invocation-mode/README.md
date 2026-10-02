@@ -70,7 +70,7 @@ reasons, each measured rather than assumed:
 - **At least five candidates are operative Skill-tool targets, so a flip breaks live chains.**
   Examples: `docs-hygiene:audit-encapsulation` from `extract-ssot`,
   `docs-hygiene:audit-progressive-disclosure` from `instruction-placement:migrate` and
-  `docs-hygiene:write-for-agents`, and `claude-ops:audit-native-overlap` from `education:eli5`.
+  `docs-hygiene:write-for-agents`, and `harness-ops:audit-native-overlap` from `education:eli5`.
   The invocation-reach invariant below makes each of those unreachable under `true`.
 
 `/skill-doctor` ("flags skills in the listing that have never been invoked and says where to turn
@@ -205,7 +205,7 @@ Upstream's router pattern, a model-invoked skill whose job is routing the agent 
 skills, is rejected for this fleet: under the model-invoked default, the always-in-context
 listing already does that job, and this fleet's `true` set is *deliberately* model-invisible, so
 a router reaching into it would defeat the exception classes. The human-side cognitive-load
-problem is answered by `docs/skill-cheat-sheet.md` and `claude-ops:inventory`.
+problem is answered by `docs/skill-cheat-sheet.md` and `harness-ops:inventory`.
 **Carve-out:** domain-scoped *composition* routers (`discipline:sweep-all`, whose membership is
 derived from corrector metadata) are a distinct, admitted pattern; they compose model-invoked skills
 rather than recovering discoverability for hidden ones.
@@ -221,8 +221,8 @@ setup skills are class (ii) by contract; the 141
 
 | Skill | Class | Verdict |
 |---|---|---|
-| `claude-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` |
-| `claude-ops:plugins` | (i) mutating fleet sync | KEEP `true` |
+| `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` |
+| `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
 | `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` |
 | `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
@@ -267,7 +267,7 @@ listing omitting every `true` skill and dropping ~82% of descriptions least-invo
 the whole reason this skill resolves from the installed catalog instead. The second turns on
 *naming* versus *reaching*: `show-options` renders a menu and explicitly does not execute what the
 human picks, and both surfaces the router verdict itself blesses as the answer to the human-side
-problem, `docs/skill-cheat-sheet.md` and `claude-ops:inventory` (itself `false`), already name the
+problem, `docs/skill-cheat-sheet.md` and `harness-ops:inventory` (itself `false`), already name the
 `true` set to a human from a model-reachable surface. Naming hidden skills to a human is settled
 practice in this fleet; only the agent invoking them is what the exception classes forbid. Nor is it
 the composition-router carve-out, which composes model-invoked skills rather than surfacing hidden
@@ -319,7 +319,7 @@ name-only visibility, not description matching. That floor is still strictly abo
 sat: `disable-model-invocation: true` removes the skill from context *entirely*, name included,
 and blocks cross-skill reach and subagent preload, whereas a name-only entry is listed,
 model-invocable, and chainable. Whether any given description survives the aggregate is a
-fleet-wide budget question, owned by `claude-ops:audit-skill-visibility` and measured by the
+fleet-wide budget question, owned by `harness-ops:audit-skill-visibility` and measured by the
 instrument above; it is not a reason to hide a skill, which the default section forecloses in
 terms ("hiding a skill from the model is a *total* trade, not a listing-budget optimization").
 

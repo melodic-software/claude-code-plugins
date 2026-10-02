@@ -698,7 +698,7 @@ class MypyReportModuleNameTests(unittest.TestCase):
             base = os.path.normcase(os.path.realpath(tmp))
             for rel in (
                 "plugins/perf/lib/x.py",
-                "claude-ops/lib/x.py",
+                "harness-ops/lib/x.py",
                 "pkg/sub/__init__.py",
                 "pkg/sub/c.pyi",
                 "top.py",
@@ -712,7 +712,7 @@ class MypyReportModuleNameTests(unittest.TestCase):
                 # every directory up to the base is an identifier: the dotted path
                 "plugins/perf/lib/x.py": "plugins.perf.lib.x",
                 # the walk stops at a non-identifier directory: the stem alone
-                "claude-ops/lib/x.py": "x",
+                "harness-ops/lib/x.py": "x",
                 # a package names its directory; a stub keeps its stem
                 "pkg/sub/__init__.py": "pkg.sub",
                 "pkg/sub/c.pyi": "pkg.sub.c",

@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.1] - 2026-10-01
+## [0.59.2] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
   wording kept, and its record says no docs page states it, with the trigger "a docs page starts
   covering it".
+
+## [0.59.1] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.59.0] - 2026-10-01
 

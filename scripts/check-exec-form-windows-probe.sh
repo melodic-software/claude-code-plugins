@@ -42,7 +42,7 @@
 #
 # The record behind this probe is "Windows exec-form probe" in
 # docs/plugin-philosophy.md, and Category D of
-# plugins/claude-config/skills/audit/reference/audit-checklist.md.
+# plugins/harness-config/skills/audit/reference/audit-checklist.md.
 #
 # Exit 0 clean, 1 findings (including a reproduced args-drop), 2 environment or
 # usage. Findings on stderr; the clean statement and SKIP lines on stdout

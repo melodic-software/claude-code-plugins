@@ -71,7 +71,7 @@ Claude can also invoke them when you ask to "audit MCP tools" or "is it safe to 
 - Does not print `env` or `headers` values from your configuration.
 - Does not test tool functionality. Use the MCP Inspector for that.
 - Does not evaluate MCP resources. Only tools.
-- Does not check whether MCP configuration is correct or enabled. `/claude-config:audit` does that.
+- Does not check whether MCP configuration is correct or enabled. `/harness-config:audit` does that.
 
 ## Requirements
 

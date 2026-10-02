@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Hand-rolled harness: prints the total for one order and checks nothing.
+set -uo pipefail
+# shellcheck source=../shop/total.sh
+source "$(dirname "$0")/../shop/total.sh"
+order_total_cents 50

@@ -6,7 +6,7 @@ worth checking again.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `recap` is a built-in command described as "Generate a one-line session recap now", with no argument hint and no alias | The `/claude-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.recap`) | 2026-09-29 | A release renames or removes `recap`, or changes its description |
+| `recap` is a built-in command described as "Generate a one-line session recap now", with no argument hint and no alias | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.recap`) | 2026-09-29 | A release renames or removes `recap`, or changes its description |
 | It is user-invocable and not model-invocable, and it is not gated behind a setting | Same extraction: `user_invocable: true`, `model_invocable: false`, `gated: false` | 2026-09-29 | A release changes its invocability or adds a gate |
 | The commands page describes it as "Generate a one-line summary of the current session on demand" and points to the automatic session recap shown after you have been away | The `/recap` row on <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes or disappears |
 | The recap feature and manual `/recap` arrived together, configurable in `/config` | Claude Code changelog, 2.1.108 ("Added recap feature ... manually invocable with `/recap`") | 2026-09-29 | A release note changes what `/recap` summarizes |

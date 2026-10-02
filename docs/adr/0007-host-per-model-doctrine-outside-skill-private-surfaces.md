@@ -102,7 +102,7 @@ relocates.
 **Scope of the encapsulation cure, stated precisely.** ADR-0006 carries **three** live private-surface
 cites. This record cures **one**: `:41-42`, into `fable-5`, which the rehost dissolves by moving the
 target out of a skill. The other two survive untouched: `:48` into
-`plugins/claude-config/skills/audit-instructions/reference/criteria.md` and `:58` into
+`plugins/harness-config/skills/audit-instructions/reference/criteria.md` and `:58` into
 `plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md`. Both reach skills
 unrelated to `fable-5`, neither is this decision's to fix, and any claim that this record cures "the"
 encapsulation defect is falsifiable by grep. Their existence is evidence that ADR path-citing is a

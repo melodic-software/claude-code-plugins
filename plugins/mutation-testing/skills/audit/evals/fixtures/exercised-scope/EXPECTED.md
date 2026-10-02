@@ -78,6 +78,21 @@ The test has an assertion, so a triage without the tie-break could call these `i
 expected side calls the mutated function, so each is `unclassified` and names the judge rule
 `testing/judge/rule-restated-expectation`. None is `input-gap`.
 
+## Record and replay over `boundary`
+
+Recording `--exercised scenarios/boundary --record-mutants <before>` writes M1-M4 with the states in
+the `boundary` table: K0 is 3 (M1, M3, M4). Deleting the test's `assertEqual` line and replaying
+`<before>` turns M1, M3 and M4 to survived, so K1 is 0 and the gate blocks:
+
+```text
+newly-surviving app.py:7 comparison-inversion
+newly-surviving app.py:9 statement-removal
+newly-surviving app.py:10 statement-removal
+K0 3 K1 0
+```
+
+M2 survived both runs and is not newly surviving.
+
 ## Every report
 
 - The scope line reads `Scope: exercised, changed tests as one set` (or `tests under <test-path>`

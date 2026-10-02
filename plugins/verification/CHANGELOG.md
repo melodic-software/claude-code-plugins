@@ -22,6 +22,13 @@ All notable changes to the `verification` plugin are documented here. Format fol
 - `confirm` pins `effort: high` in its frontmatter, and its outcome report states the effort level
   the run used.
 
+## [0.6.15] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.6.14] - 2026-10-01
 
 ### Changed

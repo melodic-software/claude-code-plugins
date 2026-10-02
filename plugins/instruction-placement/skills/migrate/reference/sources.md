@@ -331,7 +331,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
 - **Read at run time, not recorded here**: that the binary registers the plugin as
   `cc-plugin-agents-md` with alias `agents-md`, whether the loader requires it in this session
   type, its availability gate and the gate's default, and whether it declares any skill, agent or
-  command. No upstream page states them. Read them from `/claude-ops:inventory`'s `builtin_plugins`
+  command. No upstream page states them. Read them from `/harness-ops:inventory`'s `builtin_plugins`
   lane (`builtin_plugins.cc-plugin-agents-md`: `aliases`, `load`, `gated`, `gate_flags`, `skills`,
   `agents`, `commands`) on the build in hand.
 - **As of**: 2026-10-01, Claude Code 2.1.287.

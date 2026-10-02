@@ -314,8 +314,8 @@ as a boundary (Pointer: for why such patterns are unreliable, see
 [permissions: Bash](https://code.claude.com/docs/en/permissions#bash).
 As of: 2026-10-01. Recheck trigger: the permissions page documents argument matching that holds).
 A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
-operator's sandbox configuration, detailed and dated in the `claude-config` audit's
-[`required-permissions.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/claude-config/skills/audit/reference/required-permissions.md)
+operator's sandbox configuration, detailed and dated in the `harness-config` audit's
+[`required-permissions.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-config/skills/audit/reference/required-permissions.md)
 (a URL, because a marketplace install of `discovery` does not carry that plugin's files). A token held in an
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for

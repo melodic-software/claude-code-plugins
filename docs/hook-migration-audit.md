@@ -1,7 +1,7 @@
 # General-purpose hook migration audit
 
 Point-in-time audit of the **general-purpose** subset of `melodic-software/medley`'s in-repo hooks
-for extraction into this marketplace's hook plugins (`guardrails`, `claude-ops`). This is an **audit
+for extraction into this marketplace's hook plugins (`guardrails`, `harness-ops`). This is an **audit
 snapshot**, not durable policy. The [migration playbook](migration-playbook.md) is the policy; this
 table records each candidate's gate compliance on the audit date and which follow-up issue owns each
 accepted migration. Empirical claims decay: a row is only true as of the stamp below.
@@ -17,7 +17,7 @@ conventions: the [four-seam extensibility contract](migration-playbook.md), the
 
 Medley wires ~38 hooks via `${CLAUDE_PROJECT_DIR}/.claude/hooks/`. This audit grades **only the
 general-purpose subset** the wave-2 map nominated: guardrail hooks (target: `guardrails`) and
-telemetry/observability hooks (target: `claude-ops`). The remaining hooks are **out of scope by
+telemetry/observability hooks (target: `harness-ops`). The remaining hooks are **out of scope by
 nature**: the .NET-toolchain hooks (`block-dotnet-test-nologo`, `msbuild-introspect`,
 `nuget-pack-prep`, `publicapi-diff`, `sarif-diagnostics`, `dependency-*`) and the worktree/branch
 hooks (`branch-awareness`, `branch-protection`, `git-safety`, `worktree-*`, `onboard-drift`,
@@ -60,8 +60,8 @@ store (`skill-usage.jsonl`), which does not flow through the envelope.
   `cc-telemetry-ensure`, `session-reinjection`. Each stays in medley with an explicit revisit
   trigger (below). None is a clean generalization; each de-couples into a *different* parameterized
   tool or is consumer-owned infrastructure by design.
-- **Systemic gap surfaced: the generic sink.** Once the `*-audit` producers ship in `claude-ops`
-  emitting envelopes, they are inert without a consumer sink, and `claude-ops` ships none (medley's
+- **Systemic gap surfaced: the generic sink.** Once the `*-audit` producers ship in `harness-ops`
+  emitting envelopes, they are inert without a consumer sink, and `harness-ops` ships none (medley's
   `hook-telemetry-sink` is repo-owned by design). Recorded below.
 
 ## Guardrails candidates (3)
@@ -77,17 +77,17 @@ Both accepts cover **distinct** surfaces from the shipped `block-no-verify` (git
 Write/Edit gates; `workflow-resilience-check` is a `Workflow`-tool burst-resilience advisory. Zero
 coverage overlap.
 
-## claude-ops candidates (10)
+## harness-ops candidates (10)
 
 | Hook | Seam-clean | Kill-switch | Telemetry seam | Shared lib | Contract test | Target + verdict |
 |---|---|---|---|---|---|---|
-| `api-error-audit` | yes | `HOOK_API_ERROR_AUDIT_ENABLED` | **rewire** to envelope (today: direct store-write) | yes | yes | **claude-ops → ACCEPT** |
-| `config-change-audit` | yes | `HOOK_CONFIG_CHANGE_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **claude-ops → ACCEPT** |
-| `instructions-loaded-audit` | yes (carries an extra `…_LOG_SESSION_START` knob) | `HOOK_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **claude-ops → ACCEPT** |
-| `permission-denied-audit` | yes (privacy-safe `Bash:<first-token>` subject) | `HOOK_PERMISSION_DENIED_AUDIT_ENABLED` | **rewire** to envelope (`status=blocked`) | yes | yes | **claude-ops → ACCEPT** |
-| `pre-compact-audit` | yes | `HOOK_PRE_COMPACT_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **claude-ops → ACCEPT** |
-| `tool-failure-audit` | yes (twin of permission-denied; privacy-safe subject) | `HOOK_TOOL_FAILURE_AUDIT_ENABLED` | **rewire** to envelope (`status=error`) | yes | yes | **claude-ops → ACCEPT** |
-| `skill-usage-audit` | **outlier**: writes a bespoke second store `${repo}/.claude/observability/skill-usage.jsonl` via inline `flock`, in addition to the shared JSONL | `HOOK_SKILL_USAGE_AUDIT_ENABLED` | **rewire** to envelope **+ a `directory` `userConfig` seam** for the second store | yes | yes | **claude-ops → ACCEPT** (extra seam) |
+| `api-error-audit` | yes | `HOOK_API_ERROR_AUDIT_ENABLED` | **rewire** to envelope (today: direct store-write) | yes | yes | **harness-ops → ACCEPT** |
+| `config-change-audit` | yes | `HOOK_CONFIG_CHANGE_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **harness-ops → ACCEPT** |
+| `instructions-loaded-audit` | yes (carries an extra `…_LOG_SESSION_START` knob) | `HOOK_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **harness-ops → ACCEPT** |
+| `permission-denied-audit` | yes (privacy-safe `Bash:<first-token>` subject) | `HOOK_PERMISSION_DENIED_AUDIT_ENABLED` | **rewire** to envelope (`status=blocked`) | yes | yes | **harness-ops → ACCEPT** |
+| `pre-compact-audit` | yes | `HOOK_PRE_COMPACT_AUDIT_ENABLED` | **rewire** to envelope | yes | yes | **harness-ops → ACCEPT** |
+| `tool-failure-audit` | yes (twin of permission-denied; privacy-safe subject) | `HOOK_TOOL_FAILURE_AUDIT_ENABLED` | **rewire** to envelope (`status=error`) | yes | yes | **harness-ops → ACCEPT** |
+| `skill-usage-audit` | **outlier**: writes a bespoke second store `${repo}/.claude/observability/skill-usage.jsonl` via inline `flock`, in addition to the shared JSONL | `HOOK_SKILL_USAGE_AUDIT_ENABLED` | **rewire** to envelope **+ a `directory` `userConfig` seam** for the second store | yes | yes | **harness-ops → ACCEPT** (extra seam) |
 | `hook-telemetry-sink` | n/a: this **is** the consumer sink (`HOOK_TELEMETRY_SINK` target), the envelope→JSONL adapter | ABSENT (governed by master `HOOK_OBSERVABILITY_LOG_ENABLED`) | n/a (terminus, not producer) | yes | yes | **DEFER, consumer-owned by design** |
 | `cc-telemetry-ensure` | **no**: hardcodes `tools/observability/start-collector.sh`/`start-dashboard.sh`, DuckDB view names, Aspire ports/URL, medley slash-commands | `HOOK_CC_TELEMETRY_ENSURE_ENABLED` | n/a | yes | yes | **DEFER, repo-owned** |
 | `session-reinjection` | **no**: payload is 100% medley content (rule paths, `PLAT001-PLAT015`, `Result<T>`, `BannedSymbols.txt`); not telemetry (only an incidental completion event) | `HOOK_SESSION_REINJECTION_ENABLED` | n/a | yes | yes | **DEFER, repo-owned** |
@@ -116,8 +116,8 @@ parameterized tool or are consumer-owned by design.
   sink script as the bridge, both say stays consumer-owned. It maps the envelope into medley's own store; it is
   not a producer to migrate. **Revisit trigger:** see the generic-sink gap below.
 - **`cc-telemetry-ensure`**: medley OTEL-pipeline enablement, bound to `tools/observability/*`
-  collector/dashboard scripts, DuckDB view names, and Aspire ports. `claude-ops` already owns
-  collector-lifecycle scripts on the *read* side. **Revisit trigger:** `claude-ops` grows a
+  collector/dashboard scripts, DuckDB view names, and Aspire ports. `harness-ops` already owns
+  collector-lifecycle scripts on the *read* side. **Revisit trigger:** `harness-ops` grows a
   SessionStart ensure-hook that drives **its own** bundled collector scripts through a store/collector
   `userConfig` seam.
 - **`session-reinjection`**: post-compaction context reinjection whose entire payload is
@@ -127,21 +127,21 @@ parameterized tool or are consumer-owned by design.
 
 ## Systemic gap: the generic sink
 
-Migrating the `*-audit` producers to `claude-ops` completes only the **producer** half of the
-telemetry contract. A fresh `claude-ops` consumer that enables the audit hooks emits envelopes into
-the void: `claude-ops` ships no sink, and medley's `hook-telemetry-sink` is repo-owned by design.
+Migrating the `*-audit` producers to `harness-ops` completes only the **producer** half of the
+telemetry contract. A fresh `harness-ops` consumer that enables the audit hooks emits envelopes into
+the void: `harness-ops` ships no sink, and medley's `hook-telemetry-sink` is repo-owned by design.
 This cuts against the playbook's "drop into any repo and work" intent. Keeping medley's sink
 repo-owned is correct (per the mediator boundary); the gap is the **absence of a generic reference
 sink**. Two candidate resolutions, to settle when the `*-audit` retrofit is scheduled:
 
-1. `claude-ops` ships a reference sink (envelope→`${project}/.claude/observability/hook-events.jsonl`,
+1. `harness-ops` ships a reference sink (envelope→`${project}/.claude/observability/hook-events.jsonl`,
    the shape its observability skill already reads) that a consumer wires via `HOOK_TELEMETRY_SINK`.
 2. The `*-audit` retrofit issue documents the sink-wiring requirement as a consumer setup step, and
    the sink stays consumer-authored.
 
 Recommendation (1): a reference sink closes the loop and is the observability skill's natural
 counterpart. The `*-audit` retrofit issue carries this decision; it also coordinates with the
-`claude-ops` setup-action retrofit (`melodic-software/medley#1432`).
+`harness-ops` setup-action retrofit (`melodic-software/medley#1432`).
 
 ## Net-new retrofit issues emitted
 
@@ -153,4 +153,4 @@ of each in-repo original follows on its own once the plugin hook ships and is ve
 | Group | Scope | Issue |
 |---|---|---|
 | guardrails hooks | Add `block-hook-bypass` + `workflow-resilience-check` (two independent, atomic PRs): bundle `hook-utils.sh`, de-couple per the table, rewire `block-hook-bypass` telemetry to the envelope, ship `.test.sh` | `melodic-software/medley#1445` |
-| claude-ops `*-audit` family | Migrate the seven-hook emitter family as one bulk unit: rewire the direct store-write to the `HOOK_TELEMETRY_SINK` envelope, add per-hook `data` schemas, add `skill-usage-audit`'s second-store `directory` seam, settle the generic-sink gap | `melodic-software/medley#1446` |
+| harness-ops `*-audit` family | Migrate the seven-hook emitter family as one bulk unit: rewire the direct store-write to the `HOOK_TELEMETRY_SINK` envelope, add per-hook `data` schemas, add `skill-usage-audit`'s second-store `directory` seam, settle the generic-sink gap | `melodic-software/medley#1446` |

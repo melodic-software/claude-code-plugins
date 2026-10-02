@@ -87,7 +87,7 @@ this list and the matrix; it does not fork a private convention.
   block can neither mint a valid id nor clobber a configured one (fact 4: injection wins for
   configured keys). Shipped exemplar: the
   autonomy lane-stop gate's arm helper, `plugins/autonomy/hooks/lane-stop-gate-arm.sh`, armed by the
-  claude-ops lane launcher (see autonomy's `[0.12.0]`
+  harness-ops lane launcher (see autonomy's `[0.12.0]`
   [CHANGELOG entry](../../../plugins/autonomy/CHANGELOG.md) for the trust analysis and residuals).
 
 ## The matrix
@@ -156,8 +156,8 @@ Conformance is tracked as it exists on `main`, per the
 | Surface | Channel | Status |
 |---|---|---|
 | disk-hygiene kill switch (`disk_hygiene_enabled`), both guard surfaces | F (shared reader `lib/killswitch_config.py`) | conforms (0.9.0, #1242; closed #1019) |
-| autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the claude-ops lane launcher) | conforms (0.12.0, #1784) |
-| claude-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
+| autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the harness-ops lane launcher) | conforms (0.12.0, #1784) |
+| harness-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the
 authority it points to.

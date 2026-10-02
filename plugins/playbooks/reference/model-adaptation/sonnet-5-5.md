@@ -78,7 +78,7 @@ Trigger: before you plan how many subagents a run may spawn, read Claude Code's 
 the pointers. `[CC: direct]`
 
 - **Pointer**: for the posture, see
-  [P12: No self-started review rounds at xhigh or max effort](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/claude-config/skills/audit-prompting-postures/reference/postures.md#p12-no-self-started-review-rounds-at-xhigh-or-max-effort);
+  [P12: No self-started review rounds at xhigh or max effort](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-config/skills/audit-prompting-postures/reference/postures.md#p12-no-self-started-review-rounds-at-xhigh-or-max-effort);
   for the guide, see
   [Steer initiative and scope](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#steer-initiative-and-scope);
   for Claude Code's limits, see

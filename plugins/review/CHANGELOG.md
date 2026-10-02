@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.7] - 2026-10-01
+## [0.34.8] - 2026-10-01
 
 ### Changed
 
@@ -17,6 +17,13 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`ci-log-auditor` and `doc-drift-detector` pin `effort: high`**: verification work where edge
   cases are likely. `ci-log-auditor`'s GitHub API and `gh` pagination notes point at the live docs
   and the recorded probe instead of restating them.
+
+## [0.34.7] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.34.6] - 2026-10-01
 

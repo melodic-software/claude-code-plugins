@@ -3,7 +3,7 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.6] - 2026-10-01
+## [0.5.7] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,13 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
   and carry none of the page's wording.
 - **The tool-design source now points at the Define tools best-practices section.** The `audit`
   skill and README cite that section as the pointer and keep the engineering post as a correlate.
+
+## [0.5.6] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.5.5] - 2026-09-29
 

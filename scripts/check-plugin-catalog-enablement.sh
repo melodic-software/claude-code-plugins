@@ -30,7 +30,7 @@
 # stops with exit 2 and names both overrides below rather than skipping. A
 # visible skip would still read as a pass in the lane that runs this.
 #
-# NOT COVERED ELSEWHERE. plugins/claude-config/skills/audit/scripts/
+# NOT COVERED ELSEWHERE. plugins/harness-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos. It reads this
 # repo's catalog too (a relative `directory` source), but it diffs the catalog
 # only against the `enabledPlugins` keys of one settings file, reports a plugin

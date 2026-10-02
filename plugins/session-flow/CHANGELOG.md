@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.44.2] - 2026-10-01
+## [0.44.3] - 2026-10-01
 
 ### Changed
 
@@ -17,6 +17,13 @@
 - `orchestrate`'s delegation, spawn-spec and run-workers imperatives state our rules in our words:
   the multi-agent post's brief elements and research multiplier sit behind a correlate note, and
   the dispatch and reason guidance points at the Fable 5 guide's sections.
+
+## [0.44.2] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.44.1] - 2026-10-01
 

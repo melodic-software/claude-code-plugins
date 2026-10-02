@@ -155,7 +155,7 @@ merge:
    the channel "a client-side control, not a security boundary"), so an org vetoing via the server
    channel must also deliver an endpoint `managed-settings.json` to veto lanes (the gate reads that
    file directly; Claude Code itself ignores endpoint sources when server keys arrive).
-2. **The per-session arm record**, the `claude-ops` lane launcher arms a lane at launch: give the
+2. **The per-session arm record**, the `harness-ops` lane launcher arms a lane at launch: give the
    lane a `settings` object requesting the gate in its lanes-config entry (see that skill's
    `context/config.md`), and the launcher runs this plugin's `hooks/lane-stop-gate-arm.sh` (writing
    a record under the plugin's own install-derived data directory) and injects the random record id
@@ -244,7 +244,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the claude-ops lane launcher instead. The env mirror is never authority (#1784). |
+| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF, because a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the harness-ops lane launcher instead. The env mirror is never authority (#1784). |
 | `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Matched only when alone on its own line. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
 | `lane_stop_gate_marker` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER` | Optional path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty disables the file signal. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
 | `lane_stop_gate_arm_id` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID` | Written by the lane launcher at launch: names this session's arm record in the plugin's own data directory (hooks/lane-stop-gate-arm.sh). A capability pointer, never authority by itself: the gate validates it, honors only a record in its install-derived store, and binds it to the first presenting session. Not set by hand. |

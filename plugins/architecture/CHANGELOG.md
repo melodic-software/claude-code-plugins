@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.4] - 2026-10-01
+## [0.17.5] - 2026-10-01
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   the README content is treated as CC BY-NC-SA 4.0 and each bundled template as carrying its own
   license, and the skill names the license when it declines to paste. The record points at the
   repository's `LICENSE.md` and stores none of its text.
+
+## [0.17.4] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.17.3] - 2026-10-01
 

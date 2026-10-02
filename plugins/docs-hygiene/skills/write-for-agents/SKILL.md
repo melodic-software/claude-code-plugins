@@ -72,7 +72,7 @@ text alone, without opening the target.
 - A pointer that exists only because changes must be mirrored across distant folders can mask a
   cohesion problem. Before adding it, consider restructuring so the things that change together
   live together, a pointer papering over low cohesion outlives the reorganization that would
-  have removed it. (Audit-side remediation home: `claude-memory:audit`'s C5 fix guidance, if
+  have removed it. (Audit-side remediation home: `harness-memory:audit`'s C5 fix guidance, if
   that plugin is installed.)
 
 The full pointer-quality criteria are owned by the sibling audit skill. Invoke
@@ -136,7 +136,7 @@ negative: name the specific styles to leave out ("no cream background, no pill-s
 since "avoid a generic look" swaps one default for another.
 
 Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
-so follow `/claude-config:audit-instructions` criterion I8-f for the model the text will run on:
+so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on:
 it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
 a lower effort level first, "Answer directly." second. A line telling the model to think less or
 not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce

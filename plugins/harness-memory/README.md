@@ -1,0 +1,98 @@
+# harness-memory
+
+A Claude Code plugin that keeps a repo's Claude Code memory layer healthy and under your control.
+It ships two skills:
+
+| Skill | Question it answers |
+|---|---|
+| `/harness-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, a root `AGENTS.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
+| `/harness-memory:stateless` | Is Claude's auto memory on, where does it live, and how do I turn it off or wipe it? |
+
+The two skills split by axis: `audit` checks the health of the instruction/memory layer; `stateless`
+controls the on/off state and contents of the Claude-written auto-memory store. The configuration
+FILES, automation SET, and permission GRANTS are audited by the sibling skills in the separate
+`harness-config` plugin (`audit`, `audit-automation-gaps`, `audit-permission-grants`).
+
+Boundary: this plugin owns the health of `CLAUDE.md`, `AGENTS.md`, `CLAUDE.local.md`,
+`.claude/rules/` and auto-memory (structure, size, placement, index integrity);
+`/harness-config:audit-instructions` judges whether instruction text across those files and
+skills, agents and hooks still fits the current model, and runs no memory-file hygiene checks.
+
+## What the skills do
+
+### audit
+
+Audits the files you write that shape Claude's behavior against a codified checklist derived from
+official Claude Code documentation (line budgets, deletion test, content placement, consistency,
+currency, auto-memory index integrity). A deterministic spine yields identical findings on identical
+repo state: the line budget counts a file with its `@` imports expanded, the way the loader does; a
+nested `AGENTS.md` that a `CLAUDE.md` on its own path displaces, with no `CLAUDE.md` importing it,
+is reported as a file that never loads;
+the MEMORY.md index and orphan always-loaded rules are script-checked; and each finding on a
+standards-synced file routes its fix upstream rather than proposing an edit the next sync overwrites.
+The context-cost line is a bytes-per-token estimate over the always-loaded set and says so.
+Judgment-tier checks apply fixed criteria with model reading. Reports persist to the plugin's data
+directory. They audit contributor-personal auto-memory, so they never land in the repo.
+
+Scope covers **both** layers that load every session: the project's `CLAUDE.md` (or the `AGENTS.md`
+and `.claude/AGENTS.md` read in its place) / `CLAUDE.local.md` / `.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
+`${CLAUDE_CONFIG_DIR:-~/.claude}/rules/`. Every discovered file is tagged with its scope, so
+project-scoped criteria skip personal files instead of reporting a repo-scoped finding against one.
+
+```shell
+/harness-memory:audit          # audit (default)
+/harness-memory:audit fix      # apply findings with per-item approval
+/harness-memory:audit update   # refresh criteria from current official docs
+/harness-memory:audit report   # show the last audit without re-running
+```
+
+### stateless
+
+Inspects and disables Claude Code **auto memory**, the notes Claude writes for itself per repo at
+`~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Scope is auto-memory
+only: the instruction layer (`CLAUDE.md`, a natively read `AGENTS.md`, `.claude/rules/`) belongs to
+`audit`, and transcripts /
+history are out of scope (Claude Code auto-cleans those via `cleanupPeriodDays`).
+
+```shell
+/harness-memory:stateless           # status (default) — effective on/off state + where the store lives
+/harness-memory:stateless disable   # autoMemoryEnabled:false + CLAUDE_CODE_DISABLE_AUTO_MEMORY (scope-confirmed)
+/harness-memory:stateless purge     # DESTRUCTIVE — delete auto-memory files after a confirmation gate
+```
+
+`disable` sets both the env var and the setting. The env var is authoritative and overrides
+`autoMemoryEnabled` per the env-vars doc; the setting is the persistent fallback. `purge` reads
+`autoMemoryDirectory` at every settings
+scope before it enumerates what to delete, shows a manifest, and deletes only after explicit
+confirmation. Claude Desktop / claude.ai
+account memory is a separate server-side store. The skill gives direction to the app's Settings →
+Memory controls rather than deleting it locally.
+
+## Consumer conventions
+
+The skill reads the consuming repo's own `CLAUDE.md` / `.claude/rules/` for project-specific
+instruction-layer policy: a team-shared-first codification rule, an always-loaded context-budget
+policy, or a documented exemption (e.g. a deliberate CLAUDE.md line-budget overage for a repo that runs
+a large rules layer). Such findings are surfaced under a `REPO` check-ID so they stay distinct from the
+doc-derived checks. Nothing project-specific is baked into the plugin.
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install harness-memory@melodic-software
+```
+
+## Configuration
+
+No `userConfig`. State: `audit` reports persist under the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
+They are contributor-local because they cover per-contributor auto-memory, so they never land in the
+consuming repo. Side effects: `stateless disable` edits a `settings.json` you choose (setting
+`autoMemoryEnabled` and an `env` var, then flagging a dotfile-manager backfill if the file is tracked);
+`stateless purge` deletes auto-memory `*.md` files after a confirmation gate. Both act only on the
+scope you confirm. Network: the `audit update` action fetches official docs pages (read-only). Scripts
+require `git` and standard shell utilities.
+
+## License
+
+MIT (SPDX-License-Identifier: MIT).

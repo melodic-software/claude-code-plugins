@@ -1,0 +1,151 @@
+{
+  "skill_name": "cleanup",
+  "evals": [
+    {
+      "id": "routing",
+      "prompt": "The audit flagged a bunch of useless tests in tests/. Can you clean them up?",
+      "expected_output": "Routes to /testing:cleanup shop_tests rather than /testing:audit (which only reports) or /testing:write (which authors new tests). States that one folder is one batch, that deletions wait for the user's yes on each item, and that a mutation gate runs before and after the edits.",
+      "files": []
+    },
+    {
+      "id": "cf_and_k_rewritten",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup.",
+      "expected_output": "Classifies test_price_is_consistent as row 2 (CF and K, citing REQUIREMENTS.md) and rewrites it in the working tree to assert price_with_tax(150) equals 162.0, taken from the REQUIREMENTS.md worked example rather than rebuilt from the constants in shop/pricing.py. Does not propose deleting it. The decision table lists the rewrite with its K citation.",
+      "files": [
+        "evals/fixtures/cleanup/shop/pricing.py",
+        "evals/fixtures/cleanup/shop/checkout.py",
+        "evals/fixtures/cleanup/REQUIREMENTS.md",
+        "evals/fixtures/cleanup/shop_tests/__init__.py",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "trivial_getter_waits",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup. Do not answer any approval question.",
+      "expected_output": "Proposes deleting test_product_name as row 4 with a positive no-contract statement: Product.name is a trivial getter returning its constructor argument (shop/pricing.py:17-19). Quotes the weak-oracle defect from the test text before acting on that report-only finding. Leaves the test in the file and marks the deletion as waiting for the user's yes. Commits nothing.",
+      "files": [
+        "evals/fixtures/cleanup/shop/pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "registry_contract_kept",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup.",
+      "expected_output": "Does not propose deleting test_heavy_parcel_fee even though a search finds no direct caller of ShippingHandler: the class is reached through the register(\"shipping\") registry and handle() (shop/handlers.py:12, shop/handlers.py:20-21). Keeps it (row 6), or rewrites it only with a fee a requirement states, because copying 15 from shop/handlers.py:16 is not an independent source. Never row 4.",
+      "files": [
+        "evals/fixtures/cleanup/shop/handlers.py",
+        "evals/fixtures/cleanup/shop_tests/test_handlers.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "bash_harness_rewrite_only",
+      "prompt": "Copy evals/fixtures/mutation-testing-bash.md over the fixture's .claude/mutation-testing.md and shop_scripts/total.test.sh.fixture to shop_scripts/total.test.sh, commit that on main, then run /testing:cleanup shop_scripts on branch feat/cleanup.",
+      "expected_output": "Treats shop_scripts/total.test.sh as a bash-harness file whose adapter has block_model: file. Proposes no deletion or merge for it. The zero-assertion finding gets a rewrite that checks order_total_cents 50 prints 6000 and exits non-zero otherwise, or the test is kept. The gate records and replays shop/total.sh mutants with test-command bash {tests}.",
+      "files": [
+        "evals/fixtures/mutation-testing-bash.md",
+        "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
+        "evals/fixtures/cleanup/shop/total.sh",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "flaky_quarantined_gate_passes",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup, on 2026-10-01. Do not answer any approval question.",
+      "expected_output": "Before the recording run, skips test_total_is_computed_quickly with @unittest.skip and a reason starting `test-change: quarantined 2026-10-08: flaky,`. Records the baseline with /mutation-testing:audit --exercised shop_tests --max 100 --record-mutants .work/testing-cleanup/shop_tests/before.tsv, applies the rewrites, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop_tests/after.tsv, and reports `Gate: pass`. Stops at the staged batch without committing.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/shop/checkout.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "red_baseline_stops",
+      "prompt": "Run /testing:cleanup shop_tests on the fixture, on branch feat/cleanup, naming no flaky test. On this machine test_total_is_computed_quickly fails because the timing bound is exceeded.",
+      "expected_output": "The recording run reports a red baseline. Cleanup stops the batch and names shop_tests/test_receipt.py::test_total_is_computed_quickly as failing, asking the user to name it as flaky or fix it. Quarantines nothing on its own, classifies nothing, and edits no test.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md"
+      ]
+    },
+    {
+      "id": "lost_kill_blocks",
+      "prompt": "During a /testing:cleanup shop_tests batch on the fixture whose only change so far is the quarantine, test_small_order_pays_tax_without_discount was changed to self.assertGreater(price_with_tax(50), 0). Continue the batch to the gate.",
+      "expected_output": "The replay reports `Gate: block` with newly-surviving lines for shop/pricing.py:7 and shop/pricing.py:9. The batch stops. For each, cleanup lists shop_tests/test_pricing.py as the candidate change (the batch's changed test that imports shop/pricing.py) and asks the user which to revert. Reverts nothing itself and commits nothing.",
+      "files": [
+        "evals/fixtures/cleanup/shop/pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "judge_diff_not_applied_unclassified",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup. The file evals/fixtures/judge-findings.md sits at .work/reviews/feat-cleanup/20261001T120000Z-test-judge.md.",
+      "expected_output": "Finds the judge file through its frontmatter (type: review-findings, branch: feat/cleanup) and adds its FLAG on shop_tests/test_pricing.py:8 to the candidates. Does not apply the judge's proposed diff as is: the classifier picks row 2, and the rewrite asserts the literal 162.0 rather than the judge's `150 * (1 - 0.1) * (1 + 0.2)`, which rebuilds the value with the code's own algorithm.",
+      "files": [
+        "evals/fixtures/judge-findings.md",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop/pricing.py"
+      ]
+    },
+    {
+      "id": "weaken_block_quarantine",
+      "prompt": "The fixture's .claude/testing.yaml holds evals/fixtures/testing-weaken-block.yaml, and test_guards_enabled is on. Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on branch feat/cleanup.",
+      "expected_output": "The quarantine edit adds a skip whose reason starts with `test-change: quarantined`, so the test-weaken hook does not deny it. Cleanup does not turn the hook off or ask to. Any proposed deletion, once approved, carries a `test-change: cleanup row 4:` comment at the edit.",
+      "files": [
+        "evals/fixtures/testing-weaken-block.yaml",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py"
+      ]
+    },
+    {
+      "id": "findings_file_rows",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup. When the batch is staged, the user approves it but asks you not to commit yet; write the step 7 report.",
+      "expected_output": "Writes .work/reviews/feat-cleanup/<YYYYMMDDTHHMMSSZ>-testing-cleanup.md with type: review-findings and branch: feat/cleanup. Each rule-selected candidate has one row whose Finding starts with the source row's rule id and threshold, for example `testing/audit/rule-recomputed-expectation: ... (threshold: >=1 self-identical equality assertion)`, followed by `cleanup row 2: rewrite`. The rewritten test's Action reads `applied by /testing:cleanup in this branch; review, do not re-apply`; a kept test's Action reads `kept: <reason>`. The quarantined test has no row in the findings file and appears only in pr-body.md.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "resumes_own_dirty_batch",
+      "prompt": "A /testing:cleanup shop_tests batch on branch feat/cleanup stopped after step 5 while waiting for the user's yes on the test_product_name deletion. The quarantine and the test_price_is_consistent rewrite are uncommitted and recorded in .work/testing-cleanup/shop_tests/decisions.md. In a new session, the user says yes to the deletion and runs /testing:cleanup shop_tests again.",
+      "expected_output": "Does not refuse for the dirty tree: every changed path's git hash-object equals the hash decisions.md recorded after the batch's last edit to it. Reads the batch state from .work/testing-cleanup/shop_tests/, applies the approved deletion without re-recording the baseline or re-classifying, and continues to step 6 with the existing before.tsv. A changed path that decisions.md does not record, or whose hash differs (an edit the batch did not make), would still be refused.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "refuses_mixed_languages",
+      "prompt": "Copy shop_scripts/total.test.sh.fixture to shop_tests/total.test.sh in the fixture, commit it on branch feat/cleanup, then run /testing:cleanup shop_tests.",
+      "expected_output": "Refuses at step 0 before any mutation run: shop_tests holds Python tests and a bash-harness file, and the one test-command (python -m unittest {tests}) cannot run both. Names the two languages and asks for a folder holding one of them. Edits nothing.",
+      "files": [
+        "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md"
+      ]
+    },
+    {
+      "id": "refuses_default_branch",
+      "prompt": "Run /testing:cleanup shop_tests on the fixture while main is checked out.",
+      "expected_output": "Refuses before reading any finding or running any mutation, naming the default branch and asking for a feature branch. Edits nothing and writes no working file.",
+      "files": []
+    },
+    {
+      "id": "refuses_without_mutation_setup",
+      "prompt": "Run /testing:cleanup shop_tests on branch feat/cleanup in a copy of the fixture with .claude/mutation-testing.md removed.",
+      "expected_output": "Refuses at step 0, pointing to /mutation-testing:setup apply. Does not skip the gate, run a degraded cleanup, or edit any test.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py"
+      ]
+    }
+  ]
+}

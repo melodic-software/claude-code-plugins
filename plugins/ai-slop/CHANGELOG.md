@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.3] - 2026-10-01
+## [0.12.4] - 2026-10-01
 
 ### Changed
 
@@ -10,6 +10,13 @@
   decisions. No rule, default or severity changes: the em-dash rule stays zero-tolerance by default.
 - The feeling-instead-of-mechanism rubric item is restated in our own example and tests, and the
   archiewood/claudeisms ratios now sit behind a pointer to that repository instead of in the catalog.
+
+## [0.12.3] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
 
 ## [0.12.2] - 2026-10-01
 

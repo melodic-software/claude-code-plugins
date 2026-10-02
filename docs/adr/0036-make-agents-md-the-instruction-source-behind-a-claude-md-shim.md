@@ -69,6 +69,6 @@ Three alternatives were rejected, each with the fact that would flip it:
   cumulative across the files it loads and truncates with no error. The number and its dated
   record live beside `CODEX_PROJECT_DOC_BUDGET` in the migrate skill's `scripts/plan-migration.sh`,
   and the skill's `BUDGET` row grades each path against it.
-- Shim removal is blocked until the installed `claude-memory` and `instruction-placement` plugins
+- Shim removal is blocked until the installed `harness-memory` and `instruction-placement` plugins
   carry the corrected doctrine; an older cached build advises a de-shimmed repository straight back
   to the old shape.

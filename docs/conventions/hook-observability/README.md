@@ -165,7 +165,7 @@ why silence is the correct outcome. `scripts/check-silent-skips.sh` reads the an
 gated skip it would otherwise reject passes when the line above it carries the marker, so the
 reason is reviewed once, in the diff, rather than re-litigated on every gate run. Two shapes
 use it today. A fire-and-forget process whose stdout and stderr the producer discards (the
-claude-ops telemetry sink: "the producer side owns prerequisite visibility"), and a hook that
+harness-ops telemetry sink: "the producer side owns prerequisite visibility"), and a hook that
 is off by design for the consumer who has not enabled it (the per-session event log's
 `session_event_log_enabled: false` default, where a notice would fire on every event of every
 session that never asked for logging). A hook that could speak and simply does not is not a
@@ -229,7 +229,7 @@ Adding it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) tou
 producer's `data_json` construction, out of scope for this doc's three-surface convention.
 Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>. As of:
 2026-10-01. Recheck trigger: that table drops the field or its OpenTelemetry match.
-melodic-software/claude-code-plugins#930 is closed: the per-session event log (`claude-ops`,
+melodic-software/claude-code-plugins#930 is closed: the per-session event log (`harness-ops`,
 melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
 promotion is tracked at melodic-software/claude-code-plugins#3758.
 

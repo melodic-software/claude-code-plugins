@@ -8,7 +8,7 @@ adopter row is a minor bump; docs-only clarification is a patch.
 
 **Patch, docs-only.** The `attribution/audit/rule-stamp-expired` and
 `attribution/audit/rule-restated-upstream-fact` crosswalk rows and the
-`claude-config/audit-instructions/rule-trigger-less-stamp` row describe the stamped record by its
+`harness-config/audit-instructions/rule-trigger-less-stamp` row describe the stamped record by its
 current shape (pointer, as-of date, observable recheck trigger beside the decision) instead of the
 claim, basis, as-of and trigger shape. No producer-owned field's rule, tier, coexistence obligation or enforceability verdict moves.
 

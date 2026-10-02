@@ -193,7 +193,7 @@ origin/(main|master)
 # skills/pull-request/scripts/resolve-remote.sh, and its remaining hits are
 # prose ABOUT that resolver. What keeps the class staged is that the fix did
 # not generalize: real bare uses remain in repo-hygiene, work-items,
-# claude-ops, and education, none of which can reach a plugin-local resolver
+# harness-ops, and education, none of which can reach a plugin-local resolver
 # in another plugin, and no open member issue owns them. Enable when a
 # resolve-remote-shaped seam those plugins can call actually exists — until
 # then the only way to green is a `portability-scope` declaration on files

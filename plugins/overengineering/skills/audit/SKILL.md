@@ -32,9 +32,9 @@ earn their carry cost. The posture is the inverse of a gap audit: every incumben
 candidate until evidence earns its keep, and silence is not evidence in either direction.
 
 The mirrored question, which automation this repository is MISSING, is owned by
-`/claude-config:audit-automation-gaps`, whose gap audit runs REJECT-by-default gates over proposed
+`/harness-config:audit-automation-gaps`, whose gap audit runs REJECT-by-default gates over proposed
 hooks, MCP servers, skills, subagents and scheduled tasks. Route a gap that surfaces mid-walk there
-when the `claude-config` plugin is installed; when it is not, record the gap in the findings
+when the `harness-config` plugin is installed; when it is not, record the gap in the findings
 artifact as an observation and leave it for the human, because this walk never proposes new
 automation.
 
@@ -211,9 +211,9 @@ so a skipped route is visible rather than silent.
 
 | Finding class | Route (presence-gated) | Inline fallback when absent |
 |---|---|---|
-| The finding is about instruction *text*. A standing instruction that is stale, over-prescriptive, or contradicts another surface | `claude-config:audit-instructions`, when that plugin is installed | Keep the finding in the `agent-instructions` layer with its evidence, and leave the text edit to the operator. Report the wording, do not rewrite it |
-| An agent-layer standing-instruction ablation the evidence cannot settle on its own | `claude-config:unhobble`, when that plugin is installed | Route the item to §8's bounded ablation batch instead, at rung 1 of §11's rollback ladder with the observation window and its end date recorded |
-| The operator asks what should be *added* rather than what should be retired | `claude-config:audit-automation-gaps`, when that plugin is installed | Say plainly that prospective additions are outside this skill's contract, and record no finding for them, this audit judges incumbents only |
+| The finding is about instruction *text*. A standing instruction that is stale, over-prescriptive, or contradicts another surface | `harness-config:audit-instructions`, when that plugin is installed | Keep the finding in the `agent-instructions` layer with its evidence, and leave the text edit to the operator. Report the wording, do not rewrite it |
+| An agent-layer standing-instruction ablation the evidence cannot settle on its own | `harness-config:unhobble`, when that plugin is installed | Route the item to §8's bounded ablation batch instead, at rung 1 of §11's rollback ladder with the observation window and its end date recorded |
+| The operator asks what should be *added* rather than what should be retired | `harness-config:audit-automation-gaps`, when that plugin is installed | Say plainly that prospective additions are outside this skill's contract, and record no finding for them, this audit judges incumbents only |
 | A plugin's own claims-versus-reality (a component that does not do what its manifest or description says) | `plugin-quality:audit`, when that plugin is installed | Report it as an ordinary liveness finding (§3) on the component and stop there, rather than auditing the plugin's internals |
 
 ## Incumbent-first
