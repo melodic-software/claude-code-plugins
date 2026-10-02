@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- `audit-prompting-postures` and `audit-instructions` re-stamp their Opus 5.5 prompting guide reads to 2026-10-02. The guide changed; both recorded decisions still hold.
+
 ## [1.3.3] - 2026-10-02
 
 ### Changed
