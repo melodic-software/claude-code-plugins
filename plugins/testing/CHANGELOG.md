@@ -42,6 +42,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
   falls back to the investigate and loop phases on the main thread. It grants
   `Workflow(testing:fix-until-green)` only.
 
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.20.1] - 2026-10-02
 
 ### Changed

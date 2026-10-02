@@ -4,6 +4,7 @@
 
 import { scoreFramePriority } from "./densification.js";
 import { toSelectedFrame } from "./read-policy.js";
+import { compareTimesUntimedLast } from "./timestamp-interleave.js";
 
 /** @typedef {import('./models.js').SelectedFrame} SelectedFrame */
 /** @typedef {import('./models.js').DensificationWindow} DensificationWindow */
@@ -70,7 +71,7 @@ export function summarizeFrameSelection(
     densificationWindowCount = 0,
   } = {},
 ) {
-  const selected = [...candidates].sort((a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0));
+  const selected = [...candidates].sort(compareTimesUntimedLast);
 
   const candidateCount = selected.length;
   const highVolume = isHighVolume({
@@ -101,8 +102,8 @@ export function summarizeFrameSelection(
  * @returns {FrameSelectionSummary}
  */
 export function selectFramesForCoverage(frames, { windows, targetMinFrames = 0, durationSec = 0 }) {
-  const scored = frames.map((frame, index) =>
-    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
+  const scored = frames.map((frame) =>
+    toSelectedFrame(frame, scoreFramePriority(frame, windows), windows),
   );
 
   return summarizeFrameSelection(scored, {

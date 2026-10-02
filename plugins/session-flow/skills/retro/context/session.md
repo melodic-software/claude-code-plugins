@@ -162,7 +162,9 @@ code changes were made, note "N/A" and skip.
 
 ### 2E. Efficiency assessment
 
-- Compaction count. Were compactions avoidable (earlier `/session-flow:handoff`, tighter reads)?
+- Compaction count. Did each continuation follow the router in
+  [`../../workflow/context/continuation.md`](../../workflow/context/continuation.md), and would
+  tighter reads have spared any compaction?
 - Parallel tool-call opportunities missed; redundant file reads
 - Subagent usage. Was the delegation appropriate?
 - Longest/slowest turns. What caused them?

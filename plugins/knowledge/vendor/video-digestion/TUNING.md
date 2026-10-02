@@ -47,6 +47,14 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 | Medium stratified interval (sec) | `45` | `MEDIUM_STRATIFIED_INTERVAL_SEC` |
 | Long stratified interval (sec) | `60` | `LONG_STRATIFIED_INTERVAL_SEC` |
 | Scene sparse ratio | `120` | `SCENE_SPARSE_RATIO` |
+| Max gap between timed frames (sec) | `60` | `MAX_FRAME_GAP_SEC` |
+
+`MAX_FRAME_GAP_SEC` defaults to the long stratified interval (judgment: each gap-fill frame costs
+vision tokens); `run-watch.js --max-frame-gap-sec <sec>` overrides it for one run, and the value
+used is recorded as `maxFrameGapSec` in `coverage-plan.json`.
+
+**Tune signal:** a digest that misses visuals in a long stretch without scene cuts needs a lower
+maximum gap; a talking-head video that gains many near-identical fill frames tolerates a higher one.
 
 No hard frame cap. `summarizeFrameSelection` sets `highVolume` when count > `targetMinFrames * 3`.
 
