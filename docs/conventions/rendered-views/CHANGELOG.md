@@ -4,6 +4,13 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Generated helper copies, 2026-10-02
+
+- **Each adopting plugin's `lib/html-escape.mjs` is generated output (#5836).**
+  `scripts/sync-shared-copies.sh` writes it from the canonical with a generated-file
+  header and drift-gates it, replacing `scripts/sync-html-escape.sh` (ADR 0019,
+  amended). No boundary-rule, genre, or cascade-key change.
+
 ## Sharing claim and chrome background, 2026-10-02
 
 - **The sharing paragraph records the repository decision plus a pointer**, an as-of date and a

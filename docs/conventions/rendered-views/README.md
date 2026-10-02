@@ -153,7 +153,7 @@ the checked-in helper in the third bullet instead of this skeleton alone.
 - A lane that renders attacker-controlled input (a PR diff, fetched web content, another
   repo's files) MUST NOT ship on this skeleton alone. It routes every interpolated
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
-  drift-gated by `scripts/sync-html-escape.sh`). The page carries the generator marker
+  generated and drift-gated by `scripts/sync-shared-copies.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
   `/review:pr-explainer` is the first lane on that gate.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that

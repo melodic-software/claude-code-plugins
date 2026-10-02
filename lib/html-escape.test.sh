@@ -15,8 +15,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! cmp -s "$REPO_ROOT/lib/html-escape.mjs" "$REPO_ROOT/plugins/review/lib/html-escape.mjs"; then
-  echo "FAIL: plugins/review/lib/html-escape.mjs differs from lib/html-escape.mjs" >&2
+if ! bash "$REPO_ROOT/scripts/sync-shared-copies.sh" --check >/dev/null; then
+  echo "FAIL: a generated copy differs from its canonical source" >&2
   exit 1
 fi
 
