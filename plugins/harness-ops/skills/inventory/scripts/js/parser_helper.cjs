@@ -497,8 +497,11 @@ class Flow {
         }
         break;
       case "ExpressionStatement":
-      case "BinaryExpression":
         return;
+      case "BinaryExpression":
+        // `x instanceof H` hands x to H[Symbol.hasInstance], which can be any code.
+        if (parent.operator !== "instanceof" || parent.left !== node) return;
+        break;
       case "SequenceExpression":
         if (parent.expressions.at(-1) !== node) return;
         break;

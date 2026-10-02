@@ -273,6 +273,17 @@ class TestOpenFindings(unittest.TestCase):
                     parser=PARTIAL if changed else INITIAL,
                 )
 
+    def test_instanceof_hands_the_array_to_has_instance(self) -> None:
+        """#5891 verifier probe: `Symbol.hasInstance` runs with the array as
+        its argument, so `pY instanceof H` may change it."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];class H{static[Symbol.hasInstance](a){a.push("B")}}'
+            "pY instanceof H;",
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+
     def test_an_alias_chain_too_deep_to_follow_reads_partial(self) -> None:
         """#5891 verifier probe: a 5,000-long alias chain ending in a push
         crashed the helper, breaking the whole binary source."""
