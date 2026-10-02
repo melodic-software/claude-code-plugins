@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-10-02
+
+### Added
+
+- `lib/prerequisites.mjs`, with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs: the
+  shared prerequisites checker, generated from the repository's canonical copies
+  ([#5839](https://github.com/melodic-software/claude-code-plugins/issues/5839)). It reads a
+  `prerequisites.json` in the schema that `docs/conventions/prerequisites/` owns. Nothing in this
+  plugin calls it yet; the `prerequisites` skill moves to it when the plugin's own file is
+  converted.
+
 ## [2.4.3] - 2026-10-02
 
 ### Changed

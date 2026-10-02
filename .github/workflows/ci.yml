@@ -2215,6 +2215,20 @@ jobs:
           [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
+      # docs/conventions/prerequisites/: the checker and its stubs, then the gate
+      # that validates every prerequisites.json and fails on an undeclared tool
+      # not listed in scripts/prerequisites-baseline.txt.
+      - name: Run prerequisites checker and gate tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/prerequisites.test.sh
+          bash scripts/check-declared-prerequisites.test.sh
+      - name: Check plugin prerequisites are declared
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node scripts/check-declared-prerequisites.mjs
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
