@@ -370,6 +370,40 @@ class TestOpenFindings(unittest.TestCase):
         )
         self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
 
+    def test_a_module_taken_whole_as_a_namespace_stays_partial(self) -> None:
+        """#5891 verifier probes: a namespace read with a computed key, an
+        enumeration or a spread reaches the export without naming it. The
+        exporter's file comes from its importers' `from"..."`, and any
+        `import*as`, `export*` or `import(...)` of that file reads partial."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        for module in (
+            'import*as N from"/a.js";N[k].push("B");',
+            'import*as N from"/a.js";Object.values(N).forEach((v)=>v.push&&v.push("B"));',
+            'import*as N from"/a.js";var o={...N};for(var k in o)o[k].push("B");',
+            'import("/a.js").then((N)=>{for(var k in N)N[k].push("B")});',
+            'export*from"/a.js";',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_an_export_no_module_imports_by_name_is_taken_as_closed(self) -> None:
+        """Open finding, a stated assumption: with no named importer the
+        exporter's file is unknown, so a namespace of it is not seen and the
+        list keeps the initializer though JavaScript pushes `B`. The
+        2.1.284-2.1.287 entry chunk re-exports the Explore/Plan array as
+        ARTIFACT_FAMILY_TOOL_NAMES to code outside the bundle this way."""
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        src = (
+            AGENT_SRC
+            + 'var pY=[xt,"Artifact"];'
+            + PROBE
+            + "export{pY};\n// @bun\n"
+            + 'import*as N from"/a.js";N[k].push("B");'
+        )
+        with inv.use_reader(type(self).reader):
+            self.assertEqual(_probe_source(src), INITIAL)
+
     def test_a_hop_it_cannot_follow_stays_partial(self) -> None:
         """A namespace read by name, a patched prototype, a callback from
         another module, a direct eval in an importer: each could change the

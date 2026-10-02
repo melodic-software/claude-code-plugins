@@ -427,11 +427,22 @@ change. `x.__proto__`, `Object.getPrototypeOf(x)` and `x.constructor.prototype` 
 through (`[].__proto__.includes=f`) or handed to a built-in that changes its first argument. One
 idiom is taken as read without following its callee: `G(Object.prototype,"__proto__")`, the
 es-shims descriptor read, whose `G` is another factory's result in the 2.1.284 to 2.1.287
-bundles. The bundle is taken as the whole program: no code outside it imports its modules.
+bundles. An export also stays partial when a file its importers name in `from"..."` is taken
+whole anywhere: `import*as N from`, `export*from`, `import(...)`, `require(...)` or
+`import.meta.require(...)` with that file's literal path, since a computed read (`N[k]`) or an
+enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches the export without naming it.
 
-Not seen, so not a reason to stay partial: a namespace read with a computed key that is not a
-literal, or an enumeration of a namespace (`Object.values(ns)`); and an array method a JavaScriptCore
-build adds that V8's `Array.prototype` lacks, which the method rule would read as throwing.
+Stated assumptions, not checked:
+
+- The bundle is the whole program: no code outside it imports its modules. An export no module
+  imports by name has no known file, so a namespace of it is not seen. The 2.1.284 to 2.1.287 entry
+  chunk re-exports the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES`, which no module
+  imports; it is taken as consumed outside the bundle, in a separate realm.
+- Code built from strings is not analyzed: `new Function(...)`, `Function("...")` and
+  `vm.runInThisContext`, which the module spans of 2.1.284 and 2.1.287 hold 2, 5 and 0 times.
+- A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
+- An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
+  throwing by the method rule.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|

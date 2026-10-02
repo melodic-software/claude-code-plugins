@@ -2208,7 +2208,11 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
                 )
                 continue
             name = hop[1]
-            if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
+            if (
+                name == "default"
+                or _PARSER.keys_used(src, name, _module_spans(src))
+                or _taken_whole(src, name)
+            ):
                 return False
             pending.extend(
                 (importer, {"import": name, "calls": hop[0] == "export-call"})
@@ -2264,13 +2268,13 @@ def _sole_exporter(src: str, name: str) -> tuple[int, str] | None:
 
 
 @functools.lru_cache(maxsize=256)
-def _importers(src: str, name: str) -> tuple[tuple[int, int], ...]:
-    """Every module that may import `name` or re-export it from another:
-    any `{...}from"..."` list holding the name as a word. A superset; the
-    parser's `flow` op reads the specifiers."""
+def _import_lists(src: str, name: str) -> tuple[tuple[tuple[int, int], str], ...]:
+    """Every `{...}from"<path>"` list holding `name` as a word: the module
+    holding it and the path it names. A superset of the modules that import
+    or re-export `name`; the parser's `flow` op reads the specifiers."""
     token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
-    tail = re.compile(r"\s*from\s*[\"'`]")
-    out: list[tuple[int, int]] = []
+    tail = re.compile(r"\s*from\s*([\"'`])(.*?)\1")
+    out: list[tuple[tuple[int, int], str]] = []
     for m in token.finditer(src):
         opened = src.rfind("{", max(0, m.start() - 262_144), m.start())
         closed = src.find("}", m.end())
@@ -2279,13 +2283,47 @@ def _importers(src: str, name: str) -> tuple[tuple[int, int], ...]:
             or closed < 0
             or "}" in src[opened : m.start()]
             or "{" in src[m.end() : closed]
-            or not tail.match(src, closed + 1)
         ):
             continue
-        span = _chunk_span(src, m.start())
-        if span not in out:
-            out.append(span)
+        path = tail.match(src, closed + 1)
+        if path is None:
+            continue
+        hit = (_chunk_span(src, m.start()), path.group(2))
+        if hit not in out:
+            out.append(hit)
     return tuple(out)
+
+
+def _importers(src: str, name: str) -> list[tuple[int, int]]:
+    return list(dict.fromkeys(span for span, _ in _import_lists(src, name)))
+
+
+_NAMESPACE_SITE_RE = re.compile(
+    r"(?<![\w$.])(?:import\s*\*\s*as\s*[\w$]+\s*from|export\s*\*(?:\s*as\s*[\w$]+)?\s*from)"
+    r"\s*([\"'`])(.*?)\1"
+    r"|(?<![\w$])(?:import|require)\s*\(\s*([\"'`])(.*?)\3"
+)
+
+
+@functools.lru_cache(maxsize=4)
+def _namespace_targets(src: str) -> frozenset[str]:
+    """The file name of every module some code takes whole, as a namespace:
+    `import*as N from`, `export*from`, `import(...)`, `require(...)` and
+    `import.meta.require(...)` with a literal path."""
+    return frozenset(
+        (m.group(2) if m.group(2) is not None else m.group(4)).rsplit("/", 1)[-1]
+        for m in _NAMESPACE_SITE_RE.finditer(src)
+    )
+
+
+def _taken_whole(src: str, name: str) -> bool:
+    """Whether a module that `name`'s importers import it from is also taken
+    as a namespace somewhere, where a computed read or an enumeration could
+    reach the export unseen."""
+    targets = _namespace_targets(src)
+    return any(
+        path.rsplit("/", 1)[-1] in targets for _, path in _import_lists(src, name)
+    )
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
