@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.61.1",
+  "version": "0.62.1",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -23,7 +23,7 @@
       "default": false
     }
   },
-  "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
+  "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate, with an opt-in multi-angle plan panel workflow (/planning:plan-panel).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

@@ -634,7 +634,10 @@ assert_not_contains "a live owner's lock is never reclaimed" "$OUT" "reclaiming 
 # Same aged stamp, but the owner is gone: reclaiming is correct here.
 # --max-restarts 0 disables the breaker, which earlier cases in this file have
 # already spent against lane `work` in the shared data dir — this case is about
-# the reclaim, not the budget.
+# the reclaim, not the budget. The recorded owner is this shell's own pid, which
+# is always live: an empty fake set must be the whole truth, never a fall-through
+# to `kill -0` on the host's process table.
+seed_lock 1799992800 "$$" boot-A
 : >"$LAUNCH_LOG"
 OUT="$(RESTART_CONSUMER_FAKE_BOOT_ID='boot-A' RESTART_CONSUMER_FAKE_ALIVE_PIDS='' run_consumer run --max-restarts 0 \
   --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
