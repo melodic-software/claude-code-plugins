@@ -24,6 +24,9 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   with `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or from `~/.claude/skills/`. The
   external-import check walks the whole `@` import graph to the four-hop limit with the plugin's
   own `discover.sh` model, and a closing operator question catches any loading path not listed.
+  User settings and plugins are read under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR` rather than a fixed `~/.claude`, and the operator is asked whether
+  contributors set either.
 
 ### Fixed
 

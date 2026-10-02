@@ -359,7 +359,18 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `CLAUDE_CODE_PLUGIN_DIRS`, and "Each plugin loads for that session only, and nothing is written
   to your settings for it", which is why no settings read finds them; and "Claude Code loads any
   folder there [`~/.claude/skills/`] that contains a `.claude-plugin/plugin.json` as a plugin in
-  every session, with no flag and no install step". The removal procedure for an `@AGENTS.md`
+  every session, with no flag and no install step". The user roots, from
+  [env-vars](https://code.claude.com/docs/en/env-vars) (fetched 2026-10-01, 158,869 bytes):
+  `CLAUDE_CONFIG_DIR` "Override the configuration directory (default: `~/.claude`). All settings,
+  session history, and plugins are stored under this path. ... Set it in your shell, user
+  settings, or managed settings. Ignored in project and local settings", and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR` "Override the plugins root directory ... Defaults to
+  `~/.claude/plugins`"; [plugins/loading](https://code.claude.com/docs/en/plugins/loading)
+  (fetched 2026-10-01, 37,348 bytes) says the same root "is `~/.claude/plugins` unless you set
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR`". The resolution expression is the one
+  `plugins/performance/skills/verify/SKILL.md` uses. The memory page names the exempt user file
+  only as "your `~/.claude/CLAUDE.md`" and does not say how `CLAUDE_CONFIG_DIR` changes that, so
+  the walk exempts it only at the default root. The removal procedure for an `@AGENTS.md`
   shim: "Remove
   the `CLAUDE.md` if it holds nothing else, or keep it if some of your sessions can't load
   `AGENTS.md` directly." The plugin loads files; nothing upstream says it moves content or writes
@@ -394,7 +405,9 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   the difference table, the "Share one file with other coding tools" conditions, or the shim
   bullet under "Remove an earlier AGENTS.md workaround"; it comes to name the Agent SDK, cloud or
   web sessions, or `claude-code-action`; it changes the four-hop import limit; plugins/create
-  changes the ways a plugin loads for one session or without an install; it comes
+  changes the ways a plugin loads for one session or without an install; env-vars or
+  plugins/loading changes what `CLAUDE_CONFIG_DIR` or `CLAUDE_CODE_PLUGIN_CACHE_DIR` relocates; it
+  comes
   to state when a subdirectory's `AGENTS.md` loads under `claude-md-and-agents-md` or whether an
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
   disabled; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.
