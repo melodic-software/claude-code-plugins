@@ -273,6 +273,27 @@ class TestOpenFindings(unittest.TestCase):
                     parser=PARTIAL if changed else INITIAL,
                 )
 
+    def test_a_patched_prototype_leaves_a_followed_list_partial(self) -> None:
+        """#5891 verifier probes: each patches the method the array calls
+        through a prototype reached other than as `Array.prototype.x=`, and
+        JavaScript runs the patch, which pushes onto the list."""
+        patch = 'function(){this.push("B");return!0}'
+        for prelude in (
+            "var AP=Array.prototype;AP.includes=" + patch + ';pY.includes("x")',
+            "[].__proto__.includes=" + patch + ';pY.includes("x")',
+            "Object.getPrototypeOf([]).join=" + patch + ";pY.join()",
+            'Array["prototype"].includes=' + patch + ';pY.includes("x")',
+            "const{prototype:AP}=Array;AP.includes=" + patch + ';pY.includes("x")',
+            "var OP=Object.prototype;OP.zz=" + patch + ";pY.zz()",
+        ):
+            with self.subTest(prelude=prelude):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + prelude + ";",
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"],
+                    parser=PARTIAL,
+                )
+
     def test_instanceof_hands_the_array_to_has_instance(self) -> None:
         """#5891 verifier probe: `Symbol.hasInstance` runs with the array as
         its argument, so `pY instanceof H` may change it."""

@@ -850,30 +850,239 @@ function exportsOf(req) {
 const PATCHES_BUILTINS = "\u0000builtins";
 const keySets = new Map();
 
-// `Array.prototype` or `Object.prototype`.
-const isBuiltinProto = (n) =>
-  n?.type === "MemberExpression" &&
-  !n.computed &&
-  n.property.name === "prototype" &&
-  n.object.type === "Identifier" &&
-  (n.object.name === "Array" || n.object.name === "Object");
-const PATCHERS = new Set(["defineProperty", "defineProperties", "assign", "setPrototypeOf", "set"]);
+const isGlobalCtor = (n) => n?.type === "Identifier" && (n.name === "Array" || n.name === "Object");
+const memberName = (n) =>
+  n?.type !== "MemberExpression"
+    ? null
+    : !n.computed
+      ? n.property.name
+      : n.property.type === "Literal"
+        ? String(n.property.value)
+        : null;
+const memberOf = (n, objects, names) => n?.type === "MemberExpression" && objects.includes(n.object.name) && names.has(memberName(n));
 
-function keysOf(ast) {
-  const keys = new Set();
+// `Array.prototype` or `Object.prototype`, dotted or `["prototype"]`.
+const isNamedProto = (n) => memberName(n) === "prototype" && isGlobalCtor(n.object);
+// A value that may be some prototype: `x.__proto__`, `x.constructor.prototype`,
+// and a call of `Object.getPrototypeOf` or `Reflect.getPrototypeOf`.
+const isGenericProto = (n) =>
+  memberName(n) === "__proto__" ||
+  (memberName(n) === "prototype" && memberName(n.object) === "constructor") ||
+  (n.type === "CallExpression" && memberOf(n.callee, ["Object", "Reflect"], new Set(["getPrototypeOf"])));
+
+const EQUALITY = new Set(["===", "!==", "==", "!=", "in"]);
+// Built-ins that only read the object they are given (any argument).
+const READERS = new Set([
+  "create",
+  "hasOwn",
+  "getOwnPropertyDescriptor",
+  "getOwnPropertyDescriptors",
+  "getOwnPropertyNames",
+  "getOwnPropertySymbols",
+  "getPrototypeOf",
+  "keys",
+  "values",
+  "entries",
+  "has",
+  "ownKeys",
+  "isFrozen",
+  "isSealed",
+  "isExtensible",
+]);
+// Prototype methods that only read their receiver, called through `.call`.
+const READ_METHODS = new Set(["hasOwnProperty", "propertyIsEnumerable", "isPrototypeOf", "toString", "toLocaleString", "valueOf"]);
+// Built-ins that change the object they are given first.
+const MUTATORS = new Set(["defineProperty", "defineProperties", "assign", "setPrototypeOf", "set", "deleteProperty", "preventExtensions"]);
+
+// Whether the module may change Array.prototype or Object.prototype.
+//
+// `Array.prototype` and `Object.prototype` (and `{prototype:P}=Array`) may
+// only be read: the object of a member read, an operand of an equality or
+// `in`, an argument of a built-in that only reads (`Object.create`,
+// `Object.hasOwn`, `x.hasOwnProperty.call`, the second of
+// `Object.setPrototypeOf`), an element of `new WeakSet([...])`, an object
+// literal argument of an inline function that destructures it, a
+// destructuring source, or a discarded value, directly or through `?:`,
+// `||`, `&&` and `,`. An alias, and the parameter of a function declared
+// in the module that receives one, is followed through its variable,
+// every read of it held to the same uses. `G(Object.prototype,"__proto__")`
+// with any callee is taken as the es-shims descriptor read it is in the
+// bundle. Any other use counts as a change.
+//
+// A value that may be some other prototype (`x.__proto__`,
+// `Object.getPrototypeOf(x)`, `x.constructor.prototype`) counts only when
+// written through: a member write, update or `delete` on it, or a
+// built-in that changes its first argument.
+function patchesBuiltins(ast) {
+  const parents = new Map();
+  const named = [];
+  const generic = [];
+  const ctors = [];
   const stack = [ast];
   while (stack.length) {
     const node = stack.pop();
-    const target = node.type === "AssignmentExpression" ? node.left : node.type === "UpdateExpression" ? node.argument : null;
-    if (target?.type === "MemberExpression" && (isBuiltinProto(target.object) || isBuiltinProto(target))) keys.add(PATCHES_BUILTINS);
-    if (
-      node.type === "CallExpression" &&
-      node.callee.type === "MemberExpression" &&
-      PATCHERS.has(node.callee.property.name) &&
-      node.arguments.some(isBuiltinProto)
-    ) {
-      keys.add(PATCHES_BUILTINS);
+    if (isNamedProto(node)) named.push(node);
+    else if (isGenericProto(node)) generic.push(node);
+    else if (isGlobalCtor(node)) ctors.push(node);
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      for (const c of Array.isArray(child) ? child : [child]) {
+        if (c && typeof c.type === "string" && c !== node) {
+          parents.set(c, node);
+          stack.push(c);
+        }
+      }
     }
+  }
+  const climb = (start) => {
+    let n = start;
+    let p = parents.get(n);
+    while (
+      (p?.type === "ConditionalExpression" && p.test !== n) ||
+      p?.type === "LogicalExpression" ||
+      p?.type === "ChainExpression" ||
+      (p?.type === "SequenceExpression" && p.expressions.at(-1) === n)
+    ) {
+      n = p;
+      p = parents.get(n);
+    }
+    return [n, p];
+  };
+  const writtenAt = (member) =>
+    isTarget(parents, member) || parents.get(member)?.type === "UpdateExpression" || isDelete(parents.get(member));
+  const mutatorCall = (p, n) =>
+    p?.type === "CallExpression" &&
+    p.arguments[0] === n &&
+    (memberOf(p.callee, ["Object", "Reflect"], MUTATORS) || ["__defineGetter__", "__defineSetter__"].includes(memberName(p.callee)));
+
+  for (const start of generic) {
+    const [n, p] = climb(start);
+    if (p?.type === "MemberExpression" && p.object === n && writtenAt(p)) return true;
+    if (mutatorCall(p, n)) return true;
+  }
+
+  // Scope analysis, built on the first alias or callee that needs it.
+  let scopes = null;
+  const analyzed = () => {
+    if (!scopes) {
+      const manager = eslintScope.analyze(ast, SCOPE_OPTIONS);
+      scopes = { manager, refs: new Map(), decls: new Map() };
+      for (const scope of manager.scopes) {
+        for (const ref of scope.references) scopes.refs.set(ref.identifier, ref);
+        for (const v of scope.variables) for (const ident of v.identifiers) scopes.decls.set(ident, v);
+      }
+    }
+    return scopes;
+  };
+  const variableOf = (id) => analyzed().decls.get(id) ?? scopes.refs.get(id)?.resolved ?? null;
+  // The one value the variable named by `id` is ever given, or null.
+  const initOf = (id) => {
+    const v = id.type === "Identifier" ? variableOf(id) : null;
+    const def = v?.defs.length === 1 ? v.defs[0] : null;
+    if (def?.type !== "Variable" || def.node.id !== def.name || !def.node.init) return null;
+    return v.references.every((r) => !r.isWrite() || r.identifier === def.name) ? def.node.init : null;
+  };
+  // Whether `callee` only reads its argument at `index`.
+  const reads = (callee, index) => {
+    const target = callee.type === "Identifier" ? initOf(callee) : callee;
+    if (memberOf(target, ["Object", "Reflect"], READERS)) return true;
+    if (memberOf(target, ["Object", "Reflect"], new Set(["setPrototypeOf"]))) return index === 1;
+    if (memberName(callee) === "call" || memberName(callee) === "apply") {
+      const method = callee.object.type === "Identifier" ? initOf(callee.object) : callee.object;
+      return READ_METHODS.has(memberName(method));
+    }
+    // A function declared here: its parameter is held to the same uses.
+    const fn = callee.type === "Identifier" ? declaredFunction(callee) : callee;
+    if (fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" || fn?.type === "FunctionDeclaration") {
+      const param = fn.params[index];
+      if (fn.params.slice(0, index + 1).some((q) => q.type === "RestElement")) return false;
+      if (fn.type !== "ArrowFunctionExpression" && analyzed().manager.acquire(fn, true)?.set.get("arguments")?.references.length !== 0) {
+        return false;
+      }
+      return param === undefined || param.type === "ObjectPattern" || (param.type === "Identifier" && alias(param));
+    }
+    return false;
+  };
+  // The function the variable `id` names, when that is all it ever holds.
+  const declaredFunction = (id) => {
+    const v = variableOf(id);
+    if (v?.defs.length !== 1) return null;
+    if (v.defs[0].type === "FunctionName") return v.references.some((r) => r.isWrite()) ? null : v.defs[0].node;
+    return initOf(id);
+  };
+  const seen = new Set();
+  const readOnly = (start) => {
+    const [n, p] = climb(start);
+    switch (p?.type) {
+      case "MemberExpression":
+        return p.object === n && !writtenAt(p);
+      case "BinaryExpression":
+        return EQUALITY.has(p.operator);
+      case "CallExpression":
+        // `gOPD(Object.prototype,"__proto__")`, the es-shims dunder-proto
+        // idiom, whose callee is another module's factory result: taken as
+        // the descriptor read it is.
+        if (p.arguments.length === 2 && p.arguments[0] === n && p.arguments[1].value === "__proto__") return true;
+        return p.arguments.includes(n) && reads(p.callee, p.arguments.indexOf(n));
+      case "ArrayExpression": {
+        const holder = parents.get(p);
+        return holder?.type === "NewExpression" && holder.callee.name === "WeakSet" && holder.arguments[0] === p;
+      }
+      case "ExpressionStatement":
+      case "SequenceExpression":
+        return true;
+      case "VariableDeclarator":
+        if (p.init !== n) return false;
+        return p.id.type === "ObjectPattern" || (p.id.type === "Identifier" && alias(p.id));
+      case "AssignmentExpression":
+        if (p.operator !== "=" || p.right !== n) return false;
+        if (p.left.type === "Identifier") return alias(p.left) && readOnly(p);
+        return p.left.type === "ObjectPattern" && readOnly(p);
+      default:
+        return false;
+    }
+  };
+  // Every read of the variable `id` names is read-only.
+  const alias = (id) => {
+    const v = variableOf(id);
+    if (!v) return false;
+    if (seen.has(v)) return true;
+    seen.add(v);
+    return v.references.every((r) => !r.isRead() || readOnly(r.identifier));
+  };
+  if (!named.every(readOnly)) return true;
+  // `{prototype:P}=Array`: P is an alias.
+  for (const ctor of ctors) {
+    const p = parents.get(ctor);
+    const pattern =
+      p?.type === "VariableDeclarator" && p.init === ctor ? p.id : p?.type === "AssignmentExpression" && p.right === ctor ? p.left : null;
+    if (pattern?.type !== "ObjectPattern") continue;
+    for (const prop of pattern.properties) {
+      if (prop.type !== "Property" || (prop.computed && prop.key.type !== "Literal")) return true;
+      if ((prop.key.name ?? String(prop.key.value)) !== "prototype") continue;
+      if (prop.value.type !== "Identifier" || !alias(prop.value)) return true;
+    }
+  }
+  return false;
+}
+
+const isDelete = (n) => n?.type === "UnaryExpression" && n.operator === "delete";
+
+// `keysOf`, or null (every name used) when the analysis itself fails.
+function keysOrNull(ast, source) {
+  try {
+    return keysOf(ast, source);
+  } catch {
+    return null;
+  }
+}
+
+function keysOf(ast, source) {
+  const keys = new Set();
+  if (/prototype|__proto__|getPrototypeOf/.test(source) && patchesBuiltins(ast)) keys.add(PATCHES_BUILTINS);
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -907,7 +1116,7 @@ function keysUsed(req) {
   if (keys === undefined) {
     if (typeof req.source !== "string") return { ok: true, need_source: true };
     try {
-      keys = keysOf(acorn.parse(req.source, PARSE_OPTIONS));
+      keys = keysOrNull(acorn.parse(req.source, { ...PARSE_OPTIONS, ranges: true }), req.source);
     } catch {
       keys = null;
     }
@@ -930,8 +1139,8 @@ function handle(req) {
         return { ok: false, error: "parse_ok needs a string `source`" };
       }
       try {
-        const ast = acorn.parse(req.source, PARSE_OPTIONS);
-        if (typeof req.module === "string") keySets.set(req.module, keysOf(ast));
+        const ast = acorn.parse(req.source, typeof req.module === "string" ? { ...PARSE_OPTIONS, ranges: true } : PARSE_OPTIONS);
+        if (typeof req.module === "string") keySets.set(req.module, keysOrNull(ast, req.source));
         return { ok: true, parsed: true };
       } catch (e) {
         if (typeof req.module === "string") keySets.set(req.module, null);

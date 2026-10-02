@@ -552,6 +552,31 @@ class TestFlowQuery(unittest.TestCase):
             ("Array.prototype.includes=function(){};", True),
             ('Object.defineProperty(Object.prototype,"has",{});', True),
             ("Array.prototype.slice.call(arguments);", False),
+            # The #5891 verifier's probes.
+            ("var AP=Array.prototype;AP.includes=f;", True),
+            ("[].__proto__.includes=f;", True),
+            ("Object.getPrototypeOf([]).join=f;", True),
+            ('Array["prototype"].includes=f;', True),
+            ("const{prototype:AP}=Array;AP.includes=f;", True),
+            ("var OP=Object.prototype;OP.zz=f;", True),
+            ("function g(p){p.includes=f}g(Array.prototype);", True),
+            ("h(Array.prototype);", True),
+            ("var P=Array.prototype;export{P};", True),
+            ('Reflect.set(Object.getPrototypeOf(o),"x",1);', True),
+            # Reads only, as the 2.1.284-2.1.287 bundles hold them.
+            ("var P=Object.prototype,h=P.hasOwnProperty,{toString:t}=P;", False),
+            ('"x"in Object.prototype;Object.hasOwn(Object.prototype,k);', False),
+            ("var o=Object.create(Object.prototype,{});", False),
+            ("new WeakSet([Object.prototype,Error.prototype]);", False),
+            ("(({hasOwnProperty:e})=>e)(Object.prototype);", False),
+            ("function g(p){return p.x}g(Array.prototype);", False),
+            (
+                'var Pt=Object.prototype.hasOwnProperty;Pt.call(o.constructor.prototype,"k");',
+                False,
+            ),
+            ('var d=G(Object.prototype,"__proto__");', False),
+            ("delete o.__proto__;o.__proto__=null;", False),
+            ("for(;n=Reflect.getPrototypeOf(n);)if(n===Object.prototype)break;", False),
         ):
             with self.subTest(src=src):
                 self.assertEqual(

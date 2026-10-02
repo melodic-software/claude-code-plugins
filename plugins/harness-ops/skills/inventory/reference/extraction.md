@@ -417,9 +417,17 @@ followed, inside a module by the helper's `flow` op and across modules by `_flow
 Anything else stays partial: a hop the walk cannot resolve (a callback that is a parameter of an
 exported function, an object property, `await`, `arguments`), a module with a direct `eval`, an
 exported name any module reads by name as a property (`ns.pY`, `{pY}=ns`), since a module
-namespace reaches the export that way, and a bundle in which any module writes to
-`Array.prototype` or `Object.prototype`. The bundle is taken as the whole program: no code outside
-it imports its modules.
+namespace reaches the export that way, and a bundle in which any module may change
+`Array.prototype` or `Object.prototype`. That last check holds `Array.prototype` and
+`Object.prototype` (dotted, `["prototype"]`, or `{prototype:P}=Array`) to reads: a member read,
+an equality or `in` operand, an argument of a built-in that only reads (`Object.create`,
+`Object.hasOwn`, `x.hasOwnProperty.call`), a `new WeakSet([...])` element, a destructuring
+source, or a parameter or alias whose every use is one of these; any other use counts as a
+change. `x.__proto__`, `Object.getPrototypeOf(x)` and `x.constructor.prototype` count when written
+through (`[].__proto__.includes=f`) or handed to a built-in that changes its first argument. One
+idiom is taken as read without following its callee: `G(Object.prototype,"__proto__")`, the
+es-shims descriptor read, whose `G` is another factory's result in the 2.1.284 to 2.1.287
+bundles. The bundle is taken as the whole program: no code outside it imports its modules.
 
 Not seen, so not a reason to stay partial: a namespace read with a computed key that is not a
 literal, or an enumeration of a namespace (`Object.values(ns)`); and an array method a JavaScriptCore
