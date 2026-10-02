@@ -5,6 +5,36 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.0.0] - 2026-10-02
+
+Major. The §3 capability-tier roles change, which changes which model an unattended lane's
+orchestrator runs on. No topology, escalation-contract, or §4 loop-layer invariant changed.
+
+- **Orchestrator moves to the strong or frontier tier (§3).** The orchestrator runs on `opus` or
+  `best` in the coordinator shape, no longer on the fast tier. Workers stay `opus`.
+- **Fast tier narrowed (§3).** `sonnet` covers mechanical items an objective check backs and phases
+  a plan routes `sonnet` as well-scoped; it no longer runs the orchestrator. The "context headroom"
+  reason for binding it is removed.
+- **Reviewer rule narrowed (§3).** A reviewer or verifier is never on a weaker model than the
+  implementer it checks, recorded against the advisor capability rule and the cost page's
+  failing-checker warning. The effort half is now labeled our judgment.
+
+## [9.5.0] - 2026-10-01
+
+Additive, minor. No topology, escalation-contract, tier-vocabulary, or §4 loop-layer invariant
+changed.
+
+- **Alias binding (§3).** The tier table names each tier's Claude Code alias. The dated
+  alias-to-version table is removed: which model an alias resolves to is read live from Claude
+  Code's model page.
+- **Known gaps (§3).** The classifier-fallback gap now covers every tier, the fast tier included,
+  and the usage-credit gap is kept. Both carry one pointer record.
+- **Provider gap (§5).** The self-paced `/loop` shape is restated against the provider support the
+  scheduled-tasks page now documents.
+- **Recheck trigger.** Any new model on Claude Code's model page re-reads the §3 alias binding.
+- **Reviewer floor (§3).** A reviewer or verifier is never weaker than the implementer in effort
+  level as well as model tier.
+
 ## [9.4.0] - 2026-09-29
 
 Additive, minor. Section 6 records that the account-identity resolution is built on all three

@@ -16,6 +16,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -265,6 +266,13 @@ class ResolveTests(unittest.TestCase):
         )
         eff, _ = _resolve("o/r", {"babysit_merge_method": "merge"}, gh)
         self.assertEqual(eff.merge_method, "merge")
+
+    def test_auto_merge_method_reads_as_unset(self) -> None:
+        for method, expected in (("auto", None), ("rebase", "rebase"), (None, None)):
+            with self.subTest(method=method):
+                args = types.SimpleNamespace(method=method)
+                fallback = rc.fallback_from_args(args)
+                self.assertEqual(fallback["babysit_merge_method"], expected)
 
     def test_404_with_unreadable_root_is_an_error(self) -> None:
         cases = {

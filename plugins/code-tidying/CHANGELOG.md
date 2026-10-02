@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1] - 2026-10-02
+
+### Fixed
+
+- `batch-simplify` repo mode points at the sub-agents page for the concurrent subagent limit
+  (including its exemptions) and the spawn-depth behavior, each with an as-of date.
+
+## [0.26.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `hard_exclusions` and `comment_posture` are pickers in `/config` (`enforce`, `advisory`; `strict`,
+  `balanced`, `conservative`, `aggressive`), so a value outside those sets is no longer accepted.
+  Titles read "Hard path exclusions" (was all caps), "Comment posture", "Kept-comment length
+  (lines)", and "Local renames without a test net". Both picker descriptions fit 300 characters;
+  the full value semantics move to the README's "Option details".
+
 ## [0.25.4] - 2026-10-02
 
 ### Fixed

@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.9.1] - 2026-10-02
+
+### Removed
+
+- **BREAKING:** the `provenance` plugin is gone from the marketplace. An install that still enables
+  `provenance@melodic-software` gets `Plugin "provenance" not found in marketplace`; enable
+  `attribution@melodic-software` instead.
+- The detector scripts no longer warn about a leftover `provenance.json` or
+  `provenance.local.json` in a config layer; such a file is silently ignored. `/attribution:setup`
+  still reports and migrates the two repo-level files through its retirement records.
+
+## [0.9.0] - 2026-10-02
+
+### Changed
+
+- **The stamped record a repair writes is now the links-only shape.** `condense-to-stamped-record`
+  writes the surface's own decision in its own words, a pointer to the exact source section, an
+  as-of date and a recheck trigger, and stores no source text, quoted or paraphrased. It replaces
+  the claim, basis URL, as-of date and trigger shape. The README, `SKILL.md`, `dispositions.md`,
+  `nomination.md`, `persist-findings.md`, the evals and the restated-fact finding's suggested fix
+  name the new shape, and a pointer-shaped record is read by `check-stamps.sh` through its `As of`
+  and `Recheck trigger` bullets, which a new test case covers.
+- **The rubric's record test reads the new shape.** A passage is conforming when a whole record
+  (pointer, as-of date, observable recheck trigger) sits beside the decision it records, and text
+  inside a record that matches the source is still judged like any other passage. The R4 criterion,
+  the conforming-record carve-out and the refutation prompt use that test. The org rules the rubric
+  applies, and the fetch-route record in `source-fetch.md`, are restated as pointer records with an
+  as-of date of 2026-10-01.
+- **The fetch rule "No verbatim quote, no claim" becomes "No read, no verdict".** A verdict rests on
+  the text read and names the matched span in the run's report; the span never enters the file
+  being repaired.
+
 ## [0.8.5] - 2026-10-02
 
 ### Fixed

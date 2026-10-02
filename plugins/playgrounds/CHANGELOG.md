@@ -3,6 +3,12 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-02
+
+### Fixed
+
+- `use` no longer gives a cream background as its example of a style to leave out.
+
 ## [0.2.1] - 2026-10-02
 
 ### Fixed

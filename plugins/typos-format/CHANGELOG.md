@@ -3,6 +3,26 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.11] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): `typos_format_enabled` is titled `Spell-check on edit`
+  and `typos_format_write_changes` is titled `In-place spelling corrections`. No key, type or
+  default changed.
+
+## [0.8.10] - 2026-10-02
+
+### Changed
+
+- **The README's hook-behavior notes state our decisions and point at the docs.** The timeout tail,
+  the omitted `MultiEdit` matcher, the Git Bash requirement on native Windows, the `node`
+  requirement and the decision to keep the row synchronous are each a decision with a pointer to the
+  anchored docs section, an as-of date and a recheck trigger, and none of the page's wording is
+  stored. No hook behavior changes.
+- The README points at typos' own config-file search instead of listing the file names.
+
 ## [0.8.9] - 2026-10-02
 
 ### Fixed

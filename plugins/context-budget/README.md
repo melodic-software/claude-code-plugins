@@ -142,7 +142,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that asks on Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. Shell writes and files rendered into place are outside the matcher. |
+| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
 
 ### How to set these
 

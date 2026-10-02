@@ -77,7 +77,10 @@ After every dispatched digest agent has *returned*:
    `files` list an `INDEX.md` path refers to the same artifact under its old name: re-pin it
    under `SOURCES.md` after the resume-time rename rather than treating the missing path as
    BLOCKED.
-2. Write `<work-root>/verification/pin-manifest.json`:
+2. Write `<work-root>/verification/pin-manifest.json` by running
+   `python3 <skill-dir>/scripts/pin-manifest.py <work-root>`, which does step 1 and this step and
+   refuses a slice missing `source.*`, `SOURCES.md` or every digest. Its suite is
+   `scripts/test_pin_manifest.py`. The written shape:
 
 ```json
 {
@@ -93,8 +96,10 @@ After every dispatched digest agent has *returned*:
 ```
 
 That manifest freezes the tree for the verification window. Each arm hashes
-what it audits and states those hashes in its verdict. A mismatch is BLOCKED,
-not a content finding. Re-pin and re-run the arm.
+what it audits and states those hashes in its verdict;
+`python3 <skill-dir>/scripts/pin-manifest.py <work-root> --check` prints
+`BLOCKED:` for each changed, missing or new file. A mismatch is BLOCKED, not a
+content finding. Re-pin and re-run the arm.
 
 **A verdict file on disk is an intermediate write, never a report.** Do not
 apply corrections, re-pin, or tick an arm complete because a verdict file

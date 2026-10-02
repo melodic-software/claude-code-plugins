@@ -3,6 +3,31 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1] - 2026-10-02
+
+### Fixed
+
+- `test_judge_effort` points at the model config page for supported levels and says it has
+  no effect on a model that page lists without effort levels. The judge calibration takes
+  Haiku's sweep arms from that page, and `cleanup`'s model record states only what the skill
+  relies on.
+
+## [0.19.0] - 2026-10-02
+
+### Changed
+
+- `test_judge_model`, `test_judge_fallback_model` and `test_judge_effort` are pickers in `/config`
+  (`options`), listing exactly the values `judge-lib.sh` accepts, per the plugin-option-naming
+  convention (`docs/conventions/plugin-option-naming/`). A value outside the list, which the hook
+  already ignored in favor of the default, is now rejected when set.
+
+## [0.18.4] - 2026-10-02
+
+### Changed
+
+- **`write` no longer asks for a self-check before writing tests.** It states the interface it
+  assumes in one line and proceeds.
+
 ## [0.18.3] - 2026-10-02
 
 ### Changed

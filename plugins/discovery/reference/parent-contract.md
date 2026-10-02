@@ -138,8 +138,9 @@ named here rather than in the template above. Each worker definition pins a defa
 `explorer` runs on `sonnet`; `researcher`, `intent-tracer` and `research-verifier` run on `opus`. The default is still to
 **pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
 whose scope earns a different model; it replaces the pin in either direction. Every producing worker
-spends `maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading; why 40
-stays is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
+spends `maxTurns: 40`: `researcher` and `intent-tracer` at `effort: high`, and `explorer` at
+`effort: medium`, the effort floor, because its turns go almost entirely to reading. Why 40 stays
+is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
 completion budget". The pin
 outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
 overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
@@ -218,20 +219,22 @@ non-fork subagent starts with no history by design. So the operative rule is:
 > reports rather than repairs**, never as an empty scope to fill in, and never as a license to run
 > a general sweep.
 
-That rule holds whichever way the harness renders the placeholder, which matters because **the
-harness's behavior on this path is not documented in either direction.** Recorded as unsupported,
-not as false. Nothing below establishes that a preloaded body renders the placeholder empty, and
-nothing establishes that it does not:
+That rule holds whichever way the harness renders the placeholder, which matters because **we have
+found no page that documents the harness's behavior on this path, in either direction.** Recorded as
+unsupported, not as false: nothing we read establishes that a preloaded body renders the
+placeholder empty, and nothing establishes that it does not. We checked the skills page's
+substitution table, the subagents page's preload section, and the nearest documented analogue, the
+skills page's `context: fork` walkthrough, which is a different path and is not evidence for this
+one.
 
-- <https://code.claude.com/docs/en/skills> (raw markdown, fetched 2026-08-11) scopes the placeholder
-  to invocation: "`$ARGUMENTS` | All arguments passed when invoking the skill." It states that
-  preload is a different path, "Subagents with preloaded skills work differently: the full skill
-  content is injected at startup", and says nothing about argument substitution on it.
-- <https://code.claude.com/docs/en/sub-agents> (raw markdown, same date) likewise: "The full content
-  of each listed skill is injected into the subagent's context at startup." No mention of arguments.
-- The nearest documented analogue points the *other* way. The `context: fork` walkthrough on the
-  skills page shows the subagent "receives the skill content as its prompt (`"Research \$ARGUMENTS
-  thoroughly..."`)", the placeholder arriving as literal text, on a path that is not this one.
+- **Pointer**: for the placeholder, see
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
+  for preload, see
+  [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents);
+  for the analogue, see
+  [skills: run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent).
+- **As of**: 2026-10-01
+- **Recheck trigger**: either page starts describing argument substitution on the preload path.
 
 **Re-check both pages before restating any mechanism here.** Through 0.14.0 this plugin asserted a
 specific empty-string rendering of the placeholder on the preload path as settled fact, at five
@@ -245,28 +248,28 @@ carries on the preload path; this one is about placeholder-shaped text **a calle
 into a dispatch prompt. Neither is evidence for the other. All four entry skills point here rather
 than each carrying its own copy.
 
-**A `${CLAUDE_…}`-shaped token in a topic or scope may not arrive as you typed it.** Stated as what
-was observed and what is documented, because the mechanism is neither:
+**A `${CLAUDE_…}`-shaped token in a topic or scope may not arrive as you typed it.**
 
 - **Observed 2026-08-10:** an argument naming *another* plugin's `${CLAUDE_PLUGIN_DATA}` directory
   reached a dispatched discovery agent rewritten to **this** plugin's own path. The agent was asked
   a factually wrong question and answered it correctly.
-- **Documented** (`plugins-reference`, `skills`, both fetched 2026-08-11): skill and agent content
-  is a substitution site for `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and
-  `${CLAUDE_PROJECT_DIR}` "anywhere the placeholder appears", and there is **no escape** for them.
-  "A backslash before any other `$` is left unchanged" covers `$ARGUMENTS` and declared argument
-  names, not these.
-- **Not documented on any page:** whether argument-supplied text is itself scanned for those
-  placeholders. The ordering is unstated, so do not read the observation above as a mechanism.
+- **What we now rely on:** skill and agent content is a substitution site for the plugin and
+  project `${CLAUDE_…}` variables, with no escape for them, and argument text is inserted before
+  those variables are replaced, which accounts for the observation above. Treat a `${CLAUDE_…}`
+  token in an argument as rewritten before the agent sees it.
+- **Pointer**: for the substitution sites and the escape rule, see
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
+  for the order of argument insertion and variable replacement, see
+  [skills: pass arguments to skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the skills page changes the order of argument insertion and variable
+  replacement, or adds an escape for the `${CLAUDE_…}` variables.
 
 Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it
 back. The `topic_as_received` / `scope_as_received` echo-back in the acceptance gate is what catches
 this whichever way the substitution actually runs, and it matters most under
 `/discovery:research-deep`, where one topic is copied into every envelope of an N-way fan-out, so
 check each dispatched agent's echo against the envelope it was sent, per topic, before synthesis.
-
-**This caveat expires 2027-02-11.** Re-fetch both pages then. After that date it is an unverified
-claim, not a fact. Say so rather than repeating it.
 
 ## Credentials stay unread, stated once
 
@@ -291,33 +294,34 @@ Record a capability you could not establish without reading a value as a gap in
 reveal a credential is a finding, never a step.** The same pool holds `curl`, so a page that
 steers the agent into a credential read also has an egress channel.
 
-**Held by instruction; the operator's sandbox can enforce the file half.**
+**Held by instruction; the operator's sandbox can enforce the file half.** We rely on two facts: no
+subagent frontmatter can block one shell command while keeping the shell, because a
+`disallowedTools` entry with a specifier removes the whole tool; and a `permissions.deny` Bash rule
+in settings does block the command, for subagents as well as the main conversation.
 
-- *Claim.* No subagent frontmatter can block one shell command while keeping the shell: a
-  `disallowedTools` entry with a specifier removes the whole tool. A `permissions.deny` Bash rule
-  in settings blocks the command and applies to subagents as well as the main conversation.
-- *Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents): "A
-  `disallowedTools` entry with a specifier, such as `Bash(git push *)`, still removes the whole
-  tool from the subagent, not only the matching commands." and "To keep Bash and block specific
-  commands, add a Bash deny rule such as `Bash(git push *)` to `permissions.deny` in your
-  settings. The rule applies to the main conversation and to subagents."
-- *As of.* Fetched 2026-09-19 (Claude Code 2.1.278); both spans re-verified on the page 2026-09-28.
-- *Recheck trigger.* The page stops carrying either quoted span, or a release note names
-  `disallowedTools` specifier matching or subagent permission inheritance.
+- **Pointer**: for both, see
+  [subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section changes how a `disallowedTools` specifier or a settings deny
+  rule applies to a subagent, or a release note names `disallowedTools` specifier matching or
+  subagent permission inheritance.
 
 Command deny rules are a partial guardrail, not the boundary. `Bash(git credential *)` or
 `Bash(gh auth token*)` (each with its `PowerShell(...)` twin, because a background subagent keeps
 `PowerShell`) blocks that one spelling; `printenv`, a `python -c` or `node -e` reader, and every
-other program that opens a file stay open, and the
-[permissions page](https://code.claude.com/docs/en/permissions) calls Bash patterns that constrain
-arguments fragile. A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
+other program that opens a file stay open, so we never treat an argument-constraining Bash pattern
+as a boundary (Pointer: for why such patterns are unreliable, see
+[permissions: Bash](https://code.claude.com/docs/en/permissions#bash).
+As of: 2026-10-01. Recheck trigger: the permissions page documents argument matching that holds).
+A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
 operator's sandbox configuration, detailed and dated in the `harness-config` audit's
 [`required-permissions.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-config/skills/audit/reference/required-permissions.md)
 (a URL, because a marketplace install of `discovery` does not carry that plugin's files). A token held in an
 environment variable sits outside any file boundary and stays held by instruction. The plugin
-cannot ship any of this: a plugin's `settings.json` takes only the `agent` and `subagentStatusLine`
-keys ([plugins reference](https://code.claude.com/docs/en/plugins-reference), the `settings` field,
-fetched 2026-09-29; recheck when that field lists another key).
+cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for
+the keys a plugin's settings may set, see
+[plugins reference: `settings`](https://code.claude.com/docs/en/plugins-reference#settings).
+As of: 2026-10-01. Recheck trigger: that field accepts another key).
 
 ## Read each file once, stated once
 
@@ -413,136 +417,122 @@ findings returned in place of an artifact are a failed dispatch, not a fallback.
 Twelve harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
-them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
-named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
-fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
-fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
-Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
-Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
-Record 12 is a first-party reproduction run on 2026-10-01, with the sub-agents page fetched the same day.
+them repeats a pointer. Each record states what we rely on in our words and points at the section
+that carries the detail; none restates the page.
 
-**One shared recheck trigger covers all twelve:** any of the named pages stops carrying the quoted
-span, a release note names subagent tool filtering, skill preloading, background execution,
-subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
-model resolution, per-invocation subagent parameters, turn-limit output or partial marking, or
-`SendMessage` resume, or the CLI major
-version moves. On any of those, re-fetch the page before
-restating the record, and re-date this section rather than editing a claim in place.
+- **As of**: 2026-10-01 for every record below unless the record names its own date, re-read that
+  day against the sub-agents, skills, permissions and CLI reference pages.
+- **Recheck trigger**, shared by all twelve: a record's pointer stops supporting it, a release note
+  names subagent tool filtering, skill preloading, background execution, subagent spawn
+  permissions, effort substitution, built-in subagent capabilities, subagent model resolution,
+  per-invocation subagent parameters, turn-limit output or partial marking, or `SendMessage`
+  resume, or the CLI major version moves. On any of those, re-read the pointer before restating
+  the record, and re-date it rather than editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
 
-*Claim.* A subagent's `skills:` preload that cannot resolve does not fail the dispatch; the agent
-runs without the body it was supposed to carry, and the only trace is a debug-log warning.
-*Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents): "If a listed skill
-is missing or disabled, for example by your organization's policy, Claude Code skips it and logs a
-warning to the debug log." The same page's field table gives the mechanism the preload uses: the
-`skills` field injects "The full skill content", not only the description. *Why the plugin cares.*
-A run whose discipline never loaded is indistinguishable from a good one by every other signal,
-which is what the liveness token exists to catch.
+*What we rely on.* A subagent's `skills:` preload that cannot resolve does not fail the dispatch;
+the agent runs without the body it was supposed to carry, and the only trace is a debug-log
+warning. A preload that does resolve carries the whole skill body, not only its description.
+*Pointer:* for both, see
+[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents).
+*Why the plugin cares.* A run whose discipline never loaded is indistinguishable from a good one by
+every other signal, which is what the liveness token exists to catch.
 
 ### `AskUserQuestion` is removed from every non-fork subagent
 
-*Claim.* A dispatched agent cannot ask the user a question directly; open questions reach a human
-only through its return payload and the parent. *Basis.* the same page's tool-filter list, which
-names `AskUserQuestion` among the tools the first filter "removes these tools, even when listed in
-the `tools` field", and states that forks "skip both filters and receive the main conversation's
-exact tool pool".
+*What we rely on.* A dispatched agent cannot ask the user a question directly; open questions reach
+a human only through its return payload and the parent. A fork keeps the main session's tools.
+*Pointer:* for the tools every non-fork subagent loses, see
+[subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools); for what
+a fork keeps, see
+[subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
 
 ### Plan-mode tools are removed from every non-fork subagent
 
-*Claim.* A dispatched run cannot enter plan mode, so a read-only posture there is the agent's own
-instruction rather than a harness boundary. *Basis.* the same tool-filter list: `EnterPlanMode`
-unconditionally, and `ExitPlanMode` "unless the subagent's `permissionMode` is `plan`".
+*What we rely on.* A dispatched run cannot enter plan mode, so a read-only posture there is the
+agent's own instruction rather than a harness boundary. The one exception, a subagent whose
+`permissionMode` is `plan` keeping the exit tool, does not apply to any agent here. *Pointer:* the
+same available-tools section.
 
 ### The `Workflow` tool is absent from every non-fork subagent
 
-*Claim.* Only the main conversation, or a fork of it, can dispatch a workflow engine, which is why
-the deep-research tier ladder runs from main context. *Basis.* the same tool-filter list, which
-names `Workflow`.
+*What we rely on.* Only the main conversation, or a fork of it, can dispatch a workflow engine,
+which is why the deep-research tier ladder runs from main context. *Pointer:* the same
+available-tools section.
 
 ### Background is the default execution mode, and it narrows the tool set again
 
-*Claim.* A dispatched agent runs in the background unless one of the documented foreground cases
-applies, and a background subagent keeps only a named subset of built-in tools plus every MCP
-tool. *Basis.* the same page: the second filter "reduces the built-in tool set for subagents that
-run in the background, which is the default", and the fork-mode section states that Claude Code
-"runs the subagents Claude spawns in the background, forks and non-fork subagents alike, apart
-from the cases that stay in the foreground". *Do not restate the tool subset.* It is a list the
-harness owns and revises; a site that needs it names the page rather than copying the members.
+*What we rely on.* A dispatched agent runs in the background unless one of the documented
+foreground cases applies, and a background subagent keeps a smaller set of built-in tools plus
+every MCP tool. *Pointer:* for the foreground cases, see
+[subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background);
+for the background tool set, the available-tools section. *Do not restate the tool subset.* It is a
+list the harness owns and revises; a site that needs it names the page rather than copying the
+members.
 
 ### A spawn is permission-checked before it launches, and the depth limit is a different mechanism
 
-*Claim.* A denied spawn is not evidence about nesting depth. The two failures have different
+*What we rely on.* A denied spawn is not evidence about nesting depth. A deny rule refuses a spawn
+before it launches, while the depth limit takes the `Agent` tool away from a non-fork subagent, so
+a subagent at the limit has no tool to call rather than a call that comes back denied; a fork at
+the limit keeps the tool and gets an error when it calls it. The two failures have different
 causes and different error text, so read the error rather than inferring a depth ceiling from it.
-*Basis.* the same page. A deny rule refuses the spawn: subagents are blocked with an
-`Agent(subagent-name)` entry in the settings `deny` array, and denying the `Agent` tool itself
-prevents delegation entirely. The depth limit works the other way (re-fetched 2026-09-27, quoted
-with link markup removed): at the limit "Claude Code withholds the `Agent` tool from every
-subagent except a fork", so a subagent at the limit has no tool to call rather than a call that
-comes back denied, while "A fork at the limit keeps `Agent` in
-its inherited tool list, but the tool returns an error instead of spawning." *One bound worth
-carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
-it, but "any type list inside the parentheses is ignored".
+One bound worth carrying: in a subagent definition, listing `Agent` permits nesting while the depth
+limit allows it, and a type list in parentheses there restricts nothing. *Pointer:* for deny rules,
+see
+[subagents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned);
+for the depth limit, see
+[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 
 ### `${CLAUDE_EFFORT}` is the loading context's level
 
-*Claim.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the skill
-(`low`, `medium`, `high`, `xhigh`, or `max`; Ultracode reports as `xhigh`). A skill or
-subagent frontmatter `effort` pin overrides the session level while that lane is active, so a
-skill preloaded into a pinned worker expands the pin, not the parent's session level. A body
-Read from disk is unsubstituted: the placeholder remains the literal characters. *Basis.*
-[Skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions):
-"`${CLAUDE_EFFORT}` | The current effort level: `low`, `medium`, `high`, `xhigh`, or `max`.
-Ultracode is not a distinct level and reports as `xhigh`." [Skills: frontmatter
-reference](https://code.claude.com/docs/en/skills#frontmatter-reference): `effort` "Overrides
-the session effort level." [Create custom subagents](https://code.claude.com/docs/en/sub-agents):
-the agent-frontmatter `effort` field "Overrides the session effort level. Default: inherits
-from session." *Why the plugin cares.* `/discovery:research` scales source breadth by caller
-effort, and `discovery:researcher` is pinned `high` so reasoning does not degrade inside a
-session tuned down for cost. The worker's substituted value is therefore the pin. The parent
-writes `Source breadth:` from its own load so the table still follows the caller.
+*What we rely on.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the
+skill. A skill or subagent frontmatter `effort` pin overrides the session level while that lane is
+active, so a skill preloaded into a pinned worker expands the pin, not the parent's session level.
+A body Read from disk is unsubstituted: the placeholder remains the literal characters.
+*Pointer:* for the placeholder, see
+[skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
+for the pin, see
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
+[subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+*Why the plugin cares.* `/discovery:research` scales source breadth by caller effort, and
+`discovery:researcher` is pinned `high` so reasoning does not degrade inside a session tuned down
+for cost. The worker's substituted value is therefore the pin. The parent writes
+`Source breadth:` from its own load so the table still follows the caller.
 
 ### The built-in Explore agent cannot hold this plugin's contract
 
-*Claim.* Built-in Explore is a read-only locator: `Write` and `Edit` are denied, it preloads no
+*What we rely on.* Built-in Explore is a read-only locator: it cannot write or edit, it preloads no
 skill, it skips the CLAUDE.md hierarchy and the parent's git status, and it is one-shot with no
-agent ID to resume. *Basis.*
-[Subagents](https://code.claude.com/docs/en/subagents), built-in subagents: "Tools: read-only
-tools; Write and Edit are denied"; "Explore and Plan skip your CLAUDE.md files and the parent
-session's git status to keep research fast and inexpensive. Every other built-in and custom
-subagent loads both, unless its definition sets the `omitClaudeMd` field"; the what-loads-at-startup
-list, "Preloaded skills: full content of any skill named in the agent's `skills` field. Built-in
-agents don't preload skills"; and "The built-in Explore and Plan agents are one-shot and return no
-agent ID, so Claude can't resume them. Use `general-purpose` or a custom subagent when you need to
-continue the work." The same section gives the thoroughness knob a caller passes: "quick for
-targeted lookups, medium for balanced exploration, or very thorough for comprehensive analysis."
+agent ID to resume. A caller passes it a thoroughness level (`quick`, `medium`, or
+`very thorough`). *Pointer:* for its tools, the skip, and the thoroughness level, see
+[subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents);
+for preloading and resume, see
+[subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+and [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
 *Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
 is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
 artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
 token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
 means a truncated run cannot be resumed. Its read depth is a *judgment* this plugin adds rather than
-a documented fact: "Built-in agents have predefined prompts", so how much of a file one read is
-neither stated by the page nor recoverable from its report, and a worker therefore treats every
-scout hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a
-user- or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip. The
-page attributes the skip to "the built-in Explore and Plan agents" while stating every other custom
-subagent loads both, and says elsewhere "Only Explore and Plan skip it" by name. Setting
-`omitClaudeMd: true` on such an override makes the question moot.
+a documented fact: a built-in agent runs a prompt we cannot inspect, so how much of a file one read
+is neither documented nor recoverable from its report, and a worker therefore treats every scout
+hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a user-
+or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip; the page
+ties the skip to the built-in agents by name. Setting `omitClaudeMd: true` on such an override
+makes the question moot.
 
 ### A per-invocation `model` outranks a subagent's frontmatter
 
-*Claim.* Claude Code resolves a subagent's model as per-invocation parameter, then the definition's
-`model` frontmatter (`inherit` selecting the main conversation's model), then
-`CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
-collapses all of it. *Basis.*
-[Subagents](https://code.claude.com/docs/en/subagents): "When Claude invokes a subagent, it can
-also pass a `model` parameter for that specific invocation", with that four-step order stated
-verbatim; "Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this order and overrode both
-the per-invocation parameter and the frontmatter, including `model: inherit`"; "While
-`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
-definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
-it starts a subagent."; "When you omit it, Claude Code picks the model in the subagent model
-order". *Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
+*What we rely on.* A subagent's model resolves from the per-invocation parameter first, then the
+definition's `model` frontmatter (`inherit` selecting the main conversation's model), then
+`CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model; an older harness ranked the
+environment variable first; and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides all of it. *Pointer:*
+for the order, the version where it changed, and the force switch, see
+[subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
+[subagents: run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
+*Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
 session overrides it per run with the per-call `model`, which replaces the pin in either direction.
 An omitted `model` is not a neutral default: it falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to
 the main conversation's model, so on a machine without the variable an unpinned worker runs on the
@@ -551,48 +541,47 @@ environment variable, so it is a cost defect in a worker definition.
 
 ### The verdict lane pins `opus` at `effort: high`
 
-*Claim.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may not
-grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`, mechanical
-preparation, stays on `sonnet`. *Basis.* [docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md)
-line 1042, "a consequential verdict runs at the session-model tier or above, never below", and line
-1187, "Consequential-output lanes with a frontmatter surface pin `high`", both read 2026-09-29.
-*Recheck:* an edit to the philosophy's tier or lane rule.
+*Decision.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may
+not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
+mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
+[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
+in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
+record). *As of:* 2026-10-02. *Recheck trigger:* an edit to the
+philosophy's tier rule, lane rule, or pinned-agents record.
 
 ### A turn-limit stop returns partial output, and the parent can resume the agent
 
-*Claim.* A subagent that reaches `maxTurns` returns its output marked as partial, and the parent
-can resume it with `SendMessage` addressed by agent ID; the resumed run keeps its full history and
-continues where it stopped. The marking needs Claude Code v2.1.246 or later, and an older harness
-may return nothing at all. *Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents),
-quoted with link markup removed: the `maxTurns` field row, "When the subagent reaches the limit,
-Claude Code returns its output marked as partial, and Claude can resume it to continue. The
-partial marking requires Claude Code v2.1.246 or later"; the resume section, "When a subagent
-stops at its `maxTurns` limit, Claude Code marks the returned output as partial. For subagents
-that return an agent ID, Claude Code also notes in the result that Claude can message the subagent
-to continue from where it stopped.", "Claude uses the `SendMessage` tool with the agent's ID or
-name as the `to` field to resume it.", "Resumed subagents retain their full conversation history,
-including all previous tool calls, results, and reasoning.", and "The subagent picks up exactly
-where it stopped rather than starting fresh." *Why the plugin cares.* It is what makes
+*What we rely on.* A subagent that reaches its `maxTurns` limit
+returns its output marked as partial, and the parent can resume it with `SendMessage` addressed
+by agent ID; the resumed run keeps its full history and continues where it stopped. An older harness, below the version the
+`maxTurns` field row names, may return nothing at all. *Pointer:* for the marking and its version
+floor, see the `maxTurns` row of
+[subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
+for resume, see
+[subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
+*Why the plugin cares.* It is what makes
 [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice) the first
-rung rather than a hope. *Not verified:* which text the partial output carries. The page says the
-output is "marked as partial" and does not say whether a payload block the agent emitted mid-run
-is part of it, which is why the agents keep the disk marker as the primary stop signal.
+rung rather than a hope. *Not verified:* which text the partial output carries. We found no page
+that says whether a payload block the agent emitted mid-run is part of it, which is why the agents
+keep the disk marker as the primary stop signal.
 
 ### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
 
-*Claim.* A subagent's `maxTurns` comes from its definition, and the parent cannot change it for
-one dispatch. Every producing worker definition here (`explorer`, `researcher`, `intent-tracer`) sets `maxTurns: 40`. The read-only `research-verifier` sets `maxTurns: 30` and stops gathering at turn 24. The number is a checkpoint and a
+*What we rely on.* A subagent's `maxTurns` comes from its definition, and the parent cannot change
+it for one dispatch: the Agent tool takes no per-call `maxTurns`, an `--agents` JSON definition
+sets it for the whole session rather than one dispatch, and the CLI's `--max-turns` is a different
+setting for print mode. *Pointer:* for the field, see
+[subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
+for the Agent tool's per-call parameters, see
+[subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
+[subagents: subagent names](https://code.claude.com/docs/en/sub-agents#subagent-names);
+for `--agents` and `--max-turns`, see their rows in
+[CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
+
+*Decision.* Every producing worker definition here (`explorer`, `researcher`, `intent-tracer`) sets `maxTurns: 40`. The read-only `research-verifier` sets `maxTurns: 30` and stops gathering at turn 24. The number is a checkpoint and a
 runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
 gathering at its own stop turn to write before the limit, and a run that still reaches the limit
-completes through the resume in the record above. *Basis.*
-[Create custom subagents](https://code.claude.com/docs/en/sub-agents) lists `maxTurns` as a
-frontmatter field, "Maximum number of agentic turns before the subagent stops". The Agent tool
-call parameters it documents, such as `model` and `name`, include no `maxTurns`. An `--agents`
-JSON definition does accept `maxTurns`, but that route is "Current session", "Pass JSON when
-launching Claude Code", so it defines an agent for the whole session rather than widening one
-dispatch. The CLI's `--max-turns` is a different setting:
-[CLI reference](https://code.claude.com/docs/en/cli-reference), "Limit the number of agentic
-turns (print mode only). Exits with an error when the limit is reached. No limit by default."
+completes through the resume in the record above.
 *Why the plugin cares.* No documented or measured basis exists for a different number. Raising
 it would size the budget to a guess, and removing it would drop the guard on unattended runs,
 while a limit stop now returns partial output the parent resumes. `contract.test.sh` holds the
@@ -639,11 +628,13 @@ the agent to say whether a "Preload liveness" section was in its instructions. E
 `[Agent: discovery:explorer] Preloaded skill 'discovery:explore'` and no skip warning; the probe run
 confirmed the definition body was in the agent's context; no run Read `SKILL.md`; every first return
 carried the YAML block with the skill's `preload_token` and `preload: fired`. Harness 2.1.286 also
-delivers a child agent's report as a message to its parent, not as a tool result. The
-[sub-agents page](https://code.claude.com/docs/en/sub-agents) states that "a subagent that launches
-background subagents waits for their results before it finishes" and that background results "reach
-Claude as a completion notification in a later turn". *What this does not
-establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
+delivers a child agent's report as a message to its parent, not as a tool result, which matches
+our reading of the sub-agents page: a parent that launched background subagents waits for them,
+and their results arrive in a later turn. *Pointer:* for both, see
+[subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background)
+and
+[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
+*What this does not establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
 intermittent harness fault, or a definition text that differed from this commit, is neither
 confirmed nor excluded. The dispatch without `model:` and `name:` was not run. *Consequence.* The
 preload and payload half of this record changes nothing in the dispatch envelope: the definition body loads, and the parent's acceptance gate
@@ -736,23 +727,29 @@ Anything that lets the run proceed without a script exit reintroduces the defect
 
 ### The gate ships no permission grant, and the un-run case is a halt
 
-Neither skill declares `allowed-tools`, and that is a conclusion rather than an omission. Re-checked
-against <https://code.claude.com/docs/en/skills> (raw markdown, fetched 2026-08-14):
+Neither skill declares `allowed-tools`, and that is a conclusion rather than an omission. Three
+legs:
 
-1. **`${CLAUDE_PLUGIN_ROOT}` now substitutes in plugin-skill `allowed-tools` Bash rules** (same page:
-   "In a plugin skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in
-   the same two places" as `${CLAUDE_SKILL_DIR}` / `${CLAUDE_PROJECT_DIR}`). That removes the old
-   "token cannot name these scripts" leg. It does **not** confirm that a
+1. **`${CLAUDE_PLUGIN_ROOT}` substitutes in plugin-skill `allowed-tools` Bash rules.** That removes
+   the old "token cannot name these scripts" leg. It does **not** confirm that a
    `${CLAUDE_PLUGIN_ROOT}`-bearing rule matches at runtime on every host. Treat the docs change as
    necessary but not sufficient, and do not ship a grant on docs alone.
 2. **An interpreter-led rule is still an anti-pattern in this repo.** A grant shaped like
    `bash` wrapping the script path names the interpreter and is dropped under auto mode. See
    `docs/conventions/permission-rule-hygiene/README.md`, anti-pattern 1. A direct-path rule that
    names the `.sh` (or `.py`) under the plugin root is the documented shape, but see leg 3.
-3. **The grant would not last long enough anyway.** It "grants permission for the listed tools
-   during the turn that invokes the skill … The grant clears when you send your next message." The
-   parent runs this gate *after* a dispatch returns, which is a later turn; criterion 11 on a
-   multi-phase research run is likewise later than the invoking turn.
+3. **The grant would not last long enough anyway.** We read an `allowed-tools` grant as lasting only
+   for the turn that invokes the skill. The parent runs this gate *after* a dispatch returns, which
+   is a later turn; criterion 11 on a multi-phase research run is likewise later than the invoking
+   turn.
+
+- **Pointer**: for leg 1, see
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
+  for leg 3, and for allow rules as the session-wide alternative, see
+  [skills: pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill).
+- **As of**: 2026-10-01
+- **Recheck trigger**: either section changes where plugin variables substitute or how long an
+  `allowed-tools` grant lasts.
 
 So the honest statement is the one the rest of this plugin already makes about un-run checks:
 
@@ -761,10 +758,9 @@ So the honest statement is the one the rest of this plugin already makes about u
 > reading of the directory or of the coverage ledger. The context most motivated to call the run
 > finished is the one that would be doing the reading.
 
-**Operator setup, once per installed version, optional.** The documented way to cover a
-multi-turn command is settings, not frontmatter: "To pre-approve tools for the whole session rather
-than a single turn, add allow rules to those permission settings instead." The plugin cannot ship
-them: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys. So the
+**Operator setup, once per installed version, optional.** We cover a multi-turn command with allow
+rules in settings, not frontmatter (pointer above). The plugin cannot ship them, because a plugin's
+settings cannot carry permission rules (see "Credentials stay unread, stated once"). So the
 operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup check` prints them
 resolved for this install. The rules, with `<plugin root>` replaced by the absolute
 path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
@@ -792,19 +788,20 @@ The trailing space-and-`*` covers `--help` and every gate argument.
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
 the version (`…/discovery/<version>/`), so these rules stop matching after an update and the gates
 prompt again; re-run `/discovery:setup check` and paste its output. Writing `…/discovery/*/scripts/…`
-instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
-as written" and a `*` "matches any text, including spaces". Tested on Claude Code 2.1.285 (probe
-linked under *Basis*): a `*` in the version segment matched across `/`, and
+instead would survive the update but is unsafe: a `*` in the version segment of a Bash allow rule
+spans `/` and is not path-normalized, so `..` escapes the plugin cache. Our probe on Claude Code
+2.1.285 showed it: a `*` in the version segment matched across `/`, and
 `<root>/cache/discovery/../../outside/scripts/gate.sh` was allowed with no prompt, so the rule matches
 the command text without normalizing `..` and runs a script outside the plugin cache. A prompt after an
-update is the safe failure; a rule that approves a script outside the cache is not. *Claim:* a `*` in
-the version segment of a Bash allow rule spans `/` and is not path-normalized, so `..` escapes the
-plugin cache. *Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched
-2026-09-30, and the probe recorded at
-<https://github.com/melodic-software/claude-code-plugins/issues/4233#issuecomment-5900240219>
-(allowed 3 of 3 runs, Claude Code 2.1.285, Linux). *As of:* 2026-09-29, Claude Code 2.1.285.
-*Recheck when:* the permissions page documents path normalization or a `*` that stops at `/`, or a
-Claude Code release changes the probe result, which would make a version wildcard safe.
+update is the safe failure; a rule that approves a script outside the cache is not.
+
+- **Pointer**: for that behavior, see our probe at
+  <https://github.com/melodic-software/claude-code-plugins/issues/4233#issuecomment-5900240219>
+  (allowed 3 of 3 runs, Claude Code 2.1.285, Linux); for how Bash rule wildcards match, see
+  [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns).
+- **As of**: 2026-09-29
+- **Recheck trigger**: the permissions page documents path normalization or a `*` that stops at
+  `/`, or a Claude Code release changes the probe result, which would make a version wildcard safe.
 
 ### What this gate does not grade
 

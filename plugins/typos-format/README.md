@@ -11,11 +11,11 @@ It ships one fleet-wide protection of its own: a bundled
 `config/default-typos.toml` injected via `typos -c` so write mode cannot
 silently corrupt git SHAs. Otherwise it runs unconditionally on typos'
 built-in spelling dictionary. If your repository has its own typos
-configuration (`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
-`[workspace.metadata.typos]`/`[package.metadata.typos]`, or `pyproject.toml`
-with `[tool.typos]`), typos discovers it from the target path and merges
-`extend-*` keys with the bundled file rather than replacing them. No
-opt-in required.
+configuration, in any file typos' own config search finds, typos discovers it
+from the target path and merges `extend-*` keys with the bundled file rather than
+replacing them. No opt-in required. Pointer: the Sources list in
+[typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+As of: 2026-10-01. Recheck trigger: typos changes its config file names or search order.
 
 ## Behavior
 
@@ -76,10 +76,11 @@ reads-then-writes with no locking, so ordering is **last-writer-wins** and a
 nondeterministic clobber is possible. That double opt-in is your call to
 make; the residual overlap class is tracked fleet-wide in #875.
 
-**Timeout tail.** The handler sets `"timeout": 15`, well under the 600-second
-default for a command hook, and Claude Code discards the output of a hook it
-cancels at its timeout ([hooks reference](https://code.claude.com/docs/en/hooks),
-"Timeouts", checked 2026-09-27). In write mode the second typos pass rewrites
+**Timeout tail.** The handler sets `"timeout": 15`, well under the default for a
+command hook, and we treat a hook cancelled at its timeout as having reported
+nothing. Pointer: <https://code.claude.com/docs/en/hooks#timeouts>. As of:
+2026-09-27. Recheck trigger: that section changes the command-hook default or
+what becomes of a cancelled hook's output. In write mode the second typos pass rewrites
 the file before the hook classifies what changed and discloses it, so a cancel
 between the two leaves your file rewritten with no disclosure. The one measured
 case that crossed 15 s, 10,000 residual findings at about 15.7 s, was fixed by
@@ -96,25 +97,26 @@ common Bash redirect and heredoc forms, `python3 -c` writes that use a
 file-write call it recognizes, and the PowerShell write cmdlets; `sed -i`,
 `perl -i`, `tee`, a standalone `cp`, and other interpreters' one-liners such as
 `node -e` are outside what it detects, and it does not see MCP tools. CI is
-the only gate that sees every path. The matcher does not list `MultiEdit`: the
-[tools reference](https://code.claude.com/docs/en/tools-reference) does not
-list it among the built-in tools, and
-[permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
-`MultiEdit` tool" (both checked 2026-09-27; recheck if `MultiEdit` returns to
-the tools reference).
+the only gate that sees every path. The matcher does not list `MultiEdit`: we
+treat it as a legacy tool outside the built-in set. Pointer: for the built-in
+tools, see <https://code.claude.com/docs/en/tools-reference>; for `MultiEdit`'s
+status, see <https://code.claude.com/docs/en/permissions#read-and-edit>. As of:
+2026-09-27. Recheck trigger: `MultiEdit` returns to the tools reference.
 
 ## Requirements
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash. If `/typos-format:setup` fails to load on
-  native Windows, Git Bash is missing: install Git for Windows and rerun
-  ([skills docs](https://code.claude.com/docs/en/skills#how-injected-commands-run), checked
-  2026-09-29: a `shell: bash` skill fails before any command runs when Git Bash is not found).
+  native Windows, Git Bash is missing: install Git for Windows and rerun. Pointer: for how a
+  `shell: bash` skill runs without Git Bash, see
+  <https://code.claude.com/docs/en/skills#how-injected-commands-run>. As of: 2026-09-29.
+  Recheck trigger: that section changes what a `shell: bash` skill does when Bash is missing.
 - **Node.js** on `PATH`. The hook row runs `node hooks/exec-bash.mjs`, which finds Bash and
-  runs the script. Claude Code's native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), checked 2026-09-29), so without `node`
-  the hook does not launch and spelling is not checked. A missing `node` is a hook launch
+  runs the script. We do not assume a Claude Code install brings Node, so without `node`
+  the hook does not launch and spelling is not checked. Pointer:
+  <https://code.claude.com/docs/en/setup#system-requirements>. As of: 2026-09-29. Recheck
+  trigger: that section starts listing Node as a dependency. A missing `node` is a hook launch
   error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
@@ -224,7 +226,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on) |
+| `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-checks every file Claude edits, unconditionally. On by default; report-only unless typos_format_write_changes is on. |
 | `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
 | `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
@@ -360,22 +362,20 @@ The row does not set `async: true`, and it is not split into an async report-onl
 synchronous write-mode row. Running the report-only scan in the background would take it off the
 per-edit critical path, but it gives up more than it saves:
 
-- **The finding would arrive late.** A synchronous `PostToolUse` hook's `additionalContext` reaches
-  Claude alongside the tool result, while Claude is still on the file. An async hook's output
-  arrives on the next conversation turn, and in an idle session it waits for your next message. The
-  last edit of a task is exactly the one whose finding would land after Claude reports the task
-  done.
-- **Headless runs would lose findings.** Under `claude -p`, Claude Code kills an async hook that is
-  still running at teardown and records it as `cancelled`, so the final edits of a scripted or
-  cloud run would go unchecked.
-- **The 15-second budget would go away.** Claude Code does not enforce `timeout` on an async hook,
-  and every firing starts its own background process with no deduplication. This hook's
+- **The finding would arrive late.** The finding is useful while Claude is still on the file, and
+  this row relies on a synchronous hook's `additionalContext` arriving with the tool result. An
+  async row would deliver it later. The last edit of a task is exactly the one whose finding would
+  land after Claude reports the task done.
+- **Headless runs would lose findings.** An async row still running when a `claude -p` run ends
+  would not report, so the final edits of a scripted or cloud run would go unchecked.
+- **The 15-second budget would go away.** The row's `timeout` would no longer bound an async run,
+  and every firing would start its own background process with no deduplication. This hook's
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session, shared by all agents, renewed every eighth skip with the install route kept) that `typos` is not on `PATH`. An async hook's
-  `systemMessage` is not shown to you, so that notice would reach only Claude, once, and the skip
-  would be invisible to the person who can install the binary.
+  mode) and for the notice (once per session, shared by all agents, renewed every eighth skip with the install route kept) that `typos` is not on `PATH`. As an async row,
+  that notice would reach only Claude, once, and the skip would be invisible to the person who can
+  install the binary.
 
 The synchronous cost this keeps is 472 to 649 ms per edit on a Windows Git Bash host (2026-09-23,
 recorded in #4677), and 27 ms for a clean file and 35 ms with a finding on Linux
@@ -384,15 +384,12 @@ grounds: a background rewrite could race the next `Edit` of the same file, the r
 declined for `eol-normalizer` in #4417.
 
 - **Decision**: keep the one synchronous row in both modes.
-- **Basis**: [hooks reference](https://code.claude.com/docs/en/hooks), "Run hooks in the
-  background": "After the background process exits, Claude Code delivers the `additionalContext`
-  and `systemMessage` fields from the hook's JSON response to Claude on the next conversation turn.
-  Unlike a synchronous hook's `systemMessage`, neither field is shown to you"; "If the session is
-  idle, the response waits until the next user interaction"; "In non-interactive mode with the `-p`
-  flag, Claude Code kills any async hook still running at teardown"; "Once an async hook is running
-  in the background, Claude Code doesn't enforce `timeout` on it". The same page's `PostToolUse`
-  output table: `additionalContext` is "added to Claude's context alongside the tool result".
-- **As of**: 2026-09-28.
+- **Pointer**: for async delivery, `-p` teardown and `timeout` on an async hook, see
+  <https://code.claude.com/docs/en/hooks#run-hooks-in-the-background> and
+  <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>; for where a `PostToolUse`
+  hook's `additionalContext` lands, see
+  <https://code.claude.com/docs/en/hooks#posttooluse-decision-control>.
+- **As of**: 2026-09-28
 - **Recheck trigger**: that section changes when async output is delivered, whether `-p` waits for
   a running async hook, or whether `timeout` applies to one; or this hook's measured Windows cost
   on a clean edit exceeds one second.

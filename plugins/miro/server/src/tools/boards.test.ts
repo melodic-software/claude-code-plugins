@@ -7,8 +7,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 
-import { createMiroClients, MISSING_TOKEN_MESSAGE } from "../miro-client.js";
-import { registerBoardTools } from "./boards.js";
+import { createMiroClients, MISSING_TOKEN_MESSAGE } from "../miro-client.ts";
+import { registerBoardTools } from "./boards.ts";
 
 async function connect(api: MiroApi, lowLevel: MiroLowlevelApi) {
   const server = new McpServer({ name: "test", version: "0.0.0" });

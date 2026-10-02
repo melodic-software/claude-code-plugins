@@ -282,35 +282,37 @@ record directory, with a `type: "http"` handler that POSTs the hook event's JSON
 }
 ```
 
-Every element is a documented first-party mechanism (verified against
-<https://code.claude.com/docs/en/hooks> and <https://code.claude.com/docs/en/permissions> on
-2026-07-27):
+Every element is a first-party mechanism. The bullets state what the seam relies on; each specific
+is read live at the pointer.
 
-- `type: "http"` handlers POST the hook's JSON input with `Content-Type: application/json` and are
-  supported in project `.claude/settings.json`, and in every other settings scope, on `PostToolUse`;
-  the one documented handler-type restriction that excludes them is on `SessionStart`. The seam is
-  therefore per-consuming-repo configuration; no plugin ships it. It is deterministic (the handler
-  fires on the matched lifecycle event, no model judgment) and carries no claude.ai subscription or
-  Remote Control dependency.
-- The `if` field holds exactly one permission rule and is evaluated on `PostToolUse`. File rules
-  use the `Edit(...)` form, since Edit rules cover all file-editing tools, `Write` included, and a
-  `Write(path)` rule is never matched, and the single leading `/` anchors at the settings source
-  (`<project root>` for project settings). Each worktree checkout carries its own copy of the
-  tracked settings file, so by that settings-source rule the one tracked rule anchors at each
-  worktree's own root. That is an applied inference: the docs state worktree matching explicitly
-  only for local-settings rules.
-- Header values interpolate environment variables only for names listed in `allowedEnvVars`. The
-  docs document interpolation for `headers` alone and say nothing about `url`, so treat the `url`
-  field as non-interpolating, an applied inference, and the reason the endpoint URL is tracked
-  config while the secret rides only in a header sourced from the operator's environment, never in
-  the repo.
-- **Egress note.** The POST body is the full `PostToolUse` hook input, not just the record:
-  alongside `tool_input` (the record's path and content) it carries session metadata, for
+- **Pointer**: for the handler type, its fields and header interpolation, see
+  [HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields); for the `if` field,
+  see [Common fields](https://code.claude.com/docs/en/hooks#common-fields) and
+  [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit); for the POST body,
+  see [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); for
+  failures, see [HTTP response handling](https://code.claude.com/docs/en/hooks#http-response-handling).
+- **As of**: 2026-07-27
+- **Recheck trigger**: a Claude Code release note or docs change touching HTTP hook handlers, the
+  `if` field, header interpolation, or how edit rules anchor their paths.
+
+- The seam is an `http` handler on `PostToolUse` in the consuming repo's project
+  `.claude/settings.json`: per-consuming-repo configuration that no plugin ships. We rely on it as
+  deterministic (it fires on the matched lifecycle event, no model judgment) and as carrying no
+  claude.ai subscription or Remote Control dependency.
+- The `if` field carries exactly one rule, in the `Edit(...)` form (never `Write(path)`), with a
+  single leading `/` so it anchors at the settings source. Each worktree checkout carries its own
+  copy of the tracked settings file, so we rely on the one tracked rule anchoring at each
+  worktree's own root. That is an applied inference, not a documented guarantee.
+- The secret rides only in a header whose variable is listed in `allowedEnvVars`, sourced from the
+  operator's environment and never from the repo. We treat the `url` field as non-interpolating,
+  an applied inference, which is why the endpoint URL is tracked config.
+- **Egress note.** We treat the POST body as the full `PostToolUse` hook input, not just the
+  record: alongside `tool_input` (the record's path and content) it carries session metadata, for
   example `session_id`, `cwd`, and `transcript_path`, which are absolute local paths and project
   identity. Configuring the hook is the consuming repo's deliberate opt-in to that egress; point
   the URL only at an endpoint trusted with it.
-- A non-2xx response or a connection failure is a non-blocking error: a dead endpoint never blocks
-  a lane.
+- We rely on a failed POST (a non-2xx response or a connection failure) being non-blocking: a dead
+  endpoint never blocks a lane.
 
 **Destination is the consumer's choice.** The URL is any HTTP endpoint the consuming repo
 controls: a generic webhook receiver, an internal alerting service, or a relay that reshapes the
@@ -318,14 +320,22 @@ payload for a chat service (a Slack incoming webhook expects its own JSON shape 
 raw hook payload, so Slack reach goes through a relay). Two non-deterministic layers may ride
 alongside, never instead: the built-in `PushNotification` tool, and model-driven outbound send via
 a chat plugin (UNVERIFIED here: confirm the plugin and its send capability against its own docs
-before relying on it). `PushNotification` "sends a desktop notification, and a phone push when
-Remote Control is connected"; it prompts for no permission, but the model decides when to call it.
-Its phone leg therefore inherits every condition the Remote Control page enumerates under
-Requirements, plus its mobile-push setup steps. One condition matters here in particular:
-`DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and
-`DISABLE_GROWTHBOOK` each disable the feature-flag evaluation Remote Control depends on (verified
-2026-08-04: <https://code.claude.com/docs/en/tools-reference>,
-<https://code.claude.com/docs/en/remote-control>). Only the http hook is the deterministic leg.
+before relying on it). The model decides when to call `PushNotification`, and its phone leg
+depends on Remote Control, so we treat that leg as absent whenever any Remote Control requirement
+or mobile-push setup step is unmet, including on a machine that turns feature-flag fetching off.
+Only the http hook is the deterministic leg.
+
+- **Pointer**: for the tool, see the `PushNotification` row of the
+  [Tools reference](https://code.claude.com/docs/en/tools-reference) (the tool table sits under the
+  page title, with no section of its own);
+  for the phone leg's conditions, see
+  [Remote Control requirements](https://code.claude.com/docs/en/remote-control#requirements) and
+  [Mobile push notifications](https://code.claude.com/docs/en/remote-control#mobile-push-notifications);
+  for the variables that turn fetching off, see
+  [Features that need feature-flag fetching](https://code.claude.com/docs/en/env-vars#features-that-need-feature-flag-fetching).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a Claude Code release note changes `PushNotification` or the Remote Control
+  requirements.
 
 **The seam binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's
@@ -351,11 +361,11 @@ closed laptop or a dead process emits no hook event at all; the record write cov
 running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
 (§4).
 
-**A configured hook can also fail silently.** An env-var name absent from `allowedEnvVars`
-interpolates as an empty string (documented: "references to unlisted variables are replaced with
-empty strings"); a listed name unset in the operator's environment has no value to supply and
-plausibly interpolates the same way, an applied inference not stated in the docs. Either way, a
-non-2xx response or connection failure is a non-blocking error, so a misconfigured hook can 401 on
+**A configured hook can also fail silently.** We treat a header variable missing from
+`allowedEnvVars` as interpolating to an empty string (for the rule, see
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27), and
+a listed variable unset in the operator's environment as doing the same, an applied inference.
+Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
 every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
 when wiring it, by writing a throwaway record file with the Write tool and confirming the endpoint
 received the POST, and treat webhook silence across cycles that filed escalations as a
@@ -365,56 +375,85 @@ check-the-hook signal, never as proof of health.
 
 Model selection is expressed as **capability tiers defined by order, never by family name**.
 Capability does not track family across generations (a current mid-tier model can equal a prior
-top-tier one), so a tier named for a family silently rots. Three ordered tiers:
+top-tier one), so a tier named for a family silently rots. Three ordered tiers, each bound to a
+Claude Code alias (see "Alias binding" below):
 
-| Tier | Role |
-|---|---|
-| frontier | Complex-stamped items; every security-surface work class, always |
-| strong | Default implementer / worker |
-| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews |
-
-Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
-pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
-recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
-work class routes to the frontier tier unconditionally.
-
-### Current alias binding (re-audited 2026-08-12)
-
-The dated resolution of the ordered tiers to live aliases, the artifact the "new model release"
-recheck trigger re-derives. Sourced from live fetches of
-<https://code.claude.com/docs/en/model-config> and
-<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293); the
-resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases,
-and the fast row re-verified 2026-10-01 against both after Sonnet 5.5 became the `sonnet` alias:
-
-| Tier | Alias | Resolves to today |
+| Tier | Role | Alias |
 |---|---|---|
-| frontier | `best` | Fable 5.1 where the organization has access, else the latest Opus |
-| strong | `opus` | Opus 5.5 |
-| fast | `sonnet` | Sonnet 5.5 on the Anthropic API; the model-config provider table lists older Sonnet versions elsewhere |
+| frontier | Complex-stamped items; every security-surface work class, always; orchestrator where the organization chooses it | `best` |
+| strong | Orchestrator by default; default implementer / worker for unrouted or complex work | `opus` |
+| fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
 
-- **frontier binds `best`, not `fable`.** `best` is the docs' live handle for exactly the frontier
-  tier's meaning, "the model the `fable` alias resolves to where Fable is available to you,
-  otherwise the same model as `opus`", so a frontier dispatch self-heals where Fable is unavailable (it requires organization access
-  and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
-  a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
-  automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
-  tier every security-surface work class routes to, and no lane detects that fallback today (Opus
-  5.5 and Sonnet 5.5 carry the same classifiers, so the strong and fast tiers share this gap); and in
-  non-interactive mode a Fable request that would bill usage credits bills them without a consent
-  prompt, which is the shape every unattended lane runs in.
-- **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
-  most workloads". Opus 5.5 and Fable 5.1 both have reliable knowledge through June 2026, so
-  freshness does not separate them, and raw capability order (Fable above Opus) does not decide
-  the binding alone.
-- **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jun
-  2026 reliable cutoff: enough headroom to orchestrate and to review mechanical items without
-  breaching the reviewer floor. Its effort default and its early-stop and skipped-check tendencies
-  at lower effort are in the playbooks Sonnet 5.5 chapter, not restated here.
-- **`haiku` is admissible nowhere in these lanes today.** Its 200k context sits against 1M
-  everywhere else, and its Feb 2025 reliable cutoff predates the harness surfaces these lanes
-  operate on; since the fast tier also covers reviewers and the implementer is always
-  sonnet-or-above, binding `haiku` anywhere would breach the reviewer-never-weaker floor.
+Fixed rules: the orchestrator runs at the strong or frontier tier, in the coordinator shape where
+the larger model plans and coordinates and the workers execute; workers stay strong, and a
+mechanical item drops to the fast tier only when an objective check decides whether its output is
+correct; a reviewer or verifier is never on a weaker model than the implementer it checks (equal
+pairings are valid); a security-surface work class routes to the frontier tier unconditionally.
+
+- **Pointer:** for the coordinator shape and when delegation pays, see
+  [optimizing for cost and intelligence: orchestrator strategy](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
+  for the reviewer rule, the advisor capability rule in
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
+  and the warning about a checker that passes bad work in
+  [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.
+- **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
+  runs at an effort level no lower than the implementer's is our judgment, as is reading the
+  advisor pairing rule onto a reviewer subagent.
+
+### Alias binding
+
+The tier table above binds each tier to an alias, never to a model version, so a release that
+moves an alias needs no edit here. Which model an alias resolves to, on each provider, is read live
+from the model page whenever it matters, and never restated in this convention.
+
+- **Pointer:** for what each alias resolves to on each provider, see
+  [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
+  position and capabilities, see
+  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page.
+
+The reasons behind each binding:
+
+- **frontier binds `best`, not `fable`.** We bind the frontier tier to `best` because that alias
+  already carries the tier's meaning, Fable where the organization has it and Opus otherwise, so a
+  frontier dispatch self-heals where Fable is unavailable instead of failing or silently running a
+  stale pin. For Fable's access, version and billing requirements, see
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
+- **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
+  model it resolves to as the general starting point; raw capability order (Fable above Opus) does
+  not decide the binding alone.
+- **fast binds `sonnet`.** We bind the fast tier to `sonnet` for mechanical items whose output an
+  objective check decides, where its speed and cost against the tiers above (see the models
+  overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
+  for Opus (for fast mode, see
+  [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
+- **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
+  having a smaller context window and an older knowledge cutoff than these lanes need (for both,
+  see the models overview), so no tier binds it.
+
+**Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
+here rather than left as an unstated assumption:
+
+- **Classifier fallback, on every tier.** The models the `best`, `opus` and `sonnet` aliases
+  resolve to run safety classifiers. A flagged request can re-run on a different model, after
+  which the session stays there, or end in a refusal for a category with nowhere to fall back
+  to. Security work trips them most often, and frontier is the tier every security-surface work
+  class routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
+  mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
+- **Usage-credit consent.** In non-interactive mode, the shape every unattended lane runs in, a
+  Fable request that would bill usage credits bills them without a consent prompt.
+- **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
+  [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
+  and
+  [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads);
+  for usage-credit consent, see
+  [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** a model gains or loses a fallback target, a new model on Claude Code's model
+  page runs safety classifiers, or non-interactive mode starts asking for usage-credit consent.
 
 **Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
 a blocker in place of a human decision, the explicit-`autopilot` merge-authority exception (above),
@@ -439,24 +478,32 @@ is the boundary's stated justification, so the boundary is revisited when that p
 path whose outcome stops being gate-decidable acquires the independence requirement, recorded as a
 versioned entry in [`CHANGELOG.md`](CHANGELOG.md) rather than silently.
 
-**Runtime resolution is by model alias only.** The bare family-word aliases
-(`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
-recommended model for the provider and update over time; a dated model name is a pinned snapshot and
-is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
-so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
-path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
+**Runtime resolution is by model alias only.** A lane names an alias (`best` / `fable` / `opus` /
+`sonnet` / `haiku`), never a dated model name, because we treat the alias as the handle that
+follows the provider's recommendation while a model ID is a pinned snapshot. We treat aliases as
+the only handle that works under subscription OAuth, so they are the runtime path; the Models API
+list endpoint is the **build/audit-time** verification path, since it may require an API key a loop
+session lacks. No lane hard-codes a model ID (Pointer: for alias semantics, see
+[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-10-01.
+Recheck trigger: the model page stops describing aliases as moving with the provider's
+recommendation).
 
-Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
-model release re-audits the tier table, and the trigger is recorded in this convention's
-[`CHANGELOG.md`](CHANGELOG.md).
+The binding is built from a live official-docs read at authoring time, never from recall. Any new
+model on Claude Code's model page re-reads the reasons under "Alias binding"; a binding that
+changes is recorded in this convention's [`CHANGELOG.md`](CHANGELOG.md).
 
 ### Rate-limit windows
 
-Subscription (Pro/Max) usage is bounded by a rolling five-hour window and a weekly cap. The weekly
-cap's exact model scoping and numeric limits are volatile and are **not** restated here. See the
-official [Anthropic support article](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)
-(verified 2026-07-23). The operable pause floor lives in the rate-limit guard binding (§6).
+The lanes model subscription (Pro/Max) usage as two limits, one over the last five hours and one
+over the week, and
+act only on the operable pause floor in the rate-limit guard binding (§6); the cap's scoping and
+limits are not restated here.
+
+- **Pointer**: for the subscription usage windows and caps, see the
+  [Anthropic support article](https://support.claude.com/en/articles/11049741-what-is-the-max-plan).
+- **As of**: 2026-07-23
+- **Recheck trigger**: the support article changes the window structure, or a Claude Code release
+  note changes the rate-limit fields the guard reads.
 
 ## 4. Loop-layer invariants
 
@@ -468,10 +515,10 @@ state**: when every remaining open item is human-gated or escalated and no PR is
 reports and stops cleanly rather than idling forever. Without it, an overnight drain deadlocks on
 the first unanswered escalation.
 
-A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
-`/loop` ends automatically seven days after it starts, on either launch shape (§5) and idle backoff
-notwithstanding (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified
-2026-07-27, broadened from the 2026-07-23 stamp's self-paced-only wording). A standing lane
+A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**,
+which we treat as binding both launch shapes (§5), idle backoff notwithstanding. Pointer:
+[Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry). As of:
+2026-07-27. Recheck trigger: a Claude Code release note changes `/loop` expiry. A standing lane
 therefore requires a relaunch owner, today always the operator, for whom `harness-ops` `lanes`
 `restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
 below). The lane records its loop-started timestamp in the lane's #502 telemetry block so the
@@ -479,11 +526,12 @@ approaching expiry is visible ahead of time, and an expiry hit is handled exactl
 cycle-budget hit below: a restart-request into the #502 block, then a clean stop.
 
 **Self-pacing.** A lane paces itself through `/loop` with the interval omitted; Claude schedules the
-next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
-`ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
-against <https://code.claude.com/docs/en/tools-reference> and
-<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-27, no drift from the prior
-2026-07-23 stamp). Idle raises the delay toward the ceiling. The self-pacing section the
+next iteration with `ScheduleWakeup`, and no lane expects an operator to call it. Idle raises the
+delay toward the ceiling. Pointer: for the delay bounds and who calls the tool, see
+[Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
+and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
+As of: 2026-07-27. Recheck trigger: a Claude Code release note changes `ScheduleWakeup` or
+self-paced `/loop`. The self-pacing section the
 `source-control:babysit-prs` skill owns is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
@@ -655,12 +703,13 @@ session renders a status line, so an unattended lane samples nothing, and an emp
 unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
 concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
 that lane is the sole active session; and they are a **percentage of a subscription window, not a
-token count**, absent entirely for non-subscription auth. No lane claims a token count, because none
-is *readable* at a cycle boundary: the machine-readable token fields a session exposes are
-current-context occupancy, not session totals. A machine-readable cumulative *cost* field does
-exist, and is session-scoped, so it would attribute to a lane, but the guard's tee does not
-forward it; widening the tee is a guard-side change this invariant deliberately does not make
-(<https://code.claude.com/docs/en/statusline>, verified 2026-07-28).
+token count**, absent entirely for non-subscription auth. No lane claims a token count, because we
+found no session-total token field readable at a cycle boundary. The status line's cumulative
+*cost* field would attribute to a lane, but the guard's tee does not forward it; widening the tee
+is a guard-side change this invariant deliberately does not make. Pointer: for the fields a
+session exposes, see [Available data](https://code.claude.com/docs/en/statusline#available-data).
+As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
+the status line input.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
@@ -719,33 +768,35 @@ All three adopters have shipped. This owner doc landed ahead of them, per the co
 rule; the table above is a live consumer list, not a forward reference.
 
 **Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
-skill needing no install (<https://code.claude.com/docs/en/skills#bundled-skills>, verified
-2026-08-02), or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane
+skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
+As of: 2026-08-02. Recheck trigger: `/loop` leaves the bundled set), or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane
 prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `harness-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
 
 **Two launch shapes, selected per invocation, and neither deprecates the other.** Supplying an interval
-(`/loop 15m …`) converts it to a cron expression and fires on that fixed schedule, subject to
-jitter; omitting it hands the delay to Claude, which picks one per iteration within the §4 bounds
-and is not jittered. `ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing
-mechanism once an interval is supplied
-(<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>, verified
-2026-07-27). The §4 seven-day expiry binds both shapes. Both are current; this note reconciles which
-applies where and changes neither.
-
-Jitter is the scheduler's deterministic offset on a *cron* task: up to 30 minutes after the
-scheduled time, or up to half the interval for a task running more often than hourly.
+(`/loop 15m …`) gives a fixed, jittered cron schedule; omitting it gives the self-paced shape, where
+Claude picks each delay within the §4 bounds. We treat `ScheduleWakeup` as the pacing mechanism of
+the self-paced shape only. The §4 seven-day expiry binds both shapes. Both are current; this note
+reconciles which applies where and changes neither. Pointer: for both shapes, see
+[Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)
+and
+[Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval);
+for the size of the offset a cron task gets, see
+[Jitter](https://code.claude.com/docs/en/scheduled-tasks#jitter). As of: 2026-07-27. Recheck
+trigger: a Claude Code release note changes either `/loop` shape or the jitter rule.
 
 - **A lane always omits the interval.** Two §4 invariants need the self-paced shape and neither
   survives a cron schedule. *Idle backoff*, the standing shape's "idle backs off toward longer
   wakeups", derives the next delay from what the cycle just observed, which a fixed cadence cannot
-  consume. And a self-paced loop can **end itself**, because Claude calls `ScheduleWakeup` with
-  `stop: true`, which is how the drain shape's terminal state stops a lane cleanly; a fixed-interval
-  loop keeps running until stopped by hand or until the seven-day expiry, so a drain lane launched
-  that way cannot honor its own stop condition
-  (<https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, verified 2026-07-27). Self-paced is
+  consume. And a self-paced loop can **end itself** (Claude calls `ScheduleWakeup` with
+  `stop: true`), which is how the drain shape's terminal state stops a lane cleanly; we treat a
+  fixed-interval loop as running until stopped by hand or until the seven-day expiry, so a drain
+  lane launched that way cannot honor its own stop condition (Pointer:
+  [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27.
+  Recheck trigger: that section changes how a fixed-interval or self-paced loop ends).
+  Self-paced is
   the lane shape by construction, not by preference. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
   on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
@@ -762,16 +813,21 @@ while its cadence mapping (the self-pacing cadence contract owned by the
 `source-control:babysit-prs` skill) is the self-paced contract the `babysit-loop` lane consumes.
 Reading either as the other's default is the confusion this note exists to prevent.
 
-**Known gap: the self-paced shape is provider-conditional.** On Amazon Bedrock, Claude Platform on
-AWS, Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval does **not** hand the
-delay to Claude: the prompt runs on a fixed ten-minute schedule and `ScheduleWakeup` is unavailable
-(<https://code.claude.com/docs/en/scheduled-tasks>,
-<https://code.claude.com/docs/en/tools-reference>, verified 2026-07-27). A lane launched there keeps
+**Known gap: the self-paced shape is version-conditional off the first-party API.** We record a lane
+launched on Microsoft Foundry, Amazon Bedrock, Google Cloud's Agent Platform, or Claude Platform on
+AWS, or with feature-flag fetching turned off, as having the self-paced shape only on a Claude Code
+version at or above the floor the scheduled-tasks page names for those providers; below that floor
+it runs without it. Pointer: for the provider and version conditions on a dynamic `/loop`, see
+[Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
+and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
+As of: 2026-10-01. Recheck trigger: a Claude Code release note changes `/loop` on a non-first-party
+provider or the version floor. A lane launched below the floor keeps
 the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
 wake, and the lane cannot end itself, so a **drain** lane there deadlocks on the first unanswered
 escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
-the seven-day expiry. No lane detects the provider today, so this is recorded as a known gap rather
-than left as an unstated assumption, on the model §6 uses for the single-account assumption.
+the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a
+known gap rather than left as an unstated assumption, on the model §6 uses for the single-account
+assumption.
 
 ## 6. Rate-limit guard binding
 
@@ -953,16 +1009,15 @@ This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). A change to the to
 escalation contract, the tier vocabulary, or any loop-layer invariant is a major bump; additive
 guidance is a minor bump.
 
-**Recheck triggers** ([upstream-drift](../upstream-drift/README.md) owns the stamp-and-trigger
-discipline). Two. A firing that finds drift lands its outcome as a changelog entry; a no-drift
-firing refreshes the claim's verification date in place, with no entry and no bump:
+**Recheck triggers** ([upstream-drift](../upstream-drift/README.md) owns the record shape and the
+trigger discipline). Two. A firing that finds drift lands its outcome as a changelog entry; a
+no-drift firing refreshes the record's as-of date in place, with no entry and no bump:
 
-- Any new model release re-audits the capability-tier table (§3).
-- Any change to this convention, or to a consuming lane, that RELIES on an upstream-sourced claim
-  re-verifies that claim against its cited page first and refreshes the claim's verification date
-  with the outcome.
+- Any new model on Claude Code's model page re-reads the §3 alias binding and its known gaps.
+- Any change to this convention, or to a consuming lane, that RELIES on an upstream-pointed record
+  re-reads that record's pointer first and refreshes its as-of date with the outcome.
 
-The upstream surfaces these claims rest on, the `/loop` seven-day expiry, the `ScheduleWakeup`
+The upstream surfaces these records point at, the `/loop` seven-day expiry, the `ScheduleWakeup`
 bounds, model-alias semantics, and the rate-limit windows, move on a research-preview cadence. Where
 re-verification finds drift, the changed value lands here as a recorded entry rather than silently
 inside a lane body.

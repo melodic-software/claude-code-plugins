@@ -59,9 +59,10 @@ drift is handled by its sync path, not by this audit.
 
 ### 2. Conforming stamped records
 
-A passage carrying all four parts, claim, basis URL, as-of date, and recheck trigger, is already
-the sanctioned fallback for a restatement that has to exist. It is not a copy to be found; it is
-the end state a copy is converted into.
+A passage carrying a whole stamped record, a pointer to the source, an as-of date, and a recheck
+trigger beside the decision it records, is already the sanctioned end state a copy is converted
+into. It is not a copy to be found. Text inside the record that matches the source is still judged
+like any other passage.
 
 **Conforming is the whole test.** A dated sentence with no trigger is not carved out; it is a
 `rule-trigger-less-stamp` candidate where the repository has enabled that check, and a plain
@@ -102,10 +103,10 @@ without the source in hand?" test is not enough to treat a sibling README as fir
 like any other upstream restatement (pointer, quote, or stamped record), or close it only when a
 breadcrumb or nomination already names the sibling repo as the source.
 
-**Claim:** sibling-org repos are external at audit time unless the passage cites that sibling as its
-source. **Basis:** `judgment`; no audited pass or upstream source shows the carve-out behavior yet.
-**As of:** 2026-09-28. **Recheck trigger:** a consumer policy file declares same-org siblings
-owned, or a golden case is added that turns on this boundary.
+Sibling-org repos are external at audit time unless the passage cites that sibling as its source.
+**Pointer:** none; this is `judgment`, and no audited pass or upstream source shows the carve-out
+behavior yet. **As of:** 2026-09-28. **Recheck trigger:** a consumer policy file declares same-org
+siblings owned, or a golden case is added that turns on this boundary.
 
 ### 5. Distilled-product architectures
 
@@ -289,8 +290,8 @@ Two consequences that judges get wrong if they are not stated:
 
 Apply this section only when the dispatch names `restated-fact`. It decides whether a passage
 **restates a fact an external source owns**, in any wording, without conforming to the
-upstream-drift shape: a pointer at the point of use, or a four-part record (claim, basis URL,
-as-of date, observable recheck trigger). It never asks whether the passage's words correspond to
+upstream-drift shape: a pointer at the point of use, or a whole stamped record (pointer, as-of
+date, observable recheck trigger). It never asks whether the passage's words correspond to
 a source's words: a paraphrase, a summary, or a table restates a fact as fully as a copied
 sentence does.
 
@@ -316,8 +317,8 @@ Categorical, as for the copy rubric: each names a class of surface, never a pass
 wanted kept.
 
 1. **Conforming pointer or record.** The passage names the source in place of stating the fact,
-   or carries all four parts of a conforming record (see "A conforming record has four parts"
-   below). Conforming is the whole test. A link beside a stated value cites the value and does not
+   or carries every part of a conforming record (see "A conforming record's parts" below).
+   Conforming is the whole test. A link beside a stated value cites the value and does not
    record when it was checked or what obliges a recheck, and a dated sentence with no observable
    trigger is missing a part; neither is carved out.
 2. **Owned content.** Facts this repository owns, in its own vocabulary. The direction test and
@@ -364,16 +365,17 @@ to act on?*
   true at a named point and is not a claim about now, and neither is an example the text labels
   illustrative.
 
-**R4-no-conforming-shape.** *Is the fact stated without a whole four-part record?* A record
-elsewhere in the file covers the fact only where its claim names it. A whole record FAILS this
+**R4-no-conforming-shape.** *Is the fact stated without a whole record (pointer, as-of date,
+observable recheck trigger)?* A record elsewhere in the file covers the fact only where it names
+the fact's topic. A whole record FAILS this
 criterion and clears the candidate. Quote the nearest citation or stamp and name the part it
 lacks; where there is none, say so.
 
 - **PASS, worked.** `The default is 30 seconds ([docs](<url>)).` A basis, with no as-of date and
   no trigger.
 - **FAIL, worked.** `The default is 30 seconds. Verified <date> against <url>; recheck when the
-  vendor changelog lists a change to the timeout.` All four parts, and the trigger is an event a
-  reader can check.
+  vendor changelog lists a change to the timeout.` A pointer, a date, and a trigger that is an
+  event a reader can check.
 
 ### Restated-fact verdict and tier
 
@@ -384,29 +386,28 @@ lexical evidence, and unanimity does not manufacture any. A fetched source caps 
 `source-fetched-similar` whatever the fingerprint showed. Every other tier is mapped from evidence
 by the table above, by fixed rule, never from a judge's confidence.
 
-## Restated external rules, as four-part records
+## Org rules this rubric applies, as stamped records
 
-Each entry restates a rule this catalog does not own, because a judge applying the rubric offline
-cannot follow a pointer. Each is source-pinned so the restatement can be re-derived.
+Each entry is how this rubric applies a rule it does not own, stated here because a judge applying
+the rubric offline cannot follow a pointer. Each is pinned so it can be re-derived.
 
-**Prefer the pointer over the snapshot.** *Claim:* upstream bodies are read on demand; citing a
-source and fetching it at read time is preferred over storing a snapshot of it, and a time-bound
-external claim in durable content carries a recheck trigger. *Basis:*
-`melodic-software/standards`, `conventions/engineering/documentation-and-citations.md`, as cited
-by `docs/conventions/upstream-drift/README.md` "Boundary" in the marketplace repository. *As of:*
-2026-08-28. *Recheck trigger:* any revision of that org standard, or of the upstream-drift
+**Prefer the pointer over the snapshot.** This rubric treats a pointer read on demand as the end
+state and a stored snapshot as a candidate, and expects a time-bound external claim in durable
+content to carry a recheck trigger. *Pointer:* `melodic-software/standards`,
+`conventions/engineering/documentation-and-citations.md`, as cited by
+`docs/conventions/upstream-drift/README.md` "Boundary" in the marketplace repository. *As of:*
+2026-10-01. *Recheck trigger:* any revision of that org standard, or of the upstream-drift
 convention's Boundary section that cites it.
 
-**A conforming record has four parts.** *Claim:* a record deriving a fact from a source this
-repository does not own carries the claim, the basis (a specific URL or probe), the as-of date,
-and the recheck trigger, the observable event that obliges re-derivation. A date alone does not
-qualify as a trigger. *Basis:* `docs/conventions/upstream-drift/README.md` "Required parts" and
-"The observability bar" in the marketplace repository. *As of:* 2026-08-28. *Recheck trigger:*
-any change to that convention's required parts, or the org standard broadening the accepted
-trigger forms in a way this repository adopts.
+**A conforming record's parts.** This rubric treats a record as conforming when it carries a
+pointer to the source (a specific URL or probe), an as-of date, and a recheck trigger, the
+observable event that obliges re-derivation, beside the decision it records. A date alone does not
+qualify as a trigger. *Pointer:* `docs/conventions/upstream-drift/README.md` "Required parts" and
+"The observability bar" in the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any
+change to that convention's required parts, or the org standard broadening the accepted trigger
+forms in a way this repository adopts.
 
-**A date is never authority.** *Claim:* a dated verification stamp records when a claim last
-matched its source and confers no standing authority; a stale stamp reads identically to a fresh
-one, so what obliges re-derivation is the trigger, not the date. *Basis:*
-`docs/conventions/upstream-drift/README.md` "A date is never authority" in the marketplace
-repository. *As of:* 2026-08-28. *Recheck trigger:* any change to that section.
+**A date is never authority.** This rubric reads a dated stamp as the last time the record was
+derived from its source, never as standing authority: what obliges re-derivation is the trigger,
+not the date. *Pointer:* `docs/conventions/upstream-drift/README.md` "A date is never authority" in
+the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any change to that section.

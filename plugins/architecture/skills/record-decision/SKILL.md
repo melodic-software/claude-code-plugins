@@ -98,10 +98,12 @@ Templates for the human to read, cited by URL:
 
 License: **CC BY-NC-SA 4.0** (`https://creativecommons.org/licenses/by-nc-sa/4.0/`).
 
-- **Claim**: README-authored content in that repository is licensed CC BY-NC-SA 4.0; the bundled
-  templates carry their own licenses, stated per template.
-- **Basis**: `https://raw.githubusercontent.com/joelparkerhenderson/architecture-decision-record/main/LICENSE.md`.
-- **As of**: 2026-09-06.
+This skill treats the repository's README content as CC BY-NC-SA 4.0 and each bundled template
+as carrying its own license, and names the license when it declines to paste.
+
+- **Pointer**: for the repository's license terms, see
+  `https://raw.githubusercontent.com/joelparkerhenderson/architecture-decision-record/main/LICENSE.md`.
+- **As of**: 2026-09-06
 - **Recheck trigger**: that `LICENSE.md` changes, or the repository moves.
 
 Rule beside it: catalog templates are cited for the human to read, never pasted into this skill, into

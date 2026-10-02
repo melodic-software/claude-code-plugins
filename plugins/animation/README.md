@@ -8,7 +8,7 @@ Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ff
 | Skill | What it does |
 |---|---|
 | `/animation:rotoscope <clip> <work dir>` | Copies a reference clip drawing by drawing: traces each distinct drawing to vector paths, renders them through the ink.js brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, edge-band SSIM, paper color), fits per-shot brush overrides, and reviews 1:1 crops. Each run appends to a learnings file, and a retro step promotes recurring findings into the defaults. |
-| `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: every prerequisite is external. |
+| `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: it installs nothing (the SessionStart hook installs the Python packages). |
 | `/animation:learn-style <work dir> <pack dir>` | Measures a rotoscope work directory into a style pack: palette and tone ramp, the seven style knobs, and statistic bands (edge softness, stroke and gap widths, edge roughness, gray inside the ink, boil of the frame and caption, holds on 1s/2s/3s). Then proves the pack by authoring a new scene with ink.js and checking its render against the bands. |
 | `/animation:produce <production dir>` | From a brief and one or more style packs, writes pre-production boards and stops for approval. After that, a shot list, scenes, rendered frames, a delivered file, and a review against the pack. `shots.json` is the cut list `inkstats.py --cuts` reads. |
 
@@ -38,10 +38,15 @@ dir, with `--pack` to check it against a style pack; `--cuts` takes a comma list
 Linux only; Windows and macOS are untested by hand (the scripts use no shell and open text as
 UTF-8, but no run there has been recorded).
 
-- Python 3.12 or later (numpy 2.5 requires it), with numpy and opencv at the versions pinned in
-  `requirements.txt`: run every script through
-  `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`. The pins keep the
-  statistics and the shipped regression reproducible byte for byte.
+- Python 3.12 or later (numpy 2.5 requires it) with pip. numpy and opencv are not vendored and
+  never fetched while a skill runs: a SessionStart hook installs the hash-locked set in
+  `requirements.txt` into the plugin data directory (`pip install --require-hashes`, wheels only),
+  and does nothing once it loads. A failed install is reported as a notice with the repair line.
+  Run every script through
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`.
+  The pins keep the statistics and the shipped regression reproducible byte for byte. To change
+  one, edit `requirements.in` and regenerate the lock from this directory:
+  `uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 --only-binary :all: -o requirements.txt`.
 - `ffmpeg` at or above `scripts/prereq.py`'s `FFMPEG_MIN` (the first release with `-fps_mode`), with
   the `libx264` encoder, and `ffprobe`, on PATH.
 - Node and playwright-core with Chromium. `capture.mjs` looks in the `playwright_core` plugin option
@@ -55,7 +60,7 @@ The shfred0 study is the calibration target: every drawing within the `measure.p
 clip and traces are not shipped). With the clip and an empty directory:
 
 ```bash
-uv run --with-requirements plugins/animation/requirements.txt python \
+python3 plugins/animation/scripts/pydeps.py run --data-dir <plugin data dir> -- \
   plugins/animation/skills/rotoscope/scripts/regress.py <shfred0.mp4> <empty work dir>
 ```
 

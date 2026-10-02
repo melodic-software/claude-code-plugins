@@ -3,6 +3,49 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-10-02
+
+### Fixed
+
+- **`confirm`'s report templates have a `Verifier model` line.** The outcome, fix and refactor
+  templates each record the model passed to the fresh-context verifier, or that the verifier was
+  not matched to the producing model because that model is unknown, which the skill already
+  required the report to say.
+
+## [0.7.1] - 2026-10-02
+
+### Changed
+
+- **`confirm` records why it pins `effort: high`.** The record points at the model-config `high`
+  row and the advisor capability rule, as of 2026-10-02, rechecked at the next model release. The
+  pin is unchanged.
+
+### Fixed
+
+- **`confirm` raises its fresh-context verifier to the model that produced the work.** When that
+  model is known and stronger than the session's, the verifier dispatch passes it as a
+  per-invocation `model`, upward only; when it is not known, the report says the verifier's model
+  was not matched to it. The skill's claim about the verifier's model now states the same rule.
+
+## [0.7.0] - 2026-10-02
+
+### Added
+
+- **`confirm` has a `NOT VERIFIED` verdict.** A run where every check hit an environment skip
+  stops before outcome verification; an environment skip that remains holds the verdict below
+  `CONFIRMED` until the skipped check runs.
+
+### Changed
+
+- **`confirm`'s gate runs in a fixed order**: a failure stops, a `STOPPED` install stops, an
+  all-environment-skip run stops as `NOT VERIFIED`, otherwise outcome verification proceeds. On
+  the no-toolchain path it applies the same counting and lockfile-only install rules as
+  `toolchain:check`. Its `/run` and `/verify` records are links-only.
+- `confirm`'s native `/verify` record notes that a recorded project verify skill can answer to
+  `/verify` in place of the bundled one, so the skill never assumes which one resolves.
+- `confirm` pins `effort: high` in its frontmatter, and its outcome report states the effort level
+  the run used.
+
 ## [0.6.16] - 2026-10-02
 
 ### Fixed

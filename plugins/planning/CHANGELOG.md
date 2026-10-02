@@ -3,6 +3,46 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.1] - 2026-10-02
+
+### Fixed
+
+- `draft-goal-condition` no longer says `/effort ultracode` sets `xhigh` effort; it points at
+  the workflows page for ultracode's effect on the effort level.
+
+## [0.61.0] - 2026-10-02
+
+### Added
+
+- **The plan's per-phase routing table gains a `Model` column (`sonnet`, `opus` or `frontier`).** `sonnet` is allowed only for a phase with a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and no security-surface work; `/implementation:implement-dispatch` sends such a row to `implementation:scoped-implementer`. `opus` covers architectural work, per-file judgment and multi-step reasoning, and is the value when in doubt. The template links the docs' `opusplan` setting and agent team token costs instead of restating either, and Step 4.5 points at the column.
+
+### Changed
+
+- `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
+- The routing-table record in `plan-template.md` and the goal-usage gotcha in `draft-goal-condition` are links-only: our decision, then a pointer, an as-of date and a recheck trigger, with no paraphrase of the `opusplan` or costs sections.
+
+## [0.60.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `surface` is a picker in `/config` (`terminal`, `page`), so a value outside that set is no longer
+  accepted. Titles read "Interview question surface", "AskUserQuestion question rounds", and
+  "Interview question emoji anchors". The `use_emoji_question_markers` description fits 300
+  characters; the rest of it, and the `surface` fallback rule, move to the README's "Option
+  details".
+
+## [0.59.4] - 2026-10-02
+
+### Changed
+
+- **The interview's model-versus-effort guidance is stated as the skill's own decision.**
+  `context/session-config.md` keeps the recommendation rules in our words and points at the
+  model-config effort section and the choosing-a-model section, with the Claude blog post as a
+  correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
+  wording kept, and its record says no docs page states it, with the trigger "a docs page starts
+  covering it".
+
 ## [0.59.3] - 2026-10-02
 
 ### Fixed

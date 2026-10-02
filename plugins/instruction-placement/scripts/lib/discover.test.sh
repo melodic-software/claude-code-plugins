@@ -226,6 +226,23 @@ assert_lacks "an UNTRACKED nested instruction file is excluded" "$out" "pkg/AGEN
 assert_lacks "a GITIGNORED vendor tree is excluded" "$out" "vendor/thirdparty/AGENTS.md"
 assert_lacks "node_modules is excluded" "$out" "node_modules/dep/CLAUDE.md"
 
+# An eval fixture tree imitates a consuming repository as test input. Neither its
+# rules nor its nested instruction files are this repository's conventions.
+fixt="$(mktemp -d "$TMP/x.XXXX")"
+git -C "$fixt" init -q .
+rule_file "$fixt/.claude/rules/real.md" '**/*.cs' 'Real rule'
+rule_file "$fixt/plugins/demo/evals/fixtures/consumer/.claude/rules/one.md" 'src/**' 'Fixture rule'
+mkdir -p "$fixt/svc"
+printf '# Fixture consumer\n' >"$fixt/plugins/demo/evals/fixtures/consumer/CLAUDE.md"
+printf '# Service\n' >"$fixt/svc/AGENTS.md"
+commit_all "$fixt"
+out="$(ip_discover_rules "$fixt")"
+assert_has "a rule outside an eval fixture is discovered" "$out" ".claude/rules/real.md"
+assert_lacks "a rule inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/.claude/rules/one.md"
+out="$(ip_discover_nested_instructions "$fixt")"
+assert_has "a nested file outside an eval fixture is discovered" "$out" "svc/AGENTS.md"
+assert_lacks "a nested file inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/CLAUDE.md"
+
 # Root-level instruction files already load at session start — never "nested".
 root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .
@@ -405,6 +422,27 @@ printf '# Shared\n' >"$alt/AGENTS.md"
 commit_all "$alt"
 ip_index_target_loaded "$alt" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an import from .claude/CLAUDE.md also makes the target reachable" "0" "$?"
+
+# ==========================================================================
+# Entry points on a nested path: the walk migrate's shim rule (condition A)
+# runs for each nested AGENTS.md
+# ==========================================================================
+walk="$(mktemp -d "$TMP/x.XXXX")"
+mkdir -p "$walk/svc/deep/.claude" "$walk/other"
+printf '@AGENTS.md\n' >"$walk/CLAUDE.md"
+printf 'local\n' >"$walk/svc/CLAUDE.local.md"
+printf '@AGENTS.md\n' >"$walk/svc/deep/CLAUDE.md"
+printf 'x\n' >"$walk/svc/deep/.claude/CLAUDE.md"
+printf 'x\n' >"$walk/other/CLAUDE.local.md"
+out="$(ip_entry_points_on_path "$walk" "svc/deep")"
+assert_lists "every entry point from a nested directory to the root is listed, nearest first" \
+  "$walk/svc/deep/CLAUDE.md
+$walk/svc/deep/.claude/CLAUDE.md
+$walk/svc/CLAUDE.local.md
+$walk/CLAUDE.md" "$out"
+assert_has "an intermediate CLAUDE.local.md above a nested AGENTS.md is a blocker on its path" \
+  "$out" "$walk/svc/CLAUDE.local.md"
+assert_lacks "a sibling directory's CLAUDE.local.md is off the path" "$out" "$walk/other/CLAUDE.local.md"
 
 # ==========================================================================
 # Determinism

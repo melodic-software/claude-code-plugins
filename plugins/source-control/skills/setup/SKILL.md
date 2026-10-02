@@ -158,7 +158,7 @@ the step UNKNOWN with remediation, never green.
    surviving literal `${user_config.…}` placeholder there means the key is unset. For each unset key
    state what will be inferred at run time. `babysit_watched_owners` → the current repo's owner,
    `babysit_self_logins` → none (your `gh api user --jq .login` login is always used, extras only add
-   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → repo convention then squash, the
+   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → `auto` (repo convention, then squash), the
    review-trigger keys → module dormant, `babysit_worktree_root` → the plugin data dir's
    `worktrees/` subdirectory. Unset keys are INFO (documented defaults), not FAIL.
 2. **Branch-protection posture across watched repos.** For each watched owner (or the current repo's
@@ -186,17 +186,17 @@ the step UNKNOWN with remediation, never green.
    Reachability"). Probe it here so the operator learns of a gap before a cycle stalls on it, in
    two parts:
    - **Canary (the half that decides the verdict).** Run the lane's mandated invocation forms against
-     non-mutating targets, **both** of them, because they live under different path prefixes:
+     non-mutating targets, **both** of them, because they are different commands:
 
      ```bash
-     bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/source-control-babysit-merge" --help
      bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help
      ```
 
      These are the exact spellings the lane uses for every merge and for every readiness
      declaration, with `--help` so each prints usage and exits 0 without touching the network or
-     GitHub. Probe both: an allow rule or classifier decision covering the `bin/` wrapper says
-     nothing about the `scripts/` helper, so a canary that ran only the first would certify a
+     GitHub. Probe both: an allow rule or classifier decision covering the wrapper says
+     nothing about the readiness gate, so a canary that ran only the first would certify a
      path the lane's readiness verdict never travels, and the readiness gate has no degrade tier
      at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note. The
      reason is fail-closed posture, not logical certainty: the classifier decides per call, so a

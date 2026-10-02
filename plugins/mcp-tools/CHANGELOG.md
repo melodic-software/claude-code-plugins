@@ -3,6 +3,17 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7] - 2026-10-01
+
+### Changed
+
+- **The `audit-posture` and `audit` checklists keep source records as decisions plus pointers.** The
+  sandbox scope, the MCP review responsibility and the registry-listing records state what the
+  audit decides and point at the documentation section with an as-of date and a recheck trigger,
+  and carry none of the page's wording.
+- **The tool-design source now points at the Define tools best-practices section.** The `audit`
+  skill and README cite that section as the pointer and keep the engineering post as a correlate.
+
 ## [0.5.6] - 2026-10-01
 
 ### Changed

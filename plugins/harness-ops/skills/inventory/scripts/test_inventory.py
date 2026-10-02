@@ -113,7 +113,7 @@ class TestCommandExtraction(unittest.TestCase):
         # `alias` and `todos` carry a name but no `type:` - both were wrongly
         # reported as slash commands by an earlier regex-only pass.
         src = (
-            '{name:"alias",description:"Create or list command aliases",'
+            'x={name:"alias",description:"Create or list command aliases",'
             'args:{name:"definition"}}'
         )
         self.assertEqual(self._extract(src), {})
@@ -147,6 +147,7 @@ class TestCommandExtraction(unittest.TestCase):
         src = (
             'var Vt="string";'
             + "z" * 5000
+            + ";"
             + 'function ld(e,xe){let $t=xe==="syncedSkills",Vt=$t?smt(e):e,'
             'Jt={type:"prompt",name:Vt,description:"d"};return Jt}'
         )
@@ -230,7 +231,7 @@ class TestIntegrity(unittest.TestCase):
         # version rather than the build's.
         return (
             "pt(Q,{registerBundledSkill:()=>xu});"
-            + f'"{inv.VALIDATED_AGAINST}"' * 30
+            + f'"{inv.VALIDATED_AGAINST}";' * 30
             + "".join(
                 f'x{i}={{type:"local",name:"{n}",description:"d"}};'
                 for i, n in enumerate(inv.CANARY_COMMANDS)
@@ -257,7 +258,7 @@ class TestIntegrity(unittest.TestCase):
         # voids the healthy lane's counts.
         src = (
             'x={type:"local",name:"help",description:"d"};'
-            + f'"{inv.VALIDATED_AGAINST}"' * 30
+            + f'"{inv.VALIDATED_AGAINST}";' * 30
         )
         got = inv.check_integrity(
             src,
@@ -292,7 +293,7 @@ class TestIntegrity(unittest.TestCase):
     def test_every_lane_broken_is_broken(self) -> None:
         src = (
             'x={type:"local",name:"help",description:"d"};'
-            + f'"{inv.VALIDATED_AGAINST}"' * 30
+            + f'"{inv.VALIDATED_AGAINST}";' * 30
         )
         got = inv.check_integrity(src, self._commands(src), {}, {}, {})
         self.assertEqual(
@@ -346,7 +347,7 @@ class TestIntegrity(unittest.TestCase):
         )
 
     def test_esm_export_list_feeds_the_registrar_advisory(self) -> None:
-        src = self._src("export{zz as registerSomethingNewSkill};")
+        src = self._src("function zz(){}export{zz as registerSomethingNewSkill};")
         got = inv.check_integrity(
             src,
             self._commands(src),
@@ -387,7 +388,7 @@ class TestIntegrity(unittest.TestCase):
     def test_low_yield_breaks_the_builtin_lane(self) -> None:
         # Many registration tokens present but few commands resolved means the
         # brace reader stopped working - the exact shape of a quiet shortfall.
-        src = self._src() + 'type:"local"' * 200
+        src = self._src() + 'x={type:"local"};' * 200
         got = inv.check_integrity(
             src,
             self._commands(src),
@@ -542,7 +543,7 @@ class TestRegistrarRoutes(unittest.TestCase):
         self.assertIsNone(notes["registrar_route"])
 
     def test_route_is_recorded_in_the_notes(self) -> None:
-        src = "export{eo as registerBundledSkill};" + self.CANARY
+        src = "function eo(){}export{eo as registerBundledSkill};" + self.CANARY
         _, notes = inv.extract_bundled_skills(src, inv.build_brace_map(src))
         self.assertEqual(notes["registrar_route"], "esm-export")
 
@@ -550,7 +551,7 @@ class TestRegistrarRoutes(unittest.TestCase):
 class TestNameLocality(unittest.TestCase):
     """Computed names resolve by locality, never by a single global value."""
 
-    HEAD = "export{eo as registerBundledSkill};"
+    HEAD = "function eo(){}export{eo as registerBundledSkill};"
 
     def _skills(self, src: str) -> tuple[dict, dict]:
         return inv.extract_bundled_skills(src, inv.build_brace_map(src))
@@ -562,7 +563,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var oO="ehrpd";'
             + "z" * 500
-            + 'var oO="artifact-design";'
+            + ';var oO="artifact-design";'
             + 'eo({name:oO,menuDescription:"Design"});'
         )
         skills, notes = self._skills(src)
@@ -608,7 +609,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var kYe="simplify";'
             + "z" * 500
-            + 'function f(e){let kYe=e?g(e):"x";eo({name:kYe,menuDescription:"D"})}'
+            + ';function f(e){let kYe=e?g(e):"x";eo({name:kYe,menuDescription:"D"})}'
         )
         skills, notes = self._skills(src)
         self.assertEqual(skills, {})
@@ -700,7 +701,7 @@ class TestNameLocality(unittest.TestCase):
 
 
 class TestInvocationFieldsAndCollisions(unittest.TestCase):
-    HEAD = "export{eo as registerBundledSkill};"
+    HEAD = "function eo(){}export{eo as registerBundledSkill};"
     DOCTOR = (
         'eo({name:"doctor",aliases:["checkup"],isEnabled:()=>!a.X,survivesBundledKillSwitch:!0,'
         'requires:{workspace:!0},terminalOriented:!0,menuDescription:"Health-check",'
@@ -2921,7 +2922,7 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertIn("error", notes)
 
     def _integrity(self, plugins: dict, notes: dict) -> dict:
-        src = f'"{inv.VALIDATED_AGAINST}"' * 30 + "".join(
+        src = f'"{inv.VALIDATED_AGAINST}";' * 30 + "".join(
             f'x{i}={{type:"local",name:"{n}",description:"d"}};'
             for i, n in enumerate(inv.CANARY_COMMANDS)
         )

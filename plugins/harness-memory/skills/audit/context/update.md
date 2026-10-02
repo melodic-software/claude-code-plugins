@@ -30,9 +30,11 @@ Research must cover:
 ## Step 2: Diff against current guidance
 
 Read [../reference/official-guidance.md](../reference/official-guidance.md) and compare against
-research findings:
+research findings. Each section there holds the audit's decision and a pointer to a docs section,
+never the docs' text, so compare each decision against the section its pointer names:
 
-1. Identify changed guidance (quotes no longer matching)
+1. Identify changed guidance (a decision the pointed-at section no longer supports, or an
+   anchor that moved)
 2. Identify new guidance (topics not covered)
 3. Identify removed/deprecated guidance
 
@@ -47,7 +49,8 @@ diff as a contribution/issue against the plugin's repository so the shipped crit
 
 With that framing, the content updates are:
 
-1. `reference/official-guidance.md`: new/changed quotes, dates, source URLs
+1. `reference/official-guidance.md`: new or changed decisions in our words, pointers, as-of dates
+   and recheck triggers. Never copy the page's text into the file, quoted or paraphrased.
 2. `reference/criteria.md`: check thresholds or severity levels needing adjustment, version number,
    "Last updated" date
 
@@ -66,6 +69,6 @@ Present findings as actionable suggestions, not automatic changes.
 
 Output a summary of what changed:
 
-- Guidance quotes: N updated, N added, N removed
+- Guidance records: N updated, N added, N removed
 - Ecosystem suggestions: N items
 - Next action: suggest re-running the audit with updated criteria

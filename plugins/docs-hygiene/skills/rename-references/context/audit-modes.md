@@ -101,9 +101,9 @@ Files containing BOTH (incomplete rename state):
 
 **When to invoke:**
 
-- After `/docs-hygiene:rename-references <old> to <new>` apply phase, double-check no file paths went stale
+- After `/docs-hygiene:rename-references <old> to <new>` apply phase, run it to list file paths the apply left stale
 - After `git mv <old-path> <new-path>`, sweep for `[text](<old-path>)` markdown links and similar
-- Before declaring rename done: orphan check is final safety net beyond apply.md Phase 6 re-sweep
+- Before reporting a rename done, after apply.md Phase 6 re-sweep: the rename is done when this mode reports `0 orphans, 0 stale-but-functional`, or each remaining row is named in the report with its reason
 
 **Inputs:**
 

@@ -589,7 +589,7 @@ function rule_action(slug) {
   if (slug == "rule-trigger-less-stamp")
     return "Not auto-applicable: state the observable event that obliges re-derivation (upstream-drift required part 4)"
   if (slug == "rule-restated-upstream-fact")
-    return "Not auto-applicable: report-only, no fix pass reaches it; replace the restatement with a pointer at the point of use, or with a four-part record (claim, basis URL, as-of date, observable recheck trigger) when the surface must work offline"
+    return "Not auto-applicable: report-only, no fix pass reaches it; replace the restatement with a pointer at the point of use, or with a stamped record (the decision in its own words, a pointer, an as-of date, an observable recheck trigger) when the surface must work offline"
   return "Review by hand"
 }
 

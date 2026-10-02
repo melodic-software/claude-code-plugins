@@ -1,5 +1,35 @@
 # Changelog: discovery plugin
 
+## [0.25.28] - 2026-10-02
+
+### Changed
+
+- `parent-contract.md`'s verdict-lane record points at the verdict rule in the plugin philosophy's
+  "Model tiers" ladder instead of restating the retired session-tier rule.
+
+## [0.25.27] - 2026-10-02
+
+### Fixed
+
+- `setup` adds a pointer, as-of date and recheck trigger to the spawn-depth windows.
+
+## [0.25.26] - 2026-10-01
+
+### Changed
+
+- **Research outcome-gate row 7 now says a MEDIUM or LOW claim listed in the Gaps section is not an accepted claim.** An artifact whose every claim is so labeled and listed passes the row; the follow-up is "Iterate to HIGH or list as a Gap". `agents/research-verifier.md` states the same rule, and discipline 11 and Phase 4 in `skills/research/context/phases.md` end at HIGH confidence or a listed Gap. `scripts/contract.test.sh` asserts the row wording. Four redundant phrases earlier in `skills/research/SKILL.md` are shortened so the effort-ceiling sentence stays inside the first 20000 bytes.
+
+## [0.25.25] - 2026-10-02
+
+### Changed
+
+- **`explorer` pins `effort: medium`**, the marketplace effort floor for code-changing or verifying
+  work, and gains a finish-then-stop paragraph: the run ends with the persisted EXPLORE.md set and
+  the bounded return payload.
+- **`reference/parent-contract.md` states the new pin** and converts its harness-facts, credential
+  and permission-grant records to the links-only shape: our decision, a pointer to the exact
+  section, an as-of date and a recheck trigger.
+
 ## [0.25.24] - 2026-10-02
 
 ### Fixed

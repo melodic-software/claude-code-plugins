@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { soleElement } from "../test-support/assertions.js";
-import { detectOverlaps } from "./overlaps.js";
+import { soleElement } from "../test-support/assertions.ts";
+import { detectOverlaps } from "./overlaps.ts";
 
 describe("detectOverlaps", () => {
   it("should return empty array when no items", () => {

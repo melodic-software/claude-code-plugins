@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "testing",
-  "version": "0.18.3",
+  "version": "0.19.1",
   "description": "Test-stage discipline across all ecosystems: coverage-gap analysis and test planning (`/testing:plan`), TDD test authoring and placement (`/testing:write`), live E2E plus non-UI smoke verification (`/testing:run-e2e`), failing-test root-cause diagnosis with the reproduce → isolate → fix → retest loop (`/testing:diagnose`), a deterministic can't-fail test audit with a fail-closed gate mode and opt-in findings persistence (`/testing:audit`), a cleanup that rewrites, quarantines or, on approval, deletes low-value tests in one folder behind a mutation gate (`/testing:cleanup`), its configuration (`/testing:setup`), and opt-in hooks that scan each test file Claude writes and question edits that weaken tests.",
   "author": {
     "name": "Melodic Software",
@@ -27,26 +27,29 @@
     "test_judge_enabled": {
       "type": "boolean",
       "title": "Task-end test judge",
-      "description": "At the end of each task, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default.",
+      "description": "At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default.",
       "default": false
     },
     "test_judge_model": {
       "type": "string",
       "title": "Test judge model",
-      "description": "Model class the judge runs on: fable, opus, sonnet or haiku. When a model of that class wrote the tests, the fallback or another class is used.",
-      "default": "sonnet"
+      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used.",
+      "default": "sonnet",
+      "options": ["fable", "opus", "sonnet", "haiku"]
     },
     "test_judge_fallback_model": {
       "type": "string",
       "title": "Test judge fallback model",
-      "description": "Model class the judge uses when the main class wrote the tests: fable, opus, sonnet or haiku.",
-      "default": "opus"
+      "description": "Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku.",
+      "default": "opus",
+      "options": ["fable", "opus", "sonnet", "haiku"]
     },
     "test_judge_effort": {
       "type": "string",
       "title": "Test judge effort",
-      "description": "Effort level for the judge: low, medium, high, xhigh or max.",
-      "default": "medium"
+      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels.",
+      "default": "medium",
+      "options": ["low", "medium", "high", "xhigh", "max"]
     },
     "test_judge_session_runs": {
       "type": "number",

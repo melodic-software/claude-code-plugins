@@ -3,6 +3,14 @@
 All notable changes to the `dometrain-mcp` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-10-02
+
+### Changed
+
+- The `dometrain_api_key` option title reads "API key", dropping the service name the `/config`
+  row already shows, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`).
+
 ## [0.1.0]
 
 ### Added
