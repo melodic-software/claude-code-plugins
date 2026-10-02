@@ -72,7 +72,9 @@ def loads(packages, probe):
 
 def repair_line(data):
     cmd = [sys.executable, str(Path(__file__).resolve()), 'install', '--data-dir', str(data)]
-    return subprocess.list2cmdline(cmd) if sys.platform == 'win32' else shlex.join(cmd)
+    if sys.platform == 'win32':   # Windows PowerShell 5.1: call operator, single quotes doubled
+        return '& ' + ' '.join("'" + part.replace("'", "''") + "'" for part in cmd)
+    return shlex.join(cmd)
 
 
 def _drop_stale_partials(target):

@@ -162,6 +162,24 @@ class DataDir(unittest.TestCase):
                     os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
 
+class RepairLine(unittest.TestCase):
+    def test_on_windows_it_is_a_powershell_5_1_command(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import pydeps
+        finally:
+            sys.path.remove(str(HERE))
+        real = sys.platform
+        sys.platform = 'win32'
+        try:
+            line = pydeps.repair_line("C:\\Users\\o'brien\\data")
+        finally:
+            sys.platform = real
+        self.assertTrue(line.startswith("& '"), line)
+        self.assertTrue(line.endswith("'--data-dir' 'C:\\Users\\o''brien\\data'"), line)
+        self.assertNotIn('&&', line)
+
+
 @unittest.skipUnless(os.name == 'posix', 'fake interpreters are shell scripts')
 class Launcher(unittest.TestCase):
     def test_an_older_python3_hands_over_to_the_interpreter_the_hook_chose(self):
