@@ -17,12 +17,17 @@ the classifier compares Claude Code versions:
 - `unknown-record-type`: a record type the collector's reader does not know, with its count.
 
 Only versions holding `min_count` records take part, and the `unknown` version bucket (records
-without a `version`) never does. Stdlib only; Python 3.10+.
+without a `version`) never does. The drift defaults and `write_atomic` live here too, so both
+scripts share one store layer without `sweep.py` importing `collect.py` and its reader.
+Stdlib only; Python 3.10+.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -43,6 +48,9 @@ SECTIONS = frozenset(
     }
 )
 UNKNOWN_VERSION = "unknown"
+DEFAULT_MIN_COUNT = 20
+DEFAULT_VERSIONS = 3
+DEFAULT_SESSION_FLOOR = 3
 
 
 def version_key(version: str) -> tuple[int, ...]:
@@ -51,6 +59,28 @@ def version_key(version: str) -> tuple[int, ...]:
 
 def store_dir(data_dir: Path) -> Path:
     return data_dir / "audit-sessions" / "store" / "v1" / "sessions"
+
+
+def write_atomic(path: Path, payload: dict) -> bool:
+    """Write via a unique temp file and os.replace; False when a reader lock outlasts the retries."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        # Windows refuses the replace while a reader holds the target open.
+        for _ in range(20):
+            try:
+                os.replace(tmp, path)
+                return True
+            except PermissionError:
+                time.sleep(0.05)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    Path(tmp).unlink(missing_ok=True)
+    return False
 
 
 def load_records(data_dir: Path) -> tuple[list[dict], int]:

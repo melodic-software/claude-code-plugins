@@ -33,7 +33,6 @@ import posixpath
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -55,7 +54,6 @@ RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
 HEAD_BYTES = 4096
 # Sessions the newest version needs before a missing canary counts as lost.
-DEFAULT_SESSION_FLOOR = 3
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -121,28 +119,6 @@ def store_dir(data_dir: Path) -> Path:
 
 def project_segment(project_dir: str) -> str:
     return "p-" + hashlib.sha256(project_dir.encode("utf-8")).hexdigest()[:12]
-
-
-def write_atomic(path: Path, payload: dict) -> bool:
-    """Write via a unique temp file and os.replace; False when a reader lock outlasts the retries."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        # Windows refuses the replace while a reader holds the target open.
-        for _ in range(20):
-            try:
-                os.replace(tmp, path)
-                return True
-            except PermissionError:
-                time.sleep(0.05)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-    Path(tmp).unlink(missing_ok=True)
-    return False
 
 
 def _obj(value: object) -> dict:
@@ -766,7 +742,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 expired += 1
                 continue
             # A concurrent collector holding the target wrote the same session: a skip, not a failure.
-            if not write_atomic(target, record):
+            if not census.write_atomic(target, record):
                 skipped += 1
                 continue
         except OSError as exc:
@@ -871,9 +847,9 @@ def main(argv: list[str] | None = None) -> int:
     aggregate.set_defaults(func=cmd_census)
     drift = sub.add_parser("drift", help="classify census changes between Claude Code versions")
     drift.add_argument("--data-dir", required=True)
-    drift.add_argument("--min-count", type=_positive, default=20)
-    drift.add_argument("--versions", type=_positive, default=3, help="vanish window, in versions")
-    drift.add_argument("--session-floor", type=_positive, default=DEFAULT_SESSION_FLOOR)
+    drift.add_argument("--min-count", type=_positive, default=census.DEFAULT_MIN_COUNT)
+    drift.add_argument("--versions", type=_positive, default=census.DEFAULT_VERSIONS, help="vanish window, in versions")
+    drift.add_argument("--session-floor", type=_positive, default=census.DEFAULT_SESSION_FLOOR)
     drift.add_argument("--canaries", default=str(census.BUNDLED_CANARIES))
     drift.set_defaults(func=cmd_drift)
     try:
