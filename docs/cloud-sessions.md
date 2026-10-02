@@ -410,9 +410,10 @@ catalog on, and the cloud bootstrap installs from the two together (see
   disturbing the rest. The one opt-out recorded today is `playgrounds`: its skill is a wrapper
   over the first-party `playground` plugin on `claude-plugins-official`, which the cloud bootstrap
   does not install, so enabled here it could only ever print install commands. An off-by-default
-  plugin with no key here stays off; an operator who wants one turns it on with `/plugin enable`. Two
-  of them bundle MCP servers that need `userConfig` credentials this environment has no reason to
-  hold, `miro` (`miro_api_token`) and `dometrain-mcp` (`dometrain_api_key`), set with
+  plugin with no key here stays off; an operator who wants one turns it on with `/plugin enable`.
+  Two off-by-default plugins bundle MCP servers that need `userConfig` credentials this
+  environment has no reason to hold, `miro` (`miro_api_token`, no key here) and `dometrain-mcp`
+  (`dometrain_api_key`, pinned off by a default-matching `false` key), set with
   `/plugin configure`.
 
 ### GitHub MCP tools vs the gh CLI
