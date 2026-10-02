@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pydeps
+
 HERE = Path(__file__).resolve().parent
 FFMPEG_MIN = (5, 1)
 FFMPEG_URL = 'https://ffmpeg.org/download.html'
@@ -37,8 +39,8 @@ def playwright_dir(v):
 
 
 def pins():
-    """{distribution: version} from the plugin's requirements.txt."""
-    lines = (HERE.parent / 'requirements.txt').read_text(encoding='utf-8').splitlines()
+    """{distribution: version} from the plugin's requirements.in, the pins the hash lock is compiled from."""
+    lines = (HERE.parent / 'requirements.in').read_text(encoding='utf-8').splitlines()
     return dict(ln.split('==') for ln in (ln.split('#')[0].strip() for ln in lines) if '==' in ln)
 
 
@@ -107,7 +109,15 @@ def _row(name, playwright_core):
             (name, 'INFO', f'{dist} {have}, not the pinned {pinned} {want}: statistics may differ from the shipped '
              'pack and regression', '')
     return name, 'FAIL', f'{pinned} not installed', \
-        'run the scripts through `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`'
+        f'start a new Claude Code session, whose SessionStart hook installs the packages, or run `{_install_line()}`, ' \
+        'then run the scripts through `pydeps.py run` (see the plugin README)'
+
+
+def _install_line():
+    try:
+        return pydeps.repair_line(pydeps.data_dir())
+    except pydeps.Broken:
+        return f'python3 {HERE / "pydeps.py"} install --data-dir "<the plugin data directory>"'
 
 
 ROWS = ('ffmpeg', 'ffprobe', 'libx264', 'ffmpeg-version', 'node', 'chromium', 'numpy', 'opencv')
