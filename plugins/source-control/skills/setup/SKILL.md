@@ -158,7 +158,7 @@ the step UNKNOWN with remediation, never green.
    surviving literal `${user_config.…}` placeholder there means the key is unset. For each unset key
    state what will be inferred at run time. `babysit_watched_owners` → the current repo's owner,
    `babysit_self_logins` → none (your `gh api user --jq .login` login is always used, extras only add
-   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → repo convention then squash, the
+   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → `auto` (repo convention, then squash), the
    review-trigger keys → module dormant, `babysit_worktree_root` → the plugin data dir's
    `worktrees/` subdirectory. Unset keys are INFO (documented defaults), not FAIL.
 2. **Branch-protection posture across watched repos.** For each watched owner (or the current repo's

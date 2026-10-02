@@ -3,6 +3,16 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `quiz_policy` is a picker in `/config` (`off`, `on-request`, `always`, `above-threshold`), so a
+  value outside that set is no longer accepted. The `quiz_policy` and `workspace_root` descriptions
+  fit 300 characters; the unknown-value fallback, the codebase-mode rule, and the path grammar move
+  to the README's "Option details".
+
 ## [0.11.13] - 2026-10-02
 
 ### Fixed

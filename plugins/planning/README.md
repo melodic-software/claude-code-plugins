@@ -74,6 +74,16 @@ exactly as before. Every failure to resolve degrades to `free-text` with the cau
 named, whether that is no pointer line, no such document, no such key, or an
 unrecognized value, so a repo that declares nothing sees no change in output.
 
+### Option details
+
+**`surface`.** A value other than `terminal` or `page` falls back to `terminal`.
+
+**`use_emoji_question_markers`.** On the page surface the anchors sit on the question title and
+the Recommendation heading; the terminal line they lead is `My recommendation:`. Q<N> numbering
+stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the
+emoji. A user instruction against emoji wins over this option, and the page is then started with
+`--emoji-markers false` so it matches the terminal.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -84,9 +94,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. Any other value falls back to terminal. |
+| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. |
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly). |
-| `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When enabled, each interview round question leads with a ❓ anchor on its Q<N> line and its 'My recommendation:' line leads with ➡️, inline in the terminal and, on the page surface, on the question title and the Recommendation heading. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text. A user instruction against emoji wins over this option, and the page is then started with --emoji-markers false so it matches the terminal. |
+| `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
 
 ### How to set these
 

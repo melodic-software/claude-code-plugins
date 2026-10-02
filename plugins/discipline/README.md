@@ -440,6 +440,11 @@ Batch membership and order otherwise live in each corrector's own colocated
 tier metadata (`metadata.discipline-batch` + `discipline-batch-rank`), so changing
 a shipped tier is a PR to that corrector.
 
+### Option details
+
+**`research_deep_verification`.** An empty value, an unexpanded `${user_config.…}` token, or an
+unrecognized string all fall back to `tiered`.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -453,7 +458,7 @@ reads it from.
 | `batch_exclude` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_EXCLUDE` | Comma-separated corrector skill names to drop from the posture batch (for example: point-dont-copy). Overrides the corrector's own declared tier. Empty runs the tiers exactly as the correctors declare them. |
 | `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. Situational-only: a never-tier, core, or unknown name draws a visible warning and is not promoted. |
 | `batch_demote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_DEMOTE` | Comma-separated core corrector skill names to run only when relevant to the conversation instead of every session. |
-| `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep: 'tiered' (the default: resolve trivial and non-load-bearing inventory items inline, fan fresh-context subagents out only over the load-bearing ones) or 'full' (subagent-verify every inventory item). An invocation argument overrides this. An empty value, an unexpanded ${user_config.…} token, or an unrecognized string all fall back to tiered. |
+| `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this. |
 
 ### How to set these
 

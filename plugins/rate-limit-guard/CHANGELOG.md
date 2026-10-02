@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4] - 2026-10-02
+
+### Changed
+
+- `rate_limit_guard_enabled` is titled `Rate-limit stop hook and statusline tee`, naming what it
+  turns on, per the plugin-option-naming convention (`docs/conventions/plugin-option-naming/`).
+  No key, type or default changed.
+
 ## [0.10.3] - 2026-10-02
 
 ### Fixed

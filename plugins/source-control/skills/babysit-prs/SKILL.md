@@ -281,7 +281,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
-| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | `auto`: repo convention, then squash |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |

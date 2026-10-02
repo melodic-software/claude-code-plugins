@@ -3,6 +3,13 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.10] - 2026-10-02
+
+### Changed
+
+- The `output_dir` option title reads "Output directory", the title every plugin uses for that key
+  under the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.11.9] - 2026-10-02
 
 ### Fixed

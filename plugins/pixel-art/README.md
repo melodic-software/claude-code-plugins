@@ -116,7 +116,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `output_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_OUTPUT_DIR` | Where rendered sprites, sheets and scenes go when neither the request nor the project names a location. Leave unset to be asked. |
-| `backend` | string | `"native"` | `CLAUDE_PLUGIN_OPTION_BACKEND` | native (default, no external tools) or aseprite. A named backend that is not present falls back to native with a notice. |
+| `backend` | string | `"native"` | `CLAUDE_PLUGIN_OPTION_BACKEND` | Rendering backend. native (default) needs no external tools; aseprite renders through the Aseprite CLI. A named backend that is not present falls back to native with a notice. |
 
 ### How to set these
 

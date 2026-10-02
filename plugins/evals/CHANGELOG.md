@@ -1,5 +1,12 @@
 # Changelog: evals
 
+## [0.3.13] - 2026-10-02
+
+### Changed
+
+- The `unlimited_cost` option title is a noun phrase, "No cost ceiling", per the plugin option
+  naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.3.12] - 2026-10-02
 
 ### Fixed

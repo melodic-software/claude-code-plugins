@@ -426,6 +426,17 @@ parser, and `reconcile` reads them read-only and mutates only the in-session tas
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
 session network access, but the skill itself performs no egress.
 
+### Option details
+
+**`observer_analysis_enabled`.** Off, the observer does not analyze or write the ledger: no
+per-session Claude spend and no automatic in-session consumer. The end it waits for is mtime-idle.
+
+**`observer_analysis_bare`.** Turn it on only where auth is an env-var API key that survives
+`--bare`.
+
+**`observer_poll_seconds`.** Bounded below at 1: 0 spins the detached observer continuously, and a
+negative value raises at its sleep and kills it silently.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -436,13 +447,13 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Opt in to the SessionStart hook that arms the detached running-retro observer for every real interactive session. Default off: installing session-flow changes no behavior until this is enabled. The manual `/session-flow:running-retro arm` action works regardless of this toggle. |
-| `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When armed, run a headless post-session running-retro checkpoint after the observer detects the session ended (mtime-idle), writing the findings to the running-retro ledger. Off = the observer only distills observations and retains them under its plugin work dir for manual inspection; it does not analyze or write the ledger (no per-session Claude spend, no automatic in-session consumer). |
-| `observer_analysis_model` | string | `"claude-haiku-4-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model id for the headless post-end analysis run (the dominant cost lever). Defaults to the cheapest active tier; pin a different id to trade cost for depth. |
-| `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Drop auto-discovery (a further cost lever) on the analysis run. Off by default because --bare fails on OAuth-login installs (the run reports 'Not logged in'); enable only where auth is an env-var API key that survives it. See reference/observer.md. |
-| `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended. Keep it above the longest expected single turn (large fan-outs, long builds) or a mid-turn pause will be misread as end and fire analysis on a partial transcript. |
-| `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the mtime-idle threshold. Lower costs more wakeups for a faster end-detection; raise it on a busy machine. The idle threshold, not this, decides when the session is over. Bounded below at 1: 0 spins the detached observer continuously, and a negative value raises at its sleep and kills it silently. |
-| `observer_max_seconds` | number | `86400` | `CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS` | Absolute cap on observer lifetime. Reaching it exits WITHOUT running analysis (it is a safety valve, not an end signal); mtime-idle is the intended terminator. Default 24h. |
+| `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
+| `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
+| `observer_analysis_model` | string | `"claude-haiku-4-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth. |
+| `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
+| `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
+| `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |
+| `observer_max_seconds` | number | `86400` | `CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS` | Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator. |
 
 ### How to set these
 
