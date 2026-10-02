@@ -1,0 +1,42 @@
+{
+  "skill_name": "route",
+  "evals": [
+    {
+      "id": 1,
+      "name": "all-roles-for-workflow-args",
+      "prompt": "Give me the role map to pass as args.roles to a workflow. This session runs on Fable.",
+      "narration": true,
+      "expected_output": "Runs scripts/route.sh all session=fable and prints the JSON in one fenced json block, then one line per role. Every fan-out variant except retrieval names opus; the single variants of orchestrator, worker and verifier read `inherit: omit the model option`.",
+      "expectations": [
+        "The bundled route.sh is run with all and session=fable",
+        "The JSON is printed unchanged in a fenced json block",
+        "The fan-out lines for worker and verifier name opus, not fable and not inherit",
+        "Each inherit variant is written as `inherit: omit the model option`"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unknown-role",
+      "prompt": "/multi-agent:route judge",
+      "narration": true,
+      "expected_output": "The script exits 2 naming the valid roles (orchestrator, worker, verifier, retrieval, or all). The answer relays that list and stops without guessing a role.",
+      "expectations": [
+        "The valid roles from the error are relayed",
+        "No role is substituted for judge",
+        "No configuration file is written"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "rejected-layer-value-is-reported",
+      "prompt": "What effort does the worker role resolve to for research work? My .claude/multi-agent.local.yaml sets roles.worker.model to claude-opus-5-5.",
+      "narration": true,
+      "expected_output": "Runs route.sh worker research with the session alias. The worker resolves to effort low; the notes say roles.worker.model was rejected because a full model id is not an alias, and the model comes from the layer below.",
+      "expectations": [
+        "The research workload is passed so effort resolves to low",
+        "The rejected key is reported from notes, with the reason that only aliases are accepted",
+        "The skill does not edit the overlay file"
+      ]
+    }
+  ]
+}
