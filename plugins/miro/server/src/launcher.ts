@@ -78,6 +78,15 @@ export function appDir(target: string, manifest = currentManifest()): string {
   return join(target, `app-${digest(["package.json", manifest, ...parts])}`);
 }
 
+// npm gets no credential: the token alias and every plugin option Claude Code exports.
+export function npmEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(source).filter(
+      ([name]) => name !== "MIRO_API_TOKEN" && !name.startsWith("CLAUDE_PLUGIN_OPTION_"),
+    ),
+  );
+}
+
 export function installCommand(target: string, platform = process.platform): string {
   const sources = MANIFESTS.map((name) => join(SERVER_DIR, name));
   const [ci, ...flags] = NPM_CI_ARGS;
@@ -164,10 +173,9 @@ export function ensureDependencies(target: string): boolean {
     installed,
     (partial) => {
       for (const name of MANIFESTS) cpSync(join(SERVER_DIR, name), join(partial, name));
-      const { MIRO_API_TOKEN: _token, ...env } = process.env;
       const options: SpawnSyncOptionsWithStringEncoding = {
         cwd: partial,
-        env,
+        env: npmEnv(process.env),
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         timeout: NPM_TIMEOUT_MS,

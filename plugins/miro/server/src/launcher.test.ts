@@ -19,6 +19,7 @@ import {
   installCommand,
   installDir,
   LaunchBroken,
+  npmEnv,
 } from "./launcher.ts";
 import { LAUNCH, SERVER_DIR, seedInstall, tempDataDir } from "./test-support/install.ts";
 
@@ -36,6 +37,19 @@ function dataDir(): string {
 function launch(env: Record<string, string>) {
   return spawnSync(process.execPath, [LAUNCH], { env, encoding: "utf8", timeout: 20_000 });
 }
+
+describe("the npm environment", () => {
+  it("carries no token alias and no exported plugin option", () => {
+    const env = npmEnv({
+      PATH: "/bin",
+      MIRO_API_TOKEN: "t",
+      CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN: "t",
+      CLAUDE_PLUGIN_OPTION_OTHER: "x",
+      CLAUDE_PLUGIN_DATA: "/data",
+    });
+    expect(env).toEqual({ PATH: "/bin", CLAUDE_PLUGIN_DATA: "/data" });
+  });
+});
 
 describe("first launch that cannot install", () => {
   it("fails closed with the exact repair command and leaves no partial install", () => {
