@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.3] - 2026-10-02
+
+### Fixed
+
+- `improve` no longer says another repository's files stay out of HTML "until the escape helper
+  ships" (the helper has shipped). They stay out until the lane is wired through the helper.
+
 ## [0.18.2] - 2026-10-02
 
 ### Changed
