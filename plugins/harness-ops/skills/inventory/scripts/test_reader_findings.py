@@ -321,6 +321,13 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # A derived class's `this` is what `super()` returned.
+            "class B0{constructor(){return Array.prototype}}"
+            "class X extends B0{constructor(){super();this.includes="
+            + patch
+            + '}}new X;pY.includes("x")',
+            "var X=class extends function(){return Array.prototype}{constructor(){"
+            "super();this.includes=" + patch + '}};new X;pY.includes("x")',
             # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch

@@ -927,7 +927,10 @@ function sinks(req) {
         let fn = parents.get(node);
         while (fn && (!FUNCTIONS.has(fn.type) || fn.type === "ArrowFunctionExpression")) fn = parents.get(fn);
         const holder = fn && parents.get(fn);
-        return holder?.type === "MethodDefinition" && holder.kind === "constructor";
+        if (holder?.type !== "MethodDefinition" || holder.kind !== "constructor") return false;
+        // A derived class's `this` is what `super()` returns, which can be any object.
+        const cls = parents.get(parents.get(holder));
+        return cls !== undefined && cls.superClass === null;
       }
       case "Identifier": {
         const v = variable(node);

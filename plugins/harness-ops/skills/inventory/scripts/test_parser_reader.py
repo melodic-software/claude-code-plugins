@@ -647,6 +647,10 @@ class TestFlowQuery(unittest.TestCase):
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
             ("class C{constructor(k){this[k]=1}}", []),
+            (
+                "class D extends B{constructor(k){super();this[k]=1}}",
+                ["computed-write"],
+            ),
             ("function F(){}F.prototype.includes=f;new F;F.prototype.x;", []),
             ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
             ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
