@@ -6,7 +6,7 @@ skills:
   - testing:test-value
 tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
 model: opus
-effort: high
+effort: medium
 ---
 
 <!-- contract:begin -->
@@ -82,7 +82,7 @@ The `model` frontmatter above is the structural seam binding of the **strong cap
 the current recommended model alias. That tier is the default implementer tier of the
 order-defined, family-agnostic tier vocabulary owned by the loop-lane convention
 (`docs/conventions/loop-lane/README.md` §3 in this plugin's marketplace repository). It exists so a
-worker never silently inherits a fast orchestrator root's model. The binding is an alias, never a
+worker's tier never depends on the orchestrator root's model. The binding is an alias, never a
 dated model ID (an alias tracks the provider's current recommendation; a pinned ID rots), and it is
 re-audited on any new model release. Tier *definitions* stay abstract; only this seam binds one to an alias.
 
@@ -95,4 +95,11 @@ binding. It never hands source-editing work to a weaker model than this binding.
 
 `effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
 orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
-implementation too.
+implementation too. The binding is `medium`, the model-config row the pointer below names: a phase
+brief is scoped, day-to-day engineering work, and the phase verifier that checks it runs at `high`.
+
+- **Pointer:** the `medium` row of
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.
