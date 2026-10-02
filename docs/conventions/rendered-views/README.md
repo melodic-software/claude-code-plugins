@@ -34,12 +34,11 @@ contract are logged in `CHANGELOG.md`.
 
 ## View tiers
 
-A view sits on one of four tiers. The tier is chosen per use case: the cheapest tier
-that lets the reader do what the view is for.
+A view sits on one of four tiers, chosen per use case from the defaults below.
 
 | Tier | What the page does | Script |
 |---|---|---|
-| Static | Presents. Nothing on the page reacts to the reader. | None |
+| Static | Presents. Native HTML behavior such as a collapsible section still works. | None |
 | Client-interactive | Reacts to the reader inside the page: filter, sort, collapse, switch tabs, step through, answer a quiz, export state. | Runs in the page only; no network |
 | Animated | Moves on its own: timed or stepped motion that shows a process unfolding. | Runs in the page only; honors `prefers-reduced-motion` |
 | Claude-interactive | Sends the reader's input back to the session and shows the reply (questions to the author, a triage decision, a plan edit). | Page script plus the shared session transport (`session-bridge`), and nothing else on the network |
