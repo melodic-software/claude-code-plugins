@@ -1,0 +1,42 @@
+{
+  "skill_name": "assess",
+  "evals": [
+    {
+      "id": 1,
+      "name": "many-independent-items-is-a-workflow",
+      "prompt": "I need every one of the 140 skill files under plugins/ checked for a missing ## Gotchas section and a one-line fix proposed for each. Should this be a workflow?",
+      "narration": true,
+      "expected_output": "Runs scripts/workflow-availability.sh, checks that the Workflow tool is among the callable tools, and answers in two lines: `verdict: workflow` and a reason naming the 140 independent items. Writes no file and launches nothing.",
+      "expectations": [
+        "The bundled workflow-availability.sh is run before the verdict",
+        "The verdict also rests on whether the Workflow tool is actually callable, not on the script alone",
+        "The output is the two-line verdict and reason, with the item count in the reason",
+        "No workflow is launched and no file is written"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "disabled-workflows-downgrade",
+      "prompt": "Should I run a workflow to audit all 60 hook scripts for unquoted variables? Note CLAUDE_CODE_DISABLE_WORKFLOWS=1 is set in this shell.",
+      "narration": true,
+      "expected_output": "The script reports `verdict off` for the environment variable. The answer is `verdict: subagent` with a reason that names the 60 items and the CLAUDE_CODE_DISABLE_WORKFLOWS switch as the downgrade.",
+      "expectations": [
+        "The verdict is subagent, not workflow",
+        "The reason names the switch that turned workflows off",
+        "The skill does not suggest unsetting the variable as part of the verdict"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "small-dependent-task-is-single",
+      "prompt": "Should I use a workflow to rename one function and update its two callers in the same file?",
+      "narration": true,
+      "expected_output": "`verdict: single` with a reason saying the task is one dependent chain that fits this context.",
+      "expectations": [
+        "The verdict is single",
+        "The reason names the small size and the dependent shape, not the topic",
+        "No subagent or workflow is started"
+      ]
+    }
+  ]
+}
