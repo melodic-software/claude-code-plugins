@@ -24,6 +24,10 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
   edit, and no agent holds both file and web access. Repository text and pages reach their
   prompts only as fenced data, and a finding whose evidence URL is outside the vetted source
   hosts is reported unverified instead of going to a skeptic.
+- **`drift-checker` fetch gate** (`hooks/drift-checker-fetch-gate.mjs`), a `PreToolUse` hook on
+  `WebFetch`. Inside a `drift-checker` subagent it denies any fetch that is not an https URL on a
+  first-party docs host with no query string; other agents and the main thread pass through.
+  The workflow drops sources outside those hosts before any stage runs. Needs `node`.
 - **`audit-defaults repo`**, a mode that sweeps the repository's tracked markdown;
   `scripts/list-targets.sh` computes the areas and skips symlinks.
 - **`list-pointers.sh --json`**, which prints the rows as the workflow's `args.pointers`.

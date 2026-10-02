@@ -49,9 +49,15 @@ each area's claims, and the finders see only those quotes. Finders and skeptics
 run as `multi-agent:drift-checker` (WebFetch only, no search). Neither agent
 has a shell or can edit, write or spawn agents, and none holds both file and
 web access: the only repository text a checker holds is the quoted claim
-lines, and its prompt confines fetches to the source hosts. The
+lines, and the hook below confines its fetches. The
 workflow returns findings and, for the defaults, a proposed diff; applying any
 of it is a reviewed edit.
+
+A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
+the host rule a gate: inside a `drift-checker` subagent it denies any fetch
+that is not an https URL on a first-party docs host with no query string. Every
+other agent and the main thread pass through. The workflow drops any source
+outside those hosts before a stage runs.
 
 ## The fan-out guard
 
@@ -77,6 +83,8 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
+- **Node.js** for the `drift-checker` fetch gate hook. Without `node` the hook does not run, and
+  the drift checker's fetches are held to its hosts only by its prompt.
 
 ## Install
 

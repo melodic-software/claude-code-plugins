@@ -328,6 +328,19 @@ test('skeptics see the reader pointer beside each repo claim', async () => {
   assert.match(data(by(calls, 'skeptic:')[0].prompt, 'findings')[0].pointer, /as of 2026-10-01/)
 })
 
+test('sources off the fetch-gate hosts, or with a query string, are dropped before any stage runs', async () => {
+  const { result, logs } = await run({ mode: 'repo', targets: TARGETS, upstream: ['https://example.org/x', 'https://code.claude.com/docs?x=1', 'https://code.claude.com/docs/en/hooks'] })
+  assert.deepEqual(result.sources, ['https://code.claude.com/docs/en/hooks'])
+  assert.ok(logs.some(l => l.includes('2 URLs dropped')))
+  const d = await run({ pointers: [
+    { owner: 'worker', key: 'pointer', value: 'https://blog.example/post' },
+    { owner: 'worker', key: 'pointer_cost', value: COST },
+    { owner: 'worker', key: 'roles.worker.effort', value: 'medium' },
+  ] })
+  assert.deepEqual(d.result.sources, [COST])
+  assert.equal(d.result.unreadSources[0].value, 'https://blog.example/post')
+})
+
 test('unread and missing default rows are unverified; a null finder is named', async () => {
   const { result } = await run({ pointers: POINTERS }, {
     reply: (p, o, d) => {

@@ -78,10 +78,15 @@ const DEFAULT_UPSTREAM = [
   'https://code.claude.com/docs/en/skills',
 ]
 
+// The hosts hooks/drift-checker-fetch-gate.mjs lets a drift-checker fetch. A
+// source elsewhere could never be read, so it is dropped here instead.
+const FETCH_HOSTS = ['code.claude.com', 'platform.claude.com', 'docs.claude.com', 'docs.anthropic.com', 'www.anthropic.com']
+const isFetchable = u => isPublicUrl(u) && /^https:\/\/[^?]*$/.test(u) && FETCH_HOSTS.includes(hostOf(u))
+
 const strings = v => (Array.isArray(v) ? v : []).filter(s => typeof s === 'string' && s.trim() !== '').map(s => s.trim())
 const askedUpstream = strings(input.upstream)
-const upstream = askedUpstream.filter(isPublicUrl)
-if (askedUpstream.length > upstream.length) log('upstream: ' + (askedUpstream.length - upstream.length) + ' URLs dropped (not a public http(s) URL)')
+const upstream = askedUpstream.filter(isFetchable)
+if (askedUpstream.length > upstream.length) log('upstream: ' + (askedUpstream.length - upstream.length) + ' URLs dropped (not an https URL on a first-party docs host)')
 
 // ---- Inputs per mode ----
 let units = []
@@ -131,8 +136,8 @@ if (MODE === 'repo') {
       o.pointers.push({ key: r.key, value: r.value })
       if (r.key === 'as_of') ownerAsOf.set(r.owner, r.value)
       if (/^pointer/.test(r.key)) {
-        if (isPublicUrl(r.value)) urls.add(r.value)
-        else unreadSources.push({ owner: r.owner, key: r.key, value: r.value, reason: 'not a public http(s) URL, so no workflow stage can read it' })
+        if (isFetchable(r.value)) urls.add(r.value)
+        else unreadSources.push({ owner: r.owner, key: r.key, value: r.value, reason: 'not an https URL on a first-party docs host, so no workflow stage can read it' })
       }
     } else {
       o.values.push({ key: r.key, value: r.value })
@@ -188,8 +193,8 @@ if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stage
 // (Read, Grep, Glob) lifts claim lines out of files and cannot fetch.
 // multi-agent:drift-checker (WebFetch only, no search) judges them against
 // upstream; it holds nothing from the repository but those quoted claim
-// lines, and its prompt confines fetches to the source hosts. That rule is
-// prompt text, not a gate on the fetch itself. Both definitions inherit the
+// lines, and hooks/drift-checker-fetch-gate.mjs denies any fetch off the
+// first-party docs hosts or carrying a query string. Both definitions inherit the
 // model and pin no effort, so the role map governs them. `inherit` omits
 // opts.model; effort is always explicit.
 const READER = 'multi-agent:drift-reader'
