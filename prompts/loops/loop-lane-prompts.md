@@ -442,7 +442,8 @@ The level a lane passes is not proof of the level it ran at. An organization
 effort cap or the `maxEffortLevel` setting clamps it, a level the model does
 not support falls back to the highest supported level below it, and
 `CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and every agent or skill pin.
-The launcher warns when that variable is set.
+The launcher warns when that variable is set. The `effort` field in the
+work-loop and babysit-loop state blocks records the level that ran.
 
 **As of:** 2026-10-02. **Recheck trigger:** the "Choose an effort level"
 section is renamed, its rows change, or the default effort of a model a lane
