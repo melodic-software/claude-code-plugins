@@ -283,7 +283,7 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 
 After the phase plan is locked but before Step 5 approval, compute the execution shape: which phases can run in parallel and which surface each phase runs on. **Default ON** for any plan with ≥2 phases; emits a one-line "fully sequential. Phase X gates phase Y" note when no parallelism opportunity exists. Skip entirely for single-phase plans or trivial fixes. Skipped = all-main-session execution, stated in one line.
 
-The analysis steps, the file-overlap matrix, and the composition risks: [context/plan-template.md](context/plan-template.md) "Execution-shape analysis".
+The analysis steps, the file-overlap matrix, and the composition risks: [context/plan-template.md](context/plan-template.md) "Execution-shape analysis". Each routing row also carries a `Model` (`sonnet`, `opus` or `frontier`) that decides which implementer agent dispatch uses; the eligibility rules are in that file's "Per-phase routing table".
 
 ### Step 4.6: Tag unilateral decisions
 

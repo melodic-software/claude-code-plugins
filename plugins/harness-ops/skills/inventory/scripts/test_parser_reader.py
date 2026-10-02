@@ -204,12 +204,224 @@ class TestLiveHelper(unittest.TestCase):
         target = _require_live(self)
         with pr.ParserReader(target) as reader:
             with self.assertRaises(pr.ReaderBroken) as ctx:
-                reader.request("binding")
+                reader.request("no_such_op")
         self.assertIn("unknown op", ctx.exception.reason)
+
+
+class TestBindingQuery(unittest.TestCase):
+    """The helper's `binding` op: eslint-scope's resolution over acorn's AST."""
+
+    SRC = (
+        'import{a as b}from"m";var pY=["A"];'
+        'function f(){"let pY";/*let pY*/pY=["B"]}'
+        "function g(pY){return pY}"
+        'function h(){let pY="L";return pY}'
+        'gl="G";function k(){gl="H"}'
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _at(self, needle: str, k: int = 0) -> dict | None:
+        at = self.SRC.index(needle) + k
+        return self.reader.binding(self.SRC, 0, len(self.SRC), "pY", at)
+
+    def test_declaration_text_in_a_string_or_comment_declares_nothing(self) -> None:
+        outer = self._at("pY=[")
+        assert outer is not None
+        self.assertEqual(outer["kind"], "Variable")
+        self.assertEqual(self._at('pY=["B"]'), outer)
+        self.assertEqual(
+            [w for w, _ in outer["writes"]],
+            [self.SRC.index('pY=["A"]'), self.SRC.index('pY=["B"]')],
+        )
+
+    def test_a_parameter_and_a_block_local_are_their_own_bindings(self) -> None:
+        param = self._at("return pY}", 7)
+        local = self._at('let pY="L"', 4)
+        assert param is not None and local is not None
+        self.assertEqual(param["kind"], "Parameter")
+        self.assertEqual(local["kind"], "Variable")
+        self.assertEqual(self._at("return pY}function h", 7), param)
+        self.assertNotEqual(local, self._at("pY=["))
+        self.assertEqual(local["defs"][0][3], False)
+        self.assertEqual(self._at("pY=[")["defs"][0][3], True)
+
+    def test_an_import_names_what_it_imports(self) -> None:
+        got = self.reader.binding(self.SRC, 0, len(self.SRC), "b", self.SRC.index("b}"))
+        self.assertEqual(got, {"kind": "import", "imported": "a"})
+
+    def test_an_undeclared_name_is_one_implicit_global(self) -> None:
+        got = self.reader.binding(
+            self.SRC, 0, len(self.SRC), "gl", self.SRC.index('gl="H"')
+        )
+        assert got is not None
+        self.assertEqual(got["kind"], "ImplicitGlobal")
+        self.assertEqual(
+            got["writes"],
+            [(self.SRC.index('gl="G"'), True), (self.SRC.index('gl="H"'), False)],
+        )
+
+    def test_offsets_are_positions_in_the_whole_source(self) -> None:
+        pad = "var zz=1;\n// @bun\n"
+        src = pad + self.SRC
+        got = self.reader.binding(src, len(pad) - 8, len(src), "pY", src.index("pY=["))
+        assert got is not None
+        self.assertEqual(got["writes"][0][0], src.index('pY=["A"]'))
+
+    def test_an_evicted_module_is_sent_again(self) -> None:
+        first = self._at("pY=[")
+        for n in range(20):
+            other = f"var pY={n};"
+            self.reader.binding(other, 0, len(other), "pY", 4)
+        # One character into the name: not asked before, so not memoized.
+        self.assertEqual(self._at("pY=[", 1), first)
+
+    def test_an_unparsable_module_resolves_nothing(self) -> None:
+        self.assertIsNone(self.reader.binding("var =;", 0, 6, "x", 0))
+
+
+class TestWritesQuery(unittest.TestCase):
+    """The helper's `writes` op: write references and possible mutations
+    read from the AST."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _writes(self, src: str, at: str = "pY=[", name: str = "pY") -> dict | None:
+        return self.reader.writes(src, 0, len(src), name, src.index(at))
+
+    def _kinds(self, src: str, field: str) -> list[tuple[str, str]]:
+        """Each entry's kind with the source text from its offset on."""
+        got = self._writes(src)
+        assert got is not None
+        return [(kind, src[w : w + 8]) for kind, w, _ in got[field]]
+
+    def test_each_write_reference_has_its_kind(self) -> None:
+        src = (
+            "var pY=[1];pY=[2];pY+=[3];pY++;[pY]=[4];({a:pY}=o);"
+            "for(pY of z);function f(){pY=[5]}"
+        )
+        self.assertEqual(
+            [k for k, _ in self._kinds(src, "writes")],
+            [
+                "init",
+                "assign",
+                "compound",
+                "update",
+                "destructure",
+                "destructure",
+                "for-in-of",
+                "assign",
+            ],
+        )
+        got = self._writes(src)
+        assert got is not None
+        self.assertEqual([top for _, _, top in got["writes"]][-2:], [True, False])
+
+    def test_each_possible_mutation_has_its_kind(self) -> None:
+        src = (
+            "var pY=[1];pY.size=0;delete pY.x;pY.a.b++;pY.push(2);pY[0].sort();"
+            "Object.assign(pY,{});g(pY);new G(pY);t`${pY}`;pY[k]();"
+            "pY.map(f);(0,pY.push)(3);f(...pY);[...pY];x=pY.length;f(pY[0]);"
+            "pY();q=pY;"
+        )
+        self.assertEqual(
+            self._kinds(src, "mutations"),
+            [
+                ("member-write", "pY.size="),
+                ("member-delete", "pY.x;pY."),
+                ("member-write", "pY.a.b++"),
+                ("method-call", "pY.push("),
+                ("method-call", "pY[0].so"),
+                ("object-assign", "pY,{});g"),
+                ("call-argument", "pY);new "),
+                ("call-argument", "pY);t`${"),
+                ("call-argument", "pY}`;pY["),
+                ("method-call", "pY[k]();"),
+                ("method-call", "pY.map(f"),
+                ("method-call", "pY.push)"),
+                ("escape", "pY();q=p"),
+                ("escape", "pY;"),
+            ],
+        )
+
+    def test_a_member_read_is_safe_only_in_a_value_only_position(self) -> None:
+        src = (
+            "var pY=[1];pY.pop`x`;new pY.c();pY.pop?.();x=await pY.pop;"
+            "if(pY.length)f(pY[0],`${pY.a}`);o={k:pY.b};"
+        )
+        self.assertEqual(
+            self._kinds(src, "mutations"),
+            [
+                ("method-call", "pY.pop`x"),
+                ("method-call", "pY.c();p"),
+                ("method-call", "pY.pop?."),
+                ("member-escape", "pY.pop;i"),
+            ],
+        )
+
+    def test_a_function_declaration_of_the_name_is_a_write(self) -> None:
+        src = "function hL(e){function e(){}return e}"
+        got = self.reader.writes(src, 0, len(src), "e", src.index("{"))
+        assert got is not None
+        self.assertEqual(got["writes"], [("declaration", src.index("e(){"), False)])
+
+    def test_text_in_strings_and_comments_is_no_reference(self) -> None:
+        src = 'var pY=[1];var s="let pY;pY=[2];pY.push(3)";/*pY=[4]*/`pY=[5]`;'
+        self.assertEqual(
+            self._writes(src),
+            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+        )
+
+    def test_declares_is_only_a_plain_declarator(self) -> None:
+        for src, at, declares in (
+            ("var pY=[1];", "pY=[", True),
+            ("let a,pY=[1];", "pY=[", True),
+            ("var pY;pY=[1];", "pY=[", False),
+            ("var{pY}=o;", "pY}", False),
+            ("pY=[1];", "pY=[", False),
+        ):
+            with self.subTest(src=src):
+                got = self._writes(src, at)
+                self.assertEqual(got is not None and got["declares"], declares)
+
+    def test_a_shadowing_parameter_takes_its_own_writes(self) -> None:
+        src = "var pY=[1];function g(pY){pY=[2];pY.push(3)}"
+        self.assertEqual(
+            self._writes(src),
+            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+        )
+
+    def test_offsets_are_positions_in_the_whole_source(self) -> None:
+        pad = "var zz=1;\n// @bun\n"
+        src = pad + "var pY=[1];pY.push(2);"
+        got = self.reader.writes(src, len(pad) - 8, len(src), "pY", src.index("pY=["))
+        assert got is not None
+        self.assertEqual(
+            got["mutations"], [("method-call", src.index("pY.push"), True)]
+        )
+
+    def test_a_direct_eval_or_an_unparsable_module_answers_nothing(self) -> None:
+        self.assertIsNone(self._writes('var pY=[1];function e(){eval("")}'))
+        self.assertIsNone(self.reader.writes("var =;", 0, 6, "x", 0))
 
 
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
+
+    lookups = 0
+    write_lookups = 0
 
     def __init__(self) -> None:
         self.parsed = 0
@@ -310,6 +522,34 @@ class TestInventoryReaderFlag(unittest.TestCase):
         self.assertEqual(report["reader"]["compare"]["changes"], [])
         self.assertFalse(report["reader"]["compare"]["failed"])
         self.assertEqual(report["reader"]["status"], "ok")
+
+    def test_compare_gives_each_reader_its_own_answers(self) -> None:
+        """Finding 5 on #5640 reads differently under the two readers, so a
+        cache carrying the regex run's answers into the parser run (or back)
+        shows up as no change, or the wrong section values."""
+        _require_live(self)
+        probe = (
+            test_inventory.AGENT_SRC
+            + 'var pY=[xt,"Artifact"];function f(){"let pY";pY=["B"]}f();'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        self.binary.write_bytes(MARKER + probe.encode() + BIG + GAP + DOCTOR)
+        _, out = self._run("--binary-only", "--reader", "compare")
+        report = json.loads(out)
+        agent = report[inv.AGENT_LANE]["spread-probe"]
+        self.assertEqual(agent["disallowed_tools_source"], "partial")
+        pointer = f"/{inv.AGENT_LANE}/spread-probe/disallowed_tools_source"
+        changed = {c["pointer"]: c for c in report["reader"]["compare"]["changes"]}
+        self.assertIn(pointer, changed)
+        self.assertFalse(report["reader"]["compare"]["failed"])
+        _, regex = self._run("--binary-only")
+        self.assertEqual(
+            json.loads(regex)[inv.AGENT_LANE]["spread-probe"][
+                "disallowed_tools_source"
+            ],
+            "literal",
+        )
 
     def test_a_value_that_differs_between_readers_breaks_the_report(self) -> None:
         real = inv.extract_binary

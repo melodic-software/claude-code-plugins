@@ -36,6 +36,14 @@ lost its reader.
 - **Re-pitch means re-ground, not compress.** Full technical precision stays;
   the premise the reader was missing comes back. A re-pitch that is shorter
   and blunter, but no clearer, is the failure this skill exists to avoid.
+- **Pick the sibling that fits the gap** (both in other plugins, if installed).
+  `/education:explain` drops any concept, code or error, or the last message, to plain
+  words with an analogy and climbs back up only on request; use it when the reader needs
+  the idea simplified, not the message re-grounded. `/adhd:clarify` reorganizes a dense,
+  decision-heavy message into one decision at a time with its precision and terms
+  unchanged; use it when the message has the right content in the wrong shape.
+  This skill re-pitches the one message that lost the reader: missing context back,
+  in Simplified Technical English, at full precision.
 - **No glossary is a no-op, not an error.** The vocabulary half degrades
   silently; the register and missing-context halves always apply.
 - **Excluded from batch sweeps.** No `discipline-batch` tier on purpose: a

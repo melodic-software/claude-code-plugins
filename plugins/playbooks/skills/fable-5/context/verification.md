@@ -46,21 +46,35 @@ Mechanical gates prove you did not break the machine; outcome verification prove
 
 Verification support exists before anyone writes anything custom, and it spans three products rather than one feature list: the harness, a managed review service, and a separate platform API. Route to each surface's own reference page rather than to any summary of it, this table included: the page tracks behavior changes and a summary freezes at the moment it was written.
 
-| Surface | What it is | Canonical page |
+| Surface | When we reach for it | Canonical page |
 |---|---|---|
-| `/verify` | Bundled harness skill that builds and runs the app to confirm a change does what it should, without falling back to tests or type checks | [Skills: Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |
-| Toolchain | Any tool returning a readable pass/fail, such as a test suite, build exit code, linter, or a script diffing output against a fixture, read and acted on inside the loop, with the project's exact build and test commands listed in its CLAUDE.md so they are read rather than inferred | [Best practices: Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work), [Memory: Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md) |
-| Code Review | Managed multi-agent service reviewing PRs in enabled repositories, a hosted product rather than a harness feature | [Code Review](https://code.claude.com/docs/en/code-review) |
-| GitHub Actions | A workflow job invoking Claude with a verification skill, so the same skill files a local session uses run in CI | [GitHub Actions: Run a skill](https://code.claude.com/docs/en/github-actions#run-a-skill) |
-| Spec validation | Verifying each change against a markdown spec in the repository, **a pattern, not a shipped artifact** | **None.** No bundled skill answers to it; write it as a repo-local [skill](https://code.claude.com/docs/en/skills), the mechanism the harness documents for exactly this |
-| Rubrics in Claude Managed Agents | **Separate platform API product**: a grader in its own context window scores an artifact against a rubric and hands failures back for rework | [Managed Agents: define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
+| `/verify` | The change has a running app to drive; offer it to the person rather than invoking it | [Skills: Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |
+| Toolchain | Always first: a test suite, build, linter, or fixture-diff script whose exit code you read inside the loop, using the commands the project's CLAUDE.md names rather than ones you infer | [Best practices: Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work), [Memory: Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md) |
+| Code Review | The project wants hosted pull-request review; it is a separate product, so confirm the repository has it before a plan depends on it | [Code Review](https://code.claude.com/docs/en/code-review) |
+| GitHub Actions | The same verification skill should also run in CI | [GitHub Actions: Run a skill](https://code.claude.com/docs/en/github-actions#run-a-skill) |
+| Spec validation | Checking each change against a markdown spec in the repository: **a pattern, not a shipped artifact** | **None.** Build it as a repo-local [skill](https://code.claude.com/docs/en/skills) |
+| Rubrics in Claude Managed Agents | The work runs on that platform API product, not in this harness | [Managed Agents: define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
+
+- **Pointer**: for each surface, the row's Canonical page.
+- **As of**: 2026-10-01
+- **Recheck trigger**: a row's page moves its section, or the surface it covers is added, removed, or changes product.
 
 The two rows carrying no harness artifact are the ones to read twice:
 
-- **Spec validation's absence is dated, not permanent.** Verified 2026-08-03 against the bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Commands](https://code.claude.com/docs/en/commands); recheck if a release note adds one.
-- **Managed Agents rubrics belong to a different product.** The automatic grader-and-rework loop exists in that service, not in this harness; inside a session the equivalent is a construction you assemble (a fresh-context subagent as grader). The documented route into that product is the bundled `/claude-api managed-agents-onboard` skill.
+- **Spec validation's absence is dated, not permanent.** We found no bundled skill for it.
+  - **Pointer**: for the bundled-skill rosters, see [Skills: Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and [Commands: All commands](https://code.claude.com/docs/en/commands#all-commands).
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: a release note adds a bundled skill that checks changes against a spec.
+- **Managed Agents rubrics belong to a different product.** Inside a session, build the equivalent yourself: a fresh-context subagent grades the artifact against the rubric and hands failures back. To start on that product, the bundled `/claude-api` skill has a Managed Agents onboarding subcommand.
+  - **Pointer**: for that subcommand, see [Skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects).
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: that table drops or renames the onboarding subcommand.
 
-**Provided never means automatic.** These surfaces span categories the official docs keep apart: `/verify` and `/code-review` are bundled prompt-based skills, not built-in CLI commands, and Code Review is a hosted service. From v2.1.215 `/verify` and `/code-review` are user-invoked by default, and from v2.1.225 that is a runtime gate rather than a fixed version cutoff, so two clients on one version can differ; Code Review is research preview, limited to Team and Enterprise, unavailable under Zero Data Retention, and enabled per repository by an Owner. Check plan, version, and invocation expectations against those pages before a project's verification story depends on any of them. Pages verified 2026-08-10; invocability additionally checked against the shipped 2.1.223–2.1.226 clients. Recheck trigger: a Claude Code release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code Review release note changing its plan or preview status.
+**Provided never means automatic.** These surfaces are different kinds of thing: bundled skills, a hosted service, and a platform API. Before a project's verification story depends on one, check its plan availability, client version, and who may invoke it on the page that owns it.
+
+- **Pointer**: for who invokes `/verify` and `/code-review`, see [Commands: All commands](https://code.claude.com/docs/en/commands#all-commands); for Code Review's availability and setup, see [Code Review](https://code.claude.com/docs/en/code-review) and [Set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review).
+- **As of**: 2026-08-10
+- **Recheck trigger**: a Claude Code release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code Review release note changing its plan or preview status.
 
 ## The check is the spec until proven wrong
 
@@ -93,7 +107,8 @@ Switch roles from author to attacker, because the inputs you designed for pass b
 
 - The claim must trace to a tool result you observed in this session, after your last change, because any edit applied after evidence was gathered voids that evidence. Re-run the check. Which knowledge counts as evidence versus claim is the calibration chapter, section "Two grades of knowledge"; everything recall-grade there is a claim here.
 - A delegated worker's "done" is recall-grade and never transfers into your completion claim unpromoted. Handling mechanics are the orchestration chapter, section "Every return is unverified synthesis".
-- When a verification step cannot run (missing dependency, no environment, blocked permission), the claim downgrades to exactly "implemented, not verified because Y". Never let an unrunnable check silently become a passed one. Everything else about faithful status content is the communication chapter, section "Report state faithfully".
+- When a check cannot run because the project's declared dependencies are missing, install them once and run it: only from the lockfile, with install scripts disabled, and only with `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local` or `dotnet restore --locked-mode`, within the permission mode and never with `sudo`; any other package manager installs nothing, which leaves the check unrunnable for a missing dependency. The uv command builds nothing at install time: `--no-build` refuses third-party source builds and `--no-install-local` leaves out the project and its local packages, so a dependency with no wheel fails the install, with the same result (Pointers: <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build>, <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>. As of: 2026-10-02. Recheck trigger: either entry changes what it builds or installs). Never install a tool. If `git status --porcelain` or a hash of `git diff HEAD --binary` differs after the install, stop and report the changed paths instead of checking.
+- When a verification step still cannot run (a missing tool, no lockfile, no environment, a blocked permission), the claim downgrades to exactly "implemented, not verified because Y". Never let an unrunnable check silently become a passed one. Everything else about faithful status content is the communication chapter, section "Report state faithfully".
 
 Failure mode prevented: the compounding lie, where one optimistic unverified claim becomes the foundation the next three claims stand on.
 

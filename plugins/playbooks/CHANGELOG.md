@@ -4,6 +4,72 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.1] - 2026-10-01
+
+### Changed
+
+- The prompt-caching reference's session-side section links the Claude Code prompt-caching page
+  and the costs page's account of why usage climbs in a long session, instead of explaining
+  either.
+
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- A `sonnet-5-5` model-adaptation chapter, links-only: each section holds a trigger for reading the
+  Sonnet 5.5 guide's section, the pointer, and only decisions that are ours (the medium effort
+  floor, posture P12 at `xhigh` and `max`, the agents' own finish-then-stop sections, which
+  surfaces we author as system prompt, which Sonnet 5 sections carry), plus three recorded page
+  disagreements and a pointer to the migration guide for API requests carried over from Sonnet 5.
+  It replaces the 0.16.0 chapter, which quoted the guide.
+- A cross-model `reading-dense-images` note in `fable-5`, routed from the trigger table: a value
+  read from an image you could not read reliably is recall-grade.
+- Two `fable-5` evals: Sonnet 5.5 routing at arm time, and re-routing after a fallback to
+  Sonnet 5.
+
+### Changed
+
+- The `fable-5` description and meta-rule 3 list Fable 5, Fable 5.1, Opus 5.5 and Sonnet 5.5 as
+  current (a Fable 5 session reads no chapter) and Opus 5, Opus 4.8 and Sonnet 5 as fallback-only,
+  each still routed to its chapter, with a pointer to Claude Code's model page. The fallback
+  mechanism and the Fable 5 system-card finding are now pointers, and only evidence that reaches
+  the context counts as a switch.
+- The `opus-5` thinking-and-effort decision, the `context-economy` thinking-retention probe
+  (re-run on Claude Code 2.1.285) and the `calibration` thinking-matrix record are re-derived
+  against the current pages.
+- The `fable-5` `verification` chapter installs missing declared dependencies from the lockfile
+  with install scripts disabled before it downgrades a check, and its surfaces table carries one
+  pointer record. The `trust-and-authority` chapter adds one line on a user message that arrives
+  mid-turn beside a tool result.
+
+- The `fable-5-1`, `opus-4-8`, `opus-5`, `opus-5-5` and `sonnet-5` model-adaptation chapters and the
+  `prompt-caching` chapter now hold our decision in our own words, with a pointer to the exact
+  upstream section, an as-of date and a recheck trigger, in place of restated or quoted guide
+  text. The chapter conventions in `model-adaptation/AGENTS.md` change from short verbatim
+  quotations to links only: a blog post appears only as a correlate beside a docs pointer, and two
+  pages that disagree are recorded as a source conflict with both links. The `opus-5` chapter
+  records its verification split as our inference and the guide's own sections as pulling in
+  different directions.
+- The `fable-5` `calibration`, `context-economy` and `orchestration` chapters restate their worked
+  examples as our own decisions with pointers. The build-pinned thinking-retention record in
+  `context-economy` is now a probe record that names the probe.
+- The `skill-authoring` reference (`authoring-guidance.md`, `authoring-checklist.md`,
+  `verification-loops-in-skills.md`) states the rules this marketplace applies and ends each
+  section in a Record instead of restating the Anthropic pages. The three limits our checks
+  enforce are tabled with the layer that owns each.
+- The `opus-5-5` chapter runs every review pass at `medium` effort or above, per the effort floor.
+  Its fallback section names no Claude Code control and points at the fallback sections for them.
+  The `opus-5` chapter's first review pass also runs at `medium` or above, per the same floor.
+  The `opus-5-5` and `fable-5-1` effort guidance point at model-config's "Choose an effort level",
+  with the Spending your effort post as a correlate. The `sonnet-5-5` chapter's CLAUDE.md link
+  follows the docs site's new heading id, and `opus-5-5`'s scope-boldness trigger fires when a
+  docs page covers the topic.
+- The `opus-4-8` chapter's behaviors-to-emulate list names each behavior and its owning chapter
+  without restating the Fable 5 guide, and points at the two sections it was missing. The
+  `skill-authoring` pre-share checklist keeps only the rows we sharpen or add, defers the rest to
+  the upstream checklist by pointer, and renames its groups (frontmatter and body, scripts, evals
+  and testing); its eval follows the new names.
+
 ## [0.16.3] - 2026-10-02
 
 ### Fixed

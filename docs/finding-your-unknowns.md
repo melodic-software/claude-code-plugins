@@ -10,11 +10,10 @@ pattern catalog and the boundaries (when HTML, when not; what deliberately stays
 un-codified). Sibling docs: `plugin-philosophy.md` (governance),
 `glossary.md` (vocabulary), `migration-playbook.md` (delivery).
 
-**Sources and permission basis.** The material derives from public posts by their named
-author (see [Sources](#sources-and-citation-shape)). This doc quotes short attributed
-verbatim excerpts under fair-quotation practice; no license is claimed and bulk
-reproduction is avoided. Quotes are reproduced exactly as published, punctuation
-included, and are never edited to fit this repo's style rules.
+**Sources.** The material derives from public posts by their named author (see
+[Sources](#sources-and-citation-shape)). This doc stores no text from them, quoted or
+paraphrased: it records what this repository adopted, in our words, and points at the source
+section each decision rests on, which a reader opens to read the author's own words.
 
 ## Contents
 
@@ -33,29 +32,27 @@ included, and are never edited to fit this repo's style rules.
 
 ## Why this exists
 
-The methodology's economic argument, in the author's words: "Every explainer, brainstorm,
-interview, prototype, and reference is a cheap way to find out what you didn't know before
-it gets expensive to fix." (Field guide, [Sources](#sources-and-citation-shape) S1.) Each
-pass below trades a few minutes of artifact review for a class of rework.
+We adopted the methodology for its economics: each artifact is a cheap way to learn something
+before it becomes expensive to fix, and each pass below trades a few minutes of artifact review
+for a class of rework. For the author's own argument, see S1.
 
-Caution on the framing: the author's stronger thesis, that output quality is now
-bottlenecked by the human's ability to clarify the model's unknowns, is a single
-practitioner's vendor-published claim and is treated here as direction, not doctrine.
+Caution on the framing: the author's stronger thesis about where output quality is now
+bottlenecked (S1) is a single practitioner's vendor-published claim and is treated here as
+direction, not doctrine.
 
 ## The unknowns taxonomy
 
-Four quadrants, asked as "what are your unknowns?" before prompting:
+We ask "what are your unknowns?" before prompting, across four quadrants:
 
-- **Known knowns**: what the prompt already states.
-- **Known unknowns**: questions you know to ask but haven't answered yet.
-- **Unknown knowns**: things you assume without realizing you're assuming them; the
-  agent can't see them until you disclose them.
-- **Unknown unknowns**: the pothole you didn't know the road could have; only an
-  artifact that shows you the terrain surfaces these.
+- **Known knowns**: what the prompt already says.
+- **Known unknowns**: open questions you are aware of.
+- **Unknown knowns**: assumptions you hold without noticing; the agent cannot see them until
+  you state them.
+- **Unknown unknowns**: risks you have no reason yet to look for; only an artifact that shows
+  the terrain brings these out.
 
-The draft article's quadrant taglines ("questions you know to ask", "the pothole you
-didn't know the road could have") appear only in the X draft (S4), which is the citable
-source for draft-only content.
+The author's own quadrant taglines appear only in the X draft (S4), which is the citable source
+for draft-only content.
 
 Findings that surface during an unknowns pass fall into four types (adopted as
 `discovery:blindspot`'s output taxonomy): **Landmine** (a change that will break
@@ -65,17 +62,15 @@ longer shows), **Convention** (an unwritten team rule the work must follow), and
 
 Two diagnostics ride the taxonomy:
 
-- Over-specifying and under-specifying are the same failure seen from two sides: both
-  mean the split between what you locked and what you left open didn't match your actual
-  unknowns.
-- When a long-horizon task comes back wrong, check the unknowns and the plan's
+- We treat over-specifying and under-specifying as one failure: in both, the split between
+  what you locked and what you left open did not match your actual unknowns.
+- When a task that ran for hours returns a wrong result, we check the unknowns and the plan's
   adaptability before blaming the model: the usual root cause is an unknown that was
   never surfaced, not a capability gap.
 
-The lifecycle is a loop: what an artifact teaches you becomes the starting map for the
-next round. The author frames this as matching the map to the territory (S1, "Matching
-map and territory"), cited here as his metaphor, not adopted as house vocabulary (see
-`glossary.md` rejected terms).
+We run the method as a loop: what an artifact teaches becomes the starting map for the next
+round. The author's own framing of this loop (S1, section "Matching map and territory") is his
+metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
 ## The five-pass pre-implementation workflow
 
@@ -101,7 +96,7 @@ independently corroborates it; see `session-flow` plugin).
 
 ## Prompt-pattern catalog
 
-Patterns the corpus demonstrated that have no owning skill; each entry is one canonical
+Patterns the corpus demonstrated that have no owning skill; each entry is one house
 prompt-line to adapt. Patterns with an owning skill are listed in the
 [workflow](#the-five-pass-pre-implementation-workflow) above. Invoke the skill instead.
 
@@ -120,9 +115,9 @@ prompt-line to adapt. Patterns with an owning skill are listed in the
 - **Quiz me before I merge**: served by `/education:quiz-me`; the merge gate itself stays
   with `/verification:confirm` (one mechanism per concern).
 
-Reconciliation note: the corpus's "tweakable plan" ordering (high-tweak decisions first,
-mechanical work collapsed) is already `planning:plan`'s documented presentation default;
-it needed no new mode here.
+Reconciliation note: the corpus's tweakable-plan ordering is already `planning:plan`'s
+documented presentation default (high-tweak decisions first, mechanical work collapsed); it
+needed no new mode here.
 
 ## Reply-affordance convention
 
@@ -143,13 +138,10 @@ validation answer set). Fleet audits check those surfaces against this section.
 
 ## Export-button rule
 
-**The rule.** An interactive HTML artifact always ends with an export affordance that
-turns UI state back into something the user can paste or commit. In the author's words:
-"The trick is always to end with an export: a "copy as JSON" or "copy as prompt" button
-that turns whatever I did in the UI back into something I can paste into Claude Code."
-(S2, "Custom editing interfaces".) The doctrine recurs three times independently in the
-corpus; it is what keeps a throwaway editor inside the agent loop instead of becoming a
-dead end.
+**The rule.** Every interactive HTML artifact our skills emit ends with a control that
+copies the state the user built out as text they can paste into the session or commit. For the author's version of this rule, see S2, section "Custom editing
+interfaces". The doctrine recurs three times independently in the corpus; it is what keeps a
+throwaway editor inside the agent loop instead of becoming a dead end.
 
 **Who is bound.** Skills that emit interactive HTML artifacts cite this section.
 
@@ -173,37 +165,34 @@ registry row per `plugin-philosophy.md` "Convention registry".
 
 ## When HTML, and when not
 
-The corpus's examples index (S3) organizes twenty demos into nine categories:
-exploration and planning, code review and understanding, design, prototyping,
-illustrations and diagrams, decks, research and learning, reports, and custom editing
-interfaces. Those categories double as the "when is HTML worth it" taxonomy: reach for a
-rendered page when the information is spatial (diffs, call graphs), comparative
-(side-by-side directions), interactive (motion you can only feel), or recurring (reports
-that benefit from structure and color).
+The corpus's examples index (S3) groups its demos by category. Our test for when HTML is worth
+it: reach for a rendered page when the information is spatial (diffs, call graphs),
+comparative (side-by-side directions), interactive (motion you can only feel), or recurring
+(reports that benefit from structure and color).
 
 - **Density rubric**: HTML earns its cost through tables, CSS, SVG, interaction, and
   spatial layout. Markdown pushed past its density limit produces the degraded
   workarounds (ASCII diagrams, unicode color) that signal you wanted a page.
-- **Reading ceiling**: the author's ~100-line markdown ceiling is a practitioner
-  anecdote, recorded as such, not a measured threshold.
-- **Sharing**: the publish-and-share argument is satisfied in this environment by the
-  Artifact tool; nothing extra to build.
+- **Reading ceiling**: the author's markdown length ceiling (S2) is a practitioner
+  anecdote, recorded as such, not a measured threshold; we set none.
+- **Sharing**: the publish-and-share need is met in this environment by the Artifact tool
+  (see [Share session output as artifacts](https://code.claude.com/docs/en/artifacts));
+  nothing extra to build.
 - **Scoping rule**: HTML artifacts are for ephemeral and published outputs. They never
-  replace version-controlled instruction surfaces. HTML diffs are noisy (the author's
-  own admission) and generation costs 2-4x the markdown equivalent, so plans, skills,
-  and docs stay markdown in git.
+  replace version-controlled instruction surfaces. HTML diffs are noisy and generating HTML
+  costs more than the markdown equivalent (for the author's own estimate, see S2), so plans,
+  skills, and docs stay markdown in git.
 
 ## The buy-in pattern
 
-For work that needs stakeholder agreement, the corpus's buy-in document has five
-sections: demo first; the pitch; pre-answered objections; spec at a glance; risk and
-rollback with named per-person asks and a deadline. The pre-answered-objections element
-is the industry-standard core: Amazon's PR/FAQ carries an internal FAQ anticipating hard
-leadership questions (Bezos 2017 shareholder letter; Bryar & Carr's Working Backwards),
-and every surveyed RFC process requires drawbacks/alternatives-considered sections: Rust
-RFCs, Oxide RFDs, Google design docs, Uber-style RFCs. In all of those orgs the
-persuasion artifact and the decision record are one document with a lifecycle, which is
-why this repo extends existing planning artifacts rather than minting a parallel one.
+For work that needs stakeholder agreement, we use a buy-in document whose core is pre-answered
+objections (for the corpus's version, see S2): demo first; the pitch; pre-answered objections;
+spec at a glance; risk and rollback with named per-person asks and a deadline. Pre-answered
+objections are the industry-standard core: Amazon's PR/FAQ and every surveyed RFC process (Rust
+RFCs, Oxide RFDs, Google design docs, Uber-style RFCs) carry the same element; see the buy-in
+grounding in [Sources](#sources-and-citation-shape). In all of those orgs the persuasion
+artifact and the decision record are one document with a lifecycle, which is why this repo
+extends existing planning artifacts rather than minting a parallel one.
 
 **Objection-evidence checklist** (reusable in PR descriptions): for each objection you
 expect, write the question, the factual answer, and the evidence citation, before
@@ -212,30 +201,21 @@ through the [workflow](#the-five-pass-pre-implementation-workflow).
 
 ## Cautions from the source author
 
-The corpus carries its own warning against exactly the move a plugin marketplace is
-tempted to make, and this repo treats it as binding (it is why the deltas that landed are
-judgment-preserving contract lines and doc entries, never generator skills):
-
-> I’m a little bit afraid that people will read this article and turn it into a /html
-> skill or something. While there might be some value in that, I want to emphasize that
-> you don’t need to do much to get Claude to do this. You can just ask it to “make a HTML
-> file” or “make a HTML artifact”.
->
-> The trick is knowing what you want the artifact to do and how you might use it. You may
-> over time make a skill, but for now I’d suggest just prompting from scratch to get a
-> hang of how to use it in different cases. (S2, "How to Get Started".)
+The author warns against exactly the move a plugin marketplace is tempted to make: turning the
+method into a dedicated generator skill instead of prompting for the artifact directly (S2,
+section "How to Get Started"). This repo treats that caution as binding, which is why the deltas
+that landed are judgment-preserving contract lines and doc entries, never generator skills.
 
 Two companions to the warning:
 
-- **Stay in the loop** is the evaluation lens for any artifact tooling: "All of the above
-  is to say that I think the real reason I use HTML is that I feel much more in the loop
-  with Claude." (S2, "Stay in the Loop".) Tooling that produces artifacts the user never
+- **Stay in the loop** is our evaluation lens for any artifact tooling (for the author's
+  framing, see S2, section "Stay in the Loop"). Tooling that produces artifacts the user never
   forms judgment about fails this criterion even when it satisfies density, sharing, and
   ease.
-- **Throwaway-editor doctrine**: a custom editing interface is "not a product, or a
-  reusable tool". It is built for the exact thing being worked on and discarded. The
-  marketplace instinct to generalize a good throwaway into a shipped generator is the
-  failure mode the warning names.
+- **Throwaway-editor doctrine**: we build a custom editing interface for the exact thing being
+  worked on and discard it; it is never a product or a reusable tool. The marketplace instinct
+  to generalize a good throwaway into a shipped generator is the failure mode the warning
+  names.
 
 ## Heuristics awaiting evidence
 
@@ -259,11 +239,13 @@ they graduate into a skill body only on observed, repeated stumble evidence:
 
 Citations in this doc use: URL, ISO retrieval date, and `sha256:<hex64>` over the raw
 snapshot bytes captured at retrieval. Content drift produces a new citation, never an
-in-place hash edit.
+in-place hash edit. Recheck trigger: a re-retrieval whose hash differs from the recorded one.
+No Claude docs page covers this methodology as of 2026-10-01, so the author's posts stay the
+sources, each read at its link.
 
 - **S1**: "A field guide to Claude Fable 5: Finding your unknowns", Thariq Shihipar,
-  Anthropic blog, published 2026-07-06.
-  `https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns`
+  Anthropic blog, published 2026-07-06. No docs page covers it:
+  (correlate with `https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns`)
   (retrieved 2026-09-01,
   `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`)
 - **S2**: "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the

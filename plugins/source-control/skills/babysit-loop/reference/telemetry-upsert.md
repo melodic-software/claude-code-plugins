@@ -35,7 +35,7 @@ esac
   exit 1
 }
 MARKER="source-control:babysit-loop@$INSTANCE"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
+SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
 SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow

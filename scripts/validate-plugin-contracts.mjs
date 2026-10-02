@@ -856,26 +856,6 @@ if (retirementsBaseRef === null) {
         );
         continue;
       }
-      // A plugin renamed through the marketplace `renames` map carries its records to the new
-      // directory, with the id prefix that names the plugin rewritten to match.
-      const oldName = line.split("/")[1];
-      // Follow the chain to its end; `claude plugin validate` rejects a cyclic map.
-      const renames = existsSync(marketplacePath)
-        ? (JSON.parse(read(marketplacePath)).renames ?? {})
-        : {};
-      let newName = renames[oldName];
-      for (let hop = 0; typeof renames[newName] === "string" && hop < 32; hop++) {
-        newName = renames[newName];
-      }
-      if (typeof newName === "string") {
-        for (const r of records) {
-          if (r.fields.id?.startsWith(`${oldName}-r`)) {
-            r.fields.id = newName + r.fields.id.slice(oldName.length);
-          }
-        }
-        retirementsAtBase.set(`plugins/${newName}/${RETIREMENTS_FILE}`, records);
-        continue;
-      }
       retirementsAtBase.set(line, records);
     }
   }
@@ -1293,6 +1273,96 @@ for (const path of argumentSkills) {
     warnings.push(
       `${relative(root, path)}: the **Arguments.** line does not lead with the argument-hint (${ARGUMENT_HINT_DOC})`,
     );
+  }
+}
+
+// Plugin names and option text, per docs/conventions/plugin-option-naming. A
+// displayName fails; every title and description shape warns on its own line.
+const OPTION_NAMING_DOC = "docs/conventions/plugin-option-naming/README.md";
+const DESCRIPTION_BUDGET = 300;
+const optionWarn = (path, message) =>
+  warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
+const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
+// Capitalized words that are proper nouns, so they may follow the first word.
+const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright"]);
+// Emphasis such as *strict*, but not a literal wildcard such as ps-unparsable-*.
+const SINGLE_ASTERISK_EMPHASIS = /(?:^|[\s(])\*(?=\S)[^*\n]*\S\*(?=$|[\s.,;:!?)])/;
+
+function optionTitleProblems(plugin, option) {
+  const { title, type } = option;
+  const problems = [];
+  // Judged word by word: an acronym of five letters or fewer ("API URL", "CI ID") passes, a
+  // longer all-caps word does not, and a later word may be capitalized only as a proper noun.
+  const words = title.split(/[\s-]+/).map((word) => word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, ""));
+  const shouting = words.some((word) => /^[A-Z]{6,}$/.test(word));
+  const titleCased = words
+    .slice(1)
+    .some((word) => /^[A-Z][a-z]+$/.test(word) && !TITLE_PROPER_NOUNS.has(word));
+  if (!/^[A-Z0-9]/.test(title) || shouting || titleCased) problems.push("not sentence case");
+  const name = spacedLower(plugin);
+  const lowered = spacedLower(title);
+  if (lowered === name || lowered.startsWith(`${name} `)) problems.push("opens with the plugin name");
+  if (type === "boolean" && /\b(?:enable|enabled|toggle|kill switch|master)\b/i.test(title)) {
+    problems.push("boolean title uses enable, enabled, toggle, kill switch, or master");
+  }
+  return problems;
+}
+
+function optionDescriptionProblems(description) {
+  const problems = [];
+  const length = [...description].length;
+  if (length > DESCRIPTION_BUDGET) {
+    problems.push(`is ${length} characters, over the ${DESCRIPTION_BUDGET}-character budget`);
+  }
+  if (description.includes("`")) problems.push("contains a backtick");
+  if (description.includes("**")) problems.push("contains **");
+  else if (SINGLE_ASTERISK_EMPHASIS.test(description)) problems.push("contains *emphasis*");
+  if (/\[[^\]]*\]\([^)]*\)/.test(description)) problems.push("contains a markdown link");
+  if (description.includes(String.fromCodePoint(0x2014))) problems.push("contains an em dash");
+  return problems;
+}
+
+const titlesByKey = new Map();
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  const plugin = manifest.name ?? pluginPathParts(path)[0];
+  if ("displayName" in manifest) {
+    fail(path, `plugins must not set displayName (${OPTION_NAMING_DOC})`);
+  }
+  const userConfig = manifest.userConfig;
+  if (typeof userConfig !== "object" || userConfig === null) continue;
+  for (const [key, option] of Object.entries(userConfig)) {
+    if (!option || typeof option !== "object") continue;
+    if (typeof option.title === "string") {
+      for (const problem of optionTitleProblems(plugin, option)) {
+        optionWarn(path, `userConfig "${key}" title "${option.title}": ${problem}`);
+      }
+      if (!titlesByKey.has(key)) titlesByKey.set(key, new Map());
+      const titles = titlesByKey.get(key);
+      if (!titles.has(option.title)) titles.set(option.title, []);
+      titles.get(option.title).push(plugin);
+    }
+    if (typeof option.description === "string") {
+      for (const problem of optionDescriptionProblems(option.description)) {
+        optionWarn(path, `userConfig "${key}" description ${problem}`);
+      }
+    }
+  }
+}
+for (const [key, titles] of titlesByKey) {
+  if (titles.size < 2) continue;
+  const spread = [...titles].map(([title, plugins]) => `"${title}" (${plugins.join(", ")})`).join("; ");
+  warnings.push(`userConfig "${key}" has different titles across plugins: ${spread} (${OPTION_NAMING_DOC})`);
+}
+if (existsSync(marketplacePath)) {
+  for (const entry of [JSON.parse(read(marketplacePath)).plugins ?? []].flat()) {
+    if (entry && typeof entry === "object" && "displayName" in entry) {
+      fail(
+        marketplacePath,
+        `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
+      );
+    }
   }
 }
 

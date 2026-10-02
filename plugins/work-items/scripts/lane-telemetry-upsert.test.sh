@@ -141,7 +141,7 @@ LANE=work-loop
 INSTANCE=laptop-a
 REPO=melodic-software/example-repo
 ISSUE=42
-SENT="<!-- claude-ops:lane-telemetry marker=work-items:$LANE@$INSTANCE -->"
+SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$INSTANCE -->"
 
 run() { # sets RC, STDERR, STDOUT; args after the fixed five
   STDERR="$WORK/stderr.txt"
@@ -232,7 +232,7 @@ fi
 
 # --- 4. a sibling instance's comment is never adopted or tombstoned ---------
 fresh_state
-printf '%s\nsibling lane body\n' "<!-- claude-ops:lane-telemetry marker=work-items:$LANE@laptop-b -->" \
+printf '%s\nsibling lane body\n' "<!-- harness-ops:lane-telemetry marker=work-items:$LANE@laptop-b -->" \
   >"$FAKE_GH_STATE/c-5.body"
 run "$GOOD"
 check_rc 0 "$RC" "sibling instance present still exits 0"

@@ -16,7 +16,7 @@ Three edit. Two do not.
 |---|---|---|
 | `convert-to-pointer` | Replaces the restatement with a link to the source | The reader can follow the link at the moment they need the fact |
 | `trim-to-citation` | Keeps a short quoted excerpt, attributed, and drops the rest | A specific span is worth quoting verbatim and the surrounding restatement is not |
-| `condense-to-stamped-record` | Condenses to a four-part record: claim, basis URL, as-of date, recheck trigger | The surface must state the fact to function even when the source is unreachable |
+| `condense-to-stamped-record` | Condenses to a stamped record: the surface's own decision in its own words, a pointer, an as-of date, a recheck trigger | The surface must act on the fact even when the source is unreachable |
 | `leave-with-reason` | Records why the passage stays | A carve-out applies, or a review veto fired, or the human decided |
 | `neutral-not-found` | Records that no source was identified | Budgets were exhausted; every searched surface is named |
 
@@ -44,15 +44,21 @@ hot path is a stronger candidate for condensing than for pointing, because the f
 paid repeatedly. That is a disposition argument. It is never an allowance argument: "this is
 read often" does not make a copy acceptable, it makes a stamped record the right repair.
 
-## The four-part record, when condensing
+## The stamped record, when condensing
 
-A stamped record carries all four parts or it is not one:
+A stamped record stores no source text, quoted or paraphrased. It carries all of these parts or
+it is not one:
 
-1. **The claim**: what exactly is being asserted, narrow enough to check.
-2. **The basis**: the specific URL, with anchor where one exists. "Verified" with no stated
-   basis is not re-checkable.
-3. **The as-of date**: when the derivation happened.
+1. **The decision**: what the surface does, in its own words, narrow enough to check. Where the
+   surface must act on a value offline, the value appears as the surface's own setting or firing
+   rule, never as a sentence describing what the source says.
+2. **The pointer**: the specific URL, with the anchor of the exact section where one exists. A
+   record with no pointer is not re-checkable.
+3. **The as-of date**: when the decision was last derived from the source.
 4. **The recheck trigger**: the observable event that obliges re-deriving it.
+
+The labels the marketplace's upstream-drift convention uses are `**Pointer**`, `**As of**` and
+`**Recheck trigger**`, each on its own bullet under the decision.
 
 A date alone is not a trigger. "Recheck periodically" is not a trigger. A trigger names an event
 someone could notice: a major version bump, a named page changing, a deprecation landing. If you
@@ -74,11 +80,12 @@ The dispositions below are what the report recommends, not what a run performs.
 | Disposition | Recommend it when |
 |---|---|
 | `convert-to-pointer` | The reader can follow a link at the moment they need the fact, and the surface does not have to work offline. |
-| `condense-to-stamped-record` | The surface must state the fact to function without the source. The offline-load-bearing rule above still applies: it selects the stamped record over a bare pointer whatever the finding's tier. |
+| `condense-to-stamped-record` | The surface must act on the fact without the source. The offline-load-bearing rule above still applies: it selects the stamped record over a bare pointer whatever the finding's tier. |
 | `leave-with-reason` | A carve-out applies (a conforming pointer or record, owned content, a distilling-file surface whose own attribution enumerates the fact, quoted and cited text), or the human decided. |
 
-A recommended stamped record carries the four parts above: the claim, the basis URL, an ISO 8601
-as-of date `check-stamps.sh` can parse, and a trigger naming an event someone could notice. When
+A recommended stamped record carries the parts above: the surface's decision in its own words, the
+pointer, an ISO 8601 as-of date `check-stamps.sh` can parse, and a trigger naming an event someone
+could notice. When
 no such trigger exists, recommend `convert-to-pointer`.
 
 ## Guards, all of which must pass before an edit is kept
@@ -116,8 +123,8 @@ A pointer that was live at edit time can die later. That is a foreseen state wit
 repair, not a defect in the disposition.
 
 - A dead target demotes to a **stamped record**, if the fact is still knowable and still needed:
-  claim, the now-dead basis URL marked as such, the original as-of date, and a trigger naming
-  the recovery of a live basis.
+  the surface's decision, the now-dead pointer marked as such, the original as-of date, and a
+  trigger naming the recovery of a live source.
 - Where an archived snapshot of the original page exists, demote instead to an
   **archived-snapshot citation**, pointing at the archive and saying it is an archive.
 - Never silently re-expand the pointer back into a copy. The copy is what the fix removed, and

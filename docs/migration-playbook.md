@@ -482,7 +482,7 @@ against the plugin you actually invoked. Then:
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
 
-- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`),
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/`,
   bundled and cache-isolated, never reaching outside the plugin directory.
 - Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
   `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
@@ -502,32 +502,15 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
 
-**The marketplace `renames` map is append-only.** Every entry stays: a consumer whose
-`enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
-entry strands them. A rename this marketplace chooses is a clean breaking change carried by a
-version bump and a changelog note, with no new entry. The exception is a rename upstream forces:
-`claude plugin validate` rejects a third-party name starting `claude-`
-([plugins-reference, name](https://code.claude.com/docs/en/plugins-reference)), so
-`claude-config`, `claude-memory` and `claude-ops` became `harness-config`, `harness-memory` and
-`harness-ops` with entries in the map, because every existing install of a now-invalid id would
-otherwise break with no action on the user's part.
+**The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
+by a version bump and a changelog note. An install that still names an old id gets
+`Plugin "<name>" not found in marketplace`, and the consumer re-enables the plugin under its new
+name. Plugin splits and file moves are not renames.
 
-Three true renames are missing from the map on purpose: `bash-lint` to `bash-format` and
-`markdown-formatter` to `markdown-format` (commit `ecf02fddc`, #281), and `bug-report` to `bugs`
-(commit `3b2225bcc`, #3232). An install that still names an old id gets
-`Plugin "<name>" not found in marketplace`. `provenance` to `attribution` needs no entry because the `provenance`
-shim plugin still ships. Plugin splits and file moves are not renames.
-
-A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
-shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
-point at the successor. It keeps an existing install from reporting
-`Plugin "<name>" not found in marketplace` without adding to the frozen map, since upstream has no
-deprecation state of its own
-([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
-checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
-the shim like any retirement. `provenance` → `attribution` (#4589) is the first. Consumers outside
-this repository (the fleet list, dotfiles, user-scope `enabledPlugins`) migrate from their own
-repositories.
+A rename or retirement migrates every consumer in this repository in the same change, with no
+deprecation shim, alias, or pointer to the old name: no stub catalog entry, no redirecting skill,
+no second spelling a consumer can keep using. Consumers outside this repository (the fleet list,
+dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 
 ### Same-version commit drift (directory-source marketplaces)
 
@@ -584,9 +567,9 @@ Consumer guidance to state in that PR body:
   disk.
 - Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
   marketplace no longer publishes.
-- No tombstone and no `renames` entry. The map takes only upstream-forced renames (see "Version pinning and update
-  delivery" above), and a retirement has no successor id to point at anyway; if the capability moved
-  into another plugin, say which one in the PR body and in the surviving plugin's changelog.
+- No tombstone and no `renames` entry (see "Version pinning and update delivery" above). If the
+  capability moved into another plugin, say which one in the PR body and in the surviving plugin's
+  changelog.
 
 ## Persistence, configuration & external integration
 
@@ -947,9 +930,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread, and is prohibited by default per the component stance table in
    [plugin-philosophy.md](plugin-philosophy.md); an exception requires the documented justification
-   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
-   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
-   is reviewed like any hook script.
+   the stance demands, reviewed here. A top-level `bin/` is not accepted (the component stance table and
+   `scripts/check-plugin-manifest-presence.sh` carry the reason); executables live under
+   `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
@@ -1420,14 +1403,14 @@ authority.
 | Feature | Position | Rationale |
 |---|---|---|
 | `strict` per entry | adopt default (`true`; omit the field) | No entry in `.claude-plugin/marketplace.json` sets `strict`. Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
-| `renames` | adopt | Already in `.claude-plugin/marketplace.json`. Append-only: existing keys stay so old settings ids keep resolving, and only an upstream-forced rename adds one. The renames `bash-lint`, `markdown-formatter` and `bug-report` are deliberately absent, so an old-name install gets `Plugin "<name>" not found in marketplace`. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
+| `renames` | reject | `.claude-plugin/marketplace.json` carries no `renames` map. A rename is a clean break: an old-name install gets `Plugin "<name>" not found in marketplace` and the consumer re-enables the new name. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
 | `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
 | `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
 | Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
 | `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
 | Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
-| `bin/` under org-managed distribution | deliberate divergence: keep `plugins/source-control/bin`; do not distribute this catalog through organization sync | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". `plugins/source-control/bin` is a top-level `bin/` shipped by this fleet. It stays because the `babysit-prs` skill invokes its wrappers by their bundled `${CLAUDE_PLUGIN_ROOT}/bin/` paths (`plugins/source-control/skills/babysit-prs/reference/safety.md`), so moving them to `scripts/` changes every invocation site. Distributed through organization sync, this catalog would lose `source-control` and sync the rest. |
+| `bin/` under org-managed distribution | adopt as constraint: no plugin ships a top-level `bin/` | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". The `source-control` wrappers live under `plugins/source-control/scripts/` and `babysit-prs` invokes them by their `${CLAUDE_PLUGIN_ROOT}/scripts/` paths, so no divergence remains, and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds a `bin/`. |
 | Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. This is a decision, not a permanent ban: revisit it if a specific plugin gets outside demand. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
 
 - **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.
@@ -1448,7 +1431,7 @@ authority.
   `strict` default, relative-path resolution under a `url` marketplace source, command-source
   bulk behavior, the version rung order, the community submission bar, or the top-level `bin/`
   rule; a maintainer revisits the `claude-community` reject (for example, outside demand for one plugin);
-  or the frozen `renames` posture changes.
+  or the `renames` reject changes.
 
 ## Local development loop
 

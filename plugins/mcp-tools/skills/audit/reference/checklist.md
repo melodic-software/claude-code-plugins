@@ -4,20 +4,26 @@
 not recap them here, read them at the source:
 
 - [MCP specification 2025-11-25: Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-- [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+- [Define tools: best practices for tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions)
+  (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits
 
-**Client-behavior record.** The values C17 and C18 turn on are quoted from that Claude Code page,
-verified 2026-09-06 against Claude Code 2.1.263 and the page as fetched that day. It states that
-`anthropic/maxResultSizeChars` raises a tool's persist-to-disk threshold "up to a hard ceiling of
-500,000 characters" and applies "independently of `MAX_MCP_OUTPUT_TOKENS` for text content", with
-image-returning tools still subject to the token limit. It states that a tool declaring
-`anthropic/requiresUserInteraction` prompts "on every call, even in `acceptEdits`, `auto`, and
-`bypassPermissions`" modes, offers no "don't ask again" option, is not skipped by matching allow
-rules, and is denied outright in `dontAsk` mode. That page documents no size limit on a tool
-description or on a server `instructions` field, so C4's budget is this skill's own judgment rather
-than a client limit. Recheck when the page moves either value, when it gains a description-size
-limit, or when a release note names MCP `_meta` annotations.
+**Client-behavior record.** C17 and C18 act on values this skill holds as its own settings. C17
+treats 500,000 characters as the ceiling above which a declared `anthropic/maxResultSizeChars`
+value no longer applies, and treats a tool returning image content as outside that annotation. C18
+treats only the JSON boolean `true` as an effective `anthropic/requiresUserInteraction`, and grades
+any other value FAIL because the consent prompt it was meant to force never fires. C4's 2KB budget
+is this skill's own judgment, not a client limit: the page sets none for a tool description or a
+server `instructions` field.
+
+- **Pointer**: for the result-size annotation, see
+  <https://code.claude.com/docs/en/mcp#raise-the-limit-for-a-specific-tool> and
+  <https://code.claude.com/docs/en/mcp#images-in-tool-results>; for the per-call approval
+  annotation, see <https://code.claude.com/docs/en/mcp#require-approval-for-a-specific-tool>; for
+  per-tool deferral, see <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>.
+- **As of**: 2026-09-06
+- **Recheck trigger**: the page moves either value, gains a description-size limit, or a release
+  note names MCP `_meta` annotations.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -29,7 +35,7 @@ naming how much a violation hurts. They are independent. A low-authority criteri
 | **SPEC-MUST** | The MCP spec mandates it (**MUST**) | MCP spec |
 | **SPEC-SHOULD** | The MCP spec recommends it (**SHOULD**) | MCP spec |
 | **SPEC-OPTIONAL** | The spec defines it as OPTIONAL, so a missing value is never a spec violation | MCP spec |
-| **ANTHROPIC** | Anthropic tool-design engineering guidance | Anthropic article |
+| **ANTHROPIC** | Anthropic tool-design guidance | The define-tools section above |
 | **OPINION** | A design judgment with no upstream mandate (e.g. a client-specific limit or heuristic) | this skill. For C4 and C17-C19 the client-behavior facts are cited from the Claude Code page, which documents that behavior rather than mandating the criterion |
 
 Severity levels:
@@ -60,9 +66,9 @@ Severity levels:
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C9 | **Name charset and length valid**. 1-128 chars; only `A-Z a-z 0-9 _ - .`; no spaces or special characters | SPEC-SHOULD | FAIL | The spec says tool names SHOULD meet these constraints. A name with spaces, punctuation, or over 128 chars can break selection |
+| C9 | **Name charset and length valid**. 1-128 chars; only `A-Z a-z 0-9 _ - .`; no spaces or special characters | SPEC-SHOULD | FAIL | Graded against the spec's naming SHOULD (pointer above), with these limits as this check's settings. A name with spaces, punctuation, or over 128 chars can break selection |
 | C10 | **Outcome-driven name; passes the "can you ___?" test** | OPINION | WARN | `complete_todo` (good) vs `update_todo_status` (bad). Pure CRUD names (`create_X`, `get_X`) for generic entities = warn. CRUD is acceptable for genuinely generic operations (boards, items). "Can you [tool_name]?" should sound natural |
-| C11 | **Service-namespaced**. The name includes a service prefix when ambiguity is possible | ANTHROPIC | info | `miro_create_board` (good) vs `create_board` (ambiguous across servers). Anthropic recommends service/resource namespacing; evaluate against how many servers connect |
+| C11 | **Service-namespaced**. The name includes a service prefix when ambiguity is possible | ANTHROPIC | info | `miro_create_board` (good) vs `create_board` (ambiguous across servers). Flag a bare resource name where several servers could connect; weigh it against how many servers connect |
 
 ## 4. Annotations (C12-C14)
 
@@ -72,21 +78,21 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C12 | **readOnlyHint set on read-only tools** | SPEC-OPTIONAL | WARN | Tools that only read (list, get, search, check) should declare `readOnlyHint: true`. Missing on a read-only tool = warn. This enables parallel execution in Claude Code |
-| C13 | **destructiveHint appropriate on destructive tools** | SPEC-OPTIONAL | WARN | The spec defaults `destructiveHint` to `true`. Verify a tool that deletes/removes/purges is genuinely destructive (default appropriate), or a non-destructive tool overrides to `false` |
+| C12 | **readOnlyHint set on read-only tools** | SPEC-OPTIONAL | WARN | Tools that only read (list, get, search, check) should declare `readOnlyHint: true`. Missing on a read-only tool = warn |
+| C13 | **destructiveHint appropriate on destructive tools** | SPEC-OPTIONAL | WARN | This check takes the spec's default for `destructiveHint` as `true`. Verify a tool that deletes/removes/purges is genuinely destructive (default appropriate), or a non-destructive tool overrides to `false` |
 | C14 | **idempotentHint set on idempotent tools** | SPEC-OPTIONAL | info | Tools safe to call repeatedly with the same args (set operations, upserts) should declare `idempotentHint: true`. Missing = info |
 
 ## 5. Granularity (C15)
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C15 | **Workflow-shaped consolidation**. A tool represents a complete outcome, not a raw API endpoint, and related operations are not split into too many fine-grained tools | ANTHROPIC | WARN | Anthropic recommends consolidating multiple operations (or API calls) into workflow-shaped tools (`schedule_event`, `get_customer_context`), **not** one tool per API call. If achieving one obvious goal requires chaining several tools, granularity is too low; if several tools could be one tool with a mode parameter, it is too high. Generic composition (search then get details) is acceptable when intermediate results inform decisions |
+| C15 | **Workflow-shaped consolidation**. A tool represents a complete outcome, not a raw API endpoint, and related operations are not split into too many fine-grained tools | ANTHROPIC | WARN | Flag one tool per raw API call where a workflow-shaped tool (`schedule_event`, `get_customer_context`) would carry the whole outcome. If achieving one obvious goal requires chaining several tools, granularity is too low; if several tools could be one tool with a mode parameter, it is too high. Generic composition (search then get details) is acceptable when intermediate results inform decisions |
 
 ## 6. Schema self-sufficiency (C16)
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | The spec requires the wire-level `inputSchema` to be a valid JSON Schema object (not `null`). When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## 7. Claude Code `_meta` annotations (C17-C19)
 
@@ -112,9 +118,9 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: without it, results over the default threshold are persisted to disk and replaced with a file reference; with it, Claude Code raises that tool's threshold to the annotated value, up to a hard ceiling of 500,000 characters, independently of `MAX_MCP_OUTPUT_TOKENS`. Set above 500,000 (the excess never applies) or on a tool returning image content (the annotation only governs text; images stay subject to `MAX_MCP_OUTPUT_TOKENS`) = WARN |
-| C18 | **`anthropic/requiresUserInteraction` set, as JSON `true`, where per-call consent is the point**. A tool whose permission prompt is itself the point (a consent or access-grant step where auto-approval would mean no human ever agreed) declares it | OPINION | info (FAIL if set to any value other than JSON `true`) | Missing on a consent-shaped tool = info. Declared with any value other than the JSON boolean `true` (e.g. the string `"true"`, `1`) = FAIL. Claude Code ignores every other value, so the intended consent gate silently never applies. When honored, Claude Code prompts on every call even in `acceptEdits`, `auto`, and `bypassPermissions` modes, offers no "don't ask again", and allow rules don't skip the prompt; `dontAsk` mode denies the call instead |
-| C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` exempts that one tool from tool-search deferral so it loads into context at session start | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool consumes context), = WARN. The server-level `alwaysLoad: true` config field exempts a whole server; the per-tool `_meta` form has the same effect for that tool only |
+| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling (Client-behavior record). Set above 500,000 (this check's ceiling; the excess never applies) or on a tool returning image content (outside the annotation, per the record) = WARN |
+| C18 | **`anthropic/requiresUserInteraction` set, as JSON `true`, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than JSON `true`) | Missing on a consent-shaped tool = info. Declared with any value other than the JSON boolean `true` (e.g. the string `"true"`, `1`) = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
+| C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. The server-level `alwaysLoad` config field is client configuration, outside this audit |
 
 ## Scoring
 

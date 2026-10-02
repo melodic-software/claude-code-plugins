@@ -3,12 +3,36 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.9] - 2026-10-02
+## [0.34.11] - 2026-10-02
 
 ### Changed
 
 - The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
   the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
+## [0.34.10] - 2026-10-02
+
+### Changed
+
+- **Shared `html-escape.mjs` synced ([#5836](https://github.com/melodic-software/claude-code-plugins/issues/5836)); no change to this plugin's lib.**
+  `lib/html-escape.mjs` is now generated from the repository's `lib/html-escape.mjs` by
+  `scripts/sync-shared-copies.sh` and opens with a header saying so; edit the canonical, not this
+  copy.
+
+## [0.34.9] - 2026-10-02
+
+### Changed
+
+- **`severity.md` records its decidable tier tests as a decision with a pointer.** The tests restate
+  the existing bars and move no finding between tiers; the record points at the code-review
+  harnesses section of the Sonnet 5 prompting guide, with an as-of date of 2026-10-01 and a recheck
+  trigger.
+- **`ecosystem-specialist` pins `effort: medium`**, the marketplace effort floor for code-changing
+  or verifying work. It and `doc-drift-detector` gain a "When you are done" section naming the
+  artifact that ends the run; work beyond scope goes into the return as a named suggestion.
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: high`**: verification work where edge
+  cases are likely. `ci-log-auditor`'s GitHub API and `gh` pagination notes point at the live docs
+  and the recorded probe instead of restating them.
 
 ## [0.34.8] - 2026-10-02
 

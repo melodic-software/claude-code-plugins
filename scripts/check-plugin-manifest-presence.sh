@@ -26,6 +26,8 @@
 #      entry's "source". Lower severity (an orphaned directory cannot break an
 #      install the way a missing manifest can) but the same class of drift in
 #      the other direction, so it is cheap to catch here too.
+#   3. NO BIN   -- no plugins/*/ directory may carry a top-level bin/:
+#      claude.ai organization plugin sync rejects the plugin (#5850).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -150,6 +152,21 @@ if [[ -d "$PLUGINS_ROOT" ]]; then
       errors=$((errors + 1))
     fi
   done
+
+  # Third check: no plugin carries a top-level bin/. claude.ai organization
+  # plugin sync rejects one (#5850). A bin/ with nothing in it is leftover
+  # from a checkout, not content (git tracks no empty directory), so it passes.
+  for plugin_dir in "$PLUGINS_ROOT"/*/; do
+    [[ -d "$plugin_dir" ]] || continue
+    bin_path="${plugin_dir%/}/bin"
+    if [[ -d "$bin_path" && ! -L "$bin_path" ]]; then
+      [[ -n "$(find "$bin_path" -mindepth 1 -print -quit 2>/dev/null)" ]] || continue
+    elif [[ ! -e "$bin_path" && ! -L "$bin_path" ]]; then
+      continue
+    fi
+    printf "TOP-LEVEL BIN DIRECTORY: '%s' exists; claude.ai organization plugin sync rejects a plugin with a top-level bin/. Move its contents under scripts/.\n" "$bin_path" >&2
+    errors=$((errors + 1))
+  done
 fi
 
 if ((errors > 0)); then
@@ -157,10 +174,10 @@ if ((errors > 0)); then
     echo
     echo "Every $MARKETPLACE entry must resolve to a plugin directory that"
     echo "carries a readable .claude-plugin/plugin.json whose own \"name\""
-    echo "matches the catalog key, and every plugin directory must be"
-    echo "registered in the catalog."
+    echo "matches the catalog key, every plugin directory must be"
+    echo "registered in the catalog, and no plugin may have a top-level bin/."
   } >&2
   exit 1
 fi
 
-echo "Every catalog entry resolves to a present, name-matching plugin manifest; no unregistered plugin directories."
+echo "Every catalog entry resolves to a present, name-matching plugin manifest; no unregistered plugin directories; no top-level bin/."

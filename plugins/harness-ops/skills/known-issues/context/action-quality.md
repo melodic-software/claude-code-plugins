@@ -6,7 +6,7 @@ Check current Claude model quality and service health from multiple sources. Use
 
 ## Sources (checked in order)
 
-**Source 1: [Marginlab Performance Tracker](https://marginlab.ai/trackers/claude-code/).** Independent daily benchmarks on SWE-Bench-Pro. Updated daily, 50 evals/day. Statistical significance testing (p < 0.05).
+**Source 1: [Marginlab Performance Tracker](https://marginlab.ai/trackers/claude-code/).** Our model-performance signal: an independent daily benchmark tracker. Its benchmark, sample size and significance method are stated on the page; read them there.
 
 Fetch via WebFetch or curl and extract:
 
@@ -14,7 +14,7 @@ Fetch via WebFetch or curl and extract:
 - Today's pass rate vs 7-day and 30-day averages
 - Statistical significance of any delta
 
-**Source 2: [status.claude.com](https://status.claude.com/).** Official Anthropic status page. Covers claude.ai, API, Claude Code, platform.
+**Source 2: [status.claude.com](https://status.claude.com/).** Our service-health signal: the official status page, read per component.
 
 Fetch and extract:
 
@@ -57,20 +57,21 @@ gh search issues "degraded OR degradation OR quality OR nerfed OR slower" --repo
 
 ## Before blaming the model: check for a flag fallback
 
-A sudden quality change mid-session can be a model switch, not a regression. When a safety
-classifier flags a request (most often cybersecurity or biology content), Claude Code re-runs it
-on an older fallback model, shows a notice naming that model in the transcript, and the session
-stays on it. Check the transcript for that notice first. To recover:
+A sudden quality change mid-session can be a model switch, not a regression. Before blaming the
+model, check the transcript for a notice that the session moved to a fallback model after a
+flagged message, or for a request that ended in a refusal because the flagged category had no
+fallback for the model in use. To recover, we use:
 
-- `/model` switches back to the original model.
+- `/model` to switch back to the original model.
 - `/config` > **Switch models when a message is flagged** off (or `switchModelsOnFlag: false`)
-  asks each time instead of switching.
-- If the flag looks wrong, report it with `/feedback` (vendor-reported advice, from the
-  [Opus 5.5 usage guide](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)).
+  to be asked each time instead of switched.
+- `/feedback` to report a flag that looks wrong.
 
-Verification: claim, the fallback behavior and the two recovery settings above; basis, the
-[model-config page, "Automatic model fallback"](https://code.claude.com/docs/en/model-config);
-as of 2026-09-23; recheck when that section changes or a new model gains or loses a fallback.
+Pointer: for which models fall back, to what, and the recovery settings, see
+[Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
+(correlate with the [Opus 5.5 usage guide](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)).
+As of: 2026-10-01. Recheck trigger: that section changes, or a new model gains or loses a
+fallback.
 
 ## Fragility note
 

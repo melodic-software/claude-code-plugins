@@ -1042,7 +1042,7 @@ jobs:
       - name: Test the plugin-manifest-presence gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-manifest-presence.test.sh
-      - name: Check every catalog entry resolves to a present, name-matching plugin manifest
+      - name: Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/
         id: plugin_manifest_presence
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
@@ -2203,18 +2203,19 @@ jobs:
           fi
           scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
 
-      - name: Verify html-escape copies match the canonical helper
+      # Generated shared-library copies (ADR 0019): verify only, never write.
+      - name: Verify generated shared-library copies match their canonical sources
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          scripts/sync-html-escape.sh --check
-      - name: Run html-escape tests
+          scripts/sync-shared-copies.sh --check
+      - name: Run shared-copies generator and html-escape tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
+          bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
-          bash scripts/sync-html-escape.test.sh
-      - name: Verify adopting plugins bumped when the escape helper changed
+      - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -2224,7 +2225,7 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
-          scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
+          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify fetch-docs copies match the canonical fetcher
         if: needs.changes.outputs.run_tests == 'true'
@@ -2353,12 +2354,13 @@ jobs:
           [ "$LEG" = 3 ] || exit 0
           bash scripts/check-cross-plugin-source-drift.test.sh
 
-      # The miro plugin ships a bundled Node MCP server — the marketplace's
-      # first. Its TypeScript source is the source of truth; dist/index.min.js
-      # is committed generated output. These steps rebuild from source with the
-      # pinned toolchain and fail on any drift, then run the bundle over stdio
-      # so a build that compiles but cannot serve MCP is caught here, not on a
-      # consumer's machine.
+      # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
+      # starts src/launch.ts, which installs the runtime dependencies from the
+      # committed lockfile into the plugin data directory on first launch. The
+      # last step starts it that way from an empty data directory, then again to
+      # prove the second launch reuses the install, so a server that typechecks
+      # but cannot install or serve MCP is caught here, not on a consumer's
+      # machine.
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
@@ -2383,23 +2385,26 @@ jobs:
           [ "$LEG" = 3 ] || exit 0
           npm test
         working-directory: plugins/miro/server
-      - name: Verify the committed bundle matches source
-        if: needs.changes.outputs.run_node == 'true'
-        run: |
-          [ "$LEG" = 3 ] || exit 0
-          npm run verify-bundle
-        working-directory: plugins/miro/server
-      - name: Smoke-test the bundled MCP server over stdio
+      - name: Smoke-test the MCP server over stdio, installed on demand
         if: needs.changes.outputs.run_node == 'true'
         working-directory: plugins/miro/server
         run: |
           [ "$LEG" = 3 ] || exit 0
-          printf '%s\n%s\n' \
-            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
-            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-            | MIRO_API_TOKEN=ci-smoke-token timeout 10 node dist/index.min.js > smoke-out.json
-          grep -q '"miro_create_board"' smoke-out.json
-          rm -f smoke-out.json
+          export CLAUDE_PLUGIN_DATA="$RUNNER_TEMP/miro-plugin-data"
+          rm -rf "${CLAUDE_PLUGIN_DATA:?}"
+          for run in first second; do
+            printf '%s\n%s\n' \
+              '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
+              '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+              | MIRO_API_TOKEN=ci-smoke-token timeout 120 node src/launch.ts > "smoke-$run.json"
+            grep -q '"miro_create_board"' "smoke-$run.json"
+            # One install directory, and the second launch keeps the first's
+            # node_modules (a reinstall renames a new one into place).
+            stat -c '%n %i' "$CLAUDE_PLUGIN_DATA"/mcp-server/*/node_modules > "install-$run.txt"
+          done
+          [ "$(wc -l < install-first.txt)" = 1 ]
+          cmp install-first.txt install-second.txt
+          rm -f smoke-*.json install-*.txt
 
       # The knowledge plugin's video-digest extraction pipeline is a Node
       # package with a typecheck and vitest suite no other lane installs or

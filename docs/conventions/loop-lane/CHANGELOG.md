@@ -5,6 +5,22 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [9.5.0] - 2026-10-01
+
+Additive, minor. No topology, escalation-contract, tier-vocabulary, or §4 loop-layer invariant
+changed.
+
+- **Alias binding (§3).** The tier table names each tier's Claude Code alias. The dated
+  alias-to-version table is removed: which model an alias resolves to is read live from Claude
+  Code's model page.
+- **Known gaps (§3).** The classifier-fallback gap now covers every tier, the fast tier included,
+  and the usage-credit gap is kept. Both carry one pointer record.
+- **Provider gap (§5).** The self-paced `/loop` shape is restated against the provider support the
+  scheduled-tasks page now documents.
+- **Recheck trigger.** Any new model on Claude Code's model page re-reads the §3 alias binding.
+- **Reviewer floor (§3).** A reviewer or verifier is never weaker than the implementer in effort
+  level as well as model tier.
+
 ## [9.4.0] - 2026-09-29
 
 Additive, minor. Section 6 records that the account-identity resolution is built on all three

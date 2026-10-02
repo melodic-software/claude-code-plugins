@@ -245,7 +245,7 @@ assert_contains "…and names the explicit override as where it looked" "$err" "
 
 # --- the default store is the writer's store, in every scope -----------------
 # The writer (the skill-usage-audit hook) selects its destination through
-# claude_ops::resolve_skill_usage_dir; the reader must open that same file for
+# harness_ops::resolve_skill_usage_dir; the reader must open that same file for
 # each scope, not a restated copy of one branch. Each case runs the REAL writer
 # with the hook-environment option mirrors, then the reader with the rendered
 # option values the skill body passes, and asserts the two meet: the reader's
@@ -283,7 +283,7 @@ run_reader() {
 # expected_store <scope> <rel-dir>: the writer's destination, from the resolver.
 expected_store() {
   local dir
-  dir="$(HOME="$FAKE_HOME" CLAUDE_PLUGIN_DATA="$DATA_ROOT" claude_ops::resolve_skill_usage_dir "$1" "$PROJECT" "$2")" || return 1
+  dir="$(HOME="$FAKE_HOME" CLAUDE_PLUGIN_DATA="$DATA_ROOT" harness_ops::resolve_skill_usage_dir "$1" "$PROJECT" "$2")" || return 1
   printf '%s/skill-usage.jsonl' "$dir"
 }
 

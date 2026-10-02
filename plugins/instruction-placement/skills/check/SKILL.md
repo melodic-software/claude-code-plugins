@@ -58,14 +58,17 @@ same silence repeats one level down: a nested `AGENTS.md` is indexed as a surfac
 Claude reads its directory, and a `CLAUDE.md` on that path takes its place unless one of them
 imports or symlinks it. Sync, reachability, and wiring are independent questions; ask all three.
 
-- **Claim**: Claude Code reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md` or
-  `CLAUDE.local.md` sits in the working directory or above it, at the root and in a subdirectory
-  alike; reading it directly depends on a CLI version floor and on the session, both in
-  `skills/migrate/reference/sources.md`, "The minimum CLI version".
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code reads
-  AGENTS.md", "When AGENTS.md support is unavailable"; canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: that section changes which file names count for the check, or a release note
+The reachability and wiring gates treat an `AGENTS.md`, at the root and in a subdirectory alike,
+as shadowed wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the working
+directory or above it, and treat direct `AGENTS.md` reading as dependent on the CLI floor and
+session recorded in `skills/migrate/reference/sources.md`, "The minimum CLI version". Canary runs
+on Claude Code 2.1.278 observed the shadowing.
+
+- **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **As of**: 2026-09-29
+- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
   names `AGENTS.md` or instruction-file loading.
 
 Over-broad is the one **warning** rather than a failure: breadth is a judgment about whether a

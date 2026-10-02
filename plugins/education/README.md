@@ -138,6 +138,17 @@ the #798 path-indirection work lands.
 Run `/education:setup` to validate the effective `quiz_policy`, report-library root,
 and teach workspace root without reading settings files.
 
+### Option details
+
+**`quiz_policy`.** A value outside the four the picker offers is treated as `on-request` at
+runtime.
+
+**`workspace_root`.** Codebase-mode workspaces stay under plugin data unless a project declaration
+or this setting names a root, since their lessons can embed private-repo snippets and Documents
+roots are often cloud-synced. Grammar: absolute, `~`-home-relative, or `${NAME}` / `%NAME%`
+environment references; a relative value resolves against the project; a value inside the
+consuming repo is refused. Declare an in-repo root in the project's own CLAUDE.md or rules instead.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -148,9 +159,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only. A report is never generated without your confirmation. Unknown values are treated as on-request. |
+| `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. off never offers; on-request (default) offers only when asked; always offers after each completed change; above-threshold offers when the change is large. Governs offer cadence only: a report is never generated without your confirmation. |
 | `report_library_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_LIBRARY_DIR` | Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree. |
-| `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the OS Documents folder's 'Claude Learning' home (topic mode only), then the plugin's persistent data directory. Codebase-mode workspaces stay under plugin data unless a project declaration or this setting names a root, since their lessons can embed private-repo snippets and Documents roots are often cloud-synced. Grammar: absolute, ~-home-relative, or ${NAME} / %NAME% environment references; a relative value resolves against the project; a value inside the consuming repo is refused. Declare an in-repo root in the project's own CLAUDE.md or rules instead. |
+| `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the Documents folder's Claude Learning home (topic mode only), then plugin data. A value inside the consuming repo is refused. |
 
 ### How to set these
 

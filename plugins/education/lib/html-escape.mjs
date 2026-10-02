@@ -1,3 +1,5 @@
+// GENERATED from lib/html-escape.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
 // Deterministic HTML escape for text and double-quoted attribute positions,
 // plus a generator marker whose digest shows a page was not edited after it
 // was stamped. Anyone can stamp a page, so the marker proves no provenance:

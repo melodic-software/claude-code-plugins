@@ -135,7 +135,7 @@ DATA="$TMP/data"
 
 state_comment() { # $1 marker, $2 restart_request JSON literal
   # shellcheck disable=SC2016  # backticks are the literal markdown fence of the telemetry fixture
-  printf '<!-- claude-ops:lane-telemetry marker=%s -->\nlane: x\n\n```json\n{"schema":"x@1","cycle":9,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":%s}\n```\n' "$1" "$2"
+  printf '<!-- harness-ops:lane-telemetry marker=%s -->\nlane: x\n\n```json\n{"schema":"x@1","cycle":9,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":%s}\n```\n' "$1" "$2"
 }
 
 write_telemetry() { # $1 outfile, $2 work request, $3 babysit request
@@ -373,7 +373,7 @@ assert_not_contains "--lane drops the others" "$OUT" "| work |"
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --interval-minutes 20 2>&1)"
 RC=$?
 assert_eq "print-schedule exits 0" "0" "$RC"
-assert_contains "print-schedule emits a schtasks create" "$OUT" "schtasks /Create /TN \"ClaudeOps Lane Restart Consumer\""
+assert_contains "print-schedule emits a schtasks create" "$OUT" "schtasks /Create /TN \"HarnessOps Lane Restart Consumer\""
 assert_contains "print-schedule honors --interval-minutes" "$OUT" "/SC MINUTE /MO 20"
 assert_contains "print-schedule avoids elevation and stored passwords" "$OUT" "/IT /RL LIMITED"
 assert_contains "print-schedule emits the removal command" "$OUT" "schtasks /Delete"
@@ -552,7 +552,7 @@ OUT="$(GH_LOG="$GH_PINNED" run_telemetry --telemetry-issue 77)"
 assert_contains "a pinned --telemetry-issue is used verbatim" "$(cat "$GH_PINNED")" "issues/77/comments"
 assert_not_contains "a pinned issue skips discovery entirely" "$(cat "$GH_PINNED")" "in:title"
 assert_contains "the upserted body carries the morning-brief header fields" "$(cat "$GH_PINNED")" "last-cycle: 2027-01-15T08:00:00Z"
-assert_contains "the upsert is marker-identified for edit-in-place" "$(cat "$GH_PINNED")" "claude-ops:restart-consumer"
+assert_contains "the upsert is marker-identified for edit-in-place" "$(cat "$GH_PINNED")" "harness-ops:restart-consumer"
 
 GH_SEARCH="$TMP/gh-search.log"
 OUT="$(GH_LOG="$GH_SEARCH" GH_SEARCH_RESULT='[{"number":55},{"number":91}]' run_telemetry)"
@@ -857,7 +857,7 @@ cp "$CONFIG" "$REPO/.work/lanes/lanes.json"
 OUT="$(run_default_config)"
 assert_not_contains "the lanes/ home wins and nothing warns" "$OUT" "reading the pre-move lane config"
 
-OUT="$(CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json" run_default_config)"
+OUT="$(HARNESS_OPS_LANES_CONFIG="$TMP/nowhere.json" run_default_config)"
 RC=$?
 assert_eq "the env override is not fallen back from" "4" "$RC"
 assert_contains "the env override is used verbatim" "$OUT" "lane config not found: $TMP/nowhere.json"

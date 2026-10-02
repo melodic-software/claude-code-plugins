@@ -3,6 +3,46 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- **`scoped-implementer`: a Sonnet worker for phases the plan routes `sonnet`.** It binds `model:
+  sonnet` at `effort: medium` and carries the same worker contract as `implementer`, copied inline
+  between contract markers so a worker that skips a reference file still gets the scope fence,
+  STOP rules and return shape. `scripts/agent-contract-sync.test.sh` fails when the two contract
+  blocks, or the agents' `skills:` and `tools:` lines, differ.
+- **`implement-dispatch` routes on the plan's `Model` column.** A `sonnet` row spawns
+  `implementation:scoped-implementer` with an explicit `model: sonnet`, so a caller's standing
+  per-spawn model cannot override it. Before that, the orchestrator reads the provider variables
+  with `printenv`: on Bedrock, Agent Platform, Foundry, Claude Platform on AWS or Mantle with no
+  `ANTHROPIC_DEFAULT_SONNET_MODEL`, the `sonnet` alias resolves to an older Sonnet, so the phase
+  goes to `implementation:implementer` instead. No row or `opus` means `implementer`; security
+  work and `frontier` rows dispatch `implementer` at the frontier alias. A per-invocation `model`
+  on `implementer` still routes only upward.
+
+### Changed
+
+- The upstream records in `implementer`, `scoped-implementer` and `implement-dispatch` are links-only:
+  each states our decision with a pointer to the exact docs section, an as-of date and a recheck
+  trigger, and no longer quotes or paraphrases the sub-agents, costs, effort or model-config pages.
+
+## [0.19.21] - 2026-10-02
+
+### Changed
+
+- The `implement_dispatch_wave_cap` option title carries its unit, "Dispatch wave cap (rows)", and
+  its description fits 300 characters, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`). The rest of the description moves to the README's
+  "Option details".
+
+## [0.19.20] - 2026-10-02
+
+### Changed
+
+- **The README's migration note no longer cites the marketplace `renames` map,** which the
+  marketplace no longer carries.
+
 ## [0.19.19] - 2026-10-02
 
 ### Fixed

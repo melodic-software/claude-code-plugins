@@ -3,14 +3,14 @@ import type { MiroApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { jsonResponse } from "../response.ts";
 import {
   buildStickyNotePayload,
   POSITION_X_DESCRIPTION,
   POSITION_Y_DESCRIPTION,
   STICKY_NOTE_COLORS,
   STICKY_NOTE_SHAPES,
-} from "./sticky-notes.js";
+} from "./sticky-notes.ts";
 
 export const stickyNoteSchema = z.object({
   content: z.string().describe("Text content"),

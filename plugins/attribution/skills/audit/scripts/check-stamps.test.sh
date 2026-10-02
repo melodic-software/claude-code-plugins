@@ -108,6 +108,15 @@ mkdir -p "$DIR"
   echo 'Nothing here says when to look again.'          # 4
 } >"$DIR/no-trigger.md"
 
+{
+  echo '# Pointer record'                                                  # 1
+  echo ''                                                                  # 2
+  echo 'The pipeline passes strict mode to the runner.'                    # 3
+  echo '- **Pointer**: for its modes, see https://example.com/docs#modes.' # 4
+  echo '- **As of**: 2025-06-01'                                           # 5
+  echo '- **Recheck trigger**: the CLI ships a new major version.'         # 6
+} >"$DIR/pointer-record.md"
+
 run() { bash "$CHECK" --as-of "$AS_OF" "$@"; }
 
 # --- Usage -----------------------------------------------------------------------
@@ -335,17 +344,17 @@ assert_eq "no slack May line becomes a finding" \
 # real stamp date this script does not parse, and says so in its own words.
 
 {
-  echo '# Year shapes'                                                 # 1
-  echo ''                                                              # 2
-  echo 'Dead code: variables set but never read (SC2034), and more.'   # 3
-  echo '        "cache_read_input_tokens": 2000'                       # 4
-  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'    # 5
-  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'    # 6
-  echo 'As of 2026-07 (official billing docs), surfaces varied.'       # 7
-  echo 'Checked as of 2024 and not revisited since.'                   # 8
-  echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
-  echo 'Read on 2026-01-02 from the vendor page.'                      # 10
-  echo 'We _read_ the source on 2025-01-01 as a check.'                # 11
+  echo '# Year shapes'                                               # 1
+  echo ''                                                            # 2
+  echo 'Dead code: variables set but never read (SC2034), and more.' # 3
+  echo '        "cache_read_input_tokens": 2000'                     # 4
+  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'  # 5
+  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.' # 6
+  echo 'As of 2026-07 (official billing docs), surfaces varied.'     # 7
+  echo 'Checked as of 2024 and not revisited since.'                 # 8
+  echo 'last_verified: 2026-01-01 against the vendor page.'          # 9
+  echo 'Read on 2026-01-02 from the vendor page.'                    # 10
+  echo 'We _read_ the source on 2025-01-01 as a check.'              # 11
 } >"$DIR/year-shapes.md"
 
 OUT="$(run "$DIR/year-shapes.md" 2>/dev/null)"
@@ -382,6 +391,12 @@ assert_eq "the trigger-less finding names its line" \
 
 OUT="$(run --trigger-less "$DIR/with-trigger.md" 2>/dev/null)"
 assert_eq "a stated recheck trigger clears the surface" \
+  "$(echo "$OUT" | jq -r '[.findings[] | select(.rule | test("trigger-less"))] | length')" "0"
+
+OUT="$(run --trigger-less "$DIR/pointer-record.md" 2>/dev/null)"
+assert_eq "a pointer record's As of bullet is read as a stamp" \
+  "$(echo "$OUT" | jq -r '.findings[] | select(.rule == "attribution/audit/rule-stamp-expired") | .line')" "5"
+assert_eq "a pointer record's Recheck trigger bullet clears the surface" \
   "$(echo "$OUT" | jq -r '[.findings[] | select(.rule | test("trigger-less"))] | length')" "0"
 
 # --- Config cascade --------------------------------------------------------------

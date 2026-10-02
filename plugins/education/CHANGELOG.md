@@ -3,7 +3,7 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.14] - 2026-10-02
+## [0.12.2] - 2026-10-02
 
 ### Security
 
@@ -12,6 +12,30 @@ All notable changes to the `education` plugin are documented here. Format follow
   at `lib/html-escape.mjs`, and stamps the generator marker. The report has no script, and a
   hostile title or diff line renders as text. `build-report.mjs --check <file>` flags a page that
   bypassed the builder.
+
+## [0.12.1] - 2026-10-02
+
+### Fixed
+
+- `eli5` and `teach` no longer list a cream or off-white background among the styles to leave
+  out, since the shared chrome's ivory background is the sanctioned default.
+
+### Changed
+
+- `eli5` points to `visualization:visualize` for choosing a form for content already in the
+  conversation.
+- `explain` says when to pick `adhd:clarify` (restructure) or `discipline:wait-what` (re-pitch
+  one message) instead.
+
+## [0.12.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `quiz_policy` is a picker in `/config` (`off`, `on-request`, `always`, `above-threshold`), so a
+  value outside that set is no longer accepted. The `quiz_policy` and `workspace_root` descriptions
+  fit 300 characters; the unknown-value fallback, the codebase-mode rule, and the path grammar move
+  to the README's "Option details".
 
 ## [0.11.13] - 2026-10-02
 

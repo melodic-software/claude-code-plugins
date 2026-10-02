@@ -90,7 +90,7 @@ Build the explainer directly, to the same contract.
 - When the `artifact-design` and `artifact-diagramming` session skills are
   available, load them before writing the page; they own the visual bar. Without
   them, hold to the same rules directly.
-- **Name the styles to leave out.** No cream or off-white background, italic accent
+- **Name the styles to leave out.** No italic accent
   words in headings, numbered "01 / 02 / 03" section labels, or pill-shaped badges,
   plus any style the user names. When the user dislikes a choice in the result, add it to the list and redo the
   page.
@@ -135,6 +135,10 @@ the argument behind a decision, the third reconstructs a sequence.
 - **Reorganizing a dense message** without losing precision is `adhd:clarify` via
   the Skill tool (if that plugin is installed); it changes structure, not medium or
   altitude. Without it, restructure in place and keep the terms verbatim.
+- **Picking the best form for what is already in the conversation** (a table, a
+  flowchart, a chart, a code-shape sketch) is `visualization:visualize` via the Skill
+  tool (if that plugin is installed). It chooses form and medium for the content as it
+  stands. This skill always builds a zero-knowledge picture explainer.
 - **Ongoing coaching** is `/education:teach`, not a one-shot explainer.
 
 ## Gotchas

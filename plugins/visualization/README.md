@@ -64,19 +64,18 @@ rendered diagram. These facts and their sources are documented in the catalog.
 
 ## Configuration
 
-- **`medium`** (`userConfig`, string, default `auto`). Preferred delivery medium
-  when the skill auto-selects: `auto` (decide by content and available surfaces),
-  `terminal` (always inline), `file` (rich forms as a local HTML file, never
-  published off the machine), or `artifact` (prefer a published Artifact when
-  available, else a local file, else terminal). An unrecognized value is reported
-  and treated as `auto`. There is no native enum type for `userConfig`, so the
-  allowed values are validated in-skill.
+- **`medium`** (`userConfig`, string, default `auto`). Preferred delivery medium:
+  `auto` (defer to the `rendered-views` cascade, then decide by content and
+  available surfaces), `terminal` (always inline), `file` (rich forms as a local
+  HTML file, never published off the machine), or `artifact` (prefer a published
+  Artifact when available, else a local file, else terminal). A `/config` picker
+  offers these four values.
 - **`thin_context_prompt`** (`userConfig`, string, default `auto`). What the skill
   does when code is pasted with little conversational context and no form named:
   `auto` (ask one ranked question only when two or more code-shape forms fit about
   equally; render when one form dominates), `always` (offer the ranked menu on any
-  bare code paste), or `never` (render the recommended form without asking). An
-  unrecognized value is reported and treated as `auto`; validated in-skill.
+  bare code paste), or `never` (render the recommended form without asking). A
+  `/config` picker offers these three values.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
@@ -86,6 +85,15 @@ the whole stored `pluginConfigs` entry and resets every option to its manifest
 default. The verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md). No persistent state; no external prerequisites; no network calls of
 its own.
+
+### Option details
+
+**`medium`.** `terminal` degrades richer forms to their best terminal approximation; `file` writes
+a self-contained local HTML file; `artifact` applies when that surface is available. An
+unrecognized value is reported and treated as `auto`.
+
+**`thin_context_prompt`.** `auto` renders without asking when one form dominates. A value outside
+the three the picker offers is reported and treated as `auto`.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -97,8 +105,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium when the skill auto-selects. One of: 'auto' (decide by content and available surfaces), 'terminal' (always render inline, degrading richer forms to their best terminal approximation), 'file' (render richer forms as a self-contained local HTML file, never published off the machine), 'artifact' (prefer a published Artifact when that surface is available, else fall back to a local HTML file, else terminal). An unrecognized value is reported and treated as 'auto'. |
-| `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little conversational context and no form named. One of: 'auto' (ask one ranked question only when two or more code-shape forms fit about equally; render when one form dominates), 'always' (offer the ranked menu on any bare code paste), 'never' (render the recommended form without asking). An unrecognized value is reported and treated as 'auto'. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file. |
+| `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 
 ### How to set these
 

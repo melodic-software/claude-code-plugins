@@ -1,5 +1,43 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.7] - 2026-10-02
+
+### Fixed
+
+- `write-for-agents` no longer gives a cream background as its example of a design exclusion.
+
+## [0.24.6] - 2026-10-02
+
+### Changed
+
+- **`write-for-humans` makes the 20-word limit for instruction sentences a hard cap.** The load
+  rules in `reference/sentence-rules.md` no longer say "about 20" for instructions.
+- **`write-for-humans` adds three house rules to its load layer**: simple verb forms, one topic per
+  paragraph and at most six sentences per paragraph. `sentence-rules.md` states them as our
+  decisions, and `sources.md` points at the specification rules they come from.
+- **`write-for-humans` records that AI-checked STE is unverified.** `reference/sources.md` states
+  our decision, links the STEMG white paper on AI, and carries a new as-of date for the STE record.
+
+## [0.24.5] - 2026-10-02
+
+### Changed
+
+- **`audit-progressive-disclosure` holds its thresholds as our settings with pointer records.**
+  `context/tier-model.md` states each number and rule in our words, with a pointer, an as-of date
+  and a recheck trigger, and `SKILL.md` lists its sources by topic only. The missing-TOC check
+  records that two Anthropic sources disagree on the threshold (100 versus 300 lines), so a file
+  between the two gets awareness only and neither number is presented as the single official rule.
+- **`write-for-humans` records its four fallback layers in the links-only shape.** The layers in
+  `reference/sources.md` are this plugin's selections from published standards, each with our
+  decision, a pointer, an as-of date and a recheck trigger.
+- **`write-for-humans` runs checks instead of a self-check.** After writing it runs the project's
+  prose linter and `/ai-slop:audit`, or reports that the AI-tell check did not run.
+- **`write-for-agents` names which surfaces are system prompt**: a subagent body, an output style,
+  and the launch flags that replace or append to the system prompt. Everything else reaches the
+  model as conversation content.
+- **`rename-references` sets a binary done criterion** for its stale-path pass: zero orphans and
+  zero stale-but-functional rows, or each remaining row named.
+
 ## [0.24.4] - 2026-10-02
 
 ### Fixed

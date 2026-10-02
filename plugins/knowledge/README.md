@@ -78,18 +78,6 @@ needs video without the rest of the knowledge stack.
 /plugin install knowledge@<marketplace>
 ```
 
-Migrating from the standalone `book-distill` plugin? Nothing to do. The
-marketplace's `renames` map migrates `book-distill@<marketplace>` to
-`knowledge@<marketplace>` automatically on your next session; the skill is now
-invoked as `/knowledge:book-distill`.
-
-One exception: an **in-progress multi-session distillation** stores its resume
-checklist under the plugin's `${CLAUDE_PLUGIN_DATA}` directory, which is keyed by
-plugin id and is **not** migrated by `renames` (that map rewrites `enabledPlugins`
-and `pluginConfigs`, not plugin data). If you have a distillation in flight, copy
-your old `book-distill` plugin-data directory to the new `knowledge` one before
-resuming so the resume pointer survives.
-
 ## Configuration
 
 Personal options, prompted by Claude Code at enable time (all optional; zero-config
@@ -97,7 +85,7 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (repo root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the project directory. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
 | `yt_dlp_js_runtimes` | string | `node` | `video-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |
@@ -110,6 +98,13 @@ options above tune yt-dlp authentication and throttling; **course-platform
 credentials are intentionally not** `userConfig`. They stay in shell env vars
 because a `sensitive` option persists as plaintext on Windows today.
 
+### Option details
+
+**`library_dir`.** A leading `~` is home-relative. An environment-variable reference such as
+`${KNOWLEDGE_CORPUS_DIR}` lets a machine-varying root avoid a literal machine path in the stored
+value. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules
+takes precedence.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -120,11 +115,11 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `library_dir` | directory | `"."` | `CLAUDE_PLUGIN_OPTION_LIBRARY_DIR` | Directory where synthesized knowledge artifacts land. Default is the consuming repo root; a relative value is resolved against the project directory. Portable non-project roots: an absolute path, a leading ~ (home-relative), or an environment-variable reference ${NAME} / %NAME% (e.g. ${KNOWLEDGE_CORPUS_DIR}) so a machine-varying root never needs a literal machine path in this stored value. A working-notes or artifacts convention declared in your own project's CLAUDE.md or rules takes precedence. |
-| `yt_dlp_js_runtimes` | string | `"node"` | `CLAUDE_PLUGIN_OPTION_YT_DLP_JS_RUNTIMES` | JavaScript runtime yt-dlp uses for YouTube signature deciphering. Default 'node'. Set to 'off' to omit the --js-runtimes flag entirely. |
+| `library_dir` | directory | `"."` | `CLAUDE_PLUGIN_OPTION_LIBRARY_DIR` | Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); a relative value resolves there. An absolute path, a leading ~, or a ${NAME} or %NAME% variable also work. An artifacts convention in your project's CLAUDE.md or rules wins. |
+| `yt_dlp_js_runtimes` | string | `"node"` | `CLAUDE_PLUGIN_OPTION_YT_DLP_JS_RUNTIMES` | JavaScript runtime yt-dlp uses for YouTube signature deciphering in video-digest. Default 'node'; any other value selects that runtime. Set to 'off' to omit the --js-runtimes flag entirely. |
 | `yt_dlp_cookies_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FILE` | Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FROM_BROWSER` | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
-| `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a batch. Default 1; raising it increases HTTP 429 throttling risk. |
+| `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
 
 ### How to set these
 

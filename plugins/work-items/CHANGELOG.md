@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.2] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work`'s branch-owned fix worker lands on the strong tier, never below the original implementation.** The original can now be a Sonnet `scoped-implementer` phase, so "the same tier as the original" no longer named the fix worker's floor; it still dispatches as `implementation:implementer`.
+
+## [0.44.1] - 2026-10-02
+
+### Changed
+
+- `userConfig` option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles with units in parentheses,
+  `lane_instance` titled "Lane instance ID", and descriptions of 300 characters or fewer in plain
+  text. Detail cut from a description moved to the README's "Option details" subsection. Options
+  are grouped by feature, with the work-loop keys together. No key was renamed.
+
+## [0.44.0] - 2026-10-02
+
+### Changed
+
+- **BREAKING: the lane telemetry sentinel is `<!-- harness-ops:lane-telemetry marker=... -->`.**
+  `lane-telemetry-upsert.sh` no longer finds a comment posted under the old `claude-ops:`
+  sentinel and writes a new one; delete the old comment by hand.
+
 ## [0.43.8] - 2026-10-02
 
 ### Fixed

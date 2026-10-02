@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.73.0] - 2026-10-02
+
+### Changed
+
+- **The plugin no longer has a top-level `bin/` directory,** because claude.ai organization plugin
+  sync rejects a plugin that has one. `source-control-babysit-merge` and
+  `source-control-babysit-resolve-thread` moved to `scripts/` under the same names, so the
+  invocation is now `bash "<plugin-root>/scripts/source-control-babysit-merge"`. Every skill,
+  reference, test, and guard-contract row that named the `bin/` path now names `scripts/`. Anyone
+  who runs the old `bin/` path by hand switches to the new one.
+
+## [0.72.0] - 2026-10-02
+
+### Changed
+
+- `userConfig` option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles with units in parentheses, hook
+  toggles titled `<Hook-name> hook`, `lane_instance` titled "Lane instance ID", and descriptions of
+  300 characters or fewer in plain text. Detail cut from a description moved to the README's
+  "Option details" subsection. Options are regrouped by feature: PR hooks, worktrees, babysit-prs,
+  babysit-loop, setup. No key was renamed.
+- `babysit_review_settle_minutes` is now `type: number` (it was a string the merge gate parsed as a
+  number); a non-numeric value is now rejected at configuration time.
+- `babysit_default_tier` is now a picker with the values `safe`, `worker`, and `autopilot`; any
+  other value is now rejected at configuration time.
+- `babysit_merge_method` is now a picker with the values `auto` (the new default: the repository's
+  declared method, then squash, as an unset value behaved), `squash`, `merge`, and `rebase`. The
+  merge wrapper's `--method` accepts `auto` and treats it as unset.
+
+## [0.71.6] - 2026-10-02
+
+### Changed
+
+- **`babysit-loop` documents the lane telemetry sentinel as
+  `<!-- harness-ops:lane-telemetry marker=... -->`,** matching the `harness-ops` and
+  `work-items` writers.
+
 ## [0.71.5] - 2026-10-02
 
 ### Changed

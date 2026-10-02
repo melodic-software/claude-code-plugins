@@ -112,9 +112,9 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    request itself.
 2. **Configured preference**. `${user_config.medium}`. Claude Code text-substitutes
    the configured value into this line; if it still shows the literal
-   `${user_config.medium}` token or is empty, the option is unset and the next
-   rung resolves. Recognized values are `auto`, `terminal`, `file`, and
-   `artifact`; any other value is reported and treated as unset.
+   `${user_config.medium}` token, is empty, or is `auto` (the default), the option
+   defers and the next rung resolves. `terminal`, `file`, and `artifact` force
+   that tier; any other value is reported and treated as `auto`.
 3. **Cascade preference**. The `rendered-views` cascade surface, read only when
    rungs 1-2 are unset: anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when
    set, else `git rev-parse --show-toplevel`), then read whichever of
@@ -148,7 +148,7 @@ machine (never published); `artifact` prefers publishing but degrades the same w
 terminal, per rung 4; `file`, `artifact`, and the configured preference are
 honored for them as for any form), with one exception: a pull-request diff,
 fetched content, or another repository's files are never rendered to HTML until
-the rendered-views escape helper ships. That exception overrides rung 1 and the
+this lane is wired through the rendered-views escape helper. That exception overrides rung 1 and the
 preference; when a page was asked for, say in one line why it was not produced.
 
 **Page chrome.** When authoring a rich page, take the palette, type stacks,
@@ -321,5 +321,6 @@ report the refusal and never retry around it. The four-part records live in
 - **Does not teach artifact-design fundamentals**. Those route to an artifact-design capability and the Artifact tool's contract.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
-- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until the rendered-views escape helper ships. Those stay terminal fences.
+- **Does not explain a topic from zero prior knowledge**. A one-idea-per-diagram picture explainer that assumes the reader knows nothing is `education:eli5` (if installed). This skill picks a form for what is already in the conversation.
+- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.

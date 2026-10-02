@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import contextlib
 import functools
 import itertools
 import json
@@ -33,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -1771,6 +1772,90 @@ def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> boo
     return scope is not None and scope[0] < at <= scope[1]
 
 
+# The parser that answers binding lookups, or None for the regex reader.
+# `use_reader` sets it; every lookup below reads it.
+_PARSER: parser_reader.ParserReader | None = None
+
+
+@contextlib.contextmanager
+def use_reader(reader: parser_reader.ParserReader | None) -> Iterator[None]:
+    """Answer binding lookups with `reader` inside the block, regex with None.
+
+    The lru caches on the source text (`_chunk_starts`, `_chunk_imports`,
+    `_export_index`) hold text facts both readers share. Anything a reader
+    resolves is memoized on the reader itself, so a parser run never sees a
+    regex answer and the reverse.
+    """
+    global _PARSER
+    previous, _PARSER = _PARSER, reader
+    try:
+        yield
+    finally:
+        _PARSER = previous
+
+
+def _parsed_candidates(
+    src: str, ident: str, at: int, pattern_for: Any
+) -> tuple[list[tuple[re.Match[str], bool]], bool] | None:
+    """Where the variable `ident` read at `at` is set, as the parser resolves
+    it: each `pattern_for` match at one of its plain writes (for
+    `_function_pattern`, its function declarations), in source order, with
+    whether that site is at its module's top level; and whether the name was
+    reached through an import. A name the module imports is followed to the
+    top level of the one module exporting it. None when nothing declares it.
+    """
+    assert _PARSER is not None
+    found = _PARSER.binding(src, *_chunk_span(src, at), ident, at)
+    imported = False
+    if found is not None and found["kind"] == "import":
+        homes = _export_index(src).get(found["imported"], [])
+        if len(homes) != 1:
+            return None
+        home, ident = homes[0]
+        found = _PARSER.binding(src, *_chunk_span(src, home), ident, None)
+        imported = True
+    if found is None:
+        return None
+    pattern = pattern_for(ident)
+    out: list[tuple[re.Match[str], bool]] = []
+    if pattern_for is _function_pattern:
+        for kind, name_at, node_at, top in found["defs"]:
+            if kind == "FunctionName":
+                m = pattern.match(src, src.rfind("function", node_at, name_at))
+                if m:
+                    out.append((m, top))
+    else:
+        for w, top in found["writes"]:
+            if m := pattern.match(src, w):
+                out.append((m, top))
+    return out, imported
+
+
+def _parsed_declaration(
+    src: str, braces: BraceMap, ident: str, at: int, pattern_for: Any, later_ok: Any
+) -> re.Match[str] | None:
+    """`_declaration` with the parser choosing the variable. Which of its
+    writes the read sees keeps the regex rule: the nearest visible one before
+    `at`, else the first after it when `later_ok` allows. An imported name
+    takes its exporter's one top-level write; a function name its last
+    declaration, which is the one a hoisted function binding holds."""
+    resolved = _parsed_candidates(src, ident, at, pattern_for)
+    if resolved is None:
+        return None
+    sites, imported = resolved
+    if imported:
+        top = [m for m, is_top in sites if is_top]
+        return top[0] if len(top) == 1 else None
+    if pattern_for is _function_pattern:
+        return sites[-1][0] if sites else None
+    visible = [m for m, _ in sites if _visible(braces, m.start(), at, src)]
+    before = [m for m in visible if m.start() < at]
+    if before:
+        return before[-1]
+    after = next((m for m in visible if m.start() >= at), None)
+    return after if after is not None and later_ok(after) else None
+
+
 def _declaration(
     src: str,
     braces: BraceMap,
@@ -1788,7 +1873,10 @@ def _declaration(
     after when `later_ok` allows it), and a name neither imported nor
     declared there is unresolved.
     A single-module source keeps the plain rule: nearest before `at`.
+    Under the parser reader, `_parsed_declaration` answers instead.
     """
+    if _PARSER is not None:
+        return _parsed_declaration(src, braces, ident, at, pattern_for, later_ok)
     if len(_chunk_starts(src)) == 1:
         found = None
         for m in pattern_for(ident).finditer(src, 0, at):
@@ -1918,12 +2006,21 @@ def _binding_value(
     has loaded, and only when that binding is at the module's top level: an
     eager read, such as a field's `f()` call at load time, sees no later
     initializer.
+
+    Under the parser reader the parser picks the variable, so a nearer
+    declaration, a hoisted `var` or an uninitialized redeclaration is
+    already the variable read and needs no separate check.
     """
     if len(ident) == 1:
         lo = max(_chunk_span(src, at)[0], at - window)
         found = None
-        for m in _binding_pattern(ident).finditer(src, lo, at):
-            if _visible(braces, m.start(), at, src):
+        if _PARSER is not None:
+            resolved = _parsed_candidates(src, ident, at, _binding_pattern)
+            sites = [m for m, _ in resolved[0]] if resolved and not resolved[1] else []
+        else:
+            sites = list(_binding_pattern(ident).finditer(src, lo, at))
+        for m in sites:
+            if lo <= m.start() < at and _visible(braces, m.start(), at, src):
                 found = m
     else:
         found = _declaration(
@@ -1936,6 +2033,8 @@ def _binding_value(
         )
     if found is None:
         return None
+    if _PARSER is not None:
+        return found.end()
     # An imported binding lives in another module: what can shadow it is
     # declared in the reader's own module.
     home = _chunk_span(src, at)[0]
@@ -1977,7 +2076,12 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
     other code writes it, in the same block (`if(c)x=2;`), a nested block,
     or a function. A write that a nearer declaration of `ident` shadows is
     to that local instead.
+
+    Under the parser reader the AST answers (`_parsed_written_elsewhere`),
+    and a possible mutation counts as well.
     """
+    if _PARSER is not None:
+        return _parsed_written_elsewhere(src, ident, pos)
     ident_re = r"[A-Za-z_$][\w$]*"
     simple = r"(?:" + _STR + r"|[\w$.]+|\[(?:" + _STR + r'|[^\[\]"])*\])'
     chain = re.compile(
@@ -2018,7 +2122,9 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
     name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
     for m in _write_pattern(ident).finditer(src, lo, hi):
         w = name.search(src, m.start(), m.end())
-        if w is None or w.start() == pos or separate(w.start()):
+        if w is None or w.start() == pos:
+            continue
+        if separate(w.start()):
             continue
         w = w.start()
         if not _visible(braces, pos, w, src):
@@ -2030,6 +2136,35 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
         ):
             return True
     return False
+
+
+def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
+    """`_written_elsewhere` from the AST: true unless `pos` names a plain
+    `var`/`let`/`const` declarator (so neither a bare assignment nor an
+    arrow body) whose variable has no other write and no possible mutation,
+    which is any reference except a spread into an array or call and a
+    member read used as a value: an alias, an export, a method call or a
+    call argument lets the array change later. Text in strings and comments
+    is no reference, and a write the parser resolves to another binding is
+    that binding's. A name the parser cannot answer for counts as
+    written."""
+    assert _PARSER is not None
+    found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
+    if found is None or not found["declares"]:
+        return True
+    return bool(found["mutations"]) or any(w != pos for _, w, _ in found["writes"])
+
+
+def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
+    """Whether the function body `body` (its braces) reassigns the
+    parameter `ident`. The regex reader searches the masked body text, so a
+    nested function's own `ident` counts too; the parser reader takes the
+    parameter's write references inside the body, and a name it cannot
+    answer for counts as reassigned."""
+    if _PARSER is None:
+        return _write_pattern(ident).search(masked) is not None
+    found = _PARSER.writes(src, *_chunk_span(src, body[0]), ident, body[0])
+    return found is None or any(body[0] < w < body[1] for _, w, _ in found["writes"])
 
 
 def _function_pattern(ident: str) -> re.Pattern[str]:
@@ -2197,7 +2332,7 @@ def _resolve_chain(
                         shadow=shadow,
                         deferred=deferred,
                     ).items()
-                    if not _write_pattern(name).search(body)
+                    if not _reassigned(src, name, (fn[0], close), body)
                 },
             }
         _scan(
@@ -2654,9 +2789,21 @@ def _nearest_binding(src: str, ident: str, at: int) -> int | None:
 
     The same locality rule as `resolve_name_ident`: nearest preceding wins, and
     a single-character identifier is only looked for within
-    `SHORT_IDENT_LOCALITY_BYTES`.
+    `SHORT_IDENT_LOCALITY_BYTES`. Under the parser reader only the bindings
+    of the variable the parser resolves count, an imported one being its
+    exporter's single top-level binding.
     """
     lo = max(0, at - SHORT_IDENT_LOCALITY_BYTES) if len(ident) == 1 else 0
+    if _PARSER is not None:
+        resolved = _parsed_candidates(src, ident, at, _binding_pattern)
+        if resolved is None:
+            return None
+        sites, imported = resolved
+        if imported:
+            top = [m for m, is_top in sites if is_top]
+            return top[0].end() if len(top) == 1 and len(ident) > 1 else None
+        before = [m for m, _ in sites if lo <= m.start() < at]
+        return before[-1].end() if before else None
     # The identifier leads and the boundary check trails it: a pattern that
     # opens with a lookbehind loses the regex engine's literal-prefix scan and
     # runs about thirty times slower over a 45 MB source.
@@ -5476,6 +5623,13 @@ def _read_with_parser(
                 if not ok:
                     unparsed.append({"offset": start, "error": error})
             info["parse_seconds"] = round(time.perf_counter() - started, 3)
+            baseline = extract_binary(src, dict(meta)) if mode == "compare" else None
+            started = time.perf_counter()
+            with use_reader(reader):
+                sections = extract_binary(src, meta)
+            info["extract_seconds"] = round(time.perf_counter() - started, 3)
+            info["binding_lookups"] = reader.lookups
+            info["write_lookups"] = reader.write_lookups
     except parser_reader.ReaderBroken as exc:
         block.update(status="broken", reason=exc.reason, remediation=exc.command)
         report["sources"]["binary"] = {
@@ -5485,8 +5639,6 @@ def _read_with_parser(
         }
         return
     block.update(info, modules=len(spans), unparsed=unparsed)
-    baseline = extract_binary(src, dict(meta)) if mode == "compare" else None
-    sections = extract_binary(src, meta)
     report.update(sections)
     report["sources"]["binary"] = {"available": True, **meta}
     problems = []

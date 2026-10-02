@@ -1665,7 +1665,7 @@ assert_match "the restated row ranks last" "$RS_ROW" '^\| 4 \|'
 assert_contains "the copy row keeps Confidence high" "$RS_COPY_ROW" "| high |"
 assert_contains "the copy row still names the fix flow" "$RS_COPY_ROW" '/attribution:audit fix'
 assert_contains "the restated remedy is a pointer" "$RS_ROW" "a pointer at the point of use"
-assert_contains "or a four-part record" "$RS_ROW" "four-part record (claim, basis URL, as-of date, observable recheck trigger)"
+assert_contains "or a stamped record" "$RS_ROW" "stamped record (the decision in its own words, a pointer, an as-of date, an observable recheck trigger)"
 assert_contains "and it says the row is report-only" "$RS_ROW" "Not auto-applicable: report-only"
 assert_not_contains "the restated remedy never names the fix flow" "$RS_ROW" '/attribution:audit fix'
 assert_not_contains "nor the sweep flow" "$RS_ROW" '/attribution:audit sweep'

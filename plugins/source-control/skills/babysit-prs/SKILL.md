@@ -169,13 +169,13 @@ That gate merges **only when every criterion holds**, the criteria and the safet
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form,
-never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
+The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `scripts/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 **Before composing either wrapper command, read [reference/safety.md](reference/safety.md),
 "Guarded Mutation Wrappers", for the exact flag set.** That section is the single home for the
-`bin/`-path form, every configured flag that must ride on a given form (self logins, extra bot
+`scripts/`-path form, every configured flag that must ride on a given form (self logins, extra bot
 logins, the review-settle pair, extra dependency-manager logins), the pins and the refusals they
 produce, the override flags that are never passed autonomously, and the per-thread `action`
 vocabulary. Never reconstruct one of these commands from memory; a silently dropped flag is a
@@ -281,7 +281,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
-| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | `auto`: repo convention, then squash |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
