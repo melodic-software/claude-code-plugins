@@ -1303,9 +1303,11 @@ same depth on two models):
   for what a lower level trades away, see
   [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
   As of: 2026-10-01. Recheck trigger: a Haiku model appears among the models that support effort).
-- **Every other lane omits the pin** and inherits the session level. A lane's pin is a
-  design-time choice made once for that lane; the session level belongs to the user, who may change
-  it per task or per phase.
+- **Every other named agent pins the level its work's task row gives it**, never below `medium`
+  for code-changing or verifying work (the [effort floor](#effort-floor); the per-pin rows under
+  pinned agents name each row). Only a skill with no consequential output omits the pin and
+  inherits the session level. A pin is a design-time choice made once for that lane; the session
+  level belongs to the user, who overrides a pin through the [override levers](#effort-tiers).
   - **Pointer:** for which level fits which kind of work, see
     [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
     the two posts under the source conflict below are correlate notes only.
