@@ -417,6 +417,146 @@ class TestWritesQuery(unittest.TestCase):
         self.assertIsNone(self.reader.writes("var =;", 0, 6, "x", 0))
 
 
+class TestFlowQuery(unittest.TestCase):
+    """The helper's `flow` op: where an array value can go inside one
+    module, and the hops that leave it."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _flow(self, src: str, start: dict | None = None) -> dict:
+        start = start or {"var": True, "offset": src.index("pY=["), "name": "pY"}
+        return self.reader.flow(src, 0, len(src), start)
+
+    def assert_safe(self, src: str, exits: list[tuple] | None = None) -> None:
+        got = self._flow(src)
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(got["exits"], exits or [])
+
+    def assert_unsafe(self, src: str, at: str) -> None:
+        got = self._flow(src)
+        self.assertFalse(got["safe"], got)
+        self.assertEqual(src[got["at"] : got["at"] + len(at)], at, got["reason"])
+
+    def test_an_alias_returned_to_a_callback_method_resolves_its_callback(self) -> None:
+        """The 2.1.286 shape: the callback reaches `.some` through two
+        parameters and a destructured object literal argument."""
+        body = (
+            "var pY=[1],Gr=pY;function Xr(e){if(e)return Gr;return[]}"
+            "function ko(e,t){let n=(s)=>Xr(s).some(t);return n(e)}"
+            'function Eo(e,t){return typeof t==="function"?ko(e,t):e}'
+            "function gn(e,{hook:n}){return Eo(e,n)}"
+        )
+        self.assert_safe(body + "gn(1,{hook:!1});")
+        self.assert_safe(body + "gn(1,{hook:(x)=>x===1});")
+        self.assert_unsafe(body + "gn(1,{hook:(x,i,a)=>a.push(2)});", "a.push")
+        self.assert_unsafe(body + "gn(1,{hook:h});", "h}")
+        self.assert_unsafe(body + "gn(1,{});", "{})")
+        self.assert_unsafe(body + "gn(1,{hook:!1});gn(2,o);", "o)")
+
+    def test_a_callback_method_follows_the_array_into_its_callback(self) -> None:
+        self.assert_safe("var pY=[1];pY.some((e)=>e>0);pY.forEach(f);function f(e,i){}")
+        self.assert_safe("var pY=[1];pY.reduce((s,e,i)=>s+e,0);")
+        self.assert_unsafe("var pY=[1];pY.some((e,i,a)=>a.pop());", "a.pop")
+        self.assert_unsafe("var pY=[1];pY.reduce((s,e,i,a)=>a.pop());", "a.pop")
+        self.assert_unsafe(
+            "var pY=[1];function f(e,i,a){a.length=0}pY.map(f);", "a.length"
+        )
+        self.assert_unsafe("var pY=[1];pY.map(f);", "f)")
+
+    def test_an_argument_follows_into_the_parameter(self) -> None:
+        self.assert_safe("var pY=[1];function g(a,b){return b.includes(a)}g(1,pY);")
+        self.assert_safe("var pY=[1];var g=(a)=>a.join();g(pY);")
+        self.assert_unsafe("var pY=[1];function g(a,b){b.push(a)}g(1,pY);", "b.push")
+        self.assert_unsafe(
+            "var pY=[1];function g(){arguments[0].push(2)}g(pY);", "function g"
+        )
+        self.assert_unsafe(
+            "var pY=[1];function g(...a){a[0].push(2)}g(pY);", "function g"
+        )
+        self.assert_unsafe("var pY=[1];function g([a]){}g(pY);", "[a]")
+        self.assert_unsafe("var pY=[1];o.g(pY);", "o.g(pY)")
+
+    def test_a_return_follows_every_call(self) -> None:
+        self.assert_safe("var pY=[1];function r(){return pY}r().includes(1);[...r()];")
+        self.assert_unsafe("var pY=[1];function r(){return pY}r().push(2);", "r().push")
+        self.assert_unsafe("var pY=[1];function r(){return pY}h(r);", "r)")
+        self.assert_unsafe("var pY=[1];async function r(){return pY}", "pY}")
+
+    def test_a_method_neither_prototype_holds_throws_before_it_runs(self) -> None:
+        self.assert_safe(
+            'var pY=[1];function g(n){return"has"in n?n.has(1):n.includes(1)}g(pY);'
+        )
+        self.assert_unsafe("var pY=[1];pY.constructor(2);", "pY.constructor")
+
+    def test_hops_out_of_the_module_come_back_as_exits(self) -> None:
+        self.assert_safe("var pY=[1];export{pY as W};", [("export", "W")])
+        self.assert_safe("export var pY=[1];", [("export", "pY")])
+        self.assert_safe(
+            'import{g}from"/x.js";var pY=[1];g(0,pY);pY.some(g);',
+            [("param", "g", 1), ("param", "g", 2)],
+        )
+        self.assert_safe(
+            "var pY=[1];function r(){return pY}export{r};", [("export-call", "r")]
+        )
+        self.assert_unsafe("var pY=[1];export default pY;", "pY;")
+
+    def test_an_import_start_follows_the_imported_binding(self) -> None:
+        src = 'import{pY as q}from"/a.js";export{q as W};q.includes(1);'
+        got = self._flow(src, {"import": "pY", "calls": False})
+        self.assertEqual(got, {"safe": True, "exits": [("export", "W")]})
+        src = 'import{pY as q}from"/a.js";q.push(1);'
+        self.assertFalse(self._flow(src, {"import": "pY", "calls": False})["safe"])
+        src = 'export{pY as W}from"/a.js";'
+        got = self._flow(src, {"import": "pY", "calls": True})
+        self.assertEqual(got, {"safe": True, "exits": [("export-call", "W")]})
+
+    def test_a_param_start_resolves_the_module_scope_function(self) -> None:
+        src = "function g(a,b){b.push(1)}var h=(a)=>a.at(0);"
+        self.assertFalse(self._flow(src, {"param": 1, "name": "g"})["safe"])
+        self.assertTrue(self._flow(src, {"param": 0, "name": "h"})["safe"])
+
+    def test_a_direct_eval_leaves_the_flow_unresolved(self) -> None:
+        got = self._flow('var pY=[1];function e(){eval("")}')
+        self.assertEqual(got["reason"], "the module calls eval directly")
+
+    def test_keys_used_reads_member_names_and_destructured_keys(self) -> None:
+        for src, used in (
+            ("n.pY.push(1);", True),
+            ('n["pY"];', True),
+            ("var{pY:q}=n;", True),
+            ("var{pY}=n;", True),
+            ("var o={pY:1};", False),
+            ('var s="pY";', False),
+            ('import{pY}from"/a.js";', False),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self.reader.keys_used(src, "pY"), used)
+
+    def test_keys_used_flags_a_change_to_a_builtin_prototype(self) -> None:
+        for src, patched in (
+            ("Array.prototype.includes=function(){};", True),
+            ('Object.defineProperty(Object.prototype,"has",{});', True),
+            ("Array.prototype.slice.call(arguments);", False),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(
+                    self.reader.keys_used(src, pr.PATCHES_BUILTINS), patched
+                )
+
+    def test_exports_lists_every_exported_name(self) -> None:
+        src = "export var a=1,{b}=o;export function c(){}var d;export{d as e};"
+        self.assertEqual(
+            sorted(self.reader.exports(src, 0, len(src)) or []), ["a", "b", "c", "e"]
+        )
+        self.assertIsNone(self.reader.exports("var =;", 0, 6))
+
+
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
 

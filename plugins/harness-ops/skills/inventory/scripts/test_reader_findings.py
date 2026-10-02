@@ -23,6 +23,7 @@ Run: python3 -m unittest test_reader_findings
 
 from __future__ import annotations
 
+import pathlib
 import unittest
 
 import inventory as inv
@@ -41,7 +42,10 @@ PARTIAL = (["Agent"], "partial")
 
 
 def _probe(prelude: str) -> tuple[list[str], str]:
-    src = AGENT_SRC + prelude + PROBE
+    return _probe_source(AGENT_SRC + prelude + PROBE)
+
+
+def _probe_source(src: str) -> tuple[list[str], str]:
     rec = inv.extract_builtin_agents(src, inv.build_brace_map(src))[0]["spread-probe"]
     return rec["disallowed_tools"], rec["disallowed_tools_source"]
 
@@ -230,6 +234,117 @@ class TestOpenFindings(unittest.TestCase):
             'var pY=[xt,"Artifact"];export{pY};', INITIAL, INITIAL[0], parser=INITIAL
         )
 
+    def test_a_hop_the_parser_follows_keeps_the_literal_unless_it_changes_the_list(
+        self,
+    ) -> None:
+        """P4 of #5640, inside one module: an alias returned from a function
+        whose caller hands the array to `.some(t)`, where `t` reaches it
+        through two parameters and an object literal argument (the 2.1.286
+        shape), and an argument into a local function. JavaScript keeps the
+        list unless a callback or parameter changes it."""
+        shape = (
+            "var Gr=pY;function Xr(e){if(e)return Gr;return[]}"
+            "function ko(e,t){let n=(s)=>Xr(s).some(t);return n(e)}"
+            'function Eo(e,t){return typeof t==="function"?ko(e,t):e}'
+            "function gn(e,{hook:n}){return Eo(e,n)}"
+        )
+        for use, changed in (
+            ("gn(1,{hook:!1})", False),
+            ('gn(1,{hook:(x)=>x==="Edit"})', False),
+            ('gn(1,{hook:(x,i,a)=>a.push("B")})', True),
+        ):
+            with self.subTest(use=use):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + shape + use + ";",
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"] if changed else INITIAL[0],
+                    parser=PARTIAL if changed else INITIAL,
+                )
+        for use, changed in (
+            ('function g(a,b){return b.includes(a)}g("x",pY)', False),
+            ('function g(a,b){b.push(a)}g("B",pY)', True),
+            ("pY.forEach((e,i,a)=>a.pop())", True),
+        ):
+            with self.subTest(use=use):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + use + ";",
+                    INITIAL,
+                    ["(changed)"] if changed else INITIAL[0],
+                    parser=PARTIAL if changed else INITIAL,
+                )
+
+    def assert_across_modules(self, changed: bool, *modules: str) -> None:
+        """The probe's module exports `pY` and `modules` follow it, each
+        opening with a `// @bun` header as a bundle's modules do. The regex
+        reader never looks past the binding, so it keeps the initializer;
+        the parser follows the export and reads partial exactly when
+        JavaScript changes the list."""
+        src = (
+            AGENT_SRC
+            + 'var pY=[xt,"Artifact"];'
+            + PROBE
+            + "export{pY};"
+            + "".join("\n// @bun\n" + m for m in modules)
+        )
+        self.assertEqual(_probe_source(src), INITIAL)
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        with inv.use_reader(type(self).reader):
+            got = _probe_source(src)
+        self.assertEqual(got, PARTIAL if changed else INITIAL, modules)
+
+    def test_an_export_is_followed_to_every_importer(self) -> None:
+        """P4 of #5640: the 2.1.284-2.1.287 shape, where the array is
+        exported and its importers spread it, call `includes`, alias it and
+        return it to a `.some` caller, re-export it, and pass it to an
+        imported function."""
+        imp = 'import{pY}from"/a.js";'
+        self.assert_across_modules(False, imp + 'var c=[...pY];pY.includes("x");')
+        self.assert_across_modules(True, imp + 'pY.push("B");')
+        self.assert_across_modules(True, 'import{pY as q}from"/a.js";var r=q;r.pop();')
+        hop = (
+            imp + "var Gr=pY;function Xr(e){return Gr}"
+            "function ko(e,t){return Xr(e).some(t)}function gn(e,{hook:n}){return ko(e,n)}"
+        )
+        self.assert_across_modules(False, hop + "gn(1,{hook:!1});")
+        self.assert_across_modules(True, hop + 'gn(1,{hook:(x,i,a)=>a.push("B")});')
+
+    def test_a_reexport_is_followed_again(self) -> None:
+        reexport = 'import{pY}from"/a.js";export{pY as W};'
+        self.assert_across_modules(False, reexport, 'import{W}from"/b.js";W.join();')
+        self.assert_across_modules(True, reexport, 'import{W}from"/b.js";W.push("B");')
+        self.assert_across_modules(
+            True, 'export{pY as W}from"/a.js";', 'import{W}from"/b.js";W.pop();'
+        )
+
+    def test_an_imported_callee_is_followed_to_its_exporter(self) -> None:
+        caller = 'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);'
+        self.assert_across_modules(
+            False, caller, "function g(a,b){return b.includes(a)}export{g};"
+        )
+        self.assert_across_modules(
+            True, caller, 'function g(a,b){b.push("B")}export{g};'
+        )
+        self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
+
+    def test_a_hop_it_cannot_follow_stays_partial(self) -> None:
+        """A namespace read by name, a patched prototype, a callback from
+        another module, a direct eval in an importer: each could change the
+        list, and the parser cannot follow it, so it reads partial."""
+        imp = 'import{pY}from"/a.js";'
+        for modules in (
+            ('import*as N from"/a.js";N.pY.push("B");',),
+            (
+                imp
+                + 'Array.prototype.includes=function(){this.push("B")};pY.includes("x");',
+            ),
+            (imp + "function k(t){return pY.some(t)}export{k};",),
+            (imp + 'pY.includes("x");function e(){eval("")}',),
+            (imp + 'function r(){return pY}r().push("B");',),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules)
+
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,
     ) -> None:
@@ -344,6 +459,43 @@ class TestOpenFindings(unittest.TestCase):
         self.assertEqual(self._parsed(prelude), PARTIAL)
         self.assertEqual(_probe(prelude), INITIAL)
         self.assertEqual(self._parsed(prelude), PARTIAL)
+
+
+INSTALLED = pathlib.Path.home() / ".local" / "share" / "claude" / "versions"
+
+
+class TestInstalledBuilds(unittest.TestCase):
+    """P4 of #5640 on the builds that motivated it: the Explore and Plan
+    agents' `disallowed_tools` spread an array that is exported, aliased,
+    returned to a `.some(t)` caller and passed to an imported function.
+    Under the parser both read literal, with the regex reader's list. Each
+    build is skipped when it is not installed on this machine."""
+
+    def test_explore_and_plan_read_literal_under_the_parser(self) -> None:
+        target = _require_live(self)
+        for version in ("2.1.284", "2.1.285", "2.1.286", "2.1.287"):
+            with self.subTest(version=version):
+                binary = INSTALLED / version
+                if not binary.is_file():
+                    self.skipTest(f"Claude Code {version} is not installed at {binary}")
+                spans: list[tuple[int, int]] = []
+                src, _ = inv.read_bundle(binary, spans)
+                assert src is not None
+                braces = inv.build_brace_map(src)
+                regex = inv.extract_builtin_agents(src, braces)[0]
+                with pr.ParserReader(target) as reader:
+                    for lo, hi in spans:
+                        reader.parse_module(src, lo, hi)
+                    with inv.use_reader(reader):
+                        parsed = inv.extract_builtin_agents(src, braces)[0]
+                for agent in ("Explore", "Plan"):
+                    self.assertEqual(
+                        parsed[agent]["disallowed_tools_source"], "literal"
+                    )
+                    self.assertEqual(
+                        parsed[agent]["disallowed_tools"],
+                        regex[agent]["disallowed_tools"],
+                    )
 
 
 if __name__ == "__main__":
