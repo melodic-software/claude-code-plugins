@@ -455,19 +455,29 @@ The record behind condition F's frontmatter scan in [`shim-droppable.md`](shim-d
   managed settings directory's `.claude/skills/`), personal (`~/.claude/skills/`), project and
   nested `.claude/skills/`, `--add-dir`, plugin `skills/`, and a claude.ai account; subagent
   locations are managed settings, `--agents`, every `.claude/agents/` from the working directory
-  up to the repository root, `~/.claude/agents/`, and plugin `agents/`.
+  up to the repository root, `~/.claude/agents/`, and plugin `agents/`. For `--add-dir`, the
+  permissions page, "Additional directories grant file access, not configuration": the exceptions
+  "apply only to directories added with the `--add-dir` flag or the `/add-dir` command, including
+  directories the Agent SDK adds through the flag", and its table loads "Skills in
+  `.claude/skills/`", "Command files in `.claude/commands/`" and "Subagents in `.claude/agents/`"
+  from them, and of `.claude/settings.json` "`enabledPlugins` and `extraKnownMarketplaces` keys
+  only"; directories in `permissions.additionalDirectories` "grant file access only".
 - **Basis**: [hooks](https://code.claude.com/docs/en/hooks) (248,114 bytes, first heading "Hooks
   reference"; "Hook locations" line 251, "Hooks in skills and agents" line 666);
   [sub-agents](https://code.claude.com/docs/en/sub-agents) (107,802 bytes, first heading "Create
   custom subagents"; "Choose the subagent scope" line 158, "Hooks in subagent frontmatter" line
   735, the supported-events sentence line 747); [skills](https://code.claude.com/docs/en/skills)
   (103,142 bytes, first heading "Extend Claude with skills"; the locations table lines 142-150,
-  the command-file rule line 157, the `hooks` field line 393). All three fetched 2026-10-02 by
-  the rung-1 route, each slug in `llms.txt`.
+  the command-file rule line 157, the `hooks` field line 393);
+  [permissions](https://code.claude.com/docs/en/permissions) (78,480 bytes, first heading
+  "Configure permissions"; "Additional directories grant file access, not configuration" line
+  608, the table lines 618-624). All four fetched 2026-10-02 by the rung-1 route, each slug in
+  `llms.txt`.
 - **As of**: 2026-10-02.
-- **Recheck trigger**: any of the three pages restricts which events frontmatter hooks accept,
+- **Recheck trigger**: any of the four pages restricts which events frontmatter hooks accept,
   changes when skill or subagent hooks are registered, adds or removes a skill or subagent
-  location, or states whether `InstructionsLoaded` fires inside a subagent.
+  location, changes what `--add-dir` loads, or states whether `InstructionsLoaded` fires inside a
+  subagent.
 
 ## Blockers between the root and a nested `AGENTS.md`
 

@@ -33,7 +33,7 @@ three. A root that cannot be resolved here is unknown, and fails every condition
 | C | The loader is present and not disabled on this machine | `/harness-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope (`<config>` user settings, managed, project, local, `--settings`) for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken`, or the entry missing is unknown. With `disableAllHooks` or `allowManagedHooksOnly` set `true` in any scope, C holds only on v2.1.287 or later, the build on which built-in mods are verified to keep running under both; an older or unknown version is unknown |
 | D | Every user, machine and organization the repository serves reads `AGENTS.md` directly | Ask the operator, with the list below. Any yes, and any "don't know", fails |
 | E | Nothing reachable through the `@` import graph of any `AGENTS.md`, root or nested, lies outside the working directory | The import-graph walk below, from every `AGENTS.md` and from each session start directory. Any `EXTERNAL`, `UNRESOLVED` or `DEPTH` row fails |
-| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `<config>/settings.json` and `<config>/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `<plugins>`; the `hooks:` frontmatter of every skill, command and agent file in the repository, under `<config>`, under `<plugins>` and in the managed settings directory, by the frontmatter scan below; and the plugins loaded per session or outside an install: ask the operator whether contributors use `--plugin-dir`, `--plugin-url` or `CLAUDE_CODE_PLUGIN_DIRS`, and grep each directory or archive they name, plus every `<config>/skills/*/` that holds a `.claude-plugin/plugin.json`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
+| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `<config>/settings.json` and `<config>/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `<plugins>`; the `hooks:` frontmatter of every skill, command and agent file in the repository, under `<config>`, under `<plugins>` and in the managed settings directory, by the frontmatter scan below; and the plugins loaded per session or outside an install: ask the operator whether contributors use `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or `--add-dir`, and scan each directory or archive they name, plus every `<config>/skills/*/` that holds a `.claude-plugin/plugin.json`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
 
 B and C read this machine only. The setting is per user and no repository can ship it, so D is
 where the operator answers for every other machine.
@@ -133,10 +133,27 @@ the shim produces, so each counts as a hook source whenever it might run. The qu
 [`sources.md`](sources.md), "Frontmatter hooks and `InstructionsLoaded`".
 
 ```bash
-fm_scan() { # <dir>...: frontmatter naming InstructionsLoaded, and every dir not fully read
-  local d f
-  for d; do
-    [ -e "$d" ] || continue
+fm_gone() { # true only when <path> provably does not exist: the nearest ancestor that does is searchable
+  local p=$1 up
+  while ! [ -e "$p" ]; do
+    up=$(dirname "$p")
+    if [ -d "$up" ]; then [ -x "$up" ]; return; fi
+    [ "$up" = "$p" ] && return 1
+    p=$up
+  done
+  return 1
+}
+fm_scan() { # <root>...: frontmatter naming InstructionsLoaded, and every root not fully read.
+  # A root written ?<dir> is optional: skipped when provably absent, UNREADABLE when it cannot be
+  # stat'd. Any other root is expected, and UNREADABLE whenever it cannot be read.
+  local a d f
+  for a; do
+    d=${a#\?}
+    if ! [ -e "$d" ]; then
+      [ "$a" != "$d" ] && fm_gone "$d" && continue
+      printf 'UNREADABLE\t%s\n' "$d"
+      continue
+    fi
     find "$d" -type f \( -path '*/skills/*/SKILL.md' -o -path '*/commands/*.md' \
       -o -path '*/agents/*.md' \) -not -path '*/.git/*' -print 2>/dev/null ||
       printf 'UNREADABLE\t%s\n' "$d"
@@ -148,15 +165,26 @@ fm_scan() { # <dir>...: frontmatter naming InstructionsLoaded, and every dir not
       /InstructionsLoaded/ { print "HIT\t" FILENAME; exit }' "$f"
   done
 }
-fm_scan <repo> <config>/skills <config>/commands <config>/agents <plugins> \
-  <managed-settings-dir>/.claude/skills <each --plugin-dir and CLAUDE_CODE_PLUGIN_DIRS entry>
+fm_scan <repo> '?<config>/skills' '?<config>/commands' '?<config>/agents' '?<plugins>' \
+  '?<managed-settings-dir>/.claude/skills' <each --add-dir directory> \
+  <each --plugin-dir and CLAUDE_CODE_PLUGIN_DIRS entry>
 ```
 
 Scanning the whole repository covers the root `.claude/` and every nested `.claude/skills/` and
-`.claude/agents/`. A `HIT` the operator has not accepted fails F. An `UNREADABLE` row, a root that
-cannot be resolved, or a source that is not on disk here (skills synced from a claude.ai account,
-subagents passed as `--agents` JSON or deployed through managed settings, a `--plugin-url`
-archive, and every other machine) is unknown until the operator answers for it, and fails F.
+`.claude/agents/`. The repository and every root the operator names are expected; the user,
+plugin and managed locations may not exist on a given machine, so they are optional, but one
+behind a directory that cannot be searched still prints `UNREADABLE`. A directory added with
+`--add-dir` (or `/add-dir`, or the Agent SDK's `additionalDirectories` / `add_dirs`) loads the
+skills, command files and subagents in its `.claude/skills/`, `.claude/commands/` and
+`.claude/agents/`, and of its settings only `enabledPlugins` and `extraKnownMarketplaces`; the
+plugins those enable are under `<plugins>`. Ask the operator which directories contributors add
+this way. Each one named is an expected root, scanned whole, which covers its `.claude/`.
+
+A `HIT` the operator has not accepted fails F. An `UNREADABLE` row, a root that cannot be
+resolved, an `--add-dir` set the operator cannot name, or a source that is not on disk here
+(skills synced from a claude.ai account, subagents passed as `--agents` JSON or deployed through
+managed settings, a `--plugin-url` archive, and every other machine) is unknown until the
+operator answers for it, and fails F.
 
 ## What D asks the operator
 
