@@ -71,7 +71,7 @@ check("a hostile model still passes the validator", verdict.ok, verdict.failures
 check("no live script tag", !/<script[\s>]/i.test(page)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("no live img tag", !page.includes("<img"));
 check("no early details close from input", page.split("</details>").length === 2);
-check("no href or event-handler attribute", !page.includes("href=") && !/\son[a-z]+=/i.test(page.replace(/>[^<]*</g, "><")));
+check("no href or event-handler attribute", !page.includes("href=") && !/[ \t\r\n]on[a-z]+=/i.test(page.replace(/>[^<]*</g, "><")));
 check(
   "every hostile string appears escaped",
   hostile.every((item) => page.includes(escapeHtml(item))),
@@ -79,7 +79,7 @@ check(
 check("backticks pass through as text", page.includes("`${alert(1)}`"));
 check("an unknown section anchor renders as escaped text", page.includes(`If missed, reread: ${escapeHtml(hostile[0])}`));
 check("a known section anchor renders its name", page.includes("If missed, reread: Decisions"));
-check("the answer key is collapsed", /<details>\s*<summary>Answer key<\/summary>/.test(page));
+check("the answer key is collapsed", /<details>[ \t\r\n]*<summary>Answer key<\/summary>/.test(page));
 check("an empty model still validates", validateRenderedPage(buildReportPage({})).ok);
 
 const source = readFileSync(builderPath, "utf8");
