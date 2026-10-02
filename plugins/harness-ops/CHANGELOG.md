@@ -26,7 +26,8 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   write of the name or with a computed key that names nothing, the name as a string or `Symbol.x`
   argument to any call, an object-literal key given to `Object.assign` or `defineProperties`, a
   definer (`Object.defineProperty`, `Reflect.set`, `__defineGetter__`) given a computed key or
-  read other than as a direct callee, an alias of `Object` or `Reflect`, and a prototype swap.
+  read other than as a direct callee, an alias of `Object` or `Reflect`, a prototype swap, and
+  code built from a string (global `eval` other than a direct call, the `Function` constructor).
 - `read_bundle` names each module's `/$bunfs/root/...` file from Bun's standalone module table.
   New helper ops `keys_used`, `exports` and `sinks` back the checks, and `reader.flow_lookups`
   counts the flow lookups. `reference/extraction.md` lists the assumptions that remain unchecked.

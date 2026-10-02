@@ -436,9 +436,13 @@ as a string or `Symbol.x` argument to any call, an object literal holding one gi
 `Reflect.set`, `__defineGetter__`) given a key that names nothing or read other than as a direct
 callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `setPrototypeOf`).
 A target is cleared only when it is provably fresh: a literal, a function, `Object.create(...)`,
-`this` in a class constructor, a variable that only ever holds one of those, or the `prototype`
-of a function or class declared in the module and never replaced. A module that does not parse
-or calls `eval` is a sink.
+`this` in the constructor of a class with no superclass (a derived class's `this` is whatever
+`super()` returns), a variable that only ever holds one of those, or the `prototype` of a
+function or class declared in the module whose every reference is a call or `new` callee or a
+`.prototype` read never written (any other reference could replace it). A module that does not
+parse or calls `eval` is a sink, and so is code built from a string: global `eval` other than a
+direct call, and the global `Function` called, constructed or aliased (on 2.1.284 to 2.1.287,
+lodash's `Function("return this")()` in 4 modules).
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
