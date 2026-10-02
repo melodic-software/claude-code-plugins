@@ -52,18 +52,27 @@ permissions:
 # until someone re-ran that specific run (melodic-software/github-iac#378).
 #
 # The full branch keeps one group per pull request, so a `synchronize` still
-# cancels everything on the old SHA. Push runs fall back to the unique
-# `github.run_id` and are never cancelled; the PR number scopes cancellation to
+# cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
 # fork branches.
+#
+# PUSHES TO MAIN COALESCE. They share one group per workflow and branch, and
+# that branch alone does not cancel: the running push run finishes, and of the
+# pushes that land meanwhile only the newest waits, because GitHub cancels a
+# pending run when a newer one joins its group. A burst of merges costs two
+# runs instead of one each (a replay of 529 main pushes: 47% would be dropped
+# while pending). The surviving run tests the whole tree, so a dropped run's
+# commits are still covered. A dispatch run keeps the unique `github.run_id`
+# group.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
+    || github.event_name == 'push' && format('{0}-push-{1}', github.workflow, github.ref)
     || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
