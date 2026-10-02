@@ -3,6 +3,16 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.5] - 2026-10-02
+
+### Added
+
+- **`CHECK_SKILL_ONLY=25` runs check 25 alone.** `check-skill.sh` reads the description and
+  `when_to_use`, runs the description/verb-contract polarity check, and prints the usual
+  `CHECK-SKILL` summary, in both the single-skill and the root form. Any other value exits 2. A
+  run without the variable prints the same output as before. The marketplace's whole-corpus
+  verb-contract gate sets it, so it no longer runs all twenty-six checks on every skill to read one.
+
 ## [0.25.4] - 2026-10-02
 
 ### Changed
