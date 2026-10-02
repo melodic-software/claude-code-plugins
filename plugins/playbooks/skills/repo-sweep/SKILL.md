@@ -1,6 +1,6 @@
 ---
 description: "Run a playbook of hygiene skills through one repository per sweep: one branch, one draft PR whose body holds the step checklist, one commit per step, /clear between steps, resumable from any session or machine. Actions: plan (recommend run, rerun, or not-applicable per catalog entry, open the selection page, open the draft PR), next (run the first unticked step), review (file skill defects found in the last step). Use when: 'sweep this repo', 'run the hygiene playbook', 'repo sweep', 'next sweep step', 'continue the sweep', 'review the last sweep step'."
-argument-hint: "plan | next | review"
+argument-hint: "[plan|next|review]"
 user-invocable: true
 disable-model-invocation: true
 metadata:

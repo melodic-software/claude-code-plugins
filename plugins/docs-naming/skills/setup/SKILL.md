@@ -1,6 +1,6 @@
 ---
 description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal overlay is ignored; `apply` writes the tracked `.claude/docs-naming.json` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
-argument-hint: "check | apply [--defaults] [<key>=<value> ...]"
+argument-hint: "[check|apply] [--defaults] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup-check.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh:*)", "Bash(git check-ignore:*)", "Bash(git ls-files:*)", "Read"]

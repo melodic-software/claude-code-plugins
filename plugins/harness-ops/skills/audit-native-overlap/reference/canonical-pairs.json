@@ -121,6 +121,31 @@
       "native": { "name": "cc-plugin-agents-md", "class": "plugin-backed-builtin" },
       "component": { "plugin": "instruction-placement", "skill": "migrate", "kind": "skill" },
       "why": "The built-in agents-md plugin loads AGENTS.md as project instructions where no CLAUDE.md exists; migrate moves a repository's instructions into AGENTS.md and decides whether its CLAUDE.md shim is still needed."
+    },
+    {
+      "native": { "name": "cc-plugin-claude-test", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "testing", "skill": "run-e2e", "kind": "skill" },
+      "why": "The built-in claude-test plugin runs plain-language specs against a local dev server in a headless browser and reports PASS/FAIL with screenshots; run-e2e drives end-to-end tests of the running app. Gated off by tengu_mellow_hollerith (default false) as of 2.1.287."
+    },
+    {
+      "native": { "name": "cc-plugin-claude-test", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "playwright", "skill": "playwright", "kind": "skill" },
+      "why": "claude-test drives a fenced headless browser through a bundled playwright-mcp; the playwright skill drives the same browser automation directly."
+    },
+    {
+      "native": { "name": "cc-plugin-you-should-know", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "discovery", "skill": "blindspot", "kind": "skill" },
+      "why": "The built-in you-should-know mod has a side agent watch longer tasks and raise a note about what the person may not know; blindspot surfaces what the person has not considered. Off by default (defaultEnabled false, tengu_jolly_dewdrop default false) as of 2.1.287."
+    },
+    {
+      "native": { "name": "cc-plugin-responsive-mode", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "writing", "skill": "be-concise", "kind": "skill" },
+      "why": "The built-in responsive-mode mod adds a system-prompt section that has Claude reply in a sentence first and bans flattery, corporate vocabulary and wrap-ups; be-concise tightens replies the same way. Off by default (defaultEnabled false, tengu_quiet_ember default false) as of 2.1.287."
+    },
+    {
+      "native": { "name": "cc-plugin-mermaid", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "why": "The built-in mermaid mod draws mermaid flowcharts and sequence diagrams in replies as box-drawing text in the terminal; visualize emits Mermaid diagrams. Gated off by tengu_mermaid_mod (default false) as of 2.1.287."
     }
   ]
 }

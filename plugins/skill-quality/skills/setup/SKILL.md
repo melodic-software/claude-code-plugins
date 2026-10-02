@@ -1,6 +1,6 @@
 ---
 description: "Verify where this repository's skills live for skill-quality, the resolved skills_root, and explain how to change the personal skills_root option through Claude Code. Use when: 'set up skill-quality', 'configure skill-quality', or the checker reports a missing skills directory. Check-only: verifies, reports, and prints reconfiguration guidance; there is nothing setup may write here. Re-runnable and safe."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

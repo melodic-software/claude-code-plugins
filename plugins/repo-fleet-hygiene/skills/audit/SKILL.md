@@ -2,7 +2,7 @@
 description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories across a fleet', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches still on origin', 'moved or renamed GitHub repos'."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail] | --apply-plan <path>"
+argument-hint: "[[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail]|--apply-plan <path>]"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
@@ -11,7 +11,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail] | --apply-plan <path>`. Full form: [<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>
+**Arguments.** `[[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail]|--apply-plan <path>]`. Full form: [[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>]|--apply-plan <path>]
 
 ## Purpose
 

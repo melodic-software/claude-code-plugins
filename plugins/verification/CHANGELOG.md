@@ -3,6 +3,15 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.16] - 2026-10-02
+
+### Fixed
+
+- The `confirm` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
+  the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.6.15] - 2026-10-01
 
 ### Changed

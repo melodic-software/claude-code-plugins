@@ -444,11 +444,11 @@ declares_both_fixtures B "$CASE_B"
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
 # Both defenses are body prose, each covered by its own section digest below; no
-# frontmatter key states or qualifies either. `argument-hint` is the bare slot list
-# `[action] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# frontmatter key states or qualifies either. `argument-hint` is the slot list
+# `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "881ecec0f5c8cf8e18d16edc7a3d5a72463c48ddc483f5736814b18506d2a6b3"
+  "84ce55eb64fbd8cd370911626647ed7f46999b9941a95698609117b3ae546f67"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;

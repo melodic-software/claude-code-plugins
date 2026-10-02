@@ -5234,6 +5234,102 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
     return out
 
 
+# The remote rollout flag that lets installed plugins load hooks modules (mods).
+MODS_ROLLOUT_FLAG = "tengu_plugin_hooks_modules"
+BUILTIN_STATE_CAVEATS = (
+    "`cached` is this account's flag value as last fetched into the global config; "
+    "an absent key means the in-binary default applies.",
+    "A gate read through the per-process pin (`pinnedFeatureValues`, as "
+    "cc-plugin-diff's `isAvailable` reads `tengu_quiet_dolphin`) is fixed when the "
+    "session starts. The cache can refresh later, so a running session may use a "
+    "value other than `cached`.",
+    "`enabled_setting` reads user, project and local settings only (local wins, "
+    "then project, then user); managed settings and `--settings` are not read. A "
+    "scope in `enabled_plugins_rejected` holds a non-Boolean value, so Claude Code "
+    "ignores its whole `enabledPlugins` map and it contributes no override.",
+)
+_SETTINGS_PRECEDENCE = ("local", "project", "user")
+
+
+def global_config_path(root: Path, custom: bool) -> Path:
+    """`${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: inside a custom config dir,
+    in the home directory for the default one. Never the custom dir's parent."""
+    return (root if custom else Path.home()) / ".claude.json"
+
+
+def builtin_plugin_state(
+    plugins: dict[str, dict[str, Any]],
+    root: Path,
+    project_root: Path,
+    mods_flag_in_bundle: bool | None,
+    custom_config_dir: bool,
+) -> dict[str, Any]:
+    """What this account and these settings say about each built-in plugin.
+
+    The binary gives each gate flag's default and `default_enabled`; this adds
+    the flag values cached for the account and any `enabledPlugins` entry for
+    the plugin's id, so a reader can tell whether a gate's default applies here.
+    """
+    gcfg_path = global_config_path(root, custom_config_dir)
+    gcfg = _load_json(gcfg_path)
+    cache = gcfg.get("cachedGrowthBookFeatures") if isinstance(gcfg, dict) else None
+    cache_read = isinstance(cache, dict)
+
+    def cached(flag: str) -> dict[str, Any]:
+        if not cache_read:
+            return {"cached": None, "cached_present": None}
+        return {"cached": cache.get(flag), "cached_present": flag in cache}
+
+    scopes = {
+        "user": root / "settings.json",
+        "project": project_root / ".claude" / "settings.json",
+        "local": project_root / ".claude" / "settings.local.json",
+    }
+    enabled: dict[str, dict[str, Any]] = {}
+    rejected: dict[str, list[str]] = {}
+    for scope, path in scopes.items():
+        data = _load_json(path)
+        found = data.get("enabledPlugins") if isinstance(data, dict) else None
+        found = found if isinstance(found, dict) else {}
+        # Claude Code drops every enabledPlugins entry of a file holding one
+        # non-Boolean value, so that scope decides nothing.
+        bad = sorted(k for k, v in found.items() if not isinstance(v, bool))
+        if bad:
+            rejected[scope] = bad
+            found = {}
+        enabled[scope] = found
+
+    out: dict[str, Any] = {}
+    for name, rec in sorted(plugins.items()):
+        pid = rec.get("id")
+        overrides = {s: m[pid] for s, m in enabled.items() if pid and pid in m}
+        out[name] = {
+            "id": pid,
+            "default_enabled": rec.get("default_enabled"),
+            "gate_flags": [
+                {**flag, **cached(flag["flag"])} for flag in rec.get("gate_flags") or []
+            ],
+            "enabled_overrides": overrides,
+            "enabled_setting": next(
+                (overrides[s] for s in _SETTINGS_PRECEDENCE if s in overrides), None
+            ),
+        }
+    return {
+        "global_config": str(gcfg_path) if gcfg is not None else None,
+        "flag_cache_read": cache_read,
+        "settings_read": sorted(s for s, p in scopes.items() if p.is_file()),
+        # Scope -> its non-Boolean keys: Claude Code ignores that whole map.
+        "enabled_plugins_rejected": rejected,
+        "mods_flag": {
+            "flag": MODS_ROLLOUT_FLAG,
+            "in_bundle": mods_flag_in_bundle,
+            **cached(MODS_ROLLOUT_FLAG),
+        },
+        "plugins": out,
+        "caveats": list(BUILTIN_STATE_CAVEATS),
+    }
+
+
 # --------------------------------------------------------------------------
 # Assembly
 # --------------------------------------------------------------------------
@@ -5304,6 +5400,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 agents, agent_notes = extract_builtin_agents(src, braces)
                 tools, tool_notes = extract_builtin_tools(src, braces)
                 plugins, plugin_notes = extract_builtin_plugins(src, braces)
+                plugin_notes["mods_flag_in_bundle"] = MODS_ROLLOUT_FLAG in src
                 plugin_backed = extract_plugin_backed(src)
 
                 for name, plugin in plugin_backed.items():
@@ -5360,10 +5457,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     if not args.binary_only:
+        root = Path(args.config_dir) if args.config_dir else config_dir()
         report["sources"]["disk"] = {"available": True}
-        report["disk"] = scan_disk(
-            Path(args.config_dir) if args.config_dir else config_dir()
-        )
+        report["disk"] = scan_disk(root)
 
         # Project scope is a third place components come from, and it is the one
         # that changes as you move between repos: a project's .claude tree adds
@@ -5377,6 +5473,14 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             if project_claude.is_dir()
             else {},
         }
+        if PLUGIN_LANE in report:
+            report["builtin_plugin_state"] = builtin_plugin_state(
+                report[PLUGIN_LANE],
+                root,
+                project_root,
+                report["builtin_plugin_notes"].get("mods_flag_in_bundle"),
+                bool(args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR")),
+            )
 
     return report
 

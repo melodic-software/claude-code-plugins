@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1] - 2026-10-02
+## [0.17.2] - 2026-10-02
 
 ### Fixed
 
@@ -11,6 +11,15 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `AGENTS.md` is unread, and date the provider and telemetry gap to versions before 2.1.281.
 - `migrate`'s record of the built-in `agents-md` plugin notes the legacy `projectInstructions`
   key, which still sets the mode while `instructionFiles` is at its default.
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- The `migrate` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.17.0] - 2026-10-01
 

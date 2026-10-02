@@ -27,6 +27,16 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   `audit-instructions` I14 and its conflict criteria no longer treat a hooks setting as turning
   `AGENTS.md` off.
 
+## [1.1.1] - 2026-10-02
+
+### Fixed
+
+- The `draft-auto-mode-rules` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|` and drops the prose after the grammar, which the
+  skill body now carries.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [1.1.0] - 2026-10-01
 
 ### Added

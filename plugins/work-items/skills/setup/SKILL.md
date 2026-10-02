@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
-argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
+argument-hint: "[check|apply] [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
 ---

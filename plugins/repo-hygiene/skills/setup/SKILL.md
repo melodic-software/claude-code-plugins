@@ -1,6 +1,6 @@
 ---
 description: "Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. The prerequisites are `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, `node`, which launches the destructive guard, and the optional `ghq` the fleet batch actions enumerate repositories from. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
