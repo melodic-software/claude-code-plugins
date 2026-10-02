@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect scores a built-in plugin surface whose name an earlier lane
+  entry held but was filtered out.** Building the native index marked a name seen before
+  dropping an empty or `internal` entry, so a later built-in plugin or plugin component of the
+  same name was skipped as a duplicate and its overlap candidates were never produced. A name
+  is now marked seen only when its entry is kept. On the 2.1.287 extraction the candidate
+  report is unchanged, since no name there collides that way.
+
 ## [1.0.1] - 2026-10-01
 
 ### Added

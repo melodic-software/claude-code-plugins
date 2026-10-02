@@ -465,10 +465,10 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
         for name, entry in payload.items():
             if lane == PLUGIN_COMPONENT_LANE and name in seen:
                 continue
-            seen.add(name)
             registrations = registrations_of(entry)
             if not registrations or any(r.get("internal") for r in registrations):
                 continue
+            seen.add(name)
             # A plugin-backed name the extractor enriched in this lane is one
             # surface, scored once, under the plugin-backed class.
             klass, source = (
