@@ -1,6 +1,6 @@
 ---
 description: "Verify the powershell-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up powershell-format', 'configure powershell-format', 'is powershell-format working', PowerShell formatting or linting silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash

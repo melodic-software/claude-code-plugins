@@ -4,10 +4,10 @@ user-invocable: true
 disable-model-invocation: true
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/setup-config.sh:*)
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--skip <name>]..."
+argument-hint: "[check|apply] [--config <path>] [--root <dir>]... [--repo <dir>]... [--skip <name>]..."
 ---
 
-**Arguments.** `check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--skip <name>]...`. Full form: check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>]
+**Arguments.** `[check|apply] [--config <path>] [--root <dir>]... [--repo <dir>]... [--skip <name>]...`. Full form: [check|apply] [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>]
 
 ## Purpose
 

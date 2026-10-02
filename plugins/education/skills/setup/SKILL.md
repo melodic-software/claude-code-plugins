@@ -1,6 +1,6 @@
 ---
 description: "Validate the education plugin's quiz, report-library, and teach workspace-root configuration and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up education', 'configure education', 'education setup', quiz offers feel wrong, report recall cannot find prior quizzes, or teach workspaces land somewhere unexpected. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

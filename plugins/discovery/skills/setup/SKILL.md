@@ -1,6 +1,6 @@
 ---
 description: "Verify the discovery plugin's runtime prerequisites for this session and print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', or a discovery skill reports a missing capability. Action: check (read-only, default). Re-runnable. Safe to invoke again."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

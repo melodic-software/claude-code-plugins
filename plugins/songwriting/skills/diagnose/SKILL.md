@@ -1,11 +1,11 @@
 ---
 description: "Review, audit, and rewrite a lyric with Pat Pattison's methods. Demo review at any completion stage, full-draft diagnosis against the five compositional elements and stable/unstable analysis, the pre-lock line/section audit checklist (tools, not gates), labeled variations across six axes, and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
-argument-hint: "[action] [args]"
+argument-hint: "[diagnose|demo|audit|variations|rewrite] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[action] [args]`. e.g., /songwriting:diagnose, /songwriting:diagnose audit "...", /songwriting:diagnose variations "..." Full actions in body
+**Arguments.** `[diagnose|demo|audit|variations|rewrite] [args]`. e.g., /songwriting:diagnose, /songwriting:diagnose audit "...", /songwriting:diagnose variations "..." Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 

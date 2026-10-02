@@ -37,6 +37,15 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   loads under that value, so `UNWIRED` stays a finding there; the migrate skill body and the
   `render-index.sh` comment now say so.
 
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- The `migrate` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.17.0] - 2026-10-01
 
 ### Added

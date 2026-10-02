@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the code-tidying plugin for this repository. check inspects the tracked .claude/tidy-lanes/<lane>.md project lanes and the optional .claude/code-tidying/exclusion-overrides.md read-only (presence, required sections, unreplaced placeholders, override glob shape and protection collisions, tracked-not-ignored) and reports the stored hard_exclusions posture; apply interviews the repo, infers which lane patterns fit, and scaffolds project lane files from the bundled templates. Use when: 'set up code-tidying', 'is code-tidying configured', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', 'override the tidy exclusions for this repo', or the tidy skill reports no project lanes. Re-runnable. Safe to invoke again to add or retune lanes."
-argument-hint: "check | apply [<lane>]"
+argument-hint: "[check|apply] [<lane>]"
 user-invocable: true
 disable-model-invocation: true
 ---

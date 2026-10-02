@@ -1,6 +1,6 @@
 ---
 description: "Discovers this machine's facts and identity domains, stores them as a re-runnable profile, and reports drift between the stored profile and the host now. Read-only unless the operator confirms a write. Use when: 'machine profile', 'profile this machine', 'what does this host have configured', 'has this machine changed', 'diff my machine profile', 'which identity domains exist here', 'hand my machine facts to setup'. Never installs and never reapplies a stored value on its own."
-argument-hint: "[profile | diff | explain <key> | apply --option <key>]"
+argument-hint: "[profile|diff|explain <key>|apply --option <key>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

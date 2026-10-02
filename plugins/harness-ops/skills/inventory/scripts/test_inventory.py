@@ -11,9 +11,11 @@ Run: python3 test_inventory.py
 
 from __future__ import annotations
 
+import json
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 import inventory as inv
 
@@ -2980,6 +2982,164 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertEqual(notes["loaded_not_registered"], ["cc-plugin-claude-test"])
         got = self._integrity(plugins, notes)
         self.assertEqual(got["lanes"][inv.PLUGIN_LANE]["status"], "degraded")
+
+
+class TestBuiltinPluginState(unittest.TestCase):
+    PLUGINS = {
+        "cc-plugin-diff": {
+            "id": "cc-plugin-diff@builtin",
+            "default_enabled": True,
+            "gate_flags": [{"flag": "tengu_quiet_dolphin", "default": True}],
+        },
+        "cc-plugin-mermaid": {
+            "id": "cc-plugin-mermaid@builtin",
+            "default_enabled": True,
+            "gate_flags": [{"flag": "tengu_mermaid_mod", "default": False}],
+        },
+    }
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.home = pathlib.Path(tmp.name)
+        self.root = self.home / ".claude"
+        self.project = self.home / "repo"
+        (self.project / ".claude").mkdir(parents=True)
+        self.root.mkdir()
+        home = mock.patch.object(inv.Path, "home", return_value=self.home)
+        home.start()
+        self.addCleanup(home.stop)
+
+    def write(self, path: pathlib.Path, data: object) -> None:
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+    def state(self, root: pathlib.Path | None = None, custom: bool = False) -> dict:
+        return inv.builtin_plugin_state(
+            self.PLUGINS, root or self.root, self.project, True, custom
+        )
+
+    def test_cached_flag_values_sit_beside_each_default(self) -> None:
+        self.write(
+            self.home / ".claude.json",
+            {
+                "cachedGrowthBookFeatures": {
+                    "tengu_quiet_dolphin": False,
+                    "tengu_plugin_hooks_modules": True,
+                }
+            },
+        )
+        got = self.state()
+        self.assertEqual(
+            got["plugins"]["cc-plugin-diff"]["gate_flags"],
+            [
+                {
+                    "flag": "tengu_quiet_dolphin",
+                    "default": True,
+                    "cached": False,
+                    "cached_present": True,
+                }
+            ],
+        )
+        # An absent key means the in-binary default applies, not "false".
+        mermaid = got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]
+        self.assertEqual((mermaid["cached"], mermaid["cached_present"]), (None, False))
+        self.assertEqual(
+            got["mods_flag"],
+            {
+                "flag": "tengu_plugin_hooks_modules",
+                "in_bundle": True,
+                "cached": True,
+                "cached_present": True,
+            },
+        )
+        self.assertTrue(any("pinnedFeatureValues" in c for c in got["caveats"]))
+
+    def test_a_custom_config_dir_holds_its_own_global_config(self) -> None:
+        self.write(self.home / ".claude.json", {"cachedGrowthBookFeatures": {}})
+        self.write(
+            self.root / ".claude.json",
+            {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
+        )
+        got = self.state(custom=True)
+        self.assertEqual(got["global_config"], str(self.root / ".claude.json"))
+        self.assertTrue(got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]["cached"])
+
+    def test_a_custom_config_dir_never_reads_its_parent(self) -> None:
+        # `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: a custom dir with no
+        # global config of its own has none, whatever sits beside it.
+        custom = self.home / "profiles" / "work"
+        custom.mkdir(parents=True)
+        self.write(
+            custom.parent / ".claude.json",
+            {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
+        )
+        got = self.state(root=custom, custom=True)
+        self.assertFalse(got["flag_cache_read"])
+        self.assertIsNone(got["global_config"])
+
+    def test_the_default_config_dir_reads_home(self) -> None:
+        self.write(self.root / ".claude.json", {"cachedGrowthBookFeatures": {}})
+        self.write(
+            self.home / ".claude.json",
+            {"cachedGrowthBookFeatures": {"tengu_mermaid_mod": True}},
+        )
+        got = self.state()
+        self.assertEqual(got["global_config"], str(self.home / ".claude.json"))
+        self.assertTrue(got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]["cached"])
+
+    def test_a_non_boolean_value_voids_that_files_enabled_plugins(self) -> None:
+        pid = "cc-plugin-mermaid@builtin"
+        self.write(self.root / "settings.json", {"enabledPlugins": {pid: True}})
+        self.write(
+            self.project / ".claude" / "settings.json",
+            {"enabledPlugins": {pid: False, "other@m": "yes"}},
+        )
+        got = self.state()
+        self.assertEqual(got["enabled_plugins_rejected"], {"project": ["other@m"]})
+        mermaid = got["plugins"]["cc-plugin-mermaid"]
+        self.assertEqual(mermaid["enabled_overrides"], {"user": True})
+        self.assertIs(mermaid["enabled_setting"], True)
+
+    def test_no_flag_cache_is_unknown_not_absent(self) -> None:
+        got = self.state()
+        self.assertFalse(got["flag_cache_read"])
+        self.assertIsNone(got["global_config"])
+        flag = got["plugins"]["cc-plugin-diff"]["gate_flags"][0]
+        self.assertIsNone(flag["cached_present"])
+
+    def test_local_settings_win_over_project_and_user(self) -> None:
+        pid = "cc-plugin-mermaid@builtin"
+        self.write(self.root / "settings.json", {"enabledPlugins": {pid: True}})
+        self.write(
+            self.project / ".claude" / "settings.json",
+            {"enabledPlugins": {pid: False}},
+        )
+        self.write(
+            self.project / ".claude" / "settings.local.json",
+            {"enabledPlugins": {pid: True}},
+        )
+        got = self.state()
+        mermaid = got["plugins"]["cc-plugin-mermaid"]
+        self.assertEqual(
+            mermaid["enabled_overrides"],
+            {"user": True, "project": False, "local": True},
+        )
+        self.assertIs(mermaid["enabled_setting"], True)
+        self.assertEqual(got["settings_read"], ["local", "project", "user"])
+        diff = got["plugins"]["cc-plugin-diff"]
+        self.assertEqual(diff["enabled_overrides"], {})
+        self.assertIsNone(diff["enabled_setting"])
+
+    def test_project_beats_user_when_local_is_silent(self) -> None:
+        pid = "cc-plugin-diff@builtin"
+        self.write(self.root / "settings.json", {"enabledPlugins": {pid: True}})
+        self.write(
+            self.project / ".claude" / "settings.json",
+            {"enabledPlugins": {pid: False}},
+        )
+        self.assertIs(
+            self.state()["plugins"]["cc-plugin-diff"]["enabled_setting"], False
+        )
 
 
 if __name__ == "__main__":

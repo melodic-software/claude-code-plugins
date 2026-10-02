@@ -1,6 +1,6 @@
 ---
 description: "Verify the computer-use plugin's prerequisites and report the environment settings that end a screen-control session mid-run. Use when: 'set up computer use', 'is computer use working', 'why did my computer use session die', 'check computer use', 'computer use preflight', or before a long unattended screen-control run. Action: check (read-only, default). It probes the surface, the tool availability, and the idle/screensaver/sleep timeouts that no amount of Claude activity can hold off, then reports PASS/FAIL/INFO with one remediation line each. Check-only by contract: every prerequisite is external or a system setting this plugin must not write."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

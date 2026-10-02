@@ -3,6 +3,15 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.13] - 2026-10-02
+
+### Fixed
+
+- The `eli5`, `explain`, and `quiz-me` argument hints use Claude Code's official bracket notation:
+  each drops the prose after the grammar, which the skill body now carries.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.11.12] - 2026-10-01
 
 ### Changed
