@@ -105,6 +105,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The harness-ops inventory's parser packages (acorn, eslint-scope). Nothing is
+  # vendored: the committed lockfile is what `npm ci` installs on first use
+  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  - package-ecosystem: npm
+    directory: /plugins/harness-ops/skills/inventory/scripts/js
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
   # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip

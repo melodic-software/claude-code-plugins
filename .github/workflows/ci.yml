@@ -1685,6 +1685,7 @@ jobs:
             plugins/ai-briefing/skills/generate/output/build/package-lock.json
             plugins/knowledge/skills/video-digest/extraction/package-lock.json
             plugins/knowledge/skills/course-digest/extraction/package-lock.json
+            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         if: needs.changes.outputs.run_tests == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -1739,6 +1740,11 @@ jobs:
             --requirement .github/requirements-ci-animation.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # The inventory's parser packages, installed the way a first
+          # --reader=parser run installs them (npm ci from the committed
+          # lockfile, here into the checkout's .work/), so test_fixture_parse.py
+          # and test_parser_reader.py run instead of skipping.
+          python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
       # The harness-ops observability suites (prune-otel-store, hook-latency) query
       # fixture stores with the DuckDB CLI and skip those cases without it.
       - name: Install DuckDB CLI
@@ -1804,6 +1810,8 @@ jobs:
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
           # The animation suites fail on a missing numpy or opencv here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
+          # The inventory parser suites fail on a missing acorn here instead of skipping green.
+          INVENTORY_REQUIRE_ACORN: '1'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"

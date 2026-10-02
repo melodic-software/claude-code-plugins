@@ -63,6 +63,18 @@ class TestClassification(unittest.TestCase):
         old, new = _report(path="/a"), _report(path="/b")
         self.assertEqual(_classes(old, new), {AGENT + "/path": "value->value"})
 
+    def test_a_key_that_only_starts_with_sources_is_compared(self) -> None:
+        old, new = _report(), _report()
+        old["sources_summary"] = {"path": "/a", "elapsed_seconds": 1.0}
+        new["sources_summary"] = {"path": "/b", "elapsed_seconds": 2.0}
+        self.assertEqual(
+            _classes(old, new),
+            {
+                "/sources_summary/path": "value->value",
+                "/sources_summary/elapsed_seconds": "value->value",
+            },
+        )
+
     def test_a_concrete_value_that_changes_is_value_to_value_and_fails(self) -> None:
         result = cr.compare(_report(), _report(description="Slow search"))
         self.assertEqual(
@@ -96,10 +108,31 @@ class TestClassification(unittest.TestCase):
         )
 
     def test_an_ellipsis_element_marks_a_list_unresolved(self) -> None:
-        old = _report(disallowed_tools=["…", "Agent"])
+        old, new = {"names": ["…", "Agent"]}, {"names": ["Agent", "Edit"]}
+        self.assertEqual(_classes(old, new), {"/names": "unresolved->resolved"})
+
+    def test_a_literal_value_holding_an_ellipsis_is_resolved(self) -> None:
+        # The source says the text was read as written, so `…` is a
+        # character in it, not the reader's placeholder (#5754 review).
+        old = _report(description="Wait…", description_source="literal")
+        new = _report(description="Wait!", description_source="literal")
+        result = cr.compare(old, new)
         self.assertEqual(
-            _classes(old, _report()),
-            {AGENT + "/disallowed_tools": "unresolved->resolved"},
+            {r["pointer"]: r["class"] for r in result["changes"]},
+            {AGENT + "/description": "value->value"},
+        )
+        self.assertTrue(result["failed"])
+        old = _report(description="More…", description_source="frontmatter")
+        new = _report(description="Less", description_source="frontmatter")
+        self.assertEqual(_classes(old, new), {AGENT + "/description": "value->value"})
+
+    def test_a_constant_holding_an_ellipsis_stays_unresolved(self) -> None:
+        # A constant can carry a template substitution, so its `…` is still
+        # the placeholder.
+        old = _report(description="Use … here", description_source="constant")
+        self.assertEqual(
+            _classes(old, _report(description="Use Grep here")),
+            {AGENT + "/description": "unresolved->resolved"},
         )
 
     def test_an_element_holding_an_ellipsis_marks_a_list_unresolved(self) -> None:
@@ -148,6 +181,12 @@ class TestClassification(unittest.TestCase):
 
     def test_a_type_change_is_a_change(self) -> None:
         self.assertEqual(_classes({"n": 1}, {"n": True}), {"/n": "value->value"})
+
+    def test_a_type_change_inside_a_scalar_list_is_a_change(self) -> None:
+        # Python has [1] == [True] and [0] == [0.0]; JSON does not.
+        self.assertEqual(_classes({"n": [1]}, {"n": [True]}), {"/n": "value->value"})
+        self.assertEqual(_classes({"n": [0]}, {"n": [0.0]}), {"/n": "value->value"})
+        self.assertEqual(_classes({"n": [1, "a"]}, {"n": [1, "a"]}), {})
 
     def test_pointer_segments_are_escaped(self) -> None:
         self.assertEqual(
