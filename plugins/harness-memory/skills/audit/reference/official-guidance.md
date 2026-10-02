@@ -306,7 +306,8 @@ The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`
 `AGENTS.md` support is available, or through a `CLAUDE.md` that imports or symlinks it, on that
 `CLAUDE.md`'s row. Read directly, it fires no `InstructionsLoaded` hook, and `/memory` lists it
 from v2.1.280 (before that, `/memory` and `/context` did not); imported, it behaves as part of its
-`CLAUDE.md`.
+`CLAUDE.md`. No hooks setting makes direct support unavailable: the loader is a built-in mod, and
+the audit never counts `disableAllHooks` or `allowManagedHooksOnly` against it.
 
 - **Pointer**: for when an `AGENTS.md` is read, when support is unavailable, and how it differs
   from `CLAUDE.md`, see [AGENTS.md](https://code.claude.com/docs/en/memory#agents-md),
@@ -314,11 +315,13 @@ from v2.1.280 (before that, `/memory` and `/context` did not); imported, it beha
   [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable),
   [Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md)
   and the "My AGENTS.md isn't loading" entry under
-  [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues).
-- **As of**: 2026-09-29
+  [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues);
+  for which settings stop built-in mods, the "Mods built into Claude Code" section of
+  <https://code.claude.com/docs/en/plugins/mods/overview>.
+- **As of**: 2026-09-29 for the memory page; 2026-10-01 for the mods overview
 - **Recheck trigger**: those sections change which file names displace an `AGENTS.md` or which
-  sessions lack support, the `/memory` listing or the difference table changes, or a release note
-  names `AGENTS.md`.
+  sessions lack support, the `/memory` listing or the difference table changes, the mods overview
+  changes which settings stop a built-in mod, or a release note names `AGENTS.md`.
 
 ## No official scoring rubric
 

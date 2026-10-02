@@ -131,6 +131,11 @@ complete set.
   a finding on its own.
   Category B's third baseline narrowing depends on this reading: it may not downgrade a missing deny
   rule on the strength of a hook any of these has already disabled
+- **Mod-plane keys are read and reported** (`D/mod-plane` rows): `prependPlugins`,
+  `appendPlugins`, `disableSideloadFlags`, and the built-in guard's `allowManagedModsOnly` and
+  `allowModsToOverrideDenyRules`. They govern mods, not settings hooks, so they never feed the
+  narrowing. A copy in a scope Claude Code does not read for the key is an `info` finding. The
+  scope rules and their four-part record are in the Category D checklist row
 
 ## Category E: Plugins
 

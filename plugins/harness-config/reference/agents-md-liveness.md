@@ -34,6 +34,21 @@ For such a session the remedy we recommend is a `CLAUDE.md` that imports the `AG
 - **Recheck trigger**: a condition is added to or removed from that section's list, a version
   floor in it moves, or its remedy changes.
 
+**No hooks setting is an availability condition.** `agents-md@builtin` is a built-in mod, so our
+checks never count `disableAllHooks`, `allowManagedHooksOnly`, `--bare` or `--safe-mode` against
+it. A session that loads no instruction files at all (`--bare` without `--add-dir`, `--safe-mode`,
+`CLAUDE_CODE_DISABLE_CLAUDE_MDS`) reads no `AGENTS.md` either.
+
+- **Pointer**: for which settings stop built-in mods, see the "Mods built into Claude Code"
+  section of <https://code.claude.com/docs/en/plugins/mods/overview> and the "What runs under
+  `allowManagedHooksOnly`" section of <https://code.claude.com/docs/en/settings-reference>; for the
+  plugin's own statement, its
+  [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md) at commit
+  `2282079d6ac8`.
+- **As of**: 2026-10-01
+- **Recheck trigger**: the overview's built-in-mods section or the README's settings paragraph
+  changes.
+
 **Two of the three resolve from what this plugin already reads.** Condition 1 is a version
 comparison, plus the provider and telemetry configuration on a CLI between the two floors.
 Condition 2 is whether the built-in `agents-md` plugin is enabled, which the permission-and-settings
@@ -75,6 +90,49 @@ in project and local settings files.
 Because the honored scopes are user, `--settings` and managed, resolve the **effective** value
 across them. Reading one scope answers the wrong question in both directions: a user scope naming
 the default can be overridden by a managed one, and the reverse.
+
+**The legacy key still counts.** Read `projectInstructions` under the same `agents-md@builtin`
+entry as well as `instructionFiles`:
+
+- **Claim**: the option was first keyed `projectInstructions`, with the values `claude`,
+  `agents-fallback`, `both` and `none`. While `instructionFiles` reads as its default, a stored
+  `projectInstructions` value is honored: `none` as `managed-only`, `claude` as `claude-md`,
+  `agents-fallback` as `claude-md-or-agents-md`, `both` as `claude-md-and-agents-md`, and any other
+  value as `claude-md`. Once `instructionFiles` is set to anything but its default, the old key is
+  not read, and the session says so: "option projectInstructions in settings is not read:
+  instructionFiles ... is set; remove projectInstructions".
+- **Basis**: the
+  [plugin's README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md),
+  "Setting the option", commit `2282079d6ac8` (2026-09-30), read 2026-10-01; the quoted warning
+  is a string in the Claude Code 2.1.287 binary. The memory page does not mention the old key.
+- **As of**: 2026-10-01, Claude Code 2.1.287.
+- **Recheck trigger**: the README drops or changes the paragraph, or a release note removes
+  `projectInstructions`.
+
+So a `projectInstructions` value with no `instructionFiles` beside it sets the effective mode, and
+`none` or an unknown value makes `AGENTS.md` unread.
+
+## Where a read `AGENTS.md` differs from a `CLAUDE.md`
+
+- **Claim**: an `AGENTS.md` read through the **Project instructions** setting differs from a
+  `CLAUDE.md` in three documented places. `InstructionsLoaded` hooks don't fire for it (they do for
+  an `AGENTS.md` a `CLAUDE.md` imports or symlinks to). Directories added with `--add-dir` while
+  `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is set load their `CLAUDE.md` but not their
+  `AGENTS.md`. An `@path` import of a file outside the working directory loads "only if you already
+  approved external imports for this project, with no prompt". A nested `AGENTS.md` attaches when
+  Claude opens a file in its directory with the Read tool.
+- **Basis**: <https://code.claude.com/docs/en/memory>, "Where AGENTS.md differs from CLAUDE.md"
+  table and "When Claude Code reads AGENTS.md", fetched 2026-10-01. The plugin's README lists more
+  loader differences under "Where it still differs from CLAUDE.md", such as a nested file attaching
+  on a text `Read` only, not on an `@`-mention or an IDE selection; where it and the memory page
+  disagree (the README says `/memory` does not know `AGENTS.md` files; the memory page says to run
+  `/memory` to check one, and that only versions before v2.1.280 omitted it), the memory page wins.
+- **As of**: 2026-10-01.
+- **Recheck trigger**: a row is added to or removed from that table.
+
+What this changes for a check: an `AGENTS.md` under an `--add-dir` directory is never a live
+surface on its own, and an `InstructionsLoaded` hook log is no evidence that a natively read
+`AGENTS.md` did or did not load.
 
 ## What a check does with an unresolved condition
 
