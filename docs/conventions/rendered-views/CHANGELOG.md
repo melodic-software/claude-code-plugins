@@ -1,8 +1,26 @@
 # Changelog for the Rendered Views Convention
 
-Notable changes to the rendered-views contract. The contract is not SemVer-
-versioned; this log records posture rulings that do not change the boundary
-rule, genre rubric, or cascade keys.
+Notable changes to the rendered-views contract. The contract is not
+versioned; this log records each change to it.
+
+## Tiers and content classes, 2026-10-02
+
+- **Views gain tiers, content classes, and a validator profile (#5851).** Four
+  tiers (static, client-interactive, animated, Claude-interactive), with
+  person-facing views interactive by default and reports allowed to stay static.
+  Content classes K0 (session-authored) and K1 (this repo's files) may use
+  model-written script; K2 (attacker-controllable text) is builder-only: a
+  checked-in template plus escaped JSON data. The interactive validator profile
+  is specified for the shared builder. New rung guidance says when text beats a
+  diagram, a page, or a video.
+- **Three amendments.** The boundary rule now names video and audio as views and
+  emits person-facing views interactive by default; dual-audience reports still
+  offer. The generator-skill ban becomes "no generic HTML skill; thin
+  intent-named skills allowed". The pull-request digest ships `medium: artifact`
+  as its default.
+- **Record bundle.** The new
+  [record-bundle convention](../record-bundle/README.md) holds a record with its
+  diagrams and media; views are written outside it.
 
 ## Escape helper, 2026-09-28
 

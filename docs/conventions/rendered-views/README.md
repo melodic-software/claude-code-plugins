@@ -1,32 +1,177 @@
 # Rendered Views Convention
 
-The marketplace-wide contract for person-facing rendered HTML views: when a skill's
+The marketplace-wide contract for person-facing rendered views: when a skill's
 deliverable defaults to a self-contained HTML page, when it stays markdown or terminal
-output, how the choice is overridden, and what every rendered view owes for security and
-accessibility. Adopted from the "Unreasonable Effectiveness of HTML" corpus (the article,
+output, how interactive a view is, which content may carry model-written script, how the
+choice is overridden, and what every rendered view owes for security and accessibility.
+Adopted from the "Unreasonable Effectiveness of HTML" corpus (the article,
 its example gallery, and the "Know your unknowns" collection) through a full interview,
 stress-test, and validation chain; the decision record travels with the pull request that
 introduced this document.
 
 This directory is the source of truth for the concern. The shared chrome and token
 reference lives in the adopting plugins (canonical copy:
-`plugins/visualization/reference/html-chrome.html`). Posture rulings that do not
-change the boundary rule live in `CHANGELOG.md`.
+`plugins/visualization/reference/html-chrome.html`). Where a record and the
+diagrams and media it cites live together is the
+[record-bundle convention](../record-bundle/README.md). Notable changes to this
+contract are logged in `CHANGELOG.md`.
 
 ## The boundary rule
 
-**Markdown is the record. HTML is an optional rendered view of a record kept elsewhere.**
+**Markdown is the record. HTML, video, and audio are views of a record kept elsewhere.**
 
 - Pipeline and agent-read artifacts (ledgers, checklists, handoffs, digests, findings a
-  later pass consumes) are always markdown. Nothing downstream ever re-reads an HTML view,
-  and no view may sit beside the record it renders.
-- A deliverable in one of the corpus genres (see the rubric below) defaults to a
-  self-contained local HTML view only when BOTH hold: the next consumer is a person, and
-  the environment can serve a viewable file.
+  later pass consumes) are always markdown. Nothing downstream ever re-reads a view, and
+  no view may sit beside the record it renders: a view is written outside the record's
+  [record bundle](../record-bundle/README.md).
+- A person-facing deliverable in one of the corpus genres (see the rubric below) emits
+  an interactive view by default, tailored to its use case (see View tiers), when BOTH
+  hold: the next consumer is a person, and the environment can serve a viewable file.
 - A dual-audience report, one that another agent pass re-reads (audit findings feeding a
   fix pass, scan results feeding triage, quiz records feeding recall), OFFERS the view
   instead of emitting it by default. The markdown record is the deliverable; the view is
   an option.
+
+## View tiers
+
+A view sits on one of four tiers. The tier is chosen per use case: the cheapest tier
+that lets the reader do what the view is for.
+
+| Tier | What the page does | Script |
+|---|---|---|
+| Static | Presents. Nothing on the page reacts to the reader. | None |
+| Client-interactive | Reacts to the reader inside the page: filter, sort, collapse, switch tabs, step through, answer a quiz, export state. | Runs in the page only; no network |
+| Animated | Moves on its own: timed or stepped motion that shows a process unfolding. | Runs in the page only; honors `prefers-reduced-motion` |
+| Claude-interactive | Sends the reader's input back to the session and shows the reply (questions to the author, a triage decision, a plan edit). | Page script plus the shared session transport (`session-bridge`), and nothing else on the network |
+
+- **Person-facing views are interactive by default.** A view whose next consumer is a
+  person starts at client-interactive and climbs only when the use case needs motion or
+  a round trip to the session.
+- **Reports may be static.** A report is read, not answered, so it may ship without
+  script. A report may still filter, collapse, or animate; what it never carries is a
+  loop-closure control (see Loop closure and the export obligation).
+- The tier never changes the record: every tier renders the same markdown record, and
+  the content-class rules below decide who may write the page's script.
+
+## Content classes
+
+Every view is classified by the most exposed text it renders. The class, not the tier,
+decides whether the model may write the page's script.
+
+| Class | Covers | May the model write the page's script? |
+|---|---|---|
+| K0 | Session-authored text: what the model and the user wrote in this session. | Yes |
+| K1 | This repository's own files. | Yes |
+| K2 | Attacker-controllable text: pull-request diffs, fetched web text, other repositories' files. | Never. Builder-only. |
+
+- **A page takes the highest class of anything it renders.** One K2 string makes the
+  whole page K2. When it is not clear whether a source is attacker-controllable, it is
+  K2.
+- **K2 is builder-only.** A K2 page is assembled by the checked-in builder from a
+  checked-in template plus the K2 text as escaped JSON data. The model chooses the
+  template and supplies the data; it never writes markup or script for a K2 page, at
+  any tier. The builder embeds the data as a JSON data block and the checked-in runtime
+  renders it through DOM text APIs, never as markup. The page passes the builder's
+  validator profile (see The interactive validator profile) before anyone opens it.
+- **K0 and K1 may use model-written script.** Such a page holds to the security baseline
+  below. It is outside the builder's validator profiles, so its safety rests on the
+  model keeping K2 text out of it; a page that later needs K2 text moves to the builder.
+- The class is a property of the rendered text, not of who asked for the view or where
+  it is published. Publishing a K2 page as an artifact does not lower its class.
+
+## The interactive validator profile
+
+This section is the specification the shared builder (`view-builder.mjs`, with its
+runtime `view-runtime.js` inlined into each page) implements. The builder validates every
+page it emits against one of two profiles and refuses to emit a page that fails.
+
+**Report profile.** The profile `validateRenderedPage` in `lib/html-escape.mjs` enforces
+today: an allowlist of text and table tags and of non-URL attributes, every text and
+attribute value escaped, no `<script>`, no URL-bearing attribute, and no `url(`,
+`@import`, `expression(`, or backslash escape inside `<style>`. A static K2 page uses it.
+
+**Interactive profile.** Everything the report profile requires, with exactly these
+additions:
+
+1. **One runtime script.** The page carries exactly one executable `<script>`, with no
+   `src` attribute, whose body is byte-identical to the shipped `view-runtime.js`. The
+   validator checks it by hash against the shipped copy; any other executable script
+   fails.
+2. **At most one data block.** `<script type="application/json">` with the builder's
+   fixed `id`. Its body parses as JSON and contains no raw `<`: the builder writes `<` as
+   `<`, so neither `</script` nor `<!--` can occur inside it. A non-JavaScript
+   `type` makes it a data block the browser does not execute.
+3. **A content security policy in the page.** The first element in `<head>` after the
+   charset is a `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`,
+   a `script-src` naming only the runtime's SHA-256 hash, and a `style-src` naming only
+   the hash of the page's one `<style>` element. A Claude-interactive page adds the
+   session transport's origin to `connect-src` and nothing else; `session-bridge` owns
+   that origin.
+4. **No inline handlers, no navigation.** No `on*` attribute, no `style` attribute, no
+   `<a href>`, `<form>`, `<iframe>`, `<object>`, `<embed>`, `<base>`, or `<link>`. A
+   URL-bearing attribute is allowed only as a same-document fragment reference (`#id`).
+   The runtime attaches every event listener.
+5. **Control tags.** The tag allowlist widens to the controls the runtime drives
+   (buttons, labels, checkbox, radio, search and range inputs, select, details and
+   summary, and neutral containers); attributes widen to `aria-*`, `role`, `data-*`,
+   `hidden`, `open`, `type`, `for`, and `value`, each value escaped.
+6. **An SVG allowlist.** Inline SVG is limited to shape, path, text, group, and
+   definition elements with geometry and presentation attributes. `<foreignObject>`,
+   `<script>`, `<image>`, `<use>`, `<a>`, and the SMIL animation elements (`<animate>`,
+   `<set>`, `<animateTransform>`, `<animateMotion>`) are refused, because each can load a
+   resource, run script, or rewrite an attribute such as `href` after validation. A
+   `url(...)` in a presentation attribute is allowed only as a fragment reference
+   (`url(#id)`). Motion in the animated tier comes from CSS or the runtime.
+7. **The same page in both hosts.** The runtime is a classic script with no imports, no
+   network access outside rule 3, and every storage access wrapped so the page renders
+   without it. The same file therefore behaves the same opened from `file://` and
+   published as an artifact.
+8. **A generator marker naming the profile.** The page carries the builder's generator
+   marker, which names the profile it was validated against, and the validator selects
+   the profile from it. The marker has no version: when the marker format changes, the
+   builder and every consumer of the old marker migrate in the same change.
+
+The builder's exact tag and attribute lists, and the hostile-input corpus that proves
+each refusal above, live with the builder. A change that widens an allowlist names the
+rule above it falls under; a widening no rule covers amends this section first.
+
+- **Claim:** a `<script>` whose `type` is not a JavaScript MIME type is a data block the
+  browser does not execute; the content of a script element must not contain `<!--` or
+  `<script`/`</script` sequences; a CSP with `default-src` or `script-src` blocks inline
+  event-handler attributes, and allows an inline `<script>` by hash.
+- **Basis:** WHATWG HTML living standard, "The script element" and "Restrictions for
+  contents of script elements"
+  (<https://html.spec.whatwg.org/multipage/scripting.html#the-script-element>, last
+  updated 2 October 2026); MDN, "Content Security Policy (CSP)"
+  (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP>), which also notes a
+  `<meta>`-delivered policy does not support every CSP feature, so rule 3 uses only
+  fetch directives.
+- **As of:** 2026-10-02.
+- **Recheck:** either page changes how a data block, script-content restrictions, or
+  hash-sourced inline script are defined, or the builder's first release finds a host
+  where rule 7 does not hold.
+
+## Choosing the rung: text, diagram, page, or video
+
+Each rung up costs more tokens, more generation time, and more of the reader's
+attention. Climb only when the rung below loses something the reader needs.
+
+- **Text** (the terminal reply, or the markdown record alone) when the answer is a
+  decision, a value, a command, or a short list the reader acts on where they are
+  reading. Most answers stop here.
+- **A diagram in the record** when the content is a structure that prose has to
+  serialize: a graph of dependencies, a sequence of calls, a state machine, a hierarchy.
+  The diagram's source lives in the record's bundle, so the record still carries it
+  without any view.
+- **A page** when the reader has to explore, compare, or answer: filter a long list,
+  set options side by side, walk a risk map, answer a quiz, or pick and send a choice
+  back. The genre rubric below still decides whether the deliverable gets a page lane.
+- **A video or narrated audio** when the meaning is in time-ordered motion the reader
+  will watch rather than scan: an algorithm stepping through its state, a flow of
+  requests over time. It is the costliest rung and always a view: the record carries the
+  same content as text and diagrams.
+
+Accessibility is a standing reason to step back down a rung; see Accessibility floor.
 
 ## Reachability and preference
 
@@ -56,8 +201,13 @@ Two sentences reconcile this with the local-first residence decision:
 2. The existing emitting surfaces are grandfathered on the shipped ladder until the
    priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
 
-Rendered views are untracked by default; publishing anywhere is optional and configured,
-never the default.
+One new lane is an exception to sentence 1, recorded here: the pull-request digest
+(`review:explain-change`) ships `medium: artifact` as its default. An operator who wants the digest local sets `medium: file`
+in their personal layer (`~/.claude/rendered-views.md` or the repo overlay); the
+cascade below resolves it like any other key.
+
+Rendered views are untracked by default; publishing anywhere else is optional and
+configured, never the default, except for the digest's recorded `artifact` default.
 
 Standing re-check trigger: cross-account and cross-subscription artifact sharing/editing
 was verified absent with no documented roadmap (docs current at Claude Code v2.1.252).
@@ -151,7 +301,8 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   drift-gated by `scripts/sync-html-escape.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
-  `/review:pr-explainer` is the first lane on that gate.
+  `/review:pr-explainer` is the first lane on that gate. Such a lane is K2 (see Content
+  classes); the shared builder carries the same helper and adds the interactive profile.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
   checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
@@ -239,7 +390,10 @@ owner declaration.
   `.claude/rendered-views.local.md`).
 - **Keys** (per-key override, declared here per the contract): `medium`, one of `auto`,
   `terminal`, `file`, `artifact`; the preferred rung for rendered views, applied within
-  reachability. Future keys are added here first.
+  reachability. Future keys are added here first. A lane's shipped default for `medium`
+  is the last tier of the ladder below; the digest's `artifact` default (see Default
+  ladder and its reconciliation) is one such shipped default, and any layer that sets
+  `medium` overrides it.
 - **No policy-floor class**: every key is a taste dial over deliverable presentation; a
   personal value weakens nothing another surface depends on (the `ai-slop` precedent).
   The default direction holds: the team layer refines user-global, the overlay is the
@@ -289,8 +443,11 @@ which is another cost of copying.
 
 ## What this convention does not do
 
-- It never makes HTML the record: the markdown record stays authoritative everywhere.
-- It adds no generic HTML-generating skill: each skill owns its genre's page shape, and
+- It never makes a view the record: the markdown record stays authoritative everywhere.
+- It adds no generic HTML skill, one whose job is "make a page" for any content. Thin
+  intent-named skills are allowed: a skill named for what the reader is trying to do
+  (`review:explain-change` explains a pull request) may emit a view as its deliverable,
+  owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces: that sweep is priced and tracked
   separately, gated on the userConfig smoke test.
