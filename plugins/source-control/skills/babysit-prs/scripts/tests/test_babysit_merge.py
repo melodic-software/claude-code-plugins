@@ -1341,13 +1341,18 @@ class AutoMergeArming(unittest.TestCase):
             "ready": ready,
             "blockers": ["pending checks: ci-status"],
             "headRefOid": HEAD,
+            "baseRef": "main",
+            "mergeAction": "direct_merge",
+            "stack": {"enabled": False, "member": False, "landsLowerLayers": False},
             "autoMerge": {"ready": auto_ready, "blockers": []},
         }
         calls: list[list[str]] = []
 
         def capture(cmd: list[str]) -> Any:
             calls.append(cmd)
-            return mock.Mock(returncode=0, stdout="", stderr="")
+            merged = json.dumps({"status": "merged", "details": {"message": "ok"}})
+            stdout = merged if "merge-async" in " ".join(cmd) else ""
+            return mock.Mock(returncode=0, stdout=stdout, stderr="")
 
         argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner", *extra]
         with (
@@ -1355,6 +1360,8 @@ class AutoMergeArming(unittest.TestCase):
             mock.patch.object(merge, "evaluate", return_value=result),
             mock.patch.object(merge, "allowed_method", return_value="squash"),
             mock.patch.object(merge, "gh_capture", side_effect=capture),
+            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(merge, "pull_request_merged", return_value=True),
             contextlib.redirect_stdout(io.StringIO()) as out,
         ):
             code = merge.main()
@@ -1390,7 +1397,10 @@ class AutoMergeArming(unittest.TestCase):
         code, calls = self._main(True, *args, ready=True)
         self.assertEqual(code, 0)
         self.assertTrue(self.output["merged"])
-        self.assertNotIn("--auto", calls[0])
+        self.assertEqual(self.output["action"], "merge")
+        [cmd] = calls
+        self.assertNotIn("--auto", cmd)
+        self.assertIn("repos/owner/repo/pulls/1/merge-async", cmd)
 
     def test_auto_without_merge_and_pin_is_refused(self) -> None:
         self.assertEqual(self._main(True, "--auto")[0], 2)
@@ -1497,6 +1507,9 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
                 "gh_capture",
                 return_value=mock.Mock(returncode=0, stdout="", stderr=""),
             ),
+            # Not the default branch: the merge stays on `gh pr merge`, which is
+            # the path these method-resolution tests read.
+            mock.patch.object(merge, "repository_default_branch", return_value=None),
             contextlib.redirect_stdout(out),
         ):
             code = merge.main()
