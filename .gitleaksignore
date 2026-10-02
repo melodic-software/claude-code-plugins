@@ -11,3 +11,4 @@
 # The vendored gitleaks rules file: this rule's regex is a literal prefix that
 # matches itself. The commit-less line is the `gitleaks dir` form.
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+b6de190d6dbbf4c8214a1547b302d26393bc13a0:plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
