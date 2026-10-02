@@ -21,9 +21,13 @@ still respects a body hold and human comments, so never override one. The hold c
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
 the next action. Stop and ask only when you can't continue without the user, or before anything
-destructive or outside this checkout: deleting data, force-pushing, pushing, merging, commenting on
-a PR or issue, touching another worktree or repo, a fleet host, or user-scope config. A task or
-loop prompt that explicitly authorizes one of those covers it. Launch unattended lanes with
+destructive or outside this checkout: deleting data, force-pushing, pushing, commenting on a
+PR or issue, touching another worktree or repo, a fleet host, or user-scope config. A task or
+loop prompt that explicitly authorizes one of those covers it. Merging is a judgment, not a fixed
+stop: merge when the user or the task wants the work landed, `ci-status` is green on the current
+head, and no hold applies (the `do-not-merge` label, a hold in the body, or a human comment asking
+to wait); ask first when any of those is missing, or when the change alters what agents may do
+unattended. Launch unattended lanes with
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
 in its lane telemetry and moves on. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
