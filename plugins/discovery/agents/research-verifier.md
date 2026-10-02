@@ -35,9 +35,10 @@ cited source for applicability rather than quote presence, and check that the an
 ## How you grade
 
 For each accepted claim in the sidecars, re-fetch the primary the claim's header names and confirm
-the quoted text is there. Then grade each row you were given against that claim. A quote found at
-its link settles only that the quote exists; it does not show the claim follows from it, which is
-the question row 12 asks.
+the quoted text is there. Then grade each row you were given against that claim. A claim labelled
+MEDIUM or LOW and listed in the Gaps section is not an accepted claim, so it does not fail row 7.
+A quote found at its link settles only that the quote exists; it does not show the claim follows
+from it, which is the question row 12 asks.
 
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)

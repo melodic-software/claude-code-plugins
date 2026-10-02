@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.23] - 2026-10-01
+
+### Changed
+
+- **Research outcome-gate row 7 now says a MEDIUM or LOW claim listed in the Gaps section is not an accepted claim.** An artifact whose every claim is so labelled and listed passes the row; the follow-up is "Iterate to HIGH or list as a Gap". `agents/research-verifier.md` states the same rule, and discipline 11 and Phase 4 in `skills/research/context/phases.md` end at HIGH confidence or a listed Gap. `scripts/contract.test.sh` asserts the row wording. Four redundant phrases earlier in `skills/research/SKILL.md` are shortened so the effort-ceiling sentence stays inside the first 20000 bytes.
+
 ## [0.25.21] - 2026-10-01
 
 ### Added

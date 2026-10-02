@@ -238,7 +238,7 @@ Version bumps and CHANGELOG entries for playbooks, planning, claude-config and i
 - `git diff --stat origin/main -- docs/decisions/` prints nothing.
 - Changelog parity: the four single-mode calls from Phase 5 each exit 0.
 
-### Phase 3: Research outcome-gate row 7 [TODO]
+### Phase 3: Research outcome-gate row 7 [DONE except step 4, the re-grade]
 
 Model: sonnet, through `scoped-implementer`.
 
