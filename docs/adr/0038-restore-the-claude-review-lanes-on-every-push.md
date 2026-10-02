@@ -156,8 +156,8 @@ quality, efficiency, and accuracy, and optimize performance, I approve." and "Wh
 do, I approve it." This narrows decisions 2 and 4.
 
 The reason is the concurrency limit. GitHub runs at most 60 Linux jobs at once for the org, and
-the operator will not pay to raise it. In the two peak windows measured on 2026-09-28 and
-2026-09-30, the two lanes held 15% and 24% of Linux runner time on this repository (code review
+the operator will not pay to raise it. In the two peak windows measured on 2026-09-30 and
+2026-09-28, the two lanes held 15% and 24% of Linux runner time on this repository (code review
 8.0% and 19.4%, security review 6.6% and 5.0%). Over 2026-09-30 to 2026-10-02 they ran 272 code
 reviews and 270 security reviews a day, 3.28 per pull-request branch, and every push to a ready
 pull request started 4 jobs.
@@ -188,4 +188,5 @@ sync-managed and pick it up with the sync that carries the re-pin.
 
 Revisit when a defect lands that an incremental review missed and a whole review of the same pull
 request would have flagged: restore whole reviews on `synchronize` (`incremental-review: false`
-on the callers) and record why.
+on the callers, with `incremental-review` added to both reusables' `allowedInputs` in the
+standards runner-policy contract, which allows only `runner` today) and record why.
