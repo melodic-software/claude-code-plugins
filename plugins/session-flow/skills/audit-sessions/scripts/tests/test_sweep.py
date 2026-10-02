@@ -168,6 +168,12 @@ def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):
     }
 
 
+def test_catalog_entries_match_with_or_without_leading_slash(data_dir):
+    write_store(data_dir, record("s1", **{"tools.interrupts": 1}))
+    found = findings_by_metric(envelope(sweep(data_dir, "--catalog", "/session-flow:retro")))
+    assert found["tools.interrupts"]["suggested_skill"] == "/session-flow:retro"
+
+
 def test_canary_lost_degrades_metric(data_dir, tmp_path):
     canaries = tmp_path / "canaries.json"
     canaries.write_text(

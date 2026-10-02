@@ -1,7 +1,7 @@
 # Plugin-data report keying, retention, and overwrite
 
 Version: 1.0.4
-Last updated: 2026-09-30
+Last updated: 2026-10-02
 
 A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`**:
 the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live

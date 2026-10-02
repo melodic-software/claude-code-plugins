@@ -28,8 +28,12 @@ are `YYYY-MM-DD`, UTC). Stop and name this accepted set on any other token; neve
 
 ## Paths
 
-- `D` is `${CLAUDE_PLUGIN_DATA}`. It substitutes in this text but is not exported to the Bash
-  tool, so pass it as a literal argument every time.
+- `D` is `${CLAUDE_PLUGIN_DATA}`. Pass it as a literal argument every time; never read it from
+  the Bash tool's environment.
+  - **Pointer**: <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: that table changes where `CLAUDE_PLUGIN_DATA` resolves in skill text or
+    the Bash tool.
 - The store and reports live under `D/audit-sessions/`; their layout, retention and schema
   versioning are in [reference/store-layout.md](reference/store-layout.md).
 - **Uninstall deletes the store.** Say so before the first collect on a machine: the store is the
