@@ -1,6 +1,6 @@
 ---
 description: "Verify that the Dometrain MCP tools are available to the Dometrain grounding skills, without reading or exposing any API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action). This plugin has no options and ships no server: the tools come from the dometrain-mcp plugin or from a user-scope dometrain server, so there is nothing an apply could write."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

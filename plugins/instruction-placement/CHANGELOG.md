@@ -3,12 +3,21 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1] - 2026-10-02
+## [0.17.2] - 2026-10-02
 
 ### Changed
 
 - **`remove-shims.sh` names the shim-doctrine floor by the current plugin id, `harness-memory`,
   only.**
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- The `migrate` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.17.0] - 2026-10-01
 

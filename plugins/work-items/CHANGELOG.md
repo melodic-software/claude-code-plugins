@@ -3,13 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.44.0] - 2026-10-01
+## [0.44.0] - 2026-10-02
 
 ### Changed
 
 - **BREAKING: the lane telemetry sentinel is `<!-- harness-ops:lane-telemetry marker=... -->`.**
   `lane-telemetry-upsert.sh` no longer finds a comment posted under the old `claude-ops:`
   sentinel and writes a new one; delete the old comment by hand.
+
+## [0.43.8] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `ship` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `track` `argument-hint` uses Claude Code's official bracket notation: it lists the actions the
+  skill accepts. The `track` arguments line now leads with the same hint and names `help` among the
+  actions.
 
 ## [0.43.7] - 2026-10-01
 

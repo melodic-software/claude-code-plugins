@@ -1,6 +1,6 @@
 ---
 description: "Draft a paste-ready `autoMode` classifier block by interviewing the user about what should and should not be auto-approved, each entry in the shape the classifier reads well and every section keeping `$defaults`. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', 'add an auto-mode rule for X', 'my auto mode rules are too vague', 'rewrite this classifier entry', or an audit shows rules dropped or ignored. Prints only, never writes a settings file."
-argument-hint: "[section]: environment | allow | soft_deny | hard_deny to focus the interview"
+argument-hint: "[environment|allow|soft_deny|hard_deny]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -61,7 +61,8 @@ in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
 ## Inputs, and one deliberate omission
 
 The draft is built from **the interview plus the effective merge** (`audit-permission-state`), and
-nothing else.
+nothing else. An optional argument, `environment`, `allow`, `soft_deny`, or `hard_deny`, names one
+section to focus the interview on.
 
 There is no history input: a read of "the repo's observed prompt and denial history" names no actual
 location, and an unnamed read surface in a skill shipped to consumers is unreviewable.

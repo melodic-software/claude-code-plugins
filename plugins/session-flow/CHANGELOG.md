@@ -1,5 +1,16 @@
 # Changelog: session-flow plugin
 
+## [0.44.3] - 2026-10-02
+
+### Fixed
+
+- The `orchestrate` and `running-retro` argument hints use Claude Code's official bracket notation:
+  each keeps alternatives inside brackets with an unspaced `|`.
+- The `retro` and `workflow` argument hints use Claude Code's official bracket notation: each lists
+  the actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
 ## [0.44.2] - 2026-10-01
 
 ### Changed

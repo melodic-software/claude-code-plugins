@@ -1,6 +1,6 @@
 ---
 description: "Report where verification artifacts land in this repository. check (read-only) names the memory root the verification skills resolve and whether the project's own instructions declare a different one; nothing is configured or written. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land'. Action: check (read-only, default). Re-runnable. Safe to invoke again."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

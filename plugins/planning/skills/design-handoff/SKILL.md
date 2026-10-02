@@ -1,6 +1,5 @@
 ---
 description: "Gate a finished design for /planning:plan: FAILs on any design thread left unresolved and untagged, then emits a coverage table, the plan-ready summary, and a resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'plan-ready summary', 'design gate', or design rounds stop surfacing gaps. Still exploring: /planning:design. Mid-session save-point: a session-handoff capability."
-argument-hint: "(no args; reads the design-threads artifact in the topic's design slice)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -25,6 +24,8 @@ contains git. The dated record for that composition claim is the worktree skill'
 ## Purpose
 
 The seam between design and planning. `/planning:plan`'s prerequisite check blocks on design-gate evidence; this skill produces that evidence honestly. A binary check read off the artifact, then a handoff summary sourced from the artifacts rather than recalled from conversation memory.
+
+Takes no arguments. It reads the design-threads artifact in the topic's design slice.
 
 Design artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:plan`).
 

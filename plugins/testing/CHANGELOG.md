@@ -3,13 +3,20 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.2] - 2026-10-01
+## [0.18.3] - 2026-10-02
 
 ### Changed
 
 - **The judge-calibration u16 case moves to `cases/u16/plugins/harness-ops/`, and the u31
   fixtures carry the `harness-ops:lane-telemetry` sentinel.** The `source` column keeps its
   commit-pinned `path@sha`, which resolves only under the path at that commit.
+
+## [0.18.2] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
 
 ## [0.18.1] - 2026-10-01
 

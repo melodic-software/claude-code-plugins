@@ -4,13 +4,25 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.16] - 2026-10-01
+## [0.14.17] - 2026-10-02
 
 ### Changed
 
 - **The README drops the "Migrating from the standalone `book-distill` plugin" note.** The
   marketplace no longer carries a `renames` map; an install naming `book-distill` must enable
   `knowledge` instead.
+
+## [0.14.16] - 2026-10-02
+
+### Fixed
+
+- The `course-digest` `argument-hint` uses Claude Code's official bracket notation: it lists the
+  actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `video-digest` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`. The action router gains an empty-argument row:
+  with no argument the skill names its actions and asks which to run.
 
 ## [0.14.15] - 2026-10-01
 

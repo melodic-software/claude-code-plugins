@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the planning plugin for this repository. check inspects read-only the standards index presence and the interview-rendering toggle; apply bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml). Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'set up standards', 'bootstrap the standards index', or a planning skill reports missing or thin config. Re-runnable. Safe to invoke again to reconfigure or migrate."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 ---

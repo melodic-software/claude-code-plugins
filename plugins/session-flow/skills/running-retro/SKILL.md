@@ -1,6 +1,6 @@
 ---
 description: "Take a mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, routed, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', or on a /loop interval. Scoring and codifying are /session-flow:retro."
-argument-hint: "[topic | arm]"
+argument-hint: "[topic|arm]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: In-flight retro checkpoint appended to a running ledger
 ---
 
-**Arguments.** `[topic | arm]`. e.g., /running-retro, /running-retro phase-3, /running-retro arm
+**Arguments.** `[topic|arm]`. e.g., /running-retro, /running-retro phase-3, /running-retro arm
 
 ## Context. Gather first
 
