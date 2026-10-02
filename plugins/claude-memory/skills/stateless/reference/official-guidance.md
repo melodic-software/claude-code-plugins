@@ -86,15 +86,7 @@ for an `autoMemoryDirectory` override.
   [Environment variables](https://code.claude.com/docs/en/env-vars), and
   [claude-directory](https://code.claude.com/docs/en/claude-directory#explore-the-directory).
 
-The directory holds a `MEMORY.md` index plus optional topic files:
-
-```text
-~/.claude/projects/<project>/memory/
-├── MEMORY.md          # Concise index, loaded into every session
-├── debugging.md       # Detailed notes on debugging patterns
-├── api-conventions.md # API design decisions
-└── ...                # Any other topic files Claude creates
-```
+The directory holds a `MEMORY.md` index plus topic files; the layout is in the Storage location section.
 
 This skill treats every file there as plain markdown a person may edit or delete. There is no
 auto-memory-only built-in command, so selective deletion is manual removal of these files.

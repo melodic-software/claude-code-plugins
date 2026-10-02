@@ -379,14 +379,15 @@ Versioning).
 
 ### Context × tier visibility matrix
 
-The worktree row describes a worktree Claude Code creates with its
-default base. A `--worktree` session and every subagent worktree branch
-from the repository's default branch on the remote: the official
-worktrees page (fetched 2026-09-02) documents the default, `"fresh"`,
-as branching from the repository's default branch on the remote,
-usually `main`, so the worktree starts from a clean tree matching the
-remote. Only when no remote is configured, or `origin/HEAD` is neither
-cached nor fetchable, does the worktree fall back to the local `HEAD`.
+The worktree row assumes Claude Code's default worktree base: a
+`--worktree` session and every subagent worktree start from the remote's
+default branch, not from the writing checkout's branch. The base options
+and their fallback stay behind the pointer.
+
+- **Pointer**: [Choose the base branch](https://code.claude.com/docs/en/worktrees#choose-the-base-branch)
+- **As of**: 2026-10-01
+- **Recheck trigger**: the default base stops starting from the remote default branch.
+
 The memory column assumes the consuming repo carries a
 `.worktreeinclude`; without one, the memory tier is plain invisible
 there.
@@ -409,15 +410,17 @@ document is visible **only in the checkout that wrote it** unless a
 
 Three native mechanisms, no custom machinery:
 
-- **`.worktreeinclude`**: repository root, `.gitignore` syntax; only
-  files that match a pattern *and* are gitignored are copied. The copy
+- **`.worktreeinclude`**: carries matching gitignored files into a new
+  worktree (which files qualify is behind the pointer below). The copy
   is **one-way at worktree-creation time**: later edits sync in neither
   direction, so carried files are read-only context, never a channel.
   Carry cross-checkout-useful memory files, keyed on the reserved names
   at any depth (slice indexes, stage indexes and sidecars, stage
-  ledgers); never baselines or raw scratch (machine-bound). Caveat: a `WorktreeCreate` hook replaces the default
-  worktree creation entirely and `.worktreeinclude` is **not
-  processed**. The hook script owns any copying.
+  ledgers); never baselines or raw scratch (machine-bound). A repository with a `WorktreeCreate`
+  hook gets no `.worktreeinclude` carry; its hook script owns any copying. Pointer:
+  [Copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees),
+  [WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate). As of: 2026-10-01.
+  Recheck trigger: either section changes which files qualify or whether the hook skips the file.
 - **By-value returns**: a worker running in its **own checkout**
   (subagent worktree, background session) returns its results **by
   value**; the orchestrating session writes the contract and durable

@@ -237,20 +237,14 @@ folder is accepted (the same gate that governs hooks).
 
 ## Subagent persistent memory
 
-The audit treats a subagent's `memory` field as naming a directory that keeps its contents between
-conversations, in one of three scopes:
-
-| Scope | Location | Use when |
-|-------|----------|----------|
-| `user` | `~/.claude/agent-memory/<name>/` | Learnings across all projects |
-| `project` | `.claude/agent-memory/<name>/` | Project-specific, shareable via version control |
-| `local` | `.claude/agent-memory-local/<name>/` | Project-specific, not checked in |
-
-- The same 200-line/25KB limit applies to a subagent's MEMORY.md.
-- `project` is the default scope we recommend.
-- Read, Write and Edit are enabled for memory management.
+The audit reads a subagent's `memory` field as one of the scopes the page defines and resolves
+each scope to the directory the page lists for it. It applies the same `MEMORY.md` load limit it
+applies to auto memory. It recommends `project` unless the agent's learnings must stay out of
+version control.
 
 - **Pointer**: [Enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the section adds or renames a scope, moves a directory, or changes its load limit.
 
 ## HTML comments
 

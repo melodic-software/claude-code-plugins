@@ -14,6 +14,9 @@
   no verifier. The workflow size anchor is re-derived (5 to 9 agents medium, 10 or more large, and
   read the size guideline in force), and the workflow-concurrency override is recorded.
 - `keep-going`'s `/usage` link follows the docs site's new heading id.
+- `orchestrate`'s delegation, spawn-spec and run-workers imperatives state our rules in our words:
+  the multi-agent post's brief elements and research multiplier sit behind a correlate note, and
+  the dispatch and reason guidance points at the Fable 5 guide's sections.
 
 ## [0.44.0] - 2026-10-01
 

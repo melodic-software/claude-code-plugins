@@ -37,17 +37,17 @@ Pointers behind each imperative: `context/sources.md`; observed failure modes:
 At each decision boundary in this task, evaluate these and ACT on a match without waiting to be
 told:
 
-1. DELEGATE / FAN OUT. Start with one agent (a single agent goes further than you expect);
-   delegate only when work would flood context, fans across genuinely independent paths, or needs a
-   tool-restricted specialist. Decompose by what CONTEXT each piece needs, not by head-count or
-   work-type. Sequential or shared-context steps stay in one agent. Coding parallelizes less than
-   research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
-   cost context too), so spend it on value + parallelism, not convenience. That range is this
-   plugin's own operating figure and it is the floor, not the ceiling: when the fan-out is
-   research-shaped, size the spend against roughly 15× a single chat's tokens. Pointer: for
-   multi-agent token cost, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>
-   (correlate with <https://www.anthropic.com/engineering/multi-agent-research-system>). As of:
-   2026-09-01. Recheck trigger: that section moves or starts stating its own multiplier.
+1. DELEGATE / FAN OUT. Start with one agent; delegate only when work would flood context, fans
+   across genuinely independent paths, or needs a tool-restricted specialist. Decompose by what
+   CONTEXT each piece needs, not by head-count or work-type. Sequential or shared-context steps stay
+   in one agent, and one feature is never split across agents. Our operating figure for a fan-out
+   is 3–10× one agent's tokens (returns cost context too), and it is a floor: budget a
+   research-shaped fan-out above it. Spend it on value + parallelism, not convenience. Pointer: for
+   multi-agent token cost, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>; no
+   docs page covers research fan-out sizing as of 2026-10-01 (correlate with
+   <https://www.anthropic.com/engineering/multi-agent-research-system>). As of: 2026-10-01.
+   Recheck trigger: that section moves or starts stating its own multiplier, or a docs page starts
+   covering fan-out sizing.
    "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
    `context-guard` plugin installed, resolve this session's zone word per its reader contract
    before a fan-out decision
@@ -56,11 +56,12 @@ told:
    that guess is the failure the seam replaces. A degraded or `unknown` zone shifts the balance
    toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
    keep sequential, shared-context work inline.
-2. SPEC EVERY SPAWN. Give each worker an objective, the REASON it is being asked (the larger task
-   it feeds, who the output is for, what it enables), what done looks like and when to stop and
-   ask, an output format, the tools/sources to use, explicit task boundaries, and a deliberately
-   chosen model tier. Vague delegation makes workers
-   duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
+2. SPEC EVERY SPAWN. Every brief states why the work is wanted, what done looks like, when to
+   stop and ask, and a deliberately chosen model tier, on top of the brief elements the
+   multi-agent post lists. Pointer: [Give the reason, not only the request](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request);
+   correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
+   brief elements, which no docs page covers as of 2026-10-01. Recheck trigger: a docs page
+   starts covering brief contents. Absent a consumer-level subagent-model override,
    an unspecified model silently inherits the parent session's, often its most expensive, model.
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
@@ -73,9 +74,10 @@ told:
    same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
    (ledger, checklist, status log) is not the work and gets no verifier, however many of them a
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
-4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
-   Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
-   Watch running workers and intervene the moment one drifts or is missing context. A worker that
+4. RUN WORKERS WELL. Dispatch without blocking, and keep a worker across subtasks where the
+   runtime allows; watch each worker and step in when it drifts. Pointer:
+   [Parallel subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents).
+   As of: 2026-10-01. Recheck trigger: that section changes its dispatch or reuse guidance. A worker that
    must wait on an external result polls it in the foreground with a bounded loop, or returns what
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no

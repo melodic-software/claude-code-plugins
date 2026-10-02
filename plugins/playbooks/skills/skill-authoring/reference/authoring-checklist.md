@@ -13,11 +13,11 @@ converged. Each row carries a tag:
 The checker covers the first group. The rest belongs to the reviewer, and a gate that claims to
 have checked a judgment row is misreporting.
 
-## Core quality
+## Frontmatter and body
 
 | Row | Tag |
 |---|---|
-| Description is specific: concrete nouns a user would type, key use case first | judgment |
+| Description names the concrete nouns a user would type, key use case first | judgment |
 | Description says what the skill does and when to use it, with "Use when" phrasing in single quotes | mechanical (check 12) |
 | Description prose carries no first or second person; quoted trigger phrases may | judgment |
 | `description` alone is at most 1,024 codepoints | mechanical (check 2b) |
@@ -35,40 +35,38 @@ have checked a judgment row is misreporting.
 | `## Next` is present and names the successor in mention-only form | judgment |
 | Arguments follow the skill argument shape: one action first, earned `--flag` modifiers, at most one subject last, `argument-hint` in the same order ([`authoring-guidance.md`](authoring-guidance.md#argument-surface)) | judgment |
 | No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; no upstream text is restated, and a volatile specific the body depends on is our decision plus a pointer to the exact section, an as-of date, and a recheck trigger | judgment |
-| One term per concept throughout | judgment |
-| Examples are concrete, not abstract | judgment |
-| File references are one level deep | judgment |
+| Every item of the upstream checklist (Pointer below) that this file does not sharpen holds | judgment |
 | Each spoke pointer says what the file holds and when to read it | judgment |
 | Freedom level chosen per section and matched to fragility | judgment |
 
-## Code and scripts
+## Scripts
 
 | Row | Tag |
 |---|---|
-| Scripts solve the problem rather than defer to the model | judgment |
-| Error handling in scripts is explicit and prints what it did | judgment |
-| Every constant carries its justification | judgment |
+| Script output names what the script did, including on failure | judgment |
 | Execute-versus-read intent is stated per script pointer ("Run" or "See") | judgment |
 | Script pointers use `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` | judgment |
-| Dependencies are listed with their install command and checked before use | judgment |
+| Each dependency's install command sits beside it, and the script checks for it before use | judgment |
 | MCP tools are named in the harness form (`mcp__<server>__<tool>`) | judgment |
 | Validation steps, loop-backs, and a gate exist for critical operations | judgment |
 | `scripts/*.test.sh` pass | mechanical (check 7) |
 | No committed cache or build artifacts | mechanical (check 13) |
 | Injected `!` commands are portable and carry a fallback | mechanical (checks 19 and 20) |
 
-## Testing
+## Evals and testing
 
 | Row | Tag |
 |---|---|
 | `evals/evals.json` is present | mechanical (check 14) |
 | `evals/evals.json` validates against the schema and passes the eval-quality lint | mechanical (`/skill-quality:check validate-evals <skill>`) |
-| Three or more eval cases | mechanical (advisory) |
+| Eval-case count meets the upstream checklist's floor (Pointer below) | mechanical (advisory) |
 | Where the bundled skill-creator plugin is installed, its eval modes ran the cases with a subagent per case; otherwise the fresh-session loop below stands in | attestation |
 | Fresh-session baseline captured with the skill disabled, then enabled | attestation |
-| Tested on real tasks, not contrived scenarios | attestation |
 | Models exercised: which of `haiku`, `sonnet`, `opus`, `fable` | attestation |
-| Team feedback incorporated, where applicable | attestation |
 
 Close with `/skill-quality:check <skill>`: its output answers the mechanical rows, and its WARN
 lines are the reviewer's reading list for the rest.
+
+- **Pointer**: [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills)
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section adds, drops or renames an item.

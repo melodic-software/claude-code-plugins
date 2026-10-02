@@ -18,6 +18,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The reader contract's folklore-number record no longer rests on the Opus 5 guide. It points at
   the current models' context windows, with a trigger on those windows or the practitioner figure
   changing.
+- The 2.1.132 token-field floor now points at the changelog entry that names the fix, instead of
+  saying no upstream source names that version.
 
 ## [0.8.2] - 2026-10-01
 

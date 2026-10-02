@@ -422,8 +422,11 @@ in sync after the move.
   that review as correct and load nothing.
 - **`/init` writes `CLAUDE.md`.** Running it after a migration re-creates the content the migration
   moved out. Say so in the PR body of a repository whose contributors run it.
-- **A `CLAUDE.md` that tells Claude in prose to read `AGENTS.md` does not load it.** Only an
-  `@AGENTS.md` import does. Replace the sentence, never keep it as a belt.
+- **A prose shim is a finding, not a shim.** The plan converts a `CLAUDE.md` sentence asking for
+  `AGENTS.md` into the one-line `@AGENTS.md` import, or drops the file where the session reads
+  `AGENTS.md` natively; it never keeps the sentence beside the import. Pointer:
+  [Remove an earlier AGENTS.md workaround](https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround).
+  As of: 2026-10-01. Recheck trigger: that section changes what a prose instruction does.
 - **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
   file holding the link target, so the import is the form that works everywhere.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for

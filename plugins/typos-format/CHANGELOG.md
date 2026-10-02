@@ -12,6 +12,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   requirement and the decision to keep the row synchronous are each a decision with a pointer to the
   anchored docs section, an as-of date and a recheck trigger, and none of the page's wording is
   stored. No hook behavior changes.
+- The README points at typos' own config-file search instead of listing the file names.
 
 ## [0.8.6] - 2026-10-01
 

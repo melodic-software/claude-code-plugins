@@ -18,6 +18,8 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 - `stateless` no longer says `disable` takes effect only next session. It says what auto memory
   already loaded stays in the current context, with pointers to the settings pages that say which
   edits reach a running session.
+- The audit's subagent-memory note and the stateless reference's directory layout point at the
+  docs sections instead of copying their scope table and file tree.
 
 ## [0.13.12] - 2026-09-30
 

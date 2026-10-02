@@ -194,17 +194,14 @@ that section renames or drops the `version` field). **The token shape is computa
 `cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
 leaves the percentage shape to stand alone.
 
-> **Sourcing status of the 2.1.132 floor.** We do not trust `total_input_tokens` /
-> `total_output_tokens` as current occupancy below Claude Code 2.1.132. No current upstream source
-> names that version: the statusline page covers only the present-tense meaning of these fields,
-> which is what the floor depends on. The floor is therefore a retained decision, a conservative
-> lower bound kept deliberately: dropping it can only *widen* which payloads the token shape
-> trusts, and the failure it guards is silent.
+> **Source of the 2.1.132 floor.** We do not trust `total_input_tokens` /
+> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release whose
+> changelog entry names the statusline token-count fix.
 >
-> - **Pointer**: for the present-tense meaning of the token fields, see
->   <https://code.claude.com/docs/en/statusline#context-window-fields>.
-> - **As of**: 2026-08-10
-> - **Recheck trigger**: any change that relaxes the floor; re-source it first.
+> - **Pointer**: [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132); for the
+>   fields' present meaning, <https://code.claude.com/docs/en/statusline#context-window-fields>.
+> - **As of**: 2026-10-01
+> - **Recheck trigger**: any change that relaxes the floor, or the changelog entry moves or is reworded.
 
 **Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
 also marks the token shape not-computable**. That is corrupt or forged data, and it catches what

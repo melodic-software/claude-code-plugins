@@ -8,6 +8,9 @@ upstream-derived findings as our decisions and states no upstream text: `mktemp`
 relied on and a producer uses an absolute-path template, and a producer never reads
 `CLAUDE_CODE_TMPDIR` itself. The temp-tree footprint note records our own search result and points
 at the `cleanupPeriodDays` section. Each carries a pointer, an as-of date and a recheck trigger.
+The worktree default base and the `.worktreeinclude` and `WorktreeCreate` notes now state what the
+matrix assumes in our words and point at the worktrees and hooks sections; the visibility matrix is
+unchanged.
 
 ## [3.3.0] - 2026-09-12
 

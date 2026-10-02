@@ -11,11 +11,11 @@ It ships one fleet-wide protection of its own: a bundled
 `config/default-typos.toml` injected via `typos -c` so write mode cannot
 silently corrupt git SHAs. Otherwise it runs unconditionally on typos'
 built-in spelling dictionary. If your repository has its own typos
-configuration (`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
-`[workspace.metadata.typos]`/`[package.metadata.typos]`, or `pyproject.toml`
-with `[tool.typos]`), typos discovers it from the target path and merges
-`extend-*` keys with the bundled file rather than replacing them. No
-opt-in required.
+configuration, in any file typos' own config search finds, typos discovers it
+from the target path and merges `extend-*` keys with the bundled file rather than
+replacing them. No opt-in required. Pointer: the Sources list in
+[typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+As of: 2026-10-01. Recheck trigger: typos changes its config file names or search order.
 
 ## Behavior
 

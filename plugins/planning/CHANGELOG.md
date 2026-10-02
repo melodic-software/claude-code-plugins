@@ -10,8 +10,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **The interview's model-versus-effort guidance is stated as the skill's own decision.**
   `context/session-config.md` keeps the recommendation rules in our words and points at the
   model-config effort section and the choosing-a-model section, with the Claude blog post as a
-  correlate. It records that no docs page states the try-versus-know test, which stays this skill's
-  own rule, with an as-of date and a recheck trigger.
+  correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
+  wording kept, and its record says no docs page states it, with the trigger "a docs page starts
+  covering it".
 
 ## [0.58.4] - 2026-10-01
 

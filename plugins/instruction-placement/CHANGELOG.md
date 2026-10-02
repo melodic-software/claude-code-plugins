@@ -16,6 +16,8 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   words and points at the exact documentation section, an as-of date and a recheck trigger, with
   no upstream text. `cutover-check.sh` names the same pointer-record shape in its comments and
   usage.
+- `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
+  page's workaround section.
 
 ## [0.16.8] - 2026-10-01
 

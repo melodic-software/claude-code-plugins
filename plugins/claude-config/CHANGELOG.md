@@ -53,6 +53,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   instructions points I25 and its Sources at the Sonnet 5 model page, since the old what's-new URL
   now redirects, and names the surface pages behind I17-c's promotion gate. Postures P2 and P6
   state their present-when conditions in our own terms.
+- audit-instructions I14 no longer says only the built-in Explore and Plan agents skip `CLAUDE.md`:
+  a custom agent with `omitClaudeMd: true` does too, so a rule restated for it is not flagged as
+  redundant. The record names the sub-agents page's internal disagreement on that field.
 
 ## [0.55.4] - 2026-10-01
 

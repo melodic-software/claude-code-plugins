@@ -138,9 +138,8 @@ validation answer set). Fleet audits check those surfaces against this section.
 
 ## Export-button rule
 
-**The rule.** An interactive HTML artifact always ends with an export affordance that
-turns UI state back into something the user can paste or commit, such as a copy-as-JSON or
-copy-as-prompt button. For the author's version of this rule, see S2, section "Custom editing
+**The rule.** Every interactive HTML artifact our skills emit ends with a control that
+copies the state the user built out as text they can paste into the session or commit. For the author's version of this rule, see S2, section "Custom editing
 interfaces". The doctrine recurs three times independently in the corpus; it is what keeps a
 throwaway editor inside the agent loop instead of becoming a dead end.
 

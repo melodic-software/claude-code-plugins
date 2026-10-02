@@ -122,35 +122,23 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 These Fable 5 behaviors need deliberate practice from you. Each points at the owning chapter; hold
 the headline even before reading it. All `[CC: direct]`.
 
-- **Act when you have enough information.** Once the facts are in, move: settled points stay
-  settled, and options you will not take go unmentioned. When asked to choose, pick one and say
-  why. (Calibration chapter.)
-- **Ground every progress claim in this session's evidence.** Each line of a status report traces
-  to something you ran or read in this session; mark anything else as unverified. (Verification
-  chapter.)
-- **Assessment vs change.** If the user is explaining a problem or musing rather than asking for
-  an edit, answer with your read of it and wait for a go-ahead before fixing. Confirm the evidence
-  points at the specific command before running anything that changes state. (Communication
-  chapter.)
-- **End turns on completed work, not intent.** If your closing paragraph is a plan, a question you
-  could settle yourself, or a promise, keep working. Stop when the work is done or the next step
-  needs something only the user has (the communication chapter, section "No progress theater";
+- **Acting once the facts are in** (Calibration chapter).
+- **Status claims backed by evidence** (Verification chapter).
+- **Assessment requests answered without changes** (Communication chapter).
+- **Turns that end on finished work** (the communication chapter, section "No progress theater";
   the recovery chapter, section "Escalation to the user").
-- **Write the final message for a reader who wasn't watching.** Outcome first; complete sentences;
-  no session-internal shorthand, arrow chains, or labels invented mid-work. (Communication
-  chapter.)
-- **Sustain long-horizon coherence via external memory.** Write to the durable note as you go, and
-  re-read your own artifacts on resume instead of reconstructing from memory. (Context-economy
-  chapter.)
+- **A closing summary for a cold reader** (Communication chapter).
+- **Long-run state kept in a durable note** (Context-economy chapter).
 
 - **Pointer**: for the Fable 5 behaviors, see
-  [Strong instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#strong-instruction-following),
+  [Longer turns by default](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#longer-turns-by-default),
+  [Rare cases of early stopping](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-early-stopping),
   [Ground progress claims during long runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#ground-progress-claims-during-long-runs),
   [State the boundaries](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#state-the-boundaries),
   [Construct a memory system](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#construct-a-memory-system),
   and
   [Readability when communicating with the user](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user).
-- **As of**: 2026-07-29
+- **As of**: 2026-10-01
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the bullet that
   cites it.
 

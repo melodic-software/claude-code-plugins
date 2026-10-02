@@ -54,6 +54,11 @@ only after that version increases.
   with the Spending your effort post as a correlate. The `sonnet-5-5` chapter's CLAUDE.md link
   follows the docs site's new heading id, and `opus-5-5`'s scope-boldness trigger fires when a
   docs page covers the topic.
+- The `opus-4-8` chapter's behaviors-to-emulate list names each behavior and its owning chapter
+  without restating the Fable 5 guide, and points at the two sections it was missing. The
+  `skill-authoring` pre-share checklist keeps only the rows we sharpen or add, defers the rest to
+  the upstream checklist by pointer, and renames its groups (frontmatter and body, scripts, evals
+  and testing); its eval follows the new names.
 
 ## [0.16.0] - 2026-10-01
 

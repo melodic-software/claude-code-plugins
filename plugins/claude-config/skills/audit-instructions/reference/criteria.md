@@ -973,11 +973,16 @@ skill bodies.
   current disk contents. The startup copy is a snapshot taken at launch; another process can have
   changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
   produces a patch against stale text. A rule restated in a
-  delegation prompt for the built-in Explore and Plan agents, which we treat as the only subagents
-  that skip `CLAUDE.md`, with no per-agent setting to change that (subagents, "What loads at
-  startup").
+  delegation prompt for a subagent that starts without the user, project and local `CLAUDE.md`:
+  the built-in Explore and Plan agents, and a custom agent whose definition sets
+  `omitClaudeMd: true`. In such an agent's own body, an instruction to read the root `CLAUDE.md`
+  is likewise not redundant. Pointer: [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  and the `omitClaudeMd` row of [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+  The page's system-prompt section disagrees with both on whether `CLAUDE.md` still loads under
+  that field. As of: 2026-10-01. Recheck trigger: the page reconciles the two, or the field is renamed.
 - **Source:** subagents, "What loads at startup": we treat a non-fork subagent's initial context as
-  holding every level of the CLAUDE.md hierarchy *the main conversation loads*, and that qualifier
+  holding every level of the CLAUDE.md hierarchy *the main conversation loads*, except an agent
+  whose definition sets `omitClaudeMd: true` (see the Must NOT flag above), and that qualifier
   is what bounds this check: memory documents lazy loading for path-specific rules and
   subdirectory files ("How CLAUDE.md files load"), so those are outside the guarantee. memory,
   "Import additional files", is what puts an imported supporting document inside it: imports load

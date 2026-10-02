@@ -954,8 +954,9 @@ either layer, and those rows say so.
   "harness" naming an actual test harness is not a tell. Calibration kept this out of the script
   layer (see the calibration record's second pass). Replacements live in `rewrite-guide.md`.
 - **Model-era cues (2026-08, from the "Model-era additions" section)**: "load-bearing" and
-  "seam" join the cue list as the flagship 2026 Claude-family metaphor words (load-bearing
-  measured at >7,500x its Stack Overflow base rate in Claude Code output; seam at 62x). Their
+  "seam" join the cue list as the flagship 2026 Claude-family metaphor words (both measured far
+  above their Stack Overflow base rate in Claude Code output; the figures are at the
+  archiewood/claudeisms pointer under "Model-era additions"). Their
   literal boundary is BROAD, deliberately: a Feathers seam in refactoring/testing prose, a
   load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
   architecture prose are all terms of art, not tells. The tell is the reflexive metaphor where
@@ -996,11 +997,10 @@ either layer, and those rows say so.
 - detectability: judgment
 - applicability: general-prose
 - v1: rubric
-- A sentence naming a feeling about the thing ("SQL you can read", "the database stays close at
-  hand") where the reader needs the mechanism or the number ("`.toSQL()` returns the exact string
-  sent to the database"). Two tests: can the sentence be restated as a concrete instruction,
-  fact, or number (if not, cut it); and could it appear unchanged in another project's docs (if
-  so, it says nothing about this one).
+- A sentence that names how the thing feels where the reader needs its mechanism or a number
+  ("the config feels lightweight" where "the config file has four keys" would serve). Report it
+  when it gives the reader nothing to act on or check (no step, fact, or number), or when it is
+  generic enough to fit any project's docs.
 
 ## Model-era additions (repo-owned)
 
@@ -1097,12 +1097,11 @@ README's "Updating the model-era inventory".
 - era: 2025-2026
 - models: Claude family (Claude Code agentic output specifically)
 - evidence: measured (single pool)
-- The archiewood/claudeisms measurement: 145 words at >=20x frequency versus a 1.72B-word
-  Stack Overflow comment corpus, measured on ~5 weeks of the author's own Claude Code
-  Opus 4.7/4.8 transcripts. Author-declared confounds: workflow skew, an installed style
-  plugin, system-prompt priming, no stemming. Representative ratios: gating 759x, dedup 647x,
-  decisive 637x, verdict 631x, scaffolds 570x, settles 434x, handoff 358x, genuinely 224x,
-  errored 215x, drift 183x, pre-existing 183x, silently 36x, verbatim 31x, canonical 27x.
+- The archiewood/claudeisms measurement: one author's Claude Code transcripts ranked against a
+  Stack Overflow comment corpus. The word list, ratios and the author's own caveats are at
+  <https://github.com/archiewood/claudeisms> (README and `claudeisms.csv`). We class it
+  single-pool: one author, one workflow. As of: 2026-10-01. Recheck trigger: the README's ranked
+  tables change, or a second independent frequency pool appears.
 - ONE of these ships in the default vocabulary list: `pre-existing` passed the measured
   quiet-gate test on this corpus (2026-08-27: 61 files contain the word, the density gate
   fired on none of them, the same measurement that admitted "leverage"), so it joined the
@@ -1127,8 +1126,8 @@ keeps it here because neither upstream inventory carried it when checked.
   `rule-model-era-vocabulary`, whether a second independent frequency pool has landed (the
   cluster's promotion condition, which no other trigger would look for).
 - **Record (2026-08-26, initial)**: layer established from the Hacker News thread 48905248
-  (609 points), archiewood/claudeisms (two-measurement corroboration for "load-bearing":
-  >7,500x lower-bound ratio, and Marek Suppa's independent 188-in-1.7M-words count),
+  (609 points), archiewood/claudeisms (two-measurement corroboration for "load-bearing": its
+  lower-bound ratio and Marek Suppa's independent count),
   anthropics/claude-code issue 53454 (maintainer-reproduced), Velitchkov's cliché catalog,
   crystl.dev's hacker-idiom catalog, and jola.dev's filter hook. Wikipedia "Signs of AI
   writing" head revision 1371415133 (fetched 2026-08-26) and Cursor unslop head (last commit

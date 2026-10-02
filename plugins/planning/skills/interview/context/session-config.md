@@ -31,13 +31,10 @@ because they are not interchangeable:
 A task can want both, one, or neither. State which knob each recommendation turns and
 why, in the interview's own evidence terms.
 
-**Neither knob is the first move.** This skill checks the context before either knob: a
-vague prompt, wrong tools, or missing skills explain a miss before model or effort do. That
-prior step is this skill's own product: the Brief **is** the context fix, so recommend a
-knob only for what a sharper Brief would not have caught. Between the knobs, the skill asks
-whether the assistant failed to *try* hard enough (effort) or failed to *know* enough
-(model), and holds that test as a starting point rather than a hard rule. It weighs an
-effort raise most when the session runs below the model's default effort.
+**Neither knob is the first move.** The Brief this skill produces **is** the context fix, so it
+recommends a knob only for a miss a sharper Brief would not have caught. To choose between the
+two knobs it starts from the post's model-versus-effort heuristic (correlate link below) and
+treats it as a default, not a rule.
 
 - **Pointer**: for which model and effort level fit which work, see
   <https://code.claude.com/docs/en/model-config#choose-an-effort-level> and
@@ -48,9 +45,8 @@ effort raise most when the session runs below the model's default effort.
 - **Recheck trigger**: either page changes how it orders model against effort, or the
   model-config page stops linking the post for this guidance.
 
-No docs page states the try-versus-know test itself as of 2026-08-04; the docs pages above order
-the levers, and ordering a lever is not diagnosing which failure you have. The test stays this
-skill's own rule.
+No docs page states the heuristic itself as of 2026-10-01; the pages above only order the levers.
+Recheck trigger for the heuristic: a docs page starts covering it.
 
 ## Advisor pairing
 
