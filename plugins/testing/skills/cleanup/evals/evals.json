@@ -10,10 +10,11 @@
     {
       "id": "cf_and_k_rewritten",
       "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup.",
-      "expected_output": "Classifies test_price_is_consistent as row 2 (CF and K, citing shop/checkout.py:5) and rewrites it in the working tree to assert price_with_tax(150) equals the hand-computed 162.0. Does not propose deleting it. The decision table lists the rewrite with its K citation.",
+      "expected_output": "Classifies test_price_is_consistent as row 2 (CF and K, citing REQUIREMENTS.md) and rewrites it in the working tree to assert price_with_tax(150) equals 162.0, taken from the REQUIREMENTS.md worked example rather than rebuilt from the constants in shop/pricing.py. Does not propose deleting it. The decision table lists the rewrite with its K citation.",
       "files": [
         "evals/fixtures/cleanup/shop/pricing.py",
         "evals/fixtures/cleanup/shop/checkout.py",
+        "evals/fixtures/cleanup/REQUIREMENTS.md",
         "evals/fixtures/cleanup/shop_tests/__init__.py",
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
         "evals/fixtures/cleanup/.claude/mutation-testing.md",
@@ -106,6 +107,16 @@
       "id": "findings_file_rows",
       "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup. When the batch is staged, the user approves it but asks you not to commit yet; write the step 7 report.",
       "expected_output": "Writes .work/reviews/feat-cleanup/<YYYYMMDDTHHMMSSZ>-testing-cleanup.md with type: review-findings and branch: feat/cleanup. Each rule-selected candidate has one row whose Finding starts with the source row's rule id and threshold, for example `testing/audit/rule-recomputed-expectation: ... (threshold: >=1 self-identical equality assertion)`, followed by `cleanup row 2: rewrite`. The rewritten test's Action reads `applied by /testing:cleanup in this branch; review, do not re-apply`; a kept test's Action reads `kept: <reason>`. The quarantined test has no row in the findings file and appears only in pr-body.md.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "resumes_own_dirty_batch",
+      "prompt": "A /testing:cleanup shop_tests batch on branch feat/cleanup stopped after step 5 while waiting for the user's yes on the test_product_name deletion. The quarantine and the test_price_is_consistent rewrite are uncommitted and recorded in .work/testing-cleanup/shop_tests/decisions.md. In a new session, the user says yes to the deletion and runs /testing:cleanup shop_tests again.",
+      "expected_output": "Does not refuse for the dirty tree: every changed path is an edit decisions.md records. Reads the batch state from .work/testing-cleanup/shop_tests/, applies the approved deletion without re-recording the baseline or re-classifying, and continues to step 6 with the existing before.tsv. A changed path that decisions.md does not record would still be refused.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",

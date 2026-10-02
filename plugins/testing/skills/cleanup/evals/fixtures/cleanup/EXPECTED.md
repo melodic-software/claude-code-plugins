@@ -30,7 +30,7 @@ The bash-harness case runs on `shop_scripts` instead, with `../mutation-testing-
 | Test | Row | Why | Action |
 |---|---|---|---|
 | `test_total_is_computed_quickly` | 1 | named flaky | `@unittest.skip("test-change: quarantined <today + 7 days>: flaky, ...")`, applied before the recording run |
-| `test_price_is_consistent` | 2 | CF (recomputed expectation) and K: `shop/checkout.py:5` calls `price_with_tax` | rewrite to `self.assertEqual(price_with_tax(150), 162.0)`: 150 is above the threshold, 150 x 0.9 = 135, plus 20% tax = 162 |
+| `test_price_is_consistent` | 2 | CF (recomputed expectation) and K: `REQUIREMENTS.md` states the pricing rule, and `shop/checkout.py:5` calls `price_with_tax` | rewrite to `self.assertEqual(price_with_tax(150), 162.0)`, the worked example in `REQUIREMENTS.md`, never a value rebuilt from `shop/pricing.py` |
 | `test_product_name` | 4 | CF (weak oracle, defect quoted) and a positive no-contract statement: `Product.name` is a trivial getter returning the constructor argument (`shop/pricing.py:17-19`) | deletion proposed, applied only on the user's yes |
 | `test_heavy_parcel_fee` | 6 (or 2) | CF (zero assertion) and K: `ShippingHandler` is reached through the `register("shipping")` registry (`shop/handlers.py:12`, `:20-21`), a lookup by string that a search for callers misses. No file states the heavy-parcel fee apart from the code, so copying `15` from `shop/handlers.py:16` would not be an independent source | keep, or rewrite only with a stated fee; never a deletion |
 | `total.test.sh` (on `shop_scripts`) | 2 or 6 | CF (zero assertion), whole-file test | rewrite: check `order_total_cents 50` prints `6000` (50 plus 20% tax, in cents) and exit non-zero otherwise, or keep; never a deletion or merge |

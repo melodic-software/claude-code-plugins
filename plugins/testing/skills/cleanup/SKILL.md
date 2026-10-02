@@ -41,7 +41,8 @@ holding `*`, and say so.
 Stop, naming the remedy, when any of these holds; check them all before step 1:
 
 - The current branch is the default branch, or the working tree is dirty. Cleanup stages a batch
-  that must be reviewable as one diff.
+  that must be reviewable as one diff. A resumed batch is the exception: when `<work>/decisions.md`
+  exists and every changed path is an edit it records, continue at the step it records instead.
 - The `mutation-testing` plugin is not installed. Cleanup has no gate without it, and no degraded
   mode: report that the gate needs that plugin and stop.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
