@@ -321,6 +321,10 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # A template-literal key names the method as a string does.
+            "Object.defineProperty(Array.prototype,`includes`,{value:"
+            + patch
+            + '});pY.includes("x")',
             # Reflect.set writes onto its receiver, not its target.
             'Reflect.set({},"includes",' + patch + ',Array.prototype);pY.includes("x")',
             # F.prototype.constructor is F, so it can replace F.prototype.

@@ -1005,14 +1005,14 @@ function sinks(req) {
       const receiver = definer?.name === "set" && !definer.receiver ? node.arguments[3] : undefined;
       const freshTarget = definer !== null && freshArg(target) && (receiver === undefined || freshArg(receiver));
       for (const arg of node.arguments) {
-        const key = arg.type === "Literal" ? String(arg.value) : arg.type === "MemberExpression" ? keyName(arg, true) : null;
+        const key = keyName(arg, true);
         if (key !== null && names.has(key) && !freshTarget) hit("argument", key, arg);
       }
       if (definer !== null && !freshTarget) {
         if (definer.name === "setPrototypeOf") hit("proto-swap", null, node);
         if (node.arguments.some((a) => a.type === "SpreadElement")) hit("computed-define", null, node);
         const keyArg = definer.receiver ? node.arguments[0] : definer.keyed ? node.arguments[1] : null;
-        if (keyArg && keyArg.type !== "Literal" && keyName(keyArg, true) === null) hit("computed-define", null, keyArg);
+        if (keyArg && keyName(keyArg, true) === null) hit("computed-define", null, keyArg);
         if (definer.name === "assign" || definer.name === "defineProperties") {
           for (const arg of node.arguments.slice(1)) {
             if (arg.type !== "ObjectExpression") hit("computed-define", null, arg);
@@ -1106,14 +1106,9 @@ function exportsOf(req) {
 // with any other key reads no name here. Kept per module key for
 // `keys_used`.
 const keySets = new Map();
-const memberName = (n) =>
-  n?.type !== "MemberExpression"
-    ? null
-    : !n.computed
-      ? n.property.name
-      : n.property.type === "Literal"
-        ? String(n.property.value)
-        : null;
+// The name a member reads or writes, as `keyName` spells it; null for a
+// computed key that names nothing.
+const memberName = (n) => (n?.type === "MemberExpression" ? keyName(n.property, n.computed) : null);
 
 // `keysOf`, or null (every name used) when the analysis itself fails.
 function keysOrNull(ast, source) {
@@ -1138,7 +1133,7 @@ function keysOf(ast, source) {
       for (const prop of node.properties) {
         if (prop.type !== "Property") continue;
         if (!prop.computed) keys.add(prop.key.name ?? String(prop.key.value));
-        else if (prop.key.type === "Literal") keys.add(String(prop.key.value));
+        else if (keyName(prop.key, true) !== null) keys.add(keyName(prop.key, true));
       }
     }
     for (const key of Object.keys(node)) {
