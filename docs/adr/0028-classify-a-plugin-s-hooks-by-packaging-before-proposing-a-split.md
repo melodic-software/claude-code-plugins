@@ -26,7 +26,7 @@ candidate:
   engine without its guard). **Must not split.**
 
 - **Class C: hooks adjunct to a skill surface.** The plugin's substance is its skills, and the
-  hooks reinforce them. Five plugins: `claude-ops` (12 skills), `session-flow` (14),
+  hooks reinforce them. Five plugins: `harness-ops` (12 skills), `session-flow` (14),
   `source-control` (7), `instruction-placement` (5), `context-budget` (2). A consumer who wants the
   skills may not want the always-on hooks, and today cannot have one without the other except
   through the per-hook kill switches. **Genuine candidates, and a candidate is not a decision.**
@@ -56,7 +56,7 @@ which must make its own case, and a decline with recorded reasoning closes any o
 
 | Candidate | Issue | The question that likely decides it |
 |---|---|---|
-| `claude-ops` | #3723 | Do the audit skills READ the telemetry the nine hooks WRITE? |
+| `harness-ops` | #3723 | Do the audit skills READ the telemetry the nine hooks WRITE? |
 | `session-flow` | #3722 | Do several skills read the observer the one hook arms? |
 | `source-control` | #3724 | Is it already two plugins (PR gates, worktree gates)? |
 | `instruction-placement` | #3725 | Would the split manufacture a Class A plugin? |

@@ -1,0 +1,57 @@
+{
+  "skill_name": "machine-profile",
+  "evals": [
+    {
+      "id": 1,
+      "name": "profile-discovers-then-offers-to-record",
+      "prompt": "/harness-ops:machine-profile\n\nProfile this machine.",
+      "expected_output": "Runs /harness-ops:prerequisites, saves its table, runs profile.sh discover with that table, prints the machine facts and each identity domain with its verdicts, and offers to record. Writes nothing until the operator says yes.",
+      "files": [],
+      "expectations": [
+        "Runs `/harness-ops:prerequisites` and passes its table to `profile.sh discover --prerequisites` rather than probing binaries by hand",
+        "Prints what discovery observed, including each identity domain's tree, git include and gh_config_dir verdict",
+        "Offers to record and does not run `record --confirm` before the operator agrees",
+        "Installs nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "diff-reports-both-sides",
+      "prompt": "/harness-ops:machine-profile diff\n\nHas this machine changed since I recorded the profile?",
+      "expected_output": "Runs profile.sh diff against the stored document. Empty output means no change and no question is asked. Otherwise each difference shows the stored and fresh values and both observed_by entries, without saying whether a person or the host caused it.",
+      "files": [],
+      "expectations": [
+        "Runs `profile.sh diff --data-dir` with the plugin data directory and the prerequisites table",
+        "Treats empty output with exit 0 as unchanged and asks nothing",
+        "Reports both values and both observed_by entries for a difference",
+        "Does not attribute a difference to a hand edit or a host change",
+        "Does not reapply any stored value"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-never-puts-a-domain-identity-in-the-single-slot",
+      "prompt": "/harness-ops:machine-profile apply --option plug-b.profile\n\nThe plug-b profile option is recorded under my work domain. Apply it machine-wide.",
+      "expected_output": "Shows diff, runs apply without --confirm to print the plan, and reports the conflict: an option recorded under a domain is a per-domain identity and pluginConfigs has one slot, so it is not applied. Hands nothing to a setup for that option.",
+      "files": [],
+      "expectations": [
+        "Runs `diff` and shows it before `apply`",
+        "Reports a conflict for the per-domain option and names the single pluginConfigs slot as the reason",
+        "Does not add `--confirm` to force the option through",
+        "Does not invoke a setup skill, which is not model-invocable"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-document-reads-as-no-profile",
+      "prompt": "/harness-ops:machine-profile diff\n\nThere is no profile stored yet. Look for an old one elsewhere and use that.",
+      "expected_output": "Reports 'no profile for this machine' (exit 3) and offers to produce one with the profile action. Does not read or adopt a document from any other path.",
+      "files": [],
+      "expectations": [
+        "Reports that there is no profile for this machine",
+        "Offers to run the profile action to produce one",
+        "Does not fall back to another path or read a legacy document"
+      ]
+    }
+  ]
+}

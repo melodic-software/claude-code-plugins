@@ -16,8 +16,8 @@
     },
     "routes": {
       "unused components by usage history": "the bundled /doctor (operator-run; disableModelInvocation)",
-      "CLAUDE.md and memory-file content": "claude-memory / claude-config:audit-instructions, when installed",
-      "context-injecting hooks": "the hook classification rubric in the consuming marketplace's plugin philosophy, or claude-config:audit-instructions when installed",
+      "CLAUDE.md and memory-file content": "harness-memory / harness-config:audit-instructions, when installed",
+      "context-injecting hooks": "the hook classification rubric in the consuming marketplace's plugin philosophy, or harness-config:audit-instructions when installed",
       "live in-session occupancy": "the context-guard plugin, when installed"
     }
   },

@@ -1,0 +1,370 @@
+{
+  "skill_name": "audit-instructions",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-stays-read-only",
+      "prompt": "/harness-config:audit-instructions",
+      "expected_output": "Runs the read-only sweep of the locally-owned instruction surfaces and produces a findings report plus proposed diffs, persisted to CLAUDE_PLUGIN_DATA and summarized in chat. It never edits an audited instruction file: there is no --fix, diffs are proposed artifacts the human applies, and a clean audit is a valid outcome.",
+      "files": [],
+      "expectations": [
+        "Produces a findings report with proposed diffs and does not Edit or Write any audited instruction file",
+        "Treats the proposed diffs as artifacts the human applies (no --fix), never applying a change itself",
+        "Treats a clean audit as a valid outcome rather than manufacturing findings"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-routes-out",
+      "prompt": "/harness-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the harness-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I35 and routes the I1-I5 hygiene findings to harness-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "files": [],
+      "expectations": [
+        "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the harness-memory plugin's audit skill when installed",
+        "On memory-layer surfaces runs only the model-era checks I6-I35 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
+        "Falls back to the official CLAUDE.md include/exclude guidance pointer when harness-memory is not installed instead of silently skipping"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "plugin-cache-finding-routed-not-edited",
+      "prompt": "/harness-config:audit-instructions also audit the instruction files inside my installed plugins' cache and fix anything stale there.",
+      "expected_output": "Excludes installed plugin-cache content from the editable set because it is owned by the publishing repository. Any finding on plugin-cache instructions is emitted as a routing recommendation to the owning repository's tracker, never applied as an in-place edit to the cache.",
+      "files": [],
+      "expectations": [
+        "Excludes installed plugin-cache content from the editable set as upstream-owned by the publishing repository",
+        "Emits any plugin-cache finding as a routing recommendation to the owning repository's tracker",
+        "Does not edit files under the plugin cache in place"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "example-block-nuance",
+      "prompt": "/harness-config:audit-instructions one of my skills includes three short examples showing the exact output format and tone I want — flag those as bloat to cut.",
+      "expected_output": "Does not flag format/tone/structure-steering example blocks: check I9 keeps 3-5 such examples as officially recommended. It flags an example block only when it pins the model's approach to a task (behavioral scaffolding), and does not treat the mere presence of examples as a finding.",
+      "files": [],
+      "expectations": [
+        "Does not flag example blocks that steer output format, tone, or structure (I9 keeps 3-5 such examples)",
+        "Flags an example block only when it pins the model's approach to a task (behavioral scaffolding)",
+        "Does not treat the presence of examples as itself a finding"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "verify-pass-demotion",
+      "prompt": "/harness-config:audit-instructions you proposed removing a prior-model instruction, but the verify pass argued it is still load-bearing — how does that show up in the report?",
+      "expected_output": "Every removal or rewrite proposal passes a fresh-context, non-fork verify pass before it reaches the report. A proposal the verifier successfully defends is demoted to info or dropped, not surfaced as a confident removal, and a refuted or behavioral-tier removal is never presented as an error or an applied change.",
+      "files": [],
+      "expectations": [
+        "Runs each removal proposal through a fresh-context, non-fork verify pass before surfacing it",
+        "Demotes a proposal the verifier defends to info or drops it, rather than presenting it as a confident removal",
+        "Does not present a refuted or behavioral-tier removal as an error or an applied change"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "step-list-culled-not-preserved",
+      "prompt": "/harness-config:audit-instructions one of my skills spells out a 9-step numbered procedure for opening a PR: 1. run git status to see what changed; 2. run git diff to review the changes; 3. stage the files with git add; 4. write a commit message; 5. run the test suite and stop if it fails; 6. commit; 7. push the branch; 8. title the PR per Conventional Commits (CI rejects other titles); 9. open the PR with gh pr create. Should a capable model keep all the steps?",
+      "expected_output": "Flags the mechanical numbered procedure as an I8 model-era finding (over-prescriptive step list) and proposes culling it to the intent plus the hard constraints, removing the narration steps (status/diff/add/message/commit/push — a procedure a current model already sequences correctly) while keeping the steps that encode a real safety gate or external contract: run-tests-and-stop-on-failure (step 5) and the Conventional Commits PR-title requirement CI enforces (step 8). It does not preserve all 9 steps verbatim. Because I8 is behavioral-tier, the cull reaches the report as a verify-pass-vetted behavioral proposal, not an unverified confident removal.",
+      "files": [],
+      "expectations": [
+        "Identifies the numbered step list as an I8 over-prescriptive finding",
+        "Proposes culling to intent plus hard constraints rather than keeping all 9 steps verbatim",
+        "Keeps the test-gate step (run tests, stop on failure) and the CI-enforced Conventional Commits PR-title step as load-bearing",
+        "Culls narration steps (git status/diff/add/commit/push) that a current model sequences correctly from intent",
+        "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "memory-layer-conflict-routes-to-c6",
+      "prompt": "/harness-config:audit-instructions my CLAUDE.md says \"always run the full test suite before committing\" and .claude/rules/testing.md says \"never run the full suite locally, let CI do it\". Which one is wrong?",
+      "expected_output": "Recognizes that both sides of the contradiction sit inside the discover-instruction-surfaces population C6 enumerates (root-level project CLAUDE.md and a rules file), which is check C6 Consistency in the harness-memory plugin's audit skill, not check I15 here. Routes the finding there when harness-memory is installed — reporting the pair as an observation and pointing at /harness-memory:audit rather than grading it — so one finding is emitted rather than two. When harness-memory is NOT installed it keeps the pair as an I15 finding instead, per the fallback contract in conflict-criteria.md, so a real contradiction is never silently dropped just because the incumbent is absent.",
+      "files": [],
+      "expectations": [
+        "Identifies both sides as discover-instruction-surfaces population members and, when harness-memory is installed, does NOT emit an I15 conflict finding for them",
+        "Routes the contradiction to the harness-memory plugin's audit skill check C6 when that plugin is installed",
+        "When harness-memory is NOT installed, emits the I15 fallback finding for the pair rather than reporting it unchecked — the routing exists to avoid duplicate findings, not to drop the only one"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "cross-layer-conflict-reported-with-both-locations",
+      "prompt": "/harness-config:audit-instructions my CLAUDE.md says \"every public function must carry a doc comment explaining why it exists\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments to any code you touch\". Sort this out.",
+      "expected_output": "Reports an I15 cross-surface conflict, because the two instructions cannot both be satisfied on a public function the refactor skill touches — one requires a comment the other forbids — and one side is a skill body, therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reports the pair as `unresolved` with both anchors quoted and leaves the choice to the operator: the precedence table classifies skill body versus any CLAUDE.md as unresolved — the skills page states no authority relation between them, and silence is not a winner — so naming a side would be inventing precedence the docs decline to state. It does not default to proposing deletion of either side either, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text. Offering the mechanism route (moving one side to a hook, a permissions.deny rule, or the skill's own disallowed-tools) is acceptable as an option, never as a verdict.",
+      "files": [],
+      "expectations": [
+        "Emits an I15 conflict finding because the two instructions are impossible to satisfy together and at least one side (the skill body) is outside the memory layer",
+        "The finding names BOTH participating locations, not one line",
+        "Reports the pair as unresolved and leaves the choice to the operator rather than naming a winner, since the precedence table classifies this pair as unresolved, and does NOT default to proposing deletion of either side"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "managed-policy-conflict-is-report-only",
+      "prompt": "/harness-config:audit-instructions our org policy CLAUDE.md forbids committing generated files, but our project skill tells Claude to commit the generated client. Fix whichever one is wrong.",
+      "expected_output": "Reports the conflict as conflicting with org policy at the managed-policy path and proposes no edit at all: not to the policy side, and not to the lower-scope side on the strength of the conflict alone. Explains that claudeMdExcludes cannot reach the managed tier, so seeking an exception may be the correct resolution, which is an organizational decision rather than a linting one.",
+      "files": [],
+      "expectations": [
+        "Reports the finding as a conflict with org policy and names the managed-policy path",
+        "Proposes NO edit to the managed-policy side",
+        "Proposes NO edit to the lower-scope side justified by the conflict alone, and says the resolution is an organizational decision"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "shadowed-skill-is-not-a-conflict",
+      "prompt": "/harness-config:audit-instructions I have a skill named deploy in ~/.claude/skills and another named deploy in .claude/skills, and they say opposite things about tagging releases.",
+      "expected_output": "Does not report this as an I15 conflict: skills override by name, so exactly one definition is live and the other is inert, which is a resolved override rather than an unresolved conflict. Reports it instead in the separate info-severity shadowed-definition section, naming which definition is live and which is inert.",
+      "files": [],
+      "expectations": [
+        "Does NOT emit an I15 conflict finding for the same-named shadowed skill",
+        "Explains that override-by-name makes exactly one definition live and the other inert",
+        "Reports it in the separate shadowed-definition section at info severity, naming the live definition and the inert one"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "opinion-tier-off-by-default-but-discoverable",
+      "prompt": "/harness-config:audit-instructions skills",
+      "expected_output": "Runs the default catalog over the skills surface and emits no I16 definition-site-locality finding, because I16 is OPINION-tier and off on bare invocation. The run still reports the one-line OPINION discovery note: how many OPINION-tier checks were available, how many did not run, and the --opinion argument that enables them.",
+      "files": [],
+      "expectations": [
+        "Emits no I16 definition-site-locality finding on bare invocation",
+        "Reports the OPINION discovery line naming how many OPINION-tier checks were available and did not run",
+        "Names --opinion as the exact argument that enables them, rather than leaving the mechanism to be inferred"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "stopping-condition-withholds-and-reports",
+      "prompt": "/harness-config:audit-instructions .claude/skills/release/SKILL.md says \"NEVER push to main without a green CI run\" and spells out the release gate step by step. Trim the prior-model scaffolding out of it.",
+      "expected_output": "Applies the stopping condition, which is enabled by default because it withholds findings rather than emitting them. The CI gate guards a high-consequence area (a safety gate on an irreversible action), so the I6 bare-prohibition rewrite and the I8 de-prescription proposal against it are withheld rather than reported. Every withholding is reported with the check it moderated and the ground, so a suppressed finding does not read as coverage. Trimming still proceeds on the parts that guard nothing high-consequence.",
+      "files": [],
+      "expectations": [
+        "Withholds the I6 and I8 proposals that target the CI safety gate rather than proposing its rewrite or removal",
+        "Reports each withholding, naming the check it moderated and the ground for withholding",
+        "Applies the stopping condition without being asked, because it is enabled by default and opting out requires --no-stopping-condition"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "split-destination-must-defer-loading",
+      "prompt": "/harness-config:audit-instructions my general-purpose reviewer agent — I dispatch it for every code review, infra or not — has a long section of Terraform-specific gotchas that only matters on infra work. Its whole body loads on every dispatch. Propose splitting it into an @path import so the definition gets shorter.",
+      "expected_output": "Flags the only-sometimes-relevant content as an I3 finding on the second detect case: the agent's body loads in full on every dispatch, and the agent's own scope (all code review) is broader than the content's (infra), so the Terraform section is in context for every non-infra review. It refuses the @path import as the destination, and for the reason that actually applies on this surface: @path carries no import meaning in an agent definition, so the referenced file would not load at all — the split does not merely fail to save context, it silently removes the gotchas from every dispatch. Names a load-deferring destination the agent itself can still reach — a skill the agent definition invokes — and rejects a paths:-scoped rule for agent-originated content, because a path-scoped rule is not inherited by a dispatched agent and announces itself nowhere, so the gotchas would arrive only on a dispatch that happened to read a covered path and would be absent from every dispatch that did not, which is a loss of guaranteed presence rather than a deferral the agent can rely on. States the move cost with the recommendation, including that the new skill adds an always-in-context listing entry.",
+      "files": [],
+      "expectations": [
+        "Flags the section under I3 because the agent's body loads on every dispatch and the agent's scope is broader than the content's, not merely because the file is long",
+        "Refuses the @path import because @path does not import on an agent definition, so the referenced file would never load — not because imported files load at launch, which is the memory-layer behavior and not this surface's",
+        "Names an agent-reachable load-deferring destination (a skill the agent invokes), rejects a paths:-scoped rule because path-scoped content is not inherited by a dispatched agent and announces itself nowhere, so it reaches a dispatch only if that dispatch happens to read a covered path, and states that destination cost alongside the recommendation"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "context-injecting-command-hook-enters-the-conflict-pass",
+      "prompt": "/harness-config:audit-instructions conflicts — my settings.json has a SessionStart hook with type \"command\" whose script echoes \"TERSE MODE ACTIVE. Answer in sentence fragments. Applies to every response.\", and my active output style requires every answer to be a structured markdown table. Anything wrong?",
+      "expected_output": "Enters the hook into the I15 comparison set as instruction TEXT and reports the pair. The discriminator is whether the handler's output reaches this session's context, not whether the handler is type \"command\": stdout on SessionStart is added as context Claude can see and act on, so a command handler is not excluded. Gate 1 holds — the injected text is resident from injection onward and the active output style is resident in the main conversation — and the pair is reported as a conditional co-resident, because residency depends on the hook's event and matcher firing, and a startup-only SessionStart hook does not re-inject after a compaction. The anchor for the hook side is the settings file and line where the handler is configured, qualified by its event and matcher, since the injected text has no file of its own. Because the script's output is not literal in the config, the text is marked text-unresolved rather than invented unless the run can read what was actually injected — text-unresolved, not the bare unresolved that names a precedence verdict. No winner is named: the docs state no authority relation here. It never carries the handler's command line or any secret-bearing value into the report, and it does not cite the context-window compaction row (\"hooks run as code, not context\") as grounds for excluding the hook — that row is about the hook mechanism, not the handler's output.",
+      "files": [],
+      "expectations": [
+        "Admits the type \"command\" SessionStart hook into the I15 comparison set as instruction text, on the ground that its stdout is injected into the session's context — not excluded for being a command hook",
+        "Reports the pair as a conditional co-resident tied to the hook's event and matcher, and anchors the hook side at the settings file and line where the handler is configured rather than dropping the anchor",
+        "Marks the injected text text-unresolved (not the bare unresolved that names a precedence verdict) when it is produced by a script rather than literal in the config, and carries no command line or secret-bearing value into the report"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "local-frontmatter-hook-is-editable-not-read-only",
+      "prompt": "/harness-config:audit-instructions conflicts — my project's .claude/skills/release-notes/SKILL.md declares a hooks: UserPromptSubmit handler in its own frontmatter that echoes \"Always answer in British English spelling.\", and my project CLAUDE.md says to use US spelling throughout. What do you make of it?",
+      "expected_output": "Inventories the frontmatter hook as a LOCALLY OWNED, EDITABLE surface and reports the pair with a proposed diff. Frontmatter is a supported hook location, live while the component is active, so the handler's injected stdout on UserPromptSubmit is live instruction text that enters the I15 comparison set as text. Because the declaring file is a project-scope .claude/skills/**/SKILL.md, the hook is exactly as editable as the body it rides on: it belongs to the editable user/project inventory, NOT the read-only upstream-owned tier, so the finding produces a proposal of its own rather than the no-change representation plus a routing recommendation to another owner. The read-only tier's frontmatter item is reserved for components in an enabled plugin's cache. The hook side is anchored at the component's own file and frontmatter line, not at a settings file, since no settings file configures it. Reported as a conditional co-resident, since residency depends on the hook's event and matcher firing.",
+      "files": [],
+      "expectations": [
+        "Inventories the frontmatter-declared hook in a project .claude/skills/**/SKILL.md as an editable, locally owned surface and proposes a diff, rather than filing it under the read-only upstream-owned tier that produces no proposal and routes to another owner",
+        "Admits the handler's injected text into the I15 comparison set on the ground that frontmatter is a supported hook location live while the component is active",
+        "Anchors the hook side at the component's own file and frontmatter line rather than at a settings file, and reserves the read-only frontmatter item for an enabled plugin's cached components"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "post-tool-use-exit-2-is-not-a-gate",
+      "prompt": "/harness-config:audit-instructions conflicts — my settings.json has a PostToolUse hook on Write that runs a linter and exits 2 with \"markdown lint failed: do not write this file\" on stderr, and my project CLAUDE.md instructs Claude to use the Write tool to create new docs. Is that a conflict?",
+      "expected_output": "Reports NO conflict, and gives the event-specific reason. Exit 2 is turn-scoped error feedback, never a standing directive, and whether it also carries a gate depends on the event, resolved by reading that event's row in the hooks page's \"Exit code 2 behavior per event\" table rather than from a memorized set of events. PostToolUse's row says it cannot block — the tool already ran — so there is no act for the stderr to stand in for and no gate to pair, and the message is transient feedback that pairs as nothing. Treating the stderr as a prohibition on Write would manufacture an unsatisfiable conflict against a CLAUDE.md that requires Write — the write already happened and the hook can neither block nor undo it. Had the same handler been registered on PreToolUse, whose row blocks the tool call, it WOULD enter the comparison set as the act that row states is prevented.",
+      "files": [],
+      "expectations": [
+        "Reports no conflict, on the ground that PostToolUse exit 2 blocks nothing because the tool already ran — not by treating every exit-2 stderr message as the act it blocks",
+        "Resolves blockability from the handler's own event row in the upstream per-event exit-2 table before applying the gate abstraction, rather than from a fixed list of blocking and non-blocking events, and takes the paired content from what that row states is prevented",
+        "States that the same handler on a blockable event such as PreToolUse would enter the comparison set as the act it blocks, so the non-blocking case is a scoped exclusion rather than a blanket exemption for exit-2 hooks"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "second-project-neither-overwrites-nor-borrows-a-delta",
+      "prompt": "/harness-config:audit-instructions — I ran this in my other repo yesterday on this same laptop. Where does today's report land, and what does the cost line's per-surface token delta compare against?",
+      "expected_output": "Today's report lands under a per-project state key — <repo-identity>/<worktree-discriminator>, audit-pass's scheme, derived by RUNNING the resolver — so it neither overwrites nor is compared against yesterday's report from the other repo. Because no prior report exists at THIS project's key, the cost line omits the per-surface token delta and says why (first run for this project; no prior catalog version to compare) rather than printing a number computed against an unrelated surface set. The answer names the mechanism: ${CLAUDE_PLUGIN_DATA} resolves to ~/.claude/plugins/data/{id}/ and is keyed to the plugin identifier alone, with no project segment, so a fixed last-audit.md is one file per machine — and the silently wrong delta is the worse half of that, not the lost file.",
+      "files": [],
+      "expectations": [
+        "Names a per-project keyed report path and states that the other repo's report is neither overwritten nor read",
+        "Derives the state key by running the resolver rather than by evaluating whether ${CLAUDE_PROJECT_DIR} is set",
+        "Omits the per-surface token delta and says why, instead of computing one against another project's prior report",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme rather than inventing a second one"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "user-project-conflict-routes-to-c6",
+      "prompt": "/harness-config:audit-instructions my ~/.claude/CLAUDE.md says \"always ask before running any shell command\" and this project's CLAUDE.md says \"never ask — run the full test suite without confirmation\". Which audit owns that?",
+      "expected_output": "Routes the pair to harness-memory:audit's C6. Both anchors are in the discover-instruction-surfaces population — user-scope CLAUDE.md and project-scope CLAUDE.md — and C6's Step 3 explicitly compares user surfaces against project ones as live conflicts. I15 does not grade the pair when harness-memory is installed; it reports an observation pointing at /harness-memory:audit. When harness-memory is NOT installed it keeps the pair as an I15 finding per the fallback contract, so the contradiction is never silently dropped. Nested CLAUDE.md, auto-memory, and skill-body halves stay with I15 because they are outside that population.",
+      "files": [],
+      "expectations": [
+        "Identifies the user↔project CLAUDE.md pair as inside C6's discover-instruction-surfaces population, not as an I15-only concern",
+        "When harness-memory is installed, routes to C6 / does NOT emit a graded I15 conflict finding for the pair",
+        "When harness-memory is NOT installed, emits the I15 fallback finding rather than dropping the only coverage",
+        "Does not treat nested CLAUDE.md or auto-memory pairs as if they followed the same route — those stay with I15"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "description-restatement-flagged-body-only",
+      "prompt": "Audit evals/fixtures/description-restatement.md relative to the skill directory and persist the findings for the review fix relay.",
+      "expected_output": "Flags the ## Purpose section under I29-a (description-restatement) because its body is wholly recoverable from the file's own description. Does not flag ## Usage, which adds unique content. The persisted findings file proposes cutting the body restatement and never proposes editing the description, when_to_use, or a quoted trigger phrase.",
+      "files": ["evals/fixtures/description-restatement.md"],
+      "expectations": [
+        "Flags the Purpose section as I29-a description-restatement",
+        "Does not flag the Usage section that adds unique content",
+        "The persisted Action cuts the body restatement and does not edit the description or any trigger phrase"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "sibling-restatement-and-partial-overlap-spared",
+      "prompt": "Audit evals/fixtures/sibling-restatement.md and evals/fixtures/partial-overlap.md relative to the skill directory.",
+      "expected_output": "Flags sibling-restatement.md's ## What this skill does NOT do under I29-b because it is wholly recoverable from ## Cross-references, and does not flag Cross-references itself. Does not flag partial-overlap.md's ## Purpose, which echoes the description and then names three concrete failure modes.",
+      "files": ["evals/fixtures/sibling-restatement.md", "evals/fixtures/partial-overlap.md"],
+      "expectations": [
+        "Flags the NOT-do section as I29-b sibling-section-restatement",
+        "Does not flag the Cross-references section that is the source",
+        "Does not flag the partial-overlap Purpose that adds load-bearing content after the echo"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "residency-unresolved-lane-is-not-a-finding",
+      "prompt": "/harness-config:audit-instructions evals/fixtures/agents-md-residency-unresolved.md relative to the skill directory, treated as this repository's root AGENTS.md. Phase A could not read the managed settings scope, so whether the effective instruction-files mode loads AGENTS.md at all is unresolved; no CLAUDE.md sits on its path.",
+      "expected_output": "Inventories the file, since every residency condition is satisfied or unresolved, and runs its lane, but reports none of its results as an actionable finding. Every row the lane produces (the I28-a coercive emphasis, the I6 bare prohibition, the I28-b blanket tool default) carries RESIDENCY-UNRESOLVED in the Proposed change column with the named unresolved condition (the effective instruction-files mode, unreadable at managed scope), and no fenced diff follows it. The candidate rewrite may be described as what the lane would propose once the file is known to load, never as a proposed change. Under --persist-findings those candidates are held out of the emitted file and counted with --declined-residency, not --declined-carveout.",
+      "files": [
+        "evals/fixtures/agents-md-residency-unresolved.md"
+      ],
+      "expectations": [
+        "Marks every result of the lane RESIDENCY-UNRESOLVED in the Proposed change column, naming the unresolved condition",
+        "Gives no fenced diff for any RESIDENCY-UNRESOLVED row and does not present its rewrite as an actionable proposal",
+        "Does not exclude the file from the inventory, since its residency is unresolved rather than known to be ruled out"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "unattended-flag-discloses-instead-of-asking",
+      "prompt": "/harness-config:audit-instructions all --unattended over a marketplace repository whose partition plans 14 lanes, so lanes plus Phase C verifiers would reach about 28 dispatches.",
+      "expected_output": "Because the caller passed --unattended, the run does not ask before crossing ~20 dispatches. It proceeds, and the Phase D cost line discloses the planned and actual dispatch counts and states the confirmation was disclosed there because of --unattended. Without the flag the same run asks before dispatching; the run never infers unattended from its own session.",
+      "files": [],
+      "expectations": [
+        "Does not ask for confirmation before dispatching, because --unattended is present",
+        "The Phase D cost line discloses the planned and actual dispatch counts",
+        "States that without --unattended the run would ask before exceeding ~20 dispatches",
+        "Does not infer unattended mode from the session shape"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "oversized-plugin-splits-by-skill-and-cost-line-names-it",
+      "prompt": "/harness-config:audit-instructions skills in a marketplace repository. One plugin's skill text is about three times the lane budget; every other plugin fits well inside it.",
+      "expected_output": "Sizes lanes with lane-runs.sh partition from the lane model's own context window at a 0.25 fraction and 3.5 bytes per token, never from a shipped line count. Small plugins pack whole into lanes; the oversized plugin is split by skill into lanes of its own, and the Phase D cost line names the split plugin and its lane count along with the token budget and the line figure derived from measured bytes per line. Concurrency stays at 3 to 5 lanes.",
+      "files": [],
+      "expectations": [
+        "Derives the lane budget from the lane model's context window, not a fixed line count",
+        "Keeps every plugin that fits atomic, never splitting it across lanes",
+        "Splits only the oversized plugin, by skill",
+        "The cost line names the split plugin and how many lanes it became",
+        "Runs 3 to 5 lanes concurrently"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "resume-refuses-live-lease-and-reruns-only-changed-lanes",
+      "prompt": "/harness-config:audit-instructions --resume, first while the previous run's lease is still live, then again after that run was killed by a usage limit with four of seven lane reports complete.",
+      "expected_output": "On the first invocation lane-runs.sh attach exits 4 and the run refuses to attach, naming the lease's heartbeat_at and stale_after_s. On the second it selects the latest run id under the state key, adopts the stale lease with lease acquire --epoch at the next epoch, recomputes each lane's input digest, and dispatches only the three lanes lane-runs.sh plan marks rerun (no completion marker or a changed digest), reading the four complete reports from disk. The cost line states how many lanes were reused and how many re-ran.",
+      "files": [],
+      "expectations": [
+        "Refuses to attach while the lease is live and names heartbeat_at and stale_after_s",
+        "Selects the latest run id under the project's state key by default",
+        "Reuses audit-pass's run-state.sh lease rather than a hand-rolled one",
+        "Re-runs only lanes without a completion marker or with a changed digest",
+        "Reports reused and re-run lane counts on the cost line"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "execution-model-and-report-identity-contract",
+      "prompt": "/harness-config:audit-instructions all --unattended --persist-findings over a marketplace repository.",
+      "expected_output": "Follows SKILL.md's Lane sizing and Run files and resume for the execution model and reference/finding-identity.md for the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29 and the I30 to I33 lane findings. Does not edit audited surfaces.",
+      "files": [],
+      "expectations": [
+        "Follows SKILL.md Lane sizing and Run files and resume for lane sizing, --unattended disclosure, and resume/lease shape rather than inventing a second run model",
+        "Presents each finding's identity as (check, claim, sites); an I15 conflict is one finding with two sites",
+        "Persists I28, I29, and I30 to I33; rows the emit path refuses are declined and counted, never silently dropped",
+        "Does not edit audited instruction files"
+      ]
+    }
+,
+    {
+      "id": 26,
+      "name": "persist-findings-emits-lane-rules-with-identity",
+      "prompt": "/harness-config:audit-instructions skills --persist-findings. One skill's SKILL.md names `/fleet:reachx` (a skill that does not exist) both in its frontmatter description and in a body sentence, and one of its reference/ spokes opens with \"This file is loaded by the hub when the release names a breaking change.\" Phase C keeps both findings.",
+      "expected_output": "Writes the human report with a Finding ID column holding each row's finding_id/v1 from scripts/finding-ids.sh. Persists a review-findings file by running emit-findings.sh with the lane findings on --from-lane as <path>:<line>:<check-id> rows: the body I32 row is emitted at CRITICAL with target=\"/fleet:reachx\" and a finding_id, the I33 row is emitted at SUGGESTION with an Action naming the hub SKILL.md as the target for the loading condition, and both leave Confidence empty. The frontmatter I32 row is not emitted: it is declined as reason=frontmatter and counted in ## Surfaces, and it stays in the human report. Says plainly that nothing has been applied.",
+      "files": [],
+      "expectations": [
+        "Gives every human-report finding a Finding ID derived by scripts/finding-ids.sh rather than composed by hand",
+        "Passes the I32 and I33 lane findings to emit-findings.sh through --from-lane, not --from",
+        "Emits the body I32 row at CRITICAL and the I33 row at SUGGESTION, each with a finding_id and an empty Confidence cell",
+        "Declines the frontmatter I32 row as reason=frontmatter and reports that count rather than dropping it silently",
+        "States that the findings file is a proposal and nothing has been applied"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "i33-fenced-spokes-yield-no-finding",
+      "prompt": "/harness-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, and evals/fixtures/i33-index-pointer-spoke.md relative to the skill directory, treated as one plugin's skill: the hub is its SKILL.md and the two spokes sit in its reference/ directory.",
+      "expected_output": "Reports zero I33 findings. The scope-note spoke opens with the one-line scope note \"Windows only.\", which bounds the file's subject, and the index-pointer spoke opens with a one-line pointer back to the hub's index table, where loading conditions belong; both sit inside I33's Must NOT flag fences, which the lane brief restates. The hub's own index table is not a spoke opener and is never an I33 candidate.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md"
+      ],
+      "expectations": [
+        "Reports no I33 finding for the one-line scope note \"Windows only.\"",
+        "Reports no I33 finding for the \"Full index:\" pointer line",
+        "Reports no I33 finding against the hub's index table",
+        "Does not present either spoke's opener as a Withheld or demoted I33 finding either; the fences exempt them before any finding exists"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "i33-per-spoke-finding-rolls-up-per-plugin",
+      "prompt": "/harness-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory.",
+      "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it, outside every per-lane verifier batch and counted as one dispatch. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md",
+        "evals/fixtures/i33-self-describing-spoke.md"
+      ],
+      "expectations": [
+        "Reports exactly one I33 finding, on i33-self-describing-spoke.md",
+        "Anchors that finding on the opener sentence (an excerpt anchor), not on the whole surface",
+        "Places the I33 finding in a collapsed per-plugin section for release-notes rather than the main findings table",
+        "Keeps Surface:Line and a fenced diff on the I33 row inside the collapsed section",
+        "Judges the I33 class with one class-batched verifier in Phase C",
+        "Excludes the I33 row from every per-lane verifier batch and counts the I33 class verifier as one dispatch in the plan and the ~20-dispatch gate cost line",
+        "Gives a lane whose only proposal is the I33 finding no per-lane verifier"
+      ]
+    }
+  ]
+}

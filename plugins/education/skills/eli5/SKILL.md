@@ -156,7 +156,7 @@ the argument behind a decision, the third reconstructs a sequence.
   simply always fires.
 - **Officialization.** If `eli5` ships as an official or bundled Claude Code surface, this
   wrapper's premise changes from wrapping a community plugin to duplicating something
-  native. Re-run `/claude-ops:audit-native-overlap` (via the Skill tool, if installed) at
+  native. Re-run `/harness-ops:audit-native-overlap` (via the Skill tool, if installed) at
   that point and re-decide the lane. No standing automation watches for this; the trigger
   is the observation.
 

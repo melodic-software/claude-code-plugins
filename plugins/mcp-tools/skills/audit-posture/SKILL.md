@@ -1,5 +1,5 @@
 ---
-description: "Audit the MCP servers configured in Claude Code for supply-chain posture, meaning whether each one is safe to run. Use when: 'is it safe to run my MCP servers', 'mcp supply chain', 'floating MCP versions', 'npx @latest MCP', 'MCP server inventory', 'mcp posture', 'unpinned MCP server', 'which MCP servers run on my host'. Reads user, local, project, managed, and passed-in config statically through a bundled inventory script and returns a dated, diffable inventory (scope, transport, launcher, package, pin state, publisher, sandboxed) with P1-P5 findings: floating versions, local stdio where a remote endpoint exists, publisher provenance, OCI image available but unused. Never runs, installs, or connects to a server and never prints env or header values. Optional arguments add config files, such as a plugin's .mcp.json. Not for: tool definition design quality (/mcp-tools:audit), or config correctness, enablement, and permissions (/claude-config:audit)."
+description: "Audit the MCP servers configured in Claude Code for supply-chain posture, meaning whether each one is safe to run. Use when: 'is it safe to run my MCP servers', 'mcp supply chain', 'floating MCP versions', 'npx @latest MCP', 'MCP server inventory', 'mcp posture', 'unpinned MCP server', 'which MCP servers run on my host'. Reads user, local, project, managed, and passed-in config statically through a bundled inventory script and returns a dated, diffable inventory (scope, transport, launcher, package, pin state, publisher, sandboxed) with P1-P5 findings: floating versions, local stdio where a remote endpoint exists, publisher provenance, OCI image available but unused. Never runs, installs, or connects to a server and never prints env or header values. Optional arguments add config files, such as a plugin's .mcp.json. Not for: tool definition design quality (/mcp-tools:audit), or config correctness, enablement, and permissions (/harness-config:audit)."
 argument-hint: "[--config <file> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -168,12 +168,12 @@ changed rows.
 - Does not print or read `env` or `headers` values, and does not read config files directly.
 - Does not edit configuration. It reports; the operator decides what to pin, replace, or remove.
 - Does not judge whether config is correct, whether a server is enabled or allowed, or whether a
-  permission rule is right. `/claude-config:audit` owns those.
+  permission rule is right. `/harness-config:audit` owns those.
 - Does not judge tool definition quality. `/mcp-tools:audit` owns that.
 
 ## Next
 
-/claude-config:audit to check the same MCP configuration for correctness, enablement, and allow or deny lists.
+/harness-config:audit to check the same MCP configuration for correctness, enablement, and allow or deny lists.
 
 ## Gotchas
 

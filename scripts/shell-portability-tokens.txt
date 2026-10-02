@@ -45,7 +45,7 @@
 # reverted: a pattern is very often built on its own line and consumed
 # several lines later, so the requirement silently un-catches exactly the
 # near-miss shape above. The live proof is in this repo —
-# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh
+# plugins/harness-config/skills/audit-instructions/scripts/instruction-scan.sh
 # assigns `\b`-bearing EREs to I6_ERE/RATIONALE_ERE and only later passes
 # them to `grep -niE`; a grep/sed-context requirement reports that file
 # clean. The cost of staying bare is the mirror-image false positive: the
@@ -308,7 +308,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # contains "date" as a substring followed later by an unrelated ` -d` flag on
 # the same line (e.g. `[[ -d "$candidate" ]]` — "date" inside "candidate").
 # The one real dual-dialect site
-# (plugins/claude-ops/skills/morning-brief/scripts/morning-brief.sh
+# (plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh
 # to_epoch/from_epoch) tries GNU `date -d` then BSD `date -j -f`/`date -r`
 # across separate statements, not co-located on one line, so it is excused via
 # a `portability-ok:` annotation at each site rather than a same-line guard

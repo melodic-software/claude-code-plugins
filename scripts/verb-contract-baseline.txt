@@ -3,4 +3,3 @@
 # starts a comment. A row whose skill no longer mismatches fails the gate, so
 # the row is deleted in the same change that fixes the description. Never add a
 # row for a new mismatch: fix the description.
-plugins/docs-hygiene/skills/audit-encapsulation
