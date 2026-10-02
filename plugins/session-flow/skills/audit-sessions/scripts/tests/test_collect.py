@@ -309,7 +309,7 @@ def test_skipped_redaction_rule_suppresses_excerpts_but_keeps_numbers(data_dir, 
     (skill / "scripts").mkdir(parents=True)
     (tmp_path / "plugin" / "scripts").mkdir()
     shutil.copy2(SCRIPTS.parents[2] / "scripts" / "transcript_reader.py", tmp_path / "plugin" / "scripts")
-    for name in ("collect.py", "redact.py"):
+    for name in ("collect.py", "census.py", "redact.py"):
         shutil.copy2(SCRIPTS / name, skill / "scripts")
     (skill / "vendor" / "gitleaks").mkdir(parents=True)
     rules = {"rules": [{"id": "broken", "regex": "(unclosed", "keywords": []}], "source_version": "test"}

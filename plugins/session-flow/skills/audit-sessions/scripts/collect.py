@@ -4,6 +4,8 @@
 
     collect.py collect --data-dir D [--projects-root P] [--since YYYY-MM-DD] [--session ID ...]
                        [--force] [--retention-days N] [--excerpt-chars N] [--excerpt-words N]
+    collect.py census --data-dir D [--version V] [--model M]
+    collect.py drift --data-dir D [--min-count N] [--versions N] [--session-floor N] [--canaries FILE]
 
 Writes one `session-record/v1` file per main session (the main transcript plus its subagents)
 under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads. A session whose
@@ -12,6 +14,9 @@ that ended before it are pruned and such sessions are not ingested. Typed turns 
 `--excerpt-words` words right after an assistant message keep an excerpt, redacted by redact.py
 and then cut to `--excerpt-chars`; when redaction fails closed no excerpt is stored and the run
 warns. Repo identity comes from lib/state-key.sh, run once per distinct cwd.
+
+`census` and `drift` read the store only, through census.py: the per-(version, model) aggregate
+and its classified diff between Claude Code versions (exit 1 when drift is found).
 
 Prints one JSON envelope on stdout; exit 0 pass, 1 warning, 2 error. Stdlib only; Python 3.10+.
 """
@@ -39,13 +44,18 @@ _PLUGIN_SCRIPTS = str(PLUGIN_ROOT / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
+import census  # noqa: E402  (beside this script)
 import redact  # noqa: E402  (beside this script)
 import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
 SCHEMA = "audit-sessions.collect/v1"
+CENSUS_SCHEMA = "audit-sessions.census/v1"
+DRIFT_SCHEMA = "audit-sessions.drift/v1"
 RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
 HEAD_BYTES = 4096
+# Sessions the newest version needs before a missing canary counts as lost.
+DEFAULT_SESSION_FLOOR = 3
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -83,8 +93,8 @@ DYNAMIC_KEY = re.compile(r"^(toolu_|srvtoolu_|call_)|[/\\\s?:]|^[0-9a-f-]{16,}$|
 DATA_MAPS = frozenset({"trackedFileBackups", "answers", "wireToolInputs"})
 
 
-def emit(status: str, summary: str, data: dict, code: int) -> int:
-    print(json.dumps({"schema": SCHEMA, "status": status, "summary": summary, "data": data}, indent=2))
+def emit(status: str, summary: str, data: dict, code: int, schema: str = SCHEMA) -> int:
+    print(json.dumps({"schema": schema, "status": status, "summary": summary, "data": data}, indent=2))
     return code
 
 
@@ -157,10 +167,6 @@ def _iso(epoch: float | None) -> str | None:
     if epoch is None:
         return None
     return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _version_key(version: str) -> tuple[int, ...]:
-    return tuple(int("".join(c for c in part if c.isdigit()) or 0) for part in version.split("."))
 
 
 def _percentile(values: list[float], fraction: float) -> float | None:
@@ -279,10 +285,13 @@ class SessionScan:
         self.unknown_types: Counter = Counter()
         self.unknown_subtypes: Counter = Counter()
         self.census: dict[str, Counter] = {}
+        self.bucket = ""
+        self.usage_seen: dict[tuple[str, str], tuple] = {}
+        self.usage_split: set[tuple[str, str]] = set()
 
     def add(self, record: dict, side: str) -> None:
-        bucket, keys = census_keys(record)
-        self.census.setdefault(bucket, Counter()).update(keys)
+        self.bucket, keys = census_keys(record)
+        self.census.setdefault(self.bucket, Counter()).update(keys)
         kind = transcript_reader.record_kind(record)
         if kind == "unknown":
             raw = record.get("type")
@@ -305,6 +314,7 @@ class SessionScan:
     def _assistant(self, record: dict, side: str, _ts: float | None) -> None:
         message = _obj(record.get("message"))
         self.ledgers[side].add(record)
+        self._usage_invariant(message, side)
         key = message.get("id") or record.get("uuid")
         if key not in self.messages[side]:
             self.messages[side].add(key)
@@ -327,6 +337,21 @@ class SessionScan:
                 self._tool_use(block)
         if side == "main":
             self.last_kind = "assistant"
+
+    def _usage_invariant(self, message: dict, side: str) -> None:
+        """Count a message whose streamed records disagree on input or cache usage, once.
+
+        Dedup keeps the last record's usage, which is sound only while streaming rewrites
+        nothing but output tokens; the drift guard's invariant canary reads this count.
+        """
+        usage = message.get("usage")
+        if not isinstance(usage, dict) or not isinstance(message.get("id"), str):
+            return
+        group = (side, message["id"])
+        signature = tuple(usage.get(k) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+        if self.usage_seen.setdefault(group, signature) != signature and group not in self.usage_split:
+            self.usage_split.add(group)
+            self.census[self.bucket]["invariant:usage_split"] += 1
 
     def _tool_use(self, block: dict) -> None:
         # Streaming can repeat a block in a later record; the id counts it once.
@@ -582,7 +607,7 @@ def build_record(
         "cwd": scan.cwd,
         "repo_identity": repo_identity,
         "worktree": worktree,
-        "cc_versions": sorted(scan.versions, key=_version_key),
+        "cc_versions": sorted(scan.versions, key=census.version_key),
         "time": scan.time_block(),
         "models": {side: dict(counts) for side, counts in scan.models.items()},
         "effort": {side: dict(counts) for side, counts in scan.effort.items()},
@@ -782,6 +807,43 @@ def cmd_collect(args: argparse.Namespace) -> int:
     return emit("pass", summary, data, 0)
 
 
+def cmd_census(args: argparse.Namespace) -> int:
+    try:
+        records, skipped = census.load_records(Path(args.data_dir))
+    except OSError as exc:
+        return emit("error", str(exc), {"data_dir": args.data_dir}, 2, CENSUS_SCHEMA)
+    rows = census.aggregate(records, version=args.version, model=args.model)
+    data = {"sessions": len(records), "skipped_records": skipped, "census": rows}
+    return emit("pass", f"{len(rows)} (version, model) buckets over {len(records)} sessions", data, 0, CENSUS_SCHEMA)
+
+
+def cmd_drift(args: argparse.Namespace) -> int:
+    try:
+        records, skipped = census.load_records(Path(args.data_dir))
+        canaries = census.load_canaries(Path(args.canaries))
+    except (OSError, ValueError) as exc:
+        return emit("error", str(exc), {"data_dir": args.data_dir, "canaries": args.canaries}, 2, DRIFT_SCHEMA)
+    data = census.drift(
+        records,
+        canaries.get("canaries", []),
+        min_count=args.min_count,
+        versions=args.versions,
+        session_floor=args.session_floor,
+    )
+    data["skipped_records"] = skipped
+    found = ", ".join(f"{n} {cls}" for cls, n in data["counts"].items() if n)
+    if found:
+        return emit("warning", f"drift found: {found}", data, 1, DRIFT_SCHEMA)
+    return emit("pass", f"no drift over {len(records)} sessions", data, 0, DRIFT_SCHEMA)
+
+
+def _positive(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return number
+
+
 def _non_negative(value: str) -> int:
     number = int(value)
     if number < 0:
@@ -802,12 +864,26 @@ def main(argv: list[str] | None = None) -> int:
     collect.add_argument("--excerpt-chars", type=_non_negative, default=240, help="0 stores no excerpt text")
     collect.add_argument("--excerpt-words", type=_non_negative, default=60)
     collect.set_defaults(func=cmd_collect)
+    aggregate = sub.add_parser("census", help="sum stored census rows per (version, model)")
+    aggregate.add_argument("--data-dir", required=True)
+    aggregate.add_argument("--version", help="only this Claude Code version")
+    aggregate.add_argument("--model", help="only this model (`*` for non-assistant records)")
+    aggregate.set_defaults(func=cmd_census)
+    drift = sub.add_parser("drift", help="classify census changes between Claude Code versions")
+    drift.add_argument("--data-dir", required=True)
+    drift.add_argument("--min-count", type=_positive, default=20)
+    drift.add_argument("--versions", type=_positive, default=3, help="vanish window, in versions")
+    drift.add_argument("--session-floor", type=_positive, default=DEFAULT_SESSION_FLOOR)
+    drift.add_argument("--canaries", default=str(census.BUNDLED_CANARIES))
+    drift.set_defaults(func=cmd_drift)
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         if exc.code == 0:
             raise
-        return emit("error", "bad arguments", {}, 2)
+        words = sys.argv[1:] if argv is None else argv
+        schema = {"census": CENSUS_SCHEMA, "drift": DRIFT_SCHEMA}.get(words[0] if words else "", SCHEMA)
+        return emit("error", "bad arguments", {}, 2, schema)
     return args.func(args)
 
 
