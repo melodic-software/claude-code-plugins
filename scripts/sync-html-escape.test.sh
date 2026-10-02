@@ -16,6 +16,7 @@ sync_cluster_suite::run \
   --script "$SELF_DIR/sync-html-escape.sh" \
   --canonical 'lib/html-escape.mjs' \
   --copy 'plugins/review/lib/html-escape.mjs' \
+  --extra-copy 'plugins/education/lib/html-escape.mjs' \
   --v1 'export const escapeHtml = (s) => String(s);\n' \
   --v2 'export const escapeHtml = (s) => String(s ?? "");\n' \
   --drift '// drifted\n' \

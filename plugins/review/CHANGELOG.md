@@ -3,6 +3,13 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.9] - 2026-10-02
+
+### Changed
+
+- The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
+  the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
 ## [0.34.8] - 2026-10-02
 
 ### Fixed

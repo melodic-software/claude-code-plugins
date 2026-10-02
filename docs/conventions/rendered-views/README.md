@@ -118,7 +118,7 @@ residence are how this convention prices them.
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
 Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
-`architecture:improve`, `education:quiz-me`, `education:teach`,
+`architecture:improve`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
 `harness-ops:observability`, `planning:interview` (and planning's other rendered views),
 `overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
@@ -151,7 +151,7 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   drift-gated by `scripts/sync-html-escape.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
-  `/review:pr-explainer` is the first lane on that gate.
+  `/review:pr-explainer` and `/education:quiz-me` are on that gate.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
   checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
