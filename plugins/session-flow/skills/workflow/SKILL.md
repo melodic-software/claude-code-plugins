@@ -64,7 +64,7 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 | `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist |
 | `wrap-up` | **Wrap-up** | Load `context/wrap-up.md`, end-of-session checklist |
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
-| `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution with `/clear` between stages |
+| `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution from a written spec |
 | `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
 | `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
 
@@ -113,7 +113,8 @@ to carry on, the *mechanism* question is separate from the *next stage* question
 `/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
 its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
 context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
-skip this, the default is simply to continue.
+skip this, the default is simply to continue. Mid-stage on the same task with a bloated window,
+the route is `/compact <focus>`, typed by the user.
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license
