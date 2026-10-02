@@ -18,6 +18,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **A seeded overlap pair for the built-in `cc-plugin-agents-md` plugin.** `canonical-pairs.json`
   proposes it against `/instruction-placement:migrate`.
 
+## [0.81.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree. The `machine-profile` skill and the README cite its design document by commit permalink.
+
 ## [0.81.0] - 2026-10-01
 
 ### Added

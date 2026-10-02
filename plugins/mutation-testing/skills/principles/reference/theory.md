@@ -75,6 +75,23 @@ That is genuinely valuable and narrower than "the code works." It says nothing a
 test exercises, nothing about whether the specification is right, and nothing about fault classes
 outside the operator catalog.
 
+**A killed mutant does not clear a copied expected value.** A test whose expected value copies the
+production formula kills the same mutants as one whose expected value is a literal from the
+specification, and a test whose expected value calls the code under test kills almost none. Measured
+on `f(x) = x + 0.2x` with three mutants:
+
+| Oracle | Mutants killed |
+|---|---|
+| `f(100) == f(100)`, calls the code under test | 0 of 3 |
+| `f(200) == 2 * f(100)`, a relation | 1 of 3 |
+| `f(100) == 100 + 100 * 0.2`, copied logic | 3 of 3 |
+| `f(100) == 120`, a literal | 3 of 3 |
+
+So the score cannot tell a copied oracle from an independent one. Where an expected value came from
+is a judgment about the test, which the `testing` plugin's task-end judge rule
+`testing/judge/rule-restated-expectation` owns. `/mutation-testing:audit --exercised` prints this
+limit on every report.
+
 Read alongside Khorikov's framing of test value: a test's protection against regressions is its
 guard against false negatives, meaning missed bugs. Mutation testing is the closest available *empirical
 measurement* of that specific property, which is why it earns a place beside coverage rather than

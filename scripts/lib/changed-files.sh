@@ -57,10 +57,9 @@
 # `--find-renames` IS THE OTHER SIDE OF THAT SAME DECISION, and it is not the
 # same as saying nothing. Rename detection is git's DEFAULT, but `diff.renames`
 # can turn it off in a repository's config, and a gate whose verdict depends on
-# a move collapsing to its destination alone (check-contract-slice-prune.sh: a
-# `git mv` OUT of the contract dir is the graduation the convention prescribes,
-# and seeing the vanished source would red-line it) cannot let a config setting
-# decide. Passing it pins detection on for that call regardless of config.
+# a move collapsing to its destination alone (a `git mv` out of a policed
+# directory, where seeing the vanished source would red-line it) cannot let a
+# config setting decide. Passing it pins detection on for that call regardless of config.
 
 # changed_files::verify_base <ref>
 changed_files::verify_base() {

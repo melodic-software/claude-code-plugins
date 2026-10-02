@@ -186,13 +186,12 @@ at setup rather than choosing a directory for you.
 
 ## Persistence
 
-The durable candidate list lands in the memory tier of the marketplace
-topic-docs convention: `<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md`,
-default `.work/<topic-slug>/`. That path is never committed (the memory root
-self-ignores), so scan output cannot leak into your git history. Resolution
-honors your repo's `.claude/topic-docs.yaml` or declared working-docs
-convention first (see `reference/topic-docs.md`); the skill reports the path
-either way.
+The durable candidate list lands in the memory tier:
+`<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md`, default
+`.work/<topic-slug>/`. That path is never committed (the memory root
+self-ignores), so scan output cannot leak into your git history. A working-docs
+root your repo declares in `CLAUDE.md` or `.claude/rules` replaces `.work/`; the
+skill reports the path either way.
 
 ## Configuration
 

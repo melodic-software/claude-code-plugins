@@ -80,7 +80,7 @@
       "id": 6,
       "name": "root-with-collaborator-installed",
       "prompt": "/architecture:map-landscape --root /srv/code/platform\n\nThe repo-fleet-hygiene plugin IS installed. Its audit writes the plan fixture below, whose repositories[] includes an entry outside the requested root.",
-      "expected_output": "Invokes /repo-fleet-hygiene:audit with --plan-file pointing into the topic-docs memory slice, confirms schema_version is 1, filters repositories[] to entries whose discovered path lies under /srv/code/platform, and charts billing and web from their canonical paths. The operator's personal scratchpad, present in the plan, is excluded.",
+      "expected_output": "Invokes /repo-fleet-hygiene:audit with --plan-file pointing into the memory slice, confirms schema_version is 1, filters repositories[] to entries whose discovered path lies under /srv/code/platform, and charts billing and web from their canonical paths. The operator's personal scratchpad, present in the plan, is excluded.",
       "files": [
         "evals/fixtures/fleet-plan.json",
         "evals/fixtures/topic-doc-mermaid.md"

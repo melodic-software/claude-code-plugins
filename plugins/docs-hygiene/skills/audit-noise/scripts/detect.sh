@@ -182,11 +182,6 @@ if [[ ${#SORTED[@]} -eq 0 ]]; then
   no_targets "chunk offset/limit selected no targets"
 fi
 
-# Hoist convention-root resolution once per run: the contract root must
-# survive into the ghost-ref exemption check.
-AUDIT_NOISE_REPO_ROOT="${AUDIT_NOISE_REPO_ROOT:-${repo_root:-.}}"
-audit_noise_resolve_convention_roots
-
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
 # Record one finding into a nameref array as a US-delimited row so the file

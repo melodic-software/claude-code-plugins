@@ -35,5 +35,5 @@ plugins/*/evals/results/
 .coverage.*
 plugins/code-metrics/coverage.json
 
-# Topic memory tier — never committed (docs/conventions/topic-docs/README.md "Memory")
+# Local working directory, never committed
 .work/

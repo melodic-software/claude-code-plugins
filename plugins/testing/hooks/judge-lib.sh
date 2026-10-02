@@ -651,36 +651,21 @@ judge::slug() {
 
 # judge::findings_dir <repo> <branch>: set FDIR to the findings
 # directory the detector-findings contract resolves for a headless producer:
-# .claude/topic-docs.yaml's memory_dir, else .work, then reviews/<branch-slug>/,
-# with the memory root's self-ignoring .gitignore. memory_dir is taken only
-# when it matches [A-Za-z0-9._/-]+ with no `..` component, else .work. The
-# directory must resolve physically (symbolic links followed) strictly inside
-# the checkout, before and after it is created, and the .gitignore is created
-# exclusively, never through an existing link. No branch, or a check that
-# fails: the plugin data directory.
+# <repo>/.work/reviews/<branch-slug>/, with the memory root's self-ignoring
+# .gitignore. The directory must resolve physically (symbolic links followed)
+# strictly inside the checkout, before and after it is created, and the
+# .gitignore is created exclusively, never through an existing link. No
+# branch, or a check that fails: the plugin data directory.
 judge::findings_dir() {
-  local repo="$1" branch="$2" mem="" line target
+  local repo="$1" branch="$2" mem target
   FDIR="$DATA/findings"
   if [[ -n "$branch" ]]; then
-    if [[ -f "$repo/.claude/topic-docs.yaml" ]]; then
-      while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" == memory_dir:* ]] || continue
-        mem="${line#memory_dir:}"
-        break
-      done <"$repo/.claude/topic-docs.yaml"
-    fi
-    mem="${mem%%#*}" && mem="${mem//$'\r'/}"
-    mem="${mem#"${mem%%[![:space:]]*}"}" && mem="${mem%"${mem##*[![:space:]]}"}"
-    [[ "$mem" =~ ^\"(.*)\"$ || "$mem" =~ ^\'(.*)\'$ ]] && mem="${BASH_REMATCH[1]}"
-    [[ "$mem" =~ ^[A-Za-z0-9._/-]+$ && "/$mem/" != */../* ]] || mem=.work
-    case "$mem" in /*) ;; *) mem="$repo/${mem#./}" ;; esac
-    mem="${mem%/}"
+    mem="$repo/.work"
     judge::slug "$branch"
     target="$mem/reviews/$SLUG"
     # Both the memory root (where the .gitignore goes) and the findings
     # directory are checked, before mkdir and again after it.
-    if [[ "$mem" == "$repo/"?* && "/$mem/" != */./* ]] &&
-      judge::inside "$repo" "$mem" && judge::inside "$repo" "$target" &&
+    if judge::inside "$repo" "$mem" && judge::inside "$repo" "$target" &&
       { [[ -d "$target" ]] || mkdir -p "$target"; } &&
       judge::inside "$repo" "$mem" && judge::inside "$repo" "$target" && judge::self_ignore "$mem"; then
       FDIR="$target"

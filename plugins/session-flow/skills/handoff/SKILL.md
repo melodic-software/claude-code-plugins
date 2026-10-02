@@ -228,7 +228,7 @@ ticked. Emit the rails block before ending the turn, always.
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), vertical rail with the
   current unit marked, completeness line, and the three one-line blocks, OR an explicit line saying
   the units would not resolve. Never a rail whose units were invented to fill it
-- [ ] `memory_dir` resolved through `parse-concern-value.sh` (the retro skill's call form, never
+- [ ] `memory_dir` resolved (a root `CLAUDE.md` / `.claude/rules/` declares, else `.work`; never
   the literal `.work` assumed), the root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
   `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every

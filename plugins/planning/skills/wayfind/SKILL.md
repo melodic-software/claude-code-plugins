@@ -38,9 +38,9 @@ time until the fog burns off and a real destination (Brief / PRD / PLAN) can be 
 resolved, either sharpens the map or graduates to the destination. The moment the destination
 is coherent, the map closes and the normal pipeline (`/planning:interview → /planning:design → /planning:plan →
 /implementation:implement`) takes over. The map persists as native tracker primitives, each decision routes
-to a first-party skill, and execution artifacts live in `<memory_dir>/<slug>/` (default
-`.work/`). The topic-docs convention's memory tier, slug spec and all (see
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+to a first-party skill, and execution artifacts live in the memory slice `<memory_dir>/<slug>/`
+(default `.work/`; see
+[`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)),
 never in the map itself.
 
 **Two modes.** `chart` builds or extends a map (interactive only). `work` picks one item off

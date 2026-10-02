@@ -68,7 +68,6 @@ REGISTRY=(
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-parity.sh|-|--check|changelog_parity"
-  "check-contract-slice-prune.sh|-|-|-"
   "check-conformance-registry.sh|-|-|-"
   "check-cross-plugin-source-drift.sh|-|-|-"
   "check-detector-eval-coverage.sh|jq|-|-"

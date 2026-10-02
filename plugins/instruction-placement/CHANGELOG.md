@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.10] - 2026-10-01
+## [0.16.11] - 2026-10-01
 
 ### Added
 
@@ -11,6 +11,12 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   beside.** A `## Boundary` section separates the plugin, which loads `AGENTS.md` as project
   instructions, from this skill, which moves content into `AGENTS.md` and decides about the shim.
   The dated record is in `reference/sources.md`.
+
+## [0.16.10] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.16.9] - 2026-10-01
 

@@ -37,7 +37,7 @@ also owes `Source breadth:` and `Evidence use:`. This table says why each is the
 |---|---|
 | Resolved topic | A non-fork subagent sees no conversation to infer from, and the topic does not reach a preloaded body by argument substitution, so the agent must not rely on seeing an unfilled slot after `Research the following topic:`. Silence there is a missing topic, not an empty one |
 | Reason the topic is being researched, meaning the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
-| Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
+| Memory-slice path | Resolved by the parent per the lifecycle artifact protocol |
 | Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labeled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's. Carried on two lines: `Budget:` for depth, as a word from the parent contract's `Budget:` vocabulary, and `Turn budget:` for the turn by which the worker stops gathering (degradable; absent, the worker uses its own default) |
 | Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
@@ -226,7 +226,7 @@ one thing it just proved it cannot do, and a re-dispatch pays for every phase ag
 same refusal, the most expensive way to learn nothing.
 
 So the parent does the writing, which it can: this is the checkout-not-process boundary
-[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md)
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md) ("Persistence by value")
 draws:
 
 1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
@@ -267,7 +267,7 @@ It is not an acceptance value. An index body written back must carry
 is a failed dispatch. Letting the gate grade a claim the agent makes about its own research, in
 place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
 through the recovery path instead of the front door. Why the mode exists and where its boundary
-sits: [`../../../reference/topic-docs.md`](../../../reference/topic-docs.md).
+sits: [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md) ("Persistence by value").
 
 **Exit 1 with the agent still live: resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask

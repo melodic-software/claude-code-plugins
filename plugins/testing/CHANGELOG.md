@@ -3,6 +3,21 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **audit:** `[--file <path>]` in the argument hint, forwarded to the script's `--file` mode, so
+  another skill can ask through the Skill tool which adapter claims a file.
+  `/mutation-testing:audit --exercised` uses it to recognize changed test files.
+
+## [0.16.3] - 2026-10-01
+
+### Changed
+
+- **The test judge ignores `memory_dir` in `.claude/topic-docs.yaml`.** `judge-lib.sh` always writes the findings file under `<repo>/.work/reviews/<branch-slug>/`, so a consumer that set `memory_dir` there no longer gets findings in that root. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
+- **The judge calibration record moved beside its labels.** `calibration.md` now lives in `skills/audit/evals/judge-calibration/`, and `metrics.sh --check` reads its `holdout-only:` lines from there instead of `docs/specs/tautological-tests-judge/calibration.md`.
+
 ## [0.16.2] - 2026-10-01
 
 ### Fixed

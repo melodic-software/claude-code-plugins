@@ -3,7 +3,7 @@ description: "Inventory and tidy the gitignored `.work` memory tiers (the repo's
 argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR]"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh:*)"]
+allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report:*)"]
 metadata:
   workflow-stage: session
   summary: Report, normalize, and clean stale .work memory items
@@ -13,9 +13,7 @@ metadata:
 
 ## Purpose
 
-The memory root (default `.work/`, see
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
-and `~/.work` collect handoffs, running-retro ledgers, workflow checklists, and slice folders
+The memory root (default `.work/`) and `~/.work` collect handoffs, running-retro ledgers, workflow checklists, and slice folders
 that nothing else deletes, and agents drop scratch files beside them whose names carry the issue or
 PR they were for. This skill inventories them with age, size, and kind, attributes each scratch
 entry to that issue or PR and reports its state, marks what is still in flight, and, only on
@@ -47,10 +45,8 @@ date), is not attributed and stays unknown.
 
 ## Steps
 
-1. **Resolve the memory root.** From the repository root, run
-   `bash ${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh .claude/topic-docs.yaml memory_dir`,
-   adding as a third argument a `memory_dir` the repo documents only in prose (`CLAUDE.md` or
-   `.claude/rules/`). Empty output means the default `.work`. Pass the result as
+1. **Resolve the memory root.** Use a `memory_dir` the repo documents in prose (`CLAUDE.md` or
+   `.claude/rules/`), else the default `.work`. Pass the result as
    `--memory-dir <root>` on every invocation below; a `--memory-dir` the user gave wins. The
    resolution order is the one handoff uses
    ([`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md),

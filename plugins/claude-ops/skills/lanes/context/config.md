@@ -15,9 +15,9 @@ A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
 
 `lanes/` is a reserved first-level concern name under the memory root; the config
 and the lane prompt files live inside it rather than as bare files at the root.
-The `.work` root is **hardcoded**: the launcher does not resolve the topic-docs
-`memory_dir` setting, because it runs as an operator script outside any session
-that could resolve one. A consumer that has repointed `memory_dir` passes
+The `.work` root is **hardcoded**: the launcher does not resolve a repointed
+memory root, because it runs as an operator script outside any session
+that could resolve one. A consumer that has repointed the memory root passes
 `--config` or sets `$CLAUDE_OPS_LANES_CONFIG` instead.
 
 **Pre-move compatibility.** When step 3 finds nothing and the pre-move

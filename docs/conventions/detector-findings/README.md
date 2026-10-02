@@ -54,42 +54,21 @@ file format is that route.
 
 ## Where the file goes
 
-The destination is a **memory-tier, concern-scoped** location, and a producer resolves it through the
-same binding the consumer does:
-[`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md)
-"Resolution (the contract's five-rung order, earlier wins)", which `/review:fanout` names under
-"Shared inputs" as what it resolves through. That skill body does not restate the ladder. It points
-at `topic-docs.md` and warns against assuming its shape, so a producer and the consumer read one text
-rather than two that have to be reconciled. Naming the
-binding by its repo path is the point of this section: `review:fanout` reaches it through a
-`${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside `review` can expand, and it is the same
-document either way.
+The destination is the current branch's findings directory in the **memory slice**
+(`.work/reviews/<branch-slug>/` by default), never committed. A producer writes where the consumer
+scans. `/review:fanout` "Shared inputs" (`plugins/review/skills/fanout/SKILL.md`) owns the home and
+the branch slug, and a producer resolves them the way that skill does, so a producer and the
+consumer read one text rather than two that have to be reconciled. The file shape is owned by
+[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md).
 
-What the binding leaves to a producer, stated as consequences rather than as a second statement of
+What the owner leaves to a producer, stated as consequences rather than as a second statement of
 its rules:
 
-- **Run the rung order, not only its last rung.** Writing to the documented default when a higher
-  rung resolved puts the file somewhere the `fix` action never scans, and nothing reports the miss.
-  The configured `memory_dir` and the `CLAUDE.md`-declared location are exactly the cases that fail
-  silently.
-- **Take the non-interactive collapse.** A producer that cannot ask the user or persist config, as a
-  headless detector cannot, resolves the rungs that confirm or ask through the
-  [topic-docs convention](../topic-docs/README.md) "Non-interactive / forked mode". Inventing an
-  answer to those rungs instead resolves to a directory the consumer never reaches.
+- **Write to the branch's own directory.** A file written anywhere else is a directory the `fix`
+  action never scans, and nothing reports the miss.
 - **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
-  frontmatter, never the directory it sits in. The binding's slug rule says why.
-- **The self-ignore guard is owed, not re-derived**, including the convention's invalid cases, which
-  stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
-  checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
-  findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
-  that the guard does not run. **The artifact write is not automatically safe there either**:
-  recreating a path that is an *index-tracked deletion* in a missed checkout modifies tracked state
-  rather than creating an untracked one (measured), so "it lands untracked" is not universally true.
-  But a blanket refusal is the wrong correction. It would refuse the `${CLAUDE_PLUGIN_DATA}`
-  fallback the convention routes non-interactive runs to, which sits outside every checkout **by
-  construction** and cannot be a tracked deletion. The rule follows that distinction: write where the
-  destination is that plugin-data surface, and where it is a resolved root no checkout could be shown
-  to govern, report the resolved destination and persist nothing.
+  frontmatter, never the directory it sits in. The branch-slug rule says why.
+- **Findings are checkout-local.** A producer never commits one.
 
 ## Boundary
 
@@ -231,8 +210,8 @@ side.
 
 | Rule id | What fires it | The test the disposition is argued from | Tier or disposition | Auto-applicable |
 |---|---|---|---|---|
-| mutation-testing/audit/rule-survivor-productive | A surviving mutant classed productive, whose survival demonstrates a gap in what the suite asserts | CRITICAL's test is that you can name a concrete input, caller, or subsequent otherwise-correct change that the defect makes produce a wrong result, an unsafe one, or none at all. A survivor satisfies no limb: it is evidence that the suite fails to detect a change, not that anything produces a wrong, unsafe or absent result. The third limb is the near miss and still fails, because the defect it needs is one in the source while a survivor is evidence about the tests. IMPORTANT's second limb then matches, behavior the change ADDS that no test covers, and the "adds" clause is satisfied because this producer is diff-scoped, so the mutated node is inside the change under review. | IMPORTANT | No, the remediation is the covering test, not `Location` |
-| mutation-testing/audit/rule-survivor-unclassified | Any non-emitting verdict, equivalence OR aridity, claimed without the positive evidence its own rule requires. This is the fall-through both withholding rules land in, which is what makes them fail-safe rather than silent. | The tests are evaluated against what the run demonstrated, never what it asserted. With no evidence the run has shown exactly what the productive rule shows, namely that a mutant survived inside the diff, so IMPORTANT's added-behavior-no-test-covers limb matches on identical facts. Admitting a lower tier on an undemonstrated assertion would let the assertion decide the tier instead of the test, which is the standard way this technique manufactures false confidence. | IMPORTANT | No, same off-site remediation |
+| mutation-testing/audit/rule-survivor-productive | A surviving mutant classed productive, whose survival demonstrates a gap in what the suite asserts | CRITICAL's test is that you can name a concrete input, caller, or subsequent otherwise-correct change that the defect makes produce a wrong result, an unsafe one, or none at all. A survivor satisfies no limb: it is evidence that the suite fails to detect a change, not that anything produces a wrong, unsafe or absent result. The third limb is the near miss and still fails, because the defect it needs is one in the source while a survivor is evidence about the tests. IMPORTANT's second limb then matches, behavior the change ADDS that no test covers, and the "adds" clause is satisfied because the diff scope mutates only the change, so the mutated node is inside the change under review. Under the exercised scope (`--exercised`) the change is the tests and the mutated node sits outside it, so that limb's "adds" clause does not hold; IMPORTANT's degradation-with-a-named-trigger limb matches instead, for every survivor cause: the first regression that changes the result for an input the changed tests do not use, in a function they exercise, ships green. First match wins in both scopes, on the same tier. | IMPORTANT | No, the remediation is the covering test, not `Location` |
+| mutation-testing/audit/rule-survivor-unclassified | Any non-emitting verdict, equivalence OR aridity, claimed without the positive evidence its own rule requires. This is the fall-through both withholding rules land in, which is what makes them fail-safe rather than silent. | The tests are evaluated against what the run demonstrated, never what it asserted. With no evidence the run has shown exactly what the productive rule shows, namely that a mutant survived inside the diff, so IMPORTANT's added-behavior-no-test-covers limb matches on identical facts. Under the exercised scope the mutant survived in a function the changed tests exercise, and the degradation limb the productive row argues from matches on the same facts with the same trigger: the first regression that changes the result for an input the changed tests do not use, in a function they exercise, ships green. Admitting a lower tier on an undemonstrated assertion would let the assertion decide the tier instead of the test, which is the standard way this technique manufactures false confidence. | IMPORTANT | No, same off-site remediation |
 | mutation-testing/audit/rule-survivor-arid | **Aridity demonstrated**: the proposed suppression entry is complete (all five keys, id derived from them), its claim names a node kind from the producer's enumerated vocabulary, and its reason names the specific behavior the suite deliberately does not assert on. "Killing this would not improve the suite" asserted from inspection is not that demonstration. An arid call that cannot show it is not arid. It selects the unclassified rule above, which emits. | Argued from the Boundary, NOT from a tier test, and the row says so because the tier tests do not decide it: applied literally, IMPORTANT's added-behavior-no-test-covers limb WOULD match an arid survivor and first-match-wins would land on IMPORTANT. What withholds the row is that its only remediation is a suppression entry an operator must accept, so the finding never reaches the relay at all: the Boundary's "Findings that never reach a relay" case. Handing a consent-gated write to an apply relay would launder that gate. | No row, proposed suppression | Not applicable, no row |
 | mutation-testing/audit/rule-survivor-equivalent | Equivalence demonstrated: identical observable behavior across the differential cases the rule names, with the mutated state shown dead or idempotent | Argued from the Boundary, not from a tier test, and not by claiming the tests are unreachable, because SUGGESTION is a catch-all ("neither test holds") that any finding can reach. The ground is that every tier presupposes a defect to act on and a demonstrated equivalent mutant is not one: no behavior changed, so nothing failed to detect it. Being not a finding, it never reaches the relay; emitting a row would manufacture one. | No row, declined candidate | Not applicable, no row |
 | testing/audit/rule-zero-assertion | A runnable test body containing zero assertion tokens (threshold: 0). Selection is a mechanical token scan with no withholding verdict, so the fail-safe criterion is met by construction. The one decline is evidence-stated: an in-file `cant-fail-ok: <reason>` annotation marks a deliberate case, which is declined at selection and counted in `## Surfaces`, never silently dropped. | CRITICAL's test fails on every limb: a test that cannot fail makes nothing produce a wrong, unsafe, or absent result. It is evidence about the suite's oracle, not about the source, and the third limb's subsequent-change clause needs a source defect this finding does not assert. IMPORTANT's degradation-with-a-named-trigger limb then matches: the test's existence is a coverage claim nothing backs, and the trigger is nameable: the first regression in the behavior this test exercises ships under a green run. First match wins there. | IMPORTANT | No, contained to `Location`'s file, but the repair encodes the intended oracle (which assertion the behavior deserves), a call for judgment Step 4 surfaces rather than auto-applies |
@@ -640,8 +619,8 @@ that writes nothing, reports green, and had findings satisfies neither.
 
 ## Many emitters, one statement of each mechanic
 
-Emitting a conforming file means resolving the findings home through its whole rung order, computing
-the branch sub-path, running the self-ignore guard, relativizing paths, escaping cells, and
+Emitting a conforming file means resolving the findings home, computing
+the branch sub-path, relativizing paths, escaping cells, and
 formatting a colon-free UTC timestamp. Every adopter in the table above does it, and the next
 detector will do it too. The decision recorded here is **why that is not one copy per adopter of one
 thing**, and what would make it become one.
@@ -665,7 +644,7 @@ its own plugin's context file. A byte-identity check has no subject.
 |---|---|
 | Table shape and cell escaping | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-file shape" |
 | Path relativization and the colon-free timestamp | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-writer contract" |
-| Findings home, rung order, branch sub-path, slug rule, self-ignore guard | [`topic-docs.md`](../../../plugins/review/reference/topic-docs.md) |
+| Findings home, branch sub-path, slug rule | `/review:fanout` "Shared inputs" |
 | Which of those a non-fanout producer owes, and the fields it computes | this doc |
 | A rule's threshold, tier argument, disposition, and auto-applicability | this doc's crosswalk |
 
@@ -792,8 +771,6 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - `/review:fanout fix`: the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
-- [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md): the findings-location binding `review:fanout` resolves through, carrying the rung order, branch sub-path, slug rule, and guard a producer therefore never restates.
-- [`docs/conventions/topic-docs/`](../topic-docs/README.md): the tier semantics, guards, and invalid-root rule that resolver implements; not itself the pointer for where a producer writes.
 - [`docs/conventions/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
 - [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its revisit trigger fires at.

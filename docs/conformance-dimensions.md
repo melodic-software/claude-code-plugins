@@ -6,8 +6,8 @@ carries the rule; this table only points at it.
 
 The skill that runs every lane is not built yet. Until it is, a `judgment:` lane is a question a
 reviewer asks by hand, and a command lane runs as written. The approved plan for the skill, and for
-the gates it adds, is [the conformance audit plan](specs/plugin-conformance-audit-plan.md). Its
-design decisions are in [the design threads](specs/plugin-conformance-design-threads.md).
+the gates it adds, is [the conformance audit plan](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/plugin-conformance-audit-plan.md). Its
+design decisions are in [the design threads](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/plugin-conformance-design-threads.md).
 
 Columns:
 

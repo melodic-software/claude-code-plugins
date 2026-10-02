@@ -186,8 +186,7 @@ self-ignoring `.gitignore`, but *inside a plugin-owned directory* (memory root o
 The layers above describe **where** a surface's values live relative to each other. This section
 describes **how** a surface is expressed at all, and it ratifies a second expression form
 alongside the dedicated file ([ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md),
-2026-09; the decision record cites the blind mechanism tournament under
-`docs/topics/customization-consistency/design/`).
+2026-09).
 
 **The criterion.** A surface takes exactly one of the expressions below, settled by what the
 content *is*, never by the author's preference:
@@ -200,7 +199,7 @@ content *is*, never by the author's preference:
   layer, the team's. A migrated surface's setup `check` WARNs on any pre-existing `*.local.*`
   overlay file it finds for that surface rather than silently ignoring it. The overlay no longer
   has an effect, and silence would let a personal deviation look live.
-- **Structured data where YAML/JSON is the right tool** (`topic-docs.yaml`, `routing.yaml`,
+- **Structured data where YAML/JSON is the right tool** (`routing.yaml`,
   `binding.json`, `testing.yaml`) stays a keyed config surface under the layers above. Its team
   layer is placed by the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename)
   ([ADR 0044](../../adr/0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)):
@@ -456,7 +455,6 @@ conformance.
 | `ai-briefing` | team only | no overlay |
 | `code-tidying` | team only; residual wholesale if no `## Merge semantics` | per-section when declared |
 | `code-metrics` | later layer | per-key |
-| `topic-docs` | team only | single-layer |
 | `repo-fleet-hygiene` | `--config` then team then user-global | whole-file, no per-key |
 | `work-items` | overlay on the allowlist | per-key overlay |
 | `work-items` (recurring schedule) | team only | single-layer |
@@ -507,7 +505,6 @@ its conformance cell.
 | `ai-briefing` | `.claude/ai-briefing/` | team only | team only | no overlay | declared deviation; team-only, no local overlay (#3580). Named profile selection (`--profile`, `active_profile`, or `.claude/ai-briefing/<name>/`) is profile selection, not a `*.local.*` cascade layer. `sources.md`, optional `audience.md`, and optional `brand.json` are tracked profile files in the selected directory, not personal overlays |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | team only; residual wholesale if no `## Merge semantics` | per-section when declared | declared deviation; no user-global or `*.local.*` overlay (#723). Team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`Scope` per-section override, watch-for patterns additive, per `docs-prose` #701 and `shell-tooling` #724). Residual deviation: a project lane that declares nothing still resolves project-only wholesale, the first-match fallback retained in #701 so unmigrated consumer lanes keep working, undeclared at the layer that takes it. Personal variation is limited to lane names the team does not track, an uncommitted `.claude/tidy-lanes/<lane>.md` never added to the index; gitignoring a path the team already tracks does not make it personal |
 | `code-metrics` | `.claude/code-metrics.yaml` | all three | later layer | per-key | conforms (per-key override, declared because every value is a scalar or a closed list: `scope.exclude` and `lanes.<lane>.collectors.<measure>` replace whole), except declared divergences from "Resolution algorithm": (1) the root is `git rev-parse --show-toplevel`, else the working directory, and `CLAUDE_PROJECT_DIR` is not read (`plugins/code-metrics/scripts/resolve-config.py:112-124`; step 1); (2) no home-root or same-file classification of the team and overlay paths (`resolve-config.py:127-132`; step 2); (3) a layer outside the YAML subset, or a value of the wrong type (`complexity.cyclomatic.reference: "20"`, a scalar `scope.exclude`), stops the run with exit 2 instead of resolving as if absent (`resolve-config.py:450-458` for a syntax error or the threshold example, `resolve-config.py:320-335,364-377` for a scalar `scope.exclude`; step 5). Unknown keys inert. Keys owned by [`plugins/code-metrics/reference/config.md`](../../../plugins/code-metrics/reference/config.md). Written (team layer only) by `/code-metrics:setup apply`; read by every audit skill. The consumer's `.claude/ecosystems/<lane>.yaml` files are a separate convention (ecosystem-commands); this surface does not absorb them. **Claim:** the plugin implements this row with the declared divergences above. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and merge form" and the cited `resolve-config.py` lines. **As of:** 2026-09-29. **Recheck:** when that section adds a layer, changes merge form, or starts owning an ecosystem-commands key |
-| `topic-docs` | `.claude/topic-docs.yaml` | team only | team only | single-layer | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | `--config` then team then user-global | whole-file, no per-key | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
 | `work-items` | `.work-item-tracker.json` (repo root) | team + local overlay | overlay on the allowlist | per-key overlay | declared deviation ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)): layers live at the repo root, not under `.claude/`; overlay (`.work-item-tracker.local.json`) merges per-key over a deny-by-default allowlist (lease TTL, jira/linear/gitea auth identity, `docs`); deliberately no user-global layer, since a cross-repo personal rung would reopen the per-user provider trap the allowlist forecloses. Anchors at the repo root (`CLAUDE_PROJECT_DIR`, else git toplevel), no CWD climb. The overlay's gitignore line is outside the `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends it, announced, a declared exception to the recommend default (ADR 0015) |
 | `work-items` (recurring schedule) | `.github/recurring-schedule.json` | team only | team only | single-layer | declared deviation ([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)): the schedule lives under `.github/`, not `.claude/`, tracked and team-shared with no user-global layer and no overlay. Written by `track add` and `track recheck`; read by `track audit`, `done`, `due`, `search` and `stats`, by `work` candidate discovery, and by `setup`, which also writes it; anchors at `CLAUDE_PROJECT_DIR`, else git toplevel. Separate from the tracker binding row above |
@@ -549,7 +546,6 @@ model-run skill with no reader script, so the rule lives in the skill text.
 | `songwriting` | prose only | model-run skills read `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/`; no reader script and no user-global layer |
 | `autonomy` | not yet | hooks anchor at `CLAUDE_PROJECT_DIR` (`hooks/hook-utils.sh`); `binding.json` has no shared reader script |
 | `plugin-quality`, `architecture`, `authoring-formats` | not yet | each plugin's `lib/resolve-convention-home.sh`: `--root`, else `CLAUDE_PROJECT_DIR`, else git toplevel, else the current directory; team-only via pointer line, no user-global layer to collide with |
-| `topic-docs` | not yet | team-only single layer, so no user-global file to collide with; `session-flow/hooks/observer-arm.sh` passes the cwd-relative `.claude/topic-docs.yaml` to the `parse-concern-value.sh` scalar parser, with no root classification |
 | `ai-briefing`, `code-tidying` | prose only | team-only surfaces read by model-run skills |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
@@ -615,7 +611,6 @@ tables above already declare policy-floor.
 | `review`, `planning` | `.claude/standards.yaml` | YAML | roots `<standards_dir>/`; policy-floor |
 | `source-control` | `.claude/source-control.md` | Markdown | policy-floor merge-rung key |
 | `toolchain` | `.claude/ecosystems/<ecosystem>.yaml` | YAML | also read by `code-metrics`, `review` and `code-tidying` |
-| `topic-docs` convention | `.claude/topic-docs.yaml` | YAML | team only; read by `session-flow`, `docs-hygiene`, `planning` and `verification` |
 | `visualization` (`rendered-views`) | `.claude/rendered-views.md` | Markdown | |
 
 Already convention docs under ADR 0018, so outside this list: `plugin-quality`, `architecture` and
