@@ -418,11 +418,14 @@ Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
 Current emitters, grandfathered on their shipped ladder and `medium` only, since the
 content-class rules bind them now (see Content classes): `adhd:clarify`,
-`architecture:improve`, `education:teach`,
+`architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
 `harness-ops:observability`, `planning:interview` (and planning's other rendered views),
 `overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
 `visualization:visualize`.
+
+Emitters on the escape-helper gate (the third bullet of the security baseline), each building
+its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode).
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
