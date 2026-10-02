@@ -436,14 +436,18 @@ as a string or `Symbol.x` argument to any call, an object literal holding one gi
 `Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
 `Reflect.set`, `__defineGetter__`) given a key that names nothing or read other than as a direct
 callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `setPrototypeOf`).
-A target is cleared only when it is provably fresh: a literal, a function, `Object.create(...)`,
-`this` in the constructor of a class with no superclass (a derived class's `this` is whatever
-`super()` returns), a variable that only ever holds one of those, or the `prototype` of a
-function or class declared in the module whose every reference is a call or `new` callee or a
-`.prototype` read never written (any other reference could replace it). A module that does not
-parse or calls `eval` is a sink, and so is code built from a string: global `eval` other than a
-direct call, and the global `Function` called, constructed or aliased (on 2.1.284 to 2.1.287,
-lodash's `Function("return this")()` in 4 modules).
+A key is a name when it is a string, a template without substitutions, or `Symbol.x`. A target
+is cleared only when it is provably fresh: a literal or a function (never a call result, not even
+`Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
+superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
+holds one of those; or the `prototype` of a function or class declared in the module whose every
+reference is `F.prototype.k` with a named key other than `constructor` (a call, `new`, or
+`F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
+given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
+built from a string: global `eval` other than a direct call, the global `Function` used other
+than for `typeof`, `instanceof` or a `.prototype` read, and any member named `eval` or `Function`
+(on 2.1.284 to 2.1.287, lodash's `Function("return this")()` in 4 modules and a CEL evaluator's
+`g.eval(...)` in 3).
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export

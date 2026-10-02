@@ -898,7 +898,7 @@ function definerOf(n) {
 //   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
 //     which can put any object's properties on the chain.
 //   A target is cleared only when it is provably a fresh object: a
-//   literal, a function, `Object.create(...)`, `this` in a class
+//   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
 //   `prototype` of a function or class declared in the module that is
 //   never replaced.
@@ -927,8 +927,8 @@ function sinks(req) {
       case "ArrowFunctionExpression":
       case "ClassExpression":
         return true;
-      case "CallExpression":
-        return memberName(node.callee) === "create" && node.callee.object.type === "Identifier" && node.callee.object.name === "Object";
+      // No call is fresh: even `Object.create(...)` can be replaced first
+      // (`Object.create=()=>Array.prototype`).
       case "ThisExpression": {
         let fn = parents.get(node);
         while (fn && (!FUNCTIONS.has(fn.type) || fn.type === "ArrowFunctionExpression")) fn = parents.get(fn);

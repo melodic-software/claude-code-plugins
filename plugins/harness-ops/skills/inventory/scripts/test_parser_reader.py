@@ -677,7 +677,11 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
             ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
-            ('var o=Object.create(null);Object.defineProperty(o,"includes",{});', []),
+            (
+                'var o=Object.create(null);Object.defineProperty(o,"includes",{});',
+                ["argument"],
+            ),
+            ('var o={};Object.defineProperty(o,"includes",{});', []),
             ('Reflect.set({},"includes",f,Array.prototype);', ["argument"]),
             ('Reflect.set({},"includes",f,{});', []),
             ("Object.defineProperty(P,`includes`,{value:f});", ["argument"]),
