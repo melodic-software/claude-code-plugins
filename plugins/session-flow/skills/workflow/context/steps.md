@@ -3,20 +3,18 @@
 The staged development workflow plus the optional contract stage. When the consuming repo defines a
 skill for a stage, invoke it; otherwise execute the stage inline per its definition here.
 
-## Effort per stage
+**Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
+advise effort for a stage, read model-config's effort table (pointer below) when giving the
+advice, pick the row whose "When to use it" text fits that kind of work, and name both the level
+and the matched text. A stage that changes code or verifies it is never advised below medium. A
+row the table marks as a setting rather than a level is not a candidate. When the page cannot be
+read, say so and advise no level. The advice is the human's to act on; this skill never sets
+effort.
 
-Each stage carries an **Effort** line naming the kind of work it is. To advise effort for a stage,
-read model-config's
-[Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
-table when giving the advice, pick the row whose "When to use it" text fits that kind of work, and
-name both the level and the matched text. A stage that changes code or verifies it is never
-advised below medium. A row the table marks as a setting rather than a level is not a candidate.
-When the page cannot be read, say so and advise no level. The advice is the human's to act on;
-this skill never sets effort.
-
-Claim: the table lists one row per level under the columns Level and When to use it. Basis: the
-page linked above. As of: 2026-10-02. Recheck: the section is renamed or moved, or its columns
-change.
+- **Pointer**: for choosing an effort level, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-10-02
+- **Recheck trigger**: the section is renamed or moved, or its table columns change.
 
 ## 0. Contract (optional: lock the brief before building)
 
