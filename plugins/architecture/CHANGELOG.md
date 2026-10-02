@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.5] - 2026-10-01
+## [0.18.1] - 2026-10-01
 
 ### Changed
 
@@ -11,6 +11,55 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   the README content is treated as CC BY-NC-SA 4.0 and each bundled template as carrying its own
   license, and the skill names the license when it declines to paste. The record points at the
   repository's `LICENSE.md` and stores none of its text.
+
+## [0.18.0] - 2026-10-02
+
+### Added
+
+- `map-deployment` reads Terraform, Bicep and ARM templates, CloudFormation and
+  Pulumi YAML, and layered Compose base and override files. Containers nest in
+  their compute nodes, Service and Ingress draw as relationships, and the
+  environment diff reports networks and Ingress hosts.
+- `map-deployment` lists every resource type a Terraform, Bicep, ARM,
+  CloudFormation or Pulumi YAML reader parses and does not map, with its file,
+  in the record's `unmapped` array, a `## Unmapped resources` table and the
+  summary's `unmapped=` count. A read that places no container and leaves
+  resources unmapped is refused as `no-mapped-container` and keeps the list. A
+  Bicep or ARM child resource nested in its parent is listed under its full type
+  (`Microsoft.Web/sites/slots`).
+- A Terraform container app, Cloud Run service, or Kubernetes workload whose
+  containers are a `dynamic` block or an expression places one container named
+  for the resource with an unresolved image. A `dynamic` block beside plain
+  container blocks adds a second container named `<name>.dynamic`. A resource
+  with an empty body (`resource "aws_s3_bucket" "b" {}`, in `.tf` or `.tf.json`)
+  is placed or listed in `unmapped` like any other resource, and an
+  `aws_ecs_task_definition` with no `container_definitions` places one container
+  with the image `unresolved:container_definitions`. A `.tf.json` block written
+  as an array of objects (`"resource": [{...}]`) reads like the object form.
+- A Bicep or ARM container app or container group, or a CloudFormation or Pulumi
+  YAML task definition, with no containers or an empty list places one container
+  named for the resource with an unresolved image. A second ECS service on a task
+  definition another service already runs is listed in `unmapped` by the
+  Terraform, CloudFormation and Pulumi YAML readers.
+- A Terraform `helm_release` or a Pulumi `kubernetes:helm.sh/` resource declines
+  Helm, so the record is refused as `partial-read` instead of drawing the rest
+  of the repository.
+- Secret markers, including sensitive Terraform variables and values nested in
+  unresolved CloudFormation and Pulumi expressions, are redacted in every
+  printed field. So is a value resolved from a Terraform variable, a Bicep, ARM
+  or CloudFormation parameter, or a Pulumi config key whose name names a
+  credential, with or without a secret marker.
+
+### Changed
+
+- `map-deployment` merges a Compose base with its override, or the files a
+  tracked `.env` `COMPOSE_FILE` lists, into one environment. The refusal reason
+  `layered-compose` is replaced by `compose-not-mergeable:<file>`, which names
+  the file with no declared place in a merge.
+- Kubernetes compute nodes are one per workload, with the id
+  `<environment>/wl-<name>` and the workload kind as detail, instead of one node
+  per container with the image as detail.
+- The `deployment.json` record gains `relationships` and `unmapped` arrays.
 
 ## [0.17.4] - 2026-10-01
 
