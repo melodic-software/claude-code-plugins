@@ -365,6 +365,23 @@
         "Excludes the I33 row from every per-lane verifier batch and counts the I33 class verifier as one dispatch in the plan and the ~20-dispatch gate cost line",
         "Gives a lane whose only proposal is the I33 finding no per-lane verifier"
       ]
+    },
+    {
+      "id": 29,
+      "name": "content-in-claude-md-routes-to-migrate",
+      "prompt": "/harness-config:audit-instructions claude-md, treating evals/fixtures/content-in-claude.md relative to the skill directory as the repository's tracked root CLAUDE.md; the repository has no AGENTS.md.",
+      "expected_output": "Besides any model-era findings on the file, the report's Routing subsection carries one AGENTS.md content-home advisory for the root CLAUDE.md, because its content is not the single line `@AGENTS.md`. The advisory points to `/instruction-placement:migrate plan` when that plugin is installed, and otherwise names the move as a repository-wide change for the operator. It says the CLAUDE.md stays as the one-line `@AGENTS.md` shim and that migrate's `cutover-check` decides when shims come out, notes that Claude-specific text goes to `.claude/rules/<topic>.md` with a `paths:` glob, and routes progressive-disclosure questions to `/docs-hygiene:audit-progressive-disclosure`. It has no Finding ID, severity, or diff and does not appear in the findings table.",
+      "files": [
+        "evals/fixtures/content-in-claude.md"
+      ],
+      "expectations": [
+        "Places an AGENTS.md content-home advisory for the CLAUDE.md in the Routing subsection, not the findings table",
+        "Names `/instruction-placement:migrate plan`, gated on the instruction-placement plugin being installed",
+        "Does not propose deleting or emptying the CLAUDE.md, and says the `@AGENTS.md` shim stays until migrate's `cutover-check` decides otherwise",
+        "Says Claude-specific text belongs in `.claude/rules/` with a `paths:` glob",
+        "Routes the progressive-disclosure question to `/docs-hygiene:audit-progressive-disclosure`",
+        "Produces no I1-I5 hygiene finding on the CLAUDE.md"
+      ]
     }
   ]
 }

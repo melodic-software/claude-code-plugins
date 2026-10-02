@@ -1,6 +1,6 @@
 ---
-version: 1.24.0
-last-updated: 2026-09-28
+version: 1.25.0
+last-updated: 2026-10-01
 ---
 
 # Instruction-Audit Criteria
@@ -48,6 +48,7 @@ Look up a specific check by ID: run `grep -n '^### I<N>:'` over this file.
   - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
 - [Stopping condition](#stopping-condition)
 - [Out-of-catalog defects](#out-of-catalog-defects)
+- [AGENTS.md content-home advisory](#agentsmd-content-home-advisory)
 - [Output format](#output-format)
 
 The checks the `audit-instructions` skill runs, seeded from current official prompting doctrine.
@@ -2143,6 +2144,39 @@ remediation into a case its Detect never described.
   "when installed". With no such owner installed, the report here is the whole disposition.
 - **Never relayed.** These rows are never written by `--persist-findings` and never reach
   `emit-findings.sh`.
+
+---
+
+## AGENTS.md content-home advisory
+
+No check id, no severity, no Finding ID, no diff. Where the memory layer's content lives is not a
+model-era question, so this is a routing note in the report's Routing subsection, never a row in the
+findings table, and never relayed by `--persist-findings`.
+
+- **Fires** under scope `all` or `claude-md`, once per tracked project `CLAUDE.md` or
+  `.claude/CLAUDE.md`, root or nested, whose content is anything other than the single line
+  `@AGENTS.md`. Phase A's records already hold the file. `CLAUDE.local.md` and the user-scope
+  `CLAUDE.md` never fire: neither is a shared project file with an `AGENTS.md` counterpart. An
+  upstream-owned or synced file routes to its owner per the Scope boundary instead.
+- **Says**, per file:
+
+  > `<path>` holds project instructions that could live in `AGENTS.md`, where other coding agents
+  > read them too. Plan the move with `/instruction-placement:migrate plan`. Keep the `CLAUDE.md`
+  > as the one-line `@AGENTS.md` shim: it is what loads `AGENTS.md` wherever a `CLAUDE.md` is read
+  > instead, and in sessions that read no `AGENTS.md` at all. Migrate's `cutover-check` decides when
+  > shims can come out; this audit never does. Claude-specific text goes to
+  > `.claude/rules/<topic>.md` with a `paths:` glob, per migrate's routing.
+
+- **Presence gate.** Name `/instruction-placement:migrate plan` when the `instruction-placement`
+  plugin is installed. When it is not, the line names the same move (content to `AGENTS.md`, the
+  `CLAUDE.md` kept as the `@AGENTS.md` shim) as a repository-wide change left to the operator.
+- **Never** propose deleting a `CLAUDE.md`, emptying it, or removing its shim. When and whether a
+  session reads `AGENTS.md` at all is recorded in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md); that record is why the shim
+  stays.
+- **Progressive disclosure is out of scope.** Whether the file should be split across load tiers is
+  `/docs-hygiene:audit-progressive-disclosure` when the `docs-hygiene` plugin is installed; when it
+  is not, the advisory notes the question as unjudged.
 
 ---
 

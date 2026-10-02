@@ -160,6 +160,24 @@ decisions would make recording one perturb the next run. That exclusion is appli
 set after the detector has run, not to the corpus: the corpus document above stays the one owner of
 what is swept, and the detector's coverage numbers keep counting every file it read.
 
+## The content-home advisory
+
+The two lanes judge sections. One question is about a whole file: whether a `CLAUDE.md` should be
+the content home at all. For each `FILE` record of a tracked `CLAUDE.md` or `.claude/CLAUDE.md`,
+root or nested, whose content is anything other than the single line `@AGENTS.md`, report one
+advisory:
+
+> `<path>` holds project instructions that could live in `AGENTS.md`, where other coding agents
+> read them too. Plan the move with `/instruction-placement:migrate plan`. Keep the `CLAUDE.md` as
+> the one-line `@AGENTS.md` shim: migrate's `cutover-check` decides when shims can come out, and
+> this audit never proposes removing one. Claude-specific text goes to `.claude/rules/<topic>.md`
+> with a `paths:` glob, per migrate's routing.
+
+It is not a finding: no `finding_id`, no status, nothing `realign` acts on. It cancels none of the
+file's demote findings; the operator sequences those with the migration. Write it to the artifact's
+advisory section. Whether the file should be split for progressive disclosure is
+`docs-hygiene:audit-progressive-disclosure`, routed per [`context/routing-out.md`](context/routing-out.md).
+
 ## Routing out
 
 A candidate can raise a question placement does not answer: whether the model still needs the
@@ -197,8 +215,8 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Next
 
-`/instruction-placement:realign`. It applies the findings the operator accepts, one gated item at a
-time.
+- The operator accepts placement findings: `/instruction-placement:realign`.
+- A content-home advisory fired: `/instruction-placement:migrate plan`.
 
 ## Gotchas
 

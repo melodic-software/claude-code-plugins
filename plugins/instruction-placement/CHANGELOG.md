@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **`/instruction-placement:audit` reports a content-home advisory.** For each tracked `CLAUDE.md`
+  or `.claude/CLAUDE.md` whose content is anything other than `@AGENTS.md`, it points to
+  `/instruction-placement:migrate plan`, keeps the `CLAUDE.md` as the `@AGENTS.md` shim, leaves
+  shim removal to migrate's `cutover-check`, and routes Claude-specific text to `.claude/rules/`
+  with a `paths:` glob. The advisory has no `finding_id` or status and lands in a new advisory
+  section of the findings artifact, which `realign` does not act on. `## Next` names the migrate
+  skill beside `realign`.
+
 ## [0.16.12] - 2026-10-01
 
 ### Changed
