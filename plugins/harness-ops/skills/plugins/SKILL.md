@@ -268,10 +268,10 @@ either section reads as it does.
 
 ## userConfig: `install_new`
 
-Controls new-catalog-plugin install policy during `sync`. Ships as a plain `string`, default
-`"ask"`, with its three values validated by this skill rather than by the manifest
-([context/scope-semantics.md](context/scope-semantics.md) holds the option-schema record; for
-option types and fixed options, see
+Controls new-catalog-plugin install policy during `sync`. Ships as a `string` whose `options`
+picker lists the three values below, default `"ask"`. This skill still validates the value,
+because one set by hand in `settings.json` never passes through the picker ([context/scope-semantics.md](context/scope-semantics.md) holds the option-schema
+record; for option types and fixed options, see
 [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
 [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options)):
 

@@ -112,9 +112,9 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    request itself.
 2. **Configured preference**. `${user_config.medium}`. Claude Code text-substitutes
    the configured value into this line; if it still shows the literal
-   `${user_config.medium}` token or is empty, the option is unset and the next
-   rung resolves. Recognized values are `auto`, `terminal`, `file`, and
-   `artifact`; any other value is reported and treated as unset.
+   `${user_config.medium}` token, is empty, or is `auto` (the default), the option
+   defers and the next rung resolves. `terminal`, `file`, and `artifact` force
+   that tier; any other value is reported and treated as `auto`.
 3. **Cascade preference**. The `rendered-views` cascade surface, read only when
    rungs 1-2 are unset: anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when
    set, else `git rev-parse --show-toplevel`), then read whichever of

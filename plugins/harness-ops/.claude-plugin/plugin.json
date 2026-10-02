@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "harness-ops",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Claude Code operations toolkit. Fifteen skills: audit-skill-visibility (audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used: a skill is invisible when its description is dropped by Claude Code's skill-listing context budget, which sheds descriptions lowest-score-first so an unused skill loses the keywords that would let it be matched, from skills genuinely not wanted, from skills the run cannot observe at all; computes whether the listing overflows from documented settings, and withholds every cold verdict the data cannot support rather than reporting absence of data as absence of use), inventory (read-only enumeration of the complete invocable surface: every built-in CLI command with aliases and hidden/gated status, every bundled skill, every built-in subagent and tool, every built-in plugin with its components, and every component of every installed plugin across all marketplaces; reads the shipped binary because upstream publishes no built-in command list, and carries an integrity verdict so a drifted build reports counts as floors rather than silently short totals), audit-install-state (read-only audit of the machine-scope ~/.claude installation directory and ~/.claude.json: full inventory split into an authored surface and rolled-up bulk trees, product-managed retention vs genuinely unmanaged state, filename-scheme resolution before any process-liveness check, and deliberate/mid-experiment detection; reports, never deletes), audit-performance (read-only slowness-diagnostic capture run at the moment the machine or a session feels slow: CLI version, retention-sweep health including the unparsable-settings pause, which warns in /status, a timed census walk of the install tree as a sweep-cost proxy, active-session and plugin-fleet counts, a process census, and the fan-out layer, which covers a load-labeled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn with its invocation shape, the configured statusline, subagent concurrency and spawn-depth ceilings against documented defaults, whether running sessions predate the settings file they are judged by, and orphan attribution by parent liveness rather than age, plus on Windows a kernel-object census (Token objects against uptime, paged pool) that names a host-level leak beneath all four suspects; read against a bundled known-performance-issues reference that also records the causes tested and cleared; separates the four documented suspects of accumulated state, version regression, component bloat, and per-spawn fan-out cost, and routes remediation out; reports, never mutates, and never executes a discovered hook or statusline command), audit-native-overlap (map native Claude Code surfaces, namely built-in CLI commands, bundled skills, plugin-backed built-ins, and session-provided skills, against the current repo's plugin skills and agents, so a custom component never silently duplicates what Claude Code itself ships; bare invocation is a read-only overlap report carrying the extraction's integrity floors and a shared-listing-budget exposure section, verdicts are human-gated in a committed store rendered into a generated registry whose every row carries an observable recheck trigger, and only an explicit apply step bakes presence-gated native references into descriptions and Boundary sections), observability (read locally captured telemetry from the OTEL store, the collector, the per-session hook event log and hook-event JSONL, and ccusage, with trend reports, a per-session report of what fired, what was blocked and the event timeline, and store pruning), known-issues (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), changelog (ingest Claude Code changelog entries and turn them into decisions: apply executes those in scope one PR per owner plugin and hands larger ones off as work items, then re-extract the native surface and file its drift as work items), prerequisites (read-only table of external binaries declared by enabled plugins; never installs), check (read-only check that node and jq resolve for the harness-ops hooks; never installs), machine-profile (discover this machine's facts and per-tree identity domains, store them as a re-runnable profile with the observation behind every value, and diff the stored profile against the host now; read-only unless the operator confirms a write, never installs and never reapplies a stored value on its own), plugins (bring a machine's plugin fleet current on demand: marketplace refresh, effective-scope updates including in-repo project/local installs, new-plugin install per policy, scope-divergence detection and explicit convergence), morning-brief (read-only gh-based operator morning view: queue-label counts, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness), lanes (start/restart/stop/status loop lanes as named background Claude Code sessions seeded from canonical prompt files, with per-lane model/effort, a repo-pull + marketplace-refresh launch step, and a consume-restarts action, an OS-schedulable reader that relaunches stopped lanes whose telemetry carries a restart_request), and a re-runnable setup action that settles where the known-issues registry, the skill-usage log and the hook log root live, places the root's self-ignoring guard, and detects retired conventions. Plus an opt-in, default-off per-session hook event log (one JSON line per hook event on every event the generated registry marks observable, written to <root>/sessions/<session_id>.jsonl, with SessionEnd retention by session count or age and an optional detached pre-prune command), a family of eight advisory *-audit hooks (API errors, config changes, instruction loads, permission denials, pre-compaction, skill usage, tool failures, and unsurfaced hook failures. The last also warns the user via systemMessage, since a hook that fails to launch enforces nothing and Claude Code surfaces the failure to nobody) that emit the shared hook-telemetry envelope, and a reference sink that routes envelopes under the same root: per session when the envelope carries a session id, else into the shared hook-events.jsonl the observability skill reads.",
   "author": {
     "name": "Melodic Software",
@@ -28,137 +28,139 @@
   "userConfig": {
     "registry_dir": {
       "type": "string",
-      "title": "Registry directory (project-relative)",
-      "description": "Optional contained project-relative directory holding the known-issues registry (registry.json). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. Leave unset to use ${CLAUDE_PLUGIN_DATA}."
+      "title": "Known-issues registry directory",
+      "description": "Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid."
     },
-    "skill_usage_dir": {
+    "install_new": {
       "type": "string",
-      "title": "Skill-usage log directory (relative subpath under the scope root)",
-      "description": "Optional contained relative directory where the skill-usage-audit hooks write skill-usage.jsonl, resolved under the skill_usage_scope root (repo scope: the project root; user scope: $HOME). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid in every scope. Ignored by the data-dir scope (plugin-owned layout). Leave unset to use .claude/observability."
+      "title": "New-plugin install policy",
+      "description": "What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt; all installs every one automatically; none reports them and never installs.",
+      "default": "ask",
+      "options": ["ask", "all", "none"]
+    },
+    "skill_usage_audit_enabled": {
+      "type": "boolean",
+      "title": "Skill-usage-audit hook",
+      "description": "Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store.",
+      "default": true
     },
     "skill_usage_scope": {
       "type": "string",
       "title": "Skill-usage log scope",
-      "description": "Where the skill-usage store lives. Valid values: \"repo\" (the default, a project tree under the repo root, kept out of git status via a machine-local .git/info/exclude entry), \"user\" (the skill_usage_dir subpath under $HOME, one cross-repo store; rows carry a project field), \"data-dir\" (${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>, plugin-owned and update-safe). The manifest schema has no enum type, so this validates in prose; any other value is treated as \"repo\" with a one-time advisory.",
-      "default": "repo"
+      "description": "Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>.",
+      "default": "repo",
+      "options": ["repo", "user", "data-dir"]
+    },
+    "skill_usage_dir": {
+      "type": "string",
+      "title": "Skill-usage log directory",
+      "description": "Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid."
     },
     "skill_usage_git_exclude": {
       "type": "boolean",
-      "title": "Machine-local git exclude for the repo-scope store",
-      "description": "When the repo-scope store sits inside a git work tree, idempotently add its directory to .git/info/exclude (machine-local; never touches .gitignore or tracked files) so git status stays clean. Set false if your team deliberately commits the telemetry.",
+      "title": "Git exclude for the repo-scope store",
+      "description": "Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry.",
       "default": true
-    },
-    "install_new": {
-      "type": "string",
-      "title": "New-plugin install policy for the plugins skill's sync action",
-      "description": "Controls what `sync` does with catalog plugins that aren't installed yet. Valid values: \"ask\" (the default, which offers them in one batched multi-select prompt), \"all\" (install every one automatically), \"none\" (report only, never install). The manifest schema has no enum type, so this validates in prose, not JSON Schema; any other value is treated as \"ask\".",
-      "default": "ask"
     },
     "api_error_audit_enabled": {
       "type": "boolean",
-      "title": "api-error-audit hook",
-      "description": "Emit turn-failure telemetry on API errors",
+      "title": "API-error-audit hook",
+      "description": "Emits turn-failure telemetry on API errors. On by default.",
       "default": true
     },
     "config_change_audit_enabled": {
       "type": "boolean",
-      "title": "config-change-audit hook",
-      "description": "Emit telemetry on config-source mutations",
+      "title": "Config-change-audit hook",
+      "description": "Emits telemetry on config-source mutations. On by default.",
       "default": true
     },
     "instructions_loaded_audit_enabled": {
       "type": "boolean",
-      "title": "instructions-loaded-audit hook",
-      "description": "Emit telemetry on rule/instruction file loads",
-      "default": true
-    },
-    "permission_denied_audit_enabled": {
-      "type": "boolean",
-      "title": "permission-denied-audit hook",
-      "description": "Emit telemetry on permission denials",
-      "default": true
-    },
-    "pre_compact_audit_enabled": {
-      "type": "boolean",
-      "title": "pre-compact-audit hook",
-      "description": "Emit telemetry on context-compaction events",
-      "default": true
-    },
-    "skill_usage_audit_enabled": {
-      "type": "boolean",
-      "title": "skill-usage-audit hook",
-      "description": "Emit telemetry on skill usage; shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths) and also gates the shared skill-usage.jsonl store",
-      "default": true
-    },
-    "tool_failure_audit_enabled": {
-      "type": "boolean",
-      "title": "tool-failure-audit hook",
-      "description": "Emit telemetry on Write/Edit/Bash tool failures",
-      "default": true
-    },
-    "hook_failure_audit_enabled": {
-      "type": "boolean",
-      "title": "hook-failure-audit hook",
-      "description": "Warn once per session per hook when the transcript records hook launch/exec failures Claude Code never surfaced",
+      "title": "Instructions-loaded-audit hook",
+      "description": "Emits telemetry on rule and instruction file loads. On by default.",
       "default": true
     },
     "instructions_loaded_audit_log_session_start": {
       "type": "boolean",
-      "title": "instructions-loaded-audit session_start logging",
-      "description": "Opt back into logging session_start instruction loads (dropped by default as deterministic and high-volume)",
+      "title": "Session-start instruction-load logging",
+      "description": "Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume.",
       "default": false
     },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open",
-      "default": 2,
-      "min": 1
+    "permission_denied_audit_enabled": {
+      "type": "boolean",
+      "title": "Permission-denied-audit hook",
+      "description": "Emits telemetry on permission denials. On by default.",
+      "default": true
+    },
+    "pre_compact_audit_enabled": {
+      "type": "boolean",
+      "title": "Pre-compact-audit hook",
+      "description": "Emits telemetry on context-compaction events. On by default.",
+      "default": true
+    },
+    "tool_failure_audit_enabled": {
+      "type": "boolean",
+      "title": "Tool-failure-audit hook",
+      "description": "Emits telemetry on Write, Edit, and Bash tool failures. On by default.",
+      "default": true
+    },
+    "hook_failure_audit_enabled": {
+      "type": "boolean",
+      "title": "Hook-failure-audit hook",
+      "description": "Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default.",
+      "default": true
     },
     "session_event_log_enabled": {
       "type": "boolean",
-      "title": "session-event-log hook (per-session hook event log)",
-      "description": "Append one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every documented event the generated registry marks observable. Off by default: a consumer who has not turned it on pays the kill-switch read and nothing else. The same switch gates the SessionEnd retention hook.",
+      "title": "Session-event-log hook",
+      "description": "Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Off by default; while off, the only cost is reading this switch. It also gates the SessionEnd retention hook.",
       "default": false
     },
     "session_event_log_dir": {
       "type": "string",
-      "title": "Hook log root (project-relative)",
-      "description": "Contained project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. Inside a checkout the directory carries a self-ignoring .gitignore, created on the first write. Leave unset to use .observability/claude.",
+      "title": "Hook log root directory",
+      "description": "Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused.",
       "default": ".observability/claude"
     },
     "session_event_log_categories": {
       "type": "string",
-      "title": "session-event-log categories",
-      "description": "Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable.",
+      "title": "Session-event-log categories",
+      "description": "Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable.",
       "default": ""
     },
     "session_log_keep_sessions": {
       "type": "number",
-      "title": "Retention: sessions to keep",
-      "description": "At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days).",
+      "title": "Session files to keep",
+      "description": "At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days.",
       "default": 30,
       "min": 1
     },
     "session_log_keep_days": {
       "type": "number",
-      "title": "Retention: days to keep",
-      "description": "At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions).",
+      "title": "Session file retention (days)",
+      "description": "At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions.",
       "default": 14,
-      "min": 1
-    },
-    "hook_events_max_bytes": {
-      "type": "number",
-      "title": "Hook events file size cap (bytes)",
-      "description": "The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. Read only when a harness-ops hook emits the envelope: an emitter in another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is ignored and the default applies.",
-      "default": 10485760,
       "min": 1
     },
     "session_log_pre_prune_command": {
       "type": "string",
-      "title": "Retention: pre-prune command",
-      "description": "Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly.",
+      "title": "Pre-prune command",
+      "description": "Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it.",
       "default": ""
+    },
+    "hook_events_max_bytes": {
+      "type": "number",
+      "title": "Hook events file size cap (bytes)",
+      "description": "Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on.",
+      "default": 10485760,
+      "min": 1
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2.",
+      "default": 2,
+      "min": 1
     }
   }
 }

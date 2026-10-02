@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.9] - 2026-10-02
+
+### Changed
+
+- The `report_dir` description fits the 300-character limit of the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`); the example report file name moves to the README's
+  "Option details".
+
 ## [0.14.8] - 2026-10-02
 
 ### Fixed

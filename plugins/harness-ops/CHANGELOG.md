@@ -3,6 +3,20 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles without colons, hook titles as
+  `<Hook-name> hook`, descriptions of 300 characters or fewer in plain text, with the cut detail
+  moved to the README's "Option details". Options are regrouped by feature: known-issues registry,
+  plugin sync, skill-usage logging, audit hooks, the session event log, then the shared stdin
+  timeout.
+- `install_new` (`ask`, `all`, `none`) and `skill_usage_scope` (`repo`, `user`, `data-dir`) are
+  pickers in `/config`. A value outside the list can no longer be chosen there; one set by hand
+  still falls back to the default as before.
+
 ## [2.1.0] - 2026-10-02
 
 ### Added

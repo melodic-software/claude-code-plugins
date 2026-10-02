@@ -3,6 +3,13 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.6] - 2026-10-02
+
+### Changed
+
+- The `playwright_core` option title is sentence case, "Playwright-core directory", per the plugin
+  option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.1.5] - 2026-10-02
 
 ### Fixed

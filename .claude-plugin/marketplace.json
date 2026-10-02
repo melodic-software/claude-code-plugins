@@ -86,7 +86,6 @@
     },
     {
       "name": "eol-normalizer",
-      "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",
       "category": "development",
       "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
@@ -148,7 +147,6 @@
     },
     {
       "name": "mcp-tools",
-      "displayName": "MCP Tools",
       "source": "./plugins/mcp-tools",
       "category": "quality",
       "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"],
@@ -295,7 +293,6 @@
     },
     {
       "name": "tdd",
-      "displayName": "TDD",
       "source": "./plugins/tdd",
       "category": "testing",
       "tags": ["knowledge", "skill", "tdd", "testing", "unit-testing", "test-design", "best-practices"]
@@ -426,7 +423,6 @@
     },
     {
       "name": "kindle-dedrm",
-      "displayName": "Kindle DeDRM",
       "source": "./plugins/kindle-dedrm",
       "category": "personal",
       "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"],
@@ -507,7 +503,6 @@
     },
     {
       "name": "ai-briefing",
-      "displayName": "AI Briefing",
       "source": "./plugins/ai-briefing",
       "category": "personal",
       "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"],
@@ -515,7 +510,6 @@
     },
     {
       "name": "ai-slop",
-      "displayName": "AI Slop",
       "source": "./plugins/ai-slop",
       "category": "quality",
       "tags": ["ai-slop", "ai-writing", "slop", "unslop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
@@ -674,7 +668,6 @@
     },
     {
       "name": "attribution",
-      "displayName": "Attribution",
       "source": "./plugins/attribution",
       "category": "quality",
       "tags": [

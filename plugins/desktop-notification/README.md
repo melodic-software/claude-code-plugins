@@ -69,7 +69,7 @@ Every channel is toggled by its own `userConfig` boolean (default **on**; set to
 
 | Option | What it controls |
 |---|---|
-| `desktop_notification_enabled` | Master toggle for the whole hook. |
+| `desktop_notification_enabled` | The whole notification hook. |
 | `desktop_notification_bell_enabled` | The `bell` channel. |
 | `desktop_notification_terminal_notify_enabled` | The `terminal_notify` (OSC 9) channel. |
 | `desktop_notification_os_toast_enabled` | The `os_toast` channel. |
@@ -99,10 +99,10 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `desktop_notification_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED` | Master switch for the whole notification hook |
-| `desktop_notification_bell_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED` | Audible terminal bell (bare BEL) |
-| `desktop_notification_terminal_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED` | OSC 9 terminal notification emitted via the hook's terminalSequence output |
-| `desktop_notification_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED` | OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). No effect on Windows, where the terminal channels carry the alert. |
+| `desktop_notification_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED` | Runs the whole notification hook. On by default; off mutes every channel below. |
+| `desktop_notification_bell_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED` | Audible terminal bell (a bare BEL). On by default. |
+| `desktop_notification_terminal_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED` | OSC 9 terminal notification emitted through the hook's terminalSequence output. On by default. |
+| `desktop_notification_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED` | OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
 
 ### How to set these
 

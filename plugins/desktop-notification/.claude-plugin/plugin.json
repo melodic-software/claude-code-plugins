@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "desktop-notification",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Alert you when Claude Code needs input: an audible terminal bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts.",
   "author": {
     "name": "Melodic Software",
@@ -19,26 +19,26 @@
   "userConfig": {
     "desktop_notification_enabled": {
       "type": "boolean",
-      "title": "desktop-notification master toggle",
-      "description": "Master switch for the whole notification hook",
+      "title": "Notification hook",
+      "description": "Runs the whole notification hook. On by default; off mutes every channel below.",
       "default": true
     },
     "desktop_notification_bell_enabled": {
       "type": "boolean",
-      "title": "bell channel",
-      "description": "Audible terminal bell (bare BEL)",
+      "title": "Bell channel",
+      "description": "Audible terminal bell (a bare BEL). On by default.",
       "default": true
     },
     "desktop_notification_terminal_notify_enabled": {
       "type": "boolean",
-      "title": "terminal-notify channel",
-      "description": "OSC 9 terminal notification emitted via the hook's terminalSequence output",
+      "title": "Terminal-notify channel (OSC 9)",
+      "description": "OSC 9 terminal notification emitted through the hook's terminalSequence output. On by default.",
       "default": true
     },
     "desktop_notification_os_toast_enabled": {
       "type": "boolean",
-      "title": "os-toast channel",
-      "description": "OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). No effect on Windows, where the terminal channels carry the alert.",
+      "title": "OS-toast channel",
+      "description": "OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert.",
       "default": true
     }
   }

@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.7.3] - 2026-10-02
+
+### Changed
+
+- The `settings_write_ask_enabled` title follows the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): "Settings-write-ask hook", and its description names
+  the default. No key, type, or default changes.
+
 ## [0.7.2] - 2026-10-02
 
 ### Fixed
