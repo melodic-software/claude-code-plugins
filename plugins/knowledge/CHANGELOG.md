@@ -19,7 +19,8 @@ only after that version increases.
   queue's custody notes state our finding rather than the page's wording.
 - **`docpage-digest` gains a claude.dev blog extractor and a pin-manifest script**, each with a
   fixture-driven test suite. The extractor emits table separator rows, drops code-widget and
-  video-control labels, and never opens a code fence with a blank line.
+  video-control labels, and never opens a code fence with a blank line. The pin manifest's
+  `--check` reports a deleted file as `BLOCKED: missing`, even when its whole category is gone.
 - **`docpage-digest` pipeline fixes.** The work root resolves against the session's worktree (the
   `library_dir` description says so); the platform docs corpus is searched before a claim is
   certified vendor-claimed or blog-only; one standard absence corpus; a split-applicability quote

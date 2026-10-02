@@ -200,8 +200,8 @@ into this playbook or any agentic surface. `[CC: prompt-authoring]`
 
 Treat any in-context evidence of a model switch as the meta-rule 3 trigger and re-resolve the
 adaptation chapter against the model now answering; do not keep applying this file after a switch.
-To return, use `/model`; to be asked before each switch, turn off the flagged-switch setting in
-`/config`. `[CC: direct]` Never write, in a prompt, brief, or skill, an instruction asking for
+To return to this model, or to be asked before each switch, use the controls the two fallback
+pointers below name. `[CC: direct]` Never write, in a prompt, brief, or skill, an instruction asking for
 hidden thinking in the reply. `[CC: prompt-authoring]`
 
 - **Pointer**: for Claude Code's fallback, see

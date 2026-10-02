@@ -115,6 +115,14 @@ class TestCheck(PinManifestCase):
         self.assertIn("BLOCKED: new digests/03-late.md", proc.stdout)
         self.assertIn("BLOCKED: missing source.html", proc.stdout)
 
+    def test_blocks_when_a_whole_category_is_deleted(self):
+        self.run_script()
+        shutil.rmtree(os.path.join(self.root, "digests"))
+        proc = self.run_script("--check")
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        self.assertIn("BLOCKED: missing digests/01-intro.md", proc.stdout)
+        self.assertIn("BLOCKED: missing digests/02-usage.md", proc.stdout)
+
     def test_check_without_manifest_is_an_error(self):
         proc = self.run_script("--check")
         self.assertEqual(proc.returncode, 2)

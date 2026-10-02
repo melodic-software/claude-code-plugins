@@ -31,7 +31,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def frozen_paths(root: Path) -> list:
+def frozen_paths(root: Path, complete: bool) -> list:
     sources = sorted(p for p in root.glob("source.*") if p.is_file())
     inventory = root / "SOURCES.md"
     digests = sorted(p for p in (root / "digests").glob("*.md") if p.is_file())
@@ -42,17 +42,17 @@ def frozen_paths(root: Path) -> list:
         missing.append("SOURCES.md")
     if not digests:
         missing.append("digests/*.md")
-    if missing:
+    if missing and complete:
         raise ValueError("nothing to pin, missing: " + ", ".join(missing))
-    return [*sources, inventory, *digests]
+    return [*sources, *([inventory] if inventory.is_file() else []), *digests]
 
 
-def hashes(root: Path) -> dict:
-    return {p.relative_to(root).as_posix(): sha256(p) for p in frozen_paths(root)}
+def hashes(root: Path, complete: bool) -> dict:
+    return {p.relative_to(root).as_posix(): sha256(p) for p in frozen_paths(root, complete)}
 
 
 def write(root: Path) -> int:
-    files = hashes(root)
+    files = hashes(root, complete=True)
     manifest = {
         "schema": SCHEMA,
         "pinned_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -77,7 +77,7 @@ def check(root: Path) -> int:
         print(f"pin-manifest: ERROR: schema is not {SCHEMA}", file=sys.stderr)
         return 2
     pinned = {entry["path"]: entry["sha256"] for entry in manifest.get("files", [])}
-    current = hashes(root)
+    current = hashes(root, complete=False)
     drift = [f"changed {p}" for p in pinned if p in current and current[p] != pinned[p]]
     drift += [f"missing {p}" for p in pinned if p not in current]
     drift += [f"new {p}" for p in current if p not in pinned]
