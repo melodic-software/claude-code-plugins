@@ -209,15 +209,42 @@ FILES="$TMP/files.txt"
 if ((${#UNION[@]})); then
   printf '%s\n' "${UNION[@]}" >"$FILES"
 fi
+# Index the union once so each glob is tested only against paths that can
+# match it. A match needs an equal component count and, for each leading
+# component with no pattern character, an equal string, so a glob's candidates
+# are the bucket keyed by its component count and its literal leading
+# components. glob_matches_path still decides every candidate; the index only
+# skips pairs that cannot match. Testing every glob against every path was
+# about 528,000 calls on this tree.
+declare -A BUCKET=()
+for idx in "${!UNION[@]}"; do
+  IFS=/ read -ra pparts <<<"${UNION[idx]}"
+  n=${#pparts[@]} prefix=""
+  BUCKET["$n|0|"]+=" $idx"
+  for ((k = 0; k < n; k++)); do
+    prefix+="${pparts[k]}/"
+    BUCKET["$n|$((k + 1))|$prefix"]+=" $idx"
+  done
+done
+# Any character that can start a pattern, extglob included (bash enables
+# extglob for `[[ == ]]`). A component holding one is not treated as literal.
+pattern_char='[][*?+@!(\]'
+
 stale=0
 # Initialized here rather than only where it is computed: the verdict section
 # reads it, this script runs under `set -u`, and a future early return between
 # the two would turn a clean run into an unbound-variable crash.
 excluded=0
 for glob in "${GLOBS[@]}"; do
+  IFS=/ read -ra gparts <<<"$glob"
+  n=${#gparts[@]} k=0 prefix=""
+  while ((k < n)) && ! [[ "${gparts[k]}" =~ $pattern_char ]]; do
+    prefix+="${gparts[k]}/"
+    k=$((k + 1))
+  done
   count=0
-  for f in "${UNION[@]}"; do
-    glob_matches_path "$glob" "$f" && count=$((count + 1))
+  for idx in ${BUCKET["$n|$k|$prefix"]-}; do
+    glob_matches_path "$glob" "${UNION[idx]}" && count=$((count + 1))
   done
   if ((count == 0)); then
     echo "check-purged-em-dashes: stale allowlist entry matches no tracked file: $glob" >&2
