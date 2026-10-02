@@ -204,12 +204,92 @@ class TestLiveHelper(unittest.TestCase):
         target = _require_live(self)
         with pr.ParserReader(target) as reader:
             with self.assertRaises(pr.ReaderBroken) as ctx:
-                reader.request("binding")
+                reader.request("no_such_op")
         self.assertIn("unknown op", ctx.exception.reason)
+
+
+class TestBindingQuery(unittest.TestCase):
+    """The helper's `binding` op: eslint-scope's resolution over acorn's AST."""
+
+    SRC = (
+        'import{a as b}from"m";var pY=["A"];'
+        'function f(){"let pY";/*let pY*/pY=["B"]}'
+        "function g(pY){return pY}"
+        'function h(){let pY="L";return pY}'
+        'gl="G";function k(){gl="H"}'
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _at(self, needle: str, k: int = 0) -> dict | None:
+        at = self.SRC.index(needle) + k
+        return self.reader.binding(self.SRC, 0, len(self.SRC), "pY", at)
+
+    def test_declaration_text_in_a_string_or_comment_declares_nothing(self) -> None:
+        outer = self._at("pY=[")
+        assert outer is not None
+        self.assertEqual(outer["kind"], "Variable")
+        self.assertEqual(self._at('pY=["B"]'), outer)
+        self.assertEqual(
+            [w for w, _ in outer["writes"]],
+            [self.SRC.index('pY=["A"]'), self.SRC.index('pY=["B"]')],
+        )
+
+    def test_a_parameter_and_a_block_local_are_their_own_bindings(self) -> None:
+        param = self._at("return pY}", 7)
+        local = self._at('let pY="L"', 4)
+        assert param is not None and local is not None
+        self.assertEqual(param["kind"], "Parameter")
+        self.assertEqual(local["kind"], "Variable")
+        self.assertEqual(self._at("return pY}function h", 7), param)
+        self.assertNotEqual(local, self._at("pY=["))
+        self.assertEqual(local["defs"][0][3], False)
+        self.assertEqual(self._at("pY=[")["defs"][0][3], True)
+
+    def test_an_import_names_what_it_imports(self) -> None:
+        got = self.reader.binding(self.SRC, 0, len(self.SRC), "b", self.SRC.index("b}"))
+        self.assertEqual(got, {"kind": "import", "imported": "a"})
+
+    def test_an_undeclared_name_is_one_implicit_global(self) -> None:
+        got = self.reader.binding(
+            self.SRC, 0, len(self.SRC), "gl", self.SRC.index('gl="H"')
+        )
+        assert got is not None
+        self.assertEqual(got["kind"], "ImplicitGlobal")
+        self.assertEqual(
+            got["writes"],
+            [(self.SRC.index('gl="G"'), True), (self.SRC.index('gl="H"'), False)],
+        )
+
+    def test_offsets_are_positions_in_the_whole_source(self) -> None:
+        pad = "var zz=1;\n// @bun\n"
+        src = pad + self.SRC
+        got = self.reader.binding(src, len(pad) - 8, len(src), "pY", src.index("pY=["))
+        assert got is not None
+        self.assertEqual(got["writes"][0][0], src.index('pY=["A"]'))
+
+    def test_an_evicted_module_is_sent_again(self) -> None:
+        first = self._at("pY=[")
+        for n in range(20):
+            other = f"var pY={n};"
+            self.reader.binding(other, 0, len(other), "pY", 4)
+        # One character into the name: not asked before, so not memoized.
+        self.assertEqual(self._at("pY=[", 1), first)
+
+    def test_an_unparsable_module_resolves_nothing(self) -> None:
+        self.assertIsNone(self.reader.binding("var =;", 0, 6, "x", 0))
 
 
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
+
+    lookups = 0
 
     def __init__(self) -> None:
         self.parsed = 0
@@ -310,6 +390,34 @@ class TestInventoryReaderFlag(unittest.TestCase):
         self.assertEqual(report["reader"]["compare"]["changes"], [])
         self.assertFalse(report["reader"]["compare"]["failed"])
         self.assertEqual(report["reader"]["status"], "ok")
+
+    def test_compare_gives_each_reader_its_own_answers(self) -> None:
+        """Finding 5 on #5640 reads differently under the two readers, so a
+        cache carrying the regex run's answers into the parser run (or back)
+        shows up as no change, or the wrong section values."""
+        _require_live(self)
+        probe = (
+            test_inventory.AGENT_SRC
+            + 'var pY=[xt,"Artifact"];function f(){"let pY";pY=["B"]}f();'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        self.binary.write_bytes(MARKER + probe.encode() + BIG + GAP + DOCTOR)
+        _, out = self._run("--binary-only", "--reader", "compare")
+        report = json.loads(out)
+        agent = report[inv.AGENT_LANE]["spread-probe"]
+        self.assertEqual(agent["disallowed_tools_source"], "partial")
+        pointer = f"/{inv.AGENT_LANE}/spread-probe/disallowed_tools_source"
+        changed = {c["pointer"]: c for c in report["reader"]["compare"]["changes"]}
+        self.assertIn(pointer, changed)
+        self.assertFalse(report["reader"]["compare"]["failed"])
+        _, regex = self._run("--binary-only")
+        self.assertEqual(
+            json.loads(regex)[inv.AGENT_LANE]["spread-probe"][
+                "disallowed_tools_source"
+            ],
+            "literal",
+        )
 
     def test_a_value_that_differs_between_readers_breaks_the_report(self) -> None:
         real = inv.extract_binary
