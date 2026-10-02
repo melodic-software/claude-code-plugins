@@ -21,6 +21,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   declared method, then squash, as an unset value behaved), `squash`, `merge`, and `rebase`. The
   merge wrapper's `--method` accepts `auto` and treats it as unset.
 
+## [0.71.5] - 2026-10-02
+
+### Changed
+
+- `commit`'s trailer resolution notes that a mod's `attribution.text` hook can rewrite or blank
+  the harness-injected commit and PR attribution guidance, so its absence says nothing about the
+  project's wishes.
+
 ## [0.71.4] - 2026-10-02
 
 ### Fixed

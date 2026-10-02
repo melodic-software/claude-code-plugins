@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-02
+
+### Added
+
+- Auditing a plugin that ships a mod (a hook config with `"modules"`) now reviews the `hooks:`
+  and `calls:` lines `claude plugin validate` reports as the mod's trust surface. Under `--json`
+  those lines are in the hooks content's `notes`, which the auditor previously did not read.
+
 ## [0.11.3] - 2026-10-02
 
 ### Fixed

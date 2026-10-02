@@ -368,6 +368,11 @@ since the spread may override it (a `name` dropped this way leaves the registrat
 | `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal |
 | `registration` | the name is registered more than once: the registrar is a `Map.set`, run order is not read, so the kept (first) record may not be the live one |
 
+`builtin_plugin_notes.mods_flag_in_bundle` is whether the bundle still spells
+`tengu_plugin_hooks_modules`. The per-account values beside these fields (`builtin_plugin_state`)
+are a disk read, not an extraction: the global config's `cachedGrowthBookFeatures` and the
+`enabledPlugins` maps, joined to the lane by plugin `id` and `gate_flags[].flag`.
+
 `aliases` and `gate_flags` are floors by construction and are listed in
 `builtin_plugin_notes.floors`. Lane-level gaps are advisories, not record fields: unresolved
 registration names, a loaded plugin with no registration, a registration the loader never

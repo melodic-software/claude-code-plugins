@@ -90,8 +90,9 @@ Content keyed to a place rather than a file kind.
    needs the shim, a `NATIVE` row does not, because nothing blocks that file.
 
    The shim is also what covers the sessions where reading `AGENTS.md` directly is unavailable
-   (before v2.1.277, on some providers, with telemetry or hooks disabled, the first session after an
-   upgrade), so a repository that still carries a root `CLAUDE.md` keeps writing it. Removing shims
+   (before v2.1.277, with the built-in `agents-md` plugin disabled, in some cases the first session
+   after an upgrade, and before v2.1.281 on some providers or with telemetry disabled), so a
+   repository that still carries a root `CLAUDE.md` keeps writing it. Removing shims
    across a repository is `/instruction-placement:migrate`'s business, not this recipe's.
 
 3. **Merge, do not clobber.** If either file already exists, append under a new heading and preserve

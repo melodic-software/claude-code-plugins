@@ -48,8 +48,8 @@
 #     or a release note names AGENTS.md or instruction-file loading.
 #
 # So a target nothing blocks gets the third verdict NATIVE rather than a pass or
-# a failure: availability (version, provider, telemetry and hook settings, the
-# first session after an upgrade) is not observable from a repository, and
+# a failure: availability (version, whether the built-in agents-md plugin is
+# enabled, the first session after an upgrade) is not observable from a repository, and
 # neither is a CLAUDE.md above the repository root.
 #
 # `wiring` asks the same question one level down. The index lists every nested
@@ -453,14 +453,15 @@ fi
 # way loads and is not a finding. Entry points are read from the filesystem, so
 # a gitignored CLAUDE.local.md shim counts.
 #
-# An UNWIRED row is a finding under the DEFAULT instruction-files mode. Under
-# the user-settings option `claude-md-and-agents-md` both files load, "each
-# directory's `CLAUDE.md` files first and its `AGENTS.md` after them", so an
-# unimported nested AGENTS.md does load there and the row is a false positive.
+# An UNWIRED row is a finding under the DEFAULT instruction-files mode, and
+# under the user-settings option `claude-md-and-agents-md` too: that option
+# reads both files, "each directory's `CLAUDE.md` files first and its
+# `AGENTS.md` after them", but the page does not say when a subdirectory's
+# AGENTS.md loads under it, so the row is not treated as a false positive.
 # The import stays harmless either way: "Claude Code skips an `AGENTS.md` it has
 # already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
 # twice" (code.claude.com/docs/en/memory, "Choose which instruction files load";
-# fetched 2026-09-19; recheck when that table changes). The setting is a user,
+# fetched 2026-10-01; recheck when that table changes). The setting is a user,
 # `--settings` or managed one, which no repository can ship, so the gate keeps
 # the default's answer.
 #

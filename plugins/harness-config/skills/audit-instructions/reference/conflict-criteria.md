@@ -335,7 +335,9 @@ the handler that carries it:
   `--setting-sources`", so a `.claude/rules/` file on disk then contributes nothing.
 - **`--add-dir` with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`.** Setting it "loads
   `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, and `CLAUDE.local.md` from the additional
-  directory". Those are live surfaces a walk of the project tree never sees.
+  directory". Those are live surfaces a walk of the project tree never sees. An `AGENTS.md` there
+  is not one: it does not load, per the dated record in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **A declined external-import approval.** "If you decline, the imports stay disabled and the dialog
   doesn't appear again". That state is persistent, machine-local, and invisible in the tree.
 - **Effective hook enablement, which resolves per scope and not per file.** "To temporarily disable

@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.0] - 2026-10-02
+## [1.3.0] - 2026-10-02
 
 ### Changed
 
@@ -16,6 +16,73 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - `install_new` (`ask`, `all`, `none`) and `skill_usage_scope` (`repo`, `user`, `data-dir`) are
   pickers in `/config`. A value outside the list can no longer be chosen there; one set by hand
   still falls back to the default as before.
+
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=regex|parser|compare`** (default `regex`, whose output is unchanged).
+  `parser` starts a long-lived node helper (`scripts/js/parser_helper.cjs`, newline-delimited
+  JSON on stdin/stdout) and parses every `// @bun` module of the bundle with acorn before the
+  extraction runs; a module that does not parse marks the report broken. `compare` runs both
+  readers and records every difference under `reader.compare`, classified by
+  `compare_reports.py`; a `value->value` difference marks the report broken. In this release the
+  parser checks coverage only and the values still come from the regex reader; the binding and
+  write lookups move to the parser in later phases of #5640. On Claude Code 2.1.287 all 2,158
+  modules parse, the parser adds about 3.4 s, and the two readers' reports match.
+- **The parser's packages install on first use and are never vendored.** `scripts/js/` commits
+  only `package.json` and `package-lock.json` (acorn 8.18.0, eslint-scope 9.1.2). The first parser
+  run copies both into `<base>/inventory-parser/<lockfile hash>/` and runs
+  `npm ci --ignore-scripts`; the base is `--deps-dir`, else a harness-ops `$CLAUDE_PLUGIN_DATA`,
+  else the checkout's `.work/harness-ops` when run from a marketplace checkout, else
+  `~/.claude/plugins/data/harness-ops-melodic-software`. Missing npm, a failed install, or a
+  helper that does not load leaves the binary source unavailable with
+  `parser reader broken: <reason>; run: <command>`; missing node says to install Node.js and
+  rerun. Either way `--self-check` exits 1 and nothing falls back to the regex reader. Install
+  directories a killed install left half-built are removed once they are older than twice the
+  `npm ci` timeout. `python3 parser_reader.py --install` performs the install alone.
+  The rule is written up repo wide as `docs/conventions/on-demand-dependencies/`.
+
+### Fixed
+
+- `compare_reports.py` ignores run metadata only under `/sources` itself, so a top-level key such
+  as `/sources_summary` is compared; compares flat lists type-sensitively, so `[1]` to `[true]`
+  is a change; and treats a value whose source is `literal` or `frontmatter` as resolved even when
+  it contains `…`, so a literal `"Wait…"` changing is a `value->value` change rather than
+  `unresolved->resolved`.
+- `test_fixture_parse.py` finds the installed parser packages on its own and fails instead of
+  skipping when `INVENTORY_REQUIRE_ACORN` is set, which CI now sets after installing them.
+
+## [1.1.1] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect scores a built-in plugin surface whose name an earlier lane
+  entry held but was filtered out.** Building the native index marked a name seen before
+  dropping an empty or `internal` entry, so a later built-in plugin or plugin component of the
+  same name was skipped as a duplicate and its overlap candidates were never produced. A name
+  is now marked seen only when its entry is kept; a filtered name still gets no fallback
+  `plugin_backed` surface, so an internal plugin-backed command stays unscored. The native index
+  that seeded pairs and dismissal drift read applies the same selection. On the 2.1.287
+  extraction the candidate report is unchanged, since no name there collides that way.
+
+## [1.1.0] - 2026-10-02
+
+### Added
+
+- **The inventory reports what this account and these settings say about each built-in
+  plugin.** A full run adds `builtin_plugin_state`: per gate flag, the value cached in
+  `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` `cachedGrowthBookFeatures` beside the binary default (`cached_present: false` means the
+  default applies); per plugin, every user, project and local `enabledPlugins` entry for its
+  `<name>@builtin` id and the one that wins, where a file holding any non-Boolean value
+  contributes none (`enabled_plugins_rejected`); and the mods rollout flag
+  `tengu_plugin_hooks_modules`. Its caveats record that a gate read through the per-process
+  `pinnedFeatureValues` pin, as `cc-plugin-diff`'s is, is fixed at session start, so a cached value
+  read later can differ from what a running session uses.
+- **Five native-overlap seed pairs for built-in mods.** `cc-plugin-claude-test` with
+  `testing:run-e2e` and `playwright:playwright`, `cc-plugin-you-should-know` with
+  `discovery:blindspot`, `cc-plugin-responsive-mode` with `writing:be-concise`, and
+  `cc-plugin-mermaid` with `visualization:visualize`.
 
 ## [1.0.2] - 2026-10-02
 

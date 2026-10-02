@@ -117,6 +117,11 @@ task, your output destination, or the main session's sink and confirm gate.
    validate`", <https://code.claude.com/docs/en/changelog>, read 2026-09-29) corroborates it.
    Re-read both and re-date this when either stops naming the flag or a release note changes
    `plugin validate --json`.
+   **When the plugin ships a mod** (its hook config carries `"modules"`), also read the `hooks`
+   content's `notes`: there `--json` puts the `<module> hooks:`, `<module> calls:` and
+   `env reads:`/`env writes:` lines the text form prints. The `calls:` list is the mod's
+   declared capability surface, so audit it as the trust boundary, per
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/component-types/hook.md` "A mod (hooks module)".
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1

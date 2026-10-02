@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.0] - 2026-10-02
+## [0.19.0] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,49 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   default.
 - `breadth_max` declares `min` 0 and `max` 100, since it is a percent of tracked files. A value
   above 100, which could never report a glob over-broad, is now rejected when set.
+
+## [0.18.1] - 2026-10-02
+
+### Fixed
+
+- The `realign` shim recipe and `render-index.sh` no longer list hooks settings among the reasons
+  `AGENTS.md` is unread, and date the provider and telemetry gap to versions before 2.1.281.
+- `migrate`'s record of the built-in `agents-md` plugin notes the legacy `projectInstructions`
+  key, which still sets the mode while `instructionFiles` is at its default.
+
+## [0.18.0] - 2026-10-02
+
+### Added
+
+- **`/instruction-placement:migrate` decides shim removal against the built-in `AGENTS.md`
+  loader.** A new step before `remove-shims`, detailed in `reference/shim-droppable.md`,
+  recommends dropping the `@AGENTS.md` shim only when six conditions hold: no `CLAUDE.md`,
+  `.claude/CLAUDE.md` or `CLAUDE.local.md` takes precedence at or above the working directory or in
+  a nested `AGENTS.md` directory; this machine's **Project instructions** mode reads `AGENTS.md`
+  without a `CLAUDE.md`; the built-in `agents-md` plugin is present and not disabled, read at run
+  time from `/harness-ops:inventory` and settings; the operator confirms no other user, organization,
+  session type or surface (Agent SDK, cloud, `claude-code-action`) needs the shim; no `AGENTS.md`
+  imports a file outside the working directory; and no hook depends on `InstructionsLoaded` for
+  the load. Unknown counts as failed and keeps the shim. Nested shims stay under every mode where
+  the memory page does not say when a subdirectory's `AGENTS.md` loads. Nothing is removed
+  automatically; the dated quotes are in `reference/sources.md`. Precedence is checked by walking
+  every ancestor directory to the filesystem root, and the `InstructionsLoaded` check covers user,
+  managed, `--settings` and installed-plugin hooks, not only the repository's, plus plugins loaded
+  with `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or from `~/.claude/skills/`. The
+  external-import check walks the whole `@` import graph to the four-hop limit with the plugin's
+  own `discover.sh` model, and a closing operator question catches any loading path not listed.
+  User settings and plugins are read under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR` rather than a fixed `~/.claude`, and the operator is asked whether
+  contributors set either, a question that also covers condition A's user `CLAUDE.md`. Under
+  `disableAllHooks` or `allowManagedHooksOnly`, the loader counts as present only on v2.1.287 or
+  later, where built-in mods are verified to keep running.
+
+### Fixed
+
+- **An unimported nested `AGENTS.md` is no longer said to load under
+  `claude-md-and-agents-md`.** The memory page does not say when a subdirectory's `AGENTS.md`
+  loads under that value, so `UNWIRED` stays a finding there; the migrate skill body and the
+  `render-index.sh` comment now say so.
 
 ## [0.17.1] - 2026-10-02
 
