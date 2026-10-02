@@ -40,8 +40,7 @@ this is an instruction-held contract with a narrowed accident surface, not an en
 describe it to an operator as a guarantee. We treat the restriction as clearing on the operator's
 next message, so whoever accepts a diff can apply it (Pointer: the
 [skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
-As of: 2026-08-12. Recheck trigger: that section changes how long the restriction lasts).
-`audit-prompting-postures` carries the identical declaration and caveat: both state one contract.
+As of: 2026-08-12. Recheck trigger: that section changes how long the restriction lasts). `audit-prompting-postures` carries the identical declaration and caveat: both state one contract.
 
 ## Scope boundary (route out)
 
@@ -250,12 +249,11 @@ dispatch first**: run `lane-runs.sh partition` over the inventoried files, then 
 
 A lane's budget is **0.25 of the lane model's own context window**, leaving the rest for the
 catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per token**, our
-setting (Pointer: for the characters-per-token estimate, see the
-[glossary entry for tokens](https://platform.claude.com/docs/en/about-claude/glossary#tokens).
-As of: 2026-09-28. Recheck trigger: that entry changes, or a lane overflows its window on a
-supported model). Non-ASCII text runs more bytes per character, so the estimate errs toward smaller
-lanes. Never state the budget as a line count: the line figure is derived per run from the bytes
-per line measured over the in-scope files.
+setting (Pointer: for the characters-per-token estimate, see the [glossary entry for
+tokens](https://platform.claude.com/docs/en/about-claude/glossary#tokens). As of: 2026-09-28.
+Recheck trigger: that entry changes, or a lane overflows its window on a supported model).
+Non-ASCII text runs more bytes per character, so the estimate errs toward smaller lanes. Never state
+the budget as a line count: the line figure is derived per run from the bytes per line measured over the in-scope files.
 
 We size a lane by the context window of the model the lane runs on, never the parent's (Pointer:
 [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). As of:
