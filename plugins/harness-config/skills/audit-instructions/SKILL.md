@@ -124,10 +124,10 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 **Routing.** At the end of the run, offer it to the person: you can run `/doctor prompt-audit`
 alongside this skill. An unattended run records the offer in its output instead of asking.
-**Mutation gate.** Its write posture is undocumented; this skill never chains into `/doctor`.
-**Availability is never assumed.** Gated by `DISABLE_DOCTOR_COMMAND`, `skillOverrides`, and
-version, it survives `disableBundledSkills`; this section states what to offer, never that it is
-present. Records: [reference/native-doctor.md](reference/native-doctor.md).
+**Mutation gate.** Applying its proposed edits is the person's call; never chain into `/doctor`.
+**Availability is never assumed.** Its gates (settings, environment, version, and the bundled
+skill it runs through) are read live from the pointers in the records; this section states what
+to offer, never that it is present. Records: [reference/native-doctor.md](reference/native-doctor.md).
 
 ## Arguments
 

@@ -207,7 +207,7 @@ fetched 2026-09-29 against 2.1.284. Recheck when a release note names any of tho
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| Cost | Each one-line `-p` turn cost about $0.22 to $0.31, mostly SessionStart hooks and context loading |
+| Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs>, as of 2026-10-02; recheck when that section renames or replaces its tracking commands |
 
 ## What the relay does not change
 
