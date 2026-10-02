@@ -183,7 +183,7 @@ ip_discover_rules() {
       }
     }
     END { for (k in best) print best[k] }
-  ' | LC_ALL=C sort
+  ' | awk -v fixture="$IP_EVAL_FIXTURE_ERE" '$0 !~ fixture' | LC_ALL=C sort
 
   rm -f "$seen_file"
 }
@@ -216,6 +216,13 @@ ip_discover_rules() {
 IP_EXCLUDED_TREES=".claude node_modules vendor .git"
 IP_FOREIGN_AGENT_TREES=".codex .cursor .github"
 
+# An eval fixture tree imitates a consuming repository as test input. Its rules
+# and nested instruction files are not this repository's conventions, so both
+# discovery functions drop any path with an `evals/fixtures/` segment pair. One
+# awk ERE over a repository-relative path, shared so the index, the glob gate
+# and the wiring gate cannot disagree about a fixture.
+IP_EVAL_FIXTURE_ERE='(^|/)evals/fixtures/'
+
 # ---------------------------------------------------------------------------
 # Nested instruction-file discovery
 #
@@ -240,12 +247,13 @@ ip_discover_nested_instructions() {
   fi
 
   printf '%s\n' "$listing" |
-    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
+    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" -v fixture="$IP_EVAL_FIXTURE_ERE" '
     BEGIN {
       split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
       split(foreign, others, " "); for (k in others) theirs[others[k]] = 1
     }
     $0 == "" { next }
+    $0 ~ fixture { next }
     {
       n = split($0, seg, "/")
       if (n < 2) next                                   # root-level: loads at start

@@ -150,3 +150,7 @@ under Effort tiers, subagent cache TTL mechanics in the fable-5 pack's
 `context/orchestration.md`, session cache-health observability in the `harness-ops` observability
 skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in the
 `docs-hygiene` extract-ssot skill's anti-patterns reference.
+
+What a Claude Code session itself does to the cache, and why its usage climbs as it runs, are on
+[How Claude Code uses prompt caching](https://code.claude.com/docs/en/prompt-caching) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
+(checked 2026-10-01; recheck when either section moves).
