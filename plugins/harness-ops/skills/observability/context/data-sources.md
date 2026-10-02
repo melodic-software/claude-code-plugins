@@ -69,7 +69,30 @@ no query normalizes an event key. `source` is the discriminator:
 |---|---|---|
 | spine | every row | `ts hook_event_name status duration_ms source`, plus `session_id` on every row but those in `hook-events.jsonl`, which carry no session by definition |
 | a hook run, `source: "envelope"` | both sink routes | `hook exit_code subject tool`, plus `changed` (boolean) when the producer sent a rewrite verdict |
-| an event the session saw, `source: "event-log"` | `sessions/<id>.jsonl` | `category`, plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when the payload carried them. No `hook`: no hook run is described, and `duration_ms` is the logger's own cost |
+| an event the session saw, `source: "event-log"` | `sessions/<id>.jsonl` | `category` and `effort`, plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` and these top-level payload keys when the payload carried them: strings `transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action`, `error` on `StopFailure` only, and booleans and numbers `seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm`. No `hook`: no hook run is described, and `duration_ms` is the logger's own cost |
+
+On an event-log row, `effort` is one of three things:
+
+- a level name: the payload's top-level `effort.level`, else `$CLAUDE_EFFORT` when the payload has
+  no effort object (Claude Code sets that variable from the same field, so a value the hook only
+  inherited never overrides the payload);
+- `n/a` on an event that never carries a level: the session, prompt, notification, `SubagentStart`,
+  task, teammate, config, `CwdChanged`, `DirectoryAdded`, `WorktreeRemove`, compaction,
+  model-switch and elicitation events (`SLOG_EFFORT_NA_EVENTS` in `hooks/session-log-lib.sh`);
+- `unset` on an event that can carry one (`PermissionRequest`, `PermissionDenied`,
+  `PostToolUseFailure`, `PostToolBatch`, `Stop`, `SubagentStop`, `StopFailure`) whose payload and
+  environment held none, as on a model without effort support.
+
+Path keys (`cwd`, `transcript_path`, `scratchpad_dir` and the other path-valued keys above) hold the
+payload's raw absolute values; `file_path` alone is reduced, repo-relative or to its last segment.
+Prompt text, messages, titles, tool input and output, and every object or array are never copied.
+The writer's allowlist (`SLOG_EVENT_LOG_STRINGS`, `SLOG_EVENT_LOG_SCALARS`) is the authority for the
+key list. Claim: the payload carries `effort` only on events fired within a tool-use context, and a
+hook's `$CLAUDE_EFFORT` is that payload's level. Basis: <https://code.claude.com/docs/en/hooks>
+("Common input fields"); the page names no event list, so the split was read from the Claude Code
+2.1.287 binary's hook-input builder. As of 2026-10-02; recheck on each `/harness-ops:changelog`
+ingest whose notes touch hook input fields, or when `Stop` rows from a model with effort support
+read `unset`.
 
 Select hook runs with `.source == "envelope"` (equivalently `.hook != null`) and the event
 timeline with `.source == "event-log"`. A store written before this shape holds shared-file rows

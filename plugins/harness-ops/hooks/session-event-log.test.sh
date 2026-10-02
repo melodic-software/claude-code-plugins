@@ -23,6 +23,7 @@ RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
   and (.hook_event_name|type)=="string" and (.status|type)=="string"
   and ((.duration_ms|type)=="number" or .duration_ms==null)
   and .source=="event-log" and (.category|type)=="string"
+  and (.effort|type)=="string"
   and (has("event")|not) and (has("hook")|not)'
 
 # assert_record <label> <file> [<extra jq clause>]
@@ -57,7 +58,7 @@ run() {
   shift 2
   payload_file="$(mktemp "$TEST_TMPDIR/payload.XXXXXX")"
   printf '%s' "$body" >"$payload_file"
-  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
+  env -u HOOK_TELEMETRY_SINK -u CLAUDE_EFFORT CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
 # --- default OFF: nothing is read or written --------------------------------
@@ -214,6 +215,82 @@ run "$P" "$(payload s9e PostToolUse '"tool_name":"Edit","reason":"said \"go\" th
 assert_record "an escaped payload body still satisfies the record schema" "$P/.observability/claude/sessions/s9e.jsonl"
 assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
   "$(jq -r .reason "$P/.observability/claude/sessions/s9e.jsonl")"
+
+# --- effort: env, then the payload's top-level effort.level, else unset or n/a ----
+# Payload shapes follow the hooks reference's Stop, SubagentStop,
+# PermissionRequest, PostToolUseFailure, SessionStart and UserPromptSubmit input
+# examples; the levels are the five the reference names.
+P=$(project effort)
+ELOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
+STOP_TAIL='"stop_hook_active":false,"last_assistant_message":"I finished the refactor","background_tasks":[{"id":"t1","type":"subagent","status":"running","description":"d","agent_type":"Explore"}],"session_crons":[]'
+run "$P" "$(payload e1 Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL")" "$ON" >/dev/null
+assert_eq "Stop with top-level effort.level records it" "high" "$(jq -r .effort "$(ELOG e1)")"
+assert_eq "Stop: stop_hook_active round-trips as a JSON boolean" "boolean false" "$(jq -r '"\(.stop_hook_active|type) \(.stop_hook_active)"' "$(ELOG e1)")"
+assert_eq "Stop: last_assistant_message (content) is absent" "false" "$(jq -r 'has("last_assistant_message")' "$(ELOG e1)")"
+assert_eq "Stop: a background task's agent_type is not read as the event's" "false" "$(jq -r 'has("agent_type")' "$(ELOG e1)")"
+assert_record "effort rows satisfy the record schema" "$(ELOG e1)"
+
+run "$P" "$(payload e2 SubagentStop '"effort":{"level":"medium"},"stop_hook_active":false,"agent_id":"def456","agent_type":"Explore","agent_transcript_path":"/home/dev/.claude/projects/p/abc/subagents/agent-def456.jsonl","last_assistant_message":"done","background_tasks":[],"session_crons":[]')" "$ON" >/dev/null
+assert_eq "SubagentStop with top-level effort.level records it" "medium" "$(jq -r .effort "$(ELOG e2)")"
+assert_eq "SubagentStop: agent_type round-trips" "Explore" "$(jq -r .agent_type "$(ELOG e2)")"
+assert_eq "SubagentStop: agent_transcript_path is the raw absolute value" "/home/dev/.claude/projects/p/abc/subagents/agent-def456.jsonl" "$(jq -r .agent_transcript_path "$(ELOG e2)")"
+
+run "$P" "$(payload e3 Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL")" "$ON" CLAUDE_EFFORT=xhigh >/dev/null
+assert_eq "payload wins over a conflicting inherited CLAUDE_EFFORT=xhigh" "high" "$(jq -r .effort "$(ELOG e3)")"
+run "$P" "$(payload e3a Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT=xhigh >/dev/null
+assert_eq "env fills in when the payload has none (CLAUDE_EFFORT=xhigh)" "xhigh" "$(jq -r .effort "$(ELOG e3a)")"
+run "$P" "$(payload e3b Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT=turbo >/dev/null
+assert_eq "a CLAUDE_EFFORT that names no level records unset" "unset" "$(jq -r .effort "$(ELOG e3b)")"
+
+run "$P" "$(payload e4 Stop "$STOP_TAIL")" "$ON" >/dev/null
+assert_eq "Stop payload without effort records unset" "unset" "$(jq -r .effort "$(ELOG e4)")"
+
+run "$P" "$(payload e5 UserPromptSubmit '"prompt":"Write a function to calculate the factorial","session_title":"my title"')" "$ON" CLAUDE_EFFORT=high >/dev/null
+assert_eq "n/a-list event (UserPromptSubmit) records n/a" "n/a" "$(jq -r .effort "$(ELOG e5)")"
+assert_eq "UserPromptSubmit: the prompt text (content) is absent" "false" "$(jq -r 'has("prompt")' "$(ELOG e5)")"
+assert_eq "UserPromptSubmit: session_title (content) is absent" "false" "$(jq -r 'has("session_title")' "$(ELOG e5)")"
+assert_eq "no line carries the prompt text anywhere" "0" "$(grep -c 'factorial' "$(ELOG e5)")"
+
+# Hostile: tool_input comes before every top-level key and carries a bare
+# "level":"max" and a nested effort object; only the real top-level level, or
+# unset, may land, never max. The same holds when no top-level effort exists.
+run "$P" '{"tool_input":{"command":"x","level":"max","effort":{"level":"max"},"mode":"secret-mode"},"session_id":"e6","cwd":"/x","hook_event_name":"PermissionRequest","tool_name":"Bash","effort":{"level":"high"}}' "$ON" >/dev/null
+assert_eq "hostile tool_input (PermissionRequest) with a nested effort records unset, never max" "unset" "$(jq -r .effort "$(ELOG e6)")"
+assert_eq "hostile tool_input: a nested allowlisted key (mode) is not copied" "false" "$(jq -r 'has("mode")' "$(ELOG e6)")"
+run "$P" '{"tool_input":{"command":"npm test","level":"max","effort":{"level":"max"}},"session_id":"e7","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_use_id":"toolu_07","error":"Exit code 1\nError: boom","is_interrupt":true,"duration_ms":4187}' "$ON" >/dev/null
+assert_eq "hostile tool_input (PostToolUseFailure) with only a nested effort records unset" "unset" "$(jq -r .effort "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: is_interrupt after tool_input round-trips as a JSON boolean" "boolean true" "$(jq -r '"\(.is_interrupt|type) \(.is_interrupt)"' "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: the error text (tool output) is absent" "false" "$(jq -r 'has("error")' "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: duration_ms stays the logger's own, never the payload's" "false" "$(jq -r '.duration_ms == 4187' "$(ELOG e7)")"
+
+# boolean/number round trip, and a payload `source` never displaces the record's.
+run "$P" "$(payload e8 SessionStart '"source":"resume","model":"claude-opus-5","seconds_since_last_response":5400,"context_tokens":182340,"prompt_cache_likely_expired":true,"estimated_cache_write_usd":1.1396')" "$ON" >/dev/null
+assert_eq "boolean/number: numbers and a boolean keep their JSON types and values" \
+  "number 5400|number 182340|boolean true|number 1.1396" \
+  "$(jq -r '[.seconds_since_last_response, .context_tokens, .prompt_cache_likely_expired, .estimated_cache_write_usd] | map("\(type) \(.)") | join("|")' "$(ELOG e8)")"
+assert_eq "SessionStart: model round-trips" "claude-opus-5" "$(jq -r .model "$(ELOG e8)")"
+assert_eq "SessionStart: the payload's source does not displace the record's" "event-log" "$(jq -r .source "$(ELOG e8)")"
+assert_eq "SessionStart records n/a" "n/a" "$(jq -r .effort "$(ELOG e8)")"
+assert_record "metadata rows satisfy the record schema" "$(ELOG e8)"
+
+# The raw absolute cwd, transcript_path and scratchpad_dir (D32).
+run "$P" '{"session_id":"e9","transcript_path":"/home/dev/.claude/projects/-home-dev-proj/e9.jsonl","cwd":"/home/dev/proj","scratchpad_dir":"/tmp/claude-1000/-home-dev-proj/e9/scratchpad","permission_mode":"auto","hook_event_name":"PostToolBatch","tool_calls":[]}' "$ON" >/dev/null
+assert_eq "raw absolute cwd round-trips" "/home/dev/proj" "$(jq -r .cwd "$(ELOG e9)")"
+assert_eq "raw absolute transcript_path round-trips" "/home/dev/.claude/projects/-home-dev-proj/e9.jsonl" "$(jq -r .transcript_path "$(ELOG e9)")"
+assert_eq "raw absolute scratchpad_dir round-trips" "/tmp/claude-1000/-home-dev-proj/e9/scratchpad" "$(jq -r .scratchpad_dir "$(ELOG e9)")"
+assert_eq "permission_mode round-trips" "auto" "$(jq -r .permission_mode "$(ELOG e9)")"
+
+# Each allowlisted string field round-trips from the top level of a payload
+# that carries them all, `v-<key>` per key; error@StopFailure on StopFailure.
+STRINGS=$(bash -c 'source "$1"; printf "%s" "$SLOG_EVENT_LOG_STRINGS"' _ "$HOOK_DIR/session-log-lib.sh")
+members=""
+for entry in $STRINGS; do members+=",\"${entry%@*}\":\"v-${entry%@*}\""; done
+run "$P" "{\"session_id\":\"e10\",\"hook_event_name\":\"StopFailure\"$members}" "$ON" >/dev/null
+for entry in $STRINGS; do
+  assert_eq "allowlisted string $entry round-trips" "v-${entry%@*}" "$(jq -r --arg k "${entry%@*}" '.[$k]' "$(ELOG e10)")"
+done
+run "$P" "{\"session_id\":\"e11\",\"hook_event_name\":\"Stop\"$members}" "$ON" >/dev/null
+assert_eq "error@StopFailure is not read on another event" "false" "$(jq -r 'has("error")' "$(ELOG e11)")"
 
 # --- a pause after a NESTED `}` does not end the read early ----------------------
 # The writer stops for longer than one slice right after tool_input closes,
