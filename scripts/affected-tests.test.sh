@@ -1302,6 +1302,14 @@ mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
 mk_cmt_dependent js-code js 'const target = "hub-target.sh";\n'
 mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
 printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
+# A Python import never spells the .py, so a comment naming the module is the
+# only text edge from an importer; it keeps counting. Prose alone does not.
+printf 'X = 1\n' >"$repo3/eco/cmt/hubmod.py"
+printf 'import hubmod\n' >"$repo3/eco/cmt/test_hubmod.py"
+printf '# hubmod.py is shared with a sibling\nfrom hubmod import X\n' >"$repo3/eco/cmt/pyimporter.py"
+printf 'import pyimporter\n' >"$repo3/eco/cmt/test_pyimporter.py"
+printf '# see hubmod.py\nimport os\n' >"$repo3/eco/cmt/pyprose.py"
+printf 'import pyprose\n' >"$repo3/eco/cmt/test_pyprose.py"
 git_test_config "$repo3" add eco >/dev/null
 git_test_config "$repo3" commit -qm comments >/dev/null
 
@@ -1328,6 +1336,14 @@ if has_line "$OUT" eco/cmt/hub-prose.test.sh; then
   ok "a suite's comment mention still selects it"
 else
   fail "a suite naming the file in a comment was dropped (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/cmt/hubmod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_pyimporter.py &&
+  ! has_line "$OUT" eco/cmt/test_pyprose.py; then
+  ok "a comment naming a module the .py imports by name still selects; prose alone does not"
+else
+  fail "python import-by-name comment edge lost or prose comment kept (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
 
