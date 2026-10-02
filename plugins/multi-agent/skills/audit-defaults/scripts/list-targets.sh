@@ -31,7 +31,8 @@ done
 }
 cd "$ROOT" || exit 2
 
-CLAIMS='\b(opus|sonnet|haiku|fable)\b|\beffort\b.{0,30}\b(low|medium|high|xhigh|max)\b|^model:|CLAUDE_CODE_(SUBAGENT_MODEL|DISABLE_WORKFLOWS)|\bWorkflow (tool|script)|dynamic workflow|subagents?.{0,20}(model|depth|concurren)'
+B='[^[:alnum:]_]'
+CLAIMS="(^|$B)(opus|sonnet|haiku|fable)($B|$)|(^|$B)effort$B.{0,30}(low|medium|high|xhigh|max)|^model:|CLAUDE_CODE_(SUBAGENT_MODEL|DISABLE_WORKFLOWS)|Workflow (tool|script)|dynamic workflow|subagents?.{0,20}(model|depth|concurren)"
 EXCLUDE='(^|/)(docs/upstream|vendor|node_modules|fixtures?|evals?)/|(^|/)CHANGELOG[^/]*$'
 
 git ls-files -z -- '*.md' |
