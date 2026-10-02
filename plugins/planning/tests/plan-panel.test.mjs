@@ -159,6 +159,7 @@ test('empty score sheets from every judge return no-judges', async () => {
     reply: (p, o) => (o.label.startsWith('judge:') ? { scores: [], dissent: '' } : defaultReply(p, o)),
   })
   assert.equal(result.error, 'no-judges')
+  assert.deepEqual(result.drafts[0].key_ideas, ['idea draft:mvp-first'])
 })
 
 test('the result carries every draft in full', async () => {

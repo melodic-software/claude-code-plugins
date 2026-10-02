@@ -195,7 +195,7 @@ if (drafts.length > 1) {
     return {
       error: 'no-judges',
       next: 'No judge returned scores. Compare the drafts on the main thread.',
-      drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan })),
+      drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan, key_ideas: d.key_ideas })),
       nulls: { drafts: draftNulls, judges: judgeNulls },
       ran: angles.map(a => a.name),
     }
