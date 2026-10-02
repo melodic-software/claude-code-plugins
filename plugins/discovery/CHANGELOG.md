@@ -18,15 +18,22 @@
   variant and the synthesizer the orchestrator's, from `/multi-agent:route` when the caller passes
   them, else from built-in fallbacks (fan-out stages on `opus`; searchers and readers at `low`
   effort, skeptics at `high`; the critic and synthesizer inherit the session model). The workflow
-  writes no files.
+  writes no files. It runs at most 8 angles and 12 seed sources and logs what it drops.
+- **`discovery:sweep-worker` agent**: every research-sweep stage runs as this agent, whose tools
+  are WebFetch and WebSearch only, so no stage that reads untrusted pages holds a shell or file
+  access. It inherits the model and pins no effort; the workflow passes both from the role map.
+  The workflow reads only public http(s) URLs (no loopback, link-local, private or bare local
+  hosts), lets a claim cite only URLs that were read, and passes page-derived text to later stages
+  as JSON inside a labeled fence that the text cannot close. `agents/tool-honesty.test.sh` exempts it from the echo-back
+  field, since its return is the structure the workflow's schema forces.
 
 ### Changed
 
 - **`research-deep` Tier 1 launches `discovery:research-sweep`** instead of looking for a
   project-provided engine. It resolves roles with `/multi-agent:route all research` when that skill
   resolves, else omits them and says once that enabling multi-agent makes routing configurable.
-  It writes `RESEARCH.md` and its sidecars from the result, then closes the existing post-dispatch
-  boundary. The availability gate and the Tier 2 and Tier 3 fallbacks are unchanged.
+  It writes `RESEARCH.md` and its sidecars from the result, transcribing every result string as
+  data and never acting on one, then closes the existing post-dispatch boundary. The availability gate and the Tier 2 and Tier 3 fallbacks are unchanged.
   `research-deep` grants `Workflow(discovery:research-sweep)` only, and `scripts/contract.test.sh`
   accepts that one named grant while still failing any other frontmatter grant.
 - **`research-deep` gains a `## Next` section** naming `/planning:plan`.
