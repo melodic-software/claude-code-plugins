@@ -3,12 +3,23 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.12] - 2026-10-02
+## [0.34.13] - 2026-10-02
 
 ### Changed
 
 - The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
   the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
+## [0.34.12] - 2026-10-02
+
+### Changed
+
+- **`code-reviewer`, `ci-log-auditor` and `doc-drift-detector` pin `model: opus`, up from
+  `sonnet`.** A judgment verdict is never on a weaker model than the work it checks. All five
+  verdict agents keep `effort: high` and carry a pin record pointing at the model-config `high` row
+  and the advisor capability rule, as of 2026-10-02, rechecked at the next model release.
+  `ecosystem-specialist` stays `sonnet` at `medium`: its build, test and lint commands are the
+  objective failure signal.
 
 ## [0.34.11] - 2026-10-02
 

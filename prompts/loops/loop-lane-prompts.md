@@ -354,10 +354,11 @@ reason for each binding, live in the loop-lane convention's
 and [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding);
 read them there rather than from this file.
 
-- **Worker lane root: fast tier.** Snapshot, admission gate, dispatch,
-  telemetry upsert. Bookkeeping, not diff reasoning.
-- **Merge lane root: fast tier.** The rung partition is deterministic;
-  the real work happens in dispatched workers.
+- **Worker lane root: strong tier.** The orchestrator in the convention's
+  coordinator shape: it plans and coordinates (snapshot, admission gate,
+  dispatch, telemetry upsert), and the dispatched workers execute.
+- **Merge lane root: strong tier.** The same coordinator shape: it
+  partitions the rungs and decides, and dispatched workers do the fixing.
 - **Attended queue: strong tier.** Human in the loop, and where
   classification proposals are made.
 - **Dispatched implementers: strong tier.** A phase the plan routes `sonnet`
@@ -371,8 +372,8 @@ read them there rather than from this file.
 frontmatter (#1649).** `/implementation:implement-dispatch` dispatches workers and
 phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
-current alias, so a `sonnet` worker-lane root no longer makes every
-implementer `sonnet`, and `/work-items:work`'s branch-owned fix
+current alias, so the worker-lane root's model does not decide the
+implementer's, and `/work-items:work`'s branch-owned fix
 re-dispatches ride the same agent surface. How that frontmatter ranks against
 a per-invocation `model` and operator overrides is set by
 [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
@@ -403,16 +404,15 @@ Two consequences of that order:
     `model` values.
 
 ```bash
-claude --model sonnet   # worker lane
-claude --model sonnet   # merge lane
+claude --model opus     # worker lane
+claude --model opus     # merge lane
 claude --model opus     # attended queue
 ```
 
-Pair the fast roots with a stronger advisor (`advisorModel: opus`). A fast
-orchestrator plus an advisor at or above the main tier is the convention's
-recommended shape, and it is what makes a `sonnet` root safe. Do not drive the
-headless text form `/advisor`, `/advisor <model>`, or `/advisor off` from a
-lane prompt. The pairing is the settings value above, fixed at launch.
+Swap `opus` for `best` on a lane root where the organization runs its
+orchestrator at the frontier tier. Do not drive the headless text form
+`/advisor`, `/advisor <model>`, or `/advisor off` from a lane prompt: any
+advisor pairing is a settings value fixed at launch.
 
 - **Claim:** decline `/advisor` in unattended lane prompts, including the
   headless text form.
@@ -662,7 +662,7 @@ wakeup ceiling for days rather than finishing.
 > remedy in the cycle report and stop there. Posture and process corrections
 > that touch no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
 > skill requires would silently run at orchestrator strength unless you say
 > otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for
