@@ -2,8 +2,11 @@
 # Collect a per-environment deployment record from committed IaC.
 #
 # WHY. A deployment diagram is a fact only when every node is a declaration in
-# a named file. This script reads Docker Compose and Kubernetes manifests. It
-# does not call a cloud API, even when --live is passed.
+# a named file. This script reads Docker Compose, Kubernetes manifests,
+# Terraform, Bicep, ARM, CloudFormation, and Pulumi YAML as text. It does not
+# call a cloud API,
+# even when --live is passed, and it never runs terraform, bicep, or az, or
+# reads state.
 #
 # Usage:
 #   collect-deployment.sh [--repo <path>] [--out <file>] [--generated-on <date>]
@@ -11,13 +14,30 @@
 #   collect-deployment.sh --help
 #
 # Tracked files only (`git ls-files`), CI directories (.github and the like)
-# excluded. Shipped readers: Compose and Kubernetes manifests. Terraform (any
-# .tf, .tfvars, .tf.json), ARM templates, Pulumi, Bicep, CloudFormation, Helm
-# (a Chart.yaml), and Kustomize are recognized and then the record is refused,
-# including when a shipped reader also matches, so the diagram is never a
-# partial read. A compose base file beside a compose.<x>.yaml override in one
-# directory is refused as layered-compose: the layers merge into one
-# environment and this reader does not merge them.
+# excluded. Shipped readers: Compose, Kubernetes manifests, and Terraform (.tf,
+# .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk), and Bicep and ARM
+# templates with their .bicepparam and deploymentParameters files (see
+# azure-reader.awk), CloudFormation YAML and JSON templates with their JSON
+# parameter files, and Pulumi projects of runtime yaml with their
+# Pulumi.<stack>.yaml files (see cloudformation-reader.awk, pulumi-reader.awk,
+# and the shared yaml-rows.awk). A Pulumi project of any other runtime, Helm (a
+# Chart.yaml, a Terraform helm_release, or a Pulumi kubernetes:helm.sh resource),
+# and Kustomize are recognized and then the record is refused, including when a
+# shipped reader also matches, so the diagram is never a partial read. A
+# resource a shipped reader parses and has no mapping for is listed in
+# `unmapped` (tool, resource type, file). When no container was placed and that
+# list is not empty, the record is refused as no-mapped-container and keeps the
+# list. A compose base file and its compose.override.yaml, or the files
+# a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
+# environment named for the directory: scalars are overridden, ports and
+# networks append without duplicates, environment merges by key. Any other
+# file beside them, an override with no base, or a !reset or !override tag
+# refuses the record as compose-not-mergeable:<file>.
+#
+# A placement names the compute node it runs on (`compute`): a Compose service,
+# or a Kubernetes workload shared by its containers. `relationships` holds the
+# Service selector and Ingress backend links from a network or ingress node to
+# a container.
 #
 # Output: deployment.json, schema_version 1, one object per line. Every value
 # written passes through plugins/architecture/lib/redact-connection.awk; a
@@ -112,15 +132,19 @@ TOOLS="$TMP/tools.jsonl"
 ENVS="$TMP/envs.jsonl"
 NODES="$TMP/nodes.jsonl"
 PLACES="$TMP/places.jsonl"
+EDGES="$TMP/edges.jsonl"
 PARAMS="$TMP/params.jsonl"
 DIFFS="$TMP/diffs.jsonl"
+UNMAPPED="$TMP/unmapped.jsonl"
 CATALOG="$TMP/catalog.jsonl"
 : >"$TOOLS"
 : >"$ENVS"
 : >"$NODES"
 : >"$PLACES"
+: >"$EDGES"
 : >"$PARAMS"
 : >"$DIFFS"
+: >"$UNMAPPED"
 : >"$CATALOG"
 
 emit_array() {
@@ -160,9 +184,13 @@ write_record() {
       printf ',\n'
       emit_array placements "$PLACES"
       printf ',\n'
+      emit_array relationships "$EDGES"
+      printf ',\n'
       emit_array parameters "$PARAMS"
       printf ',\n'
       emit_array diffs "$DIFFS"
+      printf ',\n'
+      emit_array unmapped "$UNMAPPED"
       printf ',\n'
       emit_array catalog "$CATALOG"
       printf '\n}\n'
@@ -180,9 +208,12 @@ refuse() {
   : >"$ENVS"
   : >"$NODES"
   : >"$PLACES"
+  : >"$EDGES"
   : >"$PARAMS"
   : >"$DIFFS"
   : >"$CATALOG"
+  # The refusal for a read that drew no container keeps the list that explains it.
+  [[ "$1" == no-mapped-container ]] || : >"$UNMAPPED"
   write_record refused "$1"
   exit 0
 }
@@ -215,6 +246,10 @@ fi
 
 : >"$TMP/compose.txt"
 : >"$TMP/k8s.txt"
+: >"$TMP/tf.txt"
+: >"$TMP/azure.txt"
+: >"$TMP/cfn.txt"
+: >"$TMP/pulumi.txt"
 shipped=0
 unshipped=0
 
@@ -226,6 +261,50 @@ is_compose() {
   compose.*.yml | compose.*.yaml | docker-compose.*.yml | docker-compose.*.yaml) return 0 ;;
   *) return 1 ;;
   esac
+}
+
+# The runtime of a Pulumi.yaml: "yaml" only for a program written in the file itself.
+# A main: key, or runtime options such as a compiler, make it something else.
+pulumi_runtime() {
+  awk -f - "$1" <<'AWK'
+function unq(s) { gsub(/^["']|["']$/, "", s); return s }
+function val(s) { sub(/[ \t]+#.*$/, "", s); return unq(trim(s)) }
+function trim(s) { gsub(/^[ \t\r]+|[ \t\r]+$/, "", s); return s }
+/^main:/ { extra = 1 }
+/^runtime:[ \t]*(#.*)?$/ { blk = 1; next }
+/^runtime:/ {
+  v = $0; sub(/^runtime:[ \t]*/, "", v); blk = 0
+  if (v ~ /^\{/) {
+    if (v ~ /options/) extra = 1
+    if (match(v, /name:[ \t]*["']?[A-Za-z0-9._+-]+/)) { rt = substr(v, RSTART, RLENGTH); sub(/name:[ \t]*["']?/, "", rt) }
+  } else rt = val(v)
+  next
+}
+blk && /^[ \t]+name:/ { v = $0; sub(/^[ \t]+name:[ \t]*/, "", v); rt = val(v); next }
+blk && /^[ \t]+options:/ { extra = 1; next }
+blk && /^[^ \t#]/ { blk = 0 }
+END { rt = tolower(rt); if (rt !~ /^[a-z0-9._+-]+$/) rt = "unknown"; print (extra && rt == "yaml") ? "yaml-options" : rt }
+AWK
+}
+
+# A CloudFormation template names the format version, or holds a Resources
+# section with AWS:: types. A YAML file needs Resources at the left margin.
+is_cfn_template() {
+  local file="$1"
+  if grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$file"; then
+    return 0
+  fi
+  case "$file" in
+  *.json) grep -E -q '"Resources"[[:space:]]*:' "$file" ;;
+  *) grep -E -q '^Resources[[:space:]]*:' "$file" ;;
+  esac && grep -E -q '"?Type"?[[:space:]]*:[[:space:]]*"?AWS::[A-Za-z0-9]+::[A-Za-z0-9]+' "$file"
+}
+
+# A CloudFormation parameter file: the ParameterKey/ParameterValue array, or an
+# object whose first key is Parameters.
+is_cfn_parameter_file() {
+  grep -q '"ParameterKey"' "$1" && grep -q '"ParameterValue"' "$1" && return 0
+  [[ "$(tr -d '[:space:]' <"$1" | head -c 15)" == '{"Parameters":{' ]] && ! grep -q '"Resources"' "$1"
 }
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -253,8 +332,23 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     continue
     ;;
   Pulumi.yaml | Pulumi.yml)
-    add_tool pulumi no "$rel"
-    unshipped=1
+    runtime="$(pulumi_runtime "$repo/$rel")"
+    if [[ "$runtime" == yaml ]]; then
+      printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
+      add_tool pulumi-yaml yes "$rel"
+      shipped=1
+      if grep -q 'kubernetes:helm\.sh/' "$repo/$rel"; then
+        add_tool helm no "$rel (kubernetes:helm.sh)"
+        unshipped=1
+      fi
+    else
+      add_tool pulumi no "$rel (runtime $runtime)"
+      unshipped=1
+    fi
+    continue
+    ;;
+  Pulumi.*.yaml | Pulumi.*.yml)
+    printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
     continue
     ;;
   kustomization.yaml | kustomization.yml)
@@ -262,29 +356,47 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     unshipped=1
     continue
     ;;
-  *.bicep)
-    add_tool bicep no "$rel"
-    unshipped=1
+  *.bicep | *.bicepparam)
+    printf '%s\n' "$rel" >>"$TMP/azure.txt"
+    add_tool bicep yes "$rel"
+    shipped=1
     continue
     ;;
-  *.tf | *.tfvars | *.tf.json)
-    add_tool terraform no "$rel"
-    unshipped=1
+  *.tf | *.tfvars | *.tf.json | *.tfvars.json)
+    printf '%s\n' "$rel" >>"$TMP/tf.txt"
+    add_tool terraform yes "$rel"
+    shipped=1
+    # A Helm release declared in Terraform is Helm, which this skill does not read.
+    if awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel" |
+      grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:'; then
+      add_tool helm no "$rel (helm_release)"
+      unshipped=1
+    fi
     continue
     ;;
   *.json)
-    if grep -E -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
-      add_tool arm no "$rel"
-      unshipped=1
+    if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/azure.txt"
+      add_tool arm yes "$rel"
+      shipped=1
+      continue
+    fi
+    if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentParameters' "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/azure.txt"
+      continue
+    fi
+    if is_cfn_parameter_file "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/cfn.txt"
       continue
     fi
     ;;
   *) ;;
   esac
   if [[ "$base" == *.yml || "$base" == *.yaml || "$base" == *.json || "$base" == *.template ]] &&
-    grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$repo/$rel"; then
-    add_tool cloudformation no "$rel"
-    unshipped=1
+    is_cfn_template "$repo/$rel"; then
+    printf '%s\n' "$rel" >>"$TMP/cfn.txt"
+    add_tool cloudformation yes "$rel"
+    shipped=1
     continue
   fi
   case "$rel" in
@@ -312,24 +424,6 @@ if [[ "$unshipped" -eq 1 ]]; then
   refuse "adapter-not-shipped"
 fi
 
-# A base file plus any variant in one directory is a merged stack, and a bare
-# override is one half of it. Environment-per-directory layouts never match.
-is_compose_base() {
-  case "$(basename "$1")" in
-  compose.yml | compose.yaml | docker-compose.yml | docker-compose.yaml) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-: >"$TMP/compose-base-dirs.txt"
-while IFS= read -r rel || [[ -n "$rel" ]]; do
-  is_compose_base "$rel" && dirname "$rel" >>"$TMP/compose-base-dirs.txt"
-done <"$TMP/compose.txt"
-while IFS= read -r rel || [[ -n "$rel" ]]; do
-  is_compose_base "$rel" && continue
-  if [[ "$(basename "$rel")" == *override* ]] || grep -q -x -F "$(dirname "$rel")" "$TMP/compose-base-dirs.txt"; then
-    refuse "layered-compose"
-  fi
-done <"$TMP/compose.txt"
 if [[ "$shipped" -eq 0 ]]; then
   refuse "no-declared-iac"
 fi
@@ -354,17 +448,77 @@ env_of_compose() {
   esac
 }
 
-if [[ -s "$TMP/compose.txt" ]]; then
-  : >"$TMP/compose-replay.txt"
+# Compose merges a base file with its override, or the files a tracked .env
+# COMPOSE_FILE lists, in that order. The layers of one directory are one
+# environment named for the directory. Any other file beside them has no
+# declared place in the merge, so the record is refused naming it.
+in_dir() {
+  local name="$2"
+  while [[ "$name" == ./* ]]; do name="${name#./}"; done
+  name="${name//\/.\//\/}"
+  if [[ "$1" == "." ]]; then printf '%s' "$name"; else printf '%s/%s' "$1" "$name"; fi
+}
+: >"$TMP/compose-layers.txt"
+while IFS= read -r dir || [[ -n "$dir" ]]; do
+  files=()
   while IFS= read -r rel || [[ -n "$rel" ]]; do
+    [[ "$(dirname "$rel")" == "$dir" ]] && files+=("$rel")
+  done <"$TMP/compose.txt"
+  layers=()
+  envfile="$(in_dir "$dir" .env)"
+  if [[ -f "$repo/$envfile" && ! -L "$repo/$envfile" ]] && git -C "$repo" ls-files --error-unmatch -- "$envfile" >/dev/null 2>&1; then
+    listed="$(sed -n 's/^COMPOSE_FILE=//p' "$repo/$envfile" | tail -n 1 | tr -d "\"'\r")"
+    sep="$(sed -n 's/^COMPOSE_PATH_SEPARATOR=//p' "$repo/$envfile" | tail -n 1 | tr -d "\"'\r")"
+    if [[ -n "$listed" ]]; then
+      IFS="${sep:-:}" read -r -a entries <<<"$listed"
+      for entry in "${entries[@]}"; do
+        layer="$(in_dir "$dir" "$entry")"
+        grep -q -x -F -- "$layer" "$TMP/compose.txt" || refuse "compose-not-mergeable:$layer"
+        layers+=("$layer")
+      done
+    fi
+  fi
+  if [[ ${#layers[@]} -eq 0 ]]; then
+    for name in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+      layer="$(in_dir "$dir" "$name")"
+      grep -q -x -F -- "$layer" "$TMP/compose.txt" || continue
+      layers+=("$layer")
+      for ext in yaml yml; do
+        layer="$(in_dir "$dir" "${name%%.y*}.override.$ext")"
+        if grep -q -x -F -- "$layer" "$TMP/compose.txt"; then
+          layers+=("$layer")
+          break
+        fi
+      done
+      break
+    done
+  fi
+  if [[ ${#layers[@]} -gt 0 ]]; then
+    for rel in "${files[@]}"; do
+      printf '%s\n' "${layers[@]}" | grep -q -x -F -- "$rel" || refuse "compose-not-mergeable:$rel"
+    done
+    if [[ "$dir" == "." ]]; then layer_env=default; else layer_env="$(basename "$dir")"; fi
+    for rel in "${layers[@]}"; do
+      printf '%s\t%s\n' "$rel" "$layer_env" >>"$TMP/compose-layers.txt"
+    done
+  else
+    for rel in "${files[@]}"; do
+      [[ "$(basename "$rel")" == *override* ]] && refuse "compose-not-mergeable:$rel"
+      printf '%s\t%s\n' "$rel" "$(env_of_compose "$rel")" >>"$TMP/compose-layers.txt"
+    done
+  fi
+done < <(awk '{ if (sub(/\/[^\/]*$/, "")) print; else print "." }' "$TMP/compose.txt" | sort -u)
+
+if [[ -s "$TMP/compose-layers.txt" ]]; then
+  : >"$TMP/compose-replay.txt"
+  while IFS=$'\t' read -r rel env_name || [[ -n "$rel" ]]; do
     [[ -n "$rel" ]] || continue
-    env_name="$(env_of_compose "$rel")"
     {
       printf '%s\n' "-- MAPDEP FILE $rel $env_name"
       cat "$repo/$rel"
       printf '\n'
     } >>"$TMP/compose-replay.txt"
-  done <"$TMP/compose.txt"
+  done <"$TMP/compose-layers.txt"
   if ! awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/compose-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/compose-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function ind(s,    i) { i = 1; while (substr(s, i, 1) == " ") i++; return i - 1 }
@@ -378,36 +532,42 @@ if [[ -s "$TMP/compose.txt" ]]; then
       if (reps == "") reps = "undeclared"
       ports = portjoin[env SUBSEP svc]
       placed[env SUBSEP svc] = 1
-      printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
-        jesc(svc), jesc(env), jesc(nets), jesc(img), jesc(reps), jesc(ports), jesc(nets), jesc(evidence[env]) >> places
+      printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"node\":\"%s\",\"compute\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
+        jesc(svc), jesc(env), jesc(nets), jesc(env "/" svc), jesc(img), jesc(reps), jesc(ports), jesc(nets), jesc(evidence[env]) >> places
       printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
         jesc(env "/" svc), jesc(env), jesc(svc), jesc(img), jesc(evidence[env]) >> nodes
     }
-    BEGIN { env = ""; path = ""; bad = 0 }
+    function note_svc(e, s) { if (!((e SUBSEP s) in svc_seen)) { svc_seen[e SUBSEP s] = 1; svc_list[++svc_n] = e SUBSEP s } }
+    function append_unique(map, k, v) {
+      if ((k SUBSEP v) in uniq) return
+      uniq[k SUBSEP v] = 1
+      map[k] = (map[k] == "" ? v : map[k] "," v)
+    }
+    BEGIN { env = ""; path = ""; badmsg = "" }
     {
       raw = $0
       sub(/\r$/, "", raw)
       if (raw ~ /^-- MAPDEP FILE /) {
-        if (svc != "" && env != "") emit_place(env, svc)
         split(substr(raw, 15), bits, " ")
         path = bits[1]
         env = bits[2]
         remember_env(env)
-        evidence[env] = path
+        if (env in evidence) evidence[env] = evidence[env] ", " path
+        else evidence[env] = path
         section = ""
         svc = ""
         key = ""
         next
       }
-      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
+      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { if (badmsg == "") badmsg = "compose-unreadable"; next }
       if (raw ~ /^[ ]*#/) next
       line = raw
       sub(/[ ]+#.*$/, "", line)
       content = trim(line)
       if (content == "") next
+      if (content ~ /(^|[[:space:]:])!(reset|override)([[:space:]]|$)/) { if (badmsg == "") badmsg = "compose-not-mergeable:" path; next }
       nind = ind(line)
       if (nind == 0) {
-        if (svc != "" && env != "") emit_place(env, svc)
         svc = ""
         if (content == "services:") { section = "services"; key = "" }
         else if (content == "networks:") { section = "networks"; key = "" }
@@ -415,9 +575,9 @@ if [[ -s "$TMP/compose.txt" ]]; then
         next
       }
       if (section == "services" && nind == 2 && content ~ /:$/ && content !~ /^-/) {
-        if (svc != "") emit_place(env, svc)
         svc = content
         sub(/:$/, "", svc)
+        note_svc(env, svc)
         key = ""
         next
       }
@@ -439,14 +599,14 @@ if [[ -s "$TMP/compose.txt" ]]; then
         v = content
         sub(/^-[[:space:]]*/, "", v)
         gsub(/^["'\'']|["'\'']$/, "", v)
-        portjoin[env SUBSEP svc] = (portjoin[env SUBSEP svc] == "" ? v : portjoin[env SUBSEP svc] "," v)
+        append_unique(portjoin, env SUBSEP svc, v)
         next
       }
       if (section == "services" && key == "networks" && content ~ /^-/) {
         v = content
         sub(/^-[[:space:]]*/, "", v)
         gsub(/^["'\'']|["'\'']$/, "", v)
-        netjoin[env SUBSEP svc] = (netjoin[env SUBSEP svc] == "" ? v : netjoin[env SUBSEP svc] "," v)
+        append_unique(netjoin, env SUBSEP svc, v)
         net_decl[env SUBSEP v] = 1
         next
       }
@@ -468,13 +628,14 @@ if [[ -s "$TMP/compose.txt" ]]; then
           gsub(/^["'\'']|["'\'']$/, "", val)
         }
         if (k != "") {
-          red = redact_secret(k, val) ? "yes" : "no"
-          shown = (red == "yes") ? "" : val
-          printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
-            jesc(k), jesc(env), jesc(svc), jesc(shown), red, jesc(path) >> params
-          if (red == "yes") secret_val[env SUBSEP svc SUBSEP k] = val
-          else plain_val[env SUBSEP svc SUBSEP k] = val
-          param_seen[env SUBSEP svc SUBSEP k] = 1
+          pk = env SUBSEP svc SUBSEP k
+          if (!(pk in param_seen)) param_list[++param_n] = pk
+          param_seen[pk] = 1
+          param_path[pk] = path
+          delete secret_val[pk]
+          delete plain_val[pk]
+          if (redact_secret(k, val)) secret_val[pk] = val
+          else plain_val[pk] = val
         }
         next
       }
@@ -488,16 +649,28 @@ if [[ -s "$TMP/compose.txt" ]]; then
         net = content
         sub(/:$/, "", net)
         net_decl[env SUBSEP net] = 1
-        net_exp[env SUBSEP net] = "published"
+        if (!((env SUBSEP net) in net_exp)) net_exp[env SUBSEP net] = "published"
         next
       }
       if (section == "networks" && content ~ /^internal:[[:space:]]*true/) {
         net_exp[env SUBSEP net] = "internal"
+      } else if (section == "networks" && content ~ /^internal:[[:space:]]*false/) {
+        net_exp[env SUBSEP net] = "published"
       }
     }
     END {
-      if (bad) { printf "compose-unreadable\n" > flag; exit 0 }
-      if (svc != "" && env != "") emit_place(env, svc)
+      if (badmsg != "") { print badmsg > flag; exit 0 }
+      for (i = 1; i <= svc_n; i++) {
+        split(svc_list[i], sp, SUBSEP)
+        emit_place(sp[1], sp[2])
+      }
+      for (i = 1; i <= param_n; i++) {
+        pk = param_list[i]
+        split(pk, sp, SUBSEP)
+        red = (pk in secret_val) ? "yes" : "no"
+        printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(sp[3]), jesc(sp[1]), jesc(sp[2]), jesc(red == "yes" ? "" : plain_val[pk]), red, jesc(param_path[pk]) >> params
+      }
       for (e in seen_env) {
         printf "{\"environment\":\"%s\",\"tool\":\"compose\",\"evidence\":\"%s\"}\n", jesc(e), jesc(evidence[e]) >> envs
         for (nk in net_decl) {
@@ -507,6 +680,7 @@ if [[ -s "$TMP/compose.txt" ]]; then
           if (exposure == "") exposure = "published"
           printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
             jesc(e "/" np[2]), jesc(e), jesc(np[2]), jesc(exposure), jesc(evidence[e]) >> nodes
+          node_seen[e SUBSEP "network" SUBSEP np[2]] = exposure
         }
       }
       # pair environments for declared diffs. Values of redacted parameters are
@@ -532,6 +706,7 @@ if [[ -s "$TMP/compose.txt" ]]; then
             printf "{\"change\":\"replicas\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(replicas[a SUBSEP c] " -> " replicas[b SUBSEP c]) >> diffs
         }
         param_port_diffs(a, b, "compose")
+        node_diffs(a, b, "compose")
       }
     }
   '; then
@@ -558,7 +733,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       printf '\n'
     } >>"$TMP/k8s-replay.txt"
   done <"$TMP/k8s.txt"
-  awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
+  awk -v places="$PLACES" -v edges="$EDGES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
     function remember_env(e) { if (e != "" && !(e in seen_env)) { seen_env[e] = 1; env_list[++env_n] = e } }
@@ -568,43 +743,99 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       if (n >= 2) return parts[n - 1]
       return "default"
     }
+    function ind(s) { match(s, /^ */); return RLENGTH }
     function is_workload() { return kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" }
-    # One workload can hold several containers (a sidecar); each is its own placement.
-    function flush(    e) {
+    function add_line(list, item) { return (list == "" ? item : list "\n" item) }
+    # One workload can hold several containers (a sidecar); each is its own placement,
+    # and all of them run on the workload node.
+    function flush(    e, key, n, pairs, i) {
       if (kind == "" || meta == "") return
       e = env_for(ns, path)
       remember_env(e)
       evidence[e] = path
+      key = e SUBSEP meta
       if (is_workload()) {
         if (cname == "" && emitted == 0) cname = meta
         if (cname != "") emit_container(e)
+        wl_list[++wl_cnt] = key
+        n = split(pod_pairs, pairs, "\n")
+        for (i = 1; i <= n; i++) if (pairs[i] != "") pod_has[key SUBSEP pairs[i]] = 1
       } else if (kind == "Service") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/svc-" meta), jesc(e), jesc(meta), jesc(sport), jesc(path) >> nodes
-        svc_port[e SUBSEP meta] = sport
+        node_seen[e SUBSEP "network" SUBSEP meta] = sport
+        svc_port[key] = sport
+        svc_list[++svc_cnt] = key
+        svc_sel[key] = sel
+        svc_path[key] = path
       } else if (kind == "Ingress") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"ingress\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/ing-" meta), jesc(e), jesc(meta), jesc(host), jesc(path) >> nodes
-        ing_host[e SUBSEP meta] = host
+        node_seen[e SUBSEP "ingress" SUBSEP meta] = host
+        ing_host[key] = host
+        ing_list[++ing_cnt] = key
+        ing_be[key] = backends
+        ing_path[key] = path
       }
     }
-    function emit_container(e,    img, reps) {
+    function emit_container(e,    img, reps, wl) {
         emitted++
         img = cimage
         reps = replicas
         if (reps == "") reps = "undeclared"
-        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(cname), jesc(e), jesc(e), jesc(img), jesc(reps), jesc(cports), jesc(e), jesc(path) >> places
+        wl = (meta != "" ? meta : cname)
+        if (emitted == 1)
+          printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
+            jesc(e "/wl-" wl), jesc(e), jesc(wl), jesc(kind), jesc(path) >> nodes
+        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"compute\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(cname), jesc(e), jesc(e), jesc(e "/wl-" wl), jesc(img), jesc(reps), jesc(cports), jesc(e), jesc(path) >> places
         placed[e SUBSEP cname] = 1
         if (cports != "") portjoin[e SUBSEP cname] = cports
         image[e SUBSEP cname] = img
         replica_of[e SUBSEP cname] = reps
-        printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(e "/" cname), jesc(e), jesc(cname), jesc(img), jesc(path) >> nodes
+        wl_c[e, wl, ++wl_cn[e, wl]] = cname
+    }
+    function selects(skey, wkey,    n, pairs, i) {
+      if (svc_sel[skey] == "") return 0
+      n = split(svc_sel[skey], pairs, "\n")
+      for (i = 1; i <= n; i++) if (!((wkey SUBSEP pairs[i]) in pod_has)) return 0
+      return 1
+    }
+    function emit_edge(from, label, evid, wkey,    wp, i) {
+      split(wkey, wp, SUBSEP)
+      for (i = 1; i <= wl_cn[wp[1], wp[2]]; i++)
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"to_compute\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"label\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(from), jesc(wl_c[wp[1], wp[2], i]), jesc(wp[1] "/wl-" wp[2]), jesc(wp[1]), jesc(label), jesc(evid) >> edges
+    }
+    # A Service selects the containers of every workload whose pod labels hold its whole
+    # selector; an Ingress routes to the containers of the Services its backends name.
+    function emit_edges(    s, w, g, b, n, be, sp, ip, wp, skey, disp) {
+      for (s = 1; s <= svc_cnt; s++) for (w = 1; w <= wl_cnt; w++) {
+        split(svc_list[s], sp, SUBSEP); split(wl_list[w], wp, SUBSEP)
+        if (sp[1] != wp[1] || !selects(svc_list[s], wl_list[w])) continue
+        disp = svc_sel[svc_list[s]]; gsub(/\n/, ",", disp)
+        emit_edge(sp[1] "/svc-" sp[2], "selects " disp, svc_path[svc_list[s]], wl_list[w])
+      }
+      for (g = 1; g <= ing_cnt; g++) {
+        split(ing_list[g], ip, SUBSEP)
+        n = split(ing_be[ing_list[g]], be, "\n")
+        for (b = 1; b <= n; b++) {
+          if (be[b] == "" || (g SUBSEP be[b]) in be_done) continue
+          be_done[g SUBSEP be[b]] = 1
+          skey = ip[1] SUBSEP be[b]
+          if (!(skey in svc_sel)) continue
+          for (w = 1; w <= wl_cnt; w++) {
+            split(wl_list[w], wp, SUBSEP)
+            if (wp[1] == ip[1] && selects(skey, wl_list[w]))
+              emit_edge(ip[1] "/ing-" ip[2], "routes " (ing_host[ing_list[g]] != "" ? ing_host[ing_list[g]] : be[b]), ing_path[ing_list[g]], wl_list[w])
+          }
+        }
+      }
     }
     function reset_resource() {
       kind = ""; meta = ""; ns = ""; replicas = ""; cname = ""; cimage = ""; cports = ""; sport = ""; host = ""
       in_meta = 0; in_c = 0; in_env = 0; ek = ""; cind = -1; emitted = 0
+      blk = ""; blk_ind = 0; in_isvc = 0; no_pod = 0; pod_pairs = ""; sel = ""; backends = ""
     }
     BEGIN { reset_resource(); path = "" }
     {
@@ -618,6 +849,31 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       }
       if (raw ~ /^---[[:space:]]*$/) { flush(); reset_resource(); next }
       if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
+      # A key: value block (pod labels, a Service selector) runs until the indent falls back.
+      if (blk != "") {
+        if (raw ~ /^[[:space:]]*(#.*)?$/) next
+        if (ind(raw) > blk_ind) {
+          if (blk != "skip" && raw ~ /:/) {
+            v = trim(raw)
+            k = v; sub(/:.*/, "", k)
+            sub(/^[^:]*:[[:space:]]*/, "", v); gsub(/^["'\'']|["'\'']$/, "", v)
+            if (blk == "pod") pod_pairs = add_line(pod_pairs, k "=" v)
+            else sel = add_line(sel, k "=" v)
+          }
+          next
+        }
+        blk = ""
+      }
+      if (raw ~ /^[[:space:]]+labels:[[:space:]]*$/) { blk = (!in_meta && !no_pod) ? "pod" : "skip"; blk_ind = ind(raw); next }
+      if (raw ~ /^[[:space:]]+selector:[[:space:]]*$/) { blk = "sel"; blk_ind = ind(raw); next }
+      if (raw ~ /volumeClaimTemplates:/) { no_pod = 1; next }
+      if (raw ~ /^[[:space:]]+service:[[:space:]]*$/) { in_isvc = 1; next }
+      if (in_isvc && raw ~ /^[[:space:]]+name:[[:space:]]*/) {
+        backends = add_line(backends, trim(substr(raw, index(raw, ":") + 1))); in_isvc = 0; next
+      }
+      if (raw ~ /^[[:space:]]+serviceName:[[:space:]]*/) {
+        backends = add_line(backends, trim(substr(raw, index(raw, ":") + 1))); next
+      }
       if (raw ~ /^kind:[[:space:]]*/) { kind = trim(substr(raw, 6)); next }
       if (raw ~ /^metadata:[[:space:]]*$/) { in_meta = 1; next }
       if (raw ~ /^spec:[[:space:]]*$/) { in_meta = 0; next }
@@ -685,28 +941,15 @@ if [[ -s "$TMP/k8s.txt" ]]; then
     END {
       if (bad) { printf "kubernetes-unreadable\n" > flag; exit 0 }
       flush()
+      emit_edges()
       for (e in seen_env)
         printf "{\"environment\":\"%s\",\"tool\":\"kubernetes\",\"evidence\":\"%s\"}\n", jesc(e), jesc(evidence[e]) >> envs
       for (i = 1; i <= env_n; i++) for (j = i + 1; j <= env_n; j++) {
         a = env_list[i]; b = env_list[j]
         if (a > b) { t = a; a = b; b = t }
-        for (sk in image) {
-          split(sk, sp, SUBSEP)
-          c = sp[2]
-          if ((a SUBSEP c) in image && !((b SUBSEP c) in image))
-            printf "{\"change\":\"removed\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("present only in " a) >> diffs
-          else if ((b SUBSEP c) in image && !((a SUBSEP c) in image))
-            printf "{\"change\":\"added\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("present only in " b) >> diffs
-          else if ((a SUBSEP c) in image && (b SUBSEP c) in image && image[a SUBSEP c] != image[b SUBSEP c])
-            printf "{\"change\":\"image\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(image[a SUBSEP c] " -> " image[b SUBSEP c]) >> diffs
-        }
-        for (sk in replica_of) {
-          split(sk, sp, SUBSEP)
-          c = sp[2]
-          if ((a SUBSEP c) in replica_of && (b SUBSEP c) in replica_of && replica_of[a SUBSEP c] != replica_of[b SUBSEP c] && replica_of[a SUBSEP c] != "undeclared" && replica_of[b SUBSEP c] != "undeclared")
-            printf "{\"change\":\"replicas\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(replica_of[a SUBSEP c] " -> " replica_of[b SUBSEP c]) >> diffs
-        }
+        container_diffs(a, b, "kubernetes")
         param_port_diffs(a, b, "kubernetes")
+        node_diffs(a, b, "kubernetes")
       }
     }
   '
@@ -716,6 +959,67 @@ if [[ -s "$TMP/k8s.txt" ]]; then
   if [[ -s "$DIFFS" ]]; then
     sort -u "$DIFFS" -o "$DIFFS"
   fi
+fi
+
+if [[ -s "$TMP/tf.txt" ]]; then
+  tf_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    tf_args+=("./$rel")
+  done <"$TMP/tf.txt"
+  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/tf-flag" \
+    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/terraform-reader.awk" "${tf_args[@]}"); then
+    refuse "terraform-unreadable"
+  fi
+  if [[ -s "$TMP/tf-flag" ]]; then
+    refuse "$(head -n 1 "$TMP/tf-flag")"
+  fi
+fi
+
+# Bicep and ARM share one reader, run once per tool so each tool's environments
+# are diffed only against its own.
+if [[ -s "$TMP/azure.txt" ]]; then
+  az_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    az_args+=("./$rel")
+  done <"$TMP/azure.txt"
+  for az_tool in bicep arm; do
+    grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
+    if ! (cd "$repo" && awk -v tool="$az_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/az-flag" \
+      -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/azure-reader.awk" "${az_args[@]}"); then
+      refuse "$az_tool-unreadable"
+    fi
+    if [[ -s "$TMP/az-flag" ]]; then
+      refuse "$(head -n 1 "$TMP/az-flag")"
+    fi
+  done
+fi
+
+# CloudFormation and Pulumi YAML share one flattener and run once per tool.
+for yaml_tool in cloudformation pulumi-yaml; do
+  grep -q "\"name\":\"$yaml_tool\"" "$TOOLS" || continue
+  yaml_list="$TMP/cfn.txt"
+  yaml_reader="cloudformation-reader.awk"
+  if [[ "$yaml_tool" == pulumi-yaml ]]; then
+    yaml_list="$TMP/pulumi.txt"
+    yaml_reader="pulumi-reader.awk"
+  fi
+  yaml_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    yaml_args+=("./$rel")
+  done <"$yaml_list"
+  if ! (cd "$repo" && awk -v tool="$yaml_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/yaml-flag" \
+    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/$yaml_reader" "${yaml_args[@]}"); then
+    refuse "${yaml_tool%-yaml}-unreadable"
+  fi
+  if [[ -s "$TMP/yaml-flag" ]]; then
+    refuse "$(head -n 1 "$TMP/yaml-flag")"
+  fi
+done
+
+# Resources were read and none of them is a container the readers map: an empty
+# environment would look like a full read.
+if [[ ! -s "$PLACES" && -s "$UNMAPPED" ]]; then
+  refuse "no-mapped-container"
 fi
 
 if [[ -n "$containers_file" ]]; then
@@ -738,8 +1042,10 @@ sort -u -o "$TOOLS" "$TOOLS"
 sort -u -o "$ENVS" "$ENVS"
 sort -u -o "$NODES" "$NODES"
 sort -u -o "$PLACES" "$PLACES"
+sort -u -o "$EDGES" "$EDGES"
 sort -u -o "$PARAMS" "$PARAMS"
 sort -u -o "$DIFFS" "$DIFFS"
+sort -u -o "$UNMAPPED" "$UNMAPPED"
 sort -u -o "$CATALOG" "$CATALOG"
 
 write_record drawn ""
