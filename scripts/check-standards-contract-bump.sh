@@ -27,7 +27,11 @@ src="docs/conventions/standards/README.md"
 schema="docs/conventions/standards/standards.schema.json"
 changelog="docs/conventions/standards/CHANGELOG.md"
 
-base="${1:?usage: check-standards-contract-bump.sh <base-ref>}"
+base="${1:-}"
+if [[ -z "$base" ]]; then
+  echo "usage: check-standards-contract-bump.sh <base-ref>" >&2
+  exit 2
+fi
 gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
 
 frontmatter_version() {

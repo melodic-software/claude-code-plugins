@@ -113,6 +113,18 @@ else
 fi
 rm -rf "$f"
 
+# --- a missing base ref is a usage error ---------------------------------------
+base_fixture f
+git_fixture "$f" >/dev/null
+out="$(run_gate "$f" 2>&1)"
+rc=$?
+if [[ "$rc" -eq 2 && "$out" == *usage:* ]]; then
+  ok "the gate exits 2 with a usage line when no base ref is given"
+else
+  fail "the gate should exit 2 with usage when no base ref is given, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
 # --- change + frontmatter bump + changelog heading + manifest bumps → pass ----
 base_fixture f
 base="$(git_fixture "$f")"
