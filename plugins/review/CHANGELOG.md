@@ -3,14 +3,35 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.0] - 2026-10-02
+## [0.36.0] - 2026-10-02
 
 ### Changed
 
-- **`fanout` run-everything mode runs its slices at an explicit effort.** The Workflow passes an
-  effort to its generic slice agents and the stage0 extract step, and leaves named agents on their
-  own pins. The report's Surfaces line shows each leaf as `label@level`, noting that the level is
-  the one requested.
+- **`fanout` run-everything mode shows each leaf's effort level.** The report's Surfaces line
+  names each leaf as `label@level`: slices from the workflow's returned roles, named agents from
+  their definition's pin, noting that the level is the one requested.
+
+## [0.35.0] - 2026-10-02
+
+### Added
+
+- **`/review:fanout-sweep` workflow** (`workflows/fanout-sweep.js`): the run-everything leaf
+  fan-out as a saved workflow that takes `diffBase`, `slices`, `roles` and `maxConcurrent` through
+  `args` instead of text substitution. A missing or non-ref `diffBase` returns an error and
+  dispatches nothing. Slice agents take the verifier role's fan-out variant and the extractor the
+  retrieval role's single variant, from `/multi-agent:route` when the caller passes them, else
+  from built-in fallbacks (`opus` at `high` for slices, `sonnet` at `low` for extraction). Agents
+  run in waves of `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than
+  a cap or budget error is retried once.
+
+### Changed
+
+- **`fanout` run-everything mode launches the saved `review:fanout-sweep` workflow** instead of an
+  inline script. It passes the diff base, slices and wave cap through `args`, and the role map from
+  `/multi-agent:route` when that skill resolves; without it, the workflow's fallbacks apply and the
+  mode says once that enabling multi-agent makes routing configurable. When the reviewed change
+  touches the multi-agent team layer, the mode omits the role map too. `fanout` grants
+  `Workflow(review:fanout-sweep)` only, so no other workflow or inline script is pre-approved.
 
 ## [0.34.13] - 2026-10-02
 
