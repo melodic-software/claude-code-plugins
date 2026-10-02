@@ -78,10 +78,9 @@ counts and the file only. A session that ended before its verdicts were shown ge
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
-three wrote them the tests are reported UNKNOWN. On `haiku`, `test_judge_effort` has no effect,
-because Haiku has no effort levels
-([model config](https://code.claude.com/docs/en/model-config#adjust-effort-level), as of
-2026-10-02; recheck when Haiku gains effort support).
+three wrote them the tests are reported UNKNOWN. `test_judge_effort` has no effect on a judge model that
+[model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) lists without
+effort levels.
 
 Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
@@ -214,7 +213,7 @@ reads it from.
 | `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
 | `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
 | `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
-| `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). Has no effect when the judge runs on haiku, which has no effort levels. |
+| `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
