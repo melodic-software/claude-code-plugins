@@ -750,7 +750,10 @@ class Flow {
       if (arg.properties.some((p) => p.type !== "Property" || p.computed)) {
         throw new Unresolved("an object literal with a spread or computed key", arg.start);
       }
-      const prop = arg.properties.findLast((p) => (p.key.name ?? p.key.value) === key);
+      const matching = arg.properties.filter((p) => String(p.key.name ?? p.key.value) === key);
+      // A getter or setter's value is the accessor function, not what reading the key gives.
+      if (matching.some((p) => p.kind !== "init")) throw new Unresolved(`an accessor for \`${key}\``, arg.start);
+      const prop = matching.at(-1);
       if (prop) return out.push(...this.values(prop.value, seen));
       if (!keyDefault) throw new Unresolved(`an argument without \`${key}\``, arg.start);
       out.push(...this.values(keyDefault, seen));

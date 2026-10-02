@@ -252,6 +252,8 @@ class TestOpenFindings(unittest.TestCase):
             ("gn(1,{hook:!1})", False),
             ('gn(1,{hook:(x)=>x==="Edit"})', False),
             ('gn(1,{hook:(x,i,a)=>a.push("B")})', True),
+            # A getter: reading `hook` runs it and yields the pushing callback.
+            ('gn(1,{get hook(){return(x,i,a)=>a.push("B")}})', True),
         ):
             with self.subTest(use=use):
                 self.assert_pinned(

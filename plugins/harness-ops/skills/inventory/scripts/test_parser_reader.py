@@ -512,6 +512,10 @@ class TestFlowQuery(unittest.TestCase):
         self.assert_unsafe(body + "gn(1,{hook:h});", "h}")
         self.assert_unsafe(body + "gn(1,{});", "{})")
         self.assert_unsafe(body + "gn(1,{hook:!1});gn(2,o);", "o)")
+        # A getter's value is its accessor function, not what reading `hook` returns.
+        self.assert_unsafe(
+            body + "gn(1,{get hook(){return(x,i,a)=>a.push(2)}});", "{get"
+        )
 
     def test_a_callback_method_follows_the_array_into_its_callback(self) -> None:
         self.assert_safe("var pY=[1];pY.some((e)=>e>0);pY.forEach(f);function f(e,i){}")
