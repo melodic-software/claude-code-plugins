@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.11] - 2026-10-01
+## [0.16.12] - 2026-10-01
 
 ### Changed
 
@@ -18,6 +18,15 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   usage.
 - `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
   page's workaround section.
+
+## [0.16.11] - 2026-10-01
+
+### Added
+
+- **`/instruction-placement:migrate` names the built-in `cc-plugin-agents-md` plugin it works
+  beside.** A `## Boundary` section separates the plugin, which loads `AGENTS.md` as project
+  instructions, from this skill, which moves content into `AGENTS.md` and decides about the shim.
+  The dated record is in `reference/sources.md`.
 
 ## [0.16.10] - 2026-10-01
 

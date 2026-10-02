@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.58.6] - 2026-10-01
+## [0.59.1] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,22 @@ All notable changes to the `planning` plugin are documented here. Format follows
   correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
   wording kept, and its record says no docs page states it, with the trigger "a docs page starts
   covering it".
+
+## [0.59.0] - 2026-10-01
+
+### Added
+
+- **The interview re-grounds open recommendations before they are shown.** On resume and before a queued round, each open recommendation is checked for a `Basis:` read this session or a constraint row and for an artifact the constraint ledger now excludes; a consequential one that fails gets research first or is shown marked "not yet researched". A new `confirmed` constraint row re-checks every open recommendation's `Checked against:` line, and a changed one is revised (old, new, why) before the next round. Eval case 27 grades it ([#5712](https://github.com/melodic-software/claude-code-plugins/issues/5712)).
+- **A question that rests on text the user has not read opens with a `Source:` block**: the exact text as a quote, a link to its section, and why it makes this a question. The Brief carries the link, not the quote.
+
+### Changed
+
+- **The question shape states that the alternatives exclude the recommendation** ([#5715](https://github.com/melodic-software/claude-code-plugins/issues/5715)).
+- **A resumed interview resolves the surface through `${CLAUDE_PLUGIN_ROOT}` again and runs `round.sh --dir <data dir> doctor --ledger <ledger>` before the first resumed round** (SKILL.md Step 1, loop.md Step 1 and the handoff line). SKILL.md Step 5's resume line now passes `--dir` too, which `round.py` requires.
+- **The page writes the register's `open` rows with `round.sh --dir <data dir> sync-ledger`** instead of by hand, and a forced wrap-up reports each item its `Skipped before wrap-up:` text lists.
+- **The register gate's text names `brief=unconfirmed`**, and a Brief edited after a Confirm needs a new `restate` and a fresh Confirm (SKILL.md Steps 3 and 4, loop.md).
+- **The page-surface contract names the page's option labels** (`Rec`, `(a)`, `(b)`) instead of numbered alternatives.
+- `interview-defenses.test.sh` re-pins the ten digests these edits move.
 
 ## [0.58.5] - 2026-10-01
 

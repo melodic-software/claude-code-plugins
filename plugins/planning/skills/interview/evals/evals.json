@@ -368,6 +368,22 @@
         "No /planning:plan handoff, and no other next-step recommendation, is offered; the run stops after returning the decisions",
         "The open-question ledger is written to the memory slice with Q1 `answered`, Q2 `deferred` and Q3 `blocked`, and the register gate is run on the ledger only, with no --brief cross-check"
       ]
+    },
+    {
+      "id": 27,
+      "name": "resumed-recommendation-re-grounded-against-a-later-constraint",
+      "prompt": "/planning:interview me resume the webhook retry budgets interview\n\n[The topic's memory slice holds the ledger from a session two days ago. Its constraint ledger has `C1 | confirmed | retries stay inside the sender process | user, round 1` and `C2 | confirmed | do not reuse the archived queue-service design | user, round 2`. Round 3 was written but never shown. Its Q7 asks where retry state lives; the recommendation is the archived queue-service design's Redis-backed retry table, with `Basis: verified, .work/webhook-retry-budgets/archive/queue-service-design.md` and `Checked against: C1`. Its Q8 asks for the default retry ceiling; the recommendation is the sender's current config value, with `Basis: verified, src/sender/config.ts` and `Checked against: none`.]",
+      "expected_output": "Before round 3 is shown, the run re-checks each open recommendation against the constraint ledger. Q7 rests on the archived queue-service design that C2 excludes, so it is not shown as written: it is revised, stated as old, new and why, and re-derived against C1 and C2, or it is shown marked \"not yet researched\" with a research dispatch. The run says that Q7 is the recommendation the re-check changed. Q8 passes the check and is shown unchanged. The re-check resolves nothing: both questions stay open until the user answers them.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The open recommendations are checked against the constraint ledger before any round-3 question is shown",
+        "Q7's recommendation, which rests on the archived design C2 excludes, is not shown as written: it is revised with old, new and why, or marked \"not yet researched\"",
+        "A revised Q7 names C2 on its `Checked against:` line",
+        "The run says that the re-check changed Q7",
+        "Q8 is shown with its recommendation unchanged",
+        "Neither Q7 nor Q8 is resolved by the re-check; both stay open until the user answers"
+      ]
     }
   ]
 }

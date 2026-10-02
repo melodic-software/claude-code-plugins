@@ -143,6 +143,12 @@ TOOL_LANE = "builtin_tools"
 AGENT_CANARY = ("general-purpose", "Explore", "Plan", "statusline-setup")
 TOOL_CANARY = ("Bash", "Read", "Edit", "Write", "WebFetch")
 
+# Built-in plugins (`cc-plugin-*@builtin`), optional in `check_integrity` like
+# the lanes above. The canaries are the loader's unconditional plugins in every
+# build observed (2.1.285 through 2.1.287); absence means the scan broke.
+PLUGIN_LANE = "builtin_plugins"
+PLUGIN_CANARY = ("cc-plugin-sec-default", "cc-plugin-agents-md")
+
 # Value shapes a name constant may hold. A subagent type is PascalCase or
 # kebab-case (`Explore`, `claude-code-guide`); a tool is PascalCase, or
 # snake_case for a few remote and memory tools.
@@ -3656,6 +3662,1102 @@ def extract_builtin_tools(
     return out, notes
 
 
+# A built-in plugin is registered by a function whose body stores the plugin
+# object in the `builtinPlugins` map under its own name; a loader whose body
+# sets the `builtinPluginsInitialized` latch requires each plugin's module.
+# Both are found by those property names, never by the minified callee.
+_PLUGIN_REGISTRAR_RE = re.compile(
+    r"function\s+("
+    + _IDENT
+    + r")\s*\(("
+    + _IDENT
+    + r")\)\s*\{[^;{}]*\.builtinPlugins\.set\(\2\.name,\2\)"
+)
+_PLUGIN_LATCH = ".builtinPluginsInitialized"
+_PLUGIN_LOADER_CALL_RE = re.compile(
+    r"(?<![\w$.])(" + _IDENT + r")\(" + _STR + r",\(\)=>import\.meta\.require\("
+)
+_PLUGIN_ALIAS_RE = re.compile(r'\["([a-z0-9][a-z0-9-]*)","(cc-plugin-[a-z0-9-]+)"\]')
+_MANIFEST_RE = re.compile(r"\{(?:scan|shipped):\{")
+_TENGU_RE = re.compile(r'"(tengu_[A-Za-z0-9_]+)"')
+
+
+def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, int]]:
+    """The top-level comma-separated parts of `src[lo:hi]`."""
+    parts, start, i = [], lo, lo
+    while i < hi:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, hi)[1]
+        elif ch == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            i = close + 1
+        elif ch in "([":
+            i = _match_close(src, braces, i, hi)
+        elif ch == ",":
+            parts.append((start, i))
+            start, i = i + 1, i + 1
+        else:
+            i += 1
+    parts.append((start, hi))
+    return [(a, b) for a, b in parts if src[a:b].strip()]
+
+
+def _statement_end(src: str, braces: BraceMap, i: int, hi: int) -> int:
+    """The `;` that ends the statement at `i`, or `hi`."""
+    while i < hi:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, hi)[1]
+        elif ch == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            i = close + 1
+        elif ch in "([":
+            i = _match_close(src, braces, i, hi)
+        elif ch == ";":
+            return i
+        else:
+            i += 1
+    return hi
+
+
+def _expr_end(src: str, braces: BraceMap, i: int) -> int:
+    """Where the expression at `i` ends: the first `,`, `;`, or closer at
+    its own depth."""
+    n = len(src)
+    while i < n:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, n)[1]
+        elif ch == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            i = close + 1
+        elif ch in "([":
+            i = _match_close(src, braces, i, n)
+        elif ch in ",;)]}":
+            return i
+        else:
+            i += 1
+    return n
+
+
+def _strip_span(src: str, a: int, b: int) -> tuple[int, int]:
+    while a < b and src[a] in " \t\r\n":
+        a += 1
+    while b > a and src[b - 1] in " \t\r\n":
+        b -= 1
+    return a, b
+
+
+def _loader_guards(
+    src: str, braces: BraceMap, lo: int, hi: int
+) -> dict[int, list[str] | None]:
+    """Each loader call in the body `src[lo:hi]`, mapped to the conditions it
+    runs under (empty when it always runs), or None when its position is not
+    one this walk reads: only `if (...)` statements, declarations, and
+    expression statements that are a bare call or a comma list of them.
+
+    In `if(a(),b(),c){...}` every operand but the last runs before the test.
+    An `if(x)` whose body always exits (a lone `return`/`throw`, or a block
+    whose last statement is one and which holds no other exit or loader
+    call) adds `!(x)` to what follows; a test that is exactly the loader's
+    own once-only latch adds nothing. Any other exit, or a latch test inside
+    a compound condition, leaves every later call unresolved. An `else`
+    voids the whole walk.
+    """
+    out: dict[int, list[str] | None] = {}
+    aliases: dict[str, str] = {}
+    state = {"poisoned": False}
+    exit_re = re.compile(r"(?<![\w$.])(?:return|throw)(?![\w$])")
+    latch_re = re.compile(r"[\w$.]+" + re.escape(_PLUGIN_LATCH))
+
+    def always_exits(a: int, b: int) -> bool:
+        """The span's last statement is a return/throw, and nothing before
+        it can exit or require a plugin."""
+        stmts, i = [], a
+        while i < b:
+            while i < b and src[i] in " \t\r\n;":
+                i += 1
+            if i >= b:
+                break
+            end = _statement_end(src, braces, i, b)
+            stmts.append((i, end))
+            i = end + 1
+        if not stmts or not re.match(r"(?:return|throw)(?![\w$])", src[stmts[-1][0] :]):
+            return False
+        head = src[a : stmts[-1][0]]
+        return not exit_re.search(head) and not _PLUGIN_LOADER_CALL_RE.search(head)
+
+    def record(a: int, b: int, guards: list[str]) -> None:
+        for m in _PLUGIN_LOADER_CALL_RE.finditer(src, a, b):
+            out[m.start()] = None
+        if state["poisoned"]:
+            return
+        for pa, pb in _split_top(src, braces, a, b):
+            pa, pb = _strip_span(src, pa, pb)
+            m = _PLUGIN_LOADER_CALL_RE.match(src, pa, pb)
+            if m and _match_close(src, braces, m.end(1), pb) == pb:
+                out[m.start()] = list(guards)
+
+    def walk(a: int, b: int, guards: list[str]) -> None:
+        i = a
+        while True:
+            while i < b and src[i] in " \t\r\n;":
+                i += 1
+            if i >= b:
+                return
+            head = re.match(r"if\s*\(", src[i : i + 8])
+            if head:
+                p = i + head.end() - 1
+                close = _match_close(src, braces, p, b)
+                parts = _split_top(src, braces, p + 1, close - 1)
+                for pa, pb in parts[:-1]:
+                    record(pa, pb, guards)
+                ca, cb = _strip_span(src, *parts[-1])
+                cond = aliases.get(src[ca:cb], src[ca:cb])
+                body = _skip_ws(src, close, b)
+                if src.startswith("{", body):
+                    end = braces.pairs[body]
+                    inner, nxt = (body + 1, end), end + 1
+                else:
+                    end = _statement_end(src, braces, body, b)
+                    inner, nxt = (body, end), end + 1
+                exits = exit_re.search(src, inner[0], inner[1]) is not None
+                if _PLUGIN_LATCH in cond and not (
+                    latch_re.fullmatch(cond) and always_exits(*inner)
+                ):
+                    # The latch inside a compound test, or in an odd body:
+                    # what the rest of the test gates is not read.
+                    state["poisoned"] = True
+                if exits and always_exits(*inner):
+                    if _PLUGIN_LATCH not in cond:
+                        guards = [*guards, f"!({cond})"]
+                elif exits and not _PLUGIN_LOADER_CALL_RE.search(
+                    src, inner[0], inner[1]
+                ):
+                    state["poisoned"] = True
+                elif exits:
+                    # Calls before the exit keep their guard; what follows
+                    # depends on whether the exit ran, which is not read.
+                    if src.startswith("{", body):
+                        walk(inner[0], inner[1], [*guards, cond])
+                    else:
+                        record(inner[0], inner[1], [*guards, cond])
+                    state["poisoned"] = True
+                elif src.startswith("{", body):
+                    walk(inner[0], inner[1], [*guards, cond])
+                else:
+                    record(inner[0], inner[1], [*guards, cond])
+                if src.startswith("else", _skip_ws(src, nxt, b)):
+                    raise ValueError("an else branch")
+                i = nxt
+                continue
+            end = _statement_end(src, braces, i, b)
+            decl = re.match(r"(?:let|const|var)\s+", src[i:end])
+            if decl:
+                for pa, pb in _split_top(src, braces, i + decl.end(), end):
+                    m = re.match(r"\s*(" + _IDENT + r")\s*=(?!=)", src[pa:pb])
+                    if m:
+                        aliases[m.group(1)] = src[pa + m.end() : pb].strip()
+                    for c in _PLUGIN_LOADER_CALL_RE.finditer(src, pa, pb):
+                        out[c.start()] = None
+            else:
+                record(i, end, guards)
+                if re.match(r"(?:return|throw)(?![\w$])", src[i:end]):
+                    state["poisoned"] = True
+            i = end + 1
+
+    walk(lo, hi, [])
+    return out
+
+
+def _builtin_plugin_loader(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """The plugins the loader requires, each with its load condition, and the
+    loader callee names. A walk that fails leaves every load unresolved."""
+    roster: dict[str, dict[str, Any]] = {}
+    callees: set[str] = set()
+    for latch in re.finditer(re.escape(_PLUGIN_LATCH) + r"=!0", src):
+        block = _function_block(src, braces, latch.start())
+        if block is None:
+            continue
+        lo, hi = block[0] + 1, block[1]
+        try:
+            guards = _loader_guards(src, braces, lo, hi)
+        except (ValueError, IndexError, KeyError):
+            guards = {}
+        for m in _PLUGIN_LOADER_CALL_RE.finditer(src, lo, hi):
+            callees.add(m.group(1))
+            known = m.start() in guards
+            g = guards.get(m.start())
+            roster.setdefault(
+                _unescape(m.group(2)),
+                {
+                    "load": None
+                    if not known or g is None
+                    else ("conditional" if g else "unconditional"),
+                    "load_guards": g if known else None,
+                },
+            )
+    return roster, sorted(callees)
+
+
+def _object_value(
+    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool
+) -> int | None:
+    """The `{` of the object literal `ident` reads at `at`, through
+    `Object.freeze(...)` and `a=b` aliases; None for anything else."""
+    for _ in range(4):
+        try:
+            v = _binding_value(
+                src,
+                braces,
+                ident,
+                at,
+                deferred=deferred,
+                window=SHORT_IDENT_LOCALITY_BYTES,
+            )
+        except (ValueError, IndexError, RecursionError):
+            return None
+        if v is None:
+            return None
+        frozen = re.match(r"Object\.freeze\(\s*", src[v : v + 32])
+        if frozen:
+            v += frozen.end()
+        if src.startswith("{", v):
+            return v if v in braces.pairs else None
+        alias = re.match(_IDENT + r"(?=\s*[;,)}\n])", src[v : v + 64])
+        if not alias or frozen:
+            return None
+        ident, at = alias.group(0), v
+    return None
+
+
+# An object part `_object_fields` reads: a plain `key:value`, or a getter,
+# setter, method or async method. Anything else is a key this reader cannot see.
+_PLAIN_PART_RE = re.compile(r"(?:(?:get|set|async)\s+)?" + _IDENT + r"\s*[:(]")
+
+
+def _merged_fields(
+    src: str,
+    braces: BraceMap,
+    open_i: int,
+    *,
+    deferred: bool,
+    bound: Mapping[str, int] = MappingProxyType({}),
+    depth: int = 3,
+) -> tuple[dict[str, tuple[int, str, int]], bool]:
+    """An object literal's fields with each `...spread` merged in source order.
+
+    Maps key -> (owning object's `{`, form, value offset). `bound` names
+    spreads whose object is already known (a factory's parameter). The flag
+    is False when a spread did not resolve: then an absent key may be in it.
+    A key written before an unresolved spread may be overridden by it, so it
+    is dropped and reads as unknown like any key the spread could hold.
+    """
+    close = braces.pairs.get(open_i)
+    if close is None:
+        return {}, False
+    complete = True
+    last_unresolved = -1
+    entries: list[tuple[int, dict[str, tuple[int, str, int]]]] = []
+    own = _object_fields(src, braces, open_i)
+    for key, (form, pos) in own.items():
+        entries.append((pos, {key: (open_i, form, pos)}))
+    for a, b in _split_top(src, braces, open_i + 1, close):
+        a, b = _strip_span(src, a, b)
+        m = re.fullmatch(r"\.\.\.(" + _IDENT + r")", src[a:b])
+        if not m:
+            if src.startswith("...", a) or not _PLAIN_PART_RE.match(src, a, b):
+                # A spread this reader cannot follow, or a quoted, computed or
+                # shorthand key: any key may sit there, so the object is not
+                # fully read. It shadows earlier keys like a spread does.
+                complete, last_unresolved = False, a
+            continue
+        target = bound.get(m.group(1))
+        if target is None and depth > 0:
+            target = _object_value(src, braces, m.group(1), a, deferred=deferred)
+        if target is None:
+            complete, last_unresolved = False, a
+            continue
+        inner, ok = _merged_fields(
+            src, braces, target, deferred=deferred, depth=depth - 1
+        )
+        if not ok:
+            complete, last_unresolved = False, a
+        entries.append((a, inner))
+    merged: dict[str, tuple[int, str, int]] = {}
+    for _, fields in sorted(entries, key=lambda e: e[0]):
+        merged.update(fields)
+    if last_unresolved >= 0:
+        # An inner incomplete spread's own keys sit at the spread's offset
+        # and survive; keys written before it do not.
+        keep = {k for at, fields in entries if at >= last_unresolved for k in fields}
+        merged = {k: v for k, v in merged.items() if k in keep}
+    return merged, complete
+
+
+def _merged_string(
+    src: str, braces: BraceMap, fields: dict[str, tuple[int, str, int]], key: str
+) -> dict[str, Any] | None:
+    """One string field of merged fields. A bare identifier `resolve_field`
+    leaves unresolved is retried as a module constant under the wider
+    locality the name rule uses (`_scoped_constant`): a plugin module's
+    top-level `var K="..."` sits kilobytes ahead of the registration."""
+    entry = fields.get(key)
+    if entry is None:
+        return None
+    resolved = resolve_field(src, braces, entry[0], key)
+    if resolved and resolved["source"] != "unresolved":
+        return resolved
+    ident = re.match(_IDENT + r"(?=\s*[,}])", src[entry[2] : entry[2] + 64])
+    if entry[1] == "value" and ident:
+        try:
+            v = _binding_value(
+                src, braces, ident.group(0), entry[2], window=SHORT_IDENT_LOCALITY_BYTES
+            )
+        except (ValueError, IndexError, RecursionError):
+            v = None
+        m = _CONST_VALUE_RE.match(src, v) if v is not None else None
+        if m:
+            return {"value": _unescape(m.group(1)), "source": "constant"}
+    return resolved
+
+
+def _merged_flag(
+    src: str, fields: dict[str, tuple[int, str, int]], key: str
+) -> bool | None:
+    """`!0`/`!1` as written; absent is None (the caller decides the default)."""
+    entry = fields.get(key)
+    if entry is None:
+        return None
+    if entry[1] == "value" and src.startswith(("!0", "!1"), entry[2]):
+        return src.startswith("!0", entry[2])
+    return None
+
+
+def _string_of(src: str, braces: BraceMap, ident: str, at: int) -> str | None:
+    """The string constant `ident` (or `ident()`, an arrow returning one) reads."""
+    try:
+        v = _binding_value(
+            src, braces, ident, at, deferred=True, window=SHORT_IDENT_LOCALITY_BYTES
+        )
+    except (ValueError, IndexError, RecursionError):
+        return None
+    if v is None:
+        return None
+    m = re.match(r"(?:\(\)\s*=>\s*)?" + _STR + r"(?=\s*[;,)}\n])", src[v : v + 256])
+    return _unescape(m.group(1)) if m else None
+
+
+def _bool_of(src: str, braces: BraceMap, text: str, at: int) -> bool | None:
+    text = text.strip()
+    if text in ("!0", "!1"):
+        return text == "!0"
+    ident = re.fullmatch(r"(" + _IDENT + r")(\(\))?", text)
+    if not ident:
+        return None
+    try:
+        v = _binding_value(
+            src,
+            braces,
+            ident.group(1),
+            at,
+            deferred=True,
+            window=SHORT_IDENT_LOCALITY_BYTES,
+        )
+    except (ValueError, IndexError, RecursionError):
+        return None
+    arrow = r"\(\)\s*=>\s*" if ident.group(2) else ""
+    m = (
+        re.match(arrow + r"!([01])(?=\s*[;,)}\n])", src[v : v + 16])
+        if v is not None
+        else None
+    )
+    return m.group(1) == "0" if m else None
+
+
+def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | None:
+    """Feature flags an `isAvailable` value tests: a call `f(FLAG, DEFAULT)`
+    whose first argument reads a `tengu_` string, through one identifier.
+    Other conditions in the gate are runtime state and are not listed, so
+    the list is a floor. None when the gate expression itself is not read
+    (an identifier with no binding in reach, a call this reader cannot split)."""
+    try:
+        text_lo, text_hi = pos, _expr_end(src, braces, pos)
+    except (ValueError, IndexError):
+        return None
+    ident = re.fullmatch(_IDENT, src[text_lo:text_hi].strip())
+    if ident:
+        try:
+            v = _binding_value(
+                src,
+                braces,
+                ident.group(0),
+                pos,
+                deferred=True,
+                window=SHORT_IDENT_LOCALITY_BYTES,
+            )
+        except (ValueError, IndexError, RecursionError):
+            v = None
+        if v is None:
+            return None
+        try:
+            text_lo, text_hi = v, _expr_end(src, braces, v)
+        except (ValueError, IndexError):
+            return None
+    flags: list[dict[str, Any]] = []
+    call = re.compile(r"(?<![\w$.])" + _IDENT + r"\(")
+    for m in call.finditer(src, text_lo, text_hi):
+        try:
+            args = _split_top(
+                src,
+                braces,
+                m.end(),
+                _match_close(src, braces, m.end() - 1, text_hi) - 1,
+            )
+        except (ValueError, IndexError):
+            return None
+        if len(args) != 2:
+            continue
+        first = src[args[0][0] : args[0][1]].strip()
+        lit = _TENGU_RE.fullmatch(first)
+        flag = lit.group(1) if lit else None
+        called = re.fullmatch(r"(" + _IDENT + r")(\(\))?", first)
+        if flag is None and called:
+            value = _string_of(src, braces, called.group(1), m.start())
+            flag = value if value and value.startswith("tengu_") else None
+        if flag:
+            flags.append(
+                {
+                    "flag": flag,
+                    "default": _bool_of(
+                        src, braces, src[args[1][0] : args[1][1]], m.start()
+                    ),
+                }
+            )
+    return flags
+
+
+def _array_elements(
+    src: str, braces: BraceMap, pos: int, *, deferred: bool
+) -> list[tuple[int, int]] | None:
+    """The element spans of the array literal at `pos`, or the one an
+    identifier there is bound to; None when neither."""
+    if not src.startswith("[", pos):
+        m = re.match(_IDENT + r"(?=\s*[,}])", src[pos : pos + 64])
+        if not m:
+            return None
+        try:
+            v = _binding_value(
+                src,
+                braces,
+                m.group(0),
+                pos,
+                deferred=deferred,
+                window=SHORT_IDENT_LOCALITY_BYTES,
+            )
+        except (ValueError, IndexError, RecursionError):
+            return None
+        if v is None or not src.startswith("[", v):
+            return None
+        pos = v
+    close = _match_close(src, braces, pos, len(src)) - 1
+    return [_strip_span(src, a, b) for a, b in _split_top(src, braces, pos + 1, close)]
+
+
+def _factory_skill(
+    src: str, braces: BraceMap, a: int, b: int, *, deferred: bool
+) -> tuple[dict[str, tuple[int, str, int]], bool, str | None] | None:
+    """A skill built by a module function `f(key, {...})` returning an object
+    literal: its fields, with a spread of a parameter taken from that
+    argument, and its name when the literal reads `name:p` or `name:T[p]`
+    for a string-literal argument `p` and an object table `T`."""
+    m = re.match(r"(" + _IDENT + r")\(", src[a:b])
+    if not m:
+        return None
+    paren = a + m.end() - 1
+    if _match_close(src, braces, paren, b) != b:
+        return None
+    found = _function_body(src, braces, m.group(1), a)
+    if found is None:
+        return None
+    body, _, params_text = found
+    params = [p.strip() for p in params_text.split(",") if p.strip()]
+    ret = re.match(r"\{\s*return\s*\{", src[body : body + 32])
+    if not ret or not all(re.fullmatch(_IDENT, p) for p in params):
+        return None
+    obj = body + ret.end() - 1
+    args = [
+        _strip_span(src, x, y) for x, y in _split_top(src, braces, paren + 1, b - 1)
+    ]
+    literal: dict[str, str] = {}
+    bound: dict[str, int] = {}
+    for p, (x, y) in zip(params, args):
+        lit = re.fullmatch(_STR, src[x:y])
+        if lit:
+            literal[p] = _unescape(lit.group(1))
+        elif src.startswith("{", x) and braces.pairs.get(x) == y - 1:
+            bound[p] = x
+    fields, complete = _merged_fields(src, braces, obj, deferred=deferred, bound=bound)
+    name = None
+    entry = _object_fields(src, braces, obj).get("name")
+    if entry and entry[0] == "value":
+        expr = re.match(
+            r"(" + _IDENT + r")(?:\[(" + _IDENT + r")\])?(?=\s*[,}])",
+            src[entry[1] : entry[1] + 64],
+        )
+        if expr and expr.group(2) is None:
+            name = literal.get(expr.group(1))
+        elif expr and expr.group(2) in literal:
+            table = _object_value(src, braces, expr.group(1), entry[1], deferred=True)
+            if table is not None:
+                row = resolve_field(src, braces, table, literal[expr.group(2)])
+                name = row["value"] if row and row["source"] == "literal" else None
+    fields = {k: v for k, v in fields.items() if k != "name"}
+    return fields, complete, name
+
+
+def _plugin_skills(
+    src: str, braces: BraceMap, pos: int, *, deferred: bool
+) -> tuple[list[dict[str, Any]], bool]:
+    """The skills a plugin's `skills` field lists, and whether every one resolved."""
+    elements = _array_elements(src, braces, pos, deferred=deferred)
+    if elements is None:
+        return [], False
+    skills: list[dict[str, Any]] = []
+    complete = True
+    for a, b in elements:
+        name_value: str | None = None
+        source = "skills-field"
+        if src.startswith("{", a) and braces.pairs.get(a) == b - 1:
+            fields, ok = _merged_fields(src, braces, a, deferred=deferred)
+        elif re.fullmatch(_IDENT, src[a:b]):
+            obj = _object_value(src, braces, src[a:b], a, deferred=deferred)
+            if obj is None:
+                complete = False
+                continue
+            fields, ok = _merged_fields(src, braces, obj, deferred=deferred)
+        else:
+            built = _factory_skill(src, braces, a, b, deferred=deferred)
+            if built is None:
+                complete = False
+                continue
+            fields, ok, name_value = built
+            source = "factory"
+        rec: dict[str, Any] = {"source": source}
+        if name_value is not None:
+            rec["name"], rec["name_source"] = name_value, "factory"
+        else:
+            _apply_field(rec, "name", _merged_string(src, braces, fields, "name"))
+        if not rec.get("name") or rec.get("name_source") == "template":
+            complete = False
+            continue
+        _apply_field(
+            rec, "description", _merged_string(src, braces, fields, "description")
+        )
+        if rec["description_source"] == "absent" and not ok:
+            rec["description_source"] = "unresolved"
+        flag = _merged_flag(src, fields, "userInvocable")
+        rec["user_invocable"] = (
+            flag
+            if flag is not None
+            else (True if ok and "userInvocable" not in fields else None)
+        )
+        complete = (
+            complete
+            and ok
+            and rec["description_source"] != "unresolved"
+            and rec["user_invocable"] is not None
+        )
+        skills.append(rec)
+    return skills, complete
+
+
+def _frontmatter(text: str) -> dict[str, str]:
+    """Top-level `key: value` pairs of a markdown file's YAML frontmatter,
+    including `|` and `>` block scalars (literal keeps line breaks, folded
+    joins lines with spaces). Anything else (a nested map, a flow
+    collection) is left out, so a caller treats the key as unresolved."""
+    m = re.match(r"---\n(.*?)\n---", text, re.DOTALL)
+    lines = (m.group(1) if m else "").splitlines()
+    out: dict[str, str] = {}
+    i = 0
+    while i < len(lines):
+        kv = re.match(r"([A-Za-z][\w-]*):\s*(.*)$", lines[i])
+        i += 1
+        if not kv:
+            continue
+        value = kv.group(2).strip()
+        if re.fullmatch(r"[|>][+-]?", value):
+            block: list[str] = []
+            while i < len(lines) and (
+                lines[i].startswith((" ", "\t")) or not lines[i].strip()
+            ):
+                block.append(lines[i].strip())
+                i += 1
+            text_ = (
+                "\n".join(block).strip()
+                if value.startswith("|")
+                else " ".join(b for b in block if b)
+            )
+            if text_:
+                out[kv.group(1)] = text_
+        elif value and not value.startswith(("{", "[", "&", "*", "!")):
+            # A plain scalar continues on indented lines, folded with spaces.
+            more: list[str] = []
+            while (
+                i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip()
+            ):
+                more.append(lines[i].strip())
+                i += 1
+            if more and value.startswith(("'", '"')):
+                continue  # a multi-line quoted scalar is not read
+            out[kv.group(1)] = " ".join([value, *more]).strip("\"'")
+    return out
+
+
+def _plugin_manifest(
+    src: str, braces: BraceMap, lo: int, hi: int
+) -> tuple[dict[str, Any] | None, int]:
+    """The function-hooks manifest (`{scan|shipped:{...},files:{...}}`) in a
+    plugin's module: its hook events, declared calls, and embedded files."""
+    found = [
+        m.start()
+        for m in _MANIFEST_RE.finditer(src, lo, hi)
+        if "files" in _object_fields(src, braces, m.start())
+    ]
+    if len(found) != 1:
+        return None, len(found)
+    fields = _object_fields(src, braces, found[0])
+    decl_key = "scan" if "scan" in fields else "shipped"
+    decl_at = fields[decl_key][1]
+    decl = _object_fields(src, braces, decl_at)
+
+    def has_spread(open_i: int) -> bool:
+        """A spread, or a quoted, computed or shorthand key: a part that may
+        hold or override any key."""
+        close = braces.pairs.get(open_i)
+        return close is None or any(
+            not _PLAIN_PART_RE.match(src, *_strip_span(src, a, b))
+            for a, b in _split_top(src, braces, open_i + 1, close)
+        )
+
+    # Such a part in the manifest or its declaration can hold or override any key.
+    manifest_spread = has_spread(found[0])
+    decl_spread = (
+        fields[decl_key][0] != "value"
+        or not src.startswith("{", decl_at)
+        or has_spread(decl_at)
+    )
+
+    def strings(key: str) -> list[str] | None:
+        """[] when the manifest declares no such key; None when it does and
+        the value is not an array of string literals, or a spread could
+        hold or override it (unresolved)."""
+        if manifest_spread or decl_spread:
+            return None
+        entry = decl.get(key)
+        if entry is None:
+            return []
+        if entry[0] != "value" or not src.startswith("[", entry[1]):
+            return None
+        close = _match_close(src, braces, entry[1], hi) - 1
+        values = []
+        for a, b in _split_top(src, braces, entry[1] + 1, close):
+            a, b = _strip_span(src, a, b)
+            lit = re.fullmatch(_STR, src[a:b])
+            if not lit:
+                return None
+            values.append(_unescape(lit.group(1)))
+        return values
+
+    files: dict[str, str | None] = {}
+    # False when an entry's path, or the files value itself, is not a literal:
+    # a component may then be missing from the lists built from `files`.
+    files_complete = (
+        not manifest_spread
+        and fields["files"][0] == "value"
+        and src.startswith("{", fields["files"][1])
+    )
+    files_at = fields["files"][1]
+    if files_complete:
+        for a, b in _split_top(src, braces, files_at + 1, braces.pairs[files_at]):
+            a, b = _strip_span(src, a, b)
+            key = re.match(_STR + r"\s*:\s*", src[a:b])
+            if not key:
+                files_complete = False
+                continue
+            v = a + key.end()
+            text = None
+            if src[v : v + 1] in _QUOTES:
+                text, end, subst = _read_literal(src, v, b)
+                # A `${...}` substitution is runtime text: the file is not read.
+                text = text if end == b and not subst else None
+            files[_unescape(key.group(1))] = text
+    return {
+        "hooks": strings("hooks"),
+        "calls": strings("calls"),
+        "files": files,
+        "files_complete": files_complete,
+    }, 1
+
+
+def _plugin_commands(
+    src: str, braces: BraceMap, lo: int, hi: int
+) -> tuple[list[dict[str, Any]], bool]:
+    """Commands a plugin's module registers through the hooks API
+    (`x.command.register(obj)` or a `registerCommand(obj)` wrapper). An
+    argument that is the enclosing arrow's own parameter passes another
+    call's object through and is skipped; any other unresolved one leaves
+    the list partial."""
+    out: dict[str, dict[str, Any]] = {}
+    complete = True
+    for m in re.finditer(r"\.(?:command\.register|registerCommand)\(", src[lo:hi]):
+        paren = lo + m.end() - 1
+        try:
+            close = _match_close(src, braces, paren, hi) - 1
+        except (ValueError, IndexError):
+            complete = False
+            continue
+        a, b = _strip_span(src, paren + 1, close)
+        if src.startswith("{", a) and braces.pairs.get(a) == b - 1:
+            obj = a
+        elif re.fullmatch(_IDENT, src[a:b]):
+            start = lo + m.start()
+            while start > lo and src[start - 1] in _ID_CHARS | {"."}:
+                start -= 1
+            arg = re.escape(src[a:b])
+            if re.search(
+                r"\(?\s*" + arg + r"\s*\)?\s*=>\s*$", src[max(lo, start - 64) : start]
+            ):
+                continue
+            obj = _object_value(src, braces, src[a:b], a, deferred=True)
+        else:
+            obj = None
+        if obj is None:
+            complete = False
+            continue
+        fields, ok = _merged_fields(src, braces, obj, deferred=True)
+        rec: dict[str, Any] = {"source": "command.register"}
+        _apply_field(rec, "name", _merged_string(src, braces, fields, "name"))
+        if not rec["name"]:
+            complete = False
+            continue
+        _apply_field(
+            rec, "description", _merged_string(src, braces, fields, "description")
+        )
+        if rec["description_source"] == "absent" and not ok:
+            rec["description_source"] = "unresolved"
+        complete = complete and ok and rec["description_source"] != "unresolved"
+        out.setdefault(rec["name"], rec)
+    return list(out.values()), complete
+
+
+def _plugin_registrations(
+    src: str,
+) -> tuple[list[tuple[str, int]], list[re.Match[str]]]:
+    """The registrar functions and every call site that reaches one: the
+    registrar's own module calling it by name, or a module importing a name
+    the registrar's module exports for it."""
+    registrars = [
+        (m.group(1), _chunk_span(src, m.start())[0])
+        for m in _PLUGIN_REGISTRAR_RE.finditer(src)
+    ]
+    if not registrars:
+        return [], []
+    exported = {
+        exp
+        for exp, homes in _export_index(src).items()
+        for home, local in homes
+        if (local, home) in registrars
+    }
+    locals_ = {name for name, _ in registrars} | exported
+    for m in re.finditer(r"import\{([^{}]*)\}", src):
+        for part in m.group(1).split(","):
+            exp, _, local = part.strip().partition(" as ")
+            if local and exp.strip() in exported:
+                locals_.add(local.strip())
+    call = re.compile(
+        r"(?<![\w$.])(" + "|".join(sorted(map(re.escape, locals_))) + r")\(\{"
+    )
+    calls = []
+    for m in call.finditer(src):
+        lo, hi = _chunk_span(src, m.start())
+        callee = m.group(1)
+        if (callee, lo) in registrars or (
+            _chunk_imports(src, lo, hi).get(callee) in exported
+        ):
+            calls.append(m)
+    return registrars, calls
+
+
+def extract_builtin_plugins(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Built-in plugins (`cc-plugin-*@builtin`), keyed by name, plus notes.
+
+    A plugin is the object a registration call passes to the registrar,
+    with `...spread` descriptors merged; its components are the `skills`
+    field, the agents and commands its function-hooks manifest embeds as
+    files, commands its module registers through the hooks API, and the
+    manifest's hook events. A name held in a parameter (a test seating any
+    plugin) is a factory, counted and never guessed.
+    """
+    notes: dict[str, Any] = {"registrar_route": "builtinPlugins.set"}
+    loader, callees = _builtin_plugin_loader(src, braces)
+    notes["loader_found"] = bool(callees)
+    registrars, calls = _plugin_registrations(src)
+    notes["registrars"] = sorted({name for name, _ in registrars})
+    if not registrars:
+        notes["error"] = (
+            "no function stores a plugin in `builtinPlugins` - the built-in "
+            "plugin registrar was not found"
+        )
+        return {}, notes
+
+    # The id is built where the registry is walked: a `${name}@${M}` template
+    # inside a function of the registrar's module that reads `.builtinPlugins`.
+    # Any other `@${...}` (a version string) is not it; no single value, no id.
+    walkers: set[tuple[int, int]] = set()
+    for _, home in registrars:
+        end = _chunk_span(src, home)[1]
+        for m in re.finditer(re.escape(".builtinPlugins"), src[home:end]):
+            block = _function_block(src, braces, home + m.start())
+            if block:
+                walkers.add(block)
+    found: set[str | None] = set()
+    defaults: set[str] = set()
+    for lo_, hi_ in walkers:
+        for m in re.finditer(
+            r"`\$\{" + _IDENT + r"\}@\$\{(" + _IDENT + r")\}`", src[lo_:hi_]
+        ):
+            found.add(_string_of(src, braces, m.group(1), lo_ + m.start()))
+        defaults.update(re.findall(r"\.defaultEnabled\?\?(!0|!1|[\w$]+)", src[lo_:hi_]))
+    marketplace = found.pop() if len(found) == 1 else None
+    notes["marketplace"] = marketplace
+    # The consumer's default, `enabled = setting ?? plugin.defaultEnabled ?? true`,
+    # read only where the registry is walked; missing or ambiguous there, a
+    # plugin without its own `defaultEnabled` has no known default.
+    default_rule = defaults == {"!0"}
+    notes["default_enabled_rule_found"] = default_rule
+
+    aliases: dict[str, set[str]] = {}
+    for m in _PLUGIN_ALIAS_RE.finditer(src):
+        aliases.setdefault(m.group(2), set()).add(m.group(1))
+
+    out: dict[str, dict[str, Any]] = {}
+    unresolved: list[str] = []
+    factories = 0
+    for call in calls:
+        open_i = call.end() - 1
+        deferred = _function_block(src, braces, call.start()) is not None
+        fields, complete = _merged_fields(src, braces, open_i, deferred=deferred)
+        name_entry = fields.get("name")
+        if name_entry is None:
+            if complete:
+                notes["same_identifier_calls_skipped"] = (
+                    notes.get("same_identifier_calls_skipped", 0) + 1
+                )
+            else:
+                unresolved.append(f"spread at {open_i}")
+            continue
+        named = _merged_string(src, braces, fields, "name")
+        if not named or named["source"] not in ("literal", "constant"):
+            text = src[name_entry[2] : name_entry[2] + 32]
+            if (
+                re.match(_IDENT + r"(?=\s*[,}])", text)
+                and len(re.match(_IDENT, text).group(0)) == 1
+            ):
+                factories += 1
+            else:
+                unresolved.append(text.split(",")[0])
+            continue
+        name = named["value"]
+        lo, hi = _chunk_span(src, call.start())
+        rec: dict[str, Any] = {
+            "name": name,
+            "name_source": named["source"],
+            "id": f"{name}@{marketplace}" if marketplace else None,
+            "aliases": sorted(aliases.get(name, ())),
+            "source": "builtin-plugin",
+        }
+        partial: list[str] = []
+        if rec["id"] is None:
+            partial.append("id")
+        _apply_field(
+            rec, "description", _merged_string(src, braces, fields, "description")
+        )
+        _apply_field(rec, "version", _merged_string(src, braces, fields, "version"))
+        for key in ("description", "version"):
+            if rec[f"{key}_source"] == "absent" and not complete:
+                rec[f"{key}_source"] = "unresolved"
+            if rec[f"{key}_source"] == "unresolved":
+                partial.append(key)
+        load = loader.get(name)
+        rec["load"] = load["load"] if load else None
+        rec["load_guards"] = load["load_guards"] if load else None
+        # False: the loader was read and never requires this plugin, so the
+        # registration is not proven live. None: no loader was found.
+        rec["in_loader"] = (load is not None) if callees else None
+        if rec["in_loader"] and rec["load"] is None:
+            partial.append("load")
+
+        default = _merged_flag(src, fields, "defaultEnabled")
+        if default is not None:
+            rec["default_enabled"], rec["default_enabled_source"] = default, "literal"
+        elif "defaultEnabled" in fields or not complete or not default_rule:
+            rec["default_enabled"], rec["default_enabled_source"] = None, "unresolved"
+            partial.append("default_enabled")
+        else:
+            rec["default_enabled"], rec["default_enabled_source"] = (
+                True,
+                "absent-default",
+            )
+        for key, out_key in (
+            ("enabledFromPolicyOnly", "enabled_from_policy_only"),
+            ("enabledFromTrustedSettingsOnly", "enabled_from_trusted_settings_only"),
+        ):
+            flag = _merged_flag(src, fields, key)
+            if flag is None and (key in fields or not complete):
+                partial.append(out_key)
+            rec[out_key] = (
+                flag
+                if flag is not None
+                else (None if key in fields or not complete else False)
+            )
+        gate = fields.get("isAvailable")
+        rec["gated"] = gate is not None if (gate is not None or complete) else None
+        if rec["gated"] is None:
+            partial.append("gated")
+        if gate is None:
+            rec["gate_flags"] = [] if complete else None
+        else:
+            rec["gate_flags"] = (
+                _gate_flags(src, braces, gate[2]) if gate[1] == "value" else None
+            )
+        if rec["gate_flags"] is None or any(
+            f["default"] is None for f in rec["gate_flags"]
+        ):
+            partial.append("gate_flags")
+
+        skills_entry = fields.get("skills")
+        if skills_entry and skills_entry[1] == "value":
+            skills, ok = _plugin_skills(src, braces, skills_entry[2], deferred=deferred)
+            if not ok:
+                partial.append("skills")
+        else:
+            skills = []
+            if skills_entry or not complete:
+                partial.append("skills")
+
+        manifest, manifests = _plugin_manifest(src, braces, lo, hi)
+        agents: list[dict[str, Any]] = []
+        commands: list[dict[str, Any]] = []
+        hooks_module = "hooksModule" in fields
+        rec["hook_events"] = [] if complete and not hooks_module else None
+        if manifest is None and (hooks_module or not complete):
+            # The hooks module's manifest was not read: its embedded agents and
+            # commands, and commands it registers, are unknown.
+            partial += ["agents", "commands", "skills"]
+        if manifest is not None:
+            rec["hook_events"] = manifest["hooks"]
+            if not manifest["files_complete"]:
+                partial += ["agents", "commands", "skills"]
+            for path, text in sorted(manifest["files"].items()):
+                kind = re.match(r"(agents|commands)/([^/]+)\.md$", path) or re.match(
+                    r"(skills)/([^/]+)/SKILL\.md$", path
+                )
+                if not kind:
+                    continue
+                fm = _frontmatter(text or "")
+                entry = {
+                    "name": fm.get("name") or kind.group(2),
+                    "name_source": "frontmatter" if fm.get("name") else "file-name",
+                    "description": fm.get("description"),
+                    "description_source": "frontmatter"
+                    if fm.get("description")
+                    else "unresolved",
+                    "file": path,
+                    "source": "embedded-file",
+                }
+                # A file the reader could not read, or whose frontmatter names
+                # no component or describes it in a form `_frontmatter` does
+                # not parse, leaves that component kind partial.
+                if (
+                    text is None
+                    or entry["name_source"] != "frontmatter"
+                    or entry["description_source"] != "frontmatter"
+                ):
+                    partial.append(kind.group(1))
+                {"agents": agents, "commands": commands, "skills": skills}[
+                    kind.group(1)
+                ].append(entry)
+            if manifest["calls"] is None:
+                # The declared calls did not read: whether the module registers
+                # commands is unknown, not "no".
+                partial.append("commands")
+            elif "command.register" in manifest["calls"]:
+                registered, ok = _plugin_commands(src, braces, lo, hi)
+                commands.extend(registered)
+                if not ok or not registered:
+                    partial.append("commands")
+        if rec["hook_events"] is None:
+            partial.append("hook_events")
+        # An unresolved spread may hold any key the merge did not see: there an
+        # absent key is unknown (None, named in `partial`), not absent.
+        rec["hooks_module"] = hooks_module or (False if complete else None)
+        rec["user_config"] = "userConfig" in fields or (False if complete else None)
+        classic = fields.get("hooks")
+        rec["classic_hooks"] = (
+            sorted(_object_fields(src, braces, classic[2]))
+            if classic and classic[1] == "value" and src.startswith("{", classic[2])
+            else (None if classic is None else "unresolved")
+        )
+        mcp = fields.get("mcpServers")
+        rec["mcp_servers"] = None if mcp is None else mcp[1]
+        partial += [k for k in ("hooks_module", "user_config") if rec[k] is None]
+        if not complete:
+            partial += [k for k in ("classic_hooks", "mcp_servers") if rec[k] is None]
+        if rec["classic_hooks"] == "unresolved":
+            partial.append("classic_hooks")
+        rec["skills"] = skills
+        rec["agents"] = agents
+        rec["commands"] = commands
+        rec["partial"] = sorted(set(partial))
+        if name in out:
+            # The registrar is a `Map.set`, so whichever call runs last wins,
+            # and run order is not read: the kept record may not be the live
+            # one. Name it partial as a whole and degrade the lane.
+            notes.setdefault("duplicate_registrations", []).append(name)
+            out[name]["partial"] = sorted({*out[name]["partial"], "registration"})
+            continue
+        out[name] = rec
+
+    notes["registrations_seen"] = len(calls)
+    notes["resolved"] = len(out)
+    # Lists that are floors by construction, never totals: `aliases` holds the
+    # short-name pairs the bundle spells as literals, and `gate_flags` only the
+    # flag checks in a gate whose other terms are runtime state.
+    notes["floors"] = ["aliases", "gate_flags"]
+    if factories:
+        notes["factory_registrations"] = factories
+    if unresolved:
+        notes["unresolved_names"] = sorted(set(unresolved))
+    notes["loader_callees"] = callees
+    notes["loaded_not_registered"] = sorted(set(loader) - set(out))
+    # Without a loader every plugin would land here; `loader_found` says that.
+    notes["registered_not_loaded"] = sorted(set(out) - set(loader)) if callees else []
+    return out, notes
+
+
 def detect_cli_version(src: str) -> str | None:
     """Best-effort CLI version from the bundle.
 
@@ -3690,6 +4792,8 @@ def check_integrity(
     agent_notes: dict[str, Any] | None = None,
     tools: dict[str, Any] | None = None,
     tool_notes: dict[str, Any] | None = None,
+    plugins: dict[str, Any] | None = None,
+    plugin_notes: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Decide whether this extraction can be trusted, per lane, and say why.
 
@@ -3712,6 +4816,7 @@ def check_integrity(
             (WORKFLOW_LANE, workflows),
             (AGENT_LANE, agents),
             (TOOL_LANE, tools),
+            (PLUGIN_LANE, plugins),
         )
         if payload is not None
     )
@@ -3853,6 +4958,57 @@ def check_integrity(
             "the default agent roster was not located; every agent reads roster "
             "`absent`, so which agents a default session registers is unknown"
         )
+
+    if plugins is not None:
+        entry, pnotes = lanes[PLUGIN_LANE], plugin_notes or {}
+        if pnotes.get("error"):
+            entry["problems"].append(pnotes["error"])
+        elif not plugins:
+            entry["problems"].append(
+                "no built-in plugin registration resolved - the plugin scan found nothing"
+            )
+        else:
+            missing_plugins = [c for c in PLUGIN_CANARY if c not in plugins]
+            if missing_plugins:
+                entry["problems"].append(
+                    f"canary built-in plugin(s) absent: {', '.join(missing_plugins)} - "
+                    "the scan resolved nothing it should have"
+                )
+        if plugins and not pnotes.get("loader_found"):
+            entry["advisories"].append(
+                "the built-in plugin loader was not located; every plugin's load "
+                "condition is unknown"
+            )
+        if pnotes.get("unresolved_names"):
+            entry["advisories"].append(
+                f"{len(pnotes['unresolved_names'])} built-in plugin registration(s) did "
+                "not resolve a name; the built-in plugin list is a floor, not a total"
+            )
+        if pnotes.get("loaded_not_registered"):
+            entry["advisories"].append(
+                "the loader requires plugin(s) no registration was resolved for: "
+                + ", ".join(pnotes["loaded_not_registered"])
+                + "; the built-in plugin list is a floor, not a total"
+            )
+        if pnotes.get("duplicate_registrations"):
+            entry["advisories"].append(
+                "built-in plugin name(s) registered more than once; only the first "
+                "registration is reported: "
+                + ", ".join(sorted(set(pnotes["duplicate_registrations"])))
+            )
+        if pnotes.get("registered_not_loaded"):
+            entry["advisories"].append(
+                "registration(s) the loader never requires: "
+                + ", ".join(pnotes["registered_not_loaded"])
+                + "; they are not proven live, carry `in_loader: false`, and are "
+                "left out of overlap detection"
+            )
+        partial = sorted(n for n, r in plugins.items() if r.get("partial"))
+        if partial:
+            entry["advisories"].append(
+                "built-in plugin(s) with fields or components this read could not "
+                "resolve: " + ", ".join(partial) + "; their component lists are floors"
+            )
 
     problems: list[str] = []
     advisories: list[str] = list(top_advisories)
@@ -4147,6 +5303,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 workflows, workflow_notes = extract_bundled_workflows(src, braces)
                 agents, agent_notes = extract_builtin_agents(src, braces)
                 tools, tool_notes = extract_builtin_tools(src, braces)
+                plugins, plugin_notes = extract_builtin_plugins(src, braces)
                 plugin_backed = extract_plugin_backed(src)
 
                 for name, plugin in plugin_backed.items():
@@ -4173,6 +5330,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["builtin_agent_notes"] = agent_notes
                 report[TOOL_LANE] = tools
                 report["builtin_tool_notes"] = tool_notes
+                report[PLUGIN_LANE] = plugins
+                report["builtin_plugin_notes"] = plugin_notes
                 report["plugin_backed"] = plugin_backed
                 report["integrity"] = check_integrity(
                     src,
@@ -4187,6 +5346,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                     agent_notes=agent_notes,
                     tools=tools,
                     tool_notes=tool_notes,
+                    plugins=plugins,
+                    plugin_notes=plugin_notes,
                 )
                 report["integrity"]["undetermined"] = undetermined_fields(report)
 

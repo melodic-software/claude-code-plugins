@@ -135,8 +135,11 @@ Three rules:
 
 - **Carry the integrity floor through, per lane.** The inventory reports integrity per lane
   (`builtin_commands`, `bundled_skills`, `plugin_backed`, and `bundled_workflows`,
-  `builtin_agents`, `builtin_tools` when the extraction has them; an extraction without one is not
-  an error, that lane is simply not scored or reported). A `degraded` lane makes every count from
+  `builtin_agents`, `builtin_tools`, `builtin_plugins` when the extraction has them; an extraction
+  without one is not an error, that lane is simply not scored or reported). Each built-in plugin
+  (`cc-plugin-*@builtin`), and each of its skills, agents and commands, is scored as a
+  plugin-backed built-in under the `builtin_plugins` lane; a name another lane already holds is
+  scored there only. A `degraded` lane makes every count from
   that lane a floor, and the report says so in the same sentence as the number. A `broken` lane's
   counts are omitted, the report names the lane and its cause, and every candidate whose lane is
   broken is marked `re_derivable: false` (its presence or absence in that lane proves nothing
