@@ -39,9 +39,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
   The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
   when a parser reader is selected.
-- The changelog skill's per-release native-drift pass runs the inventory with
-  `--reader=compare`, so a value the regex and parser readers disagree on for a new build makes
-  its self-check `broken` and is filed. It installs into the inventory's fallback,
+- The changelog skill's per-release native-drift pass keeps taking its values from the default
+  regex reader and adds a `--reader=compare --self-check` guard: a value the regex and parser
+  readers disagree on for a new build is filed as a reader-divergence item. Without Node.js or npm
+  the guard records "compare guard unavailable: install Node.js and npm" and files nothing, since
+  the regex values stand. The parser installs into the inventory's fallback,
   `<config dir>/plugins/data/harness-ops-melodic-software`, the directory `${CLAUDE_PLUGIN_DATA}`
   names for this plugin.
 - Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
