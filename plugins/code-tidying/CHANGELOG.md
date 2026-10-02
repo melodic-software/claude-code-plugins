@@ -11,9 +11,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   its refutation verifiers, through `/multi-agent:route` when that skill resolves: simplifiers take
   the `worker` role's `fanout` variant and verifiers the `verifier` role's. A named simplifier
   keeps its own definition's tier unless that definition inherits the model and pins no effort.
-  Without `/multi-agent:route`, agents inherit the session model,
-  or get `opus` under a frontier-model session, at effort `medium` for simplifiers and `high` for
-  verifiers, and the report says once that enabling the multi-agent plugin makes this routing
+  Without `/multi-agent:route`, agents inherit the session model, or get `opus` when the session
+  model is frontier or unknown, at effort `medium` for simplifiers and `high` for verifiers, and the report says once that enabling the multi-agent plugin makes this routing
   configurable. Repo mode no longer allows an unstated cheaper simplifier tier.
 
 ## [0.26.1] - 2026-10-02
