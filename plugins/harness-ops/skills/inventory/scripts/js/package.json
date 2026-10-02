@@ -1,0 +1,10 @@
+{
+  "name": "@melodic/inventory-parser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Parser helper for the harness-ops inventory skill's --reader=parser. Installed on first use with npm ci from the lockfile; never vendored.",
+  "dependencies": {
+    "acorn": "8.18.0",
+    "eslint-scope": "9.1.2"
+  }
+}

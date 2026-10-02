@@ -16,9 +16,10 @@ check fails when a new key appears or a listed one is gone, so a module that
 breaks or is repaired inside an already-listed test changes the comparison;
 the failure message prints every current key.
 
-Needs `node` and an `acorn` package that `require("acorn")` resolves (set
-NODE_PATH to its node_modules directory, e.g. after
-`npm install --prefix <dir> acorn@8`); otherwise the check skips.
+Needs `node` and an `acorn` package that `require("acorn")` resolves: the
+pinned set `python3 parser_reader.py --install` puts in place, or any
+node_modules NODE_PATH names. Otherwise the check skips, unless
+INVENTORY_REQUIRE_ACORN is set (CI sets it), which makes it fail.
 
 Run: python3 -m unittest test_fixture_parse
 """
@@ -27,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -34,6 +36,7 @@ import tempfile
 import unittest
 
 import inventory as inv
+import parser_reader
 import test_inventory
 
 PARSE_JS = r"""
@@ -145,15 +148,31 @@ def modules(src: str) -> list[str]:
     return [src[a:b] for a, b in zip(starts, starts[1:] + [len(src)])]
 
 
+def _node_env() -> dict[str, str]:
+    """The environment node runs in: the installed parser packages on
+    NODE_PATH when they exist, else the caller's NODE_PATH."""
+    target = parser_reader.install_dir(parser_reader.deps_base(None)[0])
+    if parser_reader.installed(target):
+        return dict(os.environ, NODE_PATH=str(target / "node_modules"))
+    return dict(os.environ)
+
+
 def _acorn_skip_reason() -> str | None:
     node = shutil.which("node")
     if node is None:
         return "node is not on PATH"
     probe = subprocess.run(
-        [node, "-e", 'require("acorn")'], capture_output=True, text=True, check=False
+        [node, "-e", 'require("acorn")'],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_node_env(),
     )
     if probe.returncode != 0:
-        return 'node cannot require("acorn"); set NODE_PATH to a node_modules holding acorn@8'
+        return (
+            'node cannot require("acorn"); run `python3 parser_reader.py --install` '
+            "or set NODE_PATH to a node_modules holding acorn@8"
+        )
     return None
 
 
@@ -167,6 +186,7 @@ def unparsable(fixtures: list[str]) -> tuple[str, list[tuple[int, str]]]:
             capture_output=True,
             text=True,
             check=True,
+            env=_node_env(),
         )
     out = json.loads(run.stdout)
     return out["acorn"], [tuple(f) for f in out["failed"]]
@@ -175,6 +195,8 @@ def unparsable(fixtures: list[str]) -> tuple[str, list[tuple[int, str]]]:
 class TestFixturesParse(unittest.TestCase):
     def test_every_fixture_parses_as_a_module(self) -> None:
         reason = _acorn_skip_reason()
+        if reason and os.environ.get("INVENTORY_REQUIRE_ACORN"):
+            self.fail(reason)
         if reason:
             self.skipTest(reason)
         seen = collect_fixtures()
