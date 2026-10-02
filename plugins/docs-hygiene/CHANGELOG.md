@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [0.25.0] - 2026-10-02
+
+### Changed
+
+- `audit-derivability` routes the model and effort of every `sweep` subagent through
+  `/multi-agent:route worker` when that skill resolves, passing its `fanout` variant. Without it,
+  subagents inherit the session model, or get `opus` under a frontier-model session, at effort
+  `medium`, and the reply says once that enabling the multi-agent plugin makes this routing
+  configurable. A tier the user pins still wins.
+
 ## [0.24.7] - 2026-10-02
 
 ### Fixed

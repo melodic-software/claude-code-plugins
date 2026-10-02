@@ -105,7 +105,7 @@ The interview knobs for the confirmation in rule 1, each with its default. A con
 - **Scope**. All tracked `.md` files (`git ls-files '*.md'`); the user may narrow to a directory.
 - **Execution**, the `sweep` contract: fresh read-only subagents, batched for a large corpus.
 - **Concurrency**, a low ceiling (at most 3-4 concurrent): rate-limit headroom over wall-clock; the runtime may cap lower, which is fine. Raise only if the user asks.
-- **Subagent model tier**, the session's model unless the user pins a tier.
+- **Subagent model and effort**, for every `sweep` fan-out; a tier the user pins wins. When `/multi-agent:route` resolves in this session, run `/multi-agent:route worker session=<this session's model alias>` and pass its `fanout` variant: the model unless `omit_model` is true, and the effort always. When it does not resolve, omit the model so subagents inherit the session's, except under a frontier-model session, where pass `opus`; pass effort `medium`; and say once in the reply that enabling the multi-agent plugin makes this routing configurable.
 - **Spot-tests**. Run for load-bearing `delete`/`convert-to-pointer` verdicts up to a stated cap per pass. A flagged verdict past the cap is emitted as **provisional**: pending its spot-test, excluded from the actionable-routing offer, never presented as a confirmed delete. The cap *defers* the hard rule's spot-test to a follow-up pass; it never waives it.
 
 ## Output schema
