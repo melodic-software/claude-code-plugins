@@ -25,6 +25,13 @@ All notable changes to the `review` plugin are documented here. Format follows
   touches the multi-agent team layer, the mode omits the role map too. `fanout` grants
   `Workflow(review:fanout-sweep)` only, so no other workflow or inline script is pre-approved.
 
+## [0.34.13] - 2026-10-02
+
+### Changed
+
+- The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
+  the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
 ## [0.34.12] - 2026-10-02
 
 ### Changed

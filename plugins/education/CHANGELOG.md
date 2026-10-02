@@ -3,6 +3,16 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-10-02
+
+### Security
+
+- `quiz-me` builds its HTML report with a checked-in builder (`scripts/build-report.mjs`) that
+  escapes every diff- and PR-derived field through the rendered-views escape helper, now carried
+  at `lib/html-escape.mjs`, and stamps the generator marker. The report has no script, and a
+  hostile title or diff line renders as text. `build-report.mjs --check <file>` flags a page that
+  bypassed the builder.
+
 ## [0.12.1] - 2026-10-02
 
 ### Fixed
