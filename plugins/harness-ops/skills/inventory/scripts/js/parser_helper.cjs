@@ -1000,7 +1000,10 @@ function sinks(req) {
     } else if (node.type === "CallExpression") {
       const definer = definerOf(node.callee);
       const target = definer?.receiver ? node.callee.object : node.arguments[0];
-      const freshTarget = definer !== null && target !== undefined && target.type !== "SpreadElement" && fresh(target);
+      const freshArg = (n) => n !== undefined && n.type !== "SpreadElement" && fresh(n);
+      // Reflect.set(target,key,value,receiver) writes onto `receiver` when one is given.
+      const receiver = definer?.name === "set" && !definer.receiver ? node.arguments[3] : undefined;
+      const freshTarget = definer !== null && freshArg(target) && (receiver === undefined || freshArg(receiver));
       for (const arg of node.arguments) {
         const key = arg.type === "Literal" ? String(arg.value) : arg.type === "MemberExpression" ? keyName(arg, true) : null;
         if (key !== null && names.has(key) && !freshTarget) hit("argument", key, arg);

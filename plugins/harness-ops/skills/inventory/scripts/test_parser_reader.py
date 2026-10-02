@@ -668,6 +668,8 @@ class TestFlowQuery(unittest.TestCase):
             ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
             ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
             ('var o=Object.create(null);Object.defineProperty(o,"includes",{});', []),
+            ('Reflect.set({},"includes",f,Array.prototype);', ["argument"]),
+            ('Reflect.set({},"includes",f,{});', []),
             ("x.join=f;Array.prototype.join=f;", []),
             (
                 'Object.keys(o);e instanceof Object;Object.prototype.hasOwnProperty.call(o,"k");',
