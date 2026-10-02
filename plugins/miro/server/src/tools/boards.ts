@@ -3,7 +3,7 @@ import type { MiroApi, MiroLowlevelApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { jsonResponse } from "../response.ts";
 
 const SHARING_ACCESS = ["private", "view", "comment", "edit"] as const;
 type SharingAccess = (typeof SHARING_ACCESS)[number];

@@ -3,7 +3,7 @@ import type { MiroLowlevelApi } from "@mirohq/miro-api";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { jsonResponse } from "../response.ts";
 
 // Miro connector stroke colors are 6-digit hex; an invalid value reaches the API as a generic 400.
 export const strokeColorSchema = z
