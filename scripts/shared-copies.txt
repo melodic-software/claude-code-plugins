@@ -4,3 +4,6 @@
 # cannot see the repository root. Register a copy here, then run the script.
 lib/html-escape.mjs plugins/education/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
+lib/session-bridge/session_bridge.py plugins/planning/surface/session_bridge.py
+lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
+lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
