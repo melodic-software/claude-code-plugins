@@ -309,6 +309,18 @@ class TestOpenFindings(unittest.TestCase):
             + '});pY.includes("x")',
             "var Q=[].__proto__;Q.includes=" + patch + ';pY.includes("x")',
             "var Q=Object.getPrototypeOf([]);Q.includes=" + patch + ';pY.includes("x")',
+            # The third #5891 verifier's probes: F.prototype replaced through
+            # a reference to F, so F.prototype is not F's own object.
+            'function F(){}Object.defineProperty(F,"prototype",{value:Array.prototype});'
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
+            'function F(){}F["proto"+"type"]=Array.prototype;F.prototype.includes='
+            + patch
+            + ';pY.includes("x")',
+            "function F(){}var G=F;G.prototype=Array.prototype;F.prototype.includes="
+            + patch
+            + ';pY.includes("x")',
+            "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
             # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch
