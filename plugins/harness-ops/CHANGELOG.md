@@ -39,6 +39,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
   The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
   when a parser reader is selected.
+- The changelog skill's per-release native-drift pass runs the inventory with
+  `--reader=compare`, so a value the regex and parser readers disagree on for a new build makes
+  its self-check `broken` and is filed. It installs into the inventory's fallback,
+  `<config dir>/plugins/data/harness-ops-melodic-software`, the directory `${CLAUDE_PLUGIN_DATA}`
+  names for this plugin.
 - Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
   2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
   every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14

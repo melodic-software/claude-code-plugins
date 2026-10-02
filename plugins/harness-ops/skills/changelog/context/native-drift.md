@@ -14,13 +14,21 @@ the overlap store, default `docs/native-surfaces/records.json`. One command per 
 each exit code.
 
 ```bash
-python3 "<skill-dir>/../inventory/scripts/inventory.py" --self-check
-python3 "<skill-dir>/../inventory/scripts/inventory.py" --binary-only --docs --out <ws>/inventory.json
+python3 "<skill-dir>/../inventory/scripts/inventory.py" --reader compare --self-check
+python3 "<skill-dir>/../inventory/scripts/inventory.py" --reader compare --binary-only --docs --out <ws>/inventory.json
 python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" detect --inventory <ws>/inventory.json --store <store> --out <ws>/detect.json
 python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" self-check --store <store>
 python3 "<skill-dir>/scripts/native_drift.py" summarize --inventory <ws>/inventory.json --detect <ws>/detect.json --out <ws>/summary.json
 python3 "<skill-dir>/scripts/native_drift.py" diff --current <ws>/summary.json --previous <prev> --store <store> --detect <ws>/detect.json --self-check-exit <inventory self-check exit> --out <ws>/drift.json
 ```
+
+`--reader compare` reads the new build with both bundle readers, so a release on which the text
+reader and the parser reader disagree surfaces here: the report's values are the parser's, and a
+value that differs between them (`reader.compare.disallowed`) makes the inventory self-check
+`broken`, filed like any broken self-check. The parser reader needs Node.js and npm; it installs
+its pinned packages on first use into the plugin's data directory (the inventory's fallback, the
+directory `${CLAUDE_PLUGIN_DATA}` names), and without them the binary source is `broken` with the
+repair command.
 
 The self-check and `detect` exit `0` ok, `1` broken, `3` degraded; `3` is a passing run. When
 `detect` exits `1` with no output file, run `summarize` without `--detect`. `native_drift.py` exits
