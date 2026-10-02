@@ -494,23 +494,62 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Sync-manifest derivation (R5/R6)
 # ---------------------------------------------------------------------------
 
-# Published --print-manifest format (scripts/lib/sync-cluster.sh):
-#   src<TAB><path>     exactly one; empty path means the key was declared blank
-#   copy<TAB><path>    zero or more; path may still be a glob
+# Published --print-manifest format (scripts/lib/sync-cluster.sh,
+# scripts/sync-shared-copies.sh), one block per canonical source:
+#   src<TAB><path>     opens a block; empty path means the key was declared blank
+#   copy<TAB><path>    zero or more per block; path may still be a glob
 # A script that does not implement the flag (usage on stderr, empty stdout) or
 # that prints neither key is a helper sharing the sync-*.sh prefix and is
-# skipped. A script that prints copy lines (or an empty src key) without a
-# non-empty src is a half-manifest and is fatal.
+# skipped. A block with copy lines (or an empty src key) but no non-empty src
+# is a half-manifest and is fatal.
 
 # SYNC_SRC_COPIES maps a sync source path to its newline-separated copy paths.
+# SYNC_SCRIPT_SRC maps a sync script to its newline-separated source paths.
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
-build_sync_map() {
-  local script src pattern match line kind value rc errfile outfile
-  local has_src_key has_copy_key
-  local -a patterns=()
+# register_sync_block <script> <src> <has-copy-key> [<copy pattern>...]
+register_sync_block() {
+  local script="$1" src="$2" has_copy_key="$3" pattern match
+  shift 3
   local -a expanded=()
+  if [[ -z "$src" ]]; then
+    echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
+    echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
+    exit 2
+  fi
+  SYNC_SCRIPT_SRC["$script"]+="$src"$'\n'
+  # A src with NO copy key at all is a canonical-only cluster: the lib has
+  # landed and no plugin carries it yet. That is not the rot the zero-yield
+  # guard below catches (copy patterns declared, none matching anything), so
+  # it registers with an empty copy set and R5/R6 resolve to the src alone.
+  if ((has_copy_key == 0)); then
+    SYNC_SRC_COPIES["$src"]=""
+    return 0
+  fi
+  for pattern in "$@"; do
+    if [[ -e "$pattern" ]]; then
+      expanded+=("$pattern")
+      continue
+    fi
+    # shellcheck disable=SC2086 # a manifest entry may still be a glob;
+    # splitting is the expansion, and no path in this repo contains whitespace.
+    for match in $pattern; do
+      [[ -e "$match" ]] && expanded+=("$match")
+    done
+  done
+  if [[ ${#expanded[@]} -eq 0 ]]; then
+    echo "error: $script yielded ZERO copy paths for $src." >&2
+    echo "       An empty derivation is the hardcoded-list failure mode one level up: it would" >&2
+    echo "       silently stop fanning a shared-lib change out to its carrying plugins." >&2
+    exit 2
+  fi
+  printf -v SYNC_SRC_COPIES["$src"] '%s\n' "${expanded[@]}"
+}
+
+build_sync_map() {
+  local script line kind value rc errfile outfile i
+  local -a block_src=() block_has_copy=() block_patterns=() patterns=()
   outfile="$WORK_DIR/print-manifest.out"
   errfile="$WORK_DIR/print-manifest.err"
   for script in scripts/sync-*.sh; do
@@ -522,10 +561,11 @@ build_sync_map() {
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
-    src=""
-    has_src_key=0
-    has_copy_key=0
-    patterns=()
+    # Each src line opens a block; a copy line before any src opens one with an
+    # empty src, which register_sync_block rejects as half a manifest.
+    block_src=()
+    block_has_copy=()
+    block_patterns=()
     while IFS= read -r line || [[ -n "$line" ]]; do
       kind="${line%%$'\t'*}"
       if [[ "$kind" == "$line" ]]; then
@@ -535,12 +575,19 @@ build_sync_map() {
       fi
       case "$kind" in
       src)
-        has_src_key=1
-        src="$value"
+        block_src+=("$value")
+        block_has_copy+=(0)
+        block_patterns+=("")
         ;;
       copy)
-        has_copy_key=1
-        patterns+=("$value")
+        if [[ ${#block_src[@]} -eq 0 ]]; then
+          block_src+=("")
+          block_has_copy+=(0)
+          block_patterns+=("")
+        fi
+        i=$((${#block_src[@]} - 1))
+        block_has_copy[i]=1
+        block_patterns[i]+="$value"$'\n'
         ;;
       *) ;;
       esac
@@ -561,44 +608,15 @@ build_sync_map() {
     # Hard-exiting on it would be a repo-wide outage: this suite runs in the
     # plugin-gate lane, so the first future `scripts/sync-something.sh` that is
     # not a manifest would turn a REQUIRED check red for every PR, including
-    # ones that never touch this tool. Half a manifest is still fatal.
-    if ((has_src_key == 0 && has_copy_key == 0)); then
-      continue
-    fi
-    if [[ -z "$src" ]]; then
-      echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
-      echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
-      exit 2
-    fi
-    # A src with NO copy key at all is a canonical-only cluster: the lib has
-    # landed and no plugin carries it yet. That is not the rot the zero-yield
-    # guard below catches (copy patterns declared, none matching anything), so
-    # it registers with an empty copy set and R5/R6 resolve to the src alone.
-    if ((has_copy_key == 0)); then
-      SYNC_SCRIPT_SRC["$script"]="$src"
-      SYNC_SRC_COPIES["$src"]=""
-      continue
-    fi
-    expanded=()
-    for pattern in ${patterns[@]+"${patterns[@]}"}; do
-      if [[ -e "$pattern" ]]; then
-        expanded+=("$pattern")
-        continue
-      fi
-      # shellcheck disable=SC2086 # a manifest entry may still be a glob;
-      # splitting is the expansion, and no path in this repo contains whitespace.
-      for match in $pattern; do
-        [[ -e "$match" ]] && expanded+=("$match")
-      done
+    # ones that never touch this tool. Such a script opens no block, so the
+    # loop below registers nothing for it. Half a manifest is still fatal.
+    for i in "${!block_src[@]}"; do
+      patterns=()
+      while IFS= read -r line; do
+        [[ -z "$line" ]] || patterns+=("$line")
+      done <<<"${block_patterns[i]}"
+      register_sync_block "$script" "${block_src[i]}" "${block_has_copy[i]}" ${patterns[@]+"${patterns[@]}"}
     done
-    if [[ ${#expanded[@]} -eq 0 ]]; then
-      echo "error: $script yielded ZERO copy paths for $src." >&2
-      echo "       An empty derivation is the hardcoded-list failure mode one level up: it would" >&2
-      echo "       silently stop fanning a shared-lib change out to its carrying plugins." >&2
-      exit 2
-    fi
-    SYNC_SCRIPT_SRC["$script"]="$src"
-    printf -v SYNC_SRC_COPIES["$src"] '%s\n' "${expanded[@]}"
   done
   if [[ ${#SYNC_SCRIPT_SRC[@]} -eq 0 ]]; then
     echo "error: no scripts/sync-*.sh manifests found — shared-lib fan-out would be silently empty." >&2
@@ -891,12 +909,15 @@ select_for() {
       [[ -n "$copy" ]] && frontier+=("$copy")
     done <<<"${SYNC_SRC_COPIES[$seed]}"
   fi
-  # R6: a sync script pulls in whatever its source pulls in.
+  # R6: a sync script pulls in whatever its sources pull in.
   if [[ -n "${SYNC_SCRIPT_SRC[$seed]:-}" ]]; then
-    frontier+=("${SYNC_SCRIPT_SRC[$seed]}")
-    while IFS= read -r copy; do
-      [[ -n "$copy" ]] && frontier+=("$copy")
-    done <<<"${SYNC_SRC_COPIES[${SYNC_SCRIPT_SRC[$seed]}]:-}"
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      frontier+=("$line")
+      while IFS= read -r copy; do
+        [[ -n "$copy" ]] && frontier+=("$copy")
+      done <<<"${SYNC_SRC_COPIES[$line]:-}"
+    done <<<"${SYNC_SCRIPT_SRC[$seed]}"
   fi
 
   while [[ ${#frontier[@]} -gt 0 ]]; do

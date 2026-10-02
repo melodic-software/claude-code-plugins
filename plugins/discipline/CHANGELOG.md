@@ -5,6 +5,20 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.16.2] - 2026-10-02
+
+### Fixed
+
+- `sweep-all` points at the sub-agents page for the concurrent subagent limit instead of
+  quoting its default.
+
+## [0.16.1] - 2026-10-02
+
+### Changed
+
+- `wait-what` names `education:explain` and `adhd:clarify` in its boundaries and says when to
+  pick each.
+
 ## [0.16.0] - 2026-10-02
 
 ### Changed

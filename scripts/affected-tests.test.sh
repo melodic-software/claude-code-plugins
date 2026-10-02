@@ -25,7 +25,7 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 
 # The builder assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-vars here is what tells it (SC2154) the names are written.
-repo="" repo_renamed="" repo2="" repo3="" repo_merge="" shimdir=""
+repo="" repo_renamed="" repo_multi="" repo2="" repo3="" repo_merge="" shimdir=""
 
 # write_print_manifest <dest> <src> <copies-glob>
 # A fixture sync script that publishes via --print-manifest. The glob is
@@ -780,6 +780,25 @@ else
   fail "renamed-variable publisher should still fan out (rc=$RC): $OUT"
 fi
 rm -rf "$repo_renamed"
+
+# --- a publisher with several src blocks fans each one out ------------------
+# scripts/sync-shared-copies.sh publishes one block per canonical. The widget
+# block comes first, so a reader that keeps only the last src misses it.
+mk_repo repo_multi
+printf 'other() { :; }\n' >"$repo_multi/lib/other.sh"
+printf 'other() { :; }\n' >"$repo_multi/plugins/alpha/hooks/other.sh"
+printf '#!/usr/bin/env bash\nprintf "src\\tlib/widget.sh\\ncopy\\tplugins/alpha/hooks/widget.sh\\ncopy\\tplugins/beta/hooks/widget.sh\\nsrc\\tlib/other.sh\\ncopy\\tplugins/alpha/hooks/other.sh\\n"\n' \
+  >"$repo_multi/scripts/sync-widget.sh"
+run_sel "$repo_multi" --print-fanout lib/widget.sh
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" plugins/alpha/hooks/widget.sh &&
+  has_line "$OUT" plugins/beta/hooks/widget.sh &&
+  ! contains "$OUT" other.sh; then
+  ok "each src block in one manifest fans out to its own copies"
+else
+  fail "a multi-block manifest should fan out its first block (rc=$RC): $OUT"
+fi
+rm -rf "$repo_multi"
 
 # The consumer must not scrape src=/copies=( source text. The old helpers
 # (`manifest_src`, a `/^src=/` awk, a `/^copies=(/` grep) are the scrape.

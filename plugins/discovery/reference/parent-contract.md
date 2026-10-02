@@ -544,9 +544,9 @@ environment variable, so it is a cost defect in a worker definition.
 *Decision.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may
 not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
-[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (a consequential
-verdict runs at the session-model tier or above) and "Effort tiers" (consequential-output lanes
-pin `high`; the pinned-agents record). *As of:* 2026-10-01. *Recheck trigger:* an edit to the
+[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
+in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
+record). *As of:* 2026-10-02. *Recheck trigger:* an edit to the
 philosophy's tier rule, lane rule, or pinned-agents record.
 
 ### A turn-limit stop returns partial output, and the parent can resume the agent

@@ -110,8 +110,28 @@ def _q(path: Path) -> str:
     return shlex.quote(path.as_posix())
 
 
-def install_command(target: Path) -> str:
-    """One shell line that rebuilds `target` from the committed lockfile."""
+def _ps_q(path: Path) -> str:
+    return "'" + str(path).replace("'", "''") + "'"
+
+
+def install_command(target: Path, platform: str = sys.platform) -> str:
+    """One shell line that rebuilds `target` from the committed lockfile.
+
+    POSIX shell elsewhere; Windows PowerShell 5.1 on win32, which has no `&&`.
+    There it names `npm.cmd`: bare `npm` resolves to `npm.ps1`, which the
+    default Restricted execution policy refuses to run.
+    """
+    flags = " ".join(NPM_CI_ARGS[1:])
+    if platform == "win32":
+        q = _ps_q
+        sources = ", ".join(q(JS_DIR / m) for m in MANIFESTS)
+        return (
+            "$ErrorActionPreference = 'Stop'; "
+            f"Remove-Item -LiteralPath {q(target)} -Recurse -Force -ErrorAction SilentlyContinue; "
+            f"New-Item -ItemType Directory -Force -Path {q(target)} | Out-Null; "
+            f"Copy-Item -LiteralPath {sources} -Destination {q(target)}; "
+            f"npm.cmd {NPM_CI_ARGS[0]} --prefix {q(target)} {flags}"
+        )
     q = _q
     sources = " ".join(q(JS_DIR / m) for m in MANIFESTS)
     return (

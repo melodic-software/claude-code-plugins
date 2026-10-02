@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [0.25.28] - 2026-10-02
+
+### Changed
+
+- `parent-contract.md`'s verdict-lane record points at the verdict rule in the plugin philosophy's
+  "Model tiers" ladder instead of restating the retired session-tier rule.
+
+## [0.25.27] - 2026-10-02
+
+### Fixed
+
+- `setup` adds a pointer, as-of date and recheck trigger to the spawn-depth windows.
+
 ## [0.25.26] - 2026-10-01
 
 ### Changed
