@@ -58,6 +58,21 @@
         "If a data source is empty or absent, the response notes it as expected/first-run rather than erroring out",
         "The response does not fabricate metric values for a source that has no data"
       ]
+    },
+    {
+      "id": 6,
+      "name": "two-session-compare",
+      "prompt": "/claude-ops:observability compare 3f2a9c1e-opus 7b4d0e2f-sonnet  (the same task, run once on each model)",
+      "expected_output": "Runs the compare action read-only: tokens by type with cache writes as their own type, split by model and effort, plus a cost reconciliation of each session's api_request totals against claude_code.cost.usage, with the metric as the total of record and anthropics/claude-code#98193 named when events fall short. The context line links the monitoring-usage docs first and the post's 'Measure it yourself' section as a correlate, with no task count. When the store is absent, a session is missing, or a metric is not delta, it reports that it cannot evaluate instead of inventing numbers.",
+      "files": [],
+      "expectations": [
+        "The response runs or describes the compare action rather than a scope report",
+        "Cache creation tokens are reported as their own type, not folded into input",
+        "Token rows are split by model and by effort",
+        "api_request cost is reconciled against claude_code.cost.usage, with the metric as the total of record and #98193 named for a shortfall",
+        "The response links the monitoring-usage docs, links the post section only as a correlate, and states no task count",
+        "No telemetry store or file is written or modified"
+      ]
     }
   ]
 }

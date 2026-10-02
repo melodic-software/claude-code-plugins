@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.82.0] - 2026-10-01
+
+### Added
+
+- **`/claude-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+
 ## [0.81.0] - 2026-10-01
 
 ### Added

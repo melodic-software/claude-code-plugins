@@ -263,7 +263,7 @@ Model: sonnet, through `scoped-implementer`.
 - The verifier's verdict line for the sonnet-5-5-guide artifact reports row 7 PASS.
 - Changelog parity: the four single-mode calls each exit 0.
 
-### Phase 4: Observability `compare` action (TDD) [TODO]
+### Phase 4: Observability `compare` action (TDD) [DONE]
 
 Model: opus (new SQL and reconciliation logic). Runs in parallel with Phase 5. Design in `design/design-resolution.md`.
 
