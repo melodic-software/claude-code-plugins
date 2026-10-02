@@ -12,8 +12,8 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 4. **Resolve the roster.** Run the discovery recipe in `leaf-roster.md` to get the slice list.
 5. **Leaf fan-out.** If the gate failed, take the coverage-parity fallback. Otherwise:
    - **Roles.** When `/multi-agent:route` resolves in this session, invoke it as `/multi-agent:route all session=<this session's model alias>` and keep the `roles` object of the JSON it prints. When it does not resolve, omit `args.roles`, and say once in the report that enabling the multi-agent plugin makes this routing configurable; the workflow's built-in fallbacks then apply.
-   - **Launch** `Workflow({ name: "review:fanout-sweep", args: { diffBase, slices, roles, maxConcurrent } })`: `diffBase` is the step-2 base, `slices` the step-4 slice names, `roles` the map above, and `maxConcurrent` is optional (the workflow's default applies when omitted).
-   - The workflow returns `records`, `raw`, `nulls` and `ran`. A returned `error` (missing or bad `diffBase`) means nothing was dispatched: fix the input and launch again.
+   - **Launch** `Workflow({ name: "review:fanout-sweep", args: { diffBase, slices, roles, maxConcurrent } })`: `diffBase` is the step-2 base, `slices` the step-4 slice names, `roles` the map above, and `maxConcurrent` an optional integer wave size (clamped to 1-16, default 4).
+   - The workflow returns `diffBase`, `records`, `raw`, `nulls`, `ran` and `roles` (the variants it used). An `error` return (`missing-diff-base` or `bad-diff-base`, with a `next` hint) means nothing was dispatched: fix the input and launch again.
 6. **Normalize main-thread.** Gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. Reconcile per surface against the Workflow's `raw` array: any surface whose raw output is non-empty but yielded zero extracted records gets Stage 0 re-run main-thread on that raw text; whatever still fails to parse goes verbatim into `## Unparsed`. Partial extraction never silently drops a surface.
 7. **Persist** per `findings-file-shape.md` "Findings-writer contract"; prepend the DEGRADED block when the fallback was taken.
 
@@ -25,7 +25,7 @@ The Workflow tool is not present in every session: a user or organization can tu
 
 If availability cannot be positively confirmed, fall back (fail-safe, not fail-open).
 
-**Null reconciliation:** the workflow returns `nulls` (every leaf that produced no record, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line in the form `Ran: [...]. Returned no result: [...]`, with NO silent caps. Every null is named.
+**Null reconciliation:** the workflow returns `nulls` (every leaf whose agent returned no result, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line in the form `Ran: [...]. Returned no result: [...]`, with NO silent caps. Every null is named.
 
 ## Coverage-parity fallback (Workflows unavailable)
 

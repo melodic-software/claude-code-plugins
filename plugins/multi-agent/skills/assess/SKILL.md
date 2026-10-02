@@ -41,14 +41,12 @@ close rather than recalling it:
    ${CLAUDE_SKILL_DIR}/scripts/workflow-availability.sh
    ```
 
-   It reads the switches that turn workflows off (the
-   `CLAUDE_CODE_DISABLE_WORKFLOWS` variable and `disableWorkflows` in the
-   user, project and local settings files) and prints `verdict off` or
+   It reads the off switches the script knows and prints `verdict off` or
    `verdict not-off`. Then look at the tools you can call right now: workflows
    are available only when the verdict is `not-off` **and** `Workflow` is one
-   of them. A name in a grant or in this text does not count. Managed settings
-   and a subagent context both remove the tool, so its absence is the check
-   that covers them. Where the switches are documented:
+   of them. A name in a grant or in this text does not count. The tool's
+   absence covers every switch the script cannot see. Where the switches are
+   documented:
    <https://code.claude.com/docs/en/workflows#turn-workflows-off> (as of
    2026-10-02; recheck when a new switch appears there). Done when you can
    say `available` or name the switch or the missing tool.
@@ -80,9 +78,8 @@ reason: <one line naming the size, the dependency shape, and any downgrade>
 
 ## Gotchas
 
-- A skill run inside a subagent does not see the Workflow tool even when
-  workflows are on, so it reports `subagent`. That is correct for that
-  context: the main session can still run the workflow.
+- When the Workflow tool is not callable here, report `subagent` even if
+  workflows are on elsewhere: the main session may still have the tool.
 - `verdict not-off` from the script is not availability. The tool check in
   step 1 is the half that decides.
 - Effort and size scale the verdict, not the topic: a review of three files is

@@ -13,7 +13,8 @@ All notable changes to the `review` plugin are documented here. Format follows
   dispatches nothing. Slice agents take the verifier role's fan-out variant and the extractor the
   retrieval role's single variant, from `/multi-agent:route` when the caller passes them, else
   from built-in fallbacks (`opus` at `high` for slices, `sonnet` at `low` for extraction). Agents
-  run in waves of `maxConcurrent`, and a thrown dispatch is retried once.
+  run in waves of `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than
+  a cap or budget error is retried once.
 
 ### Changed
 
@@ -21,7 +22,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   inline script. It passes the diff base, slices and wave cap through `args`, and the role map from
   `/multi-agent:route` when that skill resolves; without it, the workflow's fallbacks apply and the
   mode says once that enabling multi-agent makes routing configurable. `fanout` grants
-  `Workflow(review:fanout-sweep)`.
+  `Workflow` and `Workflow(review:fanout-sweep)`.
 
 ## [0.34.12] - 2026-10-02
 

@@ -3,23 +3,21 @@
 # with the invocation its skill body actually tells Claude to run.
 #
 # A Bash permission rule is matched against the literal command string, and
-# `bash` is NOT one of the wrappers Claude Code strips before matching
-# (the stripped set is timeout/time/nice/nohup/stdbuf/command/builtin/noglob).
-# So `Bash(bash <path>:*)` is interpreter-led, while a rule written without
+# `bash` is NOT one of the wrappers Claude Code strips before matching (list:
+# <https://code.claude.com/docs/en/permissions>, as of 2026-10-02; recheck when
+# that list changes). So `Bash(bash <path>:*)` is interpreter-led, while a rule written without
 # `bash` stops matching the moment the body still says `bash <path>`. Only the
 # paired form (direct invocation in the body, direct path in the rule) is both
 # non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
 # match a quoted body path, which is how one grant in this repo shipped dead.
 #
 # This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
-# convention rather than a platform limit. `${CLAUDE_PLUGIN_ROOT}` DOES
-# substitute in a plugin skill's `allowed-tools` Bash rules
-# (<https://code.claude.com/docs/en/skills>, fetched 2026-09-12: "In a plugin
-# skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and
-# `${CLAUDE_PLUGIN_DATA}` in the same two places"; upstream fixed it in
-# v2.1.0), so the older "the token is inert there" reason is stale and is not
-# why this rule exists. The reason it still holds: the docs establish
-# substitution, not that such a rule matches at runtime on every host, and this
+# convention rather than a platform limit: the skills page documents
+# `${CLAUDE_PLUGIN_ROOT}` substituting in a plugin skill's `allowed-tools`
+# (<https://code.claude.com/docs/en/skills>, as of 2026-10-02; recheck when that
+# page changes where the token substitutes). The reason the rule still holds:
+# the docs establish substitution, not that such a rule matches at runtime on
+# every host, and this
 # repo does not ship a grant on docs alone
 # (`plugins/discovery/reference/parent-contract.md`).
 #

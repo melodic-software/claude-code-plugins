@@ -2,8 +2,8 @@
 # Keys and layering: reference/config.md. A consumer layer overrides per key.
 #
 # model: an alias (opus, sonnet, haiku, fable, best) or `inherit`. `inherit`
-#   means a workflow omits opts.model on a generic agent() call, so the agent
-#   runs on the session's model.
+#   means a workflow omits opts.model on a generic agent() call
+#   (reference/config.md).
 # effort: low | medium | high | xhigh | max. Always passed explicitly.
 # pointer*, as_of, recheck: where the default's basis lives, read by
 #   /multi-agent:audit-defaults. The resolver never emits them.

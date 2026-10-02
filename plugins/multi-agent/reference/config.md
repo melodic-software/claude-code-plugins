@@ -37,9 +37,13 @@ and an explicit yes.
 
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role, workload or key is reported and ignored. A full model id
-(`claude-opus-5-5`) is rejected: aliases resolve per provider, so a role map
-written with aliases stays portable. `inherit` means the calling workflow omits
-`opts.model`, so the agent runs on the session model.
+(`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
+`inherit` means the calling workflow omits `opts.model`. For what an alias
+resolves to per provider, see
+[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
+for the model an agent with no `model` runs on, see
+[workflows: cost](https://code.claude.com/docs/en/workflows#cost). Both as of
+2026-10-02; recheck when either section changes.
 
 `pointer*`, `as_of` and `recheck` record where each bundled default's basis
 lives. They are read from the bundled layer only, by

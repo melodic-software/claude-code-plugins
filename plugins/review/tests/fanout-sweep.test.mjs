@@ -11,7 +11,7 @@ const source = readFileSync(join(here, '..', 'workflows', 'fanout-sweep.js'), 'u
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// The runtime forbids these because they break resume; so does the test.
+// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }

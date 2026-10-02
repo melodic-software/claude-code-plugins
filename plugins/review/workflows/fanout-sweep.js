@@ -59,15 +59,14 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stages on opus)')
 
-// `inherit` omits opts.model so the agent runs on the session model. Effort is
-// always explicit.
+// `inherit` omits opts.model. Effort is always explicit.
 function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
 }
 
-// One retry for a thrown dispatch. A null (the user skipped the agent, or a
-// terminal API error the runtime already retried) is final. Cap and budget
-// errors stop the run.
+// Our rule: one retry for a thrown dispatch, a null result is final, and an
+// error naming a cap or budget is rethrown without a retry. For agent()'s
+// null and error contract, see the bundled /workflow-authoring skill.
 async function agentRetry(prompt, o) {
   for (let attempt = 1; ; attempt++) {
     try {

@@ -15,14 +15,19 @@ only shared statement. Two failure modes followed:
 - The answers drift apart, because each copy is edited on its own schedule and the upstream
   guidance (the workflows page, the bundled `/workflow-authoring` skill, the model cost page) moves
   with each model generation.
-- A frontier session fans out on its own model. A generic `agent()` call with no `model` inherits
-  the session model, so a Fable session running a workflow spawns many Fable agents. The owner's
-  requirement is that a stage running more than one agent never does that by default.
+- A frontier session fans out on its own model: a generic `agent()` call that names no model runs
+  on the session model ([workflows: cost](https://code.claude.com/docs/en/workflows#cost)), so a
+  Fable session running a workflow spawns many Fable agents. The owner's requirement is that a
+  stage running more than one agent never does that by default.
 
-Claude Code runs plugin workflows by namespace with structured `args` (`/<plugin>:<name>`), and
-Anthropic's `claude-security` plugin launches its scan workflow that way from a skill that grants
-`Workflow(claude-security:scan)`. A workflow script cannot read files or see the session model, so
-whatever routing it applies has to arrive in `args`.
+Plugin workflows run by namespace and take input through `args`
+([workflows: distribute a workflow in a plugin](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin)
+and [pass input to a saved workflow](https://code.claude.com/docs/en/workflows#pass-input-to-a-saved-workflow)),
+and Anthropic's `claude-security` plugin launches its scan workflow that way from a skill that
+grants `Workflow(claude-security:scan)`. A script has no filesystem access
+([workflows: behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)),
+so whatever routing it applies has to arrive in `args`. These pointers are as of 2026-10-02;
+recheck when the workflows page changes how a script gets its model or its input.
 
 ## Decision
 
