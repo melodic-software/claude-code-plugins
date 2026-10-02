@@ -286,10 +286,116 @@ class TestBindingQuery(unittest.TestCase):
         self.assertIsNone(self.reader.binding("var =;", 0, 6, "x", 0))
 
 
+class TestWritesQuery(unittest.TestCase):
+    """The helper's `writes` op: write references and possible mutations
+    read from the AST."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _writes(self, src: str, at: str = "pY=[", name: str = "pY") -> dict | None:
+        return self.reader.writes(src, 0, len(src), name, src.index(at))
+
+    def _kinds(self, src: str, field: str) -> list[tuple[str, str]]:
+        """Each entry's kind with the source text from its offset on."""
+        got = self._writes(src)
+        assert got is not None
+        return [(kind, src[w : w + 8]) for kind, w, _ in got[field]]
+
+    def test_each_write_reference_has_its_kind(self) -> None:
+        src = (
+            "var pY=[1];pY=[2];pY+=[3];pY++;[pY]=[4];({a:pY}=o);"
+            "for(pY of z);function f(){pY=[5]}"
+        )
+        self.assertEqual(
+            [k for k, _ in self._kinds(src, "writes")],
+            [
+                "init",
+                "assign",
+                "compound",
+                "update",
+                "destructure",
+                "destructure",
+                "for-in-of",
+                "assign",
+            ],
+        )
+        got = self._writes(src)
+        assert got is not None
+        self.assertEqual([top for _, _, top in got["writes"]][-2:], [True, False])
+
+    def test_each_possible_mutation_has_its_kind(self) -> None:
+        src = (
+            "var pY=[1];pY.size=0;delete pY.x;pY.a.b++;pY.push(2);pY[0].sort();"
+            "Object.assign(pY,{});g(pY);new G(pY);t`${pY}`;pY[k]();"
+            "pY.map(f);f(...pY);pY();x=pY.length;"
+        )
+        self.assertEqual(
+            self._kinds(src, "mutations"),
+            [
+                ("member-write", "pY.size="),
+                ("member-delete", "pY.x;pY."),
+                ("member-write", "pY.a.b++"),
+                ("method-call", "pY.push("),
+                ("method-call", "pY[0].so"),
+                ("object-assign", "pY,{});g"),
+                ("call-argument", "pY);new "),
+                ("call-argument", "pY);t`${"),
+                ("call-argument", "pY}`;pY["),
+                ("method-call", "pY[k]();"),
+            ],
+        )
+
+    def test_text_in_strings_and_comments_is_no_reference(self) -> None:
+        src = 'var pY=[1];var s="let pY;pY=[2];pY.push(3)";/*pY=[4]*/`pY=[5]`;'
+        self.assertEqual(
+            self._writes(src),
+            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+        )
+
+    def test_declares_is_only_a_plain_declarator(self) -> None:
+        for src, at, declares in (
+            ("var pY=[1];", "pY=[", True),
+            ("let a,pY=[1];", "pY=[", True),
+            ("var pY;pY=[1];", "pY=[", False),
+            ("var{pY}=o;", "pY}", False),
+            ("pY=[1];", "pY=[", False),
+        ):
+            with self.subTest(src=src):
+                got = self._writes(src, at)
+                self.assertEqual(got is not None and got["declares"], declares)
+
+    def test_a_shadowing_parameter_takes_its_own_writes(self) -> None:
+        src = "var pY=[1];function g(pY){pY=[2];pY.push(3)}"
+        self.assertEqual(
+            self._writes(src),
+            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+        )
+
+    def test_offsets_are_positions_in_the_whole_source(self) -> None:
+        pad = "var zz=1;\n// @bun\n"
+        src = pad + "var pY=[1];pY.push(2);"
+        got = self.reader.writes(src, len(pad) - 8, len(src), "pY", src.index("pY=["))
+        assert got is not None
+        self.assertEqual(
+            got["mutations"], [("method-call", src.index("pY.push"), True)]
+        )
+
+    def test_a_direct_eval_or_an_unparsable_module_answers_nothing(self) -> None:
+        self.assertIsNone(self._writes('var pY=[1];function e(){eval("")}'))
+        self.assertIsNone(self.reader.writes("var =;", 0, 6, "x", 0))
+
+
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
 
     lookups = 0
+    write_lookups = 0
 
     def __init__(self) -> None:
         self.parsed = 0

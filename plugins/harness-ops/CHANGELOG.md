@@ -3,6 +3,34 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
+  `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
+  a write (init, assign, compound, update, destructure, for-in-of) and every read that may change
+  the value: a member write or `delete`, a call of a mutating method (`push`, `splice`, `unshift`,
+  `pop`, `shift`, `sort`, `reverse`, `fill`, `copyWithin`, `set`, `add`, `delete`, `clear`, or a
+  computed name), `Object.assign(x, ...)`, and any call, `new` or tagged template that receives
+  the variable as an argument. Each comes with its kind and offset. A module that calls `eval`
+  directly answers nothing. Under the parser, `_written_elsewhere` (the spread check) and the
+  check for a reassigned parameter use it instead of the regex search, and
+  `reader.write_lookups` counts the lookups. `--reader=regex` is unchanged and stays the default.
+
+### Fixed
+
+- Under `--reader=parser`, a spread of an array the code mutates reads as partial instead of the
+  initializer (finding 3 on #5640): `var pY=[...];pY.push("B")`, `pY.length=0`, `g(pY)` and the
+  other shapes above.
+- Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
+  partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
+- Under `--reader=parser`, assignment text inside a string or comment is no write:
+  `var pY=[...];var s="let pY;pY=[\"B\"]"` keeps `...pY` literal.
+- Under `--reader=parser`, a nested function's own parameter of the same name no longer counts as
+  reassigning the outer parameter, so the bound argument stands:
+  `function ff(x){function h(x){x=1}return x}` called as `ff("REAL")` reads `REAL`.
+
 ## [2.1.0] - 2026-10-02
 
 ### Added

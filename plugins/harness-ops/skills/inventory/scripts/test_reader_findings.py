@@ -27,7 +27,7 @@ import unittest
 
 import inventory as inv
 import parser_reader as pr
-from test_inventory import AGENT_SRC
+from test_inventory import AGENT_SRC, _tool
 from test_parser_reader import _require_live
 
 # AGENT_SRC binds xt="Edit", yt="Agent".
@@ -85,64 +85,122 @@ class TestOpenFindings(unittest.TestCase):
         with inv.use_reader(type(self).reader):
             return _probe(prelude)
 
-    # Finding 3: mutation of the spread array is not modeled, so the literal
-    # keeps the initializer. The call-argument case follows the operator
-    # decision that any call argument counts as possible mutation.
+    # Finding 3: the regex reader does not model mutation of the spread
+    # array, so the literal keeps the initializer. The parser reader counts
+    # a member write, a mutating method call, and (by the operator decision)
+    # any call the array is passed to, so the list reads as partial: fixed
+    # there.
+    #
+    # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887
 
     def test_finding_3_push(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
         self.assert_pinned(
             'var pY=[xt,"Artifact"];pY.push("B");',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
         )
 
     def test_finding_3_unshift(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
         self.assert_pinned(
             'var pY=[xt,"Artifact"];pY.unshift("B");',
             INITIAL,
             ["Agent", "B", "Edit", "Artifact"],
+            parser=PARTIAL,
         )
 
     def test_finding_3_splice(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
         self.assert_pinned(
-            'var pY=[xt,"Artifact"];pY.splice(0,1);', INITIAL, ["Agent", "Artifact"]
+            'var pY=[xt,"Artifact"];pY.splice(0,1);',
+            INITIAL,
+            ["Agent", "Artifact"],
+            parser=PARTIAL,
         )
 
     def test_finding_3_length_assignment(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
-        self.assert_pinned('var pY=[xt,"Artifact"];pY.length=0;', INITIAL, ["Agent"])
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];pY.length=0;', INITIAL, ["Agent"], parser=PARTIAL
+        )
 
     def test_finding_3_call_argument(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
         self.assert_pinned(
             'var pY=[xt,"Artifact"];function g(a){a.push("B")}g(pY);',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
         )
 
     def test_finding_3_push_in_a_called_function(self) -> None:
-        """https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887"""
         self.assert_pinned(
             'var pY=[xt,"Artifact"];function g(){pY.push("B")}g();',
             INITIAL,
             ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
         )
+
+    def test_finding_3_other_mutations(self) -> None:
+        """Every other mutation shape the parser counts. Each changes the
+        list in JavaScript, so a literal would be wrong. The regex reader
+        reads an index write as a destructuring write (`]=`) by accident."""
+        for mutation, regex in (
+            ("pY[0]=xt", PARTIAL),
+            ("pY[1]+=xt", INITIAL),
+            ("delete pY[0]", INITIAL),
+            ("[pY[0]]=[xt]", PARTIAL),
+            ("for(pY[0] of[xt]);", INITIAL),
+            ("pY.sort()", INITIAL),
+            ('pY["reverse"]()', INITIAL),
+            ("pY[k]()", INITIAL),
+            ("pY?.pop()", INITIAL),
+            ("Object.assign(pY,[xt])", INITIAL),
+            ("new G(pY)", INITIAL),
+            ("t`${pY}`", INITIAL),
+        ):
+            with self.subTest(mutation=mutation):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + mutation + ";",
+                    regex,
+                    ["(changed)"],
+                    parser=PARTIAL,
+                )
+
+    def test_a_read_that_cannot_change_the_list_keeps_it_literal(self) -> None:
+        """A non-mutating method, a property read, a spread into a call (the
+        call gets the elements, not the array) and a call of the binding
+        itself change nothing, so both readers keep the literal."""
+        for read in ("pY.map(f)", "pY.length", "f(...pY)", "f(pY.length)", "pY()"):
+            with self.subTest(read=read):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + read + ";", INITIAL, INITIAL[0]
+                )
 
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,
     ) -> None:
-        """Unresolved-only: `=>` anywhere earlier in the statement counts as
-        the binding sitting in an arrow body, so `...pY` stays partial though
-        JavaScript has a constant list; the fix reads it as a literal.
+        """Unresolved-only: the regex reader counts `=>` anywhere earlier in
+        the statement as the binding sitting in an arrow body, so `...pY`
+        stays partial though JavaScript has a constant list. The parser
+        reads the declarator, which no arrow body holds: fixed there.
         https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934863409
         """
         self.assert_pinned(
             'var f=()=>0,pY=[xt,"Artifact"];',
             PARTIAL,
-            ["Agent", "Edit", "Artifact"],
+            INITIAL[0],
+            parser=INITIAL,
+        )
+
+    def test_assignment_text_in_a_string_is_no_write(self) -> None:
+        """#5825 review: the regex reader finds `pY=[` inside the string and
+        reads the list as partial. The parser takes writes from the AST,
+        where the string holds no reference, so the literal stands.
+        https://github.com/melodic-software/claude-code-plugins/pull/5825#discussion_r4167326386
+        """
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];var s="let pY;pY=[\\"B\\"]";',
+            PARTIAL,
+            INITIAL[0],
+            parser=INITIAL,
         )
 
     # Finding 5: the regex reader's `_written_elsewhere` scans raw source for
@@ -180,6 +238,30 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(head=head):
                 prelude = 'var pY=[xt,"Artifact"];' + head + 'pY=["B"]}'
                 self.assert_pinned(prelude, PARTIAL, INITIAL[0], parser=INITIAL)
+
+    def test_a_nested_functions_own_parameter_does_not_reassign_the_outer(
+        self,
+    ) -> None:
+        """Fixed under the parser: the regex reader searches the whole body
+        for a write to `x`, so the nested `h`'s own `x=1` drops the bound
+        argument; the parser takes the outer parameter's writes, and
+        JavaScript returns `Use REAL`. A write through a closure still
+        counts under both."""
+        cases = (
+            ("function h(x){x=1}", "Use …", "Use REAL"),
+            ("function h(){x=1}", "Use …", "Use …"),
+        )
+        for nested, regex, parser in cases:
+            with self.subTest(nested=nested):
+                src = (
+                    'var Qz="Probe";function ff(x){' + nested + "return`Use ${x}`}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertEqual(_tool(src, "Probe")["description"], regex)
+                if type(self).reader is None:
+                    type(self).reader = pr.ParserReader(_require_live(self))
+                with inv.use_reader(type(self).reader):
+                    self.assertEqual(_tool(src, "Probe")["description"], parser)
 
     def test_a_direct_eval_leaves_the_module_unresolved_for_the_parser(self) -> None:
         """Known parser-only unresolved case: eslint-scope marks the scopes

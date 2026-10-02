@@ -2075,10 +2075,13 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
     `c&&(x=2)`), it sits in an expression-bodied arrow (`()=>x=2`), or any
     other code writes it, in the same block (`if(c)x=2;`), a nested block,
     or a function. A write that a nearer declaration of `ident` shadows is
-    to that local instead: under the parser reader, a write counts when the
-    parser resolves it to the binding at `pos`, so declaration-like text in
-    a string or comment shadows nothing. Finding the writes stays textual.
+    to that local instead.
+
+    Under the parser reader the AST answers (`_parsed_written_elsewhere`),
+    and a possible mutation counts as well.
     """
+    if _PARSER is not None:
+        return _parsed_written_elsewhere(src, ident, pos)
     ident_re = r"[A-Za-z_$][\w$]*"
     simple = r"(?:" + _STR + r"|[\w$.]+|\[(?:" + _STR + r'|[^\[\]"])*\])'
     chain = re.compile(
@@ -2117,17 +2120,9 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
         return braces.enclosing(d) != home_block
 
     name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
-    if _PARSER is not None:
-        home = _PARSER.binding(src, lo, hi, ident, pos)
-        if home is None:
-            return True
     for m in _write_pattern(ident).finditer(src, lo, hi):
         w = name.search(src, m.start(), m.end())
         if w is None or w.start() == pos:
-            continue
-        if _PARSER is not None:
-            if _PARSER.binding(src, lo, hi, ident, w.start()) == home:
-                return True
             continue
         if separate(w.start()):
             continue
@@ -2141,6 +2136,33 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
         ):
             return True
     return False
+
+
+def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
+    """`_written_elsewhere` from the AST: true unless `pos` names a plain
+    `var`/`let`/`const` declarator (so neither a bare assignment nor an
+    arrow body) whose variable has no other write and no possible mutation:
+    a member write or delete, a mutating method call, or being passed to
+    any call. Text in strings and comments is no reference, and a write the
+    parser resolves to another binding is that binding's. A name the parser
+    cannot answer for counts as written."""
+    assert _PARSER is not None
+    found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
+    if found is None or not found["declares"]:
+        return True
+    return bool(found["mutations"]) or any(w != pos for _, w, _ in found["writes"])
+
+
+def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
+    """Whether the function body `body` (its braces) reassigns the
+    parameter `ident`. The regex reader searches the masked body text, so a
+    nested function's own `ident` counts too; the parser reader takes the
+    parameter's write references inside the body, and a name it cannot
+    answer for counts as reassigned."""
+    if _PARSER is None:
+        return _write_pattern(ident).search(masked) is not None
+    found = _PARSER.writes(src, *_chunk_span(src, body[0]), ident, body[0])
+    return found is None or any(body[0] < w < body[1] for _, w, _ in found["writes"])
 
 
 def _function_pattern(ident: str) -> re.Pattern[str]:
@@ -2308,7 +2330,7 @@ def _resolve_chain(
                         shadow=shadow,
                         deferred=deferred,
                     ).items()
-                    if not _write_pattern(name).search(body)
+                    if not _reassigned(src, name, (fn[0], close), body)
                 },
             }
         _scan(
@@ -5605,6 +5627,7 @@ def _read_with_parser(
                 sections = extract_binary(src, meta)
             info["extract_seconds"] = round(time.perf_counter() - started, 3)
             info["binding_lookups"] = reader.lookups
+            info["write_lookups"] = reader.write_lookups
     except parser_reader.ReaderBroken as exc:
         block.update(status="broken", reason=exc.reason, remediation=exc.command)
         report["sources"]["binary"] = {
