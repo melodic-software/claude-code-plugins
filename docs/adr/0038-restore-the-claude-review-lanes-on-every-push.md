@@ -153,7 +153,9 @@ else in this repository.
 
 The operator approved trimming both lanes on 2026-10-02: "Yeah, anything here that would improve
 quality, efficiency, and accuracy, and optimize performance, I approve." and "Whatever you have to
-do, I approve it." This narrows decisions 2 and 4.
+do, I approve it." This narrows decisions 2 and 4. The narrowing takes effect on this repository
+with the sync that re-pins its callers to the ci-workflows tag that carries it; until then the
+callers stay on v0.30.1 and decisions 2 and 4 hold as written above.
 
 The reason is the concurrency limit. GitHub runs at most 60 Linux jobs at once for the org, and
 the operator will not pay to raise it. In the two peak windows measured on 2026-09-30 and
@@ -178,7 +180,11 @@ pull request started 4 jobs.
    `review / claude-review-status` and `security-review / claude-security-review-status` keep
    their names and go red, naming the cause, when no review happened; a review that was not needed
    is green. `review / review` and `security-review / security-review` no longer report. Decision 5
-   still holds: only `ci-status` is required.
+   still holds: only `ci-status` is required. The disabled `security-review-gate` org ruleset in
+   melodic-software/github-iac (`OrgRulesets.cs`, scoped to this repository by
+   `requires-security-review`) still names `security-review / security-review`. Retarget it to
+   `security-review / claude-security-review-status` before anyone enables it, or every pull
+   request here waits on a check that never reports.
 4. **Timeouts follow measured durations.** The code-review job stops at 13 minutes (was 15) and the
    security-review job at 16 (was 25), from 407 and 428 successful jobs on this repository.
 
