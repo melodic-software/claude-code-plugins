@@ -48,8 +48,8 @@ temporary.
 
 Each example lane's level is our choice for the work the lane does. `work`, `work-2` and `decide`
 pin `high`: they render verdicts, the worker lanes' fail-closed admission verdict and `decide`'s
-decisions. `babysit` pins `medium`: the merge lane's work is mechanical, so it sits one level
-below the verdict lanes. A pinned lane does not follow a later change to its model's default level.
+decisions. `babysit` pins `medium`: the merge lane's root coordinates, partitioning the rungs and
+handing the fixing to workers, so it sits one level below the verdict lanes. A pinned lane does not follow a later change to its model's default level.
 
 - **Pointer**: for choosing a level, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).

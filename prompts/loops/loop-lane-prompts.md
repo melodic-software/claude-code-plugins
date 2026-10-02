@@ -428,8 +428,9 @@ work against each level's "When to use it" text in
 [Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
 A lane that renders a verdict, such as the worker lane's admission verdict or
 the attended queue's decisions, takes the level whose text names work where
-verification matters. A mechanical lane, such as the merge lane, passes the
-launching model's default level explicitly, so it does not follow a later
+verification matters. A coordinating lane, such as the merge lane, whose root
+partitions the rungs and hands the fixing to workers, passes the launching
+model's default level explicitly, so it does not follow a later
 change to that default. Code and verification work never runs below `medium`.
 The lanes config sets the level per lane (`lanes[].effort`), and the launcher
 refuses a lane that names none.
