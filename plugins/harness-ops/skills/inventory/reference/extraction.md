@@ -571,6 +571,6 @@ and, with `--docs`, both fetches. On 2.1.285 with the agent and tool lanes, abou
 that opens with a lookbehind loses the regex engine's literal-prefix scan, and at about 0.2 seconds
 per lookup it tripled the run. The file is opened read-only and never executed.
 
-The parser reader, the default, adds parsing every module (about 4 seconds) and its lookups: on
-2.1.284 to 2.1.287 under WSL2, about 26 to 27 seconds wall clock for `--binary-only` against 21
+The parser reader, the default, adds parsing every module (about 6 seconds, with the prototype check) and its lookups: on
+2.1.284 to 2.1.287 under WSL2, about 29 to 32 seconds wall clock for `--binary-only` against 21
 for `--reader=regex`, after a first run that installs the packages.
