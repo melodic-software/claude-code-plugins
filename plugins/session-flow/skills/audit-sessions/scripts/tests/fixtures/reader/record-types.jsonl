@@ -1,0 +1,17 @@
+{"type": "user", "uuid": "r-01", "promptSource": "typed", "message": {"role": "user", "content": "Rename the widget"}}
+{"type": "assistant", "uuid": "r-02", "message": {"id": "msg_1", "role": "assistant", "model": "model-x", "usage": {"input_tokens": 1, "output_tokens": 2}}}
+{"type": "system", "uuid": "r-03", "subtype": "turn_duration", "durationMs": 1000}
+{"type": "attachment", "uuid": "r-04", "attachment": {"type": "edited_text_file"}}
+{"type": "progress", "uuid": "r-05"}
+{"type": "queue-operation", "operation": "enqueue"}
+{"type": "last-prompt", "lastPrompt": "Rename the widget"}
+{"type": "custom-title", "customTitle": "widget work"}
+{"type": "agent-name", "agentName": "worker"}
+{"type": "pr-link", "prRepository": "example/repo", "prNumber": 1}
+{"type": "worktree-state", "worktreeSession": {"worktreeBranch": "feat/widget"}}
+{"type": "permission-mode", "permissionMode": "default"}
+{"type": "file-history-snapshot", "messageId": "msg_1"}
+{"type": "future-record-kind", "uuid": "r-14"}
+{"type": "another-new-kind"}
+{"type": "future-record-kind", "uuid": "r-16"}
+{"uuid": "r-17"}

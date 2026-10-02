@@ -3,13 +3,24 @@
 
 Public interface:
 
-- `iter_records(path, stats)` streams the JSON object on each line of a transcript file. Malformed
-  lines are counted in `stats["bad_lines"]`, never raised.
+- `iter_records(path, stats=None)` streams the JSON object on each line of a transcript file, read
+  as UTF-8 with undecodable bytes replaced, CRLF or LF. It never raises on content. It adds to the
+  integer counters in `stats`: `records` (objects yielded), `bad_lines` (lines that are not a JSON
+  object), `incomplete` (an unterminated final line that does not parse: a session still being
+  written, not a bad line) and `unknown` (records whose `record_kind` is `unknown`).
+- `record_kind(record)` is the record's `type` when it is one of `RECORD_TYPES`, else `unknown`.
 - `UsageLedger` holds one usage per assistant message: streaming writes one message as several
   records, so usage is keyed by `message.id` (fallback: record `uuid`) and the last record wins.
-  Summing per record double-counts tokens.
-- `is_typed_turn(record)` is true only for a user record the human typed, as opposed to tool
-  results, meta records, slash-command output and injected notices, which outnumber typed turns.
+  Summing per record double-counts tokens. `add(record)`, then `totals()` gives `TOKEN_FIELDS`
+  plus `unique_messages`. Non-integer counts read as 0.
+- `is_typed_turn(record)` is true only for a user record the human typed: not a tool result, not
+  meta, compact-summary or transcript-only, `origin.kind` absent or `human`, `promptSource` absent
+  or in `TYPED_PROMPT_SOURCES`, not an interrupt, and not starting with an `INJECTED_PREFIXES`
+  entry. Injected records outnumber typed turns.
+- `iter_subagents(main_path)` yields a `Subagent(path, meta)` for each
+  `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
+  parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
+  Stream each `path` through `iter_records`.
 
 Callers put this directory on `sys.path` and `import transcript_reader`. Stdlib only; Python 3.10+.
 """
@@ -20,6 +31,7 @@ import json
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 
 TOKEN_FIELDS = (
     "input",
@@ -54,9 +66,34 @@ INJECTED_PREFIXES = (
 )
 INTERRUPT_RE = re.compile(r"^\[Request interrupted by user( for tool use)?\]")
 TYPED_PROMPT_SOURCES = {"typed", "queued"}
+RECORD_TYPES = frozenset(
+    {
+        "user",
+        "assistant",
+        "system",
+        "attachment",
+        "progress",
+        "queue-operation",
+        "last-prompt",
+        "custom-title",
+        "agent-name",
+        "pr-link",
+        "worktree-state",
+        "permission-mode",
+        "file-history-snapshot",
+    }
+)
+
+
+def record_kind(record: dict) -> str:
+    kind = record.get("type")
+    return kind if isinstance(kind, str) and kind in RECORD_TYPES else "unknown"
 
 
 def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[dict]:
+    counts = stats if stats is not None else {}
+    for key in ("records", "bad_lines", "incomplete", "unknown"):
+        counts.setdefault(key, 0)
     with Path(path).open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             if not line.strip():
@@ -66,23 +103,46 @@ def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[di
             except json.JSONDecodeError:
                 record = None
             if not isinstance(record, dict):
-                if stats is not None:
-                    stats["bad_lines"] = stats.get("bad_lines", 0) + 1
+                # Only the last line can lack its newline: a session still being written.
+                counts["bad_lines" if line.endswith("\n") else "incomplete"] += 1
                 continue
-            if stats is not None:
-                stats["records"] = stats.get("records", 0) + 1
+            counts["records"] += 1
+            if record_kind(record) == "unknown":
+                counts["unknown"] += 1
             yield record
 
 
+class Subagent(NamedTuple):
+    path: Path
+    meta: dict | None
+
+
+def iter_subagents(main_path: Path) -> Iterator[Subagent]:
+    for path in sorted((Path(main_path).with_suffix("") / "subagents").glob("agent-*.jsonl")):
+        try:
+            meta = json.loads(path.with_suffix(".meta.json").read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            meta = None
+        yield Subagent(path, meta if isinstance(meta, dict) else None)
+
+
+def _obj(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _count(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
 def _usage_tokens(usage: dict) -> dict[str, int]:
-    creation = usage.get("cache_creation") or {}
+    creation = _obj(usage.get("cache_creation"))
     return {
-        "input": usage.get("input_tokens") or 0,
-        "output": usage.get("output_tokens") or 0,
-        "cache_read": usage.get("cache_read_input_tokens") or 0,
-        "cache_creation": usage.get("cache_creation_input_tokens") or 0,
-        "cache_creation_1h": creation.get("ephemeral_1h_input_tokens") or 0,
-        "cache_creation_5m": creation.get("ephemeral_5m_input_tokens") or 0,
+        "input": _count(usage.get("input_tokens")),
+        "output": _count(usage.get("output_tokens")),
+        "cache_read": _count(usage.get("cache_read_input_tokens")),
+        "cache_creation": _count(usage.get("cache_creation_input_tokens")),
+        "cache_creation_1h": _count(creation.get("ephemeral_1h_input_tokens")),
+        "cache_creation_5m": _count(creation.get("ephemeral_5m_input_tokens")),
     }
 
 
@@ -91,10 +151,10 @@ class UsageLedger:
         self._by_message: dict[str, dict[str, int]] = {}
 
     def add(self, record: dict) -> None:
-        message = record.get("message") or {}
+        message = _obj(record.get("message"))
         usage = message.get("usage")
-        key = message.get("id") or record.get("uuid")
-        if not isinstance(usage, dict) or not key:
+        key = next((k for k in (message.get("id"), record.get("uuid")) if isinstance(k, str) and k), None)
+        if not isinstance(usage, dict) or key is None:
             return
         self._by_message[key] = _usage_tokens(usage)
 
@@ -105,12 +165,13 @@ class UsageLedger:
 
 
 def _user_text(record: dict) -> str | None:
-    content = (record.get("message") or {}).get("content")
+    content = _obj(record.get("message")).get("content")
     if isinstance(content, list):
         blocks = [b for b in content if isinstance(b, dict)]
         if any(b.get("type") == "tool_result" for b in blocks):
             return None
-        content = "\n".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+        texts = (b.get("text") for b in blocks if b.get("type") == "text")
+        content = "\n".join(t for t in texts if isinstance(t, str))
     return content.strip() if isinstance(content, str) else None
 
 
@@ -119,11 +180,11 @@ def is_typed_turn(record: dict) -> bool:
         return False
     if record.get("isMeta") or record.get("isCompactSummary") or record.get("isVisibleInTranscriptOnly"):
         return False
-    kind = (record.get("origin") or {}).get("kind")
+    kind = _obj(record.get("origin")).get("kind")
     if kind and kind != "human":
         return False
     source = record.get("promptSource")
-    if source and source not in TYPED_PROMPT_SOURCES:
+    if source and not (isinstance(source, str) and source in TYPED_PROMPT_SOURCES):
         return False
     text = _user_text(record)
     if not text or INTERRUPT_RE.match(text):
