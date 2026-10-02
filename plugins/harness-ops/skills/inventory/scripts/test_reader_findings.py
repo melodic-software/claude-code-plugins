@@ -323,6 +323,8 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # A compound assignment on an alias coerces the array first.
+            'var a=pY;Array.prototype.toString=function(){this.push("B");return""};a+=""',
             # A template-literal key names the method as a string does.
             "Object.defineProperty(Array.prototype,`includes`,{value:"
             + patch

@@ -539,6 +539,8 @@ class TestFlowQuery(unittest.TestCase):
         )
         self.assert_unsafe("var pY=[1];function g([a]){}g(pY);", "[a]")
         self.assert_unsafe("var pY=[1];o.g(pY);", "o.g(pY)")
+        self.assert_unsafe('var pY=[1],a=pY;a+="";', "a+=")
+        self.assert_unsafe("var pY=[1],a=pY;a++;", "a++")
 
     def test_a_return_follows_every_call(self) -> None:
         self.assert_safe("var pY=[1];function r(){return pY}r().includes(1);[...r()];")

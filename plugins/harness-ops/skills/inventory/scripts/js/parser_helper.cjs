@@ -473,6 +473,9 @@ class Flow {
     const exported = this.exportedName(v);
     if (exported) this.exit("export", exported);
     for (const r of v.references) {
+      // `a+=v` and `a++` read the array before replacing it, coercing it
+      // through built-in lookups the walk does not track there.
+      if (r.isReadWrite()) throw new Unresolved("a compound assignment or update of the array", r.identifier.start);
       if (!r.isWrite()) this.value(r.identifier);
     }
   }
