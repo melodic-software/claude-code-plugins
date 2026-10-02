@@ -344,7 +344,11 @@ class TestEventStream(BridgeCase):
             first = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
             self.addCleanup(first.close)
             first.request("GET", "/events")
-            first.getresponse().readline()
+            # Hold the response: dropping it closes the socket, which frees the slot.
+            stream = first.getresponse()
+            self.addCleanup(stream.close)
+            self.assertEqual(stream.readline(), b"retry: 2000\n")
+            self.assertEqual(self.hub.streams, 1)
             code, body, _ = self.request("GET", "/events")
         self.assertEqual(code, 503)
         self.assertIn("1 event streams", body["error"])
