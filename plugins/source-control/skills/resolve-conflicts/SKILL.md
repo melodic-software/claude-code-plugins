@@ -1,6 +1,6 @@
 ---
 description: "Resolve an in-progress merge/rebase/cherry-pick conflict by recovering both sides' intent from history before touching any hunk, composing both changes wherever possible, then sweeping for semantic conflicts the markers don't show. Use when: 'resolve conflicts', 'merge conflict', 'rebase stopped', 'CONFLICT (content)', git status shows unmerged paths, not for choosing merge vs rebase or PR lifecycle (use /pull-request), and not for ordinary commits (use /commit)."
-argument-hint: "[paths] (optional, start with specific conflicted paths; default is every unmerged path)"
+argument-hint: "[path ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -37,6 +37,9 @@ Owns HOW conflicts get resolved once an integration stops on unmerged paths, whe
 2. **`--abort` is not a resolution strategy.** A conflict is work, not an error. Abort only when the user explicitly decides to abandon the integration itself, never as an exit from a resolution that got hard, and never silently.
 
 ## Task
+
+The optional `[path ...]` argument names conflicted paths to start with. With no argument, start
+with every unmerged path. Either way, every unmerged path still ends up in the resolution table.
 
 1. **Map the stop.** Identify the operation and enumerate the complete conflict inventory up front:
    - Operation type: read the `git status` header (merge / rebase / cherry-pick / revert in progress). The counterpart ref is `MERGE_HEAD`, `REBASE_HEAD`, `CHERRY_PICK_HEAD`, or `REVERT_HEAD` respectively.

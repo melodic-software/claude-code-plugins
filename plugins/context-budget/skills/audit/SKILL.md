@@ -1,6 +1,6 @@
 ---
 description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
-argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
+argument-hint: "[--full-sweep|--tools T1,T2|--ledger|fix]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Measure the startup context payload per item and ledger every lever's real delta
 ---
 
-**Arguments.** `[--full-sweep | --tools T1,T2 | --ledger | fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
+**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
 
 ## Purpose
 

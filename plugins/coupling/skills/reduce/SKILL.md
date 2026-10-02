@@ -1,6 +1,6 @@
 ---
 description: "Iteratively reduce coupling at any altitude (documents, code modules, applications, repositories): scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped; after a value changes, find and classify every site stating it. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos', 'I changed this value everywhere'. Skip when: reviewing a diff before merge (review tools), designing one chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise or dedup pass (docs-hygiene)."
-argument-hint: "[<scope> | dry-run [<scope>] | change [apply] <old> <new> [<scope>] | status | help]"
+argument-hint: "[<scope>|dry-run [<scope>]|change [apply] <old> <new> [<scope>]|status|help]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

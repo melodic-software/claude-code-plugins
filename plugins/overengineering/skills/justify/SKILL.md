@@ -1,6 +1,6 @@
 ---
 description: "Justify one named artifact: was there a reason when it was built, and does that reason still hold. Walks one target on the evidence-earned-keep ladder. Read-only; never applies a remedy. Use when: 'justify this', 'does this need to exist', 'why is this here', 'is this still valid', 'earn its keep', 'justify the existence of'. With no target it uses the session or asks. Not for the enforcement surface (sibling audit)."
-argument-hint: "<path | path#heading | kind:identifier>"
+argument-hint: "[path|path#heading|kind:identifier]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Make one artifact you point at justify its own existence, on evidence
 ---
 
-**Arguments.** `<path | path#heading | kind:identifier>`. none: conversation context, then offered git-age discovery, then ask
+**Arguments.** `[path|path#heading|kind:identifier]`. none: conversation context, then offered git-age discovery, then ask
 
 ## Repository context. Gather first
 
