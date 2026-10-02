@@ -3,6 +3,21 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **`/instruction-placement:migrate` decides shim removal against the built-in `AGENTS.md`
+  loader.** A new step before `remove-shims` recommends dropping the `@AGENTS.md` shim only when
+  four conditions hold: no other `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` takes
+  precedence; the **Project instructions** mode reads `AGENTS.md` without a `CLAUDE.md`; the
+  built-in `agents-md` plugin is present and not disabled, read at run time from
+  `/claude-ops:inventory` and settings; and the operator confirms no unsupported session type
+  matters to the repository's users. Any condition failed or unknown keeps the shim and is named.
+  Nested shims stay under every mode where the memory page does not say when a subdirectory's
+  `AGENTS.md` loads. Nothing is removed automatically; the dated quotes are in
+  `reference/sources.md`.
+
 ## [0.16.11] - 2026-10-01
 
 ### Added
