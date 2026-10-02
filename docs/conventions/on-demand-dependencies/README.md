@@ -97,7 +97,7 @@ None.
 
 | Component | State |
 |---|---|
-| `harness-ops` inventory, `--reader=parser` (the default) / `--reader=compare` | Conforms. `skills/inventory/scripts/js/` holds the lockfile for acorn and eslint-scope; `parser_reader.py` installs into `<base>/inventory-parser/<lock hash>/`, probes the helper with `ping`, and turns every failure into a broken binary source carrying the repair command. CI installs it the same way so the parser test suites run on every pull request |
+| `harness-ops` inventory, `--reader=parser` / `--reader=compare` | Conforms. `skills/inventory/scripts/js/` holds the lockfile for acorn and eslint-scope; `parser_reader.py` installs into `<base>/inventory-parser/<lock hash>/`, probes the helper with `ping`, and turns every failure into a broken binary source carrying the repair command. CI installs it the same way so the parser test suites run on every pull request |
 
 ## Upstream facts this rests on
 

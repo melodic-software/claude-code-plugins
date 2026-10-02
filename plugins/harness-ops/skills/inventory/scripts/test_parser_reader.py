@@ -780,21 +780,22 @@ class TestInventoryReaderFlag(unittest.TestCase):
         assert src is not None
         self.assertEqual(spans, [(0, len(MARKER + BIG))])
 
-    def test_the_parser_is_the_default(self) -> None:
-        stub = _StubReader()
-        with self._stub(stub):
-            code, out = self._run("--binary-only")
-        self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out)["reader"]["name"], "parser")
-        self.assertEqual(stub.parsed, 1)
-
-    def test_the_regex_reader_stays_selectable_and_adds_no_reader_block(self) -> None:
+    def test_regex_is_the_default_and_adds_no_reader_block(self) -> None:
+        """The flip to the parser is held (#5901)."""
         with mock.patch.object(pr, "open_reader") as opened:
-            code, out = self._run("--binary-only", "--reader", "regex")
+            code, out = self._run("--binary-only")
         self.assertEqual(code, 0)
         self.assertNotIn("reader", json.loads(out))
         self.assertIn("help", json.loads(out)["builtin_commands"])
         opened.assert_not_called()
+
+    def test_the_parser_stays_selectable(self) -> None:
+        stub = _StubReader()
+        with self._stub(stub):
+            code, out = self._run("--binary-only", "--reader", "parser")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["reader"]["name"], "parser")
+        self.assertEqual(stub.parsed, 1)
 
     def test_a_broken_parser_reader_fails_closed_with_the_command(self) -> None:
         broken = pr.ReaderBroken(
