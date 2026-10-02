@@ -1,5 +1,14 @@
 # Changelog: discovery plugin
 
+## [0.26.1] - 2026-10-02
+
+### Fixed
+
+- **The `Explore` verification record lists the agent's full disallowed tools.** On Claude Code
+  2.1.288 `Explore` also disallows `Artifact`, `ArtifactComments`, `ArtifactData`,
+  `ArtifactCheck` and `ExitPlanMode`; `reference/native-explore.md` named only four tools from the
+  2.1.285 extraction.
+
 ## [0.26.0] - 2026-10-02
 
 ### Added

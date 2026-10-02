@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.1] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record lists the agent's full disallowed tools.** On Claude
+  Code 2.1.288 `Plan` also disallows `Artifact`, `ArtifactComments`, `ArtifactData` and
+  `ArtifactCheck`; `reference/native-plan-agent.md` named only five tools from the 2.1.285
+  extraction.
+
 ## [0.62.0] - 2026-10-02
 
 ### Added

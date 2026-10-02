@@ -3,6 +3,15 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.1] - 2026-10-02
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.288.** `VALIDATED_AGAINST` moves from
+  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value that differs
+  between the regex and parser readers (2167 of 2167 modules parse). The one surface change is
+  the hidden built-in `/update` command, renamed `/restart` with `update` kept as an alias.
+
 ## [2.5.0] - 2026-10-02
 
 ### Added
