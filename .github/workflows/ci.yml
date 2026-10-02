@@ -1048,10 +1048,10 @@ jobs:
         run: scripts/check-plugin-manifest-presence.sh
 
       # The cloud plugin list is derived from the catalog's defaultEnabled, and
-      # .claude/settings.json carries this repo's deltas over it. A delta that
+      # .claude/settings.json overlays its enabledPlugins keys on it. A key that
       # names no catalogued plugin silently no-ops, and .claude/cloud-
       # bootstrap.sh installs only the marketplace it hardcodes, so the gate
-      # holds the deltas to the catalog, their order, and that marketplace
+      # holds the keys to the catalog, their order, and that marketplace
       # name. Repo-wide and static, so it always runs. The self-test runs first
       # so a broken detector cannot mask a regression behind a green gate.
       - name: Test the plugin-catalog-enablement gate

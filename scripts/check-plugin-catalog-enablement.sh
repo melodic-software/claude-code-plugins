@@ -9,12 +9,13 @@
 # in the standards repository, components/cloud-environment/) derives the
 # fleet list every snapshot installs from this catalog: each entry whose
 # `defaultEnabled` is absent or `true`. .claude/cloud-bootstrap.sh reads that
-# list overlaid with .claude/settings.json, whose `enabledPlugins` block
-# carries only this repo's deltas: `false` opts out of an on-by-default
-# plugin, `true` opts in to an off-by-default one. Because the list comes from
-# the catalog, no catalogued plugin can go missing unannounced: it is on by
-# default, or the catalog records it as off. So this gate checks the deltas
-# block, not per-plugin coverage. The block does not mirror the catalog: a
+# list overlaid with .claude/settings.json, whose `enabledPlugins` block can
+# opt out (`false`) or opt in (`true`); a key matching the catalog default
+# changes nothing in the cloud and pins the plugin's state for local sessions.
+# Because the list comes from the catalog, no catalogued plugin can go missing
+# unannounced: it is on by default, or the catalog records it as off. So this
+# gate checks the block's keys, not per-plugin coverage. The block does not
+# mirror the catalog: a
 # mirror writes one project-scope install record per plugin per checkout on
 # every local session start.
 #

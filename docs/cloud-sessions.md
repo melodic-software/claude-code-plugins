@@ -383,18 +383,20 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `/opt/melodic-fleet-plugins.json`, and installs it at user scope; `cloud-bootstrap.sh` reads
   that snapshot copy overlaid with `.claude/settings.json`. **A plugin the catalog marks
   `defaultEnabled: false` is not installed in this repo's cloud sessions** unless the committed
-  block opts it in, so a regression in one surfaces in CI and local use, not here. The committed
-  `enabledPlugins` block carries only deltas: an explicit `false` opts out of an on-by-default
-  plugin, and `true` opts in to an off-by-default one. The block is project scope, so a `true`
-  key also enables that plugin in every local session in this repo. The block used to mirror the
+  block opts it in, so a regression in one surfaces in CI and local use, not here. In the
+  committed `enabledPlugins` block, an explicit `false` opts out of an on-by-default plugin, and
+  `true` opts in to an off-by-default one. The block is project scope, so every key also sets that
+  plugin's state in every local session in this repo, whatever the user's own scope says; a key
+  that matches the catalog default changes nothing in the cloud and is there for that local
+  effect. The block used to mirror the
   catalog, and a local session start in every checkout wrote one project-scope install record per
-  mirrored entry into the user's `installed_plugins.json` (#3688); the deltas-only block writes
+  mirrored entry into the user's `installed_plugins.json` (#3688); the current block writes
   none. The trade is context: every enabled plugin adds per-turn cost, so a *consumer* repo
   should opt out of what it does not need rather than copying anything wholesale. The cloud
   bootstrap provisions every tool the format/lint-on-edit hooks (`markdown-format`,
   `bash-format`, `biome-format`, `typos-format`, `actionlint`, `eol-normalizer`) shell out to.
-- The `plugin-catalog-enablement-gate` CI lane holds the deltas block to the catalog: every key
-  for this marketplace must name a catalogued plugin, since a key that names nothing silently
+- The `plugin-catalog-enablement-gate` CI lane holds the `enabledPlugins` block to the catalog:
+  every key for this marketplace must name a catalogued plugin, since a key that names nothing silently
   no-ops, and keys stay in byte order. It also checks that `cloud-bootstrap.sh`'s hardcoded
   `marketplace_name` still names the marketplace the settings file declares. The bootstrap
   selects what it installs with `endswith("@" + $n)`, so a rename that updated the settings and
@@ -407,8 +409,8 @@ catalog on, and the cloud bootstrap installs from the two together (see
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped without
   disturbing the rest. The one opt-out recorded today is `playgrounds`: its skill is a wrapper
   over the first-party `playground` plugin on `claude-plugins-official`, which the cloud bootstrap
-  does not install, so enabled here it could only ever print install commands. Off-by-default
-  plugins are not keyed here; an operator who wants one turns it on with `/plugin enable`. Two
+  does not install, so enabled here it could only ever print install commands. An off-by-default
+  plugin with no key here stays off; an operator who wants one turns it on with `/plugin enable`. Two
   of them bundle MCP servers that need `userConfig` credentials this environment has no reason to
   hold, `miro` (`miro_api_token`) and `dometrain-mcp` (`dometrain_api_key`), set with
   `/plugin configure`.
