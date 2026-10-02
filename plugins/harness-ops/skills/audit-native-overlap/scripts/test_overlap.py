@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import itertools
 import json
 import sys
 import tempfile
@@ -1932,6 +1933,18 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertIsNone(candidate["store_verdict"])
         self.assertEqual(report["discovery"]["discovered"], 1)
 
+    def test_a_name_scored_in_two_lanes_reports_the_indexed_surface(self):
+        commit = {"commit": {"name": "commit", "description": "Create a git commit"}}
+        self.write_inventory(
+            builtin_commands=commit, bundled_skills={}, builtin_agents=commit
+        )
+        [candidate] = self.discovered(self.detect()[1])
+        index = overlap.build_native_index(
+            {}, overlap._lane_payloads(json.loads(self.inventory_path.read_text()))
+        )
+        self.assertEqual(candidate["native"]["class"], index["commit"]["class"])
+        self.assertEqual(candidate["native"]["class"], "builtin-command")
+
     def test_a_high_threshold_or_zero_top_k_discovers_nothing(self):
         self.write_inventory()
         self.assertEqual(self.discovered(self.detect("--threshold", "1.01")[1]), [])
@@ -2276,6 +2289,45 @@ class BuiltinPluginSurfaceTests(unittest.TestCase):
                 self.assertEqual([s.lane for s in diff], ["builtin_plugins"])
                 index = overlap.build_native_index({}, payloads)
                 self.assertEqual(index["diff"]["lane"], "builtin_plugins")
+
+    def test_a_filtered_entry_yields_to_a_later_ordinary_lane(self) -> None:
+        payloads = overlap._lane_payloads(
+            {
+                "bundled_skills": {
+                    "diff": {"name": "diff", "description": "Diff", "internal": True}
+                },
+                "builtin_commands": {"diff": {"name": "diff", "description": "Diff"}},
+                "builtin_plugins": BUILTIN_PLUGINS,
+            }
+        )
+        [scored] = [s for s in overlap.native_surfaces(payloads) if s.name == "diff"]
+        self.assertEqual(scored.lane, "builtin_commands")
+        index = overlap.build_native_index({}, payloads)
+        self.assertEqual(index["diff"]["lane"], scored.lane)
+
+    def test_the_index_holds_the_surface_scored_first_in_every_lane_mix(
+        self,
+    ) -> None:
+        entries = {
+            "valid": [{"name": "x", "description": "X"}],
+            "internal": [{"name": "x", "description": "X", "internal": True}],
+        }
+        lanes = [lane for lane in overlap.LANE_ORDER if lane != "plugin_backed"]
+        for states in itertools.product((None, "valid", "internal"), repeat=len(lanes)):
+            present = {
+                lane: {"x": entries[state]}
+                for lane, state in zip(lanes, states, strict=True)
+                if state is not None
+            }
+            if not present:
+                continue
+            with self.subTest(
+                present={lane: s for lane, s in zip(lanes, states, strict=True) if s}
+            ):
+                index = overlap.build_native_index({}, present)
+                scored = [s for s in overlap.native_surfaces(present) if s.name == "x"]
+                expected = scored[0].lane if scored else next(iter(present))
+                self.assertEqual(index["x"]["lane"], expected)
 
     def test_an_internal_plugin_backed_name_gets_no_fallback_surface(self) -> None:
         payloads = overlap._lane_payloads(
