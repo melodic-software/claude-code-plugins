@@ -269,7 +269,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 |-------|-------------|
 | `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
-| `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is absent |
+| `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is not enabled |
 | `/work-items:decompose` (if enabled) | **After.** The intended reader of a typed artifact's `scope` and `dialect` label, which it will use to inline the artifact into the spec container with a provenance note. That reading is not implemented in decompose yet, so the label is currently inert everywhere: it is written here so the consuming change has a stable shape to land against |
 | `/discovery:explore` (if enabled) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
