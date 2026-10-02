@@ -1,6 +1,6 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 1.0.1
+Version: 2.0.0
 Last updated: 2026-10-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
@@ -75,9 +75,10 @@ install base in this order and record which rule chose it:
 ## Rule 3: fail closed with the exact command [SPEC]
 
 When `npm` is missing, the network is down, `npm ci` fails, or the installed set does not load, the
-component reports itself **broken** and prints one shell line that repairs it: remove the install
+component reports itself **broken** and prints one command line that repairs it: remove the install
 directory, recreate it, copy the two manifests in, and run `npm ci --prefix` on it with the flags
-above. When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
+above. The line is POSIX shell, except on Windows, where it is Windows PowerShell 5.1 (no `&&`,
+single quotes doubled, `npm.cmd` named because the default execution policy blocks `npm.ps1`). When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
 the report says to install Node.js and rerun instead of printing that line. It never falls back to a different implementation that could return a different
 value, and never reports a partial result as complete.
 
