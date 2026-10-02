@@ -11,7 +11,7 @@ answer.
 |---|---|
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them. `all` is the map a workflow reads from `args.roles`. |
-| `/multi-agent:audit-defaults` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. Never edits a file. |
+| `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
@@ -37,6 +37,17 @@ that enabling this plugin makes the routing configurable.
 
 `/review:fanout-sweep` in the `review` plugin is the first workflow built this
 way.
+
+## The drift-audit workflow
+
+`multi-agent:drift-audit` is the evidence pass behind `/multi-agent:audit-defaults`.
+Finders (one per default owner, or one per area of the repository) fetch the
+upstream sources and judge each claim; plain code dedups what they find; then
+three skeptics per batch try to refute each finding, and a majority decides it.
+Every stage runs as the `multi-agent:drift-auditor` agent, which can read files
+and fetch or search the web but has no shell and cannot edit, write or spawn
+agents. The workflow returns findings and, for the defaults, a proposed diff;
+applying any of it is a reviewed edit.
 
 ## The fan-out guard
 
