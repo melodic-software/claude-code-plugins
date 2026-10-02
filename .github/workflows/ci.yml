@@ -101,6 +101,16 @@ concurrency:
 # .github/workflows/test-windows.yml: nothing gates on it, and while it lived
 # here it was the longest job in the run and held this one open past its own
 # required lanes.
+#
+# EVERY JOB'S TIMEOUT IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at least
+# 3 and never above 16, from the job's measured wall: 117 pull-request and 100
+# push runs (2026-09-30 to 10-02) with the wave-one and wave-two changes taken
+# out step by step, check 25 counted in full on every pull request (the case a
+# checker change and the scheduled run pay). Job, p95 / max seconds, minutes:
+# changes 24 / 35 plus the selector (up to 21 s measured), 3; lint 184 / 211,
+# 5; lint-2 585 / 645, 15; test-linux per leg 357 / 593, 11; hook-utils
+# 299 / 312, 8; ci-status 9 / 42, 3. A job that outgrows its timeout is made
+# faster or split, not given a longer one.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.changes.outputs.*` row instead of re-running the detector, so the
@@ -154,7 +164,7 @@ jobs:
     # answered and `ci-status` carries that answer forward instead.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 3
     # The change-detection action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
     # and nowhere else. `statuses: write` is for the in-flight marker below,
@@ -513,7 +523,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 5
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -861,7 +871,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1710,7 +1720,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 11
     # ONE TO FOUR LEGS, SIZED FROM THE SELECTION. The job key does not change,
     # so `ci-status.needs` and scripts/check-lane-coverage.sh are untouched;
     # what changes is that the contract suites are partitioned across up to
@@ -2501,7 +2511,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
