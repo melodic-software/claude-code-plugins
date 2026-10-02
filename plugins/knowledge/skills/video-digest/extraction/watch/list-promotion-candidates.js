@@ -14,6 +14,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { indexSelectedFrames, readLaneJson } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import { compareTimesUntimedLast } from "../watching/timestamp-interleave.js";
 
 const MIN_CANDIDATES_PER_SESSION = 3;
 
@@ -82,7 +83,10 @@ export function listPromotionCandidates(sliceDir) {
       const extras = selection.selectedFrames
         .filter(
           (f) =>
-            f.timestampSec >= session.startSec && f.timestampSec <= end && !candidates.has(f.file),
+            Number.isFinite(f.timestampSec) &&
+            f.timestampSec >= session.startSec &&
+            f.timestampSec <= end &&
+            !candidates.has(f.file),
         )
         .sort((a, b) => b.priorityScore - a.priorityScore)
         .slice(0, MIN_CANDIDATES_PER_SESSION - inSession.length);
@@ -98,7 +102,7 @@ export function listPromotionCandidates(sliceDir) {
     }
   }
 
-  return [...candidates.values()].sort((a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0));
+  return [...candidates.values()].sort(compareTimesUntimedLast);
 }
 
 if (isMainModule(import.meta.url)) {

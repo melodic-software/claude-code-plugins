@@ -35,24 +35,10 @@ import {
  */
 
 /**
- * Assign approximate timestamps to frames by ordinal position and video duration hint.
- *
- * @param {import('@melodic/video-digestion/frames/models').FrameCandidate[]} frames
- * @param {number} [durationSec=0]
- */
-export function assignFrameTimestamps(frames, durationSec = 0) {
-  if (frames.length === 0 || durationSec <= 0) return;
-
-  const step = durationSec / frames.length;
-  for (let i = 0; i < frames.length; i++) {
-    if (frames[i].timestampSec == null) {
-      frames[i].timestampSec = Math.round(i * step * 10) / 10;
-    }
-  }
-}
-
-/**
  * Run the deterministic two-pass watching pipeline.
+ *
+ * Frames keep the times scene detection measured or estimated and the exact
+ * times anchors were extracted at; a frame with neither stays untimed (`null`).
  *
  * @param {OrchestrateWatchingOptions} options
  * @param {object} [deps]
@@ -81,8 +67,7 @@ export async function orchestrateWatching(
   const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
 
   const sceneResult = await runSceneDetect(videoPath, framesDir, {}, { log });
-  const scenePaths = sceneResult.frames.map((frame) => frame.path);
-  const sceneDedup = await runDedup(scenePaths, {}, { log });
+  const sceneDedup = await runDedup(sceneResult.frames, {}, { log });
 
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
@@ -103,25 +88,14 @@ export async function orchestrateWatching(
 
   log.info(`watching: anchor extraction starting count=${anchorTimestamps.length}`);
   const anchorFrames = await runAnchorExtract(videoPath, framesDir, anchorTimestamps, { log });
-  const mergedCandidates = mergeFrameCandidates([...sceneDedup.unique, ...anchorFrames]);
-  const mergedPaths = mergedCandidates.map((frame) => frame.path);
-  const dedupResult = await runDedup(mergedPaths, {}, { log });
-
-  // The deduplicator reconstructs frames from bare paths with timestampSec=null,
-  // dropping the exact cue/densification anchor times. Re-attach them by path so
-  // assignFrameTimestamps only fabricates ordinals for the truly-unknown frames.
-  const knownTimestampByPath = new Map(
-    mergedCandidates
-      .filter((frame) => frame.timestampSec != null)
-      .map((frame) => [frame.path, frame.timestampSec]),
-  );
-  for (const frame of dedupResult.unique) {
-    if (frame.timestampSec == null && knownTimestampByPath.has(frame.path)) {
-      frame.timestampSec = knownTimestampByPath.get(frame.path);
-    }
-  }
-
-  assignFrameTimestamps(dedupResult.unique, durationSec);
+  const mergedCandidates = mergeFrameCandidates([
+    ...sceneDedup.unique,
+    ...anchorFrames.map((frame) => ({
+      ...frame,
+      timestampSource: /** @type {const} */ ("anchor"),
+    })),
+  ]);
+  const dedupResult = await runDedup(mergedCandidates, {}, { log });
 
   const selection = selectFramesForCoverage(dedupResult.unique, {
     windows,

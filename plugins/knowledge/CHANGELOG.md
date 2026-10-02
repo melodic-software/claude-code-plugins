@@ -15,6 +15,12 @@ only after that version increases.
 - `status: complete` is written only by the new `watch-state.js close <slice-dir>`, which runs the
   outcome checks and the blocking checklist first and leaves status unchanged when they fail.
   `mark-phase <slice-dir> synthesis` delegates to it.
+- `video-digest` key frames carry the time ffmpeg measured instead of one spread evenly over the
+  video. Each frame records where its time came from in `timestampSource`; an interval frame
+  ffmpeg gave no time for is marked `estimated` with an error bound, and a frame with no basis
+  stays untimed and renders as `untimed` rather than 0:00. Scene detection writes the times to
+  `frame-times.json` in the temp frames directory, which recovery reloads instead of recomputing
+  them, and `selection.json` now carries each frame's time source.
 
 ## [0.14.17] - 2026-10-02
 

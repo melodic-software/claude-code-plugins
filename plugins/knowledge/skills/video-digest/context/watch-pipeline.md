@@ -294,6 +294,26 @@ Deterministic stages in `watching/orchestrate-watching.js`:
 3. Transcript densification windows (`watching/densification.js`)
 4. Contact-sheet batching for triage (`watching/timestamp-interleave.js`)
 
+Every frame carries `timestampSec` and a `timestampSource` naming where the time came from:
+
+- Measured. `scene-detection` and `interval` frames take the presentation time ffmpeg reports for
+  that frame; `anchor` frames are extracted at their requested time.
+- `estimated`. An interval frame ffmpeg gave no time for takes its position times the interval,
+  with `timestampMethod: "interval-index"` and `timestampErrorSec` (half the interval).
+- Untimed. A frame with no basis keeps `timestampSec: null`. It sorts after every timed frame,
+  counts as outside every densification window, and renders as `untimed`, never as 0:00.
+
+Rendered tables show an estimated time as `~5m, estimated`. Scene detection writes the times to
+`frame-times.json` in the frames directory; `recover-watch-bootstrap.js` reloads them from there,
+and a frames directory without that file recovers its scene and interval frames untimed.
+
+Claim: ffmpeg's `showinfo` filter prints each frame's `pts_time`, and ffmpeg removes the input's
+start offset from timestamps unless `-copyts` is set, so those times are used as is. Basis:
+<https://ffmpeg.org/ffmpeg-filters.html#showinfo> and the `-copyts` entry under
+<https://ffmpeg.org/ffmpeg.html#Advanced-options>, checked against ffmpeg 8.0.1 with a stream
+starting at 12.8 s. As of 2026-10-02. Recheck when the ffmpeg floor under Prerequisites in
+`SKILL.md` changes or either entry changes how timestamps are reported.
+
 Standalone pipeline (when video + VTT already acquired):
 
 ```bash

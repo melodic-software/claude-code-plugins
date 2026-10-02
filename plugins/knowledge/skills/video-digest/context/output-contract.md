@@ -159,6 +159,7 @@ slice is graded on the source, research, and recommendations lanes alone.
 | `run-state/watch.json` | run-state | yes | METADATA | script (`watch-state.js`; phase-map + `tempSession`) |
 | `run-state/watch-checklist.md` | run-state | yes | METADATA | script (`init-watch-checklist.js` from template) |
 | `run-state/continuation-prompt.md` | run-state | yes | METADATA | script (`watch-state.js`; session handoff) |
+| `media/frames/frame-times.json` | (OS temp) | **never in repo** | METADATA | script (`scene-detect.js`; per-frame time fields, reloaded by `recover-watch-bootstrap.js`) |
 | `media/frames/`, `media/contact-sheets/` | (OS temp) | **never in repo** | n/a | OS temp only |
 | `*.vtt`, `video.*` | (OS temp) | no | SOURCE | OS temp, regenerable |
 

@@ -65,6 +65,82 @@ describe("recovery source-URL resolution", () => {
   });
 });
 
+describe("recovery frame times", () => {
+  beforeEach(async () => {
+    sliceDir = await fs.mkdtemp(path.join(os.tmpdir(), "recover-times-"));
+    captured.stderr.length = 0;
+  });
+
+  afterEach(async () => {
+    await fs.rm(sliceDir, { recursive: true, force: true });
+  });
+
+  it("reloads frame times from frame-times.json and leaves frames without a basis untimed", async () => {
+    const workDir = path.join(sliceDir, "work");
+    const framesDir = path.join(sliceDir, "frames");
+    const sheetsDir = path.join(sliceDir, "sheets");
+    for (const dir of [workDir, framesDir, sheetsDir]) await fs.mkdir(dir, { recursive: true });
+
+    await writeWatchState(
+      sliceDir,
+      createWatchState({
+        videoId: "abc123",
+        videoSlug: "slug",
+        sourceUrl: "https://www.youtube.com/watch?v=abc123",
+        title: "T",
+      }),
+    );
+    await fs.writeFile(path.join(workDir, "abc123.mp4"), "");
+    await fs.writeFile(
+      path.join(workDir, "abc123.en.vtt"),
+      "WEBVTT\n\n00:00:00.000 --> 00:01:00.000\nintro\n\n00:01:00.000 --> 00:02:00.000\noutro\n",
+    );
+    await fs.writeFile(
+      path.join(workDir, "abc123.info.json"),
+      JSON.stringify({ id: "abc123", title: "T", description: "" }),
+    );
+    for (const file of [
+      "scene_0001.png",
+      "scene_0002.png",
+      "scene_0003.png",
+      "anchor_00073000_0001.png",
+    ]) {
+      await fs.writeFile(path.join(framesDir, file), "");
+    }
+    await fs.writeFile(
+      path.join(framesDir, "frame-times.json"),
+      JSON.stringify({
+        "scene_0001.png": { timestampSec: 12.5, timestampSource: "scene-detection" },
+        "scene_0002.png": { timestampSec: 47.25, timestampSource: "scene-detection" },
+      }),
+    );
+    await fs.writeFile(path.join(sheetsDir, "sheet_001.jpg"), "");
+
+    const code = await recoverWatchBootstrapCli([
+      "node",
+      "recover-watch-bootstrap.js",
+      sliceDir,
+      workDir,
+      framesDir,
+      sheetsDir,
+    ]);
+
+    expect(code).toBe(0);
+    const selection = JSON.parse(
+      await fs.readFile(path.join(sliceDir, "key-frames", "selection.json"), "utf8"),
+    );
+    const timeByFile = Object.fromEntries(
+      selection.selectedFrames.map((frame) => [frame.file, frame.timestampSec]),
+    );
+    expect(timeByFile).toEqual({
+      "scene_0001.png": 12.5,
+      "scene_0002.png": 47.25,
+      "scene_0003.png": null,
+      "anchor_00073000_0001.png": 73,
+    });
+  });
+});
+
 describe("recovery CLI argument validation", () => {
   beforeEach(() => {
     captured.stderr.length = 0;
