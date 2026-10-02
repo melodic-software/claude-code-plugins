@@ -1,6 +1,6 @@
 ---
 description: "Verify the context-guard plugin's wiring on this machine: jq, node, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), and live-session snapshot freshness. Print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
-argument-hint: "check | apply [defaults]"
+argument-hint: "[check|apply] [defaults]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
