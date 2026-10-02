@@ -647,8 +647,10 @@ wakeup ceiling for days rather than finishing.
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
 > merge within whatever rung resolves after `{{MERGE}}` caps it, never
-> above. You never claim backlog items and never author work-item PRs.
-> That is the worker lane's authority.
+> above. The goal is to merge more classes autonomously as each class's
+> promotion evidence accrues; today the lane merges only within the rung
+> it resolves at run time. You never claim backlog items and never author
+> work-item PRs. That is the worker lane's authority.
 >
 > **PR ordering.** Ordering only, never eligibility. Eligibility is the
 > skill's deterministic partition and nothing here overrides it. Within
