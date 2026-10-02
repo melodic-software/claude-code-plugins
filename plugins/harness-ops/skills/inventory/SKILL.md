@@ -41,19 +41,23 @@ because it is disabled, and a built-in command can be fully live while existing 
 ## Run it
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --out ./claude-inventory.json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" --out ./claude-inventory.json
 ```
 
-Python 3.11+ is the only requirement. No `strings`, no `jq`, no PowerShell, no third-party
-packages. The run takes about fifteen seconds, dominated by reading and tokenizing the executable
-once.
+Needs Python 3.11+, and Node.js with npm for the default bundle reader: the first run installs its
+pinned JavaScript parser into the plugin data directory, and without Node.js the binary source
+reports broken with the command that repairs it. No `strings`, no `jq`, no PowerShell. The run
+takes about thirty seconds, dominated by reading the executable and parsing its modules once.
+`--reader regex` reads the bundle as text instead and needs no Node.js, but it misses changes to a
+spread list that the default reader catches.
 
 Useful flags: `--binary <path>` (else auto-detected) · `--config-dir <path>` (else
 `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
-`--docs` to add the `docs_crosscheck` block, fetching the commands page, the changelog, and the
-tools reference · `--docs-file <path>` / `--changelog-file <path>` / `--tools-docs-file <path>` to
-read one from a file instead (each implies `--docs`). A failed fetch marks that block `unavailable`
-or `degraded` and never fails the run.
+`--reader parser|regex|compare` (default `parser`) · `--docs` to add the `docs_crosscheck` block,
+fetching the commands page, the changelog, and the tools reference · `--docs-file <path>` /
+`--changelog-file <path>` / `--tools-docs-file <path>` to read one from a file instead (each
+implies `--docs`). A failed fetch marks that block `unavailable` or `degraded` and never fails the
+run.
 
 **Extract once, filter at presentation.** The script always emits the whole inventory; the user's
 filter selects what you *show*. Filtering in the script would mean a different extraction per
@@ -298,7 +302,7 @@ skills, and unresolved subagent and tool names.
 **Run the drift check on a schedule, not on incident:**
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --self-check
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" --self-check
 ```
 
 It prints one verdict line and exits `0` ok, `1` broken, `3` degraded, so it works as a CI gate, a

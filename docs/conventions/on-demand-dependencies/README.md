@@ -1,6 +1,6 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 1.0.1
+Version: 1.0.2
 Last updated: 2026-10-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
@@ -63,7 +63,7 @@ install base in this order and record which rule chose it:
 
 1. An explicit flag (the inventory's `--deps-dir`). A skill body may pass
    `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, since that reference is substituted inline in skill
-   content; the inventory's `SKILL.md` does not pass it yet (#5640 P4 wires it in).
+   content; the inventory's `SKILL.md` does.
 2. `$CLAUDE_PLUGIN_DATA` from the environment, accepted only when its last path segment names the
    plugin: a skill subprocess has been observed holding another plugin's value (recorded in
    `plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py`,
@@ -96,7 +96,7 @@ None.
 
 | Component | State |
 |---|---|
-| `harness-ops` inventory, `--reader=parser` / `--reader=compare` | Conforms. `skills/inventory/scripts/js/` holds the lockfile for acorn and eslint-scope; `parser_reader.py` installs into `<base>/inventory-parser/<lock hash>/`, probes the helper with `ping`, and turns every failure into a broken binary source carrying the repair command. CI installs it the same way so the parser test suites run on every pull request |
+| `harness-ops` inventory, `--reader=parser` (the default) / `--reader=compare` | Conforms. `skills/inventory/scripts/js/` holds the lockfile for acorn and eslint-scope; `parser_reader.py` installs into `<base>/inventory-parser/<lock hash>/`, probes the helper with `ping`, and turns every failure into a broken binary source carrying the repair command. CI installs it the same way so the parser test suites run on every pull request |
 
 ## Upstream facts this rests on
 

@@ -12,8 +12,11 @@ Two independent evidence sources, never conflated in the output:
             skills page). Read-only; the file is never modified.
   disk    - settings, marketplaces, and plugin trees under the config dir.
 
-Requires Python 3.11+ and nothing else - no strings(1), no jq, no shell.
-Every path is built with pathlib so Windows, macOS, and Linux behave alike.
+Requires Python 3.11+, plus node and npm for the default bundle reader
+(`--reader=parser`), which installs its pinned JavaScript parser on first use
+(parser_reader.py); `--reader=regex` needs nothing else. No strings(1), no
+jq, no shell. Every path is built with pathlib so Windows, macOS, and Linux
+behave alike.
 """
 
 from __future__ import annotations
@@ -5803,7 +5806,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.disk_only:
         binary, how = pick_binary(args.binary)
-        reader = getattr(args, "reader", "regex")
+        reader = getattr(args, "reader", "parser")
         if binary is None:
             report["sources"]["binary"] = {"available": False, "reason": how}
         else:
@@ -5904,10 +5907,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--reader",
         choices=("regex", "parser", "compare"),
-        default="regex",
-        help="bundle reader: regex (default); parser, which installs the pinned "
+        default="parser",
+        help="bundle reader: parser (default), which installs the pinned "
         "JavaScript parser on first use (needs node and npm) and fails closed "
-        "without it; compare, which runs both and reports every difference",
+        "without it; regex, the text reader, which needs neither; compare, "
+        "which runs both and reports every difference",
     )
     ap.add_argument(
         "--deps-dir",
