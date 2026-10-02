@@ -22,7 +22,7 @@
 #   absent (<path>) — author one (see context/config.md)
 #
 # Path resolution:
-#   CLAUDE_OPS_LANES_CONFIG when set and non-empty — used verbatim, no suffix
+#   HARNESS_OPS_LANES_CONFIG when set and non-empty — used verbatim, no suffix
 #   appended; otherwise <git toplevel, or the working directory when not inside a
 #   repo>/.work/lanes/lanes.json, falling back to the pre-move
 #   <root>/.work/lanes.json when that exists and the new path does not. The
@@ -68,8 +68,8 @@ repo_root() {
   printf '%s\n' "${root:-$PWD}"
 }
 
-if [[ -n "${CLAUDE_OPS_LANES_CONFIG:-}" ]]; then
-  CONFIG="$CLAUDE_OPS_LANES_CONFIG"
+if [[ -n "${HARNESS_OPS_LANES_CONFIG:-}" ]]; then
+  CONFIG="$HARNESS_OPS_LANES_CONFIG"
 else
   ROOT="$(repo_root)"
   CONFIG="$ROOT/.work/lanes/lanes.json"

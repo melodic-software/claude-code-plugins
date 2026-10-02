@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.4] - 2026-10-01
+
+### Changed
+
+- **`babysit-loop` documents the lane telemetry sentinel as
+  `<!-- harness-ops:lane-telemetry marker=... -->`,** matching the `harness-ops` and
+  `work-items` writers.
+
 ## [0.71.3] - 2026-10-01
 
 ### Changed

@@ -51,7 +51,7 @@ On every `apply` or `diff` invocation, compare the newest release in the range a
 ## Read marker and replay cap
 
 One line in the repository's upstream ledger for Claude Code releases (default
-`docs/upstream/claude-code.md`, override `CLAUDE_OPS_CHANGELOG_LEDGER`) records the newest release
+`docs/upstream/claude-code.md`, override `HARNESS_OPS_CHANGELOG_LEDGER`) records the newest release
 the repository has been read against. `status` reads that line; with no ledger it falls back to the
 highest version named in a Conventional Commits SUBJECT of the form
 `chore(<scope>): address Claude Code v<A>..<B> changelog`, and it never reads commit bodies, because

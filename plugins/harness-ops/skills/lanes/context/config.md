@@ -8,7 +8,7 @@ to manage. This file is the full contract; the SKILL.md keeps only the summary.
 First hit wins:
 
 1. `--config FILE`
-2. `$CLAUDE_OPS_LANES_CONFIG`
+2. `$HARNESS_OPS_LANES_CONFIG`
 3. `<repo>/.work/lanes/lanes.json` (repo = `--repo DIR`, else the git toplevel of the cwd)
 
 A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
@@ -18,12 +18,12 @@ and the lane prompt files live inside it rather than as bare files at the root.
 The `.work` root is **hardcoded**: the launcher does not resolve a repointed
 memory root, because it runs as an operator script outside any session
 that could resolve one. A consumer that has repointed the memory root passes
-`--config` or sets `$CLAUDE_OPS_LANES_CONFIG` instead.
+`--config` or sets `$HARNESS_OPS_LANES_CONFIG` instead.
 
 **Pre-move compatibility.** When step 3 finds nothing and the pre-move
 `<repo>/.work/lanes.json` exists, that file is read and a one-line deprecation
 warning names the move. Only the default falls back: `--config` and
-`$CLAUDE_OPS_LANES_CONFIG` are used verbatim, so a config kept outside the memory
+`$HARNESS_OPS_LANES_CONFIG` are used verbatim, so a config kept outside the memory
 root still fails loudly rather than silently resolving to a leftover file. A
 config resolved at the pre-move path also keeps the pre-move `prompt_dir` default
 (`.work`), so a config that never named one still finds the prompts it left beside

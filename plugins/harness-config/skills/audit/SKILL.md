@@ -113,9 +113,9 @@ Run the engine once, with the findings file in the topic's memory slice (the `me
 consuming repo binds, default `.work/`):
 
 ```bash
-mkdir -p .work/claude-config-audit
+mkdir -p .work/harness-config-audit
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh" --table \
-  --out .work/claude-config-audit/findings.json \
+  --out .work/harness-config-audit/findings.json \
   [--docs-dir <dir of pages already fetched>] [--debug-log <file>]
 ```
 

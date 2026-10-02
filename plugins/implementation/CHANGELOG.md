@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.19] - 2026-10-01
+
+### Changed
+
+- **The README's migration note no longer cites the marketplace `renames` map,** which the
+  marketplace no longer carries.
+
 ## [0.19.18] - 2026-10-01
 
 ### Changed

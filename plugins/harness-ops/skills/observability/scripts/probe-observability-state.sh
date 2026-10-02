@@ -230,7 +230,7 @@ prune_task_state() {
   # The provisioning launcher: pwsh reading the plugin index for this plugin's key
   # and running the in-plugin prune script from the install it records.
   if [[ "$command" == *pwsh.exe && "$arguments" == *installed_plugins.json* &&
-    ("$arguments" == *harness-ops@* || "$arguments" == *claude-ops@*) && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
+    "$arguments" == *harness-ops@* && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
     printf 'provisioned'
     return 0
   fi
