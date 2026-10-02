@@ -3,6 +3,42 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-10-02
+
+### Changed
+
+- **The `audit-native-overlap` bake step writes the links-only record shape.** A reference it bakes
+  into a skill holds our decision in our words, a pointer to the exact upstream section, the as-of
+  date and the recheck trigger, with no upstream text. A table form uses the header
+  `| Decision | Pointer | As of | Recheck when |` in place of `| Claim | Basis | Recheck trigger |
+  Verified |`, and the skill's own two upstream dependencies are restated in that form.
+- **The `known-issues`, `observability` and `plugins` records follow the same shape.** The model
+  fallback and quality-tracker notes, the hook-latency event record and the plugin scope
+  semantics each state our decision and point at the docs section or at our own probe, instead of
+  restating the page.
+- **The `known-issues` model-fallback note was re-read after its trigger fired.** It now covers a
+  refusal when a flagged category has no fallback target, with a 2026-10-01 as-of date.
+- `observability` points its latency record at the documented `hook_execution_complete` event and
+  keeps only the string-typed duration as our probe. `plugins` scope-semantics treats `--force` as
+  the answer to the MCP or LSP reload warning only, and records that the reference now offers a
+  fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
+  native-overlap` follow the docs site's new heading ids.
+
+## [2.0.1] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect reads seeded pairs and dismissals against the registration it
+  scores.** The native index that seeded pairs and dismissal drift read replaced a filtered
+  (empty or `internal`) entry only with a built-in plugin component, and walked the lanes in a
+  different order from scoring. It now holds the first entry that is not filtered, in scoring
+  lane order, so an internal bundled skill followed by a built-in command and a built-in plugin
+  component of the same name resolves to the command in both. A name scored in two lanes now
+  reports the pair from its first lane, the one the index holds, instead of the last. On the
+  2.1.287 extraction the only change is the seeded `fork` pair's score (0.0448 to 0.057), now
+  read from the built-in command its verdict names rather than the built-in agent of the same
+  name; every count is unchanged.
+
 ## [2.0.0] - 2026-10-02
 
 ### Changed

@@ -109,7 +109,8 @@ citation of what the file settled in THIS line, a filename is not an artifact, a
 claim that the method is known. Every row applies before any line is emitted; the rhyme row applies
 when the line sits in a rhyme position.
 
-The rows run in the order work actually happens: inputs, then the self-check, then verification.
+The rows run in the order work actually happens: inputs, then the rubric's recorded passes, then
+the skeptic's refutation from a fresh context.
 
 | Required before emission | What "shown" means |
 | --- | --- |
@@ -120,7 +121,7 @@ The rows run in the order work actually happens: inputs, then the self-check, th
 | Rhyme candidates generated | the labeled 8-15 candidate menu across ≥4 stability tiers, including ≥3 mosaic, visible, from `/songwriting:rhyme`, its search having walked the stressed vowel's coda field and not only the source word's own |
 | Section mode named | stated in this response: does this section SHOW (verse) or TELL (chorus)? |
 | Positional template or stress map marked | the marked line. Or, when a sung melody already exists, the numbered-and-bracketed positional template per [meter](../../context/pat-pattison/research/meter.md) "fitting a replacement line to an already-sung melody", never an assertion that it scans. From `/songwriting:meter-prosody` |
-| Rubric cycled per candidate, pass 1 CLEAN | the pass-by-pass result visible in this response, or at the candidate's named path under the song's `variations/`, per [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Pass 1's artifact is the marked template above; on free-melody work the stress map stands in |
+| Rubric cycled per candidate, pass 1 CLEAN | the pass-by-pass result visible in this response, or at the candidate's named path under the song's `variations/`, per [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Pass 1's artifact is the marked template above; on free-melody work the stress map stands in. Counts are run, not estimated: syllables per word from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, and pass 2's repeated words from a word-frequency count over the draft file (a `sort \| uniq -c` pipeline) |
 | Skeptic refutation returned | the strongest case AGAINST each candidate, visible in this response or at a named path under the song's `variations/`, from a fresh subagent that READ [response-filter](../../context/pat-pattison/research/response-filter.md) §2, the marked map, and [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) at those paths. A line survives when its refutation is stated and judged insufficient; a return holding nothing against anything has shown nothing |
 
 **Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in the
@@ -133,9 +134,10 @@ is in that class deliberately: a refutation pass costs a subagent dispatch, and 
 worth spending on a given batch is a judgment, not a rule the writer laid down. Skip it by name
 and reason, and expect to be asked why, because self-attestation is what failed.
 
-**The rubric row alone does not carry that clause**, because it is not offered to the writer at all.
-It is the AI checking its own output before spending his attention, and he cannot overrule a check
-he never saw run. The full statement of the rules behind it is
+**The rubric row alone does not carry that clause**, because it is not offered to the writer at all:
+it is his standing rule for every candidate, not a craft box he may decline. Its record is not a
+verdict on the candidate. The countable passes run as commands, and the judgment passes are tested
+by the skeptic row's fresh context. The full statement of the rules behind it is
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)
 `## Standing operating rules`; in short, the cycle runs on every candidate every time with no
 fatigue exception, and a FAILED pass kills the candidate rather than annotating it. Under load, emit

@@ -135,10 +135,11 @@ remains the durable record).
 
 `latency` telemetry record:
 
-- **Claim**: Claude Code emits one `hook_execution_complete` log event per hook event firing. It carries `hook_event` (the event name), `total_duration_ms` (wall time for every hook that firing ran, with `num_hooks` counting them) and `session.id`. `claude.lane` is not a Claude Code attribute; it is a custom attribute set through `OTEL_RESOURCE_ATTRIBUTES`, which Claude Code includes on all events, and rows without it report as lane `unknown`.
-- **Basis**: the event is not documented. <https://code.claude.com/docs/en/monitoring-usage>, fetched 2026-09-24, lists no hook execution event (only the `claude_code.hook` trace span); it does document `OTEL_RESOURCE_ATTRIBUTES` custom attributes "included in all metrics and events". The event shape is observed in the live OTEL store on 2026-09-24 under Claude Code 2.1.281: `total_duration_ms` arrives as a `stringValue` (read with an `intValue` fallback in case that changes).
-- **As of**: 2026-09-24, Claude Code 2.1.281.
-- **Recheck trigger**: the monitoring page documents a hook execution event, a release note names `hook_execution_complete` or its attributes, or `latency` exits 2 with no rows on a store that has recent sessions.
+`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event`, `total_duration_ms`, `num_hooks` and `session.id`. Our probe of the live OTEL store under Claude Code 2.1.281 observed `total_duration_ms` arriving as a `stringValue`, so the script reads it with an `intValue` fallback in case that changes. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
+
+- **Pointer**: for the event and its attributes, see <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>; the string-typed duration is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
+- **As of**: 2026-10-01 for the docs sections; 2026-09-24, Claude Code 2.1.281, for the probe
+- **Recheck trigger**: that section renames the event or an attribute `latency` reads, a release note changes the duration's type, or `latency` exits 2 with no rows on a store that has recent sessions.
 
 Action invocation: `/harness-ops:observability clean [flags]`.
 
@@ -208,8 +209,8 @@ retention in effect" section, the six probe lines verbatim.
 One native surface also answers "where did my tokens go", and the two get conflated whenever a
 session feels expensive:
 
-- **`explain-usage` (bundled skill)**: explains where the current session's tokens went, with one
-  simple chart in plain language.
+- **`explain-usage` (bundled skill)**: we route a plain-language breakdown of the current
+  session's tokens to it.
   The model and the person can both invoke it where it resolves.
 - **This skill (marketplace plugin).** Reads locally captured telemetry (the OTEL store, the hook
   event log, ccusage) across sessions: trends, cost, hook latency, which hooks fired, and a
@@ -224,8 +225,8 @@ is read-only apart from `--write` reports and the explicit `clean` action. Never
 the other's behalf.
 
 **Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
-and host; this section states what to do when it resolves, never that it is present. The four-part
-records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
+and host; this section states what to do when it resolves, never that it is present. The records
+behind it live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
 
 ## Spoke paths
 
@@ -233,19 +234,20 @@ The `context/` files write this skill's directory as `<skill-dir>`, which is `${
 Put that path in place of the placeholder before running a command or writing it into a brief. Those
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
-Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+Pointer: for where a `${…}` reference resolves, see
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. As of:
+2026-09-30. Recheck trigger: that table adds supporting files to where a `${…}` reference
+resolves.
 
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully
-- **No `${user_config.*}` inside a pre-compute command.** A `${user_config.*}` value renders in plain skill content only; shell-executing content rejects it because the shell would re-parse whatever the value holds, and a placeholder left unrendered on a shell line is a bash `bad substitution` that aborts the whole invocation, since one failed pre-compute line aborts every line. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Basis: "Fields that run in a shell reject `${user_config.*}`" under "User configuration" at <https://code.claude.com/docs/en/plugins-reference>, and the substitution list under "Dynamic context injection" at <https://code.claude.com/docs/en/skills>. Verified 2026-09-09 against Claude Code 2.1.263 and both pages as fetched that day; recheck when either page names `user_config` for pre-compute lines
+- **No `${user_config.*}` inside a pre-compute command.** We render `${user_config.*}` values only in plain skill content, never on a shell line: a placeholder left unrendered on a shell line is a bash `bad substitution` that aborts the whole invocation, since one failed pre-compute line aborts every line. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Pointer: for where `${user_config.*}` renders, see <https://code.claude.com/docs/en/plugins-reference#user-configuration>; for the pre-compute substitutions, see <https://code.claude.com/docs/en/skills#inject-dynamic-context>. As of: 2026-09-09, Claude Code 2.1.263. Recheck trigger: either page names `user_config` for pre-compute lines
 - **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` plus its rotated `hook-events.jsonl.1` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
-- **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. Hook input carries `session_id` on every event (the common input fields at <https://code.claude.com/docs/en/hooks>), so a row without one comes from a producer that dropped it, never from the harness. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day; recheck when the common input fields drop `session_id`
+- **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. We treat `session_id` as present on every hook input, so a row without one comes from a producer that dropped it, never from the harness. Pointer: <https://code.claude.com/docs/en/hooks#common-input-fields>. As of: 2026-09-06, Claude Code 2.1.263. Recheck trigger: the common input fields drop `session_id`
 - **Per-hook duration per session covers producers that emit `data.session_id`** (the nine harness-ops audit hooks). Other hooks appear in the whole-root tables only
 - **Hooks run in parallel**. Row order within one second is write order, not fire order; group by `prompt_id` or `tool_use_id`, not by adjacency
-- **Stop is a per-turn event, not a session boundary**. It fires "When Claude finishes responding", so a session with many turns emits many Stop rows; `SessionEnd` is the row that fires "When a session terminates". Aggregate per session on `SessionEnd`, never on Stop. Basis: the hook lifecycle table at <https://code.claude.com/docs/en/hooks>. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when the lifecycle table changes either row, or a release note names Stop or `SessionEnd`
+- **Stop is a per-turn event, not a session boundary**. We treat Stop as firing once per turn, so a session with many turns emits many Stop rows, and `SessionEnd` as the session boundary. Aggregate per session on `SessionEnd`, never on Stop. Pointer: <https://code.claude.com/docs/en/hooks#hook-lifecycle>. As of: 2026-09-06, Claude Code 2.1.263. Recheck trigger: the lifecycle table changes either row, or a release note names Stop or `SessionEnd`
 - **`cc_spans` / `cc_traces`**. Views skip bind until `cc-traces.json` has content
 
 ## What this skill does NOT do

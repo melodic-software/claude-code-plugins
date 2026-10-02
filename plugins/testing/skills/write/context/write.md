@@ -30,7 +30,7 @@ Before writing the first test, confirm the public interface design:
 - Design interfaces for testability: prefer returning results over producing side effects (testable interfaces return values, making output-based testing possible)
 - Proceed once the interface is settled; an autonomous run states its interface assumption in the summary instead of waiting
 
-When invoked from `/implementation:implement` (plan already approved) or as part of a `/testing:write` focused on a single function, scale this step to a quick self-check rather than a full Q&A loop.
+When invoked from `/implementation:implement` (plan already approved) or as part of a `/testing:write` focused on a single function, skip the Q&A loop: state the interface you assume in one line and proceed.
 
 ## Sequence
 

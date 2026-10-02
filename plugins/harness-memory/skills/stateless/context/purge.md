@@ -25,8 +25,9 @@ included") and offer to additionally check any repos the user names.
 
 ## Step 1: Resolve EVERY candidate directory
 
-The store may be relocated by `autoMemoryDirectory`, which is read from **any** settings scope
-(user, project, local, policy, `--settings`). Miss that and you purge the wrong place. So:
+We treat `autoMemoryDirectory` as able to relocate the store from **any** settings scope (user,
+project, local, policy, `--settings`); [official-guidance.md](../reference/official-guidance.md),
+"Storage location", holds the pointer. Miss that and you purge the wrong place. So:
 
 1. Read `autoMemoryDirectory` from every present settings scope: managed, local, project, and
    user. The snapshot in SKILL.md lists which files exist; Read each. Expand `~/` to `$HOME`.
@@ -66,10 +67,10 @@ Present to the user:
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only, **not** CLAUDE.md, rules, transcripts, or history.
   If the intent is the full per-project wipe, point to `claude project purge` instead, and state
-  its scope to the user (what it deletes and what it leaves alone)
-  from the verbatim quotes in
-  [reference/official-guidance.md](../reference/official-guidance.md) rather than from memory.
-  <https://code.claude.com/docs/en/claude-directory> owns the deletion plan and flags.
+  its scope to the user (what it deletes and what it leaves alone) from the record in
+  [reference/official-guidance.md](../reference/official-guidance.md), "Out of scope for this
+  skill", rather than from memory. Read the deletion plan and flags at
+  [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
 ## Step 3: Confirmation gate (with backup offer)
@@ -158,7 +159,7 @@ otherwise leaving the empty directory is harmless.
   stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
   re-accumulate memory.
 - If the intent was wiping everything Claude holds for this repo, point to
-  `claude project purge` (Step 2's pointer). Its scope is the full per-project one quoted in
+  `claude project purge` (Step 2's pointer). Its scope is the full per-project one recorded in
   [reference/official-guidance.md](../reference/official-guidance.md), not auto memory alone.
 - If the user wants to be stateless everywhere, summarize the Claude Desktop / claude.ai
   account store steps in [desktop.md](desktop.md). That store is server-side and cannot be

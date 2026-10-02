@@ -1,5 +1,16 @@
 # Changelog: discovery plugin
 
+## [0.25.25] - 2026-10-02
+
+### Changed
+
+- **`explorer` pins `effort: medium`**, the marketplace effort floor for code-changing or verifying
+  work, and gains a finish-then-stop paragraph: the run ends with the persisted EXPLORE.md set and
+  the bounded return payload.
+- **`reference/parent-contract.md` states the new pin** and converts its harness-facts, credential
+  and permission-grant records to the links-only shape: our decision, a pointer to the exact
+  section, an as-of date and a recheck trigger.
+
 ## [0.25.24] - 2026-10-02
 
 ### Fixed

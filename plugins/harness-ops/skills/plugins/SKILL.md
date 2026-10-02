@@ -22,11 +22,11 @@ you're standing in with its own project/local-scope installs, are the latest pub
 everything the marketplace offers, and surfaces any state where something older or unintended is
 what really runs.
 
-Distinct from what Claude Code's own background `autoUpdate` does (see
-[context/scope-semantics.md](context/scope-semantics.md)): `autoUpdate` silently refreshes marketplace
-data and bumps already-installed plugins post-startup. It never installs a new catalog plugin, never
-checks `enabledPlugins` completeness, never detects or reports scope divergence, and only runs once
-per session start on its own schedule, not on demand. This skill covers exactly that gap.
+Distinct from Claude Code's own background `autoUpdate`, which we treat as a background refresh of
+already-installed plugins, never a substitute for this skill
+([context/scope-semantics.md](context/scope-semantics.md) holds that reading and its pointer). This
+skill covers what we do not rely on `autoUpdate` for: installing new catalog plugins, checking
+`enabledPlugins` completeness, detecting and reporting scope divergence, and running on demand.
 
 Distinct from `harness-config`'s `audit` skill's plugin-drift check: that check compares a project's
 committed `enabledPlugins` against a marketplace's *upstream* `marketplace.json` (orphan/new/rename
@@ -76,9 +76,10 @@ Each Description names the territory an action covers, never its algorithm, the 
 ordering, and their failure handling live only in the linked file.
 
 One block below is a deliberate exception to that index-only rule and has to live in the hub
-rather than in a spoke: the **`install_new` render**, because Claude Code substitutes
-`${user_config.*}` when it renders the *skill*; a spoke opened later as a file read is plain bytes,
-so the same token in a spoke would arrive as a literal placeholder with no error to warn anyone.
+rather than in a spoke: the **`install_new` render**, because we rely on `${user_config.*}` being
+substituted only when Claude Code renders the *skill*; a spoke opened later as a file read is plain
+bytes, so the same token in a spoke would arrive as a literal placeholder with no error to warn
+anyone.
 See [context/gotchas.md](context/gotchas.md). The Report section below is a pointer: the report
 itself is rendered by the script.
 
@@ -98,8 +99,8 @@ it prints the JSON digest, then the report. The step sequence, and the reason be
 stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
 1. **Run it.** Substitute the marketplace target, the policy, and the flags into this command. The
-   journal root is written here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and
-   **not** in a `context/*.md` spoke, which is read raw:
+   journal root is written here because we rely on `${CLAUDE_PLUGIN_DATA}` resolving in skill
+   content and **not** in a `context/*.md` spoke, which is read raw (see "Spoke paths" below):
 
    ```bash
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
@@ -238,25 +239,22 @@ carries, and do not add rows: a row the render omitted is a row whose digest fie
 marketplace in `all` mode the whole block repeats, because Steps 2 through 5 run once per
 marketplace; the trailing `Run journal:` and `Timing:` lines cover the invocation.
 
-**The one line the model owns is the reload guidance**, appended after the render and stated as
-the docs' own two-step rather than as a prediction about which case will trigger it: recommend bare
-`/reload-plugins`; if it warns that the reload would re-read the conversation, rerun it as
-`/reload-plugins --force`. The general condition `--force` exists for is prompt-cache
-invalidation; a plugin shipping an MCP server whose tools aren't deferred is the common cause, not
-the only one, so do not present it as the sole trigger and do not tell the user `--force` would be
-wrong when the bare command has already warned them. Never recommend `--force` pre-emptively
-alongside every reload: it opts into a real token cost the bare command declines to pay on its own
-(see [context/scope-semantics.md](context/scope-semantics.md)). Monitors are already covered: the
-render's `Action needed` names each updated plugin whose installed build declares one and
-attributes "monitors require a session restart" to the plugins reference, so the reload line does
-not repeat it. After the line, answer follow-up questions from the digest and the run directory it
-names; load [context/sync.md](context/sync.md) when a question is about why a step behaved the
-way it did.
+**The one line the model owns is the reload guidance**, appended after the render as a two-step
+rather than as a prediction about which case will trigger it: recommend bare `/reload-plugins`,
+and `/reload-plugins --force` only when the bare command warns. Do not present any one cause as the
+sole trigger of that warning, and do not tell the user `--force` would be wrong when the bare
+command has already warned them. Never recommend `--force` pre-emptively alongside every reload: we
+treat it as opting into a real token cost the bare command declines to pay on its own.
+[context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,
+`--force` for the MCP-cache-invalidation case" holds the pointers and dates. Monitors are already
+covered: the render's `Action needed` names each updated plugin whose installed build declares one,
+so the reload line does not repeat it. After the line, answer follow-up questions from the digest
+and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
+why a step behaved the way it did.
 
-(A plugin updated mid-session keeps resolving to the previous version's path, which is what the
-self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behavior
-observed on Claude Code 2.1.240 and not re-run on 2.1.261, because it needs an interactive session.
-See [context/gotchas.md](context/gotchas.md).)
+(We observed a plugin updated mid-session keep resolving to the previous version's path, which is
+what the self-update note reports: Claude Code 2.1.240, not re-run on 2.1.261 because it needs an
+interactive session. The record is in [context/gotchas.md](context/gotchas.md).)
 
 ## Stale project records and cache content
 
@@ -270,8 +268,12 @@ either section reads as it does.
 
 ## userConfig: `install_new`
 
-Controls new-catalog-plugin install policy during `sync`. Ships as a plain `string` (the manifest
-schema has no `enum` type. Verified against the published schema), default `"ask"`:
+Controls new-catalog-plugin install policy during `sync`. Ships as a plain `string`, default
+`"ask"`, with its three values validated by this skill rather than by the manifest
+([context/scope-semantics.md](context/scope-semantics.md) holds the option-schema record; for
+option types and fixed options, see
+[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
+[Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options)):
 
 - `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt
 - `all`. Install every not-yet-installed catalog plugin automatically
@@ -293,28 +295,28 @@ proceed unattended:** resolve the total install gap first (one `audit all`, or `
 configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
 no human is present to receive the count.
 
-**Configured value: `${user_config.install_new}`**. Claude Code text-substitutes a `userConfig`
-value into this skill's content before the model sees the rendered skill, but **only when the key is
-explicitly set** in user settings (`~/.claude/settings.json`), `--settings`, or managed settings: precedence managed → `--settings` → user. It is **not** "some `pluginConfigs` scope": a project's
-`.claude/settings.json` or `.claude/settings.local.json` entry is ignored, and setting `install_new`
-there does nothing at all. Declaring the option in `plugin.json` alone does not make its value
-readable here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path
-and why it differs from `enabledPlugins`, which this same skill reads from project and local scope.
+**Configured value: `${user_config.install_new}`**. We treat this line as rendering the configured
+word into the skill content before the model sees it, but **only when the key is explicitly set**
+in one of the three sources this skill reads `pluginConfigs` from: user settings
+(`~/.claude/settings.json`), `--settings`, or managed settings, with precedence managed →
+`--settings` → user. A project's `.claude/settings.json` or `.claude/settings.local.json` entry does
+nothing at all, and declaring the option in `plugin.json` alone does not make its value readable
+here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
+pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and
+local scope.
 
-The manifest's `"default": "ask"` is **not** substituted for an unset key: the render leaves the
-placeholder token unchanged while a sibling key set in `~/.claude/settings.json` and
-`${CLAUDE_PLUGIN_ROOT}` both substitute in the same render. That is a probed claim, not a documented
-one, and it stays pointed at its dated record: the verification (as-of date, CLI version, basis,
-recheck trigger), the `pluginConfigs` payload shape, and the probe recipe are in
+The manifest's `"default": "ask"` is **not** substituted for an unset key: our probe saw the render
+leave the placeholder token unchanged while a sibling key set in `~/.claude/settings.json` and
+`${CLAUDE_PLUGIN_ROOT}` both substituted in the same render. That is a probed claim, not a
+documented one, and it stays pointed at its dated record: the probe, its as-of date and CLI version,
+the docs pointer for the `default` field and the substitution surfaces, the recheck trigger, the
+`pluginConfigs` payload shape, and the probe recipe are in
 [context/scope-semantics.md](context/scope-semantics.md) "`userConfig`: an unset key renders the
 literal placeholder". Read it when the rendered value looks wrong or before re-running the probe.
-The `plugins-reference` page describes `default` as "Value used when the user provides nothing" and
-states the substitution surface as "Each value is available for substitution as `${user_config.KEY}`
-in MCP and LSP server configs and hook commands. Non-sensitive values can also be substituted in
-skill and agent content." Substitution into content happens in what Claude Code renders, and never in
-a file a spoke read returns, which is why the **Configured value** line lives here and cannot move to
-a spoke. So for the common default-config user, with no `pluginConfigs` set anywhere, the
-**Configured value** line above still shows that literal placeholder token, not `ask`.
+Substitution into content happens in what Claude Code renders, and never in a file a spoke read
+returns, which is why the **Configured value** line lives here and cannot move to a spoke. So for
+the common default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line
+above still shows that literal placeholder token, not `ask`.
 
 Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
 report it as an invalid value. Only a rendered value that is a real word other than
@@ -325,12 +327,14 @@ default when that render is still the placeholder token, not on the option's nam
 ## Spoke paths
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command or writing it into a brief. Those
-files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
-tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
-Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+Put that path in place of the placeholder before running a command or writing it into a brief. We
+never put a `${…}` token in those files: we do not rely on one being substituted in a file read
+through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_DIR`.
+
+- **Pointer**: for where each `${…}` reference resolves, see
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves).
+- **As of**: 2026-09-30
+- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

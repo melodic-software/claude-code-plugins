@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2] - 2026-10-02
+
+### Changed
+
+- `record-decision` states its handling of the ADR template repository's license as our decision:
+  the README content is treated as CC BY-NC-SA 4.0 and each bundled template as carrying its own
+  license, and the skill names the license when it declines to paste. The record points at the
+  repository's `LICENSE.md` and stores none of its text.
+
 ## [0.18.1] - 2026-10-02
 
 ### Fixed

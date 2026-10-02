@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.3] - 2026-10-02
+## [0.18.4] - 2026-10-02
 
 ### Fixed
 
@@ -12,10 +12,27 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `ip_entry_points_on_path`, instead of only the directory holding the file. A blocker anywhere on
   the path, or an unreadable directory, keeps every shim (#5800).
 - The shim rule's `InstructionsLoaded` condition also scans the `hooks:` frontmatter of skill,
-  command and agent files in the repository, the config root, the plugins root and the managed
-  settings directory. The hooks and subagents pages say frontmatter hooks use the settings format
-  and accept every event. A hit, an unreadable scope, or a source not on disk keeps the shim
+  command and agent files in the repository, the config root, the plugins root, the managed
+  settings directory and each `--add-dir` directory the operator names. The hooks and subagents
+  pages say frontmatter hooks use the settings format and accept every event. A hit, a root that
+  cannot be stat'd or read, an unnamed `--add-dir` set, or a source not on disk keeps the shim
   until the operator answers for it (#5794).
+
+## [0.18.3] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` prints the shim-cost record by its new labels.** The price of removal is the
+  decision paragraph directly above the record's `Pointer` line plus the pointer itself, stopping
+  before the as-of line, in place of the old claim-to-basis span. A new test fixture pins that
+  output.
+- **The `migrate` sources and verification references, the `check` and `setup` skills, the README
+  and `verified-mechanics.md` hold decisions plus pointers.** Each record states our decision in our
+  words and points at the exact documentation section, an as-of date and a recheck trigger, with
+  no upstream text. `cutover-check.sh` names the same pointer-record shape in its comments and
+  usage.
+- `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
+  page's workaround section.
 
 ## [0.18.2] - 2026-10-02
 

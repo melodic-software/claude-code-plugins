@@ -28,20 +28,21 @@ subagent reads the corpus without seeing this file.
 route, and the marketplace repository is where the full argument, the measured incidents, and
 the issue links live. This plugin ships to consumers who do not have that repository, so a bare
 pointer cannot serve at run time. What follows is the operational subset, restated deliberately
-and carried as a four-part record so the restatement stays honest.
+and carried as a stamped record so the restatement stays honest.
 
-**Claim:** a candidate source is read through the raw-markdown channel first, checked for
-wholeness and for page identity before its body is trusted, and an absence is assertable only
-against a page whose identity was checked. **Basis:**
-`docs/conventions/upstream-drift/README.md` "Reading the basis: the fetch route" in the
-melodic-software/claude-code-plugins repository, which carries the measured incidents behind
-each rule. **As of:** 2026-08-28. **Recheck trigger:** any change to that section, or a fetch
+This skill reads a candidate source through the raw-markdown channel first, checks it for
+wholeness and for page identity before trusting its body, and asserts an absence only against a
+page whose identity was checked. **Pointer:** `docs/conventions/upstream-drift/README.md`
+"Reading the basis: the fetch route" in the melodic-software/claude-code-plugins repository,
+which carries the measured incidents behind each rule. **As of:** 2026-10-01. **Recheck
+trigger:** any change to that section, or a fetch
 in a live run that behaves in a way the rungs below do not describe: a new channel, a redirect
 where the doc says none occurs, or an identity check the doc's two tests do not settle.
 
 ## Three rules that bind every read
 
-- **No verbatim quote, no claim.** A verdict about a source states the quoted span it matched.
+- **No read, no verdict.** A verdict about a source rests on the text read and names the span it
+  matched in the run's report; the span never enters the file being repaired.
   This is not a formality here: a summarizer's paraphrase written down as page text turns the
   fingerprint comparison into a measurement of the summarizer rather than of the copy. The
   fingerprint module compares two concrete
