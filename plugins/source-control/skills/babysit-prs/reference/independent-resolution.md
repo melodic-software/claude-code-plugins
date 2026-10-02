@@ -106,13 +106,13 @@ List mode validates the evidence too, so the list call proves the evidence rathe
 the resolve:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --thread-id <id> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --thread-id <id> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
 ```
 
 Then resolve on the pins that call reported:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
 ```
 
 Swap the disposition pair for the claim actually being made: `--disposition deferred --tracker-item
