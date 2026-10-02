@@ -201,10 +201,9 @@ machines; neither on the attended box.
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
-> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently
-> overrides the bindings and every deliberate override alike. Leave
-> `CLAUDE_CODE_SUBAGENT_MODEL` unset too, so a dispatch that names no model
-> lands on your own. For the resolution order, see
+> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
+> bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
 > 2026-10-02; recheck when that section changes the order).
 > Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:

@@ -388,15 +388,11 @@ Two consequences of that order:
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no
   agent frontmatter covers them.
-- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane.** It overrides
-  the frontmatter bindings and every deliberate per-dispatch override alike,
-  flattening the fast and frontier tiers onto one model, and with
-  `CLAUDE_CODE_SUBAGENT_MODEL` unset (or set to `inherit`, which counts as
-  unset) that model is the lane root's.
-  `CLAUDE_CODE_SUBAGENT_MODEL` alone only fills in where neither a
-  per-dispatch `model` nor frontmatter names one, so it does not flatten the
-  bindings; still leave it unset, since a dispatch that omits both should
-  land on the lane root's model, not on a tier chosen elsewhere.
+- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane, and leave
+  `CLAUDE_CODE_SUBAGENT_MODEL` unset.** The lane relies on the frontmatter
+  bindings and deliberate per-dispatch overrides deciding each dispatch, and
+  on a dispatch that names neither landing on the lane root's model. For what
+  each variable overrides, see the Basis links below.
   - **Claim:** decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on every lane.
   - **Basis:** <https://code.claude.com/docs/en/env-vars> and
     <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
@@ -531,10 +527,9 @@ No shared state, no contention, and the sharding problem disappears.
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
-> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently
-> overrides the bindings and every deliberate override alike. Leave
-> `CLAUDE_CODE_SUBAGENT_MODEL` unset too, so a dispatch that names no model
-> lands on your own. For the resolution order, see
+> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
+> bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
 > 2026-10-02; recheck when that section changes the order).
 > Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
