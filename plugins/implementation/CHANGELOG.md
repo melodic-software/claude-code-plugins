@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.1] - 2026-10-02
+## [0.20.3] - 2026-10-02
 
 ### Changed
 
@@ -16,6 +16,33 @@ All notable changes to the `implementation` plugin are documented here. Format f
   was written. `implement-dispatch`'s heavy-window signal (Resident-vs-clear item (a)) routes the
   same way instead of clearing by default. Both skills gain a `## Next` naming
   `/review:quality-gate`, and new evals cover the routed boundary and the model-switch stop.
+
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work.
+  The pin record points at the model-config `medium` row and the cost guide's per-task comparison,
+  as of 2026-10-02, rechecked at the next model release. The pin stays explicit so an
+  orchestrator's lowered effort does not reach the worker.
+- **`phase-verifier` pins `effort: high`, up from `medium`.** Its pin record points at the
+  model-config `high` row and the advisor capability rule. Its model rule now reads as never weaker than the work it checks, and a phase routed
+  upward passes the verifier the same tier.
+- **`implement-dispatch` raises the `phase-verifier` to the model the phase's implementer ran on.**
+  When a phase's implementer ran above the verifier's binding (the frontier alias for
+  security-surface work, or a session model above it), the phase's one verifier gets a
+  per-invocation `model` at or above that model, upward only, per the checked-work row of the
+  "Model tiers" ladder. The raise used to follow the orchestrating session's model, so a phase
+  routed upward under an `opus` session was certified on `opus`. `implementer`'s model-binding
+  note no longer assumes a fast orchestrator root.
+
+## [0.20.1] - 2026-10-02
+
+### Fixed
+
+- `implement-dispatch` points at the sub-agents page for model resolution order and notes
+  that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides the frontmatter binding and per-call models;
+  it is reported, not a reason to refuse dispatch.
 
 ## [0.20.0] - 2026-10-02
 

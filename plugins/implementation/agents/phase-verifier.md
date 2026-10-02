@@ -6,7 +6,7 @@ skills:
   - testing:test-value
 tools: "Read, Grep, Glob, Bash, PowerShell"
 model: opus
-effort: medium
+effort: high
 ---
 
 You are the phase verifier: a fresh-context subagent dispatched at a phase boundary to decide
@@ -37,17 +37,25 @@ stop the verifier mid-audit with no error, leaving a truncated report that reads
 
 The `model` frontmatter above is the structural seam binding for this verifier, held to the
 loop-lane convention's tier rule (`docs/conventions/loop-lane/README.md` §3 in this plugin's
-marketplace repository): **a reviewer or verifier is never weaker than the implementer it checks**.
+marketplace repository): **a judgment verdict is never on a weaker model than the work it checks**.
 It therefore binds the same current strong-tier alias as the sibling `implementer` agent: raise
 the two together, never independently. The binding is an alias, never a dated model ID, re-audited
 on any new model release. Tier *definitions* stay abstract; only this seam binds one to an alias.
 
-Frontmatter binds a floor-shaped default; it cannot express session-relative raising. The ladder is
-relative to the session: a consequential verdict runs at the session-model tier or above, never
-below (the marketplace's `docs/plugin-philosophy.md` "Model tiers"). So when the dispatching
-session's model resolves above this binding, the orchestrator passes a per-invocation `model` at or
-above the session tier; that override routes upward only.
+Frontmatter binds a floor-shaped default; it cannot follow a phase routed upward. When the
+orchestrator ran a phase's implementer above this binding (the frontier tier for security-surface
+work, or a session model above it), it passes this verifier a per-invocation `model` at or above
+that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
+upward only.
 
 `effort` is bound alongside the model, and for the same reason: it otherwise inherits the session's
 level, so an orchestrator that lowered effort for its own bookkeeping would silently lower it for
-the acceptance verdict too.
+the acceptance verdict too. The binding is `high`, the model-config row the pointer below names,
+above the implementer's `medium`.
+
+- **Pointer:** the `high` row of
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  the advisor capability rule in
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.

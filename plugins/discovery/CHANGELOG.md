@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.27] - 2026-10-02
+## [0.25.29] - 2026-10-02
 
 ### Added
 
@@ -18,6 +18,19 @@
 - **`tests/count-rereads.py` keeps `MultiEdit` on purpose.** The edit-tool set still lists it, now
   with a pointer record to the permissions page, because transcripts recorded by older Claude Code
   versions carry the call.
+
+## [0.25.28] - 2026-10-02
+
+### Changed
+
+- `parent-contract.md`'s verdict-lane record points at the verdict rule in the plugin philosophy's
+  "Model tiers" ladder instead of restating the retired session-tier rule.
+
+## [0.25.27] - 2026-10-02
+
+### Fixed
+
+- `setup` adds a pointer, as-of date and recheck trigger to the spawn-depth windows.
 
 ## [0.25.26] - 2026-10-01
 

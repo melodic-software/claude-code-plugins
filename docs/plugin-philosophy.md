@@ -843,6 +843,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
 | Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
+| Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/conventions/record-bundle/`](conventions/record-bundle/README.md) |
 | Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
 | Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
@@ -1102,8 +1103,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
   bound it further. Model: it pins `model: opus`; under the fleet's pinned default session, `opus`
-  is the session tier, so it meets the [Model tiers](#model-tiers) rule that a consequential verdict
-  runs at the session-model tier or above.
+  is the tier the plan was written at, so it meets the [Model tiers](#model-tiers) rule that a
+  judgment verdict is never on a weaker model than the work it checks.
 - **Pointer:** the frontmatter of `plugins/planning/agents/plan-reviewer.md` (`model: opus`,
   `effort: medium`, `maxTurns: 25`) and `plugins/planning/skills/plan/SKILL.md` Step 3;
   [#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256), which measured a
@@ -1116,12 +1117,39 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 ### Model tiers
 
-The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
-above, never below; tedious or mechanical preparation may drop one tier.** An implementation phase
-the plan routes `sonnet` as well-scoped may also drop one tier, to `implementation:scoped-implementer`
-at `medium` effort, the [effort floor](#effort-floor); unrouted or complex phases stay on
-`implementation:implementer` at the strong tier. The heavy default must be
-explicit: every agent definition in this repository pins `model`, because an agent that omits it
+Four rules decide a lane's model, applied in this order:
+
+1. **Tune effort on the current model before adding a second model.** A lane that falls short moves
+   its effort level first; a second model enters only when effort cannot close the gap.
+2. **Use one model at lower effort unless the work is bulk and independent.** A dependent chain, or
+   work that fits one context, stays on the coordinating model. Only a fan-out of independent items
+   delegates to a cheaper worker model.
+3. **A judgment verdict is never on a weaker model than the work it checks.** An equal model is
+   valid.
+4. **A cheaper checker is acceptable only when an objective failure signal backs it**, because a
+   checker that passes bad work lets those failures through unseen.
+
+- **Pointer:** for rule 1, see
+  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task)
+  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort);
+  for rule 2,
+  [orchestrator strategy: delegate bulk work](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
+  for rule 3, the advisor capability rule in
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
+  for rule 4,
+  [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release, or any cited section changes.
+- **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
+  subagent verdict and the work it checks is our reading, not a source statement. What counts as an
+  objective failure signal under rule 4 (a build, a test run, a schema or exit-code check) is also
+  our judgment.
+
+An implementation phase the plan routes `sonnet` as well-scoped drops one tier, to
+`implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
+or complex phases stay on `implementation:implementer` at the strong tier.
+
+The heavy default must be explicit: every agent definition in this repository pins `model`, because an agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
 set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
@@ -1161,8 +1189,8 @@ the Anthropic API.
 
 | Tier | Alias |
 |---|---|
-| Consequential verdict (session tier or above) | The session's own model, with no `model` passed; under the fleet's `opus[1m]` session pin that is `opus`, with `fable` the rung above |
-| Mechanical prep, one tier down | `sonnet` |
+| Judgment verdict (never weaker than the work it checks) | `opus`, or the tier of the checked work when that is higher, with `fable` the rung above |
+| Mechanical work an objective failure signal backs | `sonnet` |
 | Bulk mechanical sweeps | `haiku` |
 
 - **Pointer:** for what each alias resolves to on each provider, see
@@ -1175,8 +1203,8 @@ the Anthropic API.
 - **As of:** 2026-10-01.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
-Row 1 is relative by construction: a session already running the top model has no rung above and
-dispatches consequential verdicts at its own tier. The cost ordering behind the rows is
+Row 1 is relative to the checked work by construction: a verdict on work done at the top tier runs
+at that tier, since there is no rung above it. The cost ordering behind the rows is
 upstream-owned and is not restated here (Pointer:
 [pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
 As of: 2026-08-10. Recheck
@@ -1374,17 +1402,18 @@ same depth on two models):
 **Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
 cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
 kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `implementer`;
+[effort floor](#effort-floor)). Ten pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`; `songwriting` `object-writer`. Five pin `effort: medium`: `planning`
-`plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`,
-because it checks one phase against acceptance criteria fixed before it runs; `implementation`
-`scoped-implementer`, because a plan routes only well-scoped work to it; and `review`
-`ecosystem-specialist` and `discovery` `explorer`, because their work is clearly scoped tool use,
-running a repository's declared commands and reading and indexing a scope. No pin goes below
-`medium`, because a low-effort executor stops detecting that it is stuck. A frontmatter pin is what
-holds a named agent's lane, since an Agent-tool dispatch passes no effort.
+`plugin-quality` `auditor`. Six pin `effort: medium`: `planning` `plan-reviewer` by its
+[recorded exception](#named-agent-bar); `implementation` `implementer`, because a phase brief is
+scoped feature work and its verifier runs at `high`; `implementation` `scoped-implementer`, because
+a plan routes only well-scoped work to it; `songwriting` `object-writer`, because creative
+generation is not verification; and `review` `ecosystem-specialist` and `discovery` `explorer`,
+because their work is clearly scoped tool use, running a repository's declared commands and reading
+and indexing a scope. No pin goes below `medium`, because a low-effort executor stops detecting
+that it is stuck. A frontmatter pin is what holds a named agent's lane, since an Agent-tool dispatch
+passes no effort.
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
@@ -1395,17 +1424,18 @@ holds a named agent's lane, since an Agent-tool dispatch passes no effort.
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-02.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
   named pin.
-- **Source conflict:** the newer effort post,
+- **Sources agree:** the newer effort post,
   <https://claude.dev/blog/spending-your-effort/> (correlate only), and model config's
-  choose-an-effort-level section disagree on which level fits implementation work. We follow model
-  config, because a docs section outranks a blog post under the
+  choose-an-effort-level section no longer disagree on implementation work. We pin the implementer
+  `medium` and its verifier `high`, the rows we read model config as giving each. Model config stays the source we follow if they diverge again, because a docs section outranks a
+  blog post under the
   [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
-  2026-10-01. Recheck trigger: either page is revised on that point.
+  2026-10-02. Recheck trigger: next model release, or either page is revised on that point.
 
 **Per-pin rows.** Each pinned agent outside `plugins/implementation` follows one row of model
 config's effort-level table, read for the model its `model` alias resolves to. Review, verification
@@ -1420,12 +1450,12 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `planning` `plan-reviewer` | `opus` | `medium` | `medium` | A review lane held to `medium` by its [recorded exception](#named-agent-bar), not by the review rule |
 | `plugin-quality` `auditor` | `opus` | `high` | `high` | Audit verdict |
 | `review` `architecture-guardian` | `opus` | `high` | `high` | Review verdict |
-| `review` `ci-log-auditor` | `sonnet` | `high` | `high` | Audit verdict on a CI run |
-| `review` `code-reviewer` | `sonnet` | `high` | `high` | Review verdict |
-| `review` `doc-drift-detector` | `sonnet` | `high` | `high` | Drift verdict |
+| `review` `ci-log-auditor` | `opus` | `high` | `high` | Audit verdict on a CI run |
+| `review` `code-reviewer` | `opus` | `high` | `high` | Review verdict |
+| `review` `doc-drift-detector` | `opus` | `high` | `high` | Drift verdict |
 | `review` `ecosystem-specialist` | `sonnet` | `medium` | `medium` | Runs a repository's declared build, test and lint commands |
 | `review` `security-reviewer` | `opus` | `high` | `high` | Security verdict |
-| `songwriting` `object-writer` | `opus` | `high` | `high` | Creative generation, which no row names; the `high` choice is our judgment |
+| `songwriting` `object-writer` | `opus` | `medium` | `medium` | Creative generation, which no row names; the `medium` choice is our judgment |
 
 - **Pointer:** for the rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
