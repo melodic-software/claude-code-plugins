@@ -807,6 +807,8 @@ function flow(req) {
       return { ok: false, error: "flow `start` needs var, param or import" };
     }
   } catch (e) {
+    // A chain deep enough to exhaust the stack is one the walk cannot follow.
+    if (e instanceof RangeError) return { ok: true, safe: false, reason: "the flow is too deep to follow", at: null };
     if (!(e instanceof Unresolved)) throw e;
     return { ok: true, safe: false, reason: e.message, at: e.at };
   }

@@ -521,6 +521,15 @@ class TestFlowQuery(unittest.TestCase):
         self.assertFalse(self._flow(src, {"param": 1, "name": "g"})["safe"])
         self.assertTrue(self._flow(src, {"param": 0, "name": "h"})["safe"])
 
+    def test_a_chain_too_deep_for_the_stack_is_unresolved_not_a_crash(self) -> None:
+        """#5891 verifier: a 5,000-long alias chain exhausted the helper's
+        stack before the step limit, so the helper died and the whole binary
+        source read as a broken install."""
+        chain = "".join(f"var a{i}=a{i - 1};" for i in range(1, 5000))
+        got = self._flow("var pY=[1],a0=pY;" + chain + "a4999.push(2);")
+        self.assertEqual(got["reason"], "the flow is too deep to follow")
+        self.assertTrue(self.reader.ping()["acorn"])
+
     def test_a_direct_eval_leaves_the_flow_unresolved(self) -> None:
         got = self._flow('var pY=[1];function e(){eval("")}')
         self.assertEqual(got["reason"], "the module calls eval directly")

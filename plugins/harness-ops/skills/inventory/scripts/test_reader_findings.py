@@ -273,6 +273,17 @@ class TestOpenFindings(unittest.TestCase):
                     parser=PARTIAL if changed else INITIAL,
                 )
 
+    def test_an_alias_chain_too_deep_to_follow_reads_partial(self) -> None:
+        """#5891 verifier probe: a 5,000-long alias chain ending in a push
+        crashed the helper, breaking the whole binary source."""
+        chain = "".join(f"var a{i}=a{i - 1};" for i in range(1, 5000))
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];var a0=pY;' + chain + 'a4999.push("B");',
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+
     def assert_across_modules(self, changed: bool, *modules: str) -> None:
         """The probe's module exports `pY` and `modules` follow it, each
         opening with a `// @bun` header as a bundle's modules do. The regex
