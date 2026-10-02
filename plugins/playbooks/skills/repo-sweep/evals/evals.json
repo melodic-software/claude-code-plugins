@@ -31,13 +31,14 @@
       "id": 3,
       "name": "next-runs-one-step-and-ticks",
       "prompt": "/playbooks:repo-sweep next",
-      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the entry's override and notes, when it has them, as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
+      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the entry's override and notes, when it has them, as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, ticks the line, then pushes.",
       "files": [],
       "expectations": [
         "Ticks the step in progress with tick.sh before invoking the skill",
         "Never appends override text to the skill's arguments",
         "Runs guard.sh before committing and runs the printed git reset --soft on exit 11",
         "Makes exactly one commit whose final paragraph holds Playbook, Playbook-Step, and Co-Authored-By trailers, or ticks no-findings with skill@version and makes no commit",
+        "Runs the committed tick before git push, never after it",
         "Tells the user to run review if anything went wrong, then /clear and next"
       ]
     },

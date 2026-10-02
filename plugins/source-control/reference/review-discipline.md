@@ -256,7 +256,8 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
     since these endpoints return 30 per page oldest-first and your reply is the newest item
 - [ ] D6. Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
-  commit, push
+  commit. Push once for the whole round, after every reviewer on the head has finished: each
+  push starts a full CI run and cancels the one in flight
   - [ ] **verify commit pushed:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
     git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. Exit 0
     means the fix commit is on the PR branch as just fetched from the resolved push remote;

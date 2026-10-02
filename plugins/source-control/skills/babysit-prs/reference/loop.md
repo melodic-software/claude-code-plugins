@@ -413,7 +413,9 @@ comment is classified VALID after D3 validation:
 - [ ] Post a follow-up reply citing the commit SHA (D7)
 
 **One wave at a time:** address all current comments on this PR → commit + push → then
-round-robin to the next PR. Don't jump between PRs mid-wave. After pushing, new CI runs trigger.
+round-robin to the next PR. Start a wave's fixes only after every reviewer check run on the head
+has completed: while one is still running, leave the PR's fixes to a later iteration rather
+than push a partial wave, since a finding that lands after the push costs a second full CI run. Don't jump between PRs mid-wave. After pushing, new CI runs trigger.
 Those results are checked on the next babysit iteration (or the next round-robin pass if
 processing multiple PRs).
 

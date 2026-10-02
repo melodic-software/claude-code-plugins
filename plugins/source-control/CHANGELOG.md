@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.73.1] - 2026-10-02
+
+### Changed
+
+- **`/source-control:pull-request monitor` pushes review fixes once per round, after every
+  reviewer on the head has finished.** monitor.md §3.3.2 gains step 0: every reviewer check run
+  on the head is completed and every comment-only reviewer has landed its round or reached its
+  Gate 5 bound before the push, and the cycle's CI fixes (§3.2) go up in the same push. Steps
+  D6 in `SKILL.md` and `reference/review-discipline.md` commit per finding and push once per
+  round. A PR body or label change is written before that push, never after it.
+- **The ready flip pushes the security review's commits in one push right before
+  `gh pr ready`,** so the ready run replaces that push's draft run within seconds.
+  ready-for-review.md also records that `gh pr update-branch` pushes nothing when the head
+  already contains the base tip.
+- **`/source-control:babysit-prs` starts a comment wave's fixes only after every reviewer check
+  run on the head has completed,** so a late finding does not cost a second push.
+
 ## [0.73.0] - 2026-10-02
 
 ### Changed

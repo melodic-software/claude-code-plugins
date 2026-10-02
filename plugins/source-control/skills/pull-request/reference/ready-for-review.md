@@ -34,6 +34,11 @@ gh pr update-branch "$PR_NUMBER"                     # merges the base into the 
 git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
 ```
 
+When the head already contains the base tip, `gh pr update-branch` prints "PR branch already
+up-to-date" and pushes nothing (cli/cli `pkg/cmd/pr/update-branch/update_branch.go`, the
+`BehindBy == 0` return, read 2026-10-02; recheck when a gh release changes `update-branch`), so
+the flip adds no push of its own then.
+
 Push any local commits first: `git merge --ff-only FETCH_HEAD` refuses when the local branch
 carries commits the remote lacks, and the local-merge fallback below handles that case too.
 
@@ -70,6 +75,9 @@ Completion criterion: the security review's findings are dispositioned, and the 
 clean on `git rev-parse HEAD`.
 
 ## 2.5.4 Flip to ready
+
+When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
+replaces that push's draft run within seconds instead of after it ran to the end.
 
 ```bash
 gh pr ready "$PR_NUMBER"

@@ -136,11 +136,14 @@ never combined with `&&` or other commands in one call. The record for these sha
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill that ran,
-   and the `Co-Authored-By:` trailer, so git parses them together. Push, then one tick call:
-   `S/tick.sh <id> committed <short-sha> <skill@version>...`. When the skill reported uncovered
-   scope, make that one call `S/tick.sh <id> --partial "<what was not covered>" committed
-   <short-sha> <skill@version>...` instead, so the uncovered scope survives into `history.sh`;
-   the coverage read stays step-wide as in section 3 step 3.
+   and the `Co-Authored-By:` trailer, so git parses them together. Then one tick call, then the
+   push: `S/tick.sh <id> committed <short-sha> <skill@version>...`. Tick before pushing: a body
+   edit re-runs every workflow that triggers on `edited`, and one made while the push's run is in
+   flight adds a second run on the new head. When the skill reported uncovered scope, make that
+   one call `S/tick.sh <id> --partial "<what was not covered>" committed <short-sha>
+   <skill@version>...` instead, so the uncovered scope survives into `history.sh`; the coverage
+   read stays step-wide as in section 3 step 3. A failed push is retried before anything else:
+   the tick already names the commit.
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 
