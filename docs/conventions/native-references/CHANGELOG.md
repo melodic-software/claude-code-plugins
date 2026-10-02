@@ -6,6 +6,22 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.4.0] - 2026-10-01
+
+Minor: additive guidance. No required part of the description phrase, no canonical gate token and
+no enforceability verdict changes.
+
+- **A Boundary reference file holds links-only records.** The reference file inside a skill that
+  backs a `## Boundary` section now holds our decision in our words, a pointer to the exact
+  upstream section, the as-of date and the recheck trigger, and no upstream text; a table form uses
+  the header `| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*`
+  reference files keep the older four-part shape until
+  [#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) converts them.
+- **The convention's own upstream specifics are restated as records.** The gating-axes table, the
+  description budget caveat and the suggest sentence's `<basis>` now point at the docs sections
+  with an as-of date and a recheck trigger in place of restated page text.
+- **The cloud-sessions link follows the docs site's new heading id.**
+
 ## [3.3.6] - 2026-09-30
 
 Patch: clarification.

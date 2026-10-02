@@ -14,7 +14,7 @@ not mean a review blocks a merge.
 
 This rule is the operator's. Anthropic does not document review on every pull request as a
 requirement. Its launch post says it runs Code Review "on nearly every PR at Anthropic"
-(<https://claude.com/blog/code-review>, fetched 2026-09-24); the product docs set no default
+(correlate with <https://claude.com/blog/code-review>, fetched 2026-09-24); the product docs set no default
 trigger, leaving an Owner to pick once, every push, or manual per repository
 (<https://code.claude.com/docs/en/code-review>, fetched 2026-09-24); and Boris Cherny's Steps of
 AI Adoption says "Automated code review and security review are on by default"

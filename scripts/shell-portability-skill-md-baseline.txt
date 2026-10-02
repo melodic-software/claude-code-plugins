@@ -18,7 +18,6 @@
 # `portability-scope: <reason>` declaration.
 
 plugins/harness-config/skills/audit-permission-grants/reference/criteria.md
-plugins/harness-config/skills/audit/reference/audit-checklist.md
 plugins/harness-config/skills/audit/SKILL.md
 plugins/harness-memory/skills/stateless/reference/official-guidance.md
 plugins/harness-memory/skills/stateless/SKILL.md

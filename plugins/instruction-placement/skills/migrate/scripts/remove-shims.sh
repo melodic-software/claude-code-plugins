@@ -4,9 +4,9 @@
 # The only mutating script in this skill, and it refuses far more often than it
 # acts. In order, and every gate fails closed:
 #
-#   1. It prints what removal costs, from reference/sources.md ("What shim removal
-#      costs"). As of the 2026-09-28 recheck, /memory lists a directly read
-#      AGENTS.md and InstructionsLoaded still does not fire for that read.
+#   1. It prints what removal costs: the decision and pointer of the pointer
+#      record (decision, pointer, as-of date, recheck trigger) headed "What shim
+#      removal costs" in reference/sources.md.
 #   2. It refuses without --confirm. There is no blanket-yes and no all-repos
 #      mode: one repository per run, one confirmation per run.
 #   3. It refuses unless the INSTALLED harness-memory and instruction-placement
@@ -161,11 +161,16 @@ echo "=== remove-shims: $REPO ==="
 echo
 echo "What removing the shims costs (reference/sources.md, 'What shim removal costs'):"
 if [[ -f "$SOURCES_MD" ]]; then
+  # The record's decision is the paragraph directly above its Pointer line, so
+  # the price is that paragraph and the pointer, up to the As of line.
   tr -d '\r' <"$SOURCES_MD" |
     awk '/^## What shim removal costs/ { f = 1; next }
-         f && /^- \*\*Claim\*\*/ { p = 1 }
-         p && /^- \*\*Basis\*\*/ { exit }
-         p { print "  " $0 }'
+         !f { next }
+         /^## / || /^- \*\*As of\*\*/ { exit }
+         /^- \*\*Pointer\*\*/ { for (i = 1; i <= n; i++) print "  " para[i]; print ""; p = 1 }
+         p { print "  " $0; next }
+         /^[[:space:]]*$/ { gap = 1; next }
+         { if (gap) { n = 0; gap = 0 } para[++n] = $0 }'
 else
   echo "  (records file not found at $SOURCES_MD)"
 fi

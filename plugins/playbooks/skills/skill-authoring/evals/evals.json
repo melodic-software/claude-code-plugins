@@ -42,10 +42,10 @@
       "id": 4,
       "name": "pre-share-checklist-groups-and-tags",
       "prompt": "Give me the checklist to run before publishing a skill.",
-      "expected_output": "Serves the pre-share checklist from reference/authoring-checklist.md: three groups (core quality, code and scripts, testing), each row tagged mechanical, judgment, or attestation, with mechanical rows naming the skill-quality:check check number that decides them (for example the 500-line cap as check 4 and explicit disable-model-invocation as check 24), and an attestation row for the models the skill was exercised on (haiku, sonnet, opus, fable). Closes by naming /skill-quality:check <skill> as the run that answers the mechanical rows.",
+      "expected_output": "Serves the pre-share checklist from reference/authoring-checklist.md: three groups (frontmatter and body, scripts, evals and testing), each row tagged mechanical, judgment, or attestation, with mechanical rows naming the skill-quality:check check number that decides them (for example the 500-line cap as check 4 and explicit disable-model-invocation as check 24), and an attestation row for the models the skill was exercised on (haiku, sonnet, opus, fable). Closes by naming /skill-quality:check <skill> as the run that answers the mechanical rows.",
       "files": [],
       "expectations": [
-        "Output presents the three groups: core quality, code and scripts, testing",
+        "Output presents the three groups: frontmatter and body, scripts, evals and testing",
         "Output tags rows as mechanical, judgment, or attestation, and mechanical rows name the skill-quality:check check number that decides them",
         "Output includes an attestation row for the models exercised, naming the alias list (haiku, sonnet, opus, fable)",
         "Output names /skill-quality:check <skill> as the closing step and does NOT claim a script verified a judgment or attestation row"

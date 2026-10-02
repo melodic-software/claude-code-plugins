@@ -26,6 +26,38 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - Every `test_inventory.py` fixture now parses as a module: the four shortcut shapes (an export
   of an undeclared name, padding run into the next token, adjacent string literals, a bare object
   literal) are rewritten, and `test_fixture_parse.py` requires all of them to parse.
+- Under `--reader=parser`, a write to a function parameter, a catch parameter or a destructured
+  parameter of the same name no longer counts as a write to an outer binding, so a spread of that
+  binding reads as its literal instead of partial: `var pY=[...];function g(pY){pY=["B"]}` keeps
+  `...pY` literal, as JavaScript does.
+
+### Known issues
+
+- Under `--reader=parser`, a direct `eval` in a module leaves every binding lookup in that module
+  unresolved: eslint-scope marks its scopes dynamic, and `optimistic` stays off because `eval`
+  can rebind names. The regex reader still reads those values. No module in 2.1.284 to 2.1.287 has
+  one; P4 of #5640 weighs it before the parser becomes the default.
+
+## [2.0.2] - 2026-10-02
+
+### Changed
+
+- **The `audit-native-overlap` bake step writes the links-only record shape.** A reference it bakes
+  into a skill holds our decision in our words, a pointer to the exact upstream section, the as-of
+  date and the recheck trigger, with no upstream text. A table form uses the header
+  `| Decision | Pointer | As of | Recheck when |` in place of `| Claim | Basis | Recheck trigger |
+  Verified |`, and the skill's own two upstream dependencies are restated in that form.
+- **The `known-issues`, `observability` and `plugins` records follow the same shape.** The model
+  fallback and quality-tracker notes, the hook-latency event record and the plugin scope
+  semantics each state our decision and point at the docs section or at our own probe, instead of
+  restating the page.
+- **The `known-issues` model-fallback note was re-read after its trigger fired.** It now covers a
+  refusal when a flagged category has no fallback target, with a 2026-10-01 as-of date.
+- `observability` points its latency record at the documented `hook_execution_complete` event and
+  keeps only the string-typed duration as our probe. `plugins` scope-semantics treats `--force` as
+  the answer to the MCP or LSP reload warning only, and records that the reference now offers a
+  fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
+  native-overlap` follow the docs site's new heading ids.
 
 ## [2.0.1] - 2026-10-02
 

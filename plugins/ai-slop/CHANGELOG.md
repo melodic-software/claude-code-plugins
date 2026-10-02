@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.5] - 2026-10-02
+
+### Changed
+
+- **The `audit` catalog stores no text from its source page.** The attribution record now points at
+  the pinned Wikipedia revision for the source inventory, and the postures derived from the page's
+  Caveats section and the notes on the em-dash and similar rules are restated as this catalog's own
+  decisions. No rule, default or severity changes: the em-dash rule stays zero-tolerance by default.
+- The feeling-instead-of-mechanism rubric item is restated in our own example and tests, and the
+  archiewood/claudeisms ratios now sit behind a pointer to that repository instead of in the catalog.
+
 ## [0.12.4] - 2026-10-02
 
 ### Fixed

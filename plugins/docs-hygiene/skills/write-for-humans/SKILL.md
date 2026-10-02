@@ -142,35 +142,19 @@ ambiguity). "If exceeded" gets a subject: the request (ambiguity).
 
 ## After writing
 
-- **Check for AI-writing tells.** Invoke `/ai-slop:audit` via the Skill tool when it is available in
-  the session; when it is not, re-read for the obvious tells yourself: filler, stacked hedging,
-  negative parallelism, and promotional tone. Then say that you did the lighter pass.
+- **Run the project's prose linter.** When the repository configures one (a Vale, markdownlint, or
+  textlint config), run it on the files you wrote and fix what it reports in them. Report the
+  command and its result.
+- **Check for AI-writing tells.** Invoke `/ai-slop:audit` on the files you wrote via the Skill tool
+  when it is available in the session; its detector reports filler, stacked hedging, negative
+  parallelism, and promotional tone by line. When it is not available, report that the AI-tell
+  check did not run.
 - **Repeated the same prose in another file. Even a second occurrence, or a recap of an SSOT that
   already exists?** Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared
   home still waits for the third occurrence; below that it remedies the repetition in place.
 - **The draft is over-long rather than misshapen?** Invoke `/docs-hygiene:compress` via the Skill
   tool; it trims flavor behind a semantic-diff guard rather than rewriting.
 - **Writing markdown an agent will load instead?** That is `/docs-hygiene:write-for-agents`.
-
-## Self-check before handing back
-
-**Check the draft against the standard you resolved.** Questions 4, 6 and 7 restate the three rules
-above, so they apply whichever standard that was. The other four come from the bundled layers: when
-the project declared its own guide, that guide supplies their equivalents and these four do not
-apply. Reaching for them would impose the bundled set on a project that already chose. Answer
-whichever apply against the text you just wrote, not from memory of writing it.
-
-1. Is each document one mode, with links where modes meet? Confirm it by naming the mode.
-2. Is every instruction a command, with its condition in front?
-3. Does any sentence carry two instructions, or two thoughts? Split it until each carries one.
-4. Can any word be cut without losing meaning? Cut it.
-5. Is "only" next to the word it changes? Does every "it" point at one obvious thing? Does every
-   clause keep its verb?
-6. Does each thing have exactly one name throughout?
-7. Would a developer say these words out loud? Replace invented metaphors and fancy synonyms with
-   the plain word or the real name.
-
-The draft is done when every answer is yes. A "no" is a rewrite now, not a note for later.
 
 ## What this skill does NOT do
 
@@ -192,7 +176,7 @@ The draft is done when every answer is yes. A "no" is a rewrite now, not a note 
   copy, not documentation; they follow your product's own copy guidelines.
 - **Does not author skills**, a SKILL.md is `playbooks:skill-authoring` and `skill-quality:check`
   territory.
-- **Does not claim to be the standards it names.** Each layer is a paraphrase of a published
+- **Does not claim to be the standards it names.** Each layer is our selection from a published
   standard; see the source records below.
 
 ## Gotchas
@@ -210,7 +194,7 @@ The draft is done when every answer is yes. A "no" is a rewrite now, not a note 
 
 ## Source records
 
-The four bundled layers are distilled paraphrases of published standards, each with a four-part
-drift stamp, claim, basis, as-of date, recheck trigger, in
+The four bundled layers are our selections from published standards, each with a record (our
+decision, a pointer, an as-of date, a recheck trigger) in
 [`reference/sources.md`](reference/sources.md). Read it before citing a layer as the standard: the
 STE layer is a principles subset, and a document written to it is not thereby STE-conformant.
