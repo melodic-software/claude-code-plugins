@@ -8,7 +8,7 @@
 #
 # A green run on the current repo tree proves nothing about the gate -- the
 # tree is green by construction once the drift is fixed. These fixtures prove
-# it goes RED on a catalogued plugin with no enabledPlugins key, on the inverse
+# it goes RED on an off-by-default plugin with no enabledPlugins key, on the inverse
 # (an enabled id no catalog entry backs), and on unsorted keys; and that an
 # explicit `false` still passes, because an off switch a gate rejects is an
 # off switch nobody can use.
@@ -33,16 +33,19 @@ MARKETPLACE="$TMP/.claude-plugin/marketplace.json"
 SETTINGS="$TMP/.claude/settings.json"
 
 write_marketplace() {
-  # plugin names, one per argument
+  # one plugin per argument: `name` leaves defaultEnabled absent, and
+  # `name=<json>` sets it to that literal JSON value (false, true, "false").
   {
     echo '{'
     echo '  "name": "fixture-marketplace",'
     echo '  "owner": {"name": "fixture"},'
     echo '  "plugins": ['
-    local first=1 name
-    for name in "$@"; do
+    local first=1 arg name extra
+    for arg in "$@"; do
       if ((first)); then first=0; else echo ','; fi
-      printf '    {"name": "%s", "source": "./plugins/%s", "category": "development"}' "$name" "$name"
+      name="${arg%%=*}" extra=''
+      [[ "$arg" == *=* ]] && extra=", \"defaultEnabled\": ${arg#*=}"
+      printf '    {"name": "%s", "source": "./plugins/%s", "category": "development"%s}' "$name" "$name" "$extra"
     done
     echo
     echo '  ]'
@@ -76,107 +79,96 @@ write_bootstrap() {
   printf '#!/usr/bin/env bash\nmarketplace_name="%s"\n' "$1" >"$TMP/.claude/cloud-bootstrap.sh"
 }
 
-FLEET="$TMP/fleet.json"
-write_fleet() {
-  # "<plugin>@<marketplace>" ids the fixture fleet list enables, one per
-  # argument; no arguments writes an empty list.
-  {
-    echo '{'
-    echo '  "extraKnownMarketplaces": {'
-    echo '    "fixture": {"source": {"source": "github", "repo": "o/r"}}'
-    echo '  },'
-    echo '  "enabledPlugins": {'
-    local first=1 id
-    for id in "$@"; do
-      if ((first)); then first=0; else echo ','; fi
-      printf '    "%s": true' "$id"
-    done
-    echo
-    echo '  }'
-    echo '}'
-  } >"$FLEET"
-}
-
 run() {
   (
     cd "$TMP" &&
       PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
         PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
         PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
-        PLUGIN_CATALOG_ENABLEMENT_FLEET="${FLEET_OVERRIDE:-$FLEET}" \
         bash "$SUT" 2>&1
   )
 }
 
 # Every fixture below declares the "fixture" marketplace unless it overrides
 # this, so the identity check agrees by default and each case exercises only
-# the drift class it names. The fleet list is empty unless a case says
-# otherwise, so the settings file alone has to cover the catalog there.
+# the drift class it names.
 write_bootstrap fixture
-write_fleet
 
-# --- 1. Happy path: catalog and enabledPlugins name the same set. -----------
+# --- 1. Happy path: defaultEnabled absent means covered with no key. --------
 write_marketplace alpha beta gamma
-printf 'alpha true\nbeta true\ngamma true\n' | write_settings
+printf '' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'none orphaned; keys sorted' <<<"$out"; then
-  ok "catalog and enabledPlugins in agreement passes"
+  ok "a catalog with defaultEnabled absent passes with an empty enabledPlugins"
 else
-  fail "happy path should pass (rc=$rc): $out"
+  fail "on-by-default catalog should pass (rc=$rc): $out"
 fi
 
-# --- 2. Catalogued, enabled nowhere. ----------------------------------------
-write_marketplace alpha beta gamma
-printf 'alpha true\ngamma true\n' | write_settings
-out="$(run)"
-rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'UNENABLED PLUGIN' <<<"$out" && grep -q "'beta'" <<<"$out"; then
-  ok "a catalogued plugin enabled neither by the fleet list nor by settings fails the gate"
-else
-  fail "plugin enabled nowhere should fail (rc=$rc): $out"
-fi
-
-# --- 2b. The fleet list covers what settings does not mirror. ---------------
-# Settings carries only deltas (here one opt-out) and the fleet list enables
-# the rest of the catalog.
-write_marketplace alpha beta gamma
-write_fleet alpha@fixture beta@fixture gamma@fixture
-printf 'beta false\n' | write_settings
+write_marketplace alpha=true beta
+printf '' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  ok "a catalog the fleet list enables passes with a deltas-only settings block"
+  ok "defaultEnabled true counts as on by default"
 else
-  fail "fleet-covered catalog should pass (rc=$rc): $out"
+  fail "defaultEnabled true should be covered (rc=$rc): $out"
 fi
 
-# A fleet entry for another marketplace does not cover this catalog.
-write_marketplace alpha beta
-write_fleet alpha@fixture beta@other-market
+# --- 2. Off by default with no key is enabled nowhere. ----------------------
+write_marketplace alpha beta=false gamma
 printf 'alpha true\n' | write_settings
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'UNENABLED PLUGIN' <<<"$out" && grep -q "'beta'" <<<"$out" &&
+  ! grep -q "'gamma'" <<<"$out"; then
+  ok "a defaultEnabled false plugin with no settings key fails the gate"
+else
+  fail "off-by-default plugin with no key should fail (rc=$rc): $out"
+fi
+
+# The cloud derivation enables only absent or boolean true, so a mistyped
+# string "false" is off there and must be off here.
+write_marketplace alpha 'beta="false"'
+printf '' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q "'beta'" <<<"$out"; then
-  ok "a fleet entry under another marketplace does not cover a catalogued plugin"
+  ok "a non-boolean defaultEnabled counts as off by default"
 else
-  fail "foreign-marketplace fleet entry must not count as coverage (rc=$rc): $out"
+  fail "string defaultEnabled should be off (rc=$rc): $out"
 fi
 
-# An unreadable or absent fleet list is fatal, never a pass.
-write_marketplace alpha
-printf 'alpha true\n' | write_settings
-printf 'not json\n' >"$FLEET"
+# --- 3. Off by default with an explicit key, true or false, is covered. -----
+write_marketplace alpha beta=false gamma=false
+printf 'beta true\ngamma false\n' | write_settings
 out="$(run)"
 rc=$?
-if [[ $rc -eq 2 ]] && grep -q 'not a settings-shaped JSON object' <<<"$out"; then
-  ok "a malformed fleet list exits 2"
+if [[ $rc -eq 0 ]]; then
+  ok "an off-by-default plugin with an explicit true or false key passes"
 else
-  fail "malformed fleet list should exit 2 (rc=$rc): $out"
+  fail "explicit key on an off-by-default plugin should pass (rc=$rc): $out"
 fi
-write_fleet
 
-# --- 3. An explicit false is a decision, not drift. -------------------------
+# A key under another marketplace does not cover this catalog.
+write_marketplace alpha beta=false
+{
+  echo '{'
+  echo '  "enabledPlugins": {"beta@other-market": true},'
+  echo '  "extraKnownMarketplaces": {'
+  echo '    "fixture": {"source": {"source": "directory", "path": "./"}}'
+  echo '  }'
+  echo '}'
+} >"$SETTINGS"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "'beta'" <<<"$out"; then
+  ok "a key under another marketplace does not cover an off-by-default plugin"
+else
+  fail "foreign-marketplace key must not count as coverage (rc=$rc): $out"
+fi
+
+# An explicit false on an on-by-default plugin is a recorded opt-out.
 write_marketplace alpha beta gamma
 printf 'alpha true\nbeta false\ngamma true\n' | write_settings
 out="$(run)"
@@ -342,71 +334,6 @@ if [[ $rc -eq 2 ]] && grep -q 'not found' <<<"$out"; then
   ok "a missing marketplace.json exits 2"
 else
   fail "missing marketplace.json should exit 2 (rc=$rc): $out"
-fi
-
-# --- 9. The fetch URL is overridable, and a failed fetch names the routes. ----
-# A curl shim records the URL it was handed and either serves the fixture fleet
-# list or fails the way an offline host does, so no case touches the network.
-SHIM_BIN="$TMP/shim-bin"
-CURL_LOG="$TMP/curl-url.log"
-mkdir -p "$SHIM_BIN"
-cat >"$SHIM_BIN/curl" <<'EOF'
-#!/usr/bin/env bash
-out="" url=""
-while (($#)); do
-  case "$1" in
-  -o) out="$2"; shift ;;
-  https://*) url="$1" ;;
-  esac
-  shift
-done
-printf '%s\n' "$url" >"$CURL_LOG"
-[[ "$SHIM_CURL_MODE" == "ok" ]] || exit 6
-cp "$SHIM_FLEET" "$out"
-EOF
-chmod +x "$SHIM_BIN/curl"
-run_fetch() { # <ok|fail> [fleet-url-override]
-  : >"$CURL_LOG"
-  (
-    cd "$TMP" &&
-      PATH="$SHIM_BIN:$PATH" SHIM_CURL_MODE="$1" SHIM_FLEET="$FLEET" CURL_LOG="$CURL_LOG" \
-        PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
-        PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
-        PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
-        PLUGIN_CATALOG_ENABLEMENT_FLEET_URL="${2:-}" \
-        bash "$SUT" 2>&1
-  )
-}
-write_marketplace alpha
-printf 'alpha true\n' | write_settings
-write_fleet
-default_url='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
-out="$(run_fetch ok)"
-rc=$?
-if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$default_url" ]]; then
-  ok "with no override the fleet list is fetched from the standards repository"
-else
-  fail "default fetch URL (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
-fi
-
-fork_url='https://raw.githubusercontent.com/example-fork/standards/main/fleet-plugins.json'
-out="$(run_fetch ok "$fork_url")"
-rc=$?
-if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$fork_url" ]]; then
-  ok "PLUGIN_CATALOG_ENABLEMENT_FLEET_URL replaces the fetch URL"
-else
-  fail "fetch URL override not honored (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
-fi
-
-out="$(run_fetch fail "$fork_url")"
-rc=$?
-if [[ $rc -eq 2 ]] && grep -Fq "could not fetch the fleet list from $fork_url" <<<"$out" &&
-  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy' <<<"$out" &&
-  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET_URL' <<<"$out" &&
-  ! grep -q 'none orphaned' <<<"$out"; then
-  ok "an unreachable fleet list exits 2 and names both overrides"
-else
-  fail "unreachable fleet list should exit 2 with the override routes (rc=$rc): $out"
 fi
 
 test_harness::report

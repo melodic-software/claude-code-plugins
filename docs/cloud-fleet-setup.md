@@ -155,8 +155,9 @@ carry, because Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .
 cache build rather than unioning with it, so a repo that pins one .NET SDK does not also
 receive the other fallback SDK. The fleet pins cover whichever of those two the repo does
 not pin. The env copy is still a warm cache: each repo's bootstrap installs its exact pins
-repo-locally. The script then fetches the standards fleet plugin list to
-`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope; only
+repo-locally. The script then derives the fleet plugin list from the claude-code-plugins
+catalog (every entry whose `defaultEnabled` is absent or `true`), writes it to
+`/opt/melodic-fleet-plugins.json`, and installs every `true` entry in it at user scope; only
 then does it run that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the
 snapshot. That plugin install is what makes the fleet's plugins live at turn one, because it
 runs before the session process launches and the plugin registry is read at process start,
@@ -208,12 +209,13 @@ resolves in cloud sessions, unlike anything user-scoped):
 }
 ```
 
-The fleet's plugin set is not declared per repo: the shared environment installs the standards
-fleet list
-([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json))
-into every snapshot, and the bootstrap reads that list overlaid with the repo's own block. So a
-repo's `enabledPlugins` carries only deltas: an explicit `false` to opt out of a fleet entry, or
-a `true` for a plugin beyond the fleet. The overlay is settings-wins: where both files name the
+The fleet's plugin set is not declared per repo: the shared environment derives the fleet list
+from the marketplace catalog (`fleet_list_from_catalog` in standards'
+[`components/cloud-environment/setup.sh`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh):
+every entry whose `defaultEnabled` is absent or `true`), installs it into every snapshot, and the
+bootstrap reads that list overlaid with the repo's own block. So a repo's `enabledPlugins`
+carries only deltas: an explicit `false` to opt out of an on-by-default plugin, or a `true` to
+opt in to an off-by-default one. The overlay is settings-wins: where both files name the
 same plugin the repo's value takes precedence, which is what makes the `false` an opt-out. A
 block that mirrors the whole catalog still works, since a repeated `true` agrees with the fleet
 entry it overrides, but writes one project-scope install record per entry per checkout

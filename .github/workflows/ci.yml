@@ -1058,7 +1058,7 @@ jobs:
       - name: Test the plugin-catalog-enablement gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-catalog-enablement.test.sh
-      - name: Check every catalogued plugin carries an enabledPlugins key
+      - name: Check every catalogued plugin is on by default or carries an enabledPlugins key
         id: plugin_catalog_enablement
         continue-on-error: true
         run: scripts/check-plugin-catalog-enablement.sh

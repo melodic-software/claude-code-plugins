@@ -378,15 +378,16 @@ catalog on, and the cloud bootstrap installs from the two together (see
   catalog does not load.
 - The whole catalog is installed here, so this repo dogfoods everything it publishes and a
   regression in any plugin surfaces here first, bar what a repo delta opts out of. Catalog
-  entries that ship `defaultEnabled: false` install disabled on a raw `claude plugin install`;
-  this repo's cloud bootstrap still treats fleet-list `true` as wanted (below). The enabling
-  list is the fleet cloud plugin list in standards
-  ([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json)),
-  which the shared environment fetches at cache build, writes into the snapshot at
-  `/opt/melodic-fleet-plugins.json`, and installs at user scope; `cloud-bootstrap.sh` reads that
-  snapshot copy overlaid with `.claude/settings.json`, so the committed `enabledPlugins` block
-  carries only this repo's deltas (an explicit `false` opts out of a fleet entry; an entry beyond
-  the fleet adds one). The block used to mirror the catalog, and a local session start in every
+  entries that ship `defaultEnabled: false` install disabled on a raw `claude plugin install`
+  and stay out of the cloud base set. That set is every catalog entry whose `defaultEnabled` is
+  absent or `true`: the shared environment's `setup.sh` in standards
+  ([`components/cloud-environment/setup.sh`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh),
+  `fleet_list_from_catalog`) derives it from this repo's `.claude-plugin/marketplace.json` at
+  cache build, writes it into the snapshot at `/opt/melodic-fleet-plugins.json`, and installs it
+  at user scope; `cloud-bootstrap.sh` reads that snapshot copy overlaid with
+  `.claude/settings.json`, so the committed `enabledPlugins` block carries only this repo's
+  deltas (an explicit `false` opts out of an on-by-default plugin; a `true` opts in to an
+  off-by-default one). The block used to mirror the catalog, and a local session start in every
   checkout wrote one project-scope install record per mirrored entry into the user's
   `installed_plugins.json` (#3688); the deltas-only block writes none. The trade is context: every
   enabled plugin adds per-turn cost, so a *consumer* repo should opt out of what it does not need
@@ -394,9 +395,9 @@ catalog on, and the cloud bootstrap installs from the two together (see
   format/lint-on-edit hooks (`markdown-format`, `bash-format`, `biome-format`, `typos-format`,
   `actionlint`, `eol-normalizer`) shell out to.
 - The `plugin-catalog-enablement-gate` CI lane holds that whole-catalog claim to the files, in
-  both directions: every `.claude-plugin/marketplace.json` entry must be enabled by the fleet list
-  (fetched from its published URL at gate time; unreachable is a usage error, not a pass) or carry
-  an explicit `enabledPlugins` key, and every key for this marketplace must name a catalogued
+  both directions: every `.claude-plugin/marketplace.json` entry must be on by default (no
+  `defaultEnabled`, or `true`) or carry an explicit `enabledPlugins` key, and every key for this
+  marketplace must name a catalogued
   plugin. It also checks that
   `cloud-bootstrap.sh`'s hardcoded `marketplace_name` still names the marketplace the settings file
   declares. The bootstrap selects what it installs with `endswith("@" + $n)`, so a rename that

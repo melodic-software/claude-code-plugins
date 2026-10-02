@@ -14,36 +14,31 @@
 # documented guarantee with no gate behind it -- and it costs exactly the
 # dogfooding the directory-source marketplace exists to provide.
 #
-# WHERE ENABLEMENT LIVES. The fleet cloud plugin list in standards
-# (components/cloud-environment/fleet-plugins.json) is what every cloud
-# snapshot installs, and the bootstrap reads its snapshot copy overlaid with
-# this repo's .claude/settings.json. So a catalogued plugin is covered when
-# the fleet list enables it OR this file carries an explicit key for it, and
-# this file does not mirror the whole catalog (a mirror writes one
-# project-scope install record per plugin per checkout on every local session
-# start). The fleet list is fetched from its published URL at gate time; an
-# unreachable list is a usage error, never a pass.
-#
-# OFFLINE AND FORKS. The fleet list is required for correctness in the
-# docs/plugin-philosophy.md "Prerequisites and failure behavior" sense: with no
-# network, or from a fork whose standards repository lives elsewhere, the gate
-# stops with exit 2 and names both overrides below rather than skipping. A
-# visible skip would still read as a pass in the lane that runs this.
+# WHERE ENABLEMENT LIVES. The cloud base set is derived from this repo's own
+# catalog: fleet_list_from_catalog in the standards repository's
+# components/cloud-environment/setup.sh enables every
+# .claude-plugin/marketplace.json entry whose `defaultEnabled` is absent or
+# true, and the bootstrap reads that list overlaid with this repo's
+# .claude/settings.json. So a catalogued plugin is covered when its catalog
+# entry is on by default OR this file carries an explicit key for it, and this
+# file does not mirror the whole catalog (a mirror writes one project-scope
+# install record per plugin per checkout on every local session start). Both
+# inputs are local files; the gate needs no network.
 #
 # NOT COVERED ELSEWHERE. plugins/harness-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos. It reads this
 # repo's catalog too (a relative `directory` source), but it diffs the catalog
 # only against the `enabledPlugins` keys of one settings file, reports a plugin
-# with no key as NEW (report only, exit 0), never reads the fleet list, and
+# with no key as NEW (report only, exit 0), never reads `defaultEnabled`, and
 # checks no key order, so it cannot gate this repo.
 # scripts/check-plugin-manifest-presence.sh holds the catalog against the
 # filesystem (manifest present, name matches, no unregistered directory); it
 # says nothing about whether a catalogued plugin is ever enabled.
 #
 # WHAT IS CHECKED (both directions):
-#   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the
-#      fleet list does not enable AND that has no `<name>@<marketplace>` key
-#      in .claude/settings.json `enabledPlugins`.
+#   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that is
+#      off by default (`defaultEnabled` set to anything but true) AND that has
+#      no `<name>@<marketplace>` key in .claude/settings.json `enabledPlugins`.
 #   2. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
 #      names no catalog entry. What a plugin rename or removal leaves behind;
 #      the id resolves to nothing and the install silently no-ops.
@@ -54,9 +49,9 @@
 #
 # A key set to `false` PASSES. An explicit `false` is a recorded decision:
 # the gate treats every matching settings key as coverage regardless of
-# value, so a disable of a plugin the fleet list never enabled still
-# passes. When the fleet list does enable that plugin, the bootstrap's
-# overlay honors the `false` as an opt-out (settings-wins). An absent key
+# value, so a disable of an off-by-default plugin still passes. For an
+# on-by-default plugin, the bootstrap's overlay honors the `false` as an
+# opt-out (settings-wins). An absent key
 # is the drift this gate exists to name. The two are different states and
 # only one of them is silent.
 #
@@ -66,18 +61,7 @@
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
 #   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
-#
-# Env overrides (fleet list source):
-#   PLUGIN_CATALOG_ENABLEMENT_FLEET        -- path to a local fleet list,
-#                                             instead of fetching the URL
-#                                             (offline, or the cloud
-#                                             snapshot's copy)
-#   PLUGIN_CATALOG_ENABLEMENT_FLEET_URL    -- https URL to fetch it from
-#                                             (a fork or mirror); defaults
-#                                             to the standards repository
 set -euo pipefail
-
-FLEET_URL="${PLUGIN_CATALOG_ENABLEMENT_FLEET_URL:-https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -156,47 +140,25 @@ enabled="$(
   done <<<"$declared_keys" | sort -u
 )"
 
-# The fleet list: a local path from the test seam, else the published file.
-# Fetch failure is fatal (exit 2): a gate that cannot read the list it judges
-# by must not report green.
-fleet_tmp=''
-if [[ -n "${PLUGIN_CATALOG_ENABLEMENT_FLEET:-}" ]]; then
-  FLEET="$PLUGIN_CATALOG_ENABLEMENT_FLEET"
-else
-  fleet_tmp="$(mktemp)"
-  trap 'rm -f "$fleet_tmp"' EXIT
-  if ! curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 3 \
-    "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
-    printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
-    echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
-    echo '  Offline, point PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy; from a fork, set' >&2
-    echo '  PLUGIN_CATALOG_ENABLEMENT_FLEET_URL to the https URL your standards repository publishes.' >&2
-    exit 2
-  fi
-  FLEET="$fleet_tmp"
-fi
-if ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$FLEET" >/dev/null 2>&1; then
-  printf 'check-plugin-catalog-enablement: fleet list %s is not a settings-shaped JSON object\n' "$FLEET" >&2
-  exit 2
-fi
-fleet_enabled="$(
-  jq -r --arg mp "$MARKET" '.enabledPlugins // {} | to_entries[]
-    | select(.value == true) | .key
-    | select(endswith("@" + $mp)) | .[:length - ($mp | length) - 1]' "$FLEET" |
+# On by default exactly as fleet_list_from_catalog reads it: `defaultEnabled`
+# absent or true. Any other value, a mistyped "false" string included, leaves
+# the plugin out of the cloud base set.
+default_on="$(
+  jq -r '.plugins[]? | select(.defaultEnabled == null or .defaultEnabled == true) | .name // empty' "$MARKETPLACE" |
     tr -d '\r' | sort -u
 )"
-covered="$(printf '%s\n%s\n' "$enabled" "$fleet_enabled" | grep . | sort -u || true)"
+covered="$(printf '%s\n%s\n' "$enabled" "$default_on" | grep . | sort -u || true)"
 
 errors=0
 
 # 1. FORWARD -- catalogued but enabled nowhere.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
-  printf "UNENABLED PLUGIN: %s catalogs '%s', but the fleet list does not enable '%s@%s' and %s enabledPlugins has no key for it.\n" \
-    "$MARKETPLACE" "$name" "$name" "$MARKET" "$SETTINGS" >&2
-  printf "  .claude/cloud-bootstrap.sh installs the fleet list overlaid with that file, so '%s' never loads in a session here.\n" \
+  printf "UNENABLED PLUGIN: %s catalogs '%s' as off by default (defaultEnabled is not true), and %s enabledPlugins has no '%s@%s' key.\n" \
+    "$MARKETPLACE" "$name" "$SETTINGS" "$name" "$MARKET" >&2
+  printf "  The cloud base set holds only on-by-default catalog entries, overlaid with that file, so '%s' never loads in a session here.\n" \
     "$name" >&2
-  printf "  Add it to the fleet list in standards (components/cloud-environment/fleet-plugins.json), or carry an explicit key here.\n" >&2
+  printf "  Carry an explicit key here: true to opt in, false to record the opt-out.\n" >&2
   errors=$((errors + 1))
 done < <(comm -23 <(printf '%s\n' "$catalog") <(printf '%s\n' "$covered"))
 
@@ -251,7 +213,7 @@ fi
 if ((errors > 0)); then
   {
     echo
-    echo "Every $MARKETPLACE entry must be enabled by the fleet list or carry an"
+    echo "Every $MARKETPLACE entry must be on by default or carry an"
     echo "enabledPlugins key in $SETTINGS, and every enabledPlugins key for the"
     echo "'$MARKET' marketplace must name a catalogued plugin. A key set to false"
     echo "is a recorded decision and passes; a plugin nothing enables is drift."
@@ -262,4 +224,4 @@ if ((errors > 0)); then
 fi
 
 catalog_count="$(printf '%s\n' "$catalog" | grep -c . || true)"
-echo "Every one of the $catalog_count catalogued plugins is enabled by the fleet list or carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."
+echo "Every one of the $catalog_count catalogued plugins is on by default or carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."
