@@ -6,3 +6,5 @@
 # squash-merged or deleted); the entry is dead config from that point on.
 04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:94
 04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
+4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:20
+4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:21

@@ -4367,12 +4367,12 @@
         "skill": "audit",
         "kind": "skill"
       },
-      "reason": "/mcp manages server connections and OAuth; ours audits MCP tool definition quality in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "reason": "/mcp manages server connections and OAuth; ours audits MCP tool definition quality and server instructions size in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. Re-ruled 2026-10-01 under the standing re-dismiss rule.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "a294bd3d8c51ce7b3065be5b79fff4c8",
-        "component": "d18a6582e390a51341b0bf04b4ad1961"
+        "component": "4fcbf376dce5f65d13ff513007a029c7"
       }
     },
     {
@@ -4385,12 +4385,12 @@
         "skill": "audit-posture",
         "kind": "skill"
       },
-      "reason": "/mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "reason": "/mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. Re-ruled 2026-10-01 under the standing re-dismiss rule.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "a294bd3d8c51ce7b3065be5b79fff4c8",
-        "component": "8b1e3a05a10b8c9ed115bf84e3599108"
+        "component": "f765a6bc479dc72ab37c8aec871e9e6d"
       }
     },
     {
