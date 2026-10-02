@@ -304,10 +304,14 @@ cascade below resolves it like any other key.
 Rendered views are untracked by default; publishing anywhere else is optional and
 configured, never the default, except for the digest's recorded `artifact` default.
 
-Standing re-check trigger: cross-account and cross-subscription artifact sharing/editing
-was verified absent with no documented roadmap (docs current at Claude Code v2.1.252).
-That absence claim is re-checked against the upstream artifacts doc and changelog on
-future version bumps before any plan relies on it staying true.
+A plan that depends on sharing or editing a rendered view across accounts or subscriptions
+does not assume it works: it checks the live Share dialog first.
+
+- **Pointer**: for artifact sharing and its permissions, see
+  <https://code.claude.com/docs/en/artifacts#share-an-artifact>.
+- **As of**: 2026-10-02 (Claude Code v2.1.287)
+- **Recheck trigger**: a Claude Code version bump, or a plan about to rely on cross-account or
+  cross-subscription sharing or editing (present or absent).
 
 ## Genre rubric and stopping rule
 
@@ -476,6 +480,12 @@ plugin copies it byte-identical to the same path within its own root
 a registration while only one plugin carries the file, which is why the first adoption
 ships unregistered by design. Skills cite the reference inline by role (their plugin's
 own copy), never by a repository path an installed consumer cannot resolve.
+
+The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
+view built on it, so no skill's "styles to leave out" list names a cream or off-white
+background. Those lists name layout habits (italic accent words in headings, numbered
+section labels, pill-shaped buttons, a hero banner). A lane that departs from the
+chrome's palette declares its own background instead of banning this one.
 
 ## The `rendered-views` cascade concern
 

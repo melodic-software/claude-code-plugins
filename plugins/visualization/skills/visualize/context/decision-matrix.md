@@ -140,9 +140,9 @@ paths, a shallow file tree with per-entry responsibilities, types and signatures
 a diff-shaped delta over any of those, and the whole block as the fallback. They
 render in any GFM surface, need no page, and take the same delivery ladder as
 every other form, except that a pull-request diff, fetched content, or another
-repository's files are never rendered to HTML until the rendered-views escape
-helper ships (the convention's security baseline). One example per form lives in
-`code-shapes.md` beside this file.
+repository's files are never rendered to HTML until this lane is wired through the
+rendered-views escape helper (the convention's security baseline). One example per form
+lives in `code-shapes.md` beside this file.
 
 ### Rich page (composite / interactive / large)
 

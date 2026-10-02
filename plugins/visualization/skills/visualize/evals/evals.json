@@ -148,11 +148,11 @@
       "id": 12,
       "name": "diff-with-artifact-argument-stays-terminal",
       "prompt": "/visualization:visualize artifact [The user pastes a unified diff from a pull request touching src/transport/client.ts and src/transport/stream.ts and asks to see the change as a sketch.]",
-      "expected_output": "Recognizes a pull-request diff as content the rendered-views security baseline pins to the terminal until the escape helper ships, so it renders a diff-shaped delta as a terminal fence and says in one line that the artifact argument was not honored for this content. It does not publish an Artifact or write a local HTML file.",
+      "expected_output": "Recognizes a pull-request diff as content the rendered-views security baseline pins to the terminal until this lane is wired through the escape helper, so it renders a diff-shaped delta as a terminal fence and says in one line that the artifact argument was not honored for this content. It does not publish an Artifact or write a local HTML file.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Recognizes a pull-request diff as content that is never rendered to HTML until the escape helper ships",
+        "Recognizes a pull-request diff as content that is never rendered to HTML until this lane is wired through the escape helper",
         "Renders the diff-shaped delta as a terminal fence",
         "States in one line why the artifact argument was not honored",
         "Does not publish an Artifact or write a local HTML file"
