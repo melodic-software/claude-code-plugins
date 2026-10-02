@@ -40,7 +40,7 @@ Lifecycle plugins exchange these public artifacts under `<memory_dir>/<topic-slu
   concern-scoped home under the memory root.
 
 Each plugin remains horizontally decoupled: it may read artifacts by this public protocol, but it must not
-import sibling plugin internals or assume another plugin is enabled. Namespaced skill invocation is
+import sibling plugin internals or assume another plugin is installed. Namespaced skill invocation is
 optional and must degrade to a visible manual handoff when unavailable.
 
 The canonical repository copy and every participating plugin's
