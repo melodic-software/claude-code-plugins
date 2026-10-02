@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.2] - 2026-10-02
+## [0.12.3] - 2026-10-02
 
 ### Fixed
 
@@ -13,6 +13,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `audit` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
 - `skills/audit/reference/component-types/skill.md` is now `skill-component.md`. claude.ai matches `SKILL.md` without regard to case and rejected the file as a skill without frontmatter.
+
+## [0.12.2] - 2026-10-02
+
+### Changed
+
+- **`auditor` records why it pins `model: opus` and `effort: high`.** The record points at the
+  model-config `high` row and the advisor capability rule, as of 2026-10-02, rechecked at the next
+  model release. The pins are unchanged.
 
 ## [0.12.1] - 2026-10-02
 

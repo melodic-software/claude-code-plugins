@@ -3,12 +3,33 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.1.7] - 2026-10-02
+## [0.2.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.2.0] - 2026-10-02
+
+### Added
+
+- A `SessionStart` hook (`hooks/install-python-deps.sh`) installs numpy and opencv from the
+  hash-locked `requirements.txt` into the plugin data directory, does nothing once they load, and
+  reports a failed install as a notice carrying the repair line. `scripts/pydeps.py` is the installer
+  and the launcher; `test_pydeps.py` and `hooks/install-python-deps.test.sh` cover the first
+  install, the no-op rerun and a failed install
+  ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)). The probe and the
+  launcher see only the installed set (no ambient `site-packages`), and a launcher started by an
+  older `python3` hands over to the interpreter the hook installed under.
+
+### Changed
+
+- `requirements.txt` is now the universal, hash-locked file; the direct pins moved to
+  `requirements.in`.
+- The `rotoscope`, `learn-style`, `produce` and `setup` skills run scripts through
+  `pydeps.py run`, which never installs, instead of `uv run --with-requirements`, which fetched
+  packages while a skill ran.
 
 ## [0.1.6] - 2026-10-02
 

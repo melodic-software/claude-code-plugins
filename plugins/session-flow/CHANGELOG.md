@@ -1,12 +1,22 @@
 # Changelog: session-flow plugin
 
-## [0.44.6] - 2026-10-02
+## [0.44.7] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `find-handoff` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.44.6] - 2026-10-02
+
+### Changed
+
+- **`orchestrate`'s priming addendum points at model and effort routing.** One sentence sends the
+  workflow-or-subagents choice and each spawn's model and effort to `/multi-agent:assess` and
+  `/multi-agent:route` when they resolve, else to the subagents page's "Choose a model" section,
+  with an as-of date and recheck trigger. `context/sources.md` records it. Imperative 7 and the
+  export modes are unchanged.
 
 ## [0.44.5] - 2026-10-02
 

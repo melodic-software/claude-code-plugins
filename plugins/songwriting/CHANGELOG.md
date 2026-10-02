@@ -3,11 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.4.41] - 2026-10-02
+## [1.4.42] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [1.4.41] - 2026-10-02
+
+### Changed
+
+- **`object-writer` pins `effort: medium`, down from `high`.** Creative generation is not
+  verification; the `medium` choice is our judgment.
 
 ## [1.4.40] - 2026-10-02
 

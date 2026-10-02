@@ -3,13 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.73.1] - 2026-10-02
+## [0.74.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `babysit-loop` and `commit` skill descriptions no longer contain angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.74.0] - 2026-10-02
+
+### Added
+
+- **`pull-request` chooses who watches a PR once it is out of draft.** At the end of `ready`, and
+  at `monitor` entry when no choice was made, a matrix picks between this skill's monitor, a
+  background agent through `/session-flow:continue-in-background`, `/background`, `/autofix-pr`
+  and the babysit loop, by whether the person is staying and whether the machine stays on. For a
+  route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
+  a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
+  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
+  the recommendation, and unknown usage points at `/usage` and favors `monitor` for a person who
+  is staying. New
+  `reference/watch-handoff.md`, which inlines the rate-limit floor and is registered in
+  `check-loop-lane-floor-drift.sh`; `native-surfaces.md` records auto-fix's requirements and
+  limits, cloud sessions sharing the account's rate limits, and `/background`.
 
 ## [0.73.0] - 2026-10-02
 

@@ -55,6 +55,7 @@ EXACT_CONSUMERS=(
   "plugins/work-items/skills/attend-queue/SKILL.md"
   "plugins/source-control/skills/babysit-loop/SKILL.md"
   "plugins/docs-hygiene/skills/extract-ssot/context/orchestrated-mode.md"
+  "plugins/source-control/skills/pull-request/reference/watch-handoff.md"
 )
 VALUES_CONSUMERS=(
   "prompts/loops/loop-lane-prompts.md"
@@ -177,7 +178,7 @@ mutate() {
 seed_tree
 out="$(run --check)"
 rc=$?
-if ((rc == 0)) && grep -q '6 consumer(s) match' <<<"$out"; then
+if ((rc == 0)) && grep -q '7 consumer(s) match' <<<"$out"; then
   ok "a conforming tree passes and names how many consumers it compared"
 else
   fail "conforming tree should pass (rc=$rc): $out"
@@ -197,7 +198,7 @@ fi
 
 out="$(run --list)"
 rc=$?
-if ((rc == 0)) && grep -q '1 source, 6 registered consumer(s)' <<<"$out" &&
+if ((rc == 0)) && grep -q '1 source, 7 registered consumer(s)' <<<"$out" &&
   grep -q 'consumer values prompts/loops/loop-lane-prompts.md' <<<"$out"; then
   ok "--list reports the source and every registered consumer with its mode"
 else
@@ -242,7 +243,7 @@ seed_tree
 mutate "$TMP/$SOURCE_REL" 's/\*\*10 minutes\*\*/**15 minutes**/'
 out="$(run --check)"
 rc=$?
-if ((rc == 1)) && grep -q '6 drifted or unresolvable consumer(s)' <<<"$out"; then
+if ((rc == 1)) && grep -q '7 drifted or unresolvable consumer(s)' <<<"$out"; then
   ok "a value changed only in the source fails all six consumers"
 else
   fail "source-side change should fail every consumer (rc=$rc): $out"

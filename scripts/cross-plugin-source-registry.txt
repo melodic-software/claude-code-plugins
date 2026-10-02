@@ -134,13 +134,13 @@ scripts/context-zone.sh
 scripts/context-zone.test.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/html-escape.mjs. The review plugin is the first adopting copy
-# (plugins/review/lib/html-escape.mjs), generated with a header that names the
-# canonical, so copies stay byte-identical to each other but not to the
-# canonical. A path-within-plugin line stays out
-# until a second plugin carries lib/html-escape.mjs: the drift checker rejects
-# a registration that spans only one plugin. The arrow line is the duplication
-# audit's cluster.
+# lib/html-escape.mjs. The review and education plugins carry the adopting
+# copies, generated with a header that names the canonical, so copies stay
+# byte-identical to each other but not to the canonical.
+lib/html-escape.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # Dedicated check: scripts/sync-fetch-docs.sh --check (CI: Verify fetch-docs

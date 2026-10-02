@@ -3,11 +3,35 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.1] - 2026-10-02
+## [0.7.3] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.7.2] - 2026-10-02
+
+### Fixed
+
+- **`confirm`'s report templates have a `Verifier model` line.** The outcome, fix and refactor
+  templates each record the model passed to the fresh-context verifier, or that the verifier was
+  not matched to the producing model because that model is unknown, which the skill already
+  required the report to say.
+
+## [0.7.1] - 2026-10-02
+
+### Changed
+
+- **`confirm` records why it pins `effort: high`.** The record points at the model-config `high`
+  row and the advisor capability rule, as of 2026-10-02, rechecked at the next model release. The
+  pin is unchanged.
+
+### Fixed
+
+- **`confirm` raises its fresh-context verifier to the model that produced the work.** When that
+  model is known and stronger than the session's, the verifier dispatch passes it as a
+  per-invocation `model`, upward only; when it is not known, the report says the verifier's model
+  was not matched to it. The skill's claim about the verifier's model now states the same rule.
 
 ## [0.7.0] - 2026-10-02
 

@@ -1,0 +1,41 @@
+{
+  "skill_name": "audit-defaults",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full-audit-reports-and-proposes",
+      "prompt": "Are the multi-agent routing defaults still current?",
+      "narration": true,
+      "expected_output": "Runs scripts/list-pointers.sh, fetches each URL pointer, loads the bundled /workflow-authoring skill when listed, and prints a table of owner, key, value, verdict, evidence and proposed value, then a diff block or `No changes proposed.` with the count of sources read and unread.",
+      "expectations": [
+        "The bundled list-pointers.sh supplies the pointers; none are recalled from memory",
+        "Each verdict is current, drifted, trigger fired or unread, and a failed fetch is unread",
+        "defaults.yaml is not edited",
+        "The count of sources read and not read is stated"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "one-owner",
+      "prompt": "/multi-agent:audit-defaults fanout",
+      "narration": true,
+      "expected_output": "Only the fanout rows are audited: frontier_guard and model against the workflows Cost section and the cost page's orchestrator strategy section.",
+      "expectations": [
+        "Rows for other owners are left out",
+        "Both fanout pointers are fetched",
+        "No proposal turns the guard off"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unreachable-source",
+      "prompt": "Audit the worker default. Note: this session has no network access.",
+      "narration": true,
+      "expected_output": "The URL pointers for worker cannot be fetched, so those rows are `unread`; the report says the default could not be confirmed and proposes no change on recall.",
+      "expectations": [
+        "Unfetched sources are reported as unread, never current",
+        "No change is proposed without fetched evidence"
+      ]
+    }
+  ]
+}

@@ -3,13 +3,45 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.2] - 2026-10-02
+## [0.12.4] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `quiz-me` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.12.3] - 2026-10-02
+
+### Security
+
+- `eli5` builds its explainer with a checked-in builder (`scripts/build-explainer.mjs`), and
+  `teach` builds a `codebase` lesson the same way (`scripts/build-lesson.mjs`). Each escapes every
+  repository-derived field through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script, so a hostile
+  string in a file, ADR, or commit renders as text. `--check <file>` flags a page that bypassed
+  the builder.
+
+### Changed
+
+- `eli5` diagrams are `flow` and `stack` tables of boxes, replacing hand-written inline SVG.
+- `eli5` never delegates to the upstream `eli5` plugin and no longer prints its install recipe: the
+  fetched text and repository text it works from are untrusted, and the upstream page does not
+  pass through the escape helper.
+- A `codebase` lesson's quiz is a question list the learner answers in chat, replacing the spliced
+  quiz component. `topic` lessons are unchanged.
+- A `codebase` lesson chunk takes a `code` list; each snippet renders in a block that keeps its
+  line breaks.
+
+## [0.12.2] - 2026-10-02
+
+### Security
+
+- `quiz-me` builds its HTML report with a checked-in builder (`scripts/build-report.mjs`) that
+  escapes every diff- and PR-derived field through the rendered-views escape helper, now carried
+  at `lib/html-escape.mjs`, and stamps the generator marker. The report has no script, and a
+  hostile title or diff line renders as text. `build-report.mjs --check <file>` flags a page that
+  bypassed the builder.
 
 ## [0.12.1] - 2026-10-02
 
