@@ -12,8 +12,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - `audit` reports the mod-plane settings in new `D/mod-plane` rows: `prependPlugins`,
   `appendPlugins`, `disableSideloadFlags`, and the built-in guard's `allowManagedModsOnly` and
   `allowModsToOverrideDenyRules`. A copy in a scope Claude Code does not read for that key is an
-  `info` finding. They are kept apart from the hook-suppression levers and never narrow a
-  permission baseline.
+  `info` finding, and so is a user-scope `prependPlugins` or `appendPlugins` on a machine with
+  managed settings. `--table` lists every key that is set. They are kept apart from the
+  hook-suppression levers and never narrow a permission baseline.
 - `reference/agents-md-liveness.md` records the legacy `projectInstructions` key, which still sets
   the mode while `instructionFiles` is at its default, and the documented ways a natively read
   `AGENTS.md` differs from a `CLAUDE.md`, including that `--add-dir` directories contribute none.

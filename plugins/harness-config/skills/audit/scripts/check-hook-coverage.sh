@@ -193,16 +193,19 @@ add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
 
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 MANAGED_NOTE=""
+MANAGED_PRESENT=false
 if [[ -r "$MANAGED_SCOPE_LIB" ]]; then
   # shellcheck source=../../../lib/managed-scope.sh
   # shellcheck disable=SC1091
   source "$MANAGED_SCOPE_LIB"
   MANAGED_FILE="$(mscope::base_file "${HOOK_COVERAGE_MANAGED_JSON:-}")"
   if [[ -f "$MANAGED_FILE" ]]; then
+    MANAGED_PRESENT=true
     add_scope "$MANAGED_FILE" "managed"
   else
     MANAGED_NOTE="Managed-settings JSON not present at ${MANAGED_FILE}; registry/plist managed policy is not read."
   fi
+  compgen -G "$(mscope::dropin_dir "${HOOK_COVERAGE_MANAGED_JSON:-}")/*.json" >/dev/null && MANAGED_PRESENT=true
 else
   MANAGED_NOTE="Managed-scope library missing; managed hook-suppression levers were not read."
 fi
@@ -588,6 +591,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     printf '{\n'
     printf '  "inventory": "%s",\n' "$([[ $PARTIAL -eq 0 ]] && echo complete || echo partial)"
     printf '  "lever_state": "%s",\n' "$LEVER_STATE"
+    printf '  "managed_scope": %s,\n' "$MANAGED_PRESENT"
     printf '  "project_root": %s,\n' "$(jqn --arg r "$PROJECT_ROOT" '$r')"
     printf '  "hooks": ['
     sep=""

@@ -322,7 +322,7 @@ m="$(make_machine modplane)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {pluginConfigs:{"cc-plugin-sec-default@builtin":{options:{allowManagedModsOnly:true}}}}' >"$m/project/.claude/settings.json"
 printf '%s\n' '{"prependPlugins":["acme-guard@acme","sec-default@builtin"]}' >"$m/user/settings.json"
 rc=0
-out=$(run "$m" --json 2>&1) || rc=$?
+out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --json 2>&1) || rc=$?
 assert_contains "case 4m: a user-scope prependPlugins is reported with its scope rule" \
   "$(jq -r '.rows[] | select(.claim=="mod-key-set:prependPlugins:user") | .detail' <<<"$out")" "no managed settings"
 assert_eq "case 4m: a project-scope guard option is an info finding" "info" \
@@ -331,6 +331,16 @@ assert_eq "case 4m: an unset key gets an unset row" "ok" \
   "$(jq -r '.rows[] | select(.claim=="mod-key-unset:disableSideloadFlags") | .status' <<<"$out")"
 assert_eq "case 4m: the mod-plane keys never feed the lever rows" "0" \
   "$(jq -r '[.rows[] | select(.claim | startswith("lever-set:"))] | length' <<<"$out")"
+printf '%s\n' '{"pluginConfigs":{"cc-plugin-sec-default@builtin":{"options":{"allowModsToOverrideDenyRules":true}}}}' >"$m/managed.json"
+rc=0
+out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --json 2>&1) || rc=$?
+assert_eq "case 4m: with managed settings present, a user-scope prependPlugins is an info finding" "info" \
+  "$(jq -r '.findings[] | select(.identity.claim=="mod-key-unread-scope:prependPlugins:user") | .severity' <<<"$out")"
+assert_eq "case 4m: a managed guard option gets a set row" "ok" \
+  "$(jq -r '.rows[] | select(.claim=="mod-key-set:allowModsToOverrideDenyRules:managed") | .status' <<<"$out")"
+rc=0
+out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --table 2>&1) || rc=$?
+assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowModsToOverrideDenyRules set in managed to true"
 
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.

@@ -1506,10 +1506,13 @@ done
 # Mod-plane keys are reported, never judged, except where a scope Claude Code
 # does not read for that key carries one: that copy changes nothing.
 declare -A SURF_BY_SCOPE=([project]="$SURF_SETTINGS" [local]="$SURF_LOCAL" [user]="$SURF_USER")
+MANAGED_SCOPE="$(jqs -r '.managed_scope // false' <<<"$INVENTORY_JSON")"
 for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnly allowModsToOverrideDenyRules; do
   case "$key" in
   prependPlugins | appendPlugins)
     honored="managed user"
+    # User scope counts only where no managed settings exist.
+    [[ "$MANAGED_SCOPE" == true ]] && honored="managed"
     meaning="orders the organization's mods around users' mods; user scope counts only on a machine with no managed settings, for a user not signed in with a Team or Enterprise plan"
     ;;
   disableSideloadFlags)
@@ -1524,6 +1527,7 @@ for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnl
     honored="managed"
     meaning="a built-in guard option; when true, a user's mod may approve a tool call a deny rule refuses, so permissions.deny is no longer the last word"
     ;;
+  *) ;;
   esac
   set_rows="$(jqs -r --arg k "$key" '.mod_plane[]? | select(.key==$k) | [.scope, (.value|tojson)] | @tsv' <<<"$INVENTORY_JSON")"
   if [[ -z "$set_rows" ]]; then
@@ -2146,6 +2150,9 @@ else
   echo
   echo "Findings:"
   jq -r '.findings[] | "  [\(.severity)] \(.category) \(.identity.check | sub("^harness-config/audit/"; "")) \(.identity.claim)\n      \(.detail)\n      suppress: id \(.finding_id) surface \(.identity.sites[0].surface) anchor \(.identity.sites[0]["anchor/v1"])"' <<<"$DOC"
+  echo
+  echo "Mod-plane keys set:"
+  jq -r '.rows[] | select(.claim | startswith("mod-key-set:")) | "  \(.detail)"' <<<"$DOC"
   echo
   echo "Suppressed:"
   jq -r '.suppressions.applied[]? | "  \(.check | sub("^harness-config/audit/"; "")) \(.claim): \(.suppressed.reason) (\(.suppressed.layer), \(.suppressed.date))"' <<<"$DOC"
