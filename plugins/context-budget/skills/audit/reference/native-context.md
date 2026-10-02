@@ -6,7 +6,7 @@ makes it worth checking again. Nothing here asserts the command is present in an
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `/context` is a built-in command: "Visualize current context usage as a colored grid", argument hint `[all]`, gated | The `/claude-ops:inventory` extraction of the installed 2.1.285 binary, 2026-09-29 (`builtin_commands` lane) | 2026-09-29 | A release renames or removes the command, or changes its description or gate |
+| `/context` is a built-in command: "Visualize current context usage as a colored grid", argument hint `[all]`, gated | The `/harness-ops:inventory` extraction of the installed 2.1.285 binary, 2026-09-29 (`builtin_commands` lane) | 2026-09-29 | A release renames or removes the command, or changes its description or gate |
 | It is user-invocable only; model invocation is disabled (command type `local-jsx`) | The same extraction (`user_invocable` true, `model_invocable` false) | 2026-09-29 | A release makes it model-invocable |
 | It shows optimization suggestions for context-heavy tools, memory bloat, and capacity warnings, and `all` expands the per-item breakdown | The `/context [all]` row on <https://code.claude.com/docs/en/commands> | 2026-09-30 | The row changes its description or arguments |
 | It shows the current session only; nothing in its description measures a fresh session's startup payload or compares two configurations | The description and docs row above | 2026-09-30 | A release widens it to startup cost or a before/after comparison |

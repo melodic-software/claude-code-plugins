@@ -28,7 +28,7 @@ subscription window the interactive sessions use.
 
 The repository already had the pieces of a different posture: a fixed pre-PR order
 (`docs/conventions/pre-pr-ordering/README.md`) whose steps are implemented by installed skills,
-a hook-written ledger of every Skill tool call (claude-ops `skill-usage.jsonl`), a pull-request
+a hook-written ledger of every Skill tool call (harness-ops `skill-usage.jsonl`), a pull-request
 skill that owns creation and merge, a required `ci-status` check that already carries the body
 contract as advisory steps, and a babysit merge gate that reads pull-request state over REST.
 
@@ -126,8 +126,8 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   workflow, which resolves to "the code-review lane reports security findings too" on this
   repository, and the body-contract rule does not yet name the `skill-evidence` block. Both
   wordings are requests against the standards repository, landed here by the next sync.
-- The claude-ops writer and the source-control readers resolve the ledger path by paired
-  defaults (`skill_usage_scope` and `skill_evidence_store`); claude-ops' `data-dir` scope is
+- The harness-ops writer and the source-control readers resolve the ledger path by paired
+  defaults (`skill_usage_scope` and `skill_evidence_store`); harness-ops' `data-dir` scope is
   unsupported for evidence.
 
 ## Revisit triggers
@@ -157,7 +157,7 @@ Removed:
   source-control config reference (decision 1's map).
 - `plugins/source-control/scripts/skill-evidence.sh`, the `skill-evidence` body block, and the
   babysit gate's parser and `skillEvidence` record (decisions 3, 4 and 6).
-- The `sha` and `pr` fields of claude-ops skill-usage rows, and the `branch.<name>.pr-number`
+- The `sha` and `pr` fields of harness-ops skill-usage rows, and the `branch.<name>.pr-number`
   git config key the create step wrote for them: no other reader used either.
 - The `pr-ready-evidence-*` hooks and their `pr_ready_evidence_gate_enabled` and
   `skill_evidence_store` options (decision 6).

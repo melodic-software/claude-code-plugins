@@ -42,7 +42,7 @@
 #
 # The four-part record is restated in docs/plugin-philosophy.md
 # ("Windows exec-form probe") and in
-# plugins/claude-config/skills/audit/reference/audit-checklist.md (Category D).
+# plugins/harness-config/skills/audit/reference/audit-checklist.md (Category D).
 #   Claim: On Windows, exec form resolves `command` as an executable and spawns
 #     it directly with `args` as the argument vector. There is no shell, so a
 #     shebang is not honored, and `command` must be a real executable such as

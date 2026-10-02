@@ -4,7 +4,7 @@
 #
 # The Read tool substitutes no variables, so the token in a spoke reaches the
 # model verbatim. The fix: SKILL.md renders <skill-dir> from ${CLAUDE_SKILL_DIR}
-# and the spoke cites <skill-dir>/scripts/..., as plugins/claude-memory does.
+# and the spoke cites <skill-dir>/scripts/..., as plugins/harness-memory does.
 # Fix the file, then lower its count or delete its line.
 #
 # A file whose hits are prose, or whose hits carry a working fallback, may stay
@@ -13,13 +13,13 @@
 # Stale-guarded: an entry whose file is gone, no longer contains the token, or
 # holds a different count fails the gate. Never add an entry for a new spoke:
 # use <skill-dir> instead.
-plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
-plugins/claude-config/skills/audit/context/validation-categories.md 1 # justified: the sentence names the two placeholders the hook rules look for in a plugin-provided hook; the literal text is the rule's subject
-plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
-plugins/claude-ops/skills/lanes/context/restart-consumer.md 1 # justified: the sentence says the skill resolves the variable freshly at run time; it names the token and runs nothing
-plugins/claude-ops/skills/plugins/context/gotchas.md 2 # justified: the sentences say what the variable substitutes into and when it resolves; they name the token and run nothing
-plugins/claude-ops/skills/plugins/context/scope-semantics.md 1 # justified: the sentence says the variable substitutes alongside a sibling key; it names the token and runs nothing
-plugins/claude-ops/skills/plugins/context/sync.md 1 # justified: the sentence says the variable keeps resolving to the version loaded at session start; it names the token and runs nothing
+plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
+plugins/harness-config/skills/audit/context/validation-categories.md 1 # justified: the sentence names the two placeholders the hook rules look for in a plugin-provided hook; the literal text is the rule's subject
+plugins/harness-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
+plugins/harness-ops/skills/lanes/context/restart-consumer.md 1 # justified: the sentence says the skill resolves the variable freshly at run time; it names the token and runs nothing
+plugins/harness-ops/skills/plugins/context/gotchas.md 2 # justified: the sentences say what the variable substitutes into and when it resolves; they name the token and run nothing
+plugins/harness-ops/skills/plugins/context/scope-semantics.md 1 # justified: the sentence says the variable substitutes alongside a sibling key; it names the token and runs nothing
+plugins/harness-ops/skills/plugins/context/sync.md 1 # justified: the sentence says the variable keeps resolving to the version loaded at session start; it names the token and runs nothing
 plugins/code-tidying/skills/dissolve-comments/reference/safety.md 1 # justified: the sentence says where the token is substituted and where it is not; the literal text is the subject
 plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1 # justified: the note says this file's paths are not written through the token; the literal text is the subject
 plugins/context-guard/skills/setup/reference/statusline-edit.md 1 # justified: the sentence names the token as a path the wiring target must never be; it runs nothing

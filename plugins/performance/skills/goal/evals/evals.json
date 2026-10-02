@@ -158,7 +158,7 @@
       "id": 13,
       "name": "constant-counter-does-not-waive-the-scaling-arms",
       "prompt": "/performance:goal the Stop hook that audits the session transcript. Counter: process count per fire, 3 at 50 KB and 3 at 10 MB, so it does not grow with the transcript. Metric: p50 wall-clock from the bundled harness. The counter is constant, so lock the goal on the counter alone.",
-      "expected_output": "Does not lock on the constant counter. Explains that a constant spawn count does not rule out size-proportional cost (the claude-ops hook-failure-audit hook held 3 processes per fire while going from 137 ms at 50 KB to 6,977 ms at 10 MB), requires the duration measured at two or more sizes, records a Scaling line with per-arm results, and asks the human for a stated bound for Done when.",
+      "expected_output": "Does not lock on the constant counter. Explains that a constant spawn count does not rule out size-proportional cost (the harness-ops hook-failure-audit hook held 3 processes per fire while going from 137 ms at 50 KB to 6,977 ms at 10 MB), requires the duration measured at two or more sizes, records a Scaling line with per-arm results, and asks the human for a stated bound for Done when.",
       "files": [],
       "expectations": [
         "Does not lock the goal on the constant process count alone",

@@ -10,7 +10,7 @@ interpreter-wildcard grant, never a hardcoded machine path, and never a self-gra
 plugin ships expecting it to work.** The three anti-patterns below each break that in a different way;
 the [correct pattern](#the-correct-pattern) fixes all three at once.
 
-Enforced by `/claude-config:audit-permission-grants`, which scans skill/command/agent frontmatter
+Enforced by `/harness-config:audit-permission-grants`, which scans skill/command/agent frontmatter
 `allowed-tools` and `settings.json` / `settings.local.json` `permissions.allow` and flags each
 anti-pattern (checks P1/P2/P3).
 

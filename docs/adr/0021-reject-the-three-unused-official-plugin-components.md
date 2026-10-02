@@ -15,7 +15,7 @@ explicit recheck trigger; no implementation issues emitted (zero accepted).
 
 - **Monitors** (`monitors/monitors.json` / `experimental.monitors`): **REJECT.** Both candidates are
   either already covered or not concrete: a PR/CI watch duplicates `/source-control:pull-request monitor`
-  and a consumer's channel-mode PR watch (no gap), and a claude-ops collector-health watch carries no
+  and a consumer's channel-mode PR watch (no gap), and a harness-ops collector-health watch carries no
   concrete recurring pain that outweighs adopting an `experimental.*` component whose manifest schema may
   change between releases (and which is skipped on the hosts / telemetry-disabled configs where the
   Monitor tool is unavailable). **Recheck trigger:** monitors leave the `experimental` key AND a concrete
@@ -36,7 +36,7 @@ explicit recheck trigger; no implementation issues emitted (zero accepted).
 - **`subagentStatusLine`** (plugin `settings.json`): **REJECT.** Purely cosmetic: it re-formats the
   subagent panel row with no functional capability, so it does not clear the default-REJECT bar; its
   richest inputs (per-row model + context-window size for a context percentage) additionally require a
-  recent Claude Code minimum. Candidate home was claude-ops. **Recheck trigger:** a concrete operational
+  recent Claude Code minimum. Candidate home was harness-ops. **Recheck trigger:** a concrete operational
   need for custom subagent-row data during orchestration, not a presentation preference. Upstream:
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.

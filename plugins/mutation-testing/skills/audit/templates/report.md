@@ -15,6 +15,14 @@ Mapped: <function (file:lines), one per mapped function>   Runner: <tool option 
 Skipped: <file: the scanner's adapter: none (...) reason, one per skipped file, or "none">
 Blind spot: a killed mutant does not clear a restated or copied expected value; testing/judge/rule-restated-expectation owns that check.
 
+<under --record-mutants without --replay-mutants:>
+Record: <file>, <n> mutants, K0 <n><, or "K0 empty: nothing to gate on">
+
+<under --replay-mutants, these lines (../context/mutant-record.md):>
+Replay: <n> mutants from <before>   K0 <n>  K1 <n>
+Gate: <pass|block>
+newly-surviving <path>:<line_start> <operator>    <one per blocking mutant>
+
 Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by cap>
 
 | File | Coverage< (under --exercised: changed tests only, or tests under <test-path> only)> | Covered-code score | Gap | Survivors |

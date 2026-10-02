@@ -151,25 +151,25 @@ plugins/bugs/CHANGELOG.md
 plugins/bugs/reference/*.md
 plugins/bugs/skills/*/SKILL.md
 plugins/bugs/skills/*/context/*.md
-# The claude-config plugin was purged whole. The glob stops short of the
+# The harness-config plugin was purged whole. The glob stops short of the
 # audit-instructions eval fixtures, which carry the tells those evals test.
-plugins/claude-config/*.md
-plugins/claude-config/skills/*/SKILL.md
-plugins/claude-config/skills/*/context/*.md
-plugins/claude-config/skills/*/reference/*.md
-plugins/claude-config/skills/*/templates/*.md
-# The claude-memory plugin was purged whole, its audit eval fixture included.
-plugins/claude-memory/*.md
-plugins/claude-memory/skills/*/SKILL.md
-plugins/claude-memory/skills/*/context/*.md
-plugins/claude-memory/skills/*/reference/*.md
-plugins/claude-memory/skills/audit/evals/fixtures/*.md
-# The claude-ops plugin was purged whole, its changelog eval fixtures included.
-plugins/claude-ops/*.md
-plugins/claude-ops/skills/*/SKILL.md
-plugins/claude-ops/skills/*/context/*.md
-plugins/claude-ops/skills/*/reference/*.md
-plugins/claude-ops/skills/changelog/evals/fixtures/*.md
+plugins/harness-config/*.md
+plugins/harness-config/skills/*/SKILL.md
+plugins/harness-config/skills/*/context/*.md
+plugins/harness-config/skills/*/reference/*.md
+plugins/harness-config/skills/*/templates/*.md
+# The harness-memory plugin was purged whole, its audit eval fixture included.
+plugins/harness-memory/*.md
+plugins/harness-memory/skills/*/SKILL.md
+plugins/harness-memory/skills/*/context/*.md
+plugins/harness-memory/skills/*/reference/*.md
+plugins/harness-memory/skills/audit/evals/fixtures/*.md
+# The harness-ops plugin was purged whole, its changelog eval fixtures included.
+plugins/harness-ops/*.md
+plugins/harness-ops/skills/*/SKILL.md
+plugins/harness-ops/skills/*/context/*.md
+plugins/harness-ops/skills/*/reference/*.md
+plugins/harness-ops/skills/changelog/evals/fixtures/*.md
 plugins/code-metrics/CHANGELOG.md
 plugins/code-metrics/README.md
 plugins/code-metrics/reference/*.md

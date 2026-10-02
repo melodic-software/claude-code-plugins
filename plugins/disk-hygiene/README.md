@@ -106,7 +106,7 @@ at preview. Backups remain the recovery boundary for user data.
 Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
 for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
 and `/disk-hygiene:setup apply` resolves anything it reports with guidance. `node` is declared in
-`prerequisites.json`, so `/claude-ops:prerequisites` lists it.
+`prerequisites.json`, so `/harness-ops:prerequisites` lists it.
 
 ## How the guard is registered
 

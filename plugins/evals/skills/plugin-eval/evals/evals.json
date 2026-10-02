@@ -31,12 +31,12 @@
       "id": 3,
       "name": "rules-target-refused-with-pointer",
       "prompt": "/evals:plugin-eval run .claude/rules. I want to measure whether our rules actually change the model's behavior.",
-      "expected_output": "Reports target_type: rules and refuses: every run starts from a throwaway home with CLAUDE.md, rules, settings, memory, and other plugins absent, so a shim that re-injects the rule would measure the shim. Routes to /claude-config:unhobble when the claude-config plugin is installed, and otherwise describes the bare-baseline experiment in a sentence.",
+      "expected_output": "Reports target_type: rules and refuses: every run starts from a throwaway home with CLAUDE.md, rules, settings, memory, and other plugins absent, so a shim that re-injects the rule would measure the shim. Routes to /harness-config:unhobble when the harness-config plugin is installed, and otherwise describes the bare-baseline experiment in a sentence.",
       "narration": true,
       "expectations": [
         "Refuses the rules target rather than scaffolding an append_system_prompt workaround",
         "States that the harness strips rules from every run as the reason",
-        "Routes to claude-config:unhobble behind an installed-ness gate with a stated fallback"
+        "Routes to harness-config:unhobble behind an installed-ness gate with a stated fallback"
       ]
     },
     {

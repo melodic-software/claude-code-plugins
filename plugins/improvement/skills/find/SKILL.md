@@ -112,7 +112,7 @@ Two hard rules follow:
   context/hotspots.md, including its shallow-history gate), CI health via GitHub Actions run data
   (recipe: context/ci-health.md), dependency staleness from the repo's own manifests,
   test-coverage presence, TODO density. These ship with the skill and need nothing installed.
-- **Tier 1. Local Claude Code telemetry.** When `claude-ops:observability` is installed, consult
+- **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
   declares through the `.claude/improvement.md` config cascade (team file + `.local` overlay +
@@ -131,7 +131,7 @@ fold its findings into this skill's candidate list as inputs. Delegate, never re
 method:
 
 - `architecture:improve` (deepening lens). Depth for the code/architecture dimension.
-- `claude-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
+- `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
 - Other installed finders that announce an improvement-shaped scan may be consulted the same way.
 
 Delegated findings keep their lane attribution in the evidence citation, and they compete in the

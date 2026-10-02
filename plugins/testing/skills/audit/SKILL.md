@@ -151,6 +151,8 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 
 - **Edit, repair, or delete tests.** Findings propose an assertion; the repair itself is the
   remediation lanes' work (`/testing:write` for authoring, the review fix pass for applying).
+  Audit stays repair, not pruning: `/testing:cleanup` rewrites, quarantines and, with the user's
+  yes per item, deletes tests behind a mutation gate.
 - **Execute the suite**. `/toolchain:check` runs tests; `mutation-testing:audit` executes mutants.
 - **Judge skips in bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
 - **Read any runner config but Playwright's JS/TS one.** Vitest's `retry` and `allowOnly`, Jest, and
@@ -161,6 +163,7 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 ## Next
 
 - A finding names a test that needs a real assertion: `/testing:write`.
+- Findings cover a folder of low-value tests to rewrite or prune: `/testing:cleanup <folder>`.
 - Findings are persisted with `--persist-findings`: `/review:fanout fix`.
 
 ## Gotchas

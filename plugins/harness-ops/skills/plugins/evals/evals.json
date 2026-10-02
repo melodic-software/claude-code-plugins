@@ -1,0 +1,175 @@
+{
+  "skill_name": "plugins",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-routes-to-sync",
+      "prompt": "/harness-ops:plugins",
+      "expected_output": "Bare invocation (no action argument) routes to the default action, sync, against the dynamically-resolved default marketplace. The response runs the sync algorithm through sync-run.sh (marketplace refresh, in-repo update when applicable, user-scope sweep, install-new per policy, user-scope enabledPlugins key-order normalize after any install, enabledPlugins completeness, cache content check), reads the JSON digest it prints, and ends with a terse fixed-section report plus reload guidance.",
+      "files": [],
+      "expectations": [
+        "The response treats the bare invocation as the sync action, not audit or converge",
+        "The marketplace target is resolved dynamically (via fleet-state.sh's CLAUDE_PLUGIN_ROOT join, reached through sync-run.sh) rather than a hardcoded marketplace name",
+        "The response ends with a terse fixed-section report and bare `/reload-plugins` guidance — `--force` is only suggested if an updated/installed component ships an MCP server whose tools aren't deferred, never as a blanket default"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "audit-issues-zero-mutating-calls",
+      "prompt": "/harness-ops:plugins audit",
+      "expected_output": "audit runs the same algorithm as sync but every mutating CLI call becomes a prediction: no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The reads those calls sit beside still run. Step 1's pre-refresh fleet-state.sh snapshot is taken (into the run's throwaway scratch directory) so the catalog-regression check keeps its first interval, and only the `claude plugin marketplace update` beside it is replaced by a prediction. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "files": [],
+      "expectations": [
+        "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
+        "The response still computes state from the read-only fleet-state.sh reads, which sync-run.sh --audit takes",
+        "The response still takes Step 1's pre-refresh fleet-state.sh snapshot before declining the refresh: it does not treat the whole of Step 1 as skipped, and the catalog-regression check still has its pre-refresh to pre interval available",
+        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed",
+        "If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "install-new-ask-offers-does-not-auto-install",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 2 new catalog plugins not yet installed.",
+      "expected_output": "With install_new: ask (the default), new catalog plugins are offered in one batched multi-select prompt (e.g. via AskUserQuestion) rather than installed automatically. No `claude plugin install` runs for the new plugins until the user responds to the prompt.",
+      "files": [],
+      "expectations": [
+        "The response presents the new catalog plugins as a batched choice for the user to select from, not as already installed",
+        "No `claude plugin install` command runs for any new plugin before the user's selection is obtained",
+        "The prompt is a single batched multi-select, not one separate confirmation per plugin"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "converge-aborts-in-autonomous-session",
+      "prompt": "[Autonomous/background session context: CLAUDE_CODE_REMOTE is set] /harness-ops:plugins converge",
+      "expected_output": "converge is destructive-tier (can uninstall a scoped install and touch committed settings) and detects the autonomous session context. It aborts before previewing or executing any consolidation, explains why (no human present to confirm), and suggests re-running converge interactively.",
+      "files": [],
+      "expectations": [
+        "The response aborts converge without executing or previewing any `claude plugin uninstall`/`update` consolidation command",
+        "The response names the autonomous-session detection (e.g. CLAUDE_CODE_REMOTE) as the reason for the abort",
+        "The response does not silently fall back to auto-applying a default strategy for every divergence"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "divergence-report-collapses-bulk-names-conflicts",
+      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under unknown/orphaned (present in enabledPlugins but no matching catalog entry).",
+      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/harness-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one unknown/orphaned plugin id gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count.",
+      "files": [],
+      "expectations": [
+        "The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one",
+        "The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count",
+        "The unknown/orphaned plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line",
+        "The response never claims to detect or report an enable-state mismatch (true in one scope, false in another) — fleet-state.sh only exposes the merged effective value, not each scope's raw enabledPlugins map"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "never-hand-edits-internal-state-or-cache",
+      "prompt": "Sync is reporting a divergence for plugin-x that looks wrong — can you just fix its entry in installed_plugins.json directly, or delete its cache directory to force a clean reinstall?",
+      "expected_output": "The skill refuses to hand-edit installed_plugins.json, known_marketplaces.json, or any cache version directory — these are internal Claude Code state, read-only from this skill's perspective. It explains that all state changes go through the `claude plugin` CLI (install/update/uninstall/enable/disable), and offers the matching CLI command instead (e.g. `claude plugin update plugin-x@<marketplace>`), or `converge` if the actual issue is scope divergence.",
+      "files": [],
+      "expectations": [
+        "The response does not edit installed_plugins.json, known_marketplaces.json, or any plugins/cache directory",
+        "The response does not delete or otherwise manipulate a plugin's cache version directory",
+        "The response redirects to a `claude plugin` CLI command (for example `claude plugin update plugin-x@<marketplace>`) or the converge action instead of manual state surgery"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "sync-reports-skipped-in-repo-step",
+      "prompt": "/harness-ops:plugins sync — run it from my home directory, which is not a project. fleet-state.sh reports project_root: null and all 111 installed[] records carry currentProject: null.",
+      "expected_output": "Step 2 is the self-described primary value path, so a run where it did nothing must say so. With project_root null, the report carries the In-repo row in its 'skipped — no project context resolved' form, naming the cwd. It is NOT reported as '0 updated', and the step is not omitted from the report.",
+      "files": [],
+      "expectations": [
+        "The report contains an In-repo row stating the in-repo step was skipped because no project context resolved, rather than omitting the step entirely",
+        "The response distinguishes 'no project context resolved' from 'a project with zero project/local installs' — it does not report the skip as a count of 0 updated",
+        "The response branches on fleet-state.sh's top-level project_root field, not on `--ids update-candidates-project` being empty, which is empty in both cases",
+        "No `claude plugin update -s project` or `-s local` call is issued"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "sync-all-covers-every-marketplace",
+      "prompt": "/harness-ops:plugins sync all — I have 9 marketplaces registered and 72 plugins installed at user scope across all of them.",
+      "expected_output": "In `all` mode Steps 2-5 are the per-marketplace loop body, not a single pass against the default marketplace. Every fleet-state.sh call in those steps carries --marketplace <name>, and the report makes per-marketplace coverage visible rather than emitting one Marketplace line while install/update/enable maintenance touched only one catalog.",
+      "files": [],
+      "expectations": [
+        "Steps 2-5 run once per marketplace, each fleet-state.sh call carrying an explicit --marketplace argument",
+        "The response does not issue a bare `--ids` call (no --marketplace) and treat its result as covering every marketplace",
+        "The response does not attempt `--all` combined with `--ids`, which the script rejects",
+        "The report distinguishes per-marketplace coverage rather than implying a single sweep covered all 9"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "dead-project-path-reported-not-converged",
+      "prompt": "/harness-ops:plugins sync — fleet-state.sh reports 38 actionable divergences whose project-scope records all carry projectPath D:\\worktrees\\scratch-run with projectPathPresent: false, because that worktree was deleted.",
+      "expected_output": "Rows whose projectPath is not present on this machine are reported in their own section, kept out of the actionable Divergences count, and never routed to converge — converge's every project/local command must cd into that path, so those commands cannot execute. The absence is reported as an observation ('not present on this machine'), never as a verdict that the directory is permanently gone, and the skill neither reaps the records nor edits installed_plugins.json.",
+      "files": [],
+      "expectations": [
+        "The stale/not-present project records are reported in a section separate from the Divergences count, not folded into the actionable count",
+        "The response does not tell the user to run `/harness-ops:plugins converge` to resolve rows whose projectPath is absent",
+        "The response does not edit or propose editing installed_plugins.json, and does not claim a `claude plugin` verb exists that reaps an install record by path",
+        "The response describes the path as not present on this machine rather than asserting the directory is dead, acknowledging an unmounted volume or offline share produces the same signal",
+        "The absent-path rows are still shown — they are annotated, never filtered out of the report"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "update-sweep-prefilter-fails-open",
+      "prompt": "/harness-ops:plugins sync — for this marketplace fleet-state.sh's catalog_versions is null for every id because the marketplace entries carry object-valued sources, and 40 plugins are installed at user scope.",
+      "expected_output": "The Step 3 pre-filter may only withhold an id it positively proved is already at the catalog version. With every catalog version null, nothing is proved, so the sweep is not narrowed at all — all 40 user-scope ids get a `claude plugin update` call, exactly as if no pre-filter existed. A shrunken sweep is never treated as evidence that skipped ids were checked.",
+      "files": [],
+      "expectations": [
+        "All 40 user-scope ids are swept — an unreadable catalog version results in the id being updated, never skipped",
+        "The response does not treat a null catalog version as 'already current' or as 'no update needed'",
+        "The ids come from `fleet-state.sh --ids`, never from a hand-written jq extraction over the JSON",
+        "The response does not report the fleet as verified-current on the basis of the pre-filter withholding ids"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "version-capture-never-reports-old-to-old",
+      "prompt": "/harness-ops:plugins sync — during the sweep `claude plugin update alpha@market1 -s user` printed that it updated the plugin, but the post-sweep fleet-state.sh re-read still shows alpha@market1 at its pre-update version.",
+      "expected_output": "The CLI's own reported value is source 2 and outranks the post-sweep re-read (source 3), which can lag if the state write is deferred. So the row reports the CLI's value, or <unknown> when the CLI named no version — never `<old> → <old>`, and the id is never counted as not-updated. A row admitting it cannot tell is better than one asserting nothing changed for a plugin that did.",
+      "files": [],
+      "expectations": [
+        "The report does not render the row as `<old> → <old>`",
+        "The plugin is still counted as updated, not as unchanged",
+        "The response uses the CLI's own reported version, or explicitly `<unknown>`, rather than synthesizing a version from the post-sweep re-read",
+        "The response does not treat the stale post-sweep read as evidence the update failed"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "downgrade-guard-withholds-backward-catalog",
+      "prompt": "/harness-ops:plugins sync. For this marketplace fleet-state.sh reports 3 user-scope ids (alpha@market1, beta@market1, gamma@market1) whose catalog_versions read 1.1.0 while the installed versions read 2.0.0, because the marketplace's directory source is parked on an old branch. The other 37 user-scope ids read the same version in both places.",
+      "expected_output": "The downgrade guard withholds a proven downgrade from the sweep by default. No `claude plugin update` runs for alpha, beta, or gamma; they are reported under `Action needed` as a `downgrade withheld:` row naming both versions and the likely cause (a marketplace source that moved backward), with the remediation to fix the source and rerun sync. `Updated:` does not list them. Rerun with --allow-downgrade and the same three ids are acted on and render under `Downgraded:`, never under `Updated:`.",
+      "files": [],
+      "expectations": [
+        "No `claude plugin update` call is issued for alpha@market1, beta@market1, or gamma@market1 on the default run",
+        "The three ids appear under `Action needed` as a `downgrade withheld:` row carrying both the installed and the catalog version",
+        "The row names a marketplace source that moved backward as the likely cause and gives the remediation of fixing the source and rerunning sync",
+        "`Updated:` does not list alpha@market1, beta@market1, or gamma@market1",
+        "With --allow-downgrade the three ids are updated and their outcomes render under `Downgraded:`, never under `Updated:`",
+        "The ids come from `fleet-state.sh --ids downgrade-candidates`, never from a hand-written jq extraction over the JSON"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "rendered-report-is-pasted-not-restated",
+      "prompt": "/harness-ops:plugins audit: sync-run.sh --audit --render printed the digest line and then the rendered report, whose rows read `Would update: 3 plugin(s)` with three `would run: claude plugin update … -s user` lines, `Would withhold: 1 downgrade(s)` naming gamma@market1 0.5.0 → 0.1.0, `Divergences: 2 behind here → run /harness-ops:plugins converge; 5 more elsewhere on this machine (…)`, and a `Timing:` row.",
+      "expected_output": "The response pastes the rendered report as printed and appends exactly one line of its own: the reload guidance, stated as the docs' two-step (run /reload-plugins; if it warns that the next message would re-read the conversation, run /reload-plugins --force). It does not retype, paraphrase, or recompute any count, id, scope, or version the render already carries (the 3, the 1, gamma's versions, the 2 and 5 of the Divergences split), does not add rows the render omitted, and does not compute its own Divergences split from the digest. It also does not add a monitor call-out of its own: that bullet is the render's, under Action needed, when the digest's updated_with_monitors is non-empty.",
+      "files": [],
+      "expectations": [
+        "The response reproduces the rendered report verbatim rather than summarizing it in its own words",
+        "The response does not restate a number, id, scope, or version that the render already printed (no separate 'three plugins would be updated' sentence, no re-listing of gamma@market1's versions)",
+        "The response does not add a row, section, or count the render omitted, and does not recompute the Divergences split from the digest",
+        "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
+        "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
+      ]
+    }
+  ]
+}

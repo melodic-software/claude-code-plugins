@@ -45,7 +45,7 @@ The scoping is structural, not advisory prose:
   application, never verbatim adoption of a sibling version's deltas. Chapters open with
   conditional framing ("if you are not X…") because spawn-time model overrides can hand a chapter
   to a model it was not written for.
-- **Audit catalog.** `plugins/claude-config/skills/audit-instructions/reference/criteria.md`
+- **Audit catalog.** `plugins/harness-config/skills/audit-instructions/reference/criteria.md`
   defines the `Model scope: <version>` annotation (its "Model scoping" section): a scoped row
   fires only on exact string equality of the normalized version token and is otherwise inert,
   reported as `skipped-for-target`: a near-miss target (point release, dated full ID) skips

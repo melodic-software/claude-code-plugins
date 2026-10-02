@@ -62,7 +62,7 @@ qualification IS the content, not a leak. Bounds:
 - Such a routing gate carries the marketplace parity token ("installed from its
   marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
   parity traces it to the store exactly as native gates trace to theirs
-  (`plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py`).
+  (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`).
 - Fleet seam audits treat a marketplace-qualified ID outside install-uplift content as a
   violation, unchanged.
 
@@ -70,6 +70,6 @@ qualification IS the content, not a leak. Bounds:
 
 Fleet audits check dim-11-adjacent seam phrasing against this shape: gate present, fallback
 stated, no marketplace qualification outside an install-recipe site. Existing adopters
-(work-items' tracker seam, claude-ops' known-issues reference, session-flow's stage-skill
+(work-items' tracker seam, harness-ops' known-issues reference, session-flow's stage-skill
 preference, planning's glossary hand-off) conform by carrying all three elements at each
 instructed invocation.

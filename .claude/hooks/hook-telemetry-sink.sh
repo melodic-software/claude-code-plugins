@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reference telemetry sink for claude-ops. Maps a hook-telemetry envelope (from
+# Reference telemetry sink for harness-ops. Maps a hook-telemetry envelope (from
 # ANY producer, per docs/conventions/hook-telemetry) into one JSONL line under
 # the log root (.observability/claude by default, project-relative; the
 # session_event_log_dir option moves it).
@@ -8,7 +8,7 @@
 # documents and formats (slog_event_record_to), `source: "envelope"`. The
 # envelope's session id, read from the spine (`session_id`, which a
 # contract-1.1 producer carries when its payload held a well-formed one and
-# omits otherwise) and falling back to `data.session_id`, which the claude-ops
+# omits otherwise) and falling back to `data.session_id`, which the harness-ops
 # audit hooks still send, decides the DESTINATION and nothing else:
 #   * present and well-formed: appended to sessions/<session_id>.jsonl, beside
 #     the per-session event log (session-event-log.sh). No lock: one file per
@@ -52,13 +52,13 @@ set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# Repo-local copy of the claude-ops reference sink: hook-utils.sh is not
+# Repo-local copy of the harness-ops reference sink: hook-utils.sh is not
 # colocated here, so source the repository's SSOT copy instead (same pattern as
 # the sibling pr-linkage-mcp-gate.sh reaching shared sources by relative path).
 # shellcheck source=../../lib/hook-utils.sh
 source "$HOOK_DIR/../../lib/hook-utils.sh"
-# shellcheck source=../../plugins/claude-ops/hooks/session-log-lib.sh
-source "$HOOK_DIR/../../plugins/claude-ops/hooks/session-log-lib.sh"
+# shellcheck source=../../plugins/harness-ops/hooks/session-log-lib.sh
+source "$HOOK_DIR/../../plugins/harness-ops/hooks/session-log-lib.sh"
 INPUT=$(cat)
 [[ -n "$INPUT" ]] || exit 0
 # silent-skip-ok: fire-and-forget sink — the producer discards stdout+stderr,

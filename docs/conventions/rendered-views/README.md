@@ -120,7 +120,7 @@ Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
 `architecture:improve`, `education:quiz-me`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`claude-ops:observability`, `planning:interview` (and planning's other rendered views),
+`harness-ops:observability`, `planning:interview` (and planning's other rendered views),
 `overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
 `visualization:visualize`.
 

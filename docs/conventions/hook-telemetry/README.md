@@ -182,11 +182,11 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
-**Sink routing by session (reference sink, claude-ops 0.42.11).** Since contract 1.1 every producer
+**Sink routing by session (reference sink, harness-ops 0.42.11).** Since contract 1.1 every producer
 that emits through `hook::emit_telemetry` carries the payload's `session_id` on the envelope spine
 (see "Correlation keys" above), so a sink needs nothing from the producer to file rows per session.
-The claude-ops reference sink reads the spine key first and falls back to `data.session_id`, the
-key the nine claude-ops audit hooks added under the additive rule before 1.1 and still send: an
+The harness-ops reference sink reads the spine key first and falls back to `data.session_id`, the
+key the nine harness-ops audit hooks added under the additive rule before 1.1 and still send: an
 envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
 per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
 carries no session) goes to the shared `<root>/hook-events.jsonl`. The per-session report therefore
@@ -194,12 +194,12 @@ covers every fleet producer from their 1.1 versions on (#3758, which finishes th
 opened).
 
 A sink's own store shape is the sink's business, not this contract's. A store a reader has to
-reconcile per query is the sink's own defect. The claude-ops reference sink writes ONE record shape
+reconcile per query is the sink's own defect. The harness-ops reference sink writes ONE record shape
 on both routes, alongside the per-session event log's rows: the routes differ by destination and by
 whether the record carries `session_id`, and `hook_event_name` names the event on every row, so no
 reader normalizes an event key. The key set and the group each route contributes are stated once,
 where the formatter every writer calls lives:
-`plugins/claude-ops/hooks/session-log-lib.sh` (`slog_event_record_to`).
+`plugins/harness-ops/hooks/session-log-lib.sh` (`slog_event_record_to`).
 
 ## Implementers
 
@@ -228,13 +228,13 @@ where the formatter every writer calls lives:
 | `guardrails` plugin | `block-windows-drive-tmp` | `data/block-windows-drive-tmp.schema.json` |
 | `guardrails` plugin | `block-exported-msys-pathconv` | `data/block-exported-msys-pathconv.schema.json` |
 | `guardrails` plugin | `block-root-delete-target` | `data/block-root-delete-target.schema.json` |
-| `claude-ops` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
-| `claude-ops` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
-| `claude-ops` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |
-| `claude-ops` plugin | `permission-denied-audit` | `data/permission-denied-audit.schema.json` |
-| `claude-ops` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
-| `claude-ops` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion, per the schema) | `data/skill-usage-audit.schema.json` |
-| `claude-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
+| `harness-ops` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
+| `harness-ops` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
+| `harness-ops` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |
+| `harness-ops` plugin | `permission-denied-audit` | `data/permission-denied-audit.schema.json` |
+| `harness-ops` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
+| `harness-ops` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion, per the schema) | `data/skill-usage-audit.schema.json` |
+| `harness-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
 | `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |

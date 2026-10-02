@@ -60,7 +60,7 @@ acceptable sole source: it omits every `disable-model-invocation: true` skill ou
 listing overflows its budget it drops descriptions **starting with the least-invoked skills**, the
 forgotten ones this skill exists to surface. Ladder:
 
-1. `/claude-ops:inventory`, if that plugin is installed. It owns whole-fleet enumeration and its
+1. `/harness-ops:inventory`, if that plugin is installed. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
    than walking the plugin cache, whose layout is undocumented and version-keyed. **Read its output
    from stdout, never pass `--out` into the consuming project**, whose documented example writes

@@ -281,7 +281,7 @@ skills in a delegation prompt, recommending a custom subagent's `skills:`
 preload for a discipline it should always carry. Audits recent work for a skill
 that should have fired and did not, and corrects by invoking it now. Description
 quality routes to `/skill-quality:check` and listing-budget overflow to
-`/claude-config:audit`; this skill audits use, not surfaceability. A per-prompt
+`/harness-config:audit`; this skill audits use, not surfaceability. A per-prompt
 `UserPromptSubmit` routing hook is deliberately deferred.
 
 ```shell

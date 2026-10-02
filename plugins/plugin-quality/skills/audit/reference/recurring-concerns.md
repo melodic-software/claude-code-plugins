@@ -51,7 +51,7 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   `/docs-hygiene:extract-ssot` when installed (Rule of Three, remedies, and the extraction workflow).
   When the duplicated value is a plugin-shipped constant or config field, also read **One owner per
   value** in `docs/plugin-philosophy.md`. Restatement across instruction surfaces (skills, agents,
-  rules) is `/claude-config:audit-instructions` territory when that plugin is installed.
+  rules) is `/harness-config:audit-instructions` territory when that plugin is installed.
 - **Inline-floor contracts:** where a contract file declares consumers copy named values verbatim,
   check the copies actually match. Byte-identity drift between a writer's contract and a consumer's
   inlined constants is a silent split-brain.

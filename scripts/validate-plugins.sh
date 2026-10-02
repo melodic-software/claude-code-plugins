@@ -26,7 +26,7 @@ node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs -
 # under a WindowsApps path component is the Store's App Execution Alias stub,
 # and executing it opens the Microsoft Store or hangs instead of running an
 # interpreter.
-OVERLAP="plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py"
+OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
 OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
 if [[ -z "$OVERLAP_FLOOR" ]]; then
   echo "error: could not parse MIN_PYTHON from $OVERLAP" >&2

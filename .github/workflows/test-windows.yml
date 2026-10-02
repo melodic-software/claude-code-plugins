@@ -258,7 +258,7 @@ jobs:
       - name: Test cloud-bootstrap plugin accounting on Windows
         run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
       - name: Test the skill-visibility audit on Windows
-        run: bash plugins/claude-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
+        run: bash plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.

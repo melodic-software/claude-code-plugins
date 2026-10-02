@@ -67,11 +67,11 @@
       "id": 5,
       "name": "fence-and-disambiguation-routing",
       "prompt": "Scan the repo for issues — I want to know what's already known to be broken with Claude Code itself, and also please double-check the diff on my open PR before I merge it.",
-      "expected_output": "The skill recognizes neither request as its own. 'Scan repo for issues' meaning a known-issue registry lookup routes to claude-ops:known-issues, and pre-merge diff review routes to the review lane (review:code-review, or review:security-review for a security-focused pass). It does not start a proactive hunt of resting code to satisfy either request.",
+      "expected_output": "The skill recognizes neither request as its own. 'Scan repo for issues' meaning a known-issue registry lookup routes to harness-ops:known-issues, and pre-merge diff review routes to the review lane (review:code-review, or review:security-review for a security-focused pass). It does not start a proactive hunt of resting code to satisfy either request.",
       "files": [],
       "narration": true,
       "expectations": [
-        "The known-issue-registry request is routed to claude-ops:known-issues and explicitly distinguished from this skill's proactive hunt of resting code",
+        "The known-issue-registry request is routed to harness-ops:known-issues and explicitly distinguished from this skill's proactive hunt of resting code",
         "The pre-merge diff review is routed to the review lane rather than handled here",
         "No proactive lane hunt is started to satisfy either request",
         "The response distinguishes this skill from bugs:write, which handles a defect the user has already observed"
