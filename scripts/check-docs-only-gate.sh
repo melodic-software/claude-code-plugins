@@ -79,6 +79,13 @@
 #                           gate that reports "all references are well formed"
 #                           over zero references is the nominal closure this file
 #                           exists to deny.
+#  10. DATA IS NOT A GATE — the resolver also publishes DATA outputs (the diff
+#                           base), pinned in DATA_TABLE by exact expression like
+#                           the boolean rows. A data output is read in exactly
+#                           one form, a whole env entry `KEY: ${{ needs.<resolver>
+#                           .outputs.<name> }}`, and never in a condition: its
+#                           value is not a polarity decision, and an empty one
+#                           must mean "the whole tree" to the script reading it.
 #
 # FAIL CLOSED ON SHAPE. Like scripts/check-lane-coverage.sh, this reads the
 # workflow structurally rather than through a YAML library (the repo ships no
@@ -143,6 +150,13 @@ run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && gith
 run_windows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}"
+# Outputs that carry a VALUE rather than a polarity decision, each pinned by its
+# exact expression and read only as a whole env entry (property 10). `lane_base`
+# is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
+# request, the newest green push run's commit on a push, and empty (the whole
+# tree) on a schedule, a dispatch, or a push with no usable base.
+DATA_TABLE="\
+lane_base${TAB}\${{ steps.base.outputs.ref }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -172,6 +186,15 @@ table_names() {
   printf '%s' "$out"
 }
 
+data_names() {
+  local sep="$1" tn out=""
+  while IFS="$TAB" read -r tn _; do
+    [[ -n "$tn" ]] || continue
+    out+="${out:+$sep}$tn"
+  done <<<"$DATA_TABLE"
+  printf '%s' "$out"
+}
+
 errors=0
 report() {
   echo "$1" >&2
@@ -198,7 +221,7 @@ report() {
 #   STEPOUT  <job>                        reads a step-level docs_only output
 #   ERR      <message>
 parsed="$(
-  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names ' ')" -v lane_opt_out="$LANE_OPT_OUT" '
+  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names ' ') $(data_names ' ')" -v lane_opt_out="$LANE_OPT_OUT" '
     function trim(s) { sub(/^[[:blank:]]+/, "", s); sub(/[[:blank:]]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/[^[:blank:]].*$/, "", t); return length(t) }
 
@@ -486,6 +509,31 @@ table_has() {
   return 1
 }
 
+# data_has <name>: is <name> a sanctioned data output?
+data_has() {
+  local tn
+  while IFS="$TAB" read -r tn _; do
+    [[ "$tn" == "$1" ]] && return 0
+  done <<<"$DATA_TABLE"
+  return 1
+}
+
+# is_data_read <line>: is this line exactly one env entry reading one data
+# output, `KEY: ${{ needs.<resolver>.outputs.<name> }}`? Whole-string, like
+# the consumer forms: a longer expression around the read is a decision this
+# gate does not model.
+is_data_read() {
+  local t="$1" key rest name
+  # shellcheck disable=SC2016 # `${{ }}` is a literal workflow delimiter here.
+  [[ "$t" == *': ${{ '"$REFERENCE_PREFIX"*' }}' ]] || return 1
+  key="${t%%: *}"
+  [[ "$key" =~ ^[A-Z][A-Z0-9_]*$ ]] || return 1
+  rest="${t#"$key: \${{ $REFERENCE_PREFIX"}"
+  name="${rest%' }}'}"
+  [[ "$t" == "$key: \${{ ${REFERENCE_PREFIX}${name} }}" ]] || return 1
+  data_has "$name"
+}
+
 # parse_consumer_form <bare-expression>: recognizes exactly
 # `needs.<resolver>.outputs.<name> == '<true|false>'`, setting CF_NAME and
 # CF_VALUE. Deliberately whole-string: a prefix match would accept a longer
@@ -615,11 +663,31 @@ while IFS="$TAB" read -r tname texpr; do
   fi
 done <<<"$OUTPUT_TABLE"
 
+# The data rows are pinned the same way: the value a consumer diffs against is
+# exactly what the resolver's step wrote, so an unset step output is the empty
+# string every reader takes as "the whole tree".
+while IFS="$TAB" read -r tname texpr; do
+  [[ -n "$tname" ]] || continue
+  published_expr=""
+  published_found=0
+  while IFS="$TAB" read -r ojob oname oexpr; do
+    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$tname" ]] || continue
+    published_found=1
+    published_expr="$oexpr"
+  done <<<"$REC_OUTPUT"
+  if [[ "$published_found" -eq 0 ]]; then
+    report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes no '$tname' data output; expected exactly '$tname: $texpr'."
+  elif [[ "$published_expr" != "$texpr" ]]; then
+    report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes '$tname: $published_expr', expected exactly '$tname: $texpr'. A data output passes its step's value through unchanged; an expression around it is a decision this gate does not model."
+  fi
+done <<<"$DATA_TABLE"
+
 while IFS="$TAB" read -r ojob oname oexpr; do
   [[ "$ojob" == "$RESOLVER_JOB" ]] || continue
   [[ -n "$oname" ]] || continue
   table_has "$oname" && continue
-  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which the output table does not name. Every polarity decision belongs in the table [$(table_names ', ')]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
+  data_has "$oname" && continue
+  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which neither the output table nor the data table names. Every polarity decision belongs in the table [$(table_names ', ')] and every value in [$(data_names ', ')]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
 done <<<"$REC_OUTPUT"
 
 # --- 3. FAILURE IS ABSORBED -------------------------------------------------
@@ -713,9 +781,19 @@ while IFS="$TAB" read -r refjob reford kind text; do
   jobif)
     # Judged in check 5c, which knows the required-lane closure. A job-level
     # read is a defect on an aggregated lane and the intended shape on a lane
-    # outside it, and that distinction is not available here.
+    # outside it, and that distinction is not available here. A data output is
+    # never a condition, on any lane.
+    for dn in $(data_names ' '); do
+      if [[ "$bare" == *"${REFERENCE_PREFIX}${dn}"* ]]; then
+        report "DATA IS NOT A GATE: job '$refjob' conditions the job on the data output '$dn': if: $text. Its value is not a polarity decision; read it in an env entry and let the script branch on it."
+      fi
+    done
     ;;
   *)
+    # A data output, read as a whole env entry (property 10).
+    if is_data_read "$text"; then
+      continue
+    fi
     # An aggregator feed entry, for some table output X:
     #   <name>=${{ needs.<resolver>.outputs.X == 'false' && 'success' || steps.<id>.outcome }}
     ok_feed=0

@@ -62,8 +62,8 @@
 # comments, so a change to run-guards.sh made every copy a "dependent" and pulled
 # in every suite naming hook-utils.sh — 278 to 328 of ~450 suites on 19% of
 # sampled pull requests, most of the corpus for a change to one plugin. The cost
-# of the narrowing is bounded: every push to main runs the full corpus, so a
-# dependency that existed only as a comment surfaces on main.
+# of the narrowing is bounded: CI runs the full corpus on main twice a day, so a
+# dependency that existed only as a comment surfaces there.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
@@ -128,6 +128,19 @@
 #                    path rule can see them. The validator's fleet-token ban
 #                    over the rest of plugins/autonomy/ is not mapped here;
 #                    CI also runs the contract suite in a step of its own.
+#   R8 plugin        any changed path under plugins/<p>/ also selects every
+#                    shell suite (*.test.sh) under plugins/<p>/. Suites that
+#                    scan their own plugin directory (a markdown lint, a
+#                    manifest or prose check) cover files no rule above can
+#                    reach: a SKILL.md edit is a no-suite class and a suite
+#                    that globs its plugin never spells the file's name. Both
+#                    suite breaks that only a full main run caught had that
+#                    shape. Shell suites only, because they are
+#                    what the whole-tree run executes; a plugin's Node, Python
+#                    and Pester suites keep reaching a change through R1-R4.
+#                    R8 ADDS suites and never MAPS a file: whether a changed
+#                    file is UNMAPPED is still decided by R1-R7 alone, so the
+#                    FAIL LOUD contract below is unchanged.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
@@ -1153,6 +1166,33 @@ if ! git ls-files --cached --others --exclude-standard -- 'plugins/*/skills/*' \
   exit 2
 fi
 
+# R8: every shell suite of a plugin the change touches, once per plugin. Read
+# after the seed's own walk and its mapped/unmapped verdict, so it adds suites
+# without ever counting as the rule that mapped a file. Fatal on a failed
+# listing, for the same reason as the reverse lookup: a short list is an
+# under-selection that reports success.
+declare -A R8_PLUGINS=()
+select_plugin_suites() {
+  local p="$1" suite
+  case "$p" in
+  plugins/*/*) ;;
+  *) return 0 ;;
+  esac
+  p="${p#plugins/}"
+  p="${p%%/*}"
+  [[ -z "${R8_PLUGINS[$p]:-}" ]] || return 0
+  R8_PLUGINS["$p"]=1
+  if ! git ls-files --cached --others --exclude-standard -- "plugins/$p/*.test.sh" \
+    >"$WORK_DIR/r8-suites"; then
+    echo "error: listing the shell suites under plugins/$p/ failed." >&2
+    exit 2
+  fi
+  while IFS= read -r suite; do
+    [[ -n "$suite" ]] || continue
+    add_suite "$suite" "R8: plugins/$p/ changed" || true
+  done <"$WORK_DIR/r8-suites"
+}
+
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
@@ -1172,6 +1212,7 @@ for f in "${changed[@]}"; do
       UNMAPPED+=("$f")
     fi
   fi
+  select_plugin_suites "$f"
 done
 
 # `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as

@@ -14,6 +14,14 @@ on:
         default: false
   push:
     branches: [main]
+  # THE WHOLE TREE, TWICE A DAY. A push tests only what changed since the last
+  # green push run (see the `changes` job), so this run is the net for what a
+  # diff cannot show: a suite that asserts against the live tree, and a
+  # dependency the affected-suite selector does not see. It takes the same path
+  # as a dispatch: the full contract corpus, the whole-repository ShellCheck and
+  # check-25 scans, and every diff-scoped gate at its widest.
+  schedule:
+    - cron: '17 5,17 * * *'
   pull_request:
     # `ready_for_review` is load-bearing: the draft filter below leaves the
     # heavy lanes reporting not-applicable while a pull request is a draft, and
@@ -61,9 +69,9 @@ permissions:
 # pushes that land meanwhile only the newest waits, because GitHub cancels a
 # pending run when a newer one joins its group. A burst of merges costs two
 # runs instead of one each (a replay of 529 main pushes: 47% would be dropped
-# while pending). The surviving run tests the whole tree, so a dropped run's
-# commits are still covered. A dispatch run keeps the unique `github.run_id`
-# group.
+# while pending). The surviving run diffs from the newest green push run, not
+# from its parent, so a dropped run's commits are still in its range. A
+# schedule or dispatch run keeps the unique `github.run_id` group.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
@@ -113,7 +121,8 @@ jobs:
   # non-zero exit, or an output file it could not write — leaves
   # `steps.detect.outputs.docs_only` unset, which every expression below
   # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a push event, where the detect step does not run at all. The
+  # path covers a run with no diff base (a schedule or dispatch run, or a push
+  # that could not use one), where the detect step does not run at all. The
   # narrowing clauses read the change-detection action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
@@ -148,8 +157,10 @@ jobs:
     timeout-minutes: 10
     # The change-detection action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. `statuses: write` is for the in-flight marker below.
+    # and nowhere else. `statuses: write` is for the in-flight marker below,
+    # `actions: read` for the green push runs the diff base is chosen from.
     permissions:
+      actions: read
       contents: read
       pull-requests: read
       statuses: write
@@ -167,6 +178,9 @@ jobs:
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
+      # A VALUE, not a gate: the ref every diff-scoped step diffs against, or
+      # empty for the whole tree. Read only as an env entry.
+      lane_base: ${{ steps.base.outputs.ref }}
     steps:
       # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
       # run on this SHA reads the newest bot-written `ci-lanes` status once and
@@ -200,15 +214,63 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+      # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
+      # branch. A push diffs against the commit of the newest green push run
+      # that HEAD descends from, not against its parent: a push run coalesced
+      # away while pending, or a red one, leaves its commits in the next range,
+      # so a break stays in every later range until a run passes. A push with no
+      # such run in the last 50, or whose range touches the shared test
+      # machinery (this workflow, the actions it calls, the suite runner and
+      # selector, scripts/lib/, the toolchain pins), and every schedule or
+      # dispatch run, get no base: the whole tree.
+      - name: Resolve the diff base
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+          pull_request)
+            echo "ref=origin/$BASE_REF" >>"$GITHUB_OUTPUT"
+            exit 0
+            ;;
+          push) ;;
+          *)
+            echo "::notice::A $GITHUB_EVENT_NAME run tests the whole tree."
+            exit 0
+            ;;
+          esac
+          whole() {
+            echo "::notice::$1; this push run tests the whole tree."
+            exit 0
+          }
+          shas=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=50" \
+            --jq '.workflow_runs[].head_sha') || whole "The green push runs could not be listed"
+          base=''
+          for sha in $shas; do
+            if git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
+              base="$sha"
+              break
+            fi
+          done
+          [ -n "$base" ] || whole "No green push run among the last 50 is an ancestor of $GITHUB_SHA"
+          infra=$(git diff --name-only "$base" HEAD -- .github/workflows/ci.yml .github/actions \
+            '.github/requirements-ci*.txt' 'scripts/run-plugin-tests*' 'scripts/affected-tests*' \
+            'scripts/run-outside-node-suites*' 'scripts/outside-node-*.txt' scripts/lib \
+            .shellcheckrc .node-version .python-version package.json package-lock.json) ||
+            whole "git diff $base failed"
+          [ -z "$infra" ] || whole "The range since $base touches the shared test machinery: ${infra//$'\n'/ }"
+          echo "Diff base: $base, the commit of the newest green push run HEAD descends from."
+          echo "ref=$base" >>"$GITHUB_OUTPUT"
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
       - name: Detect a docs-only diff
         id: detect
-        if: github.event_name == 'pull_request'
+        if: steps.base.outputs.ref != ''
         continue-on-error: true
         env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+          DIFF_BASE: ${{ steps.base.outputs.ref }}
+        run: scripts/check-docs-only.sh "$DIFF_BASE"
       # Every group repeats the toolchain and configuration paths on purpose: a
       # pull request touching only a lockfile, only a workflow file or only the
       # ShellCheck configuration changes what every lane would find, so it must
@@ -1333,16 +1395,33 @@ jobs:
         run: bash scripts/check-changed-skills.test.sh
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
-      # and on every push. On any other pull request an unchanged skill's
-      # check-25 verdict cannot have moved, because nothing it reads changed,
-      # and a changed skill is checked by the next step, which fails it on
-      # check 25 like any other FAIL. The one verdict a pull request can no
-      # longer see is a stale scripts/verb-contract-baseline.txt row left by
-      # fixing a listed skill; the list has no active rows, and the push run
-      # still reports one.
+      # on a push only when its range touched the same inputs, and on every
+      # schedule or dispatch run. Elsewhere an unchanged skill's check-25
+      # verdict cannot have moved, because nothing it reads changed, and a
+      # changed skill is checked by the next step, which fails it on check 25
+      # like any other FAIL. The one verdict a diff can no longer see is a stale
+      # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
+      # the list has no active rows, and the scheduled run still reports one.
+      #
+      # change-detection reads only a pull request's files, so on a push every
+      # group reports true and the range is checked here instead, against the
+      # group's inputs less scripts/lib/ and this workflow, which already give
+      # a push no diff base.
       - name: Gate every skill on description/verb-contract polarity (check 25)
         if: needs.changes.outputs.run_skill_checker == 'true'
-        run: bash scripts/check-all-skills-verb-contract.sh
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$DIFF_BASE" ]; then
+            touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
+              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt) ||
+              touched="(git diff failed)"
+            if [ -z "$touched" ]; then
+              echo "::notice::No check-25 input changed since $DIFF_BASE; the scheduled run checks every skill."
+              exit 0
+            fi
+          fi
+          bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1621,8 +1700,8 @@ jobs:
     # FOUR LEGS ON EVERY EVENT. The job key does not change, so
     # `ci-status.needs` and scripts/check-lane-coverage.sh are untouched; what
     # changes is that the contract suites are partitioned across four runners
-    # instead of executed by one: the affected selection on a pull request, the
-    # full corpus on a push (#3705). The dominant step was measured at 435 s p50
+    # instead of executed by one: the affected selection on a pull request or a
+    # push, the full corpus on the whole tree (#3705). The dominant step was measured at 435 s p50
     # running 146 to 165 suites strictly sequentially, so more runners was the
     # first lever. The second is `--jobs 3` on the pull-request path below: the
     # selector now hands its selection to run-plugin-tests.sh, which is what the
@@ -1777,10 +1856,12 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
-      # ON A PULL REQUEST, ONLY THE SUITES THE DIFF AFFECTS. affected-tests.sh
-      # derives the covering suites from the changed files and runs them; the
-      # full corpus still runs on every push to main. Its exit contract decides
-      # what happens next, and each branch is deliberate:
+      # ONLY THE SUITES THE DIFF AFFECTS, on a pull request and on a push.
+      # affected-tests.sh derives the covering suites from the files changed
+      # since the `changes` job's diff base and runs them; with no base (a
+      # schedule or dispatch run, or a push that could not use one) the full
+      # corpus runs. Its exit contract decides what happens next, and each
+      # branch is deliberate:
       #
       #   0  selected and green, or nothing to do.
       #   3  every shell suite it selected ran, but it also selected suites in
@@ -1814,14 +1895,14 @@ jobs:
       # instead, the matrix result would be `skipped` and `ci-status`, which is
       # fail-closed on `skipped`, would red the pull request.
       #
-      # A push, and the UNMAPPED fallback, run the full corpus through
+      # The whole tree, and the UNMAPPED fallback, run the full corpus through
       # run-plugin-tests.sh with the same `--shard`, which partitions its
       # discovered suites the same way, so the four legs run it once between
       # them.
       - name: Run plugin contract tests
         if: needs.changes.outputs.run_tests == 'true'
         env:
-          BASE_REF: ${{ github.base_ref }}
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
           # Empty on every event but a dispatch that asked for the lanes, which
           # is what the gate in the bench suite reads as "stay deferred".
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
@@ -1830,10 +1911,10 @@ jobs:
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ -z "$DIFF_BASE" ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
             # The shell corpus is sharded above. The outside-Node packages are
-            # a fixed pair, so one leg runs them once on the push path (#3703).
+            # a fixed pair, so one leg runs them once on the whole-tree path (#3703).
             if [ "$LEG" = 3 ]; then
               scripts/run-outside-node-suites.sh
             fi
@@ -1841,7 +1922,7 @@ jobs:
           fi
           err="$RUNNER_TEMP/affected-tests.err"
           set +e
-          scripts/affected-tests.sh --run --jobs 3 --shard "$LEG/$LEGS" --base "origin/$BASE_REF" 2>"$err"
+          scripts/affected-tests.sh --run --jobs 3 --shard "$LEG/$LEGS" --base "$DIFF_BASE" 2>"$err"
           status=$?
           set -e
           cat "$err" >&2
@@ -1874,7 +1955,7 @@ jobs:
                 echo "::warning::$summary Falling back to the full contract corpus."
                 printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
                 scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
-                # Same fixed pair the push path runs once on leg 3 (#3703).
+                # Same fixed pair the whole-tree path runs once on leg 3 (#3703).
                 if [ "$LEG" = 3 ]; then
                   scripts/run-outside-node-suites.sh
                 fi
@@ -2557,8 +2638,8 @@ jobs:
       #
       # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
       # cannot tell a blank input from an unset one, so it falls back to its own
-      # discovery. That is the wanted answer on push, where there is no base to
-      # diff against, and on any diff that changes what every script is judged
+      # discovery. That is the wanted answer on the whole tree (no diff base:
+      # a schedule or dispatch run), and on any diff that changes what every script is judged
       # against: the rcfile, a sourced shell file outside plugins/ (lib/,
       # scripts/lib/, a scripts/ harness), or this workflow, which pins the
       # composite and so the ShellCheck version. A failed basename search also
@@ -2577,11 +2658,11 @@ jobs:
       - name: Select the changed shell scripts
         id: changed_shell
         env:
-          BASE_REF: ${{ github.base_ref }}
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
         run: |
           files=''
-          if [ -n "$BASE_REF" ]; then
-            files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          if [ -n "$DIFF_BASE" ]; then
+            files=$(git diff --name-only "$DIFF_BASE...HEAD")
             whole='^\.shellcheckrc$|^\.github/workflows/ci\.yml$|^"| '
             sourced='(^|/)lib/.*\.(sh|bash)$|-(harness|helpers)\.sh$'
             extra=''

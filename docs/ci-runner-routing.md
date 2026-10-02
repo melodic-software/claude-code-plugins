@@ -62,6 +62,31 @@ had, and each half carries its own `aggregate-hygiene-results.sh` feed over
 exactly its own gate steps. ShellCheck runs in `hook-utils` with a one-row feed
 of its own, so its whole-repository scan does not set `lint`'s wall time.
 
+## What each event tests
+
+The `changes` job resolves one diff base, published as `lane_base`, and every
+diff-scoped step diffs against it:
+
+- **Pull request:** the base branch. The contract suites are the affected
+  selection (`scripts/affected-tests.sh`), and ShellCheck lints the changed
+  shell files.
+- **Push to `main`:** the commit of the newest green `ci` push run that HEAD
+  descends from, not HEAD's parent. A push run that went red, or was dropped
+  while pending, leaves its commits in the next run's range, so a break stays
+  red until a run passes. Push runs coalesce: one runs and only the newest
+  waits. With no such run among the last 50, or a range that touches the
+  shared test machinery (`ci.yml`, `.github/actions/`, the suite runner and
+  selector, `scripts/lib/`, the toolchain pins), the push tests the whole tree.
+- **Schedule (05:17 and 17:17 UTC) and dispatch:** the whole tree. That means
+  the full contract corpus, the whole-repository ShellCheck, and the check-25
+  scan over every skill. This run catches what a diff cannot show: a suite that
+  asserts against the live tree, or a dependency the selector does not see.
+
+The selector's rule R8 covers the gap a full main run used to cover: a change
+anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
+because suites that scan their own plugin directory never name the file that
+changed.
+
 ## Contract-only `ci-status`
 
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event

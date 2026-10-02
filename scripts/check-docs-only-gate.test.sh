@@ -87,6 +87,7 @@ jobs:
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
+      lane_base: ${{ steps.base.outputs.ref }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out
@@ -127,6 +128,10 @@ jobs:
       - name: Report not applicable to a docs-only diff
         if: needs.changes.outputs.run_full == 'false'
         run: echo not-applicable
+      - name: Diff against the resolved base
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: echo "${DIFF_BASE:-whole tree}"
       - name: Aggregate
         if: always()
         env:
@@ -512,7 +517,37 @@ expect "a missing aggregate is inconclusive, never a pass" 2 "closure cannot be 
 # cannot check it, and its consumers are invisible to the consumer-form rule.
 f="$scratch/extra-output.yml"
 xform_insert_after "$base" "      run_workflows:" "      run_something: \${{ steps.detect.outputs.docs_only != 'true' }}" "$f"
-expect "an output outside the table is rejected" 1 "which the output table does not name" --check "$f"
+expect "an output outside the table is rejected" 1 "which neither the output table nor the data table names" --check "$f"
+
+# --- 10. DATA IS NOT A GATE -------------------------------------------------
+#
+# A data output passes its step's value through unchanged and is read only as a
+# whole env entry: its value is not a polarity decision, and an empty one must
+# reach the script as "the whole tree".
+
+f="$scratch/data-missing.yml"
+xform_delete "$base" "      lane_base:" "$f"
+expect "a missing data output is rejected" 1 "publishes no 'lane_base' data output" --check "$f"
+
+f="$scratch/data-wrapped.yml"
+xform_replace_line "$base" "      lane_base:" "      lane_base: \${{ steps.base.outputs.ref || 'origin/main' }}" "$f"
+expect "a data output with a defaulting expression is rejected" 1 "DATA IS NOT A GATE" --check "$f"
+
+f="$scratch/data-in-step-if.yml"
+xform_replace_line "$base" "if: needs.changes.outputs.run_node == 'true'" "        if: needs.changes.outputs.lane_base == 'true'" "$f"
+expect "a data output in a step condition is rejected" 1 "which the resolver's output table does not name" --check "$f"
+
+f="$scratch/data-in-longer-expr.yml"
+xform_replace_line "$base" "DIFF_BASE: \${{" "          DIFF_BASE: \${{ needs.changes.outputs.lane_base || 'origin/main' }}" "$f"
+expect "a data output inside a longer expression is rejected" 1 "outside the aggregator feed template" --check "$f"
+
+f="$scratch/data-lowercase-key.yml"
+xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.changes.outputs.lane_base }}" "$f"
+expect "a data output read under a non-env key is rejected" 1 "outside the aggregator feed template" --check "$f"
+
+f="$scratch/data-in-job-if.yml"
+xform_replace_line "$base" "    if: needs.changes.outputs.run_windows == 'true'" "    if: needs.changes.outputs.lane_base != ''" "$f"
+expect "a data output in a job condition is rejected" 1 "DATA IS NOT A GATE" --check "$f"
 
 f="$scratch/unknown-output-consumer.yml"
 xform_replace_line "$base" "if: needs.changes.outputs.run_node == 'true'" "        if: needs.changes.outputs.run_invented == 'true'" "$f"

@@ -119,6 +119,19 @@ run_sel() {
   RC=$?
 }
 
+# run_sel_rules <repo> <args...>: like run_sel, but OUT keeps only the suites
+# R1-R7 select. R8 adds every shell suite of a touched plugin, so a case about
+# what NAMES a file reads the selection through --explain and drops the suites
+# whose recorded reason is R8's. A suite another rule also reached keeps that
+# rule's reason, because a seed's own walk runs before R8, so it stays.
+run_sel_rules() {
+  local repo="$1" err
+  shift
+  err="$(cd "$repo" && bash scripts/affected-tests.sh --explain "$@" 2>&1 >/dev/null)"
+  RC=$?
+  OUT="$(awk '/^select: / && !/  \(R8: / { sub(/^select: /, ""); sub(/  \(.*$/, ""); print }' <<<"$err")"
+}
+
 # Captured output is matched in-shell, never piped into a reader: under pipefail
 # an early-exit reader can kill the writer with SIGPIPE (see the pin below).
 # has_line <text> <line>: <line> is one whole line of <text>, matched literally.
@@ -1218,8 +1231,9 @@ fi
 
 # The exit code alone is not the assertion: what must be gone is the SELECTION
 # the substring match handed it. Under --allow-unmapped the run proceeds, so an
-# empty stdout is direct evidence that no unrelated suite was borrowed.
-run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
+# empty rule selection is direct evidence that no unrelated suite was borrowed
+# (R8's plugin suites are a different rule, and never map a file).
+run_sel_rules "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
   ok "the borrowed suites are gone, not merely re-labeled"
 else
@@ -1428,6 +1442,46 @@ else
   fi
 fi
 
+# --- R8: a plugin change selects every shell suite of that plugin -------------
+# A suite that globs its own plugin directory never spells the changed file's
+# name, so only a path rule reaches it from a SKILL.md edit. Pinned: the
+# plugin's shell suites are in, its Python suite and another plugin's suites are
+# out, the reason reads R8, and R8 never maps a file, so a plugin file nothing
+# names is still UNMAPPED.
+mk_repo repo
+mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
+printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
+suite_body alpha-scan >"$repo/plugins/alpha/tests/scan.test.sh"
+printf 'import unittest\n' >"$repo/plugins/alpha/tests/test_scan.py"
+printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
+git_test_config "$repo" add plugins >/dev/null
+git_test_config "$repo" commit -qm r8 >/dev/null
+
+run_sel "$repo" plugins/alpha/skills/one/SKILL.md
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
+  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/test_scan.py &&
+  ! has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "R8: a SKILL.md edit selects its plugin's shell suites and nothing else"
+else
+  fail "R8: plugin selection wrong for a SKILL.md edit (rc=$RC): $OUT"
+fi
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/alpha/skills/one/SKILL.md 2>&1)"
+if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (R8: plugins/alpha/ changed)"; then
+  ok "R8: --explain reports the plugin reason"
+else
+  fail "R8: --explain lacks the plugin reason: $out"
+fi
+
+run_sel "$repo" plugins/alpha/zzorphan-plugin.sh
+if [[ "$RC" -eq 1 ]]; then
+  ok "R8: a plugin file no suite names is still UNMAPPED"
+else
+  fail "R8: R8 mapped a plugin file nothing names (rc=$RC): $OUT"
+fi
+rm -rf "$repo"
+
 # --- skill ownership: a bare reference name means the skill's OWN file -------
 # Skills reuse reference names freely, so a suite naming `ownership-probe.md` from inside
 # one skill is naming that skill's file. Changing another skill's `ownership-probe.md`
@@ -1460,7 +1514,9 @@ printf '#!/usr/bin/env bash\n# reads plugins/gamma/skills/sa/reference/ownership
 git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm skills >/dev/null
 
-run_sel "$repo" "$own_a/reference/ownership-probe.md"
+# Every suite here sits in plugin alpha or beta, so R8 selects all of a touched
+# plugin's suites; the ownership rule is read from the R1-R7 selection.
+run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_a/scripts/sa.test.sh" &&
   ! has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
   ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
@@ -1469,7 +1525,7 @@ else
   fail "ownership: A's ownership-probe.md selection wrong (rc=$RC): $OUT"
 fi
 
-run_sel "$repo" "$own_b/reference/ownership-probe.md"
+run_sel_rules "$repo" "$own_b/reference/ownership-probe.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
   ! has_line "$OUT" "$own_a/scripts/sa.test.sh"; then
   ok "ownership: skill B's ownership-probe.md still selects B's suite and not A's"
@@ -1483,7 +1539,7 @@ else
   fail "ownership: path-qualified mention from another skill lost (rc=$RC): $OUT"
 fi
 
-run_sel "$repo" "$own_a/reference/ownership-probe.md"
+run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
 if has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh; then
   ok "ownership: a bare mention from a skill without its own file still selects"
 else
