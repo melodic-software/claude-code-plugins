@@ -18,7 +18,16 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   imports a file outside the working directory; and no hook depends on `InstructionsLoaded` for
   the load. Unknown counts as failed and keeps the shim. Nested shims stay under every mode where
   the memory page does not say when a subdirectory's `AGENTS.md` loads. Nothing is removed
-  automatically; the dated quotes are in `reference/sources.md`.
+  automatically; the dated quotes are in `reference/sources.md`. Precedence is checked by walking
+  every ancestor directory to the filesystem root, and the `InstructionsLoaded` check covers user,
+  managed, `--settings` and installed-plugin hooks, not only the repository's.
+
+### Fixed
+
+- **An unimported nested `AGENTS.md` is no longer said to load under
+  `claude-md-and-agents-md`.** The memory page does not say when a subdirectory's `AGENTS.md`
+  loads under that value, so `UNWIRED` stays a finding there; the migrate skill body and the
+  `render-index.sh` comment now say so.
 
 ## [0.16.11] - 2026-10-01
 

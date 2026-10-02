@@ -15,15 +15,38 @@ The quotes, dates and recheck triggers behind every condition are in [`sources.m
 
 | # | Holds when | Read it from |
 |---|---|---|
-| A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory holding a nested `AGENTS.md` keeps a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` of its own | `plan-migration.sh` `DIR` and `SUPPRESS` rows, a Glob for `.claude/CLAUDE.md` and `CLAUDE.local.md` at every level, and the operator for the uncommitted `CLAUDE.local.md` files contributors keep |
+| A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory holding a nested `AGENTS.md` keeps a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` of its own | The ancestor walk below, run from each directory contributors start sessions in; a Glob for the three names at every level inside the repository, tracked or not; and the operator for the other machines, whose ancestors (a `~/work/CLAUDE.md`) and uncommitted `CLAUDE.local.md` files this machine cannot see |
 | B | **Project instructions** on this machine reads `AGENTS.md` with no `CLAUDE.md`: `claude-md-or-agents-md` (the default) or `claude-md-and-agents-md` | `pluginConfigs["agents-md@builtin"].options.instructionFiles` in user, managed and any `--settings` file; absent everywhere is the default. Project and local settings are ignored for it, so never read them as the answer. `claude-md` or `managed-only` fails |
 | C | The loader is present and not disabled on this machine | `/claude-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken`, or the entry missing is unknown |
 | D | Every user, machine and organization the repository serves reads `AGENTS.md` directly | Ask the operator, with the list below. Any yes, and any "don't know", fails |
 | E | No `AGENTS.md`, root or nested, has an `@` import of a file outside the working directory | Every `@path` in every `AGENTS.md`. A target outside the repository root, outside a subdirectory contributors start sessions in, or one that cannot be resolved fails |
-| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Grep the repository's `.claude/settings*.json`, its hook scripts and its CI for `InstructionsLoaded`. A hit the operator has not accepted fails |
+| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `~/.claude/settings.json` and `~/.claude/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; and each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `~/.claude/plugins/`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
 
 B and C read this machine only. The setting is per user and no repository can ship it, so D is
 where the operator answers for every other machine.
+
+## The ancestor walk for condition A
+
+Every directory from the working directory up to the filesystem root, not only the repository's
+tracked files and `~/`: an ancestor such as `~/work/CLAUDE.md` is read instead of the `AGENTS.md`
+below it. From each session start directory:
+
+```bash
+d=$(cd <start-dir> && pwd -P)
+while :; do
+  { [ -r "$d" ] && [ -x "$d" ]; } || printf 'UNREADABLE\t%s\n' "$d"
+  for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
+    [ -e "$d/$f" ] && printf 'FOUND\t%s\n' "$d/$f"
+  done
+  [ "$d" = / ] && break
+  d=$(dirname "$d")
+done
+```
+
+On Windows, walk to the drive root (`C:\`) the same way. Every `FOUND` row that is not one of the
+shims `remove-shims` would remove fails A. `~/.claude/CLAUDE.md` is not on the list: the memory page
+says it does not count, so its `FOUND` row is the one exemption. An `UNREADABLE` row is unknown,
+and fails A.
 
 ## What D asks the operator
 

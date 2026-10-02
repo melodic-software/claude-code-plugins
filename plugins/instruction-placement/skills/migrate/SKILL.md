@@ -381,14 +381,16 @@ detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed
 cannot see an `AGENTS.md` that Claude reads directly.
 
 **One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
-claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
-and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
-is a false positive for that operator. The import stays harmless there: "Claude Code skips an
+claude-md-and-agents-md`, Claude Code reads "Your `CLAUDE.md` and `AGENTS.md` files together, each
+directory's `CLAUDE.md` files first and its `AGENTS.md` after them". The page does not say when a
+subdirectory's `AGENTS.md` loads under that value, so an `UNWIRED` row stays a finding there too
+and the nested shim stays. The import is harmless there: "Claude Code skips an
 `AGENTS.md` it has already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
 twice". The value is a user, `--settings` or managed setting, ignored in project and local settings,
 so a repository cannot rely on it and the gates keep the default's answer
 ([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
-2026-09-28, quotes unchanged; recheck when that table changes or a release note names the setting).
+2026-10-01; recheck when that table changes, the page comes to state when a subdirectory's
+`AGENTS.md` loads under that value, or a release note names the setting).
 
 ## Boundary, the built-in `cc-plugin-agents-md` plugin
 

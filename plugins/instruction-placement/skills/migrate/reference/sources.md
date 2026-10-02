@@ -324,9 +324,11 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
   files." Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
   `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
-  directory above it". Nested files under the default: "a subdirectory's `AGENTS.md`, when Claude
-  opens a file there with the Read tool and that subdirectory has none of the three `CLAUDE.md`
-  files of its own". The page states no subdirectory trigger for `claude-md-and-agents-md`, and
+  directory above it", the walk to the filesystem root, while "Don't count, and keep loading
+  alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and
+  `.claude/rules/` files", which is the walk's one exemption. Nested files under the default: "a
+  subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool and that
+  subdirectory has none of the three `CLAUDE.md` files of its own". The page states no subdirectory trigger for `claude-md-and-agents-md`, and
   does not say whether a subdirectory `CLAUDE.md`'s `@AGENTS.md` import expands under
   `managed-only`; the skill keeps the shims in both cases for that reason. Condition D: "In these
   sessions Claude reads `CLAUDE.md` files only, and **Project instructions** doesn't appear in the
