@@ -647,6 +647,10 @@ class TestFlowQuery(unittest.TestCase):
             ("var e=eval;", ["indirect-eval"]),
             ("Function(s)();", ["function-constructor"]),
             ("new Function(s);", ["function-constructor"]),
+            ("Function.call(0,s)();", ["function-constructor"]),
+            ("globalThis.eval(s);", ["indirect-eval"]),
+            ("window.Function(s)();", ["function-constructor"]),
+            ("o.eval=f;", []),
             (
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],

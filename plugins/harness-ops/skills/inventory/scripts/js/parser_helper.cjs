@@ -1028,8 +1028,8 @@ function sinks(req) {
     const holder = parents.get(node);
     // Code built from a string runs unseen: global `eval` other than a
     // direct call (a direct one already makes the module a sink), and the
-    // global `Function` called or constructed or read other than for a
-    // member, `typeof` or `instanceof`.
+    // global `Function` used other than for `typeof`, `instanceof` or a
+    // `.prototype` read (`Function.call(0,"code")` builds code too).
     if (node.type === "Identifier" && (node.name === "eval" || node.name === "Function")) {
       const ref = entry.refs.get(node.start);
       if (ref && !ref.resolved && ref.identifier === node) {
@@ -1040,9 +1040,19 @@ function sinks(req) {
         const inert =
           typeOf ||
           (holder?.type === "BinaryExpression" && holder.operator === "instanceof" && holder.right === node) ||
-          (holder?.type === "MemberExpression" && holder.object === node && memberName(holder) !== "constructor");
+          (holder?.type === "MemberExpression" &&
+            holder.object === node &&
+            memberName(holder) === "prototype" &&
+            !isTarget(parents, holder));
         if (node.name === "Function" && !inert) hit("function-constructor", null, node);
       }
+    }
+    // The same built-ins reached as a member of any object
+    // (`globalThis.eval`, `window.Function`), read other than as a write
+    // target.
+    const member = memberName(node);
+    if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
+      hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
     }
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);

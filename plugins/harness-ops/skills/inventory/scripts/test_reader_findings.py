@@ -342,6 +342,10 @@ class TestOpenFindings(unittest.TestCase):
             'pY.includes("x")',
             "Function('Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
             'pY.includes("x")',
+            "Function.call(0,'Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
+            'pY.includes("x")',
+            "globalThis.eval('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
+            'pY.includes("x")',
             # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch
