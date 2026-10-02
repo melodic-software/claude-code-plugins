@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.10] - 2026-10-02
+
+### Changed
+
+- The `powershell_format_enabled` option title reads "Format and lint on edit", naming what the hook does
+  instead of repeating the plugin name, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`).
+
 ## [0.9.9] - 2026-10-02
 
 ### Fixed

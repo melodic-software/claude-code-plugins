@@ -270,8 +270,9 @@ either section reads as it does.
 
 ## userConfig: `install_new`
 
-Controls new-catalog-plugin install policy during `sync`. Ships as a plain `string` (the manifest
-schema has no `enum` type. Verified against the published schema), default `"ask"`:
+Controls new-catalog-plugin install policy during `sync`. Ships as a `string` whose `options`
+picker lists the three values below (the picker needs Claude Code 2.1.271 or later; a value set
+outside it, or on an older release, still reaches this skill), default `"ask"`:
 
 - `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt
 - `all`. Install every not-yet-installed catalog plugin automatically

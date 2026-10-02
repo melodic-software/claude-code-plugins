@@ -3,6 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): `Index-drift hook`, `Over-broad glob ceiling
+  (percent)` and `Index rows before grouping`, in sentence case, and each description states its
+  default.
+- `breadth_max` declares `min` 0 and `max` 100, since it is a percent of tracked files. A value
+  above 100, which could never report a glob over-broad, is now rejected when set.
+
 ## [0.17.1] - 2026-10-02
 
 ### Fixed

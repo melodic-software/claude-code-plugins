@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.0] - 2026-10-02
+
+### Changed
+
+- `userConfig` option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles with units in parentheses, hook
+  toggles titled `<Hook-name> hook`, `lane_instance` titled "Lane instance ID", and descriptions of
+  300 characters or fewer in plain text. Detail cut from a description moved to the README's
+  "Option details" subsection. Options are regrouped by feature: PR hooks, worktrees, babysit-prs,
+  babysit-loop, setup. No key was renamed.
+- `babysit_review_settle_minutes` is now `type: number` (it was a string the merge gate parsed as a
+  number); a non-numeric value is now rejected at configuration time.
+- `babysit_default_tier` is now a picker with the values `safe`, `worker`, and `autopilot`; any
+  other value is now rejected at configuration time.
+
 ## [0.71.4] - 2026-10-02
 
 ### Fixed

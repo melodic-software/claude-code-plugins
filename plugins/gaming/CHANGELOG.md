@@ -3,6 +3,15 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-10-02
+
+### Changed
+
+- The `data_dir`, `runtime_dll`, and `runtime_source` descriptions fit the 300-character limit of
+  the plugin option naming convention (`docs/conventions/plugin-option-naming/`). The known-good
+  runtime DLL version and hash move to the README's "Option details"; the private-store advice
+  stays in its Configuration section.
+
 ## [0.9.1] - 2026-10-02
 
 ### Fixed

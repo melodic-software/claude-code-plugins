@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.17] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): titles drop the plugin name and the "(video-digest)"
+  suffix and no longer open with lowercase "yt-dlp", and every description is 300 characters or
+  fewer, with the cut `library_dir` detail moved to the README's "Option details". No key, type,
+  or default changes.
+
 ## [0.14.16] - 2026-10-02
 
 ### Fixed

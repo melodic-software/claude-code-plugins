@@ -3,6 +3,16 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `thin_context_prompt` is a picker in `/config` (`auto`, `always`, `never`), so a value outside
+  that set is no longer accepted. `medium` stays a free string because an empty value hands the
+  choice to the `rendered-views` cascade. Both descriptions fit 300 characters; the rest moves to
+  the README's "Option details".
+
 ## [0.8.6] - 2026-10-02
 
 ### Fixed

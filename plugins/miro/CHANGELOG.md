@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.20] - 2026-10-02
+
+### Changed
+
+- The `miro_api_token` option title reads "API token", dropping the plugin name the `/config` row
+  already shows, per the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.4.19] - 2026-10-02
 
 ### Fixed

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "knowledge",
-  "version": "0.14.16",
+  "version": "0.14.17",
   "description": "Ingest external knowledge into durable, synthesized artifacts. Ships a book-distillation pipeline (PDF/EPUB into concept-organized, author-attributed skill reference files), a video-digest pipeline (watch a single public video from YouTube or X, formerly Twitter: transcript, link harvest, and repo-applicability synthesis), a course-digest pipeline (extract and synthesize online video courses from Dometrain and Teachable into repo-applicable recommendations), a docpage-digest pipeline (single online documentation page into a verified knowledge slice with dual verification including one cross-vendor verifier, and an interview handoff), and a map-corpus pipeline (multi-resource corpus into a classified link map, deterministic node manifests, gate-verified relevance inventory, and an approved queue of docpage-digest runs), plus a re-runnable setup action; a configurable library directory governs where synthesized artifacts land in the consuming repo.",
   "author": {
     "name": "Melodic Software",
@@ -37,32 +37,32 @@
   "userConfig": {
     "library_dir": {
       "type": "directory",
-      "title": "Knowledge library directory",
-      "description": "Directory where synthesized knowledge artifacts land. Default is the consuming repo root; a relative value is resolved against the project directory. Portable non-project roots: an absolute path, a leading ~ (home-relative), or an environment-variable reference ${NAME} / %NAME% (e.g. ${KNOWLEDGE_CORPUS_DIR}) so a machine-varying root never needs a literal machine path in this stored value. A working-notes or artifacts convention declared in your own project's CLAUDE.md or rules takes precedence.",
+      "title": "Library directory",
+      "description": "Directory where synthesized knowledge artifacts land; the default, ., is the consuming repo root. A relative value resolves against the project directory; an absolute path, a leading ~, or a ${NAME} or %NAME% variable also work. An artifacts convention in your project's CLAUDE.md or rules wins.",
       "default": "."
     },
     "yt_dlp_js_runtimes": {
       "type": "string",
-      "title": "yt-dlp JS runtimes (video-digest)",
-      "description": "JavaScript runtime yt-dlp uses for YouTube signature deciphering. Default 'node'. Set to 'off' to omit the --js-runtimes flag entirely.",
+      "title": "JavaScript runtime for yt-dlp",
+      "description": "JavaScript runtime yt-dlp uses for YouTube signature deciphering in video-digest. Default 'node'; any other value selects that runtime. Set to 'off' to omit the --js-runtimes flag entirely.",
       "default": "node"
     },
     "yt_dlp_cookies_file": {
       "type": "string",
-      "title": "yt-dlp cookies file (video-digest)",
+      "title": "Cookies file for yt-dlp",
       "description": "Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files.",
       "default": ""
     },
     "yt_dlp_cookies_from_browser": {
       "type": "string",
-      "title": "yt-dlp cookies from browser (video-digest)",
+      "title": "Browser for yt-dlp cookies",
       "description": "Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this.",
       "default": ""
     },
     "max_concurrent_acquires": {
       "type": "number",
-      "title": "Max concurrent acquisitions (video-digest)",
-      "description": "Cap on concurrent yt-dlp acquisition runs during a batch. Default 1; raising it increases HTTP 429 throttling risk.",
+      "title": "Concurrent video acquisitions",
+      "description": "Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk.",
       "default": 1,
       "min": 1,
       "max": 3

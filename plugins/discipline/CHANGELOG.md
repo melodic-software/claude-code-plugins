@@ -5,6 +5,16 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.16.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `research_deep_verification` is a picker in `/config` (`tiered`, `full`), so a value outside that
+  set is no longer accepted; its fallback rule moves to the README's "Option details". Titles drop
+  the colon and the skill name: "Posture batch excluded correctors", "Posture batch always-run
+  correctors", "Posture batch relevance-gated correctors", "Deep research verification depth".
+
 ## [0.15.8] - 2026-10-02
 
 ### Fixed

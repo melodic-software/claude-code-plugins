@@ -1406,6 +1406,85 @@ content invariants on every staged blob, write-path-independent).
 
 ## Configuration
 
+### Option details
+
+**`block_dangerous_git_enabled`.** The `push --force-with-lease` case blocked is one that leases
+against a value git resolves at push time, meaning either no expected value, or an expectation that
+is not an object id of the repository's own hash width.
+
+**`block_dangerous_git_allow`.** The full token set: `push-force`, `push-lease-unsafe`,
+`reset-hard`, `clean-force`, `checkout-dot`, `restore-dot`, `checkout-force`, plus the PowerShell
+fail-closed sink shapes `ps-unparsable-dynamic-invocation`, `ps-unparsable-launcher`,
+`ps-unparsable-special-construct`, `ps-unparsable-herestring-unbalanced` and
+`ps-unparsable-herestring-subexpr`. block-no-verify honors the same sink tokens, so one entry clears
+a mutating block both guards hold; a command still unreadable after five granted sink rounds is
+refused whatever the list holds. Empty blocks all.
+
+**`block_hook_bypass_scratch_roots`.** The list adds to the two roots the guard already ships
+exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory
+(`<config dir>/plugins/data`), where plugins persist their reports. Each is gated on
+`CLAUDE_PROJECT_DIR` naming a project root that does not contain it. Set this to name a scratch
+root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier
+(`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection
+scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned.
+Matching is on the effective stdout target after lexical normalization, at a path-component
+boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a
+discard-then-real-file redirect all still block. A relative target is resolved against the tool
+call's own cwd and refused when the command carries a cd/pushd/popd. On the Bash tool a quoted or
+escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the
+segment split as one word, and an operand carrying whitespace, `;`, `|`, `&`, `(`, `)`, a newline
+or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. On the
+PowerShell tool only a command that is one write to one absolute destination, bare or
+single-quoted, with no variable, subexpression, call operator or second write, is exempt. Symlinks
+are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the
+shipped temp default resolves them before exempting.
+
+**`block_windows_drive_tmp_enabled`.** One switch covers both lanes: Bash/PowerShell commands and
+Write/Edit/MultiEdit/NotebookEdit file paths. On Git for Windows, a Bash-tool `/tmp` that
+cygpath/mount shows is the usertemp mount of `%TEMP%` is not blocked; `/c/tmp`, `C:\tmp`,
+drive-root `\tmp`, PowerShell `/tmp`, and the file-path lane still are. `curl -o`/`--output` and
+`wget -O`/`--output-document` destinations are judged the same way as cp/mv.
+
+**`block_exported_msys_pathconv_enabled`.** Either shape switches off conversion for later
+commands, letting an unconverted `/d/...` reach git as `<current-drive>:\d\...`; a prefix on a
+non-shell command word and a bare assignment are not matched.
+
+**`block_root_delete_target_enabled`.** Blocks a Bash recursive `rm` whose target normalizes to a
+filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf "\\"` and a dangling
+`rm -rf \`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal
+`$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`,
+`/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). A recursive `rm` carrying
+`--no-preserve-root` is refused whatever it targets, and long options are matched on any
+unambiguous prefix as coreutils reads them. The command word is resolved through a launcher and its
+operand-taking options (`sudo -u bob rm`), and a child shell's operand is re-parsed
+(`bash -c '...'`). Quoted prose that merely names such a command is not matched, because the
+command word of that segment is not `rm`. It also refuses an empty operand (`rm -rf ""`), a bare
+variable operand (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the
+payload carries a cwd, a target that resolves outside the payload cwd's git toplevel and is not
+strictly under a temp root, the session scratchpad or a root you list in
+`block_root_delete_target_allowed_roots` (`rm -rf ../../..`, `rm -rf ~/Documents/x`,
+`cd / && rm -rf *`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Braces are
+expanded and each alternative judged (`rm -rf {/c,x}`), a glob before the last component is
+expanded and each match judged as a literal path, and a relative path after a cd it can read but
+not follow (a relative cd while CDPATH is set, a glob target with no match or several) is refused.
+The judgment is bounded (512 targets, 256 glob entries, 25 seconds of wall time) and refuses past a
+bound. A target it cannot place (an expansion other than HOME, a relative path after a non-literal
+cd) is left alone. On the PowerShell tool the same target classes are refused for
+`Remove-Item -Recurse` (and aliases `ri`/`rm`/`rd`/`rmdir`, with `-r`/`-rec` as unambiguous
+prefixes) and for `cmd /c rd /s` / `rmdir /s`, without loading the shared PowerShell classifier.
+
+**`block_root_delete_target_allowed_roots`.** The list ADDS TO the temp roots and the session
+scratchpad the guard already allows. Only you set it: it is read from the hook's own environment,
+never from the command text, so an agent cannot grant itself a root with a `VAR=...` prefix or a
+flag. Targets are compared by real path, so a symlinked root or target is judged where it lands, a
+sibling that only shares the name prefix is refused, and a symlink under a root that points outside
+it stays refused. A listed root itself and its glob are refused, like a temp root. Every other
+refusal stays in force whatever is listed: a filesystem root, `~`, `$HOME`, a drive root, a UNC
+share, `--no-preserve-root`, an empty or bare-variable operand, a glob that escapes, and a `..`
+escape. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..`
+component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through
+HOME or a directory holding it. The kill switch, not this option, is the whole-guard lever.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -1416,31 +1495,31 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Block writes containing high-confidence secret/credential patterns |
-| `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Block writes containing hardcoded machine-specific paths |
-| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set: lefthook/husky/pre-commit/simple-git-hooks by default) |
-| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards, and push --force-with-lease when it leases against a value git resolves at push time, meaning either no expected value, or an expectation that is not an object id of the repository's own hash width) |
-| `block_credential_read_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED` | Block a Bash or PowerShell command whose output is a credential: git credential fill and credential-helper get, gh auth token, echo or printenv of a token-shaped variable, and cat of .git-credentials, .netrc or .env |
-| `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
-| `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes. On Git for Windows, a Bash-tool /tmp that cygpath/mount shows is the usertemp mount of %TEMP% is not blocked; /c/tmp, C:\tmp, drive-root \tmp, PowerShell /tmp, and the file-path lane still are. curl -o/--output and wget -O/--output-document destinations are judged the same way as cp/mv |
-| `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\d\...; a prefix on a non-shell command word and a bare assignment are not matched |
-| `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Block a Bash recursive `rm` whose target normalizes to a filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf "\\"` and a dangling `rm -rf \`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). A recursive `rm` carrying `--no-preserve-root` is refused whatever it targets, and long options are matched on any unambiguous prefix as coreutils reads them. The command word is resolved through a launcher and its operand-taking options (`sudo -u bob rm`), and a child shell's operand is re-parsed (`bash -c '...'`). Quoted prose that merely names such a command is not matched, because the command word of that segment is not `rm`. It also refuses an empty operand (`rm -rf ""`), a bare variable operand (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries a cwd, a target that resolves outside the payload cwd's git toplevel and is not strictly under a temp root, the session scratchpad or a root you list in `block_root_delete_target_allowed_roots` (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Braces are expanded and each alternative judged (`rm -rf {/c,x}`), a glob before the last component is expanded and each match judged as a literal path, and a relative path after a cd it can read but not follow (a relative cd while CDPATH is set, a glob target with no match or several) is refused. The judgment is bounded (512 targets, 256 glob entries, 25 seconds of wall time) and refuses past a bound. A target it cannot place (an expansion other than HOME, a relative path after a non-literal cd) is left alone. On the PowerShell tool the same target classes are refused for `Remove-Item -Recurse` (and aliases `ri`/`rm`/`rd`/`rmdir`, with `-r`/`-rec` as unambiguous prefixes) and for `cmd /c rd /s` / `rmdir /s`, without loading the shared PowerShell classifier |
-| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated ABSOLUTE directories block-root-delete-target lets a recursive delete through when the target's resolved real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). This list is empty by default and ADDS TO the temp roots and the session scratchpad the guard already allows. Only you set it: it is read from the hook's own environment, never from the command text, so an agent cannot grant itself a root with a `VAR=...` prefix or a flag. Targets are compared by real path, so a symlinked root or target is judged where it lands, a sibling that only shares the name prefix is refused, and a symlink under a root that points outside it stays refused. A listed root itself and its glob are refused, like a temp root. Every other refusal stays in force whatever is listed: a filesystem root, `~`, `$HOME`, a drive root, a UNC share, `--no-preserve-root`, an empty or bare-variable operand, a glob that escapes, and a `..` escape. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through HOME or a directory holding it. The kill switch, not this option, is the whole-guard lever |
-| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells, so pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
-| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
-| `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
-| `skill_reference_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED` | Advise when markdown cites a /plugin:skill reference this repo owns but cannot resolve (never blocks) |
-| `stale_path_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED` | Advise when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree (never blocks) |
-| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advise on un-throttled Workflow fan-out (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
-| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
-| `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
-| `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
-| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr (block-no-verify honors the same sink tokens, so one entry clears a mutating block both guards hold; a command still unreadable after five granted sink rounds is refused whatever the list holds); empty blocks all |
-| `block_credential_read_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW` | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read; empty blocks all |
-| `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
-| `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. On the Bash tool a quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. On the PowerShell tool only a command that is one write to one absolute destination, bare or single-quoted, with no variable, subexpression, call operator or second write, is exempt. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block |
+| `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Blocks writes containing high-confidence secret or credential patterns. On by default. |
+| `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Blocks writes containing hardcoded machine-specific paths. On by default. |
+| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Blocks git hook-bypass attempts: --no-verify, core.hooksPath=, and hook-manager env-var disables for a configurable set (lefthook, husky, pre-commit and simple-git-hooks by default). On by default. |
+| `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0 or false (e.g. lefthook,husky). Empty, the default, uses the built-in set: lefthook, husky, pre_commit, simple_git_hooks. |
+| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Blocks irreversible git operations: push --force, reset --hard, clean -f, worktree-wide checkout or restore discards, and a push --force-with-lease that leases against a value git resolves at push time. On by default. The README's Option details define the lease case. |
+| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus the PowerShell ps-unparsable-* sink tokens the README's Option details list. Empty, the default, blocks all. |
+| `block_credential_read_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED` | Blocks a Bash or PowerShell command whose output is a credential: git credential fill and credential-helper get, gh auth token, echo or printenv of a token-shaped variable, and cat of .git-credentials, .netrc or .env. On by default. |
+| `block_credential_read_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW` | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all. |
+| `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Blocks Bash file-write workarounds that circumvent Write and Edit hook gates. On by default. |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated absolute directories block-hook-bypass exempts as scratch or temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). Empty by default; it adds to the shipped temp-tree and plugin-data roots. Matching, quoting and symlink rules are in the README's Option details. |
+| `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
+| `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details. |
+| `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Blocks a recursive delete (rm, Remove-Item, rd /s) whose target is a filesystem, home, drive or UNC share root, an empty or bare-variable operand, or a path outside the repo not under a temp root, the scratchpad or an allowed root. On by default. Full rules in the README's Option details. |
+| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories block-root-delete-target lets a recursive delete through when the target's real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). Empty by default; adds to the temp roots and scratchpad. Limits are in the README's Option details. |
+| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Blocks git commit -m when the message contains a newline (pipe it via -F - instead); a single-line -m passes. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
+| `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits -m even when the message contains a newline. Empty, the default, permits none. |
+| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
+| `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advises on hallucinated CLI flags written to files; never blocks. On by default. |
+| `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans. Empty, the default, uses the built-in set. |
+| `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan. Empty by default. |
+| `skill_reference_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED` | Advises when markdown cites a /plugin:skill reference this repo owns but cannot resolve; never blocks. On by default. |
+| `stale_path_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED` | Advises when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree; never blocks. On by default. |
+| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advises on un-throttled Workflow fan-out; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
+| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
 
 ### How to set these
 

@@ -91,6 +91,11 @@ a path or a plain `https://` URL and nothing else, so it assumes no storage prov
 private store, sync the file to a local or network path with your own tooling and point
 `runtime_source` (or `runtime_dll`) at it.
 
+### Option details
+
+**`runtime_dll`.** The known-good nvngx_dlssnr.dll is version 310.8.0.0, SHA-256
+E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -101,9 +106,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\Gaming\dlss5 under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path. |
-| `runtime_dll` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_DLL` | Path to your own legitimately obtained nvngx_dlssnr.dll (known good: version 310.8.0.0, SHA-256 E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E). Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
-| `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional local/UNC path or plain https:// URL to a copy of nvngx_dlssnr.dll that you control. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. For a private store, sync the file to a local path and point this at it. Every copy is hash- or signature-checked before use. |
+| `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Unset uses Documents\Gaming\dlss5 under your user profile; it survives plugin uninstall. Changing it after applying the mod to a game means moving the old directory's contents. |
+| `runtime_dll` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_DLL` | Path to your own legitimately obtained nvngx_dlssnr.dll. Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
+| `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional local or UNC path, or plain https:// URL, to a copy of nvngx_dlssnr.dll that you control. Stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. Every copy is hash- or signature-checked before use. |
 
 ### How to set these
 

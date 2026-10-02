@@ -1296,6 +1296,87 @@ for (const path of argumentSkills) {
   }
 }
 
+// Plugin names and option text, per docs/conventions/plugin-option-naming. A
+// displayName fails; every title and description shape warns on its own line.
+const OPTION_NAMING_DOC = "docs/conventions/plugin-option-naming/README.md";
+const DESCRIPTION_BUDGET = 300;
+const optionWarn = (path, message) =>
+  warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
+const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
+
+function optionTitleProblems(plugin, option) {
+  const { title, type } = option;
+  const problems = [];
+  const letters = title.replace(/[^A-Za-z]/g, "");
+  // An acronym of five letters or fewer ("API", "CI ID") is not all caps.
+  const allCaps = (letters.length > 5 && !/[a-z]/.test(title)) || /\b[A-Z]{6,}\b/.test(title);
+  if (!/^[A-Z0-9]/.test(title) || allCaps) problems.push("not sentence case");
+  const name = spacedLower(plugin);
+  const lowered = spacedLower(title);
+  if (lowered === name || lowered.startsWith(`${name} `)) problems.push("opens with the plugin name");
+  if (type === "boolean" && /\b(?:enable|enabled|toggle|kill switch|master)\b/i.test(title)) {
+    problems.push("boolean title uses enable, enabled, toggle, kill switch, or master");
+  }
+  return problems;
+}
+
+function optionDescriptionProblems(description) {
+  const problems = [];
+  const length = [...description].length;
+  if (length > DESCRIPTION_BUDGET) {
+    problems.push(`is ${length} characters, over the ${DESCRIPTION_BUDGET}-character budget`);
+  }
+  if (description.includes("`")) problems.push("contains a backtick");
+  if (description.includes("**")) problems.push("contains **");
+  if (/\[[^\]]*\]\([^)]*\)/.test(description)) problems.push("contains a markdown link");
+  if (description.includes(String.fromCodePoint(0x2014))) problems.push("contains an em dash");
+  return problems;
+}
+
+const titlesByKey = new Map();
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  const plugin = manifest.name ?? pluginPathParts(path)[0];
+  if ("displayName" in manifest) {
+    fail(path, `plugins must not set displayName (${OPTION_NAMING_DOC})`);
+  }
+  const userConfig = manifest.userConfig;
+  if (typeof userConfig !== "object" || userConfig === null) continue;
+  for (const [key, option] of Object.entries(userConfig)) {
+    if (!option || typeof option !== "object") continue;
+    if (typeof option.title === "string") {
+      for (const problem of optionTitleProblems(plugin, option)) {
+        optionWarn(path, `userConfig "${key}" title "${option.title}": ${problem}`);
+      }
+      if (!titlesByKey.has(key)) titlesByKey.set(key, new Map());
+      const titles = titlesByKey.get(key);
+      if (!titles.has(option.title)) titles.set(option.title, []);
+      titles.get(option.title).push(plugin);
+    }
+    if (typeof option.description === "string") {
+      for (const problem of optionDescriptionProblems(option.description)) {
+        optionWarn(path, `userConfig "${key}" description ${problem}`);
+      }
+    }
+  }
+}
+for (const [key, titles] of titlesByKey) {
+  if (titles.size < 2) continue;
+  const spread = [...titles].map(([title, plugins]) => `"${title}" (${plugins.join(", ")})`).join("; ");
+  warnings.push(`userConfig "${key}" has different titles across plugins: ${spread} (${OPTION_NAMING_DOC})`);
+}
+if (existsSync(marketplacePath)) {
+  for (const entry of [JSON.parse(read(marketplacePath)).plugins ?? []].flat()) {
+    if (entry && typeof entry === "object" && "displayName" in entry) {
+      fail(
+        marketplacePath,
+        `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
+      );
+    }
+  }
+}
+
 for (const warning of warnings) console.error(`warning: ${warning}`);
 
 if (failures.length > 0) {
