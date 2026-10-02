@@ -27,7 +27,7 @@ PLUGIN = 'animation'
 MIN_PYTHON = (3, 12)   # numpy 2.5 requires it
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = ('numpy', 'cv2')
-PIP_TIMEOUT_S = 600
+PIP_TIMEOUT_S = 240   # under the hook's 300 s limit, so this timeout fires first and the failure path runs
 STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 
 
