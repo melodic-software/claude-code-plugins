@@ -618,7 +618,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "aec372b1dfa075840ba325cf956e538291cd6de157c9ea1825c854e93b301634"
+  "477f639456756484f64691bea42dadfdc00aa446889577188b0275a143ae74c0"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
