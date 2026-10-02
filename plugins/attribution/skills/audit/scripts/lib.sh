@@ -45,19 +45,14 @@ cfg_layers_init() {
 }
 
 # cfg_layer_add <dir> <name>: append <dir>/<name> when present and not already a
-# layer (two paths naming one file are read once). A layer holding only the
-# legacy provenance file name is never read; it draws one warning.
+# layer (two paths naming one file are read once).
 cfg_layer_add() {
-  local dir="$1" name="$2" legacy="$1/provenance${2#attribution}" layer
-  if [[ -f "$dir/$name" ]]; then
-    for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-      config_root_paths_same "$layer" "$dir/$name" && return 0
-    done
-    CFG_LAYERS+=("$dir/$name")
-  elif [[ -f "$legacy" ]]; then
-    echo "warning: legacy config $legacy is not read; rename it to $dir/$name" >&2
-  fi
-  return 0
+  local dir="$1" name="$2" layer
+  [[ -f "$dir/$name" ]] || return 0
+  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
+    config_root_paths_same "$layer" "$dir/$name" && return 0
+  done
+  CFG_LAYERS+=("$dir/$name")
 }
 
 # cfg_layers_print: the layer listing every --show-config output opens with.

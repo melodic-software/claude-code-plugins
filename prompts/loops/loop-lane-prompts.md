@@ -356,6 +356,8 @@ IDs. The alias tracks the current recommended model and a pinned ID rots.
   classification proposals are made.
 - **Dispatched implementers: `opus`.** Strong tier, and the freshest
   knowledge cutoff of the four. <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
+  A phase the plan routes `sonnet` as well-scoped goes to
+  `scoped-implementer` on `sonnet` instead.
 - **Conflict and security subagents: `fable`.** Frontier tier, which
   babysit-loop requires for conflict workers unconditionally.
 - **Mechanical greps and log pulls: `haiku`.** Per-dispatch override
@@ -381,7 +383,9 @@ phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
 current alias, so a `sonnet` worker-lane root no longer makes every
 implementer `sonnet`, and `/work-items:work`'s branch-owned fix
-re-dispatches ride the same agent surface. Resolution order is: the
+re-dispatches ride the same agent surface. That binding covers unrouted
+and complex phases; a phase the plan's routing table marks `sonnet`
+dispatches to `scoped-implementer` with an explicit `model: sonnet`. Resolution order is: the
 per-invocation `model` parameter, then frontmatter (`inherit` selects the
 main conversation's model), then `CLAUDE_CODE_SUBAGENT_MODEL` when set to an
 alias or model ID, then the main conversation's model. Setting

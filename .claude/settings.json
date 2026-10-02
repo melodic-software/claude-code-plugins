@@ -41,7 +41,6 @@
     "harness-ops@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false,
-    "provenance@melodic-software": false,
     "retro-audio@melodic-software": false
   },
   "extraKnownMarketplaces": {
