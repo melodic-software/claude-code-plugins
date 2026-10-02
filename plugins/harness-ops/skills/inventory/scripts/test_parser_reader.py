@@ -17,8 +17,11 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -92,13 +95,64 @@ class TestInstallResolution(unittest.TestCase):
         self.assertRegex(target.name, r"^[0-9a-f]{12}$")
 
     def test_the_repair_command_rebuilds_from_the_committed_lockfile(self) -> None:
-        cmd = pr.install_command(pathlib.Path("/a b/t"))
+        cmd = pr.install_command(pathlib.Path("/a b/t"), "linux")
         self.assertTrue(cmd.startswith("rm -rf '/a b/t' && mkdir -p '/a b/t' && cp "))
         self.assertIn("package-lock.json", cmd)
         self.assertTrue(
             cmd.endswith(
                 "npm ci --prefix '/a b/t' --ignore-scripts --no-audit --no-fund"
             )
+        )
+
+
+class TestRepairCommandPerPlatform(unittest.TestCase):
+    POSIX_TARGET = pathlib.Path("/srv/o'brien data/inventory-parser/abc")
+    WIN_TARGET = pathlib.Path("D:\\o'brien data\\inventory-parser\\abc")
+
+    def test_the_posix_form_quotes_a_space_and_a_quote_and_parses(self) -> None:
+        cmd = pr.install_command(self.POSIX_TARGET, "linux")
+        self.assertTrue(
+            cmd.startswith(
+                "rm -rf '/srv/o'\"'\"'brien data/inventory-parser/abc' && mkdir -p "
+            )
+        )
+        self.assertTrue(cmd.endswith("--ignore-scripts --no-audit --no-fund"))
+        bash = shutil.which("bash")
+        if bash is None:
+            self.skipTest("bash is not installed")
+        subprocess.run([bash, "-n", "-c", cmd], check=True)
+
+    def test_the_windows_form_is_powershell_without_and_and_doubles_the_quote(
+        self,
+    ) -> None:
+        cmd = pr.install_command(self.WIN_TARGET, "win32")
+        target = "'D:\\o''brien data\\inventory-parser\\abc'"
+        self.assertNotIn("&&", cmd)
+        self.assertNotIn("rm -rf", cmd)
+        self.assertTrue(cmd.startswith("$ErrorActionPreference = 'Stop'; "))
+        self.assertIn(
+            f"Remove-Item -LiteralPath {target} -Recurse -Force "
+            "-ErrorAction SilentlyContinue; ",
+            cmd,
+        )
+        self.assertIn(
+            f"New-Item -ItemType Directory -Force -Path {target} | Out-Null; ", cmd
+        )
+        self.assertRegex(
+            cmd,
+            r"Copy-Item -LiteralPath '[^']*package\.json', '[^']*package-lock\.json' "
+            rf"-Destination {re.escape(target)}; ",
+        )
+        self.assertTrue(
+            cmd.endswith(
+                f"npm ci --prefix {target} --ignore-scripts --no-audit --no-fund"
+            )
+        )
+
+    def test_the_default_platform_is_this_one(self) -> None:
+        target = pathlib.Path("/a b/t")
+        self.assertEqual(
+            pr.install_command(target), pr.install_command(target, sys.platform)
         )
 
 
