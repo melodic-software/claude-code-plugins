@@ -57,9 +57,9 @@ Default entry is **investigate**; it chains into **loop** once the root cause is
 | After phase | Suggest |
 |-------------|---------|
 | `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` |
-| `loop` | `/verification:confirm fix` (when the `verification` plugin is installed) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
+| `loop` | `/verification:confirm fix` (when the `verification` plugin is enabled) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
 
-The regression test takes its expected value from the bug report, not from the fixed code: `testing:test-value` (if installed).
+The regression test takes its expected value from the bug report, not from the fixed code: `testing:test-value` (if enabled).
 
 ## Integration with /implementation:implement
 

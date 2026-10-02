@@ -41,6 +41,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
   falls back to the investigate and loop phases on the main thread. It grants
   `Workflow(testing:fix-until-green)` only.
 
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and `playwright` and `mutation-testing` now install disabled. `cleanup` stops when `mutation-testing` is not enabled.
+
 ## [0.20.0] - 2026-10-02
 
 ### Added

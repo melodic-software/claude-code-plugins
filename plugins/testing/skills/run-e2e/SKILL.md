@@ -140,7 +140,7 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability
-- All scenarios pass → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is installed (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
+- All scenarios pass → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is enabled (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 
@@ -180,7 +180,7 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 ## What this skill does NOT do
 
-- **Does not own browser-automation mechanics**. `/playwright:playwright` (when the playwright plugin is installed) covers sessions, snapshots, tracing, Windows quirks; this skill owns the broader orchestrator + API + UI story
+- **Does not own browser-automation mechanics**. `/playwright:playwright` (when the playwright plugin is enabled) covers sessions, snapshots, tracing, Windows quirks; this skill owns the broader orchestrator + API + UI story
 - **Does not replace `/verification:confirm`**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
 
 ## Gotchas
