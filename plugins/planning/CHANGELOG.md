@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.2] - 2026-10-02
+
+### Fixed
+
+- The interview page's **Show: Open** lists only unanswered questions. Answered questions that
+  Claude revised or replied to after the answer move to a new **Review** filter, and the group
+  counter reads `N open / M, K to review`.
+- Tree view drops a filtered-out question and moves its matching descendants up a level instead of
+  keeping every answered question that has dependents.
+- After an answer, the page moves to the next open question after the one just answered instead of
+  the first in the list.
+
 ## [0.61.1] - 2026-10-02
 
 ### Fixed
