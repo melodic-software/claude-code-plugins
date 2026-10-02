@@ -104,7 +104,7 @@ from conversation vibes.
 ### 3. Suggest next stage
 
 Based on what's been done, recommend the next stage with rationale. If the consuming repo has a
-skill for that stage, name it; otherwise describe the inline work.
+skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
 
 ### 4. Route the continuation mechanism at a phase boundary
 

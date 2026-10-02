@@ -3,6 +3,21 @@
 The staged development workflow plus the optional contract stage. When the consuming repo defines a
 skill for a stage, invoke it; otherwise execute the stage inline per its definition here.
 
+## Effort per stage
+
+Each stage carries an **Effort** line naming the kind of work it is. To advise effort for a stage,
+read model-config's
+[Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+table when giving the advice, pick the row whose "When to use it" text fits that kind of work, and
+name both the level and the matched text. A stage that changes code or verifies it is never
+advised below medium. A row the table marks as a setting rather than a level is not a candidate.
+When the page cannot be read, say so and advise no level. The advice is the human's to act on;
+this skill never sets effort.
+
+Claim: the table lists one row per level under the columns Level and When to use it. Basis: the
+page linked above. As of: 2026-10-02. Recheck: the section is renamed or moved, or its columns
+change.
+
 ## 0. Contract (optional: lock the brief before building)
 
 Drive fuzzy intent to a zero-ambiguity contract before behavior-changing work: goal, constraints,
@@ -14,6 +29,7 @@ so later stages aim at an explicit target instead of inferring one mid-task.
 - Skip conditions: one-line bug fixes, or follow-ups where the contract IS the conversation
 - Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
   time, highest architectural blast radius first
+- **Effort:** scoping in question rounds the human answers one at a time
 
 ## 1. Explore
 
@@ -23,6 +39,7 @@ dependencies. Understand current state before changing anything.
 - Survey breadth-first (glob/grep), confirm the files the change touches, then read those in full
 - When files referenced in git status or history don't exist on disk, ask before investigating.
   They may be intentionally deleted
+- **Effort:** reading and surveying code with no change made
 
 ## 2. Research
 
@@ -34,6 +51,8 @@ External verification of technical claims: official docs, primary sources, curre
   verification rigor as a multi-file feature
 - Reading a document and restating its conclusions is not research. Analysis requires independent
   verification
+- **Effort:** verifying technical claims against primary sources, where a wrong claim carries into
+  the plan
 
 ## 3. Plan
 
@@ -45,6 +64,8 @@ Structured plan with rationale, test strategy, and a user approval gate before e
 - **Not the same as Claude Code's built-in plan mode.** That is a read-only permission mode; this
   stage is a planning discipline that can run in any mode
 - For non-trivial work, decompose into phases with per-phase verifiable completion criteria
+- **Effort:** design decisions and failure scenarios settled before any code changes, matched at
+  the depth the blast radius sets for the plan
 
 ## 4. Implement
 
@@ -55,6 +76,8 @@ Structured execution with incremental validation and commit checkpoints.
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
 - At phase boundaries on long work, write a save-point by invoking `/session-flow:handoff` via the Skill tool so a fresh session can resume
+- **Effort:** code-changing work within the scope the plan fixed, or fixing a bug in an existing
+  codebase when that is the change
 
 ## 5. Test
 
@@ -63,6 +86,7 @@ failures to root cause.
 
 - Never retry a failing test blindly. Reproduce, diagnose, fix, retest
 - Test the change's observable behavior, not its implementation detail
+- **Effort:** writing tests and diagnosing failures to root cause, where edge cases are likely
 
 ## 6. Review
 
@@ -74,6 +98,7 @@ and review criteria, or delegate to a fresh-context reviewer.
 - For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
+- **Effort:** judging a diff for defects, where verification matters and edge cases are likely
 
 ## 7. Verify outcome
 
@@ -84,11 +109,14 @@ Prove the change achieved its intent, with evidence.
   not just the compiler
 - **Never claim improvement without before/after measurements.** Baselines first, measure deltas,
   report with data
+- **Effort:** proving the outcome with evidence, which is verification work
 
 ## 8. Retrospective
 
 Session analysis, learning codification, and trend tracking: the self-improvement loop. Invoke the
 sibling `retro` skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure).
+
+- **Effort:** reviewing the session's own record, with the human reading each finding
 
 ## PR lifecycle (after step 7)
 
