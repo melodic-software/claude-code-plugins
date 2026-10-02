@@ -39,6 +39,7 @@
     "harness-config@melodic-software": true,
     "harness-memory@melodic-software": true,
     "harness-ops@melodic-software": true,
+    "multi-agent@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false,
     "retro-audio@melodic-software": false
