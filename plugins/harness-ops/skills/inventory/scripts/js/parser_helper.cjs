@@ -46,6 +46,9 @@ try {
 }
 
 const PARSE_OPTIONS = { ecmaVersion: "latest", sourceType: "module" };
+// `optimistic` stays off: a direct `eval` can rebind any name in the scopes
+// around it, so eslint-scope leaves their references unresolved, and an
+// unresolved value is preferred to a possibly wrong one.
 const SCOPE_OPTIONS = { ecmaVersion: 2025, sourceType: "module" };
 const MODULE_CACHE = 16;
 const modules = new Map();

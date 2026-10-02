@@ -172,6 +172,27 @@ class TestOpenFindings(unittest.TestCase):
         prelude = 'var pY=[xt,"Artifact"];function f(){let pY;pY=["B"]}f();'
         self.assert_pinned(prelude, INITIAL, INITIAL[0])
 
+    def test_a_parameter_write_does_not_touch_the_outer_binding(self) -> None:
+        """Fixed under the parser: the regex reader counts a write to a
+        parameter of the same name as a write to the outer `pY`, so the
+        list reads partial; JavaScript and the parser keep the literal."""
+        for head in ("function g(pY){", "try{}catch(pY){", "function g({pY}){"):
+            with self.subTest(head=head):
+                prelude = 'var pY=[xt,"Artifact"];' + head + 'pY=["B"]}'
+                self.assert_pinned(prelude, PARTIAL, INITIAL[0], parser=INITIAL)
+
+    def test_a_direct_eval_leaves_the_module_unresolved_for_the_parser(self) -> None:
+        """Known parser-only unresolved case: eslint-scope marks the scopes
+        around a direct `eval` dynamic and resolves nothing through them,
+        and `optimistic` stays off because `eval` can rebind names. No
+        module in 2.1.284-2.1.287 has one; P4 of #5640 weighs it."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];function e(){eval("")}',
+            INITIAL,
+            INITIAL[0],
+            parser=([], "partial"),
+        )
+
     def test_a_reader_switch_leaves_no_stale_answer(self) -> None:
         """Regex, parser, regex again on one source in one process, as
         --reader=compare runs them: each run gives its own reader's answer,

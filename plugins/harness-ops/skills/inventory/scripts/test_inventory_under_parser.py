@@ -52,8 +52,15 @@ class TestTheParserAnswers(_UnderParser):
 
 
 def tearDownModule() -> None:
-    while _reader:
-        _reader.pop().close()
+    """Close the helper, failing the module if it answered no lookup: the
+    suite would then have run its assertions on the regex reader alone."""
+    if not _reader:
+        return
+    reader = _reader.pop()
+    lookups = reader.lookups
+    reader.close()
+    if lookups == 0:
+        raise AssertionError("the parser helper answered no binding lookup")
 
 
 globals().update(
