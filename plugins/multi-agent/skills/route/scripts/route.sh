@@ -14,4 +14,4 @@ for a in "$@"; do
   *) pass+=("$a") ;;
   esac
 done
-exec "$RESOLVER" "${pass[@]}"
+exec "$RESOLVER" "${pass[@]+"${pass[@]}"}"

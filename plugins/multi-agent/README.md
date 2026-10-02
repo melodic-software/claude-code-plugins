@@ -60,7 +60,7 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 
 ## Requirements
 
-- **Bash, awk and git.** The resolver parses the YAML subset with awk, so no
+- **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
 
 ## Install

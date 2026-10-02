@@ -70,7 +70,8 @@ A caller launching a workflow passes the JSON's `roles` object as
 
 ## Next
 
-/multi-agent:audit-defaults, when a default looks wrong for the current models.
+/multi-agent:audit-defaults
+Rechecks a default that looks wrong for the current models.
 
 ## Gotchas
 

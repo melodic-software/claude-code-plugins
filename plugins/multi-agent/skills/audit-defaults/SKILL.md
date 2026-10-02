@@ -23,13 +23,14 @@ follows from it. The defaults change only through a reviewed edit to that file.
 1. **List the records.** Run:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/list-pointers.sh
+   ${CLAUDE_SKILL_DIR}/scripts/list-pointers.sh $ARGUMENTS
    ```
 
    The first block is `owner<TAB>key<TAB>value` for every `pointer*`, `as_of`
    and `recheck`; the second is the current value of every default. With an
-   argument, keep only that owner's rows. Done when you hold the list of
-   distinct sources to read.
+   argument, the script keeps only that owner's rows in both blocks; an
+   unknown owner exits 2 and names the valid ones. Done when you hold the list
+   of distinct sources to read.
 2. **Fetch each source.** A URL pointer: fetch it with WebFetch and read the
    anchored section. The `/workflow-authoring` pointer names a skill bundled
    with Claude Code: load it with the Skill tool when it is in the skill
@@ -62,7 +63,8 @@ many sources were read and how many were not.
 
 ## Next
 
-/multi-agent:route all, to see the resolved map after an accepted change lands.
+/multi-agent:route all
+Shows the resolved map after an accepted change lands.
 
 ## Gotchas
 

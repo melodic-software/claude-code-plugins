@@ -153,7 +153,9 @@ fixture ctrl
 printf 'schema: 1\nroles:\n  worker:\n    effort: \033[31mred\n' >"$T/ctrl/repo/.claude/multi-agent.yaml"
 out="$(run ctrl all --session-model opus)"
 assert_contains "control characters in a rejected value are replaced" "$out" "effort rejected: '?[31mred'"
-if printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
+if ! command -v node >/dev/null 2>&1; then
+  pass "output with a control-character value is valid JSON (skipped: no node)"
+elif printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
   pass "output with a control-character value is valid JSON"
 else
   fail "output with a control-character value is valid JSON" "parses" "$out"

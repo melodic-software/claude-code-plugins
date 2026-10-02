@@ -21,7 +21,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`fanout` run-everything mode launches the saved `review:fanout-sweep` workflow** instead of an
   inline script. It passes the diff base, slices and wave cap through `args`, and the role map from
   `/multi-agent:route` when that skill resolves; without it, the workflow's fallbacks apply and the
-  mode says once that enabling multi-agent makes routing configurable. `fanout` grants
+  mode says once that enabling multi-agent makes routing configurable. When the reviewed change
+  touches the multi-agent team layer, the mode omits the role map too. `fanout` grants
   `Workflow(review:fanout-sweep)` only, so no other workflow or inline script is pre-approved.
 
 ## [0.34.12] - 2026-10-02

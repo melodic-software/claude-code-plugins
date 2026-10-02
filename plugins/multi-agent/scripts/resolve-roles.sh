@@ -127,15 +127,36 @@ fi
 [[ -z "$SESSION_MODEL" || "$ALIASES" == *" $SESSION_MODEL "* ]] ||
   die "unknown session model '$SESSION_MODEL' (valid:$ALIASES; omit when unknown)"
 
-declare -A VAL=() SRC=()
+# Bash 3.2 (stock macOS) has no associative arrays, so each dotted key maps to
+# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-].
+kv_name() {
+  local n="${1//-/_H_}"
+  printf '%s' "${n//./_D_}"
+}
+set_kv() { # set_kv <key> <value> <source layer>
+  local n
+  n="$(kv_name "$1")"
+  printf -v "VAL_$n" '%s' "$2"
+  printf -v "SRC_$n" '%s' "$3"
+}
+val() {
+  local n
+  n="VAL_$(kv_name "$1")"
+  printf '%s' "${!n:-}"
+}
+src() {
+  local n
+  n="SRC_$(kv_name "$1")"
+  printf '%s' "${!n:-}"
+}
+
 ROLES=()
 NOTES=()
 LAYERS_JSON=()
 
 while IFS=$'\t' read -r key value; do
   [[ -n "$key" ]] || continue
-  VAL[$key]="$value"
-  SRC[$key]=bundled
+  set_kv "$key" "$value" bundled
   if [[ "$key" =~ ^roles\.([^.]+)\.model$ ]]; then ROLES+=("${BASH_REMATCH[1]}"); fi
 done <<<"$bundled"
 
@@ -207,8 +228,7 @@ apply_layer() {
       NOTES+=("$label: $key rejected: '${value:0:40}' is not an allowed value; the layer below supplies it")
       continue
     fi
-    VAL[$key]="$value"
-    SRC[$key]="$label"
+    set_kv "$key" "$value" "$label"
   done <<<"$records"
 }
 
@@ -267,7 +287,7 @@ else
   fi
 fi
 
-FRONTIER=",${VAL["frontier"]:-},"
+FRONTIER=",$(val frontier),"
 is_frontier() { [[ "$FRONTIER" == *",$1,"* ]]; }
 # An unknown session counts as frontier: the guard fails toward `opus`.
 SESSION_FRONTIER=true
@@ -281,21 +301,24 @@ variant() { # variant <model> <effort> <guarded>
 }
 
 role_json() {
-  local r="$1" p="roles.$1" model effort ms es fan guarded=false
-  model="${VAL["$p.model"]}" ms="${SRC["$p.model"]}"
-  effort="${VAL["$p.effort"]}" es="${SRC["$p.effort"]}"
+  local r="$1" p="roles.$1" model effort ms es fan guarded=false w guard
+  model="$(val "$p.model")" ms="$(src "$p.model")"
+  effort="$(val "$p.effort")" es="$(src "$p.effort")"
   if [[ -n "$WORKLOAD" ]]; then
-    if [[ -n "${VAL["$p.workloads.$WORKLOAD.model"]:-}" ]]; then
-      model="${VAL["$p.workloads.$WORKLOAD.model"]}" ms="${SRC["$p.workloads.$WORKLOAD.model"]}"
+    w="$p.workloads.$WORKLOAD"
+    if [[ -n "$(val "$w.model")" ]]; then
+      model="$(val "$w.model")" ms="$(src "$w.model")"
     fi
-    if [[ -n "${VAL["$p.workloads.$WORKLOAD.effort"]:-}" ]]; then
-      effort="${VAL["$p.workloads.$WORKLOAD.effort"]}" es="${SRC["$p.workloads.$WORKLOAD.effort"]}"
+    if [[ -n "$(val "$w.effort")" ]]; then
+      effort="$(val "$w.effort")" es="$(src "$w.effort")"
     fi
   fi
   fan="$model"
-  if [[ "${VAL["fanout.frontier_guard"]:-true}" == true ]]; then
+  guard="$(val fanout.frontier_guard)"
+  if [[ "${guard:-true}" == true ]]; then
     if [[ "$model" == inherit && "$SESSION_FRONTIER" == true ]] || is_frontier "$model"; then
-      fan="${VAL["fanout.model"]:-opus}" guarded=true
+      fan="$(val fanout.model)" guarded=true
+      fan="${fan:-opus}"
     fi
   fi
   printf '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s}}' \
@@ -323,5 +346,5 @@ session='null'
 workload='null'
 [[ -n "$WORKLOAD" ]] && workload="$(json_str "$WORKLOAD")"
 printf '{"session_model":%s,"session_frontier":%s,"workload":%s,"roles":{%s},"layers":[%s],"notes":[%s]}\n' \
-  "$session" "$SESSION_FRONTIER" "$workload" "$(join "${out_roles[@]}")" "$(join "${LAYERS_JSON[@]}")" \
+  "$session" "$SESSION_FRONTIER" "$workload" "$(join "${out_roles[@]}")" "$(join "${LAYERS_JSON[@]+"${LAYERS_JSON[@]}"}")" \
   "$(join "${notes_json[@]+"${notes_json[@]}"}")"
