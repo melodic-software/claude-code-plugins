@@ -142,3 +142,12 @@ Any one of these means you did not run the exercise. Fix it before writing the f
 - It names emotions instead of producing the body that carries them.
 - An inventory channel is filled with a line written to fill it.
 - It asks the human to do the writing, or explains why you cannot.
+
+## Effort pin
+
+Claim: this agent's effort pin follows the `medium` row of model-config's "Choose an effort level"
+table, which names that level the default on Opus 5.5, the model the `opus` alias above resolves
+to. The level is provisional: an eval comparing this agent's writes under `medium` and `high`
+decides it. Basis: <https://code.claude.com/docs/en/model-config#choose-an-effort-level>. As of:
+2026-10-02. Recheck: the `opus` alias resolves to another model, that row changes, or the eval
+reports.
