@@ -308,8 +308,8 @@ The 2026-09-20 measurement above was not repeated on this pass.
 
 ## The built-in agents-md plugin
 
-The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md` and its
-droppability decision (conditions A to D and the nested-`AGENTS.md` verdicts).
+The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md` and
+[`shim-droppable.md`](shim-droppable.md) (conditions A to F and the nested-`AGENTS.md` verdicts).
 
 - **Claim**: Claude Code ships a built-in `agents-md` plugin (ID `agents-md@builtin`) that reads
   `AGENTS.md` as the project instructions. Its **Project instructions** option
@@ -335,7 +335,17 @@ droppability decision (conditions A to D and the nested-`AGENTS.md` verdicts).
   upgrade from v2.1.276 or earlier"; also "Before v2.1.281, some sessions, such as those on Amazon
   Bedrock or with telemetry disabled, read `CLAUDE.md` files only". The difference table adds that
   for "Directories you add with `--add-dir` while `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is
-  set", "Their `AGENTS.md` doesn't load". The removal procedure for an `@AGENTS.md` shim: "Remove
+  set", "Their `AGENTS.md` doesn't load"; for "An `@path` import of a file outside your working
+  directory" (condition E), an `AGENTS.md` read through the setting "Loads only if you already
+  approved external imports for this project, with no prompt"; and for `InstructionsLoaded` hooks
+  (condition F), "Don't fire. They fire as usual for an `AGENTS.md` that a `CLAUDE.md` imports or
+  symlinks to". Condition D's first question: "Share one file with other coding tools" says to put
+  the `@AGENTS.md` import in a `CLAUDE.md` "when your project also has a `CLAUDE.md`, when you've
+  set **Project instructions** to `claude-md`, or in sessions that can't load `AGENTS.md`". The
+  `/config` sentence quoted above introduces exactly the three bullets that follow it; the
+  pre-2.1.281 sentence sits outside that list, so the skill does not attach the `/config` signal to
+  it. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
+  condition D asks the operator about each rather than inferring coverage. The removal procedure for an `@AGENTS.md` shim: "Remove
   the `CLAUDE.md` if it holds nothing else, or keep it if some of your sessions can't load
   `AGENTS.md` directly." The plugin loads files; nothing upstream says it moves content or writes
   a shim, and no page states how a disabled built-in plugin is recorded in settings, which is why
@@ -345,8 +355,8 @@ droppability decision (conditions A to D and the nested-`AGENTS.md` verdicts).
   sections "When Claude Code reads AGENTS.md" (line 363), "Choose which instruction files load"
   (line 381; "Add it under the built-in `agents-md` plugin's ID in `pluginConfigs`", with the
   example key `"agents-md@builtin"`), "When AGENTS.md support is unavailable" (line 406), "Where
-  AGENTS.md differs from CLAUDE.md" (line 416) and "Remove an earlier AGENTS.md workaround" (line
-  426). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
+  AGENTS.md differs from CLAUDE.md" (line 416), "Remove an earlier AGENTS.md workaround" (line
+  426) and "Share one file with other coding tools" (line 435). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
   2026-10-01, `pluginConfigs`: "Built-in plugins store their options under the same key with an
   `@builtin` suffix". The
   [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry for 2.1.277
@@ -366,7 +376,9 @@ droppability decision (conditions A to D and the nested-`AGENTS.md` verdicts).
 - **As of**: 2026-10-01, Claude Code 2.1.287.
 - **Recheck trigger**: the memory page changes the "When Claude Code reads AGENTS.md" list, the
   "Choose which instruction files load" table, the "When AGENTS.md support is unavailable" list,
-  the difference table or the shim bullet under "Remove an earlier AGENTS.md workaround"; it comes
+  the difference table, the "Share one file with other coding tools" conditions, or the shim
+  bullet under "Remove an earlier AGENTS.md workaround"; it comes to name the Agent SDK, cloud or
+  web sessions, or `claude-code-action`; it comes
   to state when a subdirectory's `AGENTS.md` loads under `claude-md-and-agents-md` or whether an
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
   disabled; or a changelog entry names `AGENTS.md`, `instructionFiles` or the `agents-md` plugin.

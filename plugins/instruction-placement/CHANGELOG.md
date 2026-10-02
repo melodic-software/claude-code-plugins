@@ -8,15 +8,17 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 ### Added
 
 - **`/instruction-placement:migrate` decides shim removal against the built-in `AGENTS.md`
-  loader.** A new step before `remove-shims` recommends dropping the `@AGENTS.md` shim only when
-  four conditions hold: no other `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` takes
-  precedence; the **Project instructions** mode reads `AGENTS.md` without a `CLAUDE.md`; the
-  built-in `agents-md` plugin is present and not disabled, read at run time from
-  `/claude-ops:inventory` and settings; and the operator confirms no unsupported session type
-  matters to the repository's users. Any condition failed or unknown keeps the shim and is named.
-  Nested shims stay under every mode where the memory page does not say when a subdirectory's
-  `AGENTS.md` loads. Nothing is removed automatically; the dated quotes are in
-  `reference/sources.md`.
+  loader.** A new step before `remove-shims`, detailed in `reference/shim-droppable.md`,
+  recommends dropping the `@AGENTS.md` shim only when six conditions hold: no `CLAUDE.md`,
+  `.claude/CLAUDE.md` or `CLAUDE.local.md` takes precedence at or above the working directory or in
+  a nested `AGENTS.md` directory; this machine's **Project instructions** mode reads `AGENTS.md`
+  without a `CLAUDE.md`; the built-in `agents-md` plugin is present and not disabled, read at run
+  time from `/claude-ops:inventory` and settings; the operator confirms no other user, organization,
+  session type or surface (Agent SDK, cloud, `claude-code-action`) needs the shim; no `AGENTS.md`
+  imports a file outside the working directory; and no hook depends on `InstructionsLoaded` for
+  the load. Unknown counts as failed and keeps the shim. Nested shims stay under every mode where
+  the memory page does not say when a subdirectory's `AGENTS.md` loads. Nothing is removed
+  automatically; the dated quotes are in `reference/sources.md`.
 
 ## [0.16.11] - 2026-10-01
 

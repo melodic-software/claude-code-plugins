@@ -271,35 +271,13 @@ detector by design.
 
 ### Is the shim droppable here? Decide before `remove-shims`
 
-`cutover-check` grades the build and the fleet. Whether this repository's users lose instructions
-without the shim depends on the built-in `agents-md` loader, so recommend removal only when all four
-hold. Report each as held, failed or unknown with its evidence; one failed or unknown keeps the
-recommendation at "keep the shim" and names it. This recommends, never removes: `remove-shims` and
-its `--confirm` gate stay the only path.
-
-| # | Holds when | Read it from |
-|---|---|---|
-| A | Nothing else takes precedence: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going | `DIR` and `SUPPRESS` rows, a Glob for `.claude/CLAUDE.md` and `CLAUDE.local.md`, and the operator for the uncommitted `CLAUDE.local.md` contributors keep |
-| B | **Project instructions** reads `AGENTS.md` with no `CLAUDE.md`: `claude-md-or-agents-md` (default) or `claude-md-and-agents-md` | `pluginConfigs["agents-md@builtin"].options.instructionFiles` in user, managed and any `--settings` file; absent everywhere is the default. Project and local settings are ignored for it. `claude-md` or `managed-only` fails |
-| C | The loader is present and not disabled | `/claude-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken` or the entry missing is unknown |
-| D | No session type without support matters to the repository's users | Ask the operator, listing: a CLI before v2.1.277; the plugin disabled in `/plugin`; in some cases the first session after upgrading from v2.1.276 or earlier; before v2.1.281, Amazon Bedrock and telemetry-disabled sessions; `--add-dir` directories under `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`, whose `AGENTS.md` does not load. In those sessions **Project instructions** is missing from `/config` |
-
-B and C read this machine; the setting is per user and no repository can ship it, so the operator
-answers D for everyone else's machines too.
-
-**Nested `AGENTS.md`, per mode**, as the memory page states it:
-
-- `claude-md-or-agents-md`: a subdirectory's `AGENTS.md` loads "when Claude opens a file there with
-  the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its own". Nested
-  shims follow the root verdict and leave with it.
-- `claude-md-and-agents-md`: "each directory's `CLAUDE.md` files first and its `AGENTS.md` after
-  them"; the page does not say when a subdirectory's file loads. A repository with nested
-  `AGENTS.md` keeps every shim under this mode, since `remove-shims` takes them together.
-- `claude-md`, `managed-only`: no `AGENTS.md` loads. Under `managed-only` a subdirectory's
-  `CLAUDE.md` still loads on Read, and the page does not say whether its import expands. Keep them.
-
-Quotes, dates and triggers: [`reference/sources.md`](reference/sources.md), "The built-in
-agents-md plugin".
+`cutover-check` grades the build and the fleet, not whether this repository's users lose
+instructions without the shim. Before offering `remove-shims`, read
+[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its six conditions:
+precedence, this machine's mode, the loader's state, the operator's answers for every other user
+and surface, external `@` imports, and `InstructionsLoaded` dependents. It also gives the verdict for
+nested `AGENTS.md` under each mode. **Unknown is failed**: any condition not shown to hold keeps the
+recommendation at "keep the shim" and names it. This recommends, never removes.
 
 ### `remove-shims`, one repository per run
 
@@ -374,7 +352,7 @@ directly at all.
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
   attaches a subdirectory's `AGENTS.md` when a Read opens a file there and that subdirectory has
   none of those three names of its own. Reading it directly needs v2.1.277 or later; the sessions
-  that cannot are condition D's list above. A `CLAUDE.md` containing `@AGENTS.md` never makes
+  that cannot are listed in `reference/shim-droppable.md`, condition D. A `CLAUDE.md` containing `@AGENTS.md` never makes
   Claude read the file twice.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-29 (49,601 bytes;
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
