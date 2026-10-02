@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` answers binding lookups with the parser.** The helper's new
+  `binding` op parses a module on first lookup (acorn, then eslint-scope; the last 16 modules
+  stay cached) and returns the variable a name read at an offset resolves to: its declarations,
+  every write, and whether each sits in the module scope, or the imported name, or one implicit
+  global for an undeclared name. `_declaration`, `_binding_value` (and through it
+  `_scoped_constant`) and `_nearest_binding` let the parser pick the variable and keep the regex
+  rule for which of its writes a read sees; `_written_elsewhere` counts a write only when the
+  parser resolves it to the same binding. Finding writes, and every mutation check, stay on the
+  regex reader until P3 of #5640. `--reader=regex` is unchanged and stays the default.
+  `reader.binding_lookups` and `reader.extract_seconds` record the work.
+
+### Fixed
+
+- Under `--reader=parser`, declaration text inside a string, comment or template no longer
+  shadows a write to the outer binding (finding 5 on #5640): `var pY=[...];function f(){"let
+  pY";pY=["B"]}` reads `...pY` as partial instead of the initializer.
+- Every `test_inventory.py` fixture now parses as a module: the four shortcut shapes (an export
+  of an undeclared name, padding run into the next token, adjacent string literals, a bare object
+  literal) are rewritten, and `test_fixture_parse.py` requires all of them to parse.
+
 ## [2.0.1] - 2026-10-02
 
 ### Fixed
