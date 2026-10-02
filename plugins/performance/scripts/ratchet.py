@@ -10,11 +10,12 @@ Subcommands:
     check            Run every counter. Exit 1 naming each counter above its
                      ceiling.
     propose-tighten  Print the lower ceiling for every counter measured below
-                     its own, measured twice like add. Writes only with
-                     --write, and never raises one.
-    add              Measure a new counter TWICE and record the agreed value as
-                     its ceiling. Two runs that disagree are refused: a ratchet
-                     on a counter that moves by itself fails at random
+                     its own, measured like add. Writes only with --write, and
+                     never raises one.
+    add              Measure a new counter twice by default (--runs N sets the
+                     count, at least 1) and record the agreed value as its
+                     ceiling. Runs that disagree are refused: a ratchet on a
+                     counter that moves by itself fails at random
                      (reference/harness-integrity.md rule 1).
 
 Commands run through the shell from the current directory, so run this from the
@@ -166,16 +167,27 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 1 if above else 0
 
 
-def measure_twice(name: str, command: str, field: str) -> int | float:
-    first = measure(name, command, field)
-    second = measure(name, command, field)
-    if first != second:
+def measure_runs(name: str, command: str, field: str, runs: int) -> int | float:
+    values = [measure(name, command, field) for _ in range(runs)]
+    if len(set(values)) > 1:
         fail(
-            f"counter {name!r} measured {first} then {second} on an unchanged "
-            f"subject. A ratchet on a counter that moves by itself fails at random; "
-            f"pin whatever varies (a cache, a clock, a temp path) first."
+            f"counter {name!r} measured {' then '.join(map(str, values))} on an "
+            f"unchanged subject. A ratchet on a counter that moves by itself fails "
+            f"at random; pin whatever varies (a cache, a clock, a temp path) first."
         )
-    return first
+    return values[0]
+
+
+def positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise argparse.ArgumentTypeError(
+            f"must be an integer of at least 1, got {text!r}"
+        )
+    return value
 
 
 def cmd_propose_tighten(args: argparse.Namespace) -> int:
@@ -185,8 +197,10 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
     changed = 0
     above = 0
     for counter in counters:
-        # Two agreeing runs, as in add: one noisy dip must not lower a ceiling.
-        value = measure_twice(counter["name"], counter["command"], counter["field"])
+        # Agreeing runs, as in add: one noisy dip must not lower a ceiling.
+        value = measure_runs(
+            counter["name"], counter["command"], counter["field"], args.runs
+        )
         if value > counter["ceiling"]:
             above += 1
             print(f"ABOVE  {counter['name']}: {value} > ceiling {counter['ceiling']}")
@@ -215,7 +229,9 @@ def cmd_add(args: argparse.Namespace) -> int:
     # duplicate entry before its command runs.
     entry = {key: 0 if key == "ceiling" else getattr(args, key) for key in KEYS}
     validate(args.file, {"counters": [*counters, entry]})
-    first = entry["ceiling"] = measure_twice(args.name, args.command, args.field)
+    first = entry["ceiling"] = measure_runs(
+        args.name, args.command, args.field, args.runs
+    )
     counters.append(entry)
     save(args.file, counters)
     print(f"added {args.name}: ceiling {first} ({args.field}), in {args.file}")
@@ -228,6 +244,8 @@ def main() -> int:
     for name in ("check", "propose-tighten", "add"):
         child = sub.add_parser(name)
         child.add_argument("--file", default=DEFAULT_FILE)
+        if name != "check":
+            child.add_argument("--runs", type=positive_int, default=2)
         if name == "propose-tighten":
             child.add_argument("--write", action="store_true")
         if name == "add":
