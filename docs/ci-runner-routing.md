@@ -59,16 +59,23 @@ no automated review, by design.
 `lint` and `lint-2` are two halves of one hygiene lane, split across two
 runners and balanced on measured wall time; every gate keeps the name it always
 had, and each half carries its own `aggregate-hygiene-results.sh` feed over
-exactly its own gate steps.
+exactly its own gate steps. ShellCheck runs in `hook-utils` with a one-row feed
+of its own, so its whole-repository scan does not set `lint`'s wall time.
 
 ## Contract-only `ci-status`
 
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
-the `ci-lanes` commit status on the head SHA. The composite waits up to 540 s
-for an in-flight full run. A `success` ends the wait at once. A `failure` or
-`error` ends it too, unless the full run that wrote it is being re-run; then the
-composite waits for that re-run's verdict.
+the `ci-lanes` commit status on the head SHA. The composite waits up to 1,500 s
+for an in-flight full run, inside a 28-minute job. A `success` ends the wait at
+once. A `failure` or `error` ends it too, unless the full run that wrote it is
+being re-run; then the composite waits for that re-run's verdict.
+
+The ceiling is the 7-day job-queue p95 (432 s) plus the full run's p95 from
+creation to verdict (1,018 s), rounded up from 1,450 s. The composite counts
+only its sleeps against the ceiling, about 6% less than the wall time it
+spends, so the job timeout leaves room for that overhead and the fail-closed
+message (#5784).
 
 **Operator remedy.** When a contract-only `ci-status` is red:
 
@@ -81,11 +88,12 @@ composite waits for that re-run's verdict.
   the other bullets for `ci-lanes`.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
-Two cases still go red while a passing verdict is on its way. A re-run of a
-different full run on the same SHA does not hold the old failure open, and a
-re-run of the writer that outlasts 540 s fails closed at the ceiling. In both,
-re-run the red contract-only run once `ci-lanes` is `success`; the failure
-message names this remedy. How a ruleset treats two same-name `ci-status` check
+Three cases still go red while a passing verdict is on its way. A first-attempt
+full run that has not recorded `ci-lanes` within 1,500 s fails closed at the
+ceiling, a re-run of a different full run on the same SHA does not hold the old
+failure open, and a re-run of the writer that outlasts 1,500 s fails closed at
+the ceiling. In all three, re-run the red contract-only run once `ci-lanes` is
+`success`; the failure message names this remedy. How a ruleset treats two same-name `ci-status` check
 runs on one SHA is unverified (#4670).
 
 ## Toolchain integrity

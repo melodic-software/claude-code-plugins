@@ -141,7 +141,8 @@ run_shell${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && githu
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
 run_windows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
-run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}"
+run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
+run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -254,7 +255,7 @@ parsed="$(
       # Every table name, so a BARE mention of any output — in an env value, an
       # echo, a run script — reaches the exact-shape check rather than being
       # invisible to it. Matching only the root output would have delivered the
-      # over-matching this header promises for one row out of seven.
+      # over-matching this header promises for one row out of eight.
       n_outnames = split(tolower(output_names), outnames, " ")
       if (resolver_lc == "" || n_outnames == 0) {
         print "ERR\tinternal: resolver job or output names were not supplied to the parser"

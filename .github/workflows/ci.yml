@@ -156,6 +156,7 @@ jobs:
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
+      run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -180,6 +181,14 @@ jobs:
       # program plan and a consumer can be added without touching the resolver.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
+      #
+      # `skill_checker` is the one group that does not repeat the toolchain
+      # paths: it names every input an UNCHANGED skill's check-25 verdict
+      # depends on (the checker, the corpus gate and its baseline, the list
+      # reader it sources, this workflow), and the checker runs bash, grep, sed
+      # and awk only, so no lockfile or interpreter pin can move that verdict.
+      # A CHANGED skill is already checked on every diff by the changed-skills
+      # gate in `lint-2`, check 25 included as a FAIL.
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
@@ -274,6 +283,12 @@ jobs:
               .node-version
               .python-version
               .shellcheckrc
+            skill_checker:
+              plugins/skill-quality/scripts/**
+              scripts/check-all-skills-verb-contract*.sh
+              scripts/verb-contract-baseline.txt
+              scripts/lib/**
+              .github/workflows/ci.yml
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -302,11 +317,12 @@ jobs:
   # as the schema steps, just via object_pairs_hook instead of a schema — see
   # #1498) read fixed, path-scoped inputs that a diff confined to the docs-only
   # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
-  # report an honest evaluated-and-not-applicable success. ShellCheck, exec-bit,
+  # report an honest evaluated-and-not-applicable success. Exec-bit,
   # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
-  # whole repository, and a shell/shebang/hook file added under an otherwise
+  # whole repository, and a shebang/hook file added under an otherwise
   # docs-only prefix is real input they must still catch, as
   # is a docs-only diff that reintroduces an em dash on a purged surface.
+  # ShellCheck, ungated for the same reason, runs in `hook-utils`.
   #
   # The job NEVER skips — only steps are gated. A skipped required lane's
   # result is not `success`, which the ci-status aggregate rejects, and a
@@ -385,55 +401,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/editorconfig@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: .editorconfig-checker.json
-
-      # ON A PULL REQUEST THE COMPOSITE GETS THE RAW DIFF. It keeps only listed
-      # paths that still exist and end in .sh or .bash, so a diff with no shell
-      # file is a non-blank list that keeps nothing: a notice and exit 0, not a
-      # scan. The filtering is left to the composite so there is one rule.
-      #
-      # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
-      # cannot tell a blank input from an unset one, so it falls back to its own
-      # discovery. That is the wanted answer on push, where there is no base to
-      # diff against, and on any diff that changes what every script is judged
-      # against rather than a script: the rcfile, a sourced library or test
-      # harness, which the composite cannot see is load-bearing outside the
-      # list, or this workflow, which pins the composite and so the ShellCheck
-      # version. Deletions stay in the diff so removing a library still counts.
-      # A path git prints quoted (non-ASCII, tab, newline) or that holds a space
-      # cannot survive the whitespace-separated list, so it full-scans too.
-      # This branches in the shell rather than in `if:` because a step cannot
-      # carry both a resolver gate and an event gate.
-      #
-      # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
-      # `run_shell`, and `run_shell` carries the docs-only term: a pull request
-      # whose only change is a shell script under a docs-only prefix
-      # resolves docs-only, and the gate would skip ShellCheck on
-      # the very file it should read while the aggregator override recorded that
-      # skip as success. So the step always runs and lets the composite decide.
-      - name: Select the changed shell scripts
-        id: changed_shell
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          files=''
-          if [ -n "$BASE_REF" ]; then
-            files=$(git diff --name-only "origin/$BASE_REF...HEAD")
-            if printf '%s\n' "$files" |
-              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$|^\.github/workflows/ci\.yml$|^"| '; then
-              files=''
-            fi
-          fi
-          {
-            printf 'files<<SHELL_FILES\n%s\nSHELL_FILES\n' "$files"
-          } >>"$GITHUB_OUTPUT"
-
-      - name: Lint shell scripts
-        id: shellcheck
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
-        with:
-          files: ${{ steps.changed_shell.outputs.files }}
-          rcfile: .shellcheckrc
 
       - name: Lint workflows
         id: actionlint
@@ -606,7 +573,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.changes.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
       # detector reads the markdown this pull request changed and annotates
@@ -650,7 +617,6 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            shellcheck=${{ steps.shellcheck.outcome }}
             actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
             marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
@@ -776,7 +742,7 @@ jobs:
           SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
@@ -1329,8 +1295,17 @@ jobs:
       - name: Test the changed-skill gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changed-skills.test.sh
+      # The whole corpus (every SKILL.md through the full checker, about 300 s
+      # of this job) runs on a pull request only when `skill_checker` matched,
+      # and on every push. On any other pull request an unchanged skill's
+      # check-25 verdict cannot have moved, because nothing it reads changed,
+      # and a changed skill is checked by the next step, which fails it on
+      # check 25 like any other FAIL. The one verdict a pull request can no
+      # longer see is a stale scripts/verb-contract-baseline.txt row left by
+      # fixing a listed skill; the list has no active rows, and the push run
+      # still reports one.
       - name: Gate every skill on description/verb-contract polarity (check 25)
-        if: needs.changes.outputs.run_shell == 'true'
+        if: needs.changes.outputs.run_skill_checker == 'true'
         run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
@@ -1699,9 +1674,11 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-format contract tests in this same job.
+        # It verifies the install on one small file that sources nothing; the
+        # ShellCheck gate in `hook-utils` is what lints the repository.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
-          paths: plugins/bash-format
+          files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate
       # step below: a validate-infra problem (e.g. the CLI needing auth) can
@@ -1711,6 +1688,10 @@ jobs:
       # ShellCheck, Biome, and Ruff are declared here so hosted and local runs
       # exercise the same contract suites instead of inheriting different image
       # tool inventories.
+      #
+      # The shfmt and DuckDB downloads retry transient failures (three red main
+      # runs in one week were these two steps). `--no-progress-meter` instead of
+      # `-s` keeps curl's "Will retry" warning in the log.
       - name: Install pinned shfmt
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -1718,7 +1699,7 @@ jobs:
           SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$HOME/.local/bin/shfmt" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
@@ -1754,7 +1735,7 @@ jobs:
           DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
         run: |
           mkdir -p "$RUNNER_TEMP/duckdb"
-          curl -fsSL -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
+          curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
             "https://github.com/duckdb/duckdb/releases/download/$DUCKDB_VERSION/duckdb_cli-linux-amd64.gz"
           echo "$DUCKDB_SHA256  $RUNNER_TEMP/duckdb/duckdb.gz" | sha256sum -c -
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
@@ -2504,6 +2485,11 @@ jobs:
   # and its own suite are legible as one lane rather than buried among fifty
   # steps, and so the suite runs on a shell-only diff without paying for the
   # Node and Python toolchains test-linux installs.
+  #
+  # SHELLCHECK RUNS HERE, NOT IN `lint`. This job finishes in under a minute,
+  # so a scan of up to four minutes here no longer sets `lint`'s wall, and it
+  # is already in `ci-status.needs`. It is a gate step like `lint`'s: absorbed
+  # with `continue-on-error`, fed to the aggregator at the foot of this job.
   hook-utils:
     needs:
       - changes
@@ -2518,6 +2504,85 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+
+      # ON A PULL REQUEST THE COMPOSITE GETS THE DIFF. It keeps only listed
+      # paths that still exist and end in .sh or .bash, so a diff with no shell
+      # file is a non-blank list that keeps nothing: a notice and exit 0, not a
+      # scan. The filtering is left to the composite so there is one rule.
+      #
+      # A CHANGED SOURCED FILE WIDENS THE LIST. ShellCheck follows `source`
+      # (external-sources in .shellcheckrc), so a library or test harness
+      # changes the verdict on every file that sources it. Inside a plugin
+      # (`plugins/<p>/**/lib/*.sh`, `plugins/<p>/**/*-harness.sh` or
+      # `-helpers.sh`) the list gains every tracked shell file under that plugin
+      # and every shell file anywhere that names the changed file's basename,
+      # which is how a sourcing file reaches it. A non-shell file under lib/
+      # widens nothing.
+      #
+      # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
+      # cannot tell a blank input from an unset one, so it falls back to its own
+      # discovery. That is the wanted answer on push, where there is no base to
+      # diff against, and on any diff that changes what every script is judged
+      # against: the rcfile, a sourced shell file outside plugins/ (lib/,
+      # scripts/lib/, a scripts/ harness), or this workflow, which pins the
+      # composite and so the ShellCheck version. A failed basename search also
+      # falls back to it. Deletions stay in the diff so removing a library still
+      # counts. A path git prints quoted (non-ASCII, tab, newline) or that holds
+      # a space cannot survive the whitespace-separated list, so it full-scans
+      # too. This branches in the shell rather than in `if:` because a step
+      # cannot carry both a resolver gate and an event gate.
+      #
+      # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
+      # `run_shell`, and `run_shell` carries the docs-only term: a pull request
+      # whose only change is a shell script under a docs-only prefix
+      # resolves docs-only, and the gate would skip ShellCheck on
+      # the very file it should read while the aggregator override recorded that
+      # skip as success. So the step always runs and lets the composite decide.
+      - name: Select the changed shell scripts
+        id: changed_shell
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          files=''
+          if [ -n "$BASE_REF" ]; then
+            files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+            whole='^\.shellcheckrc$|^\.github/workflows/ci\.yml$|^"| '
+            sourced='(^|/)lib/.*\.(sh|bash)$|-(harness|helpers)\.sh$'
+            extra=''
+            while IFS= read -r path; do
+              if [[ $path =~ $whole ]]; then
+                files=''
+                break
+              fi
+              [[ $path =~ $sourced ]] || continue
+              if [[ $path != plugins/*/* ]]; then
+                files=''
+                break
+              fi
+              plugin=${path#plugins/}
+              plugin=${plugin%%/*}
+              extra+="$(git ls-files -- "plugins/$plugin/*.sh" "plugins/$plugin/*.bash")"$'\n'
+              rc=0
+              names=$(git grep -l -w -F -e "${path##*/}" -- '*.sh' '*.bash') || rc=$?
+              if [ "$rc" -gt 1 ]; then
+                files=''
+                break
+              fi
+              extra+="$names"$'\n'
+            done <<<"$files"
+            [ -z "$files" ] || files=$(printf '%s\n%s' "$files" "$extra" | sort -u)
+          fi
+          {
+            printf 'files<<SHELL_FILES\n%s\nSHELL_FILES\n' "$files"
+          } >>"$GITHUB_OUTPUT"
+      - name: Lint shell scripts
+        id: shellcheck
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        with:
+          files: ${{ steps.changed_shell.outputs.files }}
+          rcfile: .shellcheckrc
+
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check
@@ -2542,6 +2607,13 @@ jobs:
         if: needs.changes.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt), or this is a draft pull request; the shared hook-utils library cannot be affected — reporting success."
 
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          CHECK_RESULTS: |
+            shellcheck=${{ steps.shellcheck.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
   ci-status:
     needs:
       - changes
@@ -2561,11 +2633,14 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 10, not 5, because of the carry-forward wait below: this repository's full
-    # run takes 4 to 5 minutes, so a contract-only event arriving as one starts
-    # waits nearly that long, and a 5-minute job cannot hold a wait that long
-    # plus its own work.
-    timeout-minutes: 10
+    # Sized by the carry-forward wait below, not by this job's own work: the
+    # job must hold the whole wait plus the composite's overhead, and the wait
+    # must outlast the full run it reads. 28 because the composite counts only
+    # its sleeps against the ceiling (run.sh:403), which measured 6.1% of
+    # extra poll time on four ceiling logs: 1,500 s of budget lands near
+    # 1,500 x 1.061 + 6 = 1,598 s of wall, 82 s under 28 minutes, so the job
+    # timeout never cuts off the fail-closed message (#5784).
+    timeout-minutes: 28
     permissions:
       # ci-status lists this workflow's runs on this head SHA to find an earlier
       # incomplete one before it reads the carried-forward status. Under an
@@ -2603,13 +2678,14 @@ jobs:
           # lane was already red here.
           treat-skipped-as: fail
           # A contract-only run no longer queues behind the full run it reads
-          # from, so it waits for one instead. 540 seconds is this job's
-          # `timeout-minutes: 10` less the 60-second margin the composite's
-          # README requires, so the fail-closed error is never preempted by the
-          # job timeout. Measured: a body edit one minute into a full run waited
-          # 210 s (run 33993232104), so the 240 s a 5-minute job allows would
-          # have gone red on the very case the wait exists for, a bot that
-          # force-pushes and edits in the same second.
+          # from, so it waits for one instead, and the wait must outlast that
+          # run. 1,500 s is the 7-day job-queue p95 (432 s) plus the full run's
+          # p95 from creation to verdict after the v0.30.2 re-pin (1,018 s,
+          # n = 99), 1,450 s rounded up. The old 540 s assumed a 4 to 5 minute
+          # full run; the full run's long pole is `lint-2`, and 11 of 45
+          # contract-only attempts after the re-pin went red at that ceiling on
+          # SHAs whose full run then passed, the longest needing 1,030 s
+          # (#5784). The job's `timeout-minutes` above is sized from this value.
           #
           # A FAILURE WAITS ONLY FOR ITS WRITER'S RE-RUN (#4670). A `success`
           # ends the wait at once. A `failure` or `error` ends it too, unless
@@ -2617,8 +2693,8 @@ jobs:
           # after the status; then the wait holds for that run alone, so a body
           # edit during a re-run of a failed full run reads the re-run's
           # verdict. A re-run of a different full run on the same SHA does not
-          # hold it, and a writer re-run longer than 540 s fails closed at the
+          # hold it, and a writer re-run longer than 1,500 s fails closed at the
           # ceiling. Operator remedy: docs/ci-runner-routing.md, section
           # Contract-only ci-status.
-          carry-forward-wait-seconds: '540'
+          carry-forward-wait-seconds: '1500'
           token: ${{ github.token }}

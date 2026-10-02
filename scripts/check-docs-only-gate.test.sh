@@ -86,6 +86,7 @@ jobs:
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
+      run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out
@@ -523,6 +524,12 @@ expect "a step gated on an output outside the table is rejected" 1 "which the re
 f="$scratch/inverted-narrowing.yml"
 xform_replace_line "$base" "      run_node:" "      run_node: \${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] == 'true' }}" "$f"
 expect "a narrowing row comparing against 'true' is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
+
+# The whole-corpus check-25 row keeps the draft term run_shell carries, so a
+# draft skips that gate and the flip to ready runs it.
+f="$scratch/skill-checker-no-draft.yml"
+xform_replace_line "$base" "      run_skill_checker:" "      run_skill_checker: \${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}" "$f"
+expect "a run_skill_checker row without its draft term is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
 
 # The feed override and the step's gate must name the SAME output. Pairing them
 # on different outputs maps a skip that never happened: the two outputs can
