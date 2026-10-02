@@ -69,7 +69,7 @@ check("the builder is deterministic", page === buildExplainerPage(model));
 check("a hostile model still passes the validator", verdict.ok, verdict.failures.join(","));
 check("no live script tag", !/<script[\s>]/i.test(page)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("no live img or svg tag", !page.includes("<img") && !page.includes("<svg"));
-check("no href or event-handler attribute", !page.includes("href=") && !/\son[a-z]+=/i.test(page.replace(/>[^<]*</g, "><")));
+check("no href or event-handler attribute", !page.includes("href=") && !/[ \t\n]on[a-z]+=/i.test(page.replace(/>[^<]*</g, "><")));
 check(
   "every hostile string appears escaped",
   hostile.every((item) => page.includes(escapeHtml(item))),
