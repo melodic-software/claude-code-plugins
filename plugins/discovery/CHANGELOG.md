@@ -1,5 +1,21 @@
 # Changelog: discovery plugin
 
+## [0.25.26] - 2026-10-02
+
+### Added
+
+- **Single-publisher facts.** A research claim whose every Tier 0/1 source is the publisher
+  speaking about itself (its own pricing, roadmap or product behavior) is worded as an attribution,
+  carries a new claim-level `subject_pool` field equal to that one `pool`, is at most MEDIUM and is
+  never accepted. The research verifier grades `pool` and `subject_pool` for criterion 4, and an
+  eval case covers a vendor pricing claim.
+
+### Changed
+
+- **The research run aims at HIGH, not at the corroborator floor.** Discipline 5, the Gaps line,
+  the discipline file's source-tier ratio, the Phase 1 gap list and the researcher agent now say
+  that criterion 4's count is a floor and acceptance also needs HIGH (criterion 7).
+
 ## [0.25.25] - 2026-10-02
 
 ### Changed

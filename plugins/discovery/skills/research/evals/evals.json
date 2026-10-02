@@ -399,6 +399,22 @@
         "The Phase 1 cap for a named folder or artifact is a direct read of it first, then at most 6 web queries and fetches",
         "A verifier FAIL on a verifier-owned row at low is recorded as a Gap, Conflicts entry or named verification fail, not resumed"
       ]
+    },
+    {
+      "id": 28,
+      "name": "single-publisher-claim-is-labelled-not-accepted",
+      "prompt": "Research what ExampleCloud charges per million requests on its serverless tier. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. One accepted HIGH claim reads 'the serverless tier costs $0.20 per million requests'. Its Tier 1 sources are ExampleCloud's pricing page, its pricing API reference and its launch announcement, each recorded with pool: 'ExampleCloud'. A Tier 2 reseller blog repeats the price and links the pricing page. The claim carries no subject_pool.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7 and 12. The verifier reads pool off each source: all three Tier 1 sources share the pool ExampleCloud, which is the claim's own subject, so they are one corroborator, and the reseller blog only restates the pricing page. The claim is a single-publisher fact with no subject_pool, so it fails row 4, and it cannot be HIGH. The result carries it as an attribution ('ExampleCloud states the serverless tier costs $0.20 per million requests') with subject_pool: ExampleCloud, at most MEDIUM, listed under Gaps labelled single-publisher (ExampleCloud) with its fetch-log entry and date, and not as an accepted claim.",
+      "expectations": [
+        "The three ExampleCloud pages count as one corroborator because they share one pool",
+        "The reseller blog that restates the pricing page is not counted as an independent corroborator",
+        "The verifier fails row 4 for the unlabelled claim, reading pool and subject_pool off the sidecar header",
+        "The claim is worded as an attribution to ExampleCloud, not stated as a bare fact",
+        "The claim carries subject_pool: ExampleCloud, equal to the one pool its Tier 0/1 sources share",
+        "Confidence is at most MEDIUM and the claim is not accepted",
+        "The claim is listed under Gaps labelled single-publisher (ExampleCloud)"
+      ]
     }
   ]
 }
