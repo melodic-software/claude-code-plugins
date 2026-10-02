@@ -15,11 +15,12 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
   stands or falls on a majority. It returns confirmed, refuted and unverified findings with
   evidence URLs, plus a proposed `defaults.yaml` diff in `defaults` mode, built only from
   confirmed rows whose proposed value fits the key (a model alias, an effort level, and never
-  `frontier_guard: false`). It never edits a file. Missing `pointers` (defaults mode) or
-  `targets` (repo mode) returns an error and runs nothing. Under a frontier or unknown
-  session, every stage runs on `opus`.
+  `frontier_guard: false`) and that no skeptic corrected. A `current` verdict needs evidence
+  from a vetted source host; without it the row is unverified. It never edits a file.
+  Missing `pointers` (defaults mode) or `targets` (repo mode) returns an error and runs
+  nothing. Under a frontier or unknown session, every stage runs on `opus`.
 - **`drift-reader` and `drift-checker` agents**, the only agents the workflow runs. The reader
-  has Read, Grep and Glob; the checker has WebFetch and WebSearch. Neither has a shell or can
+  has Read, Grep and Glob; the checker has WebFetch only. Neither has a shell or can
   edit, and no agent holds both file and web access. Repository text and pages reach their
   prompts only as fenced data, and a finding whose evidence URL is outside the vetted source
   hosts is reported unverified instead of going to a skeptic.

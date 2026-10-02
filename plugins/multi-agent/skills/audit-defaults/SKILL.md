@@ -26,7 +26,7 @@ The evidence pass runs as the `multi-agent:drift-audit` workflow when workflows
 are available: one finder per owner (or per area in `repo` mode), then
 independent skeptics who try to refute each finding. In `repo` mode a
 `multi-agent:drift-reader` (file reads only) first quotes each area's claims;
-every judging stage runs as `multi-agent:drift-checker` (web fetch and search
+every judging stage runs as `multi-agent:drift-checker` (web fetch
 only). No agent can edit, write or run a shell, and none holds both file and
 web access.
 

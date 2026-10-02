@@ -178,7 +178,7 @@ test('readers only read files, judges only reach the web, and no agent can write
   assert.deepEqual([...new Set(named)].sort(), ["'multi-agent:drift-checker'", "'multi-agent:drift-reader'"])
   assert.ok(!/isolation/.test(source), 'no worktree isolation is requested')
   assert.deepEqual(toolsOf('drift-reader'), ['Glob', 'Grep', 'Read'])
-  assert.deepEqual(toolsOf('drift-checker'), ['WebFetch', 'WebSearch'])
+  assert.deepEqual(toolsOf('drift-checker'), ['WebFetch'])
 })
 
 test('a checker sees the reader quotes by id, and a finding keeps the reader quote', async () => {
@@ -258,11 +258,11 @@ test('repeat findings in one area dedup; defaults rows dedup by owner and key an
 
 // ---- refutation and unverified handling ----
 
-function panelReply(verdictsFor) {
+function panelReply(verdictsFor, correctionFor = () => undefined) {
   return (p, o, d) => {
     if (!o.label.startsWith('skeptic:')) return d(p, o)
     const k = Number(o.label.split(':')[2])
-    return { verdicts: data(p, 'findings').map(f => ({ id: f.id, verdict: verdictsFor(k, f), reason: 'r' + k })) }
+    return { verdicts: data(p, 'findings').map(f => ({ id: f.id, verdict: verdictsFor(k, f), reason: 'r' + k, correction: correctionFor(k, f) })) }
   }
 }
 
@@ -294,6 +294,38 @@ test('a finding citing an address outside the source hosts is unverified and nev
   })
   assert.equal(by(calls, 'skeptic:').length, 0)
   assert.match(result.unverified[0].why, /outside the source hosts/)
+})
+
+test('a current row without vetted evidence is unverified, not current', async () => {
+  const { result } = await run({ pointers: POINTERS }, {
+    reply: (p, o, d) => (o.label === 'find:fanout'
+      ? { rows: [{ key: 'fanout.model', verdict: 'current', evidenceUrl: '', evidence: '', reason: 'r' }] }
+      : o.label === 'find:worker'
+        ? { rows: [
+          { key: 'roles.worker.model', verdict: 'current', evidenceUrl: 'https://elsewhere.example/x', evidence: 'q', reason: 'r' },
+          { key: 'roles.worker.effort', verdict: 'current', evidenceUrl: COST, evidence: 'q', reason: 'r' },
+        ] }
+        : d(p, o)),
+  })
+  assert.deepEqual(result.current.map(c => c.key), ['roles.worker.effort'])
+  assert.deepEqual(result.unverified.filter(u => u.verdict === 'current').map(u => u.key).sort(), ['fanout.model', 'roles.worker.model'])
+})
+
+test('a defaults row an upholding skeptic corrected is unverified and kept out of the diff', async () => {
+  const { result } = await run({ pointers: POINTERS }, {
+    reply: panelReply((k) => 'upheld', (k) => (k === 2 ? 'xhigh' : undefined)),
+  })
+  assert.equal(result.confirmed.length, 0)
+  assert.equal(result.diff, null)
+  const held = result.unverified.find(u => u.key === 'roles.worker.effort')
+  assert.deepEqual(held.corrections, ['xhigh'])
+})
+
+test('skeptics see the reader pointer beside each repo claim', async () => {
+  const { calls } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] }, {
+    reply: (p, o, d) => (o.label.startsWith('read:') ? { claims: [{ file: 'docs/a.md', line: 2, quote: 'q', pointer: 'see https://code.claude.com/docs/en/workflows (as of 2026-10-01)' }] } : d(p, o)),
+  })
+  assert.match(data(by(calls, 'skeptic:')[0].prompt, 'findings')[0].pointer, /as of 2026-10-01/)
 })
 
 test('unread and missing default rows are unverified; a null finder is named', async () => {

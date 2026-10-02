@@ -46,9 +46,10 @@ upstream sources and judge each claim; plain code dedups what they find; then
 three skeptics per batch try to refute each finding, and a majority decides it.
 In repo mode a `multi-agent:drift-reader` agent (Read, Grep, Glob) first quotes
 each area's claims, and the finders see only those quotes. Finders and skeptics
-run as `multi-agent:drift-checker` (WebFetch, WebSearch). Neither agent has a
-shell or can edit, write or spawn agents, and none holds both file and web
-access, so a file or page cannot steer repository content into a fetch. The
+run as `multi-agent:drift-checker` (WebFetch only, no search). Neither agent
+has a shell or can edit, write or spawn agents, and none holds both file and
+web access: the only repository text a checker holds is the quoted claim
+lines, and its prompt confines fetches to the source hosts. The
 workflow returns findings and, for the defaults, a proposed diff; applying any
 of it is a reviewed edit.
 
