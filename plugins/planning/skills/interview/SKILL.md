@@ -60,7 +60,7 @@ Three gates halt this skill. They are stated here, near the top of the file, so 
 
 - **The user's decisions are never synthesized.** Synthesize-directly and the Mixed path's synthesized rest resolve only codebase-resolvable facts and unambiguous conventional defaults. A decision that is genuinely the user's is asked, never folded into the Brief or captured as an assumption. Unattended, and only when the caller declares it, that decision is recorded `blocked` with arbiter `USER-RESERVED` and named as a blocker. Full rule: Step 1.5, the auto-guard and its unattended path.
 - **A gap during `lock` synthesis halts the run.** Stop and surface the gap to the user; never fudge it with a guess. Invoking `lock` exempts it from the confirmation gate, never from this halt. Full rule: the Action Router `lock` row and Step 1.5.
-- **The register gate runs before the contract locks.** Before persisting the contract or handing off, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md`; exit 1 and exit 2 both halt. Only a run that asked no question at all skips it. Full rule: Step 3, "Register gate".
+- **The register gate runs before the contract locks.** Before persisting the contract or handing off, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md`; exit 1 and exit 2 both halt. Only a run that asked no question skips it; the acceptance-criteria coverage prompt is not a question for this purpose, and any other question is. Full rule: Step 3, "Register gate".
 
 ## Action Router
 

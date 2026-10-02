@@ -459,7 +459,7 @@ pin_section "SKILL.md Gates section is unchanged (the early twin of the three ga
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "2d38307968edf1c91c2142506232cd8a4cd9fe259cf50de37d814734a3107cb5"
+  "4f5ffb070ea46ed9297523d92e104885d09f4d041c10289091e221b33fc5d31d"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
