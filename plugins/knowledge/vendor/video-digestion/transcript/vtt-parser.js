@@ -173,6 +173,51 @@ export function deduplicateCues(cues) {
 }
 
 /**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function splitWords(text) {
+  return text.split(WHITESPACE_RUN).filter(Boolean);
+}
+
+/**
+ * Length of the longest word run that ends `previous` and starts `next`
+ * (case-insensitive), or 0 when no run of at least
+ * MIN_CUE_JOIN_OVERLAP_WORDS words is shared (rolling captions).
+ *
+ * @param {string} previous
+ * @param {string} next
+ * @returns {number}
+ */
+export function overlapWordCount(previous, next) {
+  const prevWords = splitWords(previous);
+  const nextWords = splitWords(next);
+  const maxOverlap = Math.min(
+    prevWords.length,
+    nextWords.length,
+    MAX_CUE_JOIN_OVERLAP_WORDS,
+  );
+
+  for (let len = maxOverlap; len >= MIN_CUE_JOIN_OVERLAP_WORDS; len--) {
+    const suffix = prevWords.slice(-len).join(" ").toLowerCase();
+    const prefix = nextWords.slice(0, len).join(" ").toLowerCase();
+    if (suffix === prefix) return len;
+  }
+  return 0;
+}
+
+/**
+ * `text` without its first `count` words.
+ *
+ * @param {string} text
+ * @param {number} count
+ * @returns {string}
+ */
+function dropLeadingWords(text, count) {
+  return count > 0 ? splitWords(text).slice(count).join(" ") : text;
+}
+
+/**
  * Join adjacent cue text, stripping shared suffix/prefix word runs (rolling captions).
  *
  * @param {string} previous
@@ -183,22 +228,10 @@ export function mergeAdjacentCueText(previous, next) {
   if (!previous) return next;
   if (!next) return previous;
 
-  const prevWords = previous.split(WHITESPACE_RUN).filter(Boolean);
-  const nextWords = next.split(WHITESPACE_RUN).filter(Boolean);
-  const maxOverlap = Math.min(
-    prevWords.length,
-    nextWords.length,
-    MAX_CUE_JOIN_OVERLAP_WORDS,
-  );
-
-  for (let len = maxOverlap; len >= MIN_CUE_JOIN_OVERLAP_WORDS; len--) {
-    const suffix = prevWords.slice(-len).join(" ").toLowerCase();
-    const prefix = nextWords.slice(0, len).join(" ").toLowerCase();
-    if (suffix === prefix) {
-      return [...prevWords, ...nextWords.slice(len)].join(" ");
-    }
+  const overlap = overlapWordCount(previous, next);
+  if (overlap > 0) {
+    return [...splitWords(previous), ...splitWords(next).slice(overlap)].join(" ");
   }
-
   return `${previous} ${next}`;
 }
 
@@ -207,6 +240,8 @@ export function mergeAdjacentCueText(previous, next) {
  *
  * Groups cues into paragraphs based on natural sentence boundaries
  * (periods, question marks, exclamation marks) or time gaps (>30s).
+ * A paragraph opens without the words its first cue repeats from the
+ * previous cue's tail (rolling captions), as joins inside a paragraph do.
  * Output format: "[M:SS] paragraph text"
  *
  * @param {VttCue[]} cues - deduplicated, sorted by start time
@@ -219,6 +254,7 @@ export function formatTranscript(cues) {
   let currentParagraphText = "";
   let paragraphStart = cues[0].startSec;
   let cuesInParagraph = 0;
+  let previousCueText = "";
 
   const closeParagraph = () => {
     paragraphs.push(
@@ -233,9 +269,17 @@ export function formatTranscript(cues) {
       closeParagraph();
     }
 
+    const previousText = previousCueText;
+    previousCueText = cue.text;
+
     if (!currentParagraphText) {
+      const openingText = dropLeadingWords(
+        cue.text,
+        overlapWordCount(previousText, cue.text),
+      );
+      if (!openingText) continue;
       paragraphStart = cue.startSec;
-      currentParagraphText = cue.text;
+      currentParagraphText = openingText;
       cuesInParagraph = 1;
     } else {
       currentParagraphText = mergeAdjacentCueText(

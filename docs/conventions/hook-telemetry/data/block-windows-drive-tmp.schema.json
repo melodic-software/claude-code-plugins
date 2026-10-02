@@ -9,7 +9,7 @@
   "properties": {
     "tool": {
       "type": "string",
-      "description": "The invoking tool — \"Bash\" or \"PowerShell\" on the command lane, or \"Write\" / \"Edit\" / \"MultiEdit\" / \"NotebookEdit\" on the file-path lane; this guard matches all of them."
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\" on the command lane, or \"Write\" / \"Edit\" / \"MultiEdit\" / \"NotebookEdit\" on the file-path lane. The guard no longer matches MultiEdit, but historical rows carry it, so it stays a valid value here and in `subject` and `form`. Pointer: for where the permissions page names the legacy MultiEdit tool, see https://code.claude.com/docs/en/permissions#read-and-edit. As of: 2026-10-02. Recheck trigger: that section stops naming MultiEdit, or moves."
     },
     "subject": {
       "type": "string",

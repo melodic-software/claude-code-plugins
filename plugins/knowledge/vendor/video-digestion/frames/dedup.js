@@ -7,8 +7,6 @@
 
 import { basename } from "node:path";
 
-import imghash from "imghash";
-
 import { createLogger } from "../shared/logger.js";
 
 /** @typedef {import('./models.js').FrameCandidate} FrameCandidate */
@@ -17,14 +15,37 @@ import { createLogger } from "../shared/logger.js";
 export const DEFAULT_MAX_HAMMING_DISTANCE = 8;
 
 /**
+ * Perceptual hash of an image file. imghash is loaded on first use, so callers
+ * that inject their own `hashImage` never need it installed.
+ * @param {string} path
+ * @returns {Promise<string>}
+ */
+async function hashImageFile(path) {
+  const { default: imghash } = await import("imghash");
+  return imghash.hash(path);
+}
+
+/**
+ * Binary digits of a hex string, four per hex digit; other characters are skipped.
+ * @param {string} hex
+ * @returns {string}
+ */
+function hexToBinary(hex) {
+  return [...hex]
+    .filter((digit) => /[0-9a-f]/i.test(digit))
+    .map((digit) => Number.parseInt(digit, 16).toString(2).padStart(4, "0"))
+    .join("");
+}
+
+/**
  * Hamming distance between two hex perceptual hashes.
  * @param {string} hashA
  * @param {string} hashB
  * @returns {number}
  */
 export function hammingDistanceHex(hashA, hashB) {
-  const binA = imghash.hexToBinary(hashA);
-  const binB = imghash.hexToBinary(hashB);
+  const binA = hexToBinary(hashA);
+  const binB = hexToBinary(hashB);
   const length = Math.min(binA.length, binB.length);
   let distance = 0;
   for (let i = 0; i < length; i++) {
@@ -44,22 +65,34 @@ export function isIntervalFrame(fileName) {
   return basename(fileName).startsWith("interval_");
 }
 
+const TIME_FIELDS = /** @type {const} */ ([
+  "timestampSource",
+  "timestampMethod",
+  "timestampErrorSec",
+]);
+
 /**
- * Build a FrameCandidate from a file path.
- * @param {string} framePath
+ * Build a FrameCandidate from a file path, or from a frame whose time fields it keeps.
+ * @param {string|FrameCandidate} input
  * @returns {FrameCandidate}
  */
-export function toFrameCandidate(framePath) {
-  const file = basename(framePath);
-  return {
-    path: framePath,
+export function toFrameCandidate(input) {
+  const source = typeof input === "string" ? { path: input } : input;
+  const file = basename(source.path);
+  /** @type {FrameCandidate} */
+  const frame = {
+    path: source.path,
     file,
-    timestampSec: null,
+    timestampSec: source.timestampSec ?? null,
     sceneScore: null,
     isInterval: isIntervalFrame(file),
     phash: null,
     likelyDuplicate: false,
   };
+  for (const field of TIME_FIELDS) {
+    if (source[field] !== undefined) frame[field] = source[field];
+  }
+  return frame;
 }
 
 /**
@@ -68,7 +101,8 @@ export function toFrameCandidate(framePath) {
  * Compares each frame to the most recent kept frame of the same capture type
  * (interval vs scene). When Hamming distance ≤ threshold, marks duplicate.
  *
- * @param {string[]} framePaths - Ordered frame file paths
+ * @param {(string|FrameCandidate)[]} inputs - Ordered frame file paths, or frames whose
+ *   time fields are carried into the result
  * @param {object} [options]
  * @param {number} [options.maxHammingDistance=8]
  * @param {object} [deps]
@@ -77,14 +111,14 @@ export function toFrameCandidate(framePath) {
  * @returns {Promise<FrameSet>}
  */
 export async function deduplicateFrames(
-  framePaths,
+  inputs,
   { maxHammingDistance = DEFAULT_MAX_HAMMING_DISTANCE } = {},
-  { hashImage = (path) => imghash.hash(path), log = createLogger() } = {},
+  { hashImage = hashImageFile, log = createLogger() } = {},
 ) {
-  log.info(`dedup: starting (${framePaths.length} frames, maxHamming=${maxHammingDistance})`);
+  log.info(`dedup: starting (${inputs.length} frames, maxHamming=${maxHammingDistance})`);
 
   /** @type {FrameCandidate[]} */
-  const frames = framePaths.map(toFrameCandidate);
+  const frames = inputs.map((input) => toFrameCandidate(input));
 
   let duplicateCount = 0;
   /** @type {FrameCandidate|null} */

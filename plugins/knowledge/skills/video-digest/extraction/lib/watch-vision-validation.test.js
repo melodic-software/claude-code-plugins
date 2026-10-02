@@ -9,6 +9,7 @@ import {
   validateQualityAudit,
   validateTriageBatchFiles,
   validateTriageSheet,
+  validateWatchChecklistForCompleteSlice,
 } from "./watch-vision-validation.js";
 
 const tempDirs = [];
@@ -113,5 +114,42 @@ describe("validateQualityAudit note enforcement", () => {
       files: [{ name: "demo.png", pass: false }],
     });
     expect(errors).toEqual([]);
+  });
+});
+
+describe("validateWatchChecklistForCompleteSlice", () => {
+  /**
+   * @param {object} watch
+   * @param {string} checklist
+   */
+  function sliceWith(watch, checklist) {
+    const sliceDir = fs.mkdtempSync(path.join(os.tmpdir(), "watch-checklist-"));
+    tempDirs.push(sliceDir);
+    const runState = path.join(sliceDir, "run-state");
+    fs.mkdirSync(runState, { recursive: true });
+    fs.writeFileSync(path.join(runState, "watch.json"), JSON.stringify(watch));
+    fs.writeFileSync(path.join(runState, "watch-checklist.md"), checklist);
+    return sliceDir;
+  }
+
+  const UNTICKED = "- [ ] **8.1** menu\n- [ ] **9.1** host verify\n";
+
+  it("enforces the checklist once synthesis is marked, before status is complete", () => {
+    const sliceDir = sliceWith(
+      { status: "synthesizing", phases: { synthesis: { completedAt: "2026-10-02T00:00:00.000Z" } } },
+      UNTICKED,
+    );
+    const result = validateWatchChecklistForCompleteSlice(sliceDir);
+    expect(result.skipped).toBe(false);
+    expect(result.valid).toBe(false);
+  });
+
+  it("skips while synthesis is unmarked and status is not complete", () => {
+    const sliceDir = sliceWith({ status: "synthesizing", phases: { synthesis: null } }, UNTICKED);
+    expect(validateWatchChecklistForCompleteSlice(sliceDir)).toEqual({
+      valid: true,
+      errors: [],
+      skipped: true,
+    });
   });
 });

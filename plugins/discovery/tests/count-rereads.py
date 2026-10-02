@@ -27,6 +27,12 @@ import re
 import shlex
 import sys
 
+# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
+# versions carry MultiEdit calls, and they must still count as edits.
+# Pointer: for where the permissions page names the legacy MultiEdit tool, see
+# https://code.claude.com/docs/en/permissions#read-and-edit
+# As of: 2026-10-02
+# Recheck trigger: that section stops naming MultiEdit, or moves.
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 STATUS_LINE = re.compile(r"^\s*status:", re.MULTILINE)
 SHELL_OPERATORS = re.compile(r"[|;&<>`$]")
