@@ -23,6 +23,7 @@ Run: python3 -m unittest test_reader_findings
 
 from __future__ import annotations
 
+import pathlib
 import unittest
 
 import inventory as inv
@@ -41,7 +42,10 @@ PARTIAL = (["Agent"], "partial")
 
 
 def _probe(prelude: str) -> tuple[list[str], str]:
-    src = AGENT_SRC + prelude + PROBE
+    return _probe_source(AGENT_SRC + prelude + PROBE)
+
+
+def _probe_source(src: str) -> tuple[list[str], str]:
     rec = inv.extract_builtin_agents(src, inv.build_brace_map(src))[0]["spread-probe"]
     return rec["disallowed_tools"], rec["disallowed_tools_source"]
 
@@ -87,9 +91,9 @@ class TestOpenFindings(unittest.TestCase):
 
     # Finding 3: the regex reader does not model mutation of the spread
     # array, so the literal keeps the initializer. The parser reader counts
-    # a member write, a mutating method call, and (by the operator decision)
-    # any call the array is passed to, so the list reads as partial: fixed
-    # there.
+    # a member write, a mutating method call, and a call the array is passed
+    # to unless it follows the callee's parameter and finds it unchanged, so
+    # the list reads as partial: fixed there.
     #
     # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887
 
@@ -210,7 +214,6 @@ class TestOpenFindings(unittest.TestCase):
             'for(const e of[pY])e.push("B")',
             'var{a:q}={a:pY};q.push("B")',
             'async function g(){(await pY).push("B")}g()',
-            "export{pY}",
             "pY.map(f)",
             "pY()",
         ):
@@ -221,6 +224,349 @@ class TestOpenFindings(unittest.TestCase):
                     ["(changed)"],
                     parser=PARTIAL,
                 )
+
+    def test_an_export_no_module_imports_stays_partial(self) -> None:
+        """#5891 second verifier: the bundle is not a closed world, and with
+        no named importer and no module table the exporter's file is
+        unknown, so a namespace of it cannot be ruled out. JavaScript keeps
+        the initializer here, so partial is honest, not a wrong value."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];export{pY};', INITIAL, INITIAL[0], parser=PARTIAL
+        )
+
+    def test_a_hop_the_parser_follows_keeps_the_literal_unless_it_changes_the_list(
+        self,
+    ) -> None:
+        """P4 of #5640, inside one module: an alias returned from a function
+        whose caller hands the array to `.some(t)`, where `t` reaches it
+        through two parameters and an object literal argument (the 2.1.286
+        shape), and an argument into a local function. JavaScript keeps the
+        list unless a callback or parameter changes it."""
+        shape = (
+            "var Gr=pY;function Xr(e){if(e)return Gr;return[]}"
+            "function ko(e,t){let n=(s)=>Xr(s).some(t);return n(e)}"
+            'function Eo(e,t){return typeof t==="function"?ko(e,t):e}'
+            "function gn(e,{hook:n}){return Eo(e,n)}"
+        )
+        for use, changed in (
+            ("gn(1,{hook:!1})", False),
+            ('gn(1,{hook:(x)=>x==="Edit"})', False),
+            ('gn(1,{hook:(x,i,a)=>a.push("B")})', True),
+            # A getter: reading `hook` runs it and yields the pushing callback.
+            ('gn(1,{get hook(){return(x,i,a)=>a.push("B")}})', True),
+        ):
+            with self.subTest(use=use):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + shape + use + ";",
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"] if changed else INITIAL[0],
+                    parser=PARTIAL if changed else INITIAL,
+                )
+        for use, changed in (
+            ('function g(a,b){return b.includes(a)}g("x",pY)', False),
+            ('function g(a,b){b.push(a)}g("B",pY)', True),
+            ("pY.forEach((e,i,a)=>a.pop())", True),
+        ):
+            with self.subTest(use=use):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + use + ";",
+                    INITIAL,
+                    ["(changed)"] if changed else INITIAL[0],
+                    parser=PARTIAL if changed else INITIAL,
+                )
+
+    def test_a_patched_prototype_leaves_a_followed_list_partial(self) -> None:
+        """#5891 verifier probes: each patches the method the array calls
+        through a prototype reached other than as `Array.prototype.x=`, and
+        JavaScript runs the patch, which pushes onto the list."""
+        patch = 'function(){this.push("B");return!0}'
+        for prelude in (
+            "var AP=Array.prototype;AP.includes=" + patch + ';pY.includes("x")',
+            "[].__proto__.includes=" + patch + ';pY.includes("x")',
+            "Object.getPrototypeOf([]).join=" + patch + ";pY.join()",
+            'Array["prototype"].includes=' + patch + ';pY.includes("x")',
+            "const{prototype:AP}=Array;AP.includes=" + patch + ';pY.includes("x")',
+            "var OP=Object.prototype;OP.zz=" + patch + ";pY.zz()",
+            # The second #5891 verifier's probes, which the reachability
+            # guard missed; the sink rule sees the write of the name.
+            "var A=Array;A.prototype.includes=" + patch + ';pY.includes("x")',
+            "(0,Array).prototype.includes=" + patch + ';pY.includes("x")',
+            "globalThis.Array.prototype.includes=" + patch + ';pY.includes("x")',
+            'Array["proto"+"type"].includes=' + patch + ';pY.includes("x")',
+            'Reflect.get(Array,"prototype").includes=' + patch + ';pY.includes("x")',
+            "var e={hasOwnProperty(o){o.includes="
+            + patch
+            + '}};e.hasOwnProperty.call(null,Array.prototype);pY.includes("x")',
+            "function G(o,k){o.includes="
+            + patch
+            + '}G(Array.prototype,"__proto__");pY.includes("x")',
+            "(function(Object){Object.prototype.includes="
+            + patch
+            + '})(Array);pY.includes("x")',
+            "class WeakSet{constructor(a){a[0].includes="
+            + patch
+            + '}}new WeakSet([Array.prototype]);pY.includes("x")',
+            'Array.prototype.__defineGetter__("includes",function(){return '
+            + patch
+            + '});pY.includes("x")',
+            "var Q=[].__proto__;Q.includes=" + patch + ';pY.includes("x")',
+            "var Q=Object.getPrototypeOf([]);Q.includes=" + patch + ';pY.includes("x")',
+            # The third #5891 verifier's probes: F.prototype replaced through
+            # a reference to F, so F.prototype is not F's own object.
+            'function F(){}Object.defineProperty(F,"prototype",{value:Array.prototype});'
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
+            'function F(){}F["proto"+"type"]=Array.prototype;F.prototype.includes='
+            + patch
+            + ';pY.includes("x")',
+            "function F(){}var G=F;G.prototype=Array.prototype;F.prototype.includes="
+            + patch
+            + ';pY.includes("x")',
+            "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # `Object.create` itself can be replaced, so its result is no fresh object.
+            "Object.create=()=>Array.prototype;var o=Object.create(null);o.includes="
+            + patch
+            + ';pY.includes("x")',
+            # A compound assignment on an alias coerces the array first.
+            'var a=pY;Array.prototype.toString=function(){this.push("B");return""};a+=""',
+            # A template-literal key names the method as a string does.
+            "Object.defineProperty(Array.prototype,`includes`,{value:"
+            + patch
+            + '});pY.includes("x")',
+            # Reflect.set writes onto its receiver, not its target.
+            'Reflect.set({},"includes",' + patch + ',Array.prototype);pY.includes("x")',
+            # F.prototype.constructor is F, so it can replace F.prototype.
+            "function F(){}F.prototype.constructor.prototype=Array.prototype;"
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # A derived class's `this` is what `super()` returned.
+            "class B0{constructor(){return Array.prototype}}"
+            "class X extends B0{constructor(){super();this.includes="
+            + patch
+            + '}}new X;pY.includes("x")',
+            "var X=class extends function(){return Array.prototype}{constructor(){"
+            "super();this.includes=" + patch + '}};new X;pY.includes("x")',
+            # Code built from a string, which no rule sees into.
+            "(0,eval)('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
+            'pY.includes("x")',
+            "Function('Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
+            'pY.includes("x")',
+            "Function.call(0,'Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
+            'pY.includes("x")',
+            "globalThis.eval('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
+            'pY.includes("x")',
+            # A write whose key names nothing can write `includes` too.
+            'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
+            + patch
+            + ');pY.includes("x")',
+        ):
+            with self.subTest(prelude=prelude):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + prelude + ";",
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"],
+                    parser=PARTIAL,
+                )
+
+    def test_instanceof_hands_the_array_to_has_instance(self) -> None:
+        """#5891 verifier probe: `Symbol.hasInstance` runs with the array as
+        its argument, so `pY instanceof H` may change it."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];class H{static[Symbol.hasInstance](a){a.push("B")}}'
+            "pY instanceof H;",
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+
+    def test_an_alias_chain_too_deep_to_follow_reads_partial(self) -> None:
+        """#5891 verifier probe: a 5,000-long alias chain ending in a push
+        crashed the helper, breaking the whole binary source."""
+        chain = "".join(f"var a{i}=a{i - 1};" for i in range(1, 5000))
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];var a0=pY;' + chain + 'a4999.push("B");',
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+
+    def assert_across_modules(
+        self, changed: bool, *modules: str, table: bool = True
+    ) -> None:
+        """The probe's module exports `pY` and `modules` follow it, each
+        opening with a `// @bun` header as a bundle's modules do. With
+        `table`, Bun's module table names them `/a.js`, `/b.js`, ... in
+        order. The regex reader never looks past the binding, so it keeps
+        the initializer; the parser follows the export and reads partial
+        exactly when JavaScript changes the list."""
+        src = (
+            AGENT_SRC
+            + 'var pY=[xt,"Artifact"];'
+            + PROBE
+            + "export{pY};"
+            + "".join("\n// @bun\n" + m for m in modules)
+        )
+        self.assertEqual(_probe_source(src), INITIAL)
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        if table:
+            type(self).reader.set_module_paths(
+                src,
+                {
+                    lo: f"/{chr(97 + i)}.js"
+                    for i, lo in enumerate(inv._chunk_starts(src))
+                },
+            )
+        with inv.use_reader(type(self).reader):
+            got = _probe_source(src)
+        self.assertEqual(got, PARTIAL if changed else INITIAL, modules)
+
+    def test_an_export_is_followed_to_every_importer(self) -> None:
+        """P4 of #5640: the 2.1.284-2.1.287 shape, where the array is
+        exported and its importers spread it, call `includes`, alias it and
+        return it to a `.some` caller, re-export it, and pass it to an
+        imported function."""
+        imp = 'import{pY}from"/a.js";'
+        self.assert_across_modules(False, imp + 'var c=[...pY];pY.includes("x");')
+        self.assert_across_modules(True, imp + 'pY.push("B");')
+        self.assert_across_modules(True, 'import{pY as q}from"/a.js";var r=q;r.pop();')
+        hop = (
+            imp + "var Gr=pY;function Xr(e){return Gr}"
+            "function ko(e,t){return Xr(e).some(t)}function gn(e,{hook:n}){return ko(e,n)}"
+        )
+        self.assert_across_modules(False, hop + "gn(1,{hook:!1});")
+        self.assert_across_modules(True, hop + 'gn(1,{hook:(x,i,a)=>a.push("B")});')
+
+    def test_a_reexport_is_followed_again(self) -> None:
+        reexport = 'import{pY}from"/a.js";export{pY as W};'
+        self.assert_across_modules(False, reexport, 'import{W}from"/b.js";W.join();')
+        self.assert_across_modules(True, reexport, 'import{W}from"/b.js";W.push("B");')
+        self.assert_across_modules(
+            True, 'export{pY as W}from"/a.js";', 'import{W}from"/b.js";W.pop();'
+        )
+
+    def test_an_imported_callee_is_followed_to_its_exporter(self) -> None:
+        caller = 'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);'
+        self.assert_across_modules(
+            False, caller, "function g(a,b){return b.includes(a)}export{g};"
+        )
+        self.assert_across_modules(
+            True, caller, 'function g(a,b){b.push("B")}export{g};'
+        )
+        self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
+        # A `g` with no `export` of its own stays partial too.
+        self.assert_across_modules(True, caller, "function g(a,b){}")
+
+    def test_an_imported_callee_binds_the_exports_own_local(self) -> None:
+        """#5891 review (claude[bot]): the exporter fallback bound the name
+        to any same-named local. A re-export (`export{g}from"/d.js"`) is
+        followed to its own source, and an aliased export (`export{h as g}`)
+        binds its local `h`, never a same-named `g` beside it."""
+        caller = 'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);'
+        harmless = "function g(a,b){return b.includes(a)}"
+        for chunk_c, chunk_d, changed in (
+            (
+                harmless + 'export{g as k};export{g}from"/d.js";',
+                'function g(a,b){b.push("B")}export{g};',
+                True,
+            ),
+            (
+                harmless + 'export{g as k};export{g}from"/d.js";',
+                harmless + "export{g};",
+                False,
+            ),
+            (harmless + 'function h(a,b){b.push("B")}export{h as g};', "", True),
+            ('function g(a,b){b.push("B")}function h(a,b){}export{h as g};', "", False),
+        ):
+            with self.subTest(chunk_c=chunk_c, chunk_d=chunk_d):
+                self.assert_across_modules(changed, caller, chunk_c, chunk_d)
+
+    def test_an_imported_callee_resolves_by_its_from_path_not_its_name(self) -> None:
+        """#5891 review (Codex): the array module imports `g` from chunk
+        /c.js, which pushes `B`, while an unrelated chunk /d.js exports a
+        harmless `g`; resolving by name alone followed /d.js and read a
+        wrong literal. An import from a file outside the bundle, or with no
+        module table, cannot be followed either."""
+        harmless = "function g(a,b){return b.includes(a)}export{g};"
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);',
+            'function g(a,b){b.push("B")}export{g};',
+            harmless,
+        )
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"node:external";g("x",pY);',
+            harmless,
+        )
+        self.assert_across_modules(
+            True,
+            'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);',
+            harmless,
+            table=False,
+        )
+
+    def test_a_module_taken_whole_as_a_namespace_stays_partial(self) -> None:
+        """#5891 verifier probes: a namespace read with a computed key, an
+        enumeration or a spread reaches the export without naming it. The
+        exporter's file comes from its importers' `from"..."`, and any
+        `import*as`, `export*` or `import(...)` of that file reads partial."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        for module in (
+            'import*as N from"/a.js";N[k].push("B");',
+            'import*as N from"/a.js";Object.values(N).forEach((v)=>v.push&&v.push("B"));',
+            'import*as N from"/a.js";var o={...N};for(var k in o)o[k].push("B");',
+            'import("/a.js").then((N)=>{for(var k in N)N[k].push("B")});',
+            'export*from"/a.js";',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
+        """#5891 second verifier: the bundle is not a closed world. With no
+        module table and no named importer the exporter's file is unknown,
+        so nothing rules out a namespace of it, and here one pushes `B`."""
+        self.assert_across_modules(
+            True, 'import*as N from"/a.js";N[k].push("B");', table=False
+        )
+
+    def test_the_module_table_names_the_exporters_own_file(self) -> None:
+        """With Bun's module table, the exporter's own path decides, named
+        importer or not: the 2.1.284-2.1.287 re-exporting chunk of the
+        Explore/Plan array is loaded whole 13 to 14 times by `import(...)`
+        and `import.meta.require(...)`."""
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        reader = type(self).reader
+        exporter = AGENT_SRC + 'var pY=[xt,"Artifact"];' + PROBE + "export{pY};"
+        for loader, changed in (
+            ('var n={names:import.meta.require("/$bunfs/root/chunk-a.js")};', True),
+            ('import("/$bunfs/root/chunk-b.js");', False),
+        ):
+            with self.subTest(loader=loader):
+                src = exporter + "\n// @bun\n" + loader
+                reader.set_module_paths(src, {0: "/$bunfs/root/chunk-a.js"})
+                with inv.use_reader(reader):
+                    self.assertEqual(
+                        _probe_source(src), PARTIAL if changed else INITIAL
+                    )
+
+    def test_a_hop_it_cannot_follow_stays_partial(self) -> None:
+        """A namespace read by name, a patched prototype, a callback from
+        another module, a direct eval in an importer: each could change the
+        list, and the parser cannot follow it, so it reads partial."""
+        imp = 'import{pY}from"/a.js";'
+        for modules in (
+            ('import*as N from"/a.js";N.pY.push("B");',),
+            (
+                imp
+                + 'Array.prototype.includes=function(){this.push("B")};pY.includes("x");',
+            ),
+            (imp + "function k(t){return pY.some(t)}export{k};",),
+            (imp + 'pY.includes("x");function e(){eval("")}',),
+            (imp + 'function r(){return pY}r().push("B");',),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules)
 
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,
@@ -336,6 +682,48 @@ class TestOpenFindings(unittest.TestCase):
         self.assertEqual(self._parsed(prelude), PARTIAL)
         self.assertEqual(_probe(prelude), INITIAL)
         self.assertEqual(self._parsed(prelude), PARTIAL)
+
+
+INSTALLED = pathlib.Path.home() / ".local" / "share" / "claude" / "versions"
+
+
+class TestInstalledBuilds(unittest.TestCase):
+    """P4 of #5640 on the builds that motivated it: the Explore and Plan
+    agents' `disallowed_tools` spread an array that is exported, aliased,
+    returned to a `.some(t)` caller and passed to an imported function.
+    The flow follows every hop, but it trusts `some`, `includes` and `has`
+    as built in, and every one of these builds has modules that may write
+    those names on an object the sink rule cannot show is no prototype (a
+    write whose key names nothing, `Object.defineProperty(o,k,...)`); and
+    the chunk re-exporting the array is loaded whole as a namespace 13 to
+    14 times. So both lists read partial under the parser: never a value the regex
+    reader does not also read. Whether the default still flips with that is
+    an operator decision on #5640. Each build is skipped when it is not
+    installed on this machine."""
+
+    def test_explore_and_plan_read_partial_under_the_parser(self) -> None:
+        target = _require_live(self)
+        for version in ("2.1.284", "2.1.285", "2.1.286", "2.1.287"):
+            with self.subTest(version=version):
+                binary = INSTALLED / version
+                if not binary.is_file():
+                    self.skipTest(f"Claude Code {version} is not installed at {binary}")
+                spans: list[tuple[int, int]] = []
+                src, _ = inv.read_bundle(binary, spans)
+                assert src is not None
+                braces = inv.build_brace_map(src)
+                regex = inv.extract_builtin_agents(src, braces)[0]
+                with pr.ParserReader(target) as reader:
+                    for lo, hi in spans:
+                        reader.parse_module(src, lo, hi)
+                    with inv.use_reader(reader):
+                        parsed = inv.extract_builtin_agents(src, braces)[0]
+                for agent in ("Explore", "Plan"):
+                    self.assertEqual(
+                        parsed[agent]["disallowed_tools_source"], "partial"
+                    )
+                    got = parsed[agent]["disallowed_tools"]
+                    self.assertTrue(set(got) < set(regex[agent]["disallowed_tools"]))
 
 
 if __name__ == "__main__":
