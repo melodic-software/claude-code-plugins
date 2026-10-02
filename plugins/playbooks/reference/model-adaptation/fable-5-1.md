@@ -80,10 +80,19 @@ Recognizing a name is not knowing its current state; partial background is what 
 answer sound authoritative. Where you cannot raise effort, label the claim recall-grade rather than
 delivering it as verified. `[CC: direct]`
 
+Code-changing and verifying work follows this repository's effort floor: `medium` or above, never
+`low`. `[CC: direct]`
+
 - **Pointer**: for search at low effort, see
-  [Search triggering at low effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#search-triggering-at-low-effort).
+  [Search triggering at low effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#search-triggering-at-low-effort);
+  for the effort floor, see
+  [Effort floor](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-floor);
+  for what a higher level adds to verifying work, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+  (correlate with <https://claude.dev/blog/spending-your-effort>).
 - **As of**: 2026-10-01
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
+- **Recheck trigger**: a re-read of the guide section no longer supporting the decision above, or
+  the model-config section changes.
 
 ## Targeted edits
 

@@ -18,6 +18,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   restating the page.
 - **The `known-issues` model-fallback note was re-read after its trigger fired.** It now covers a
   refusal when a flagged category has no fallback target, with a 2026-10-01 as-of date.
+- `observability` points its latency record at the documented `hook_execution_complete` event and
+  keeps only the string-typed duration as our probe. `plugins` scope-semantics treats `--force` as
+  the answer to the MCP or LSP reload warning only, and records that the reference now offers a
+  fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
+  native-overlap` follow the docs site's new heading ids.
 
 ## [0.80.2] - 2026-10-01
 

@@ -15,6 +15,9 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 - The `${...}` placeholder rule behind the `stateless` purge and `audit` update spokes is stated as
   our decision, with a pointer record to where each variable resolves, instead of the page's
   wording.
+- `stateless` no longer says `disable` takes effect only next session. It says what auto memory
+  already loaded stays in the current context, with pointers to the settings pages that say which
+  edits reach a running session.
 
 ## [0.13.12] - 2026-09-30
 

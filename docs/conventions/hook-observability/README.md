@@ -119,23 +119,21 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
   **Delivery may never be asserted.** The model channel may state that a choice belongs to the
   operator; it may **never** state that the operator has seen it. We found no documented way for a
-  hook to learn whether an operator is present, or what `systemMessage` does in a non-interactive
-  run, so a delivery claim is a fact the hook cannot know in *any* mode, not only headless ones.
-  Emitting to an unread operator channel is harmless; telling the model a human holds the choice
-  when none does is not.
+  hook to learn whether an operator is present, so a delivery claim is a fact the hook cannot know
+  in *any* mode, not only headless ones. Emitting to an unread operator channel is harmless;
+  telling the model a human holds the choice when none does is not.
 
-  **Honest limit.** That `systemMessage` stays out of model context is our inference from what the
-  hooks reference says about `additionalContext` and does not say about `systemMessage`; the page
-  does not state it. If that inference is ever falsified, this carve-out collapses, since content
-  forbidden to the model would reach it either way, and the correct response is to drop the
-  payload, not to re-route it.
+  **Synchronous hooks only.** The carve-out holds only where `systemMessage` stays off the model
+  channel, and the reference decides that per hook kind and per event. We admit it from a
+  synchronous hook on an event whose own section leaves the field on the user channel, and never
+  from an `async` hook. Where the field would reach the model, drop the payload; never re-route it.
 
-  - **Pointer**: for both fields, see <https://code.claude.com/docs/en/hooks#json-output> and
-    <https://code.claude.com/docs/en/hooks#add-context-for-claude>; for background hooks, see
-    <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
-  - **As of**: 2026-08-10
-  - **Recheck trigger**: the hooks reference states where `systemMessage` is delivered, for a
-    synchronous or a background hook.
+  - **Pointer**: for the field's delivery, see <https://code.claude.com/docs/en/hooks#json-output>
+    and the event's section under <https://code.claude.com/docs/en/hooks#hook-events>; for
+    background hooks, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: either section changes where `systemMessage` is delivered, or an event's
+    section changes how it treats the field.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require_jq`

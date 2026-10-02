@@ -50,7 +50,7 @@ availability.
   and [environment variables](https://code.claude.com/docs/en/env-vars); for plan and platform
   gating, see [Commands](https://code.claude.com/docs/en/commands); for what a cloud session
   carries, see
-  [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions).
+  [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions).
 - **As of**: 2026-10-01
 - **Recheck trigger**: a Claude Code release note or docs change adds, removes, or renames a gating
   axis, or a `skillOverrides` state leaves the four-value set.

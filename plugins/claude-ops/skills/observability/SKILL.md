@@ -133,11 +133,11 @@ remains the durable record).
 
 `latency` telemetry record:
 
-`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event` (the event name), `total_duration_ms` (wall time for every hook that firing ran, with `num_hooks` counting them) and `session.id`. Our probe of the live OTEL store under Claude Code 2.1.281 observed that shape, with `total_duration_ms` arriving as a `stringValue`, so the script reads it with an `intValue` fallback in case that changes. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
+`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event`, `total_duration_ms`, `num_hooks` and `session.id`. Our probe of the live OTEL store under Claude Code 2.1.281 observed `total_duration_ms` arriving as a `stringValue`, so the script reads it with an `intValue` fallback in case that changes. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
 
-- **Pointer**: the event shape is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
-- **As of**: 2026-09-24, Claude Code 2.1.281
-- **Recheck trigger**: the monitoring page documents a hook execution event, a release note names `hook_execution_complete` or its attributes, or `latency` exits 2 with no rows on a store that has recent sessions.
+- **Pointer**: for the event and its attributes, see <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>; the string-typed duration is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
+- **As of**: 2026-10-01 for the docs sections; 2026-09-24, Claude Code 2.1.281, for the probe
+- **Recheck trigger**: that section renames the event or an attribute `latency` reads, a release note changes the duration's type, or `latency` exits 2 with no rows on a store that has recent sessions.
 
 Action invocation: `/claude-ops:observability clean [flags]`.
 

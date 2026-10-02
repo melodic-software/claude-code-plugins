@@ -311,11 +311,9 @@ for below.
 - **Recheck trigger**: either summary line changes, or a shell install starts activating in an open
   session.
 
-`--force` is real (Claude Code ≥ 2.1.163). **We treat prompt-cache invalidation as the general
-condition `--force` exists for**: a reload that would invalidate the cache warns and skips until
-rerun with `--force`. A plugin MCP server whose tools are not deferred by tool search is **the
-common cause** of that warning, not the condition itself; treating it as the sole trigger tells a
-reader that a warning arising any other way is not a `--force` case, when it is.
+`--force` is real (Claude Code ≥ 2.1.163). We treat it as the answer to one warning only: the
+reload declining a change to the session's MCP or LSP tools because of the prompt cache. Which
+changes raise that warning is read at the pointer below, not predicted here.
 
 So follow this two-step rather than predicting the cause:
 
@@ -331,7 +329,7 @@ warning.
 - **Pointer**: for the cache warning and `--force`, see
   [Reloads that change MCP tools](https://code.claude.com/docs/en/plugins/cli-reference#reloads-that-change-mcp-tools)
   and [Enabling or disabling a plugin](https://code.claude.com/docs/en/prompt-caching#enabling-or-disabling-a-plugin).
-- **As of**: 2026-09-05
+- **As of**: 2026-10-01
 - **Recheck trigger**: a release note changes when `/reload-plugins` warns, or what `--force`
   applies.
 
@@ -372,18 +370,20 @@ Two consequences this skill must not get wrong:
 ## `userConfig` has no `enum` type
 
 This skill declares `userConfig` options only with the `type` values `string`, `number`, `boolean`,
-`directory` and `file`, treats an option as unable to declare its own allowed values, and gives
-every option `type`, `title` and `description` (`claude plugin validate` on 2.1.261 rejected an
-option that omitted `title`, our probe). `install_new` ships as `type: string` with its valid
-values (`ask`/`all`/`none`) documented in `description` and validated in prose by this skill, not
-by the manifest schema.
+`directory` and `file`, declares no fixed-options list, and gives every option `type`, `title` and
+`description` (`claude plugin validate` on 2.1.261 rejected an option that omitted `title`, our
+probe). `install_new` ships as `type: string` with its valid values (`ask`/`all`/`none`) documented
+in `description` and validated in prose by this skill. The reference offers a fixed-options list;
+this skill does not declare one, because doing so would raise the CLI version a consumer needs to
+load the plugin, and the published JSON Schema does not carry it yet.
 
 - **Pointer**: for the option schema, see the published plugin-manifest JSON Schema
-  (<https://json.schemastore.org/claude-code-plugin-manifest.json>) and
-  [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-- **As of**: 2026-09-05
-- **Recheck trigger**: the schema's `type` list or `required` array changes, or the reference
-  documents a way for an option to limit its own values.
+  (<https://json.schemastore.org/claude-code-plugin-manifest.json>),
+  [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
+  [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the schema's `type` list or `required` array changes, the schema gains the
+  fixed-options key, or the marketplace raises its CLI floor to the version that section names.
 
 ## `userConfig`: an unset key renders the literal placeholder
 

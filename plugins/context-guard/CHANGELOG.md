@@ -15,6 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   docs section or the Chroma context-rot report, an as-of date and a recheck trigger, and carry
   none of the source wording. One recheck trigger covers every dated record in the file. No
   behavior or zone change.
+- The reader contract's folklore-number record no longer rests on the Opus 5 guide. It points at
+  the current models' context windows, with a trigger on those windows or the practitioner figure
+  changing.
 
 ## [0.8.2] - 2026-10-01
 

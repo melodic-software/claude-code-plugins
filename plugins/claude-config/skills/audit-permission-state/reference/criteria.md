@@ -234,27 +234,18 @@ narrow rule such as `Bash(npm test)` carries over.
 
 ### The precondition: which sessions enter auto mode at all
 
-The diff assumes the seven run shapes below and their starting modes; `auto` is the outcome in
-exactly one of them, so the diff describes a transition the other six never make. Reporting it
-unconditionally hands a headless run a verdict for a mode it never enters.
-
-| How Claude Code runs | Starting mode the diff assumes |
-| --- | --- |
-| A Pro, Max, or Team plan, in a terminal or the VS Code extension | **`auto`** |
-| `claude -p` or the Agent SDK | `default` |
-| An Enterprise plan or a Claude Console API key | `default` |
-| Bedrock, Google Cloud's Agent Platform, Microsoft Foundry, Claude Platform on AWS, apps gateway | `default` |
-| `disableAutoMode` is `"disable"` in some settings file | `default` |
-| Feature-flag fetching is off | `default` |
-| First session after an install or upgrade | `default` |
+The diff applies only to a session whose starting mode resolves to `auto`. That turns on the CLI
+version, how Claude Code is run, `disableAutoMode`, feature-flag fetching and the first session
+after an upgrade, read at the pointer when the report is written; this file keeps no copy of that
+table. Reporting the diff unconditionally hands a run that never enters auto mode a verdict for a
+mode it never enters.
 
 - **Pointer**: for which mode a session starts in, see
-  [Common setups](https://code.claude.com/docs/en/permission-modes#common-setups)
+  [Which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   (correlate with [the announcement](https://claude.com/blog/auto-mode-default-in-claude-code), 2026-08-14).
-  The report relies on the standing condition in the docs, not the announcement's date.
-- **As of**: 2026-09-12
-- **Recheck trigger**: a release note changes the starting mode, adds a run shape, or the table's
-  plan conditions change.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section changes a starting mode, adds or removes a run shape, or moves
+  a version floor.
 
 Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
 `interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not

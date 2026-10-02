@@ -20,6 +20,7 @@ no enforceability verdict changes.
 - **The convention's own upstream specifics are restated as records.** The gating-axes table, the
   description budget caveat and the suggest sentence's `<basis>` now point at the docs sections
   with an as-of date and a recheck trigger in place of restated page text.
+- **The cloud-sessions link follows the docs site's new heading id.**
 
 ## [3.3.6] - 2026-09-30
 

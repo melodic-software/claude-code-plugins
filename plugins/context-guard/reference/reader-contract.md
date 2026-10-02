@@ -394,16 +394,15 @@ all of it (as-of 2026-08-17).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
 widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
-calibration predates the Opus 5 generation, and we do not treat its context-degradation premise as
-holding on a 1M-window Opus 5 model. A lowered window remains a legitimate cost and
+calibration predates the 1M-window models these sessions run on, and we do not treat its
+context-degradation premise as holding on them. A lowered window remains a legitimate cost and
 compaction-timing choice on its own terms.
 
 - **Pointer**: for the practitioner figure, see `/playbooks:boris` §64 ("Lower Your Auto-Compact
-  Threshold"); for Opus 5 long-context behavior, see
-  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements>.
-- **As of**: 2026-08-08
-- **Recheck trigger**: that Opus 5 section stops covering long-context consistency or moves, or the
-  default model leaves the Opus 5 generation.
+  Threshold"); for the current models' context windows, see
+  [Latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the session models' context window changes, or §64's figure changes.
 
 ## Prompt-cache miss cause
 

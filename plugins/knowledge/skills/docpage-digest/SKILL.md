@@ -34,8 +34,8 @@ session reads it back instead of re-deriving it. Resolution rules for the render
   token.
 - **Relative** (including the default `.`). Resolve against the session's own working tree:
   `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
-  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: a worktree-isolated
-  run that did resolved to the main checkout and could not write its slice. The slice stays
+  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: inside a worktree
+  session it still names the main checkout, where isolation refuses the slice's writes. The slice stays
   untracked either way, because the root self-ignores (below).
   - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
     <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write

@@ -11,8 +11,7 @@ Two independent verifiers over the full digest set, fresh context, production ra
   source), and fabrication (no claim without a source anchor).
 - **Verifier B**. Cross-vendor (e.g. Codex via the `codex` plugin, high reasoning effort), same
   three checks. Cross-vendor independence is the point: correlated blind spots differ.
-  A Codex arm run in a sandbox without network access cannot re-fetch a live page, as a past run
-  found. Brief it over the slice's local files (`source.*`, the digests, `SOURCES.md`, any
+  A Codex arm run in a sandbox without network access cannot re-fetch a live page. Brief it over the slice's local files (`source.*`, the digests, `SOURCES.md`, any
   absence-corpus pages already fetched to disk) and have it name, in its verdict header, every
   live-doc check it could not replay. That arm is degraded for those checks only, under the
   fallback rule below. Granting it network access instead is the operator's configuration call,

@@ -15,33 +15,32 @@ into another plugin's private reference would leave these conditions unresolvabl
 standalone install. Each record below cites the upstream page directly. Where a sibling plugin keeps
 its own record of the same upstream fact, that is a parallel record, not this one's source.
 
-## Availability: four conditions, any one of which ends the question
+## Availability: three conditions, any one of which ends the question
 
 Our checks treat `AGENTS.md` support as unavailable, so that no `AGENTS.md` is read natively at
 any path under any mode, when any one of these holds for the session:
 
-1. the Claude Code version is below v2.1.277;
-2. the session fetches no feature flags from Anthropic (a third-party provider such as Amazon
-   Bedrock, or telemetry disabled);
-3. it is the first session after an install or upgrade to a version with `AGENTS.md` support;
-4. `disableAllHooks` or `allowManagedHooksOnly` is set, or the built-in `agents-md` plugin is
-   disabled in `/plugin`.
+1. the Claude Code version is below v2.1.277, or below v2.1.281 in a session that fetches no
+   feature flags from Anthropic (a third-party provider such as Amazon Bedrock, or telemetry
+   disabled);
+2. the built-in `agents-md` plugin is disabled in `/plugin`;
+3. it may be the first session after an upgrade from a version without `AGENTS.md` support.
 
 For such a session the remedy we recommend is a `CLAUDE.md` that imports the `AGENTS.md`.
 
 - **Pointer**: for when `AGENTS.md` support is unavailable and the import remedy, see
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-09-21
-- **Recheck trigger**: a condition is added to or removed from that section's list, or its remedy
-  changes.
+- **As of**: 2026-10-01
+- **Recheck trigger**: a condition is added to or removed from that section's list, a version
+  floor in it moves, or its remedy changes.
 
-**Three of the four are resolvable, and two of those from settings this plugin already reads.**
-Condition 1 is a version comparison. Condition 4 is `disableAllHooks`, `allowManagedHooksOnly` and
-whether the built-in `agents-md` plugin is enabled, all of which the permission-and-settings lanes
-already inventory. Condition 3 is resolvable only as "this may be that session" and condition 2
-only from the provider and telemetry configuration, so those two are the ones that commonly stay
-unresolved. Do not treat the whole question as unresolvable because one condition is: resolve what
-is resolvable first, because a condition known TRUE settles it with no further work.
+**Two of the three resolve from what this plugin already reads.** Condition 1 is a version
+comparison, plus the provider and telemetry configuration on a CLI between the two floors.
+Condition 2 is whether the built-in `agents-md` plugin is enabled, which the permission-and-settings
+lanes already inventory. Condition 3 resolves only as "this may be that session", so it is the one
+that commonly stays unresolved. Do not treat the whole question as unresolvable because one
+condition is: resolve what is resolvable first, because a condition known TRUE settles it with no
+further work.
 
 ## The mode: four values, and where the value lives
 

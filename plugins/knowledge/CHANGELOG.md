@@ -34,6 +34,10 @@ only after that version increases.
   warrants, and leaves pure widget text tag-exempt. Figure data decoded from a framework payload is
   a derived file read for stated values only, never numbers from drawn geometry. Each correction
   round pairs its occurrence sweep per fixed class with a differently worded second search.
+- docpage-digest's queue drops the two what's-new entries whose URLs now serve model overview
+  pages, names the model-config section "Work with Fable" with its link, and gives its no-docs-
+  page note a recheck trigger. The project-root rule and the Codex sandbox note state the
+  mechanism without a past-run anecdote.
 
 ## [0.14.14] - 2026-10-01
 

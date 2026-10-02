@@ -235,9 +235,8 @@ on the surfaces its row names.
   <https://platform.claude.com/docs/en/models/fable-5/migration-guide#migrating-to-claude-mythos-5-and-claude-fable-5-from-claude-opus-5>.
   The model ranges that reject manual extended thinking (I17-c) and non-default sampling
   parameters (I25) are read from Thinking, above.
-- What's new in Claude Sonnet 5 (the sampling-parameter constraint's arrival on the Sonnet class,
-  the new tokenizer, and the launch behavior changes):
-  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>
+- Claude Sonnet 5 model page, "Good to know" (the sampling-parameter constraint on the Sonnet class):
+  <https://platform.claude.com/docs/en/models/sonnet-5/overview#good-to-know>
 - Effort (the levels, `high`'s equivalence to omitting the parameter, the carry-over sweep advice,
   and where thinking may not be disabled):
   <https://platform.claude.com/docs/en/build-with-claude/effort>
@@ -1287,7 +1286,7 @@ Severity `warning`.
 
 **Row I17-c: fixed thinking budget prescribed where adaptive reasoning ignores or rejects it** ·
 Tier `mechanical` · Severity `warning`. Unscoped. Promotion gate MET: the claim is stated on
-model-agnostic surface pages and a cross-model migration guide, not in a model guide. **The model
+model-agnostic surface pages (thinking, environment variables, model configuration), not in a model guide. **The model
 ranges below are Detect conditions, not a `Model scope` annotation**, for the reason I17 base states.
 
 - **Detect:** instruction text directing a reader to control thinking *depth* with a fixed token
@@ -1878,16 +1877,16 @@ states.
   applies.
 - **Source:** thinking, "Sampling parameters" (the set and the gate, under Detect). The Fable and
   Mythos guide's section on migrating from Claude Opus 5 (under Sources) keeps the Fable/Mythos
-  carry-over. Corroborated at What's new in Claude Sonnet 5 and in the Sonnet 5 guide, "Tone and
+  carry-over. Corroborated at the Claude Sonnet 5 model page and in the Sonnet 5 guide, "Tone and
   writing style", which supplies the Remediate line. Both are Sources entries.
-  Pointer: [What's new in Claude Sonnet 5, good to
-  know](https://platform.claude.com/docs/en/models/sonnet-5/whats-new-sonnet-5#good-to-know) and
+  Pointer: [Claude Sonnet 5, good to
+  know](https://platform.claude.com/docs/en/models/sonnet-5/overview#good-to-know) and
   [Sonnet 5 guide, tone and writing
   style](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tone-and-writing-style).
-  As of: 2026-10-01 for the set; 2026-08-08 for the determinism note and the corroborating pages
-  (our probe of whats-new-sonnet-5 as raw markdown, 11,490 bytes, MD5
-  `19acce78670ceb337b99ce8fbac03fc5`; no artifact stored). Recheck trigger: the rejecting model
-  set moving, or sampling parameters being reinstated on any model in it.
+  As of: 2026-10-01 for the set and the corroborating pages; the determinism note under Remediate
+  rests on our 2026-08-08 reading of a page no current page replaces. Recheck trigger: the
+  rejecting model set moving, sampling parameters being reinstated on any model in it, or a docs
+  page starting to cover the determinism note.
 
 ### I26: Generic negative steering on open-ended design briefs
 

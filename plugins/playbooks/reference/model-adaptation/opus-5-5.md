@@ -51,10 +51,14 @@ carries a tested line for it; read it there and compare quality before and after
   [Thinking can't be disabled](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#thinking-cant-be-disabled);
   for Claude Code's controls, see
   [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking) and
-  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level); for what
+  a higher level adds to verifying work, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+  (correlate with <https://claude.dev/blog/spending-your-effort>).
 - **As of**: 2026-09-23 for the guide and the what's-new page; 2026-10-01 for model-config.
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
-  or a Claude Code release note that changes thinking or effort controls for this model.
+  a Claude Code release note that changes thinking or effort controls for this model, or the
+  model-config effort sections change.
 
 ## Long runs
 
@@ -124,20 +128,26 @@ the trust-and-authority chapter's consent gate. Unverified on Opus 5.5. `[CC: pr
 - **Pointer**: no docs page covered scope hedging as of the date below. The post's model is not
   Opus 5.5 (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster>).
 - **As of**: 2026-09-23
-- **Recheck trigger**: the guide or a system card covers scope hedging or estimate padding, or the
-  post's model is identified.
+- **Recheck trigger**: a docs page starts covering scope hedging or estimate padding (move the
+  pointer there), or the post's model is identified.
 
 ## Review
 
-A low-effort review pass is a legitimate first pass, not a degraded one. When the output goes to a
-human, give the reviewer a concrete bar a reader can apply to a novel finding. When recall matters,
-keep the Opus 5 method: find everything, then filter in a separate pass. `[CC: prompt-authoring]`
+Run every review pass, the first included, at `medium` effort or above, per this repository's
+effort floor. When the output goes to a human, give the reviewer a concrete bar a reader can apply
+to a novel finding. When recall matters, keep the Opus 5 method: find everything, then filter in a
+separate pass. `[CC: prompt-authoring]`
 
 - **Pointer**: for review, see
-  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements).
-- **As of**: 2026-09-23
-- **Recheck trigger**: a re-read of that section, or a later page, addresses whether a severity
-  bar lowers this model's recall.
+  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements);
+  for the effort floor, see
+  [Effort floor](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-floor);
+  for what a higher level adds to verifying work, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+  (correlate with <https://claude.dev/blog/spending-your-effort>).
+- **As of**: 2026-09-23 for the guide; 2026-10-01 for the effort floor and model-config.
+- **Recheck trigger**: a re-read of the guide section, or a later page, addresses whether a severity
+  bar lowers this model's recall, or the model-config section changes.
 
 ## Stated facts
 

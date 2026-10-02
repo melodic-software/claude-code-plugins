@@ -49,15 +49,8 @@ Models:
   where a release-notes corpus would grow monotonically and age entry by entry
 - <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
   The launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
-  from the harness model-config doc's "Work with Fable 5"
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5>
-  Enqueued on custody grounds, not on a fleet-lane trigger that has not fired: the `playbooks`
-  Opus 5 model-adaptation chapter cites this page as sole authority for three shipped claims, on
-  the thinking default, the error for disabling thinking at high effort, and the effort-level
-  list. The models `overview` page carries none of them, so treating the overview as canonical
-  fails for exactly the facts already cited. A custody fact about this one page,
-  not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
-  stays deferred
+  from the harness model-config doc's
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable)
 - <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
   The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
@@ -102,7 +95,8 @@ named with it and keeps the post as a correlate):
 - <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic> (correlate only)
   The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
   which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
-  technique. Unverified until fetched. No docs page covers test-impact analysis as of 2026-10-01
+  technique. Unverified until fetched. No docs page covers test-impact analysis as of 2026-10-01;
+  recheck trigger: a docs page starts covering it
 
 Engineering posts:
 
@@ -122,9 +116,6 @@ Deferred with trigger (not queued):
 - <https://platform.claude.com/docs/en/build-with-claude/fallback-credit>: the two API-side claims
   it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
   when an artifact actually depends on fallback-credit behavior
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>: release notes for a
-  model the models `overview` page already covers canonically; enqueue when Sonnet 5 enters or
-  materially changes a fleet lane
 - <https://claude.com/blog/complete-guide-to-building-skills-for-claude> (correlate only): a
   vendor-voice restatement of a schema whose first-party canons are already reachable (docs
   pointer: <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>), so

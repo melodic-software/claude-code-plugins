@@ -108,8 +108,8 @@ Classify each component by what its body has the model DO (multiple or none):
 ### P2: Minimal-scope guardrail
 
 - **Predicate:** code-changing.
-- **Present when:** the component bounds scope to what was asked (no unrequested features,
-  abstractions, defensive code, or cleanup beyond the task).
+- **Present when:** the component limits its changes to what the request or approved plan covers,
+  and sends anything else it notices to its report rather than into the change.
 - **Pointer:** main page,
   [Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness);
   Fable 5.1 subpage,
@@ -151,13 +151,12 @@ Classify each component by what its body has the model DO (multiple or none):
   CLAUDE.md or natively read AGENTS.md is long-running when the repo carries long-running
   components or its own text invites long runs.
 - **Present when:** an autonomous component states its finish line (what "done" observably is, or
-  that the dispatching brief must state it) and names both kinds of stop: keep going when a step
-  needs no input, with status notes in the same message as the next action rather than a closing
-  summary naming the next step, a question asking whether to proceed, or a menu of choices that
-  block nothing; stop and ask
-  only when nothing can move without the human, or before a destructive, hard-to-undo, or outward
-  action. The keep-going half never licenses turning permission prompts or P7's gates off. An
-  interactive one names the gates worth stopping at.
+  that the dispatching brief must state it) and names both kinds of stop: when it carries on
+  without asking, reporting progress alongside continued work rather than as a turn-ending
+  summary, and the cases where it must stop for the human (no way forward without them, or an
+  action that is destructive, hard to undo, or reaches outside the workspace). The keep-going half
+  never licenses turning permission prompts or P7's gates off. An interactive one names the gates
+  worth stopping at.
 - **Pointer:** Fable 5.1 subpage,
   [Finish the whole task](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task)
   (autonomous); Sonnet 5.5 subpage,

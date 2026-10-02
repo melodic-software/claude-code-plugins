@@ -47,6 +47,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **The `audit` checklist's records are links-only**, and its exec-form, plugin-manifest,
   fallback-model, effort-default and managed-settings rows are reduced to firing rules plus
   pointers.
+- The `AGENTS.md` liveness reference lists three availability conditions with their version
+  floors, re-read against the memory page. audit-permission-state reads which sessions start in
+  auto mode at the permission-modes page instead of keeping a copy of its table. audit-
+  instructions points I25 and its Sources at the Sonnet 5 model page, since the old what's-new URL
+  now redirects, and names the surface pages behind I17-c's promotion gate. Postures P2 and P6
+  state their present-when conditions in our own terms.
 
 ## [0.55.4] - 2026-10-01
 

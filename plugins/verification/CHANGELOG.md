@@ -17,6 +17,8 @@ All notable changes to the `verification` plugin are documented here. Format fol
   all-environment-skip run stops as `NOT VERIFIED`, otherwise outcome verification proceeds. On
   the no-toolchain path it applies the same counting and lockfile-only install rules as
   `toolchain:check`. Its `/run` and `/verify` records are links-only.
+- `confirm`'s native `/verify` record notes that a recorded project verify skill can answer to
+  `/verify` in place of the bundled one, so the skill never assumes which one resolves.
 
 ## [0.6.13] - 2026-09-30
 

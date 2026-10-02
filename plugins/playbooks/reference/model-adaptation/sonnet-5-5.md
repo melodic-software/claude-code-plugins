@@ -217,7 +217,7 @@ system prompt. When a guide section tells you to add a line to the system prompt
 of those two. `[CC: prompt-authoring]`
 
 - **Pointer**: for CLAUDE.md, see
-  [Claude isn't following my CLAUDE.md](https://code.claude.com/docs/en/memory#claude-isnt-following-my-claudemd);
+  [Claude isn't following my CLAUDE.md](https://code.claude.com/docs/en/memory#claude-isn%E2%80%99t-following-my-claude-md);
   for subagent bodies, see
   [Write subagent files](https://code.claude.com/docs/en/sub-agents#write-subagent-files); for the
   flags, see

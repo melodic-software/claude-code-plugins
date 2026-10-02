@@ -13,6 +13,7 @@
 - **`orchestrate` no longer gives non-work steps a self-check.** A step that is not the work gets
   no verifier. The workflow size anchor is re-derived (5 to 9 agents medium, 10 or more large, and
   read the size guideline in force), and the workflow-concurrency override is recorded.
+- `keep-going`'s `/usage` link follows the docs site's new heading id.
 
 ## [0.44.0] - 2026-10-01
 

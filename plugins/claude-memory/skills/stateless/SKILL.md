@@ -125,8 +125,15 @@ which `status` reports.
 - **Windows managed policy**: we treat it as possibly held in the registry
   (`HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`) rather than a file, which `scope-report.sh` can't
   read. Report managed scope as unread, don't assume empty.
-- **`disable` applies next session**, not immediately: we treat the setting and `env` block as
-  read at startup. Tell the user to restart / start a new session.
+- **`disable` leaves this session's loaded memory in place.** What auto memory loaded at startup
+  stays in the current context whether or not the setting reloads mid-session, so tell the user a
+  new session is the first one that starts without it.
+  - **Pointer**: for which settings edits reach a running session, see
+    <https://code.claude.com/docs/en/settings#when-edits-take-effect>; for the toggle, see
+    <https://code.claude.com/docs/en/settings-reference#automemoryenabled>.
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: either section changes whether an `autoMemoryEnabled` or `env` edit
+    reaches a running session.
 - **Tracked `settings.json`**: a live edit to a dotfile-manager-tracked settings file must be
   backfilled to the source; never run an `apply` that could revert the edit.
 - **Desktop / claude.ai memory is server-side**. `purge` cannot delete it; give direction only.
