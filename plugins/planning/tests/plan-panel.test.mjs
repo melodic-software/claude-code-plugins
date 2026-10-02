@@ -141,6 +141,33 @@ test('every judge null returns an error carrying the drafts', async () => {
   assert.equal(synth(calls), undefined)
 })
 
+test('a judge that skips or repeats a draft is not counted', async () => {
+  const { result } = await run({ task: 't' }, {
+    reply: (p, o) => {
+      if (o.label === 'judge:1') return { scores: [score('A', 5)], dissent: '' }
+      if (o.label === 'judge:2') return { scores: [score('A', 5), score('A', 5), score('B', 1), score('C', 1), score('D', 1)], dissent: '' }
+      return defaultReply(p, o)
+    },
+  })
+  assert.deepEqual(result.nulls.judges, ['judge:1', 'judge:2'])
+  assert.equal(result.winner.id, 'B')
+  assert.equal(result.scores.find(s => s.draft === 'A').judges, 1)
+})
+
+test('empty score sheets from every judge return no-judges', async () => {
+  const { result } = await run({ task: 't' }, {
+    reply: (p, o) => (o.label.startsWith('judge:') ? { scores: [], dissent: '' } : defaultReply(p, o)),
+  })
+  assert.equal(result.error, 'no-judges')
+})
+
+test('the result carries every draft in full', async () => {
+  const { result } = await run({ task: 't' })
+  assert.equal(result.drafts.length, 4)
+  assert.equal(result.drafts[2].plan, 'plan from draft:reuse-first')
+  assert.deepEqual(result.drafts[2].key_ideas, ['idea draft:reuse-first'])
+})
+
 test('the concurrency cap holds', async () => {
   let live = 0
   let peak = 0

@@ -50,10 +50,16 @@ in one line that the panel was unavailable and why. For the switches that turn w
 ## Using the result
 
 Shape the returned `plan` into the Step 2 template; it is a draft, not a finished plan. Carry the
-runner-up angles into "Alternatives considered" with their switch conditions, and carry `dissent`
-into "Risks and mitigations" or the Step 5 open items. Name every `nulls` entry in the Step 5
-presentation, so a dropped angle or judge is never read as full coverage. The workflow is
-read-only; it edits no file.
+runner-up drafts (`drafts`, each with its full `plan` and `key_ideas`) into "Alternatives
+considered" with their switch conditions, and carry `dissent` into "Risks and mitigations" or the
+Step 5 open items. Name every `nulls` entry in the Step 5 presentation, so a dropped angle or
+judge is never read as full coverage; a judge that did not score every draft exactly once counts
+as null.
+
+Every agent in the run is told not to edit files or change state, but nothing enforces it: they
+are generic workflow agents with the session's tools, and `task` and `context` reach their
+prompts verbatim. Pass `context` you would hand a subagent with the same tools, summarize
+untrusted fetched text rather than pasting it, and check `git status` after the run.
 
 If a run is interrupted, relaunch `planning:plan-panel` with the same `args`. For which agents
 return saved results on relaunch, see

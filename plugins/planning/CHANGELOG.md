@@ -12,8 +12,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   score every draft on goal fit, blast radius, test strategy and reversibility, and one
   synthesizer that builds the plan from the winner and grafts runner-up ideas. It takes `task`,
   `context`, `angles`, `judges`, `roles` and `maxConcurrent` through `args` and returns the plan,
-  the scores, the grafted ideas and the dissent. A missing `task` returns an error and dispatches
-  nothing. Planners take the worker role's fan-out variant, judges the verifier role's fan-out
+  the scores, the grafted ideas, the dissent and every draft in full. A missing `task` returns an
+  error and dispatches nothing, and a judge that does not score every draft exactly once is
+  counted as returning nothing. Planners take the worker role's fan-out variant, judges the verifier role's fan-out
   variant and the synthesizer the orchestrator role's single variant, from `/multi-agent:route`
   when the caller passes them, else from built-in fallbacks (`opus` at `medium` for planners,
   `opus` at `high` for judges, the session model at `high` for synthesis). Agents run in waves of

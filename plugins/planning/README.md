@@ -44,7 +44,7 @@ themselves. Every skill also works standalone.
   `roles` is the map `/multi-agent:route all` prints. Without it, built-in fallbacks run planners
   on `opus` at `medium` effort and judges on `opus` at `high`, and the
   synthesizer inherits the session model at `high`. It returns the plan, the
-  scores, the grafted ideas and the dissent; the synthesized plan still goes
+  scores, the grafted ideas, the dissent and every draft; the synthesized plan goes
   through the skill's reviewer and approval gate. When the Workflow tool is
   absent, `/planning:plan` formulates the single plan as before.
 

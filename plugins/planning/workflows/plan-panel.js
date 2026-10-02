@@ -24,6 +24,7 @@ if (!TASK) {
   }
 }
 const CONTEXT = typeof input.context === 'string' ? input.context.trim() : ''
+if (input.context != null && typeof input.context !== 'string') log('args.context is not a string: ignored')
 
 const DEFAULT_ANGLES = [
   { name: 'mvp-first', focus: 'the smallest change that delivers the goal end to end; defer everything else' },
@@ -180,11 +181,15 @@ if (drafts.length > 1) {
     { schema: SCORE_SCHEMA, label: 'judge:' + (j + 1), phase: 'Judge', ...opts(R.verifier.fanout) }
   )), MAX_CONCURRENT)
 
-  judgeNulls = judged.map((r, j) => (r && Array.isArray(r.scores) ? null : 'judge:' + (j + 1))).filter(Boolean)
-  const returned = judged.filter(r => r && Array.isArray(r.scores))
+  // A judge counts only when it scored every draft exactly once; a partial
+  // score sheet would rank an unscored draft as zero.
+  const complete = r => r && Array.isArray(r.scores) && drafts.every(d =>
+    r.scores.filter(x => x && String(x.draft).trim().toUpperCase() === d.id).length === 1)
+  judgeNulls = judged.map((r, j) => (complete(r) ? null : 'judge:' + (j + 1))).filter(Boolean)
+  const returned = judged.filter(complete)
   judgeDissent = returned.map(r => (typeof r.dissent === 'string' ? r.dissent.trim() : '')).filter(Boolean)
-  log('Judge: ' + returned.length + '/' + JUDGES + ' judges returned' +
-    (judgeNulls.length ? '; no result from ' + judgeNulls.join(', ') : ''))
+  log('Judge: ' + returned.length + '/' + JUDGES + ' judges returned a complete score sheet' +
+    (judgeNulls.length ? '; no usable result from ' + judgeNulls.join(', ') : ''))
 
   if (!returned.length) {
     return {
@@ -257,7 +262,7 @@ return {
   scores,
   grafted: synthOk && Array.isArray(synthesized.grafted) ? synthesized.grafted : [],
   dissent: [...judgeDissent, ...(synthOk && Array.isArray(synthesized.dissent) ? synthesized.dissent : [])],
-  drafts: drafts.map(d => ({ id: d.id, angle: d.angle })),
+  drafts: drafts.map(d => ({ id: d.id, angle: d.angle, plan: d.plan, key_ideas: d.key_ideas })),
   nulls: { drafts: draftNulls, judges: judgeNulls },
   ran: angles.map(a => a.name),
   roles: { drafters: R.worker.fanout, judges: R.verifier.fanout, synthesis: R.orchestrator.single },
