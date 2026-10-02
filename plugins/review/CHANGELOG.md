@@ -3,13 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.10] - 2026-10-02
+## [0.34.11] - 2026-10-02
 
 ### Fixed
 
 - `fanout` run-everything mode decides Workflow availability from the toolset alone and
   points at the workflows page for the disable switches and resume rules. The main-thread
   fallback no longer claims to lose concurrency, and the nesting-depth note carries an as-of date.
+
+## [0.34.10] - 2026-10-02
+
+### Changed
+
+- **Shared `html-escape.mjs` synced ([#5836](https://github.com/melodic-software/claude-code-plugins/issues/5836)); no change to this plugin's lib.**
+  `lib/html-escape.mjs` is now generated from the repository's `lib/html-escape.mjs` by
+  `scripts/sync-shared-copies.sh` and opens with a header saying so; edit the canonical, not this
+  copy.
 
 ## [0.34.9] - 2026-10-02
 
