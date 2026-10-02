@@ -334,6 +334,24 @@ assert_contains "a repo with no rules tree summarizes zero patterns" "$out" "SUM
 run rules --root "$clean_repo" >/dev/null 2>&1
 assert_eq "a repo with no rules tree exits 0" "0" "$?"
 
+# An eval fixture tree imitates a consuming repository as test input; its rule
+# globs name the fixture's files, not this repository's, so they are not checked.
+fx_repo="$(fixture_repo "src/a.ts")"
+mkdir -p "$fx_repo/.claude/rules" "$fx_repo/plugins/demo/evals/fixtures/consumer/.claude/rules"
+printf -- '---\npaths:\n  - "src/**/*.ts"\n---\n\n# Real\n' >"$fx_repo/.claude/rules/real.md"
+printf -- '---\npaths:\n  - "nowhere/**/*.cs"\n---\n\n# Fixture\n' \
+  >"$fx_repo/plugins/demo/evals/fixtures/consumer/.claude/rules/one.md"
+commit_all "$fx_repo" fixture
+out="$(run rules --root "$fx_repo")"
+if [[ "$out" != *"evals/fixtures"* ]]; then
+  pass "a rule inside an evals/fixtures tree is not checked"
+else
+  fail "a rule inside an evals/fixtures tree is not checked" "no evals/fixtures row" "$out"
+fi
+assert_eq "the rule outside the fixture tree is still checked" "ok" "$(row_field "$out" 'src/**/*.ts' 6)"
+run rules --root "$fx_repo" >/dev/null 2>&1
+assert_eq "a zero-match glob inside an eval fixture does not fail the gate" "0" "$?"
+
 # --------------------------------------------------------------------------
 # Determinism and safety
 # --------------------------------------------------------------------------

@@ -233,11 +233,19 @@ restart is required.
 | [`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) | 3 | depth multiplies against the concurrency ceiling |
 | `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` | undocumented | absent from [env-vars.md](https://code.claude.com/docs/en/env-vars) but present in the shipped binary, gating background observer agents and a per-subagent observer fan-out |
 
-**The truthiness trap.** These flags are gated by a JavaScript truthiness test on the raw string
-(`if (!process.env.CLAUDE_CODE_...) return false`), and in JavaScript the string `"0"` is TRUTHY.
-Setting one to `0` reads like a disable in a settings file and is a silent no-op; only removing
-the variable disables it. Any advisory that says "set it to 0" is actively wrong. Re-verify the
-gating shape against the shipped binary before resting a conclusion on it.
+The two documented defaults above were read from the linked sections as of 2026-10-02; recheck when
+either default changes (the spawn-depth default has changed before). Read the current value from
+the link rather than from this table.
+
+**The truthiness trap.** `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` is gated by a JavaScript
+truthiness test on the raw string (`if (!process.env.CLAUDE_CODE_...) return false`), and in
+JavaScript the string `"0"` is TRUTHY. Setting it to `0` reads like a disable in a settings file
+and is a silent no-op; only removing the variable disables it. Any advisory that says "set it to
+0" is actively wrong. Re-verify the gating shape against the shipped binary before resting a
+conclusion on it. The two caps work differently: neither can be disabled, and removing one
+restores its default. For the values each accepts, see their rows in
+[env vars](https://code.claude.com/docs/en/env-vars) (as of 2026-10-02; recheck when those rows
+change what they accept).
 
 The engine reports these three against their documented defaults and flags one that is set but
 undocumented upstream. It deliberately does NOT cross-check env keys against a strings scan of

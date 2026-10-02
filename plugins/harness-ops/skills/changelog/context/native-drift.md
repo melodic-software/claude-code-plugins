@@ -16,11 +16,35 @@ each exit code.
 ```bash
 python3 "<skill-dir>/../inventory/scripts/inventory.py" --self-check
 python3 "<skill-dir>/../inventory/scripts/inventory.py" --binary-only --docs --out <ws>/inventory.json
+python3 "<skill-dir>/../inventory/scripts/inventory.py" --reader compare --self-check
 python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" detect --inventory <ws>/inventory.json --store <store> --out <ws>/detect.json
 python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" self-check --store <store>
 python3 "<skill-dir>/scripts/native_drift.py" summarize --inventory <ws>/inventory.json --detect <ws>/detect.json --out <ws>/summary.json
 python3 "<skill-dir>/scripts/native_drift.py" diff --current <ws>/summary.json --previous <prev> --store <store> --detect <ws>/detect.json --self-check-exit <inventory self-check exit> --out <ws>/drift.json
 ```
+
+Every value the pass records comes from the first two commands, which use the inventory's default
+bundle reader (`regex`); `<inventory self-check exit>` is the first command's. The third,
+`--reader compare --self-check`, is only a guard: it reads the new build with both bundle readers
+and records nothing. Read its output:
+
+- A `problem:  reader compare: <n> value(s) differ between the regex and parser readers
+  (value->value)` line: the readers disagree on a value of the new build. File one item, key
+  `native-drift:reader-divergence:inventory:<version>`, titled
+  `harness-ops/inventory: regex and parser readers disagree on Claude Code <version>`, with that
+  line in its body.
+- `BROKEN: parser reader broken: ...` (no Node.js or npm, or a failed install): the guard cannot
+  run, and the regex values stand. Record "compare guard unavailable: install Node.js and npm" in
+  the report and file nothing for it; this is not a broken binary item.
+- A `problem:  parser reader: <n> of <m> bundle modules do not parse, so the parser cannot answer
+  for them` line, which the first self-check never prints: the parser cannot read the new build in
+  full. Record that line in the report under the compare guard and file no divergence item; the
+  regex values stand.
+- Anything else: the readers agree; report "compare guard: no divergence". Any other problem it
+  prints is the first self-check's too, and filed from there.
+
+The parser reader installs its pinned packages on first use into the plugin's data directory (the
+inventory's fallback, the directory `${CLAUDE_PLUGIN_DATA}` names).
 
 The self-check and `detect` exit `0` ok, `1` broken, `3` degraded; `3` is a passing run. When
 `detect` exits `1` with no output file, run `summarize` without `--detect`. `native_drift.py` exits
@@ -45,8 +69,9 @@ candidates, so the old baseline stays. Its suite is `scripts/test_native_drift.p
 
 From `<ws>/drift.json`, one section each, empty ones stated as "none":
 
-- **Inventory**: the self-check verdict, `cli_version` against `validated_against`, and the
-  overlap self-check's exit.
+- **Inventory**: the self-check verdict, `cli_version` against `validated_against`, the
+  overlap self-check's exit, and the compare guard's outcome (no divergence, divergence filed,
+  unavailable, or the parser's modules-do-not-parse line).
 - **Surfaces**: `surface_changes` added, removed, renamed (with the alias or description match that
   paired them), reclassified. `baseline: true` means no previous summary: say that no surface diff
   exists yet and that the next run has one.

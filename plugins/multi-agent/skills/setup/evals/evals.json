@@ -1,0 +1,45 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only",
+      "prompt": "/multi-agent:setup check. This session runs on Opus.",
+      "narration": true,
+      "expected_output": "Runs scripts/setup.sh check session=opus and shows one line per role with the layer behind each value, the layers rows, every note, and the overlay gitignore row. Recommends the `.claude/**/*.local.*` line when the row is WARN. Writes no file.",
+      "expectations": [
+        "The bundled setup.sh is run with check and session=opus",
+        "Each role line names the single and fan-out model and effort, with inherit written as `inherit: omit the model option`",
+        "The overlay gitignore row is reported, and .gitignore is not edited",
+        "No configuration file is written"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-previews-then-writes-on-yes",
+      "prompt": "/multi-agent:setup apply. I want the verifier role at xhigh effort for everyone on this repo.",
+      "narration": true,
+      "expected_output": "Runs check first and shows the before map. Recommends the team layer for a whole-team setting, runs setup.sh apply --layer team roles.verifier.effort=xhigh without --write, shows the target path (docs/conventions/multi-agent.md) and the diff, and asks for an explicit yes before running the same command with --write. Then runs check again and names roles.verifier.effort as changed, now supplied by the team layer. Offers git add and a commit without running them unasked.",
+      "expectations": [
+        "check runs before any apply, and the before map is shown",
+        "The first apply call carries no --write, and its diff is shown",
+        "--write is used only after the user's explicit confirmation",
+        "check runs again after the write and the changed value is named with the team layer as its source",
+        "git add and commit are offered, not run unasked"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "guard-off-is-a-separate-opt-in",
+      "prompt": "/multi-agent:setup apply --layer user fanout.frontier_guard=false. I run Fable and want my workers on it too.",
+      "narration": true,
+      "expected_output": "Shows the before map, previews the user layer write, and explains that turning the guard off is an explicit opt-in to frontier fan-outs: every parallel worker then runs on the session model, so under Fable every agent of that stage runs on the frontier model, and it links the pricing and costs pages rather than stating a price. Asks the user to confirm that key on its own before writing. Suggests the local layer if the intent is one repository rather than the whole machine.",
+      "expectations": [
+        "The guard's purpose is explained before any write",
+        "The cost of frontier fan-outs is stated plainly",
+        "The user confirms fanout.frontier_guard=false separately before --write",
+        "The narrower local layer is offered as the alternative when the scope is one repository"
+      ]
+    }
+  ]
+}

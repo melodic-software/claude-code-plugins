@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.1] - 2026-10-02
+
+### Removed
+
+- **BREAKING:** the `provenance` plugin is gone from the marketplace. An install that still enables
+  `provenance@melodic-software` gets `Plugin "provenance" not found in marketplace`; enable
+  `attribution@melodic-software` instead.
+- The detector scripts no longer warn about a leftover `provenance.json` or
+  `provenance.local.json` in a config layer; such a file is silently ignored. `/attribution:setup`
+  still reports and migrates the two repo-level files through its retirement records.
+
 ## [0.9.0] - 2026-10-02
 
 ### Changed
