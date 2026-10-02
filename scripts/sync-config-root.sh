@@ -31,6 +31,7 @@ copies=(
   plugins/ai-slop/lib/config-root.sh
   plugins/attribution/lib/config-root.sh
   plugins/docs-naming/lib/config-root.sh
+  plugins/multi-agent/lib/config-root.sh
 )
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
