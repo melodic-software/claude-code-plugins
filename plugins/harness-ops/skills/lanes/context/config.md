@@ -40,7 +40,7 @@ temporary.
       "settings": { "pluginConfigs": { "autonomy@<marketplace>": { "options": {
         "lane_stop_gate_enabled": true, "lane_stop_gate_marker": ".lane-complete" } } } } },
     { "name": "work-2",  "prompt": "work-2.md",  "model": "opus",   "effort": "high" },
-    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium" },
+    { "name": "babysit", "prompt": "babysit.md", "model": "opus",   "effort": "medium" },
     { "name": "decide",  "prompt": "decide.md" }
   ]
 }
