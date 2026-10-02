@@ -2667,17 +2667,6 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing. Between the flip to ready and the `ready_for_review`
-      # run's own ci-status check run (minutes later), the draft's ci-status is
-      # the newest one on the SHA, so a green draft would let a merge through on
-      # nothing. The aggregate below fails on the skipped lanes and records
-      # `ci-lanes=failure`; this step says why.
-      - name: Fail a draft
-        if: github.event.pull_request.draft == true
-        run: |
-          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
-          exit 1
       # A CONTRACT-ONLY RUN FAILS AT ONCE WHILE A FULL RUN ON THIS SHA IS QUEUED
       # OR IN PROGRESS. A queued full run has not written its `ci-lanes=pending`
       # marker yet, so the status read below could carry an older verdict across
@@ -2713,6 +2702,17 @@ jobs:
             echo "::error::full run $id is in flight on $HEAD_SHA; it re-runs this run when it records success."
             exit 1
           done
+      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
+      # and tested nothing. Between the flip to ready and the `ready_for_review`
+      # run's own ci-status check run (minutes later), the draft's ci-status is
+      # the newest one on the SHA, so a green draft would let a merge through on
+      # nothing. The aggregate below fails on the skipped lanes and records
+      # `ci-lanes=failure`; this step says why.
+      - name: Fail a draft
+        if: github.event.pull_request.draft == true
+        run: |
+          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
+          exit 1
       - name: Aggregate lane results
         # `!cancelled()` so a failing pr-contract step does not skip the
         # aggregation: the job still fails on the contract step's exit code, and
