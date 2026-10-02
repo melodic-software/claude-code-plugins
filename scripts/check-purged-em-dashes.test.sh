@@ -129,6 +129,14 @@ write ".claude/cfg-em-dash-allowed.json" '{"excluded_paths":[],"em_dash_allowed_
 write ".claude/cfg-rule-allowed.json" '{"excluded_paths":[],"rule_allowed_paths":{"rule-em-dash":["surface/dirty.md"]},"disabled_rules":["rule-em-dash"]}'
 write ".claude/cfg-excluded.json" '{"excluded_paths":["surface/dirty.md"],"disabled_rules":["rule-em-dash"]}'
 
+# Matcher edge cases for the stale-entry and --list attribution: a leading dot,
+# a dot inside a directory name, brackets in a file name, and single-star
+# segments at two depths.
+mkdir -p "$REPO/edge/b.c" "$REPO/edge/x/deep" "$REPO/edge/y"
+for f in edge/.dotted.md edge/b.c/inner.md 'edge/[lit].md' edge/x/a.md edge/y/a.md edge/x/deep/a.md; do
+  write "$f" 'Clean edge-case surface.'
+done
+
 list() {
   local name="$1"
   shift
@@ -144,6 +152,8 @@ list "globbed" 'surface/*.md'
 list "stale" 'surface/clean.md' 'surface/gone.md'
 list "empty" '# only a comment' ''
 list "commented" 'surface/clean.md   # the surface purged in this fixture'
+list "edge" 'edge/.dotted.md' 'edge/*.md' 'edge/b.?/*.md' 'edge/[xy]/a.md' \
+  'edge/\[lit\].md' 'edge/*/a.md' 'edge/*/*/a.md' 'edge/gone/*.md'
 
 git_test_config "$REPO" add -A
 git_test_config "$REPO" commit -qm fixture
@@ -260,6 +270,30 @@ if ((RC == 1)) && [[ "$OUT" == *"stale allowlist entry"* ]] && [[ "$OUT" == *"su
   ok "an entry matching no tracked file fails as stale"
 else
   fail "an entry matching no tracked file fails as stale (rc=$RC): $OUT"
+fi
+
+# Per-entry counts pin the matcher: `*` matches a leading dot and stops at `/`,
+# `?` and brackets are patterns, an escaped bracket is literal, and a glob is
+# only tested against paths of its own depth.
+run "$REPO" "edge.txt" --list
+want=(
+  'ok     edge/.dotted.md (1 files)'
+  'ok     edge/*.md (2 files)'
+  'ok     edge/b.?/*.md (1 files)'
+  'ok     edge/[xy]/a.md (2 files)'
+  'ok     edge/\[lit\].md (1 files)'
+  'ok     edge/*/a.md (2 files)'
+  'ok     edge/*/*/a.md (1 files)'
+  'STALE  edge/gone/*.md'
+)
+edge_ok=1
+for line in "${want[@]}"; do
+  [[ "$OUT" == *"$line"* ]] || edge_ok=0
+done
+if ((RC == 1 && edge_ok)); then
+  ok "glob entries attribute dots, brackets and single-star segments correctly"
+else
+  fail "glob entries attribute dots, brackets and single-star segments correctly (rc=$RC): $OUT"
 fi
 
 run "$REPO" "empty.txt"
