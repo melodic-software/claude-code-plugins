@@ -4,6 +4,14 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Education lanes on the escape helper, 2026-10-02
+
+- **`education:eli5` and `education:teach` in codebase mode build their HTML with a checked-in
+  builder (#5845).** Each routes every interpolated repository string through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. `education:eli5` joins the emitter list
+  as an escape-helper lane; `education:teach` stays grandfathered for topic mode. No
+  boundary-rule, genre, or cascade-key change.
+
 ## Escape helper, 2026-09-28
 
 - **The wave-2 escape helper shipped (#3605).** `lib/html-escape.mjs` is the

@@ -3,6 +3,26 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-10-02
+
+### Security
+
+- `eli5` builds its explainer with a checked-in builder (`scripts/build-explainer.mjs`), and
+  `teach` builds a `codebase` lesson the same way (`scripts/build-lesson.mjs`). Each escapes every
+  repository-derived field through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script, so a hostile
+  string in a file, ADR, or commit renders as text. `--check <file>` flags a page that bypassed
+  the builder.
+
+### Changed
+
+- `eli5` diagrams are `flow` and `stack` tables of boxes, replacing hand-written inline SVG.
+- `eli5` delegates to the upstream `eli5` plugin only for a general concept. A module, tradeoff,
+  or incident takes the inline pass, because the upstream skill's page does not pass through the
+  escape helper.
+- A `codebase` lesson's quiz is a question list the learner answers in chat, replacing the spliced
+  quiz component. `topic` lessons are unchanged.
+
 ## [0.12.0] - 2026-10-02
 
 ### Changed
