@@ -4,13 +4,22 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
-## [3.6.1] - 2026-10-01
+## [3.6.2] - 2026-10-01
 
 **Patch, docs-only.** The `attribution/audit/rule-stamp-expired` and
 `attribution/audit/rule-restated-upstream-fact` crosswalk rows and the
 `claude-config/audit-instructions/rule-trigger-less-stamp` row describe the stamped record by its
 current shape (pointer, as-of date, observable recheck trigger beside the decision) instead of the
 claim, basis, as-of and trigger shape. No producer-owned field's rule, tier, coexistence obligation or enforceability verdict moves.
+
+## [3.6.1] - 2026-10-01
+
+**Patch, docs-only.** The rationale of `mutation-testing/audit/rule-survivor-productive` and
+`mutation-testing/audit/rule-survivor-unclassified` covers the audit's new exercised scope, where the
+mutated node is outside the change because the change is the tests. Both rows reach IMPORTANT there
+through the degradation limb, with the trigger "the first regression that changes the result for an
+input the changed tests do not use, in a function they exercise, ships green". Rule ids, tiers, and
+every consumer's reading of them are unchanged.
 
 ## [3.6.0] - 2026-09-30
 
@@ -568,7 +577,7 @@ contract's own rule: a new adopter row and additive crosswalk rows, no obligatio
 
 Docs-only: the self-ignore-guard bullet's consequence sentence was universally
 true only where a checkout governs the destination. Where none is detected, the
-[topic-docs convention](../topic-docs/README.md) "Runtime guards" now says the
+[topic-docs convention](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/conventions/topic-docs/README.md) "Runtime guards" now says the
 guard does not run, and a producer bound to leave tracked content unmodified
 withholds the findings file there too. That destination may be an index-tracked
 deletion in the checkout the detection missed, where writing modifies tracked

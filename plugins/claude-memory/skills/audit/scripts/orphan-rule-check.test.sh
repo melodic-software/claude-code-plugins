@@ -58,27 +58,7 @@ assert_eq "--count == 0 after referencing" "0" "$OUT"
 OUT=$(cd "$REPO" && bash "$SCRIPT")
 assert_contains "clean repo reports no orphans" "$OUT" "No orphan"
 
-# --- Case 6: topic-docs `memory_dir` override moves the excluded tier ---------------
-# The overridden tier must be excluded AND `.work/` must stop being excluded; the
-# additive bug (exclude both) fails the .work assertion below.
-
-OVR="$TEST_TMPDIR/override"
-make_repo "$OVR"
-mkdir -p "$OVR/.claude/rules" "$OVR/.scratch" "$OVR/.work"
-printf 'memory_dir: .scratch\n' >"$OVR/.claude/topic-docs.yaml"
-# rule A referenced ONLY from the overridden memory tier (.scratch/) => still ORPHAN
-printf '# Rule A\n\nbody\n' >"$OVR/.claude/rules/a.md"
-printf 'see a.md\n' >"$OVR/.scratch/refA.md"
-# rule B referenced ONLY from .work/ => NOT orphan (.work is not the resolved tier here)
-printf '# Rule B\n\nbody\n' >"$OVR/.claude/rules/b.md"
-printf 'see b.md\n' >"$OVR/.work/refB.md"
-(cd "$OVR" && git add -A && git commit -q -m "override fixture")
-
-OUT=$(cd "$OVR" && bash "$SCRIPT")
-assert_contains "override: ref in resolved memory_dir (.scratch) is excluded => a.md orphan" "$OUT" "a.md"
-assert_not_contains "override: .work ref counts (no longer excluded) => b.md not orphan" "$OUT" "b.md"
-
-# --- Case 7: no topic-docs.yaml => `.work/` fallback still holds ---------------------
+# --- Case 6: the `.work/` memory tier is excluded -------------------------------------
 
 FB="$TEST_TMPDIR/fallback"
 make_repo "$FB"
@@ -89,41 +69,9 @@ printf 'see c.md\n' >"$FB/.work/refC.md"
 (cd "$FB" && git add -A && git commit -q -m "fallback fixture")
 
 OUT=$(cd "$FB" && bash "$SCRIPT")
-assert_contains "fallback: .work ref excluded by default => c.md orphan" "$OUT" "c.md"
+assert_contains ".work ref is excluded => c.md orphan" "$OUT" "c.md"
 
-# --- Case 8: interior whitespace in a quoted memory_dir is preserved -----------------
-# A collapsing strip (${seam//[[:space:]]/}) turns `.scratch dir` into `.scratchdir`,
-# so the real tier's ref would count and mask the orphan.
-
-WS="$TEST_TMPDIR/whitespace"
-make_repo "$WS"
-mkdir -p "$WS/.claude/rules" "$WS/.scratch dir"
-printf 'memory_dir: ".scratch dir"\n' >"$WS/.claude/topic-docs.yaml"
-# rule D referenced ONLY from the space-containing memory tier => still ORPHAN
-printf '# Rule D\n\nbody\n' >"$WS/.claude/rules/d.md"
-printf 'see d.md\n' >"$WS/.scratch dir/refD.md"
-(cd "$WS" && git add -A && git commit -q -m "whitespace fixture")
-
-OUT=$(cd "$WS" && bash "$SCRIPT")
-assert_contains "whitespace: ref in quoted '.scratch dir' tier is excluded => d.md orphan" "$OUT" "d.md"
-
-# --- Case 9: `#` inside a quoted memory_dir is preserved, not truncated ---------------
-# A naive `${seam%%#*}` truncates `.scratch#dir` to `.scratch`, so the real tier's
-# ref would count and mask the orphan.
-
-HASH="$TEST_TMPDIR/hash"
-make_repo "$HASH"
-mkdir -p "$HASH/.claude/rules" "$HASH/.scratch#dir"
-printf 'memory_dir: ".scratch#dir"\n' >"$HASH/.claude/topic-docs.yaml"
-# rule E referenced ONLY from the #-containing memory tier => still ORPHAN
-printf '# Rule E\n\nbody\n' >"$HASH/.claude/rules/e.md"
-printf 'see e.md\n' >"$HASH/.scratch#dir/refE.md"
-(cd "$HASH" && git add -A && git commit -q -m "hash fixture")
-
-OUT=$(cd "$HASH" && bash "$SCRIPT")
-assert_contains "hash: ref in quoted '.scratch#dir' tier is excluded => e.md orphan" "$OUT" "e.md"
-
-# --- Case 10: a self-describing rule is never an orphan --------------------------------
+# --- Case 7: a self-describing rule is never an orphan --------------------------------
 # The rendered rules index omits unscoped rules, so unreferenced alone proves nothing;
 # a `description:` line is the rule naming its own purpose.
 
@@ -143,7 +91,7 @@ assert_contains "a local orphan carries the local route" "$OUT" "local: add a de
 OUT=$(cd "$DESC" && bash "$SCRIPT" --count)
 assert_eq "--count == 2 with one self-describing rule" "2" "$OUT"
 
-# --- Case 11: a synced orphan routes its fix upstream ----------------------------------
+# --- Case 8: a synced orphan routes its fix upstream ----------------------------------
 
 SYNC="$TEST_TMPDIR/synced"
 make_repo "$SYNC"

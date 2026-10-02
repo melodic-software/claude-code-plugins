@@ -13,10 +13,6 @@
 #
 #   - `README.md`, `CHANGELOG.md`, `INDEX.md` anywhere under docs/, the
 #     conventional uppercase names tooling and forges look for by exact spelling
-#     (INDEX.md is the topic-docs convention's reserved index name)
-#   - everything under `docs/topics/`, the branch-only contract slice whose
-#     file names (`PLAN.md`, `BRIEF.md`, ...) are owned by the topic-docs
-#     convention and pruned before merge
 #   - code files by extension (`py sh mjs js ps1`), whose casing is the
 #     language's convention, not this one
 #
@@ -78,7 +74,6 @@ done < <(git ls-files -z -- docs/)
 # One pass for the basename rule. Exemptions are checked in the order the
 # header lists them; the regex only sees what nothing exempted.
 for path in ${paths+"${paths[@]}"}; do
-  [[ "$path" == docs/topics/* ]] && continue
   base="${path##*/}"
   [[ "$base" == README.md || "$base" == CHANGELOG.md || "$base" == INDEX.md ]] && continue
   ext="${base##*.}"

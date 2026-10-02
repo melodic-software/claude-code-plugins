@@ -7,6 +7,8 @@
 - [Scope and topic do not arrive by argument substitution](#scope-and-topic-do-not-arrive-by-argument-substitution)
 - [Credentials stay unread, stated once](#credentials-stay-unread-stated-once)
 - [Read each file once, stated once](#read-each-file-once-stated-once)
+- [The write boundary, stated once](#the-write-boundary-stated-once)
+- [Persistence by value](#persistence-by-value)
 - [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on)
 - [Running the acceptance gate](#running-the-acceptance-gate)
 - [The sibling verifier, stated once](#the-sibling-verifier-stated-once)
@@ -21,13 +23,12 @@ nowhere else, because copies of them drift apart:
 - the claim about `$ARGUMENTS`
 - the agents' credential read boundary
 - the agents' read-each-file-once rule
+- the agents' write boundary and the by-value persistence rule
 - how the acceptance gate is invoked, and that a gate which could not run halts
 - what to do with a partial slice
 - the sibling verifier's route, prompt, write-back line and `verification:` values
 
-The agents' write boundary is stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md), not
-here. One exception to the list is deliberate: `skills/research/SKILL.md` carries the research
+One exception to the list is deliberate: `skills/research/SKILL.md` carries the research
 envelope's labeled lines and both baseline commands, so a research parent can dispatch without
 reading this file. `scripts/contract.test.sh` fails when that copy and this file disagree.
 
@@ -339,6 +340,77 @@ measured 8 redundant full reads in one explorer run. The rule for all three agen
 > you and for anyone auditing the run. The same holds for a page you have already fetched: its text
 > is in your context, so fetch it again only when you need content the first fetch did not return.
 > Every turn spent re-reading is a turn taken from gathering before your stop turn.
+
+## The write boundary, stated once
+
+Placement follows the lifecycle artifact protocol
+([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)).
+Discovery writes the memory slice only, working documents that nothing downstream enforces against:
+
+| Artifact | Location |
+|---|---|
+| `EXPLORE.md` (+ `EXPLORE-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/`, never committed |
+| `RESEARCH.md` (+ `RESEARCH-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/`, never committed |
+| `INTENT.md` (+ `INTENT-<section>.md` sidecars) | `<memory_dir>/<slug>/`, never committed |
+
+`INTENT.md` is **private to `/discovery:trace-intent`** and deliberately absent from the shared
+`artifact-protocol.md`, because it is not a shared lifecycle kind. Nothing outside this plugin
+consumes it by name. Promoting it would oblige an identical edit to every copy of that protocol file
+plus a version bump, a price worth paying for an artifact several plugins read and not for one that
+stays here.
+
+**This is the single statement of where a dispatched agent may write.** All three agent definitions
+point here rather than restating it; three earlier restatements disagreed with each other about
+whether scratch was inside the boundary or outside it. The dispatched agents and a Tier-2
+`research-deep` subagent cannot ask, so any assumed destination is flagged in the return rather than
+silently adopted.
+
+A dispatched `discovery:explorer` / `discovery:researcher` / `discovery:intent-tracer` writes to
+exactly these:
+
+| Destination | Who | Notes |
+|---|---|---|
+| The artifact files, index and sidecars plus `research-checklist.md` where the family owes one, inside the **memory-slice path named in the dispatch prompt** | all three | the deliverable; only research owes a checklist |
+| **Scratch inside that same slice**, named `scratch-<purpose>` (a file, or a directory holding several) | all three | sanctioned: `artifact-protocol.md` lists "scratch" among the artifact kinds under `<memory_dir>/<topic-slug>/` |
+| The **memory root's** self-ignoring `.gitignore` guard, when it is absent | all three | the one write outside the slice, and the reason the memory root is its own envelope field |
+
+Nothing else. Not repository source, not another slice, not the consumer's root `.gitignore`.
+
+**Naming and cleanup are owned, not left open.** Scratch carries the `scratch-` prefix so a consumer
+reading the slice can tell a working file from a deliverable without opening it, and so the
+acceptance gate, which keys on the `<INDEX>-<section>.md` sidecar contract, can never mistake one
+for an artifact. **The run that created scratch deletes it before it returns.** If the run dies
+first, cleanup falls to the parent's recovery ladder, which already clears the slice (or assigns a
+fresh sub-slice) before any re-dispatch; scratch left in a slice that is being kept is a defect to
+report, not to tidy silently.
+
+**The `discovery:researcher`'s session scratch directory is a different place and stays outside this
+boundary.** `Bash`-mediated downloads of artifacts too large to fetch in context (`curl` into the
+session scratch dir the harness provides) land there, not in the slice. It is not a memory-slice
+location, nothing in it is a deliverable, no artifact ever records a path into it, and this plugin
+owes it no cleanup. The same applies to `discovery:intent-tracer` where it pulls down a long-form
+document too large to read in context. `discovery:explorer` has no equivalent: its Bash is read-only,
+so it downloads nothing.
+
+## Persistence by value
+
+The memory slice exists only in the checkout that wrote it. The by-value boundary is the checkout,
+not the process: the `-deep` dispatch resolves to `research-deep`, whose isolated subagent runs in
+the parent's checkout and writes `RESEARCH.md` there directly (already visible to the parent),
+returning a summary by value; a worker dispatched into its **own** checkout (worktree or background
+session) returns findings by value instead, and the parent writes the memory slice.
+
+**Where that rule is reachable from.** A worker does not choose the by-value mode by reading this
+file; it is `persistence: by-value` in the return payload
+(`${CLAUDE_PLUGIN_ROOT}/agents/explorer.md`, `${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`,
+`${CLAUDE_PLUGIN_ROOT}/agents/intent-tracer.md`), and the parent acts on it at the
+`persistence: by-value` rung of each family's recovery ladder:
+`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`,
+`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` and
+`${CLAUDE_PLUGIN_ROOT}/skills/trace-intent/context/dispatch.md`.
+The parent writes the slice from the payload's verbatim artifact bodies and then re-runs the
+acceptance gate against disk. The mode changes **who writes**, never **whether the gate passes**:
+findings returned in place of an artifact are a failed dispatch, not a fallback.
 
 ## Harness facts the dispatch design rests on
 
@@ -736,10 +808,8 @@ update is the safe failure; a rule that approves a script outside the cache is n
 The memory root's self-ignoring `.gitignore` guard. Stated here because an unstated gap reads as a
 covered one:
 
-- **`/discovery:setup` owns verify-or-create** for the guard at enable time, and owns the standing
-  rule that the consumer's root `.gitignore` is never edited.
 - **The agent owns it at run time** when the root is unguarded, which is why the memory root is its
-  own envelope field.
+  own envelope field. The consumer's root `.gitignore` is never edited.
 - **The acceptance gate never checks it.** It grades the artifact set and the coverage ledger. A
   missing guard is a hygiene defect the parent can see in one `git status`, not a reason to discard
   a good run, so it is not wired into a gate that halts the workflow.

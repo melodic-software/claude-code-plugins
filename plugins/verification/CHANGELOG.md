@@ -20,6 +20,12 @@ All notable changes to the `verification` plugin are documented here. Format fol
 - `confirm`'s native `/verify` record notes that a recorded project verify skill can answer to
   `/verify` in place of the bundled one, so the skill never assumes which one resolves.
 
+## [0.6.14] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
 ## [0.6.13] - 2026-09-30
 
 ### Changed

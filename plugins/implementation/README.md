@@ -35,24 +35,20 @@ gracefully when absent, no hard dependencies:
 
 ## Works in any repo
 
-- **Document placement, via the topic-docs seam.** Plan progress marks, the
+- **Document placement, via the artifact protocol.** Plan progress marks, the
   autonomous-run `DEVIATIONS.md` log, status summaries, and handoff notes land per the
-  marketplace-wide topic-docs convention (`docs/conventions/topic-docs/README.md`;
-  plugin binding: `reference/topic-docs.md`): contract documents in
-  `<contract_dir>/<slug>/` (default `docs/topics/`), committed on the task branch and
-  pruned before merge; working memory in the self-ignoring `<memory_dir>/` (default
-  `.work/`). The tracked `.claude/topic-docs.yaml` concern file is the consumer-side
-  source of truth, each lifecycle plugin's own setup (`/discovery:setup`,
-  `/planning:setup`, `/verification:setup`) offers to write it.
+  plugin's lifecycle artifact protocol (`reference/artifact-protocol.md`): in the
+  self-ignoring `<memory_dir>/<slug>/` (default `.work/<slug>/`), never committed. Durable
+  plan content is pasted into the pull request body or the linked issue.
 - **Reads your conventions, assumes none.** Testing structure, commit conventions,
   branch policy, and project invariants come from your own `CLAUDE.md` and rules.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`toolchain`, `testing`,
   `verification`, `tdd`, `planning`, `discovery`, `session-flow`, `source-control`) and
   external marketplace skills are invoked when installed and substituted with inline
   guidance when absent; no step blocks on a missing plugin.
-- **Self-contained.** All execution-mode context and the topic-docs binding ship inside
-  the plugin and are referenced via `${CLAUDE_PLUGIN_ROOT}`; state and artifacts go to
-  your project's own tree per the topic-docs convention above.
+- **Self-contained.** All execution-mode context ships inside the plugin and is referenced
+  via `${CLAUDE_PLUGIN_ROOT}`; state and artifacts go to your project's own tree per the
+  artifact protocol above.
 
 ## Install
 
@@ -81,9 +77,7 @@ self-verification, but installing the companion plugins restores the full former
 
 ## Configuration
 
-Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
-(see the topic-docs seam above); each lifecycle plugin's own setup (`/discovery:setup`,
-`/planning:setup`, `/verification:setup`) interviews for and persists it.
+Artifact placement is fixed by the artifact protocol (see above), so nothing needs configuring.
 
 `implement_dispatch_wave_cap` sets how many worker rows of one plan phase
 `/implementation:implement-dispatch` runs at once. Unset, the skill keeps its internal 3–5

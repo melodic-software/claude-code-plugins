@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.3] - 2026-10-01
+## [0.17.4] - 2026-10-01
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   the README content is treated as CC BY-NC-SA 4.0 and each bundled template as carrying its own
   license, and the skill names the license when it declines to paste. The record points at the
   repository's `LICENSE.md` and stores none of its text.
+
+## [0.17.3] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.17.2] - 2026-10-01
 

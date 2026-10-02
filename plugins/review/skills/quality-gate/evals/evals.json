@@ -103,7 +103,7 @@
     {
       "id": 9,
       "name": "spec-mode-skips-rather-than-fabricates",
-      "prompt": "/review:quality-gate spec\n\nHeadless CI run, no interactive user available. The branch commits reference no issue, there is no open PR, the work-items plugin is not installed, and docs/topics/ contains nothing matching this work.",
+      "prompt": "/review:quality-gate spec\n\nHeadless CI run, no interactive user available. The branch commits reference no issue, there is no open PR, the work-items plugin is not installed, and the memory slice holds nothing matching this work.",
       "expected_output": "Every rung of the discovery ladder fails and the session is non-interactive, so the skill declines to review: it emits a skip note naming each rung tried and what it returned, and stops. It does not invent a spec, does not substitute the commit messages for one, and does not render a fidelity verdict without a spec.",
       "files": [],
       "expectations": [

@@ -499,12 +499,9 @@ repair path after a failed `validate`, not a step of the procedure.
 ```bash
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
 
-# 1. Memory root via the shared helper (the retro skill's Phase 1.1 is the worked
-#    call form) — never assume the literal .work. DECLARED_MEMORY_DIR is a root
+# 1. Memory root — never assume the literal .work. DECLARED_MEMORY_DIR is a root
 #    you inferred from CLAUDE.md / .claude/rules, or empty.
-MEMORY_ROOT=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" \
-  .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
-MEMORY_ROOT="${MEMORY_ROOT:-.work}"
+MEMORY_ROOT="${DECLARED_MEMORY_DIR:-.work}"
 
 # 2. Refuse a memory root at/above the repo root before the self-ignore guard can
 #    touch the consumer's root .gitignore.
@@ -594,9 +591,9 @@ save-point to the prompt-only path with that reason stated (`save-point.md` "Cho
 every other refusal names its fix.
 
 **No project root** (step 2's `git rev-parse --show-toplevel` fails): the procedure takes the
-binding's no-project-root branch ([`topic-docs.md`](topic-docs.md)). Interactive, ask for a
+no-project-root branch. Interactive, ask for a
 location and pass it as `--memory-dir`. Non-interactive, skip steps 1 to 3 and run `new` with no
-`--memory-dir`: outside a git work tree it resolves `<plugin data>/topic-docs` itself, from
+`--memory-dir`: outside a git work tree it resolves `<plugin data>/artifacts` itself, from
 `CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path (the record below says
 why). The self-ignore guard still binds there. The
 first refusal names the exact `.gitignore` path to create; create it with the single line `*`,

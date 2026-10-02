@@ -3,42 +3,39 @@
   "evals": [
     {
       "id": 1,
-      "name": "reads-topic-docs-state-before-interview",
+      "name": "check-reports-memory-root-and-writes-nothing",
       "prompt": "/verification:setup",
-      "expected_output": "Reads .claude/topic-docs.yaml first when present and reports effective values, applying documented defaults to absent keys. With no concern file it inspects project instructions and conforming layouts before asking one recommendation-first question covering every schema key.",
+      "expected_output": "Runs the read-only check with no argument. Reports the memory root the verification skills resolve (.work/ unless the project's instructions declare another root) as INFO, probes a representative file path under it with git check-ignore -v, and writes nothing. It says there is nothing to configure because placement is fixed by the artifact protocol.",
       "files": [],
       "expectations": [
-        "Reads an existing .claude/topic-docs.yaml before proposing changes",
-        "Treats project instructions as an inference source rather than a competing runtime authority",
-        "Recommends the documented contract and memory tier defaults when no convention exists",
-        "Offers and preserves every topic-docs schema key"
+        "Treats no argument as check",
+        "Reports the memory root, or the root a project instruction declares, as INFO",
+        "Probes a representative file path rather than only the directory",
+        "Writes no file and runs no verification pass"
       ]
     },
     {
       "id": 2,
-      "name": "fails-closed-on-ignored-contract-tier",
-      "prompt": "/verification:setup\n\nUse contract_tier: branch and contract_dir: docs/topics. The repository ignores docs/topics/**.",
-      "expected_output": "Runs git check-ignore -v against a representative file path such as docs/topics/probe/PLAN.md before writing. When an ignore rule matches, it stops, reports the exact matching rule and source line, and does not create or update .claude/topic-docs.yaml.",
+      "name": "apply-is-not-offered",
+      "prompt": "/verification:setup apply\n\nPersist my artifact directory settings.",
+      "expected_output": "Says this setup is check-only: manifests, baselines and raw captures land in the memory slice <memory_dir>/<slug>/ and are never committed, and there is nothing for an apply to write. It runs the check, creates no .claude/ concern file, and does not edit any ignore file.",
       "files": [],
       "expectations": [
-        "Checks a representative contract file path rather than only the directory",
-        "Stops before persistence when the branch-tier contract root is ignored",
-        "Reports the matching ignore rule and source",
-        "Never edits an ignore file to force the configuration through"
+        "States that there is no apply action and nothing to persist",
+        "Names the memory slice as the placement and does not invent a configuration file",
+        "Does not edit any ignore file or the consumer's root .gitignore"
       ]
     },
     {
       "id": 3,
-      "name": "persists-tracked-concern-file-idempotently",
-      "prompt": "/verification:setup\n\nAccept the recommended defaults and preserve an existing vault_backend: docs key.",
-      "expected_output": "Writes a schema-valid tracked .claude/topic-docs.yaml without dropping the existing vault_backend key, verifies or creates the resolved memory root's self-ignoring .gitignore with an announcement, and reports the effective values. An immediate re-run reads the same state and does not rewrite equivalent values.",
+      "name": "absent-ignore-guard-is-info-not-fail",
+      "prompt": "/verification:setup check\n\nNo verification run has happened in this repo yet, so .work/ does not exist.",
+      "expected_output": "Reports the ignore probe as INFO, not FAIL: the memory root's self-ignoring .gitignore is created by the first memory-slice write, so its absence before any run is expected. It does not create the directory or the guard file.",
       "files": [],
       "expectations": [
-        "Persists configuration only in the tracked .claude/topic-docs.yaml concern file",
-        "Produces a schema-valid object rather than a comment-only YAML document",
-        "Preserves all existing schema keys on reconfiguration",
-        "Verifies the resolved memory root self-ignore and announces any creation",
-        "Re-running does not rewrite an equivalent configuration"
+        "Reports the missing guard as INFO, never FAIL",
+        "Explains that the first memory-slice write creates the guard",
+        "Creates no directory and no .gitignore"
       ]
     }
   ]

@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.25.1] - 2026-10-01
+## [0.25.2] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,12 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   section, an as-of date and a recheck trigger, with no quoted upstream text. The table-of-contents
   record notes that the skill-creator and the platform best-practices page disagree on the
   threshold. Comments only: no check, threshold or exit code changes.
+
+## [0.25.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
 
 ## [0.25.0] - 2026-09-30
 

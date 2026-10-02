@@ -10,7 +10,7 @@
       "expectations": [
         "Resolves goimports on PATH only, matching the hook — it does not look for a .venv-style per-repo convention",
         "Reports the resolved path and, because goimports has no --version flag, the first line of `goimports -h` as the closest version signal rather than inventing a --version invocation",
-        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once per session and agent notice instead of formatting",
         "Reports absent goimports as FAIL and states that the hook then emits a visible once-per-session skip notice instead of running"
       ]
     },

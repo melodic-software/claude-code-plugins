@@ -23,7 +23,7 @@ import tempfile
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
@@ -101,6 +101,7 @@ CLOUD_PLACEHOLDER_ATTRIBUTES = (
 )
 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 FILE_ATTRIBUTE_NORMAL = 0x00000080
+DELETE = 0x00010000
 OPEN_EXISTING = 3
 # st_blocks is documented in units of 512-byte blocks on every Unix Python
 # cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
@@ -369,11 +370,10 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Replace ``path`` with a new file, never writing through a hard link."""
     path = state_output_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 DATA_ROOT_OVERRIDE: str | None = None
@@ -394,6 +394,43 @@ def state_output_path(path: Path) -> Path:
     if not is_within(path, data_root):
         raise HygieneError("generated state must stay inside the data root")
     return path
+
+
+def state_input_path(path: Path) -> Path:
+    """Resolve an engine input file and require it inside the data root.
+
+    A snapshot carries the protection globs preview and apply enforce, so a
+    snapshot, plan, path list or VCS evidence read from anywhere else could drop
+    a protection the scan recorded.
+    """
+    if not DATA_ROOT_OVERRIDE:
+        raise HygieneError("a generated-state root is required: pass --data-root")
+    data_root = Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
+    path = path.expanduser().resolve(strict=False)
+    if not is_within(path, data_root):
+        raise HygieneError("engine inputs must be read from inside the data root")
+    return refuse_engine_owned(path, data_root)
+
+
+def refuse_engine_owned(path: Path, data_root: Path) -> Path:
+    """Refuse a resolved file argument naming the data root or engine-owned state."""
+    relative = os.path.relpath(os.path.normcase(path), os.path.normcase(data_root))
+    if engine_grammar.is_engine_owned(relative):
+        raise HygieneError(
+            "a file argument must not name the data root or engine-owned state"
+        )
+    return path
+
+
+def model_output_path(value: str) -> Path:
+    """Resolve --output or --report: inside the data root, off engine-owned state."""
+    path = state_output_path(Path(value))
+    data_root = Path(DATA_ROOT_OVERRIDE or "").expanduser().resolve(strict=False)
+    return refuse_engine_owned(path, data_root)
+
+
+def load_input_json(value: str) -> dict[str, Any]:
+    return load_json(state_input_path(Path(value)))
 
 
 def os_key() -> str:
@@ -3021,6 +3058,24 @@ def annotate_tracked(
                 )
 
 
+def windows_escaping_path(relative: str) -> bool:
+    """True on Windows when joining ``relative`` onto the target can leave it.
+
+    Every lane joins a snapshot-relative path with ``target.joinpath(*
+    PurePosixPath(relative).parts)``. A Windows join discards the target for a
+    drive, UNC or rooted part and follows a backslash ``..`` the POSIX split
+    never sees, so a scan-produced "/"-separated relative path is the only
+    form that stays inside it.
+    """
+    if os_key() != "windows":
+        return False
+    for part in PurePosixPath(relative).parts:
+        pure = PureWindowsPath(part)
+        if pure.drive or pure.root or ".." in pure.parts:
+            return True
+    return False
+
+
 def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     entries = snapshot.get("entries")
     if not isinstance(entries, list):
@@ -3029,6 +3084,10 @@ def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for entry in entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise HygieneError("every snapshot entry must be an object with a path")
+        if windows_escaping_path(entry["path"]):
+            raise HygieneError(
+                f"snapshot entry path can leave the target: {entry['path']}"
+            )
         if entry["path"] in result:
             raise HygieneError(f"duplicate snapshot entry: {entry['path']}")
         result[entry["path"]] = entry
@@ -3252,6 +3311,7 @@ def validate_vcs_evidence(
             or relative in {".", "/"}
             or pure.is_absolute()
             or ".." in pure.parts
+            or windows_escaping_path(relative)
             or not any(path == pure or path in pure.parents for path in approved_paths)
         ):
             raise HygieneError(
@@ -3956,8 +4016,9 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     ]
     create_file.restype = ctypes.c_void_p
     flags = FILE_FLAG_BACKUP_SEMANTICS if path.is_dir() else FILE_ATTRIBUTE_NORMAL
-    # Share mode 0 requests exclusive access; an already-open file fails the probe.
-    handle = create_file(str(path), 0, 0, None, OPEN_EXISTING, flags, None)
+    # A zero-access open skips the share check, so it succeeds on a held file.
+    # DELETE access with share mode 0 conflicts with any existing handle.
+    handle = create_file(str(path), DELETE, 0, None, OPEN_EXISTING, flags, None)
     invalid = ctypes.c_void_p(-1).value
     if handle == invalid:
         error = ctypes.get_last_error()
@@ -5528,7 +5589,7 @@ def main(argv: list[str] | None = None) -> int:
                 if args.in_flight_refs
                 else []
             )
-            output_path = state_output_path(Path(args.output))
+            output_path = model_output_path(args.output)
             advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
             if root_children_mode:
@@ -5757,7 +5818,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "inventory":
             return run_inventory(args.target, args.deep)
-        snapshot = load_json(Path(args.snapshot))
+        snapshot = load_input_json(args.snapshot)
         if args.command == "catalog":
             entries = snapshot.get("entries")
             if (
@@ -5823,11 +5884,11 @@ def main(argv: list[str] | None = None) -> int:
             approved = validate_handoff_paths(
                 {"version": SCHEMA_VERSION, "paths": args.path}
                 if args.path
-                else load_json(Path(args.paths)),
+                else load_input_json(args.paths),
                 entry_map(snapshot),
             )
             vcs_evidence = (
-                validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
+                validate_vcs_evidence(load_input_json(args.vcs_evidence), approved)
                 if args.vcs_evidence
                 else None
             )
@@ -5840,16 +5901,16 @@ def main(argv: list[str] | None = None) -> int:
                 {"version": SCHEMA_VERSION, "paths": [args.path]}, entry_map(snapshot)
             )
             vcs_evidence = validate_vcs_evidence(
-                load_json(Path(args.vcs_evidence)), [approved]
+                load_input_json(args.vcs_evidence), [approved]
             )
-            report_path = state_output_path(Path(args.report))
+            report_path = model_output_path(args.report)
             report = handoff_apply(snapshot, approved, vcs_evidence)
             write_json(report_path, report)
             return emit(
                 report,
                 {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
             )
-        plan = load_json(Path(args.plan))
+        plan = load_input_json(args.plan)
         checked = preview(snapshot, plan)
         if args.command == "preview":
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
@@ -5861,7 +5922,7 @@ def main(argv: list[str] | None = None) -> int:
             raise HygieneError("--confirm-tier must match the plan's single tier")
         if args.approval_token != checked["approval_token"]:
             raise HygieneError("approval token does not match the fresh preview")
-        report_path = state_output_path(Path(args.report))
+        report_path = model_output_path(args.report)
         report = apply_plan(snapshot, plan)
         write_json(report_path, report)
         return emit(report, 4 if report["skipped"] else 0)

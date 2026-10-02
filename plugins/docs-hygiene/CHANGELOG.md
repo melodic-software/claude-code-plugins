@@ -1,6 +1,6 @@
 # Changelog: docs-hygiene plugin
 
-## [0.24.2] - 2026-10-01
+## [0.24.3] - 2026-10-01
 
 ### Changed
 
@@ -19,6 +19,12 @@
   model as conversation content.
 - **`rename-references` sets a binary done criterion** for its stale-path pass: zero orphans and
   zero stale-but-functional rows, or each remaining row named.
+
+## [0.24.2] - 2026-10-01
+
+### Changed
+
+- **`audit-noise` ghost-ref detection no longer reads `.claude/topic-docs.yaml`.** The detector ignores its `memory_dir` and `contract_dir` roots and no longer flags `docs/topics/<slug>/` paths, because the topic-docs convention no longer exists. It still flags concrete `.work/<slug>/` children and the retired `.claude/notes/`, `.claude/handoffs/` and `.claude/review/` locations.
 
 ## [0.24.1] - 2026-10-01
 

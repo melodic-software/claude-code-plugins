@@ -39,7 +39,7 @@ verdict does not change and its trigger has NOT fired.
 The context-engineering-integration corpus pass (signed off 2026-09-01; its decision contract is
 contract tier and was pruned before merge, surviving as the `<details>` paste in its pull request,
 with the durable evidence in
-[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md))
+[`docs/specs/context-engineering-corpus-knowledge.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/context-engineering-corpus-knowledge.md))
 found the live
 anthropic.com/research/building-effective-agents page silently revised after publication: the
 page still says "Published Dec 19, 2024" while its body now names models and products that

@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.58.5] - 2026-10-01
+## [0.58.6] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
   wording kept, and its record says no docs page states it, with the trigger "a docs page starts
   covering it".
+
+## [0.58.5] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.58.4] - 2026-10-01
 

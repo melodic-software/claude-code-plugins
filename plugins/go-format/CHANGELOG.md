@@ -3,6 +3,18 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.19] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.4.18] - 2026-10-01
+
+### Changed
+
+- **The setup skill, its evals and the hook test describe the missing-`jq` notice as once per session and agent.** The notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
+
 ## [0.4.17] - 2026-10-01
 
 ### Changed

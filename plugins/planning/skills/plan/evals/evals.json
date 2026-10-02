@@ -56,7 +56,7 @@
     {
       "id": 5,
       "name": "design-gate-blocks-without-artifact",
-      "prompt": "/planning:plan design and add a new Notifications module with its own types, contracts, and package topology. No /design has been run and there is no design artifact in the topic's contract slice yet.",
+      "prompt": "/planning:plan design and add a new Notifications module with its own types, contracts, and package topology. No /design has been run and there is no design artifact in the topic's memory slice yet.",
       "expected_output": "The prerequisite check classifies this as design-significant (Tier A), finds no design artifact, and STOPS before planning — offering to run /design or to document an early-exit design-resolution.md — instead of re-deriving the design inline.",
       "files": [],
       "expectations": [
@@ -79,14 +79,15 @@
     },
     {
       "id": 7,
-      "name": "gitbook-backend-degrades-to-docs-without-writing",
-      "prompt": "/planning:plan close-out\n\nThe approved plan is complete. This repo's .claude/topic-docs.yaml says vault_backend: gitbook. Graduate the durable decision now.",
-      "expected_output": "Reports that GitBook is a deferred, non-writable backend and follows the documented docs fallback: it promotes the durable decision with a guarded, history-preserving git mv into docs/adr or docs/specs. It does not invoke or configure a GitBook API, MCP operation, or Git Sync writer.",
+      "name": "close-out-publishes-plan-to-pr-and-issue",
+      "prompt": "/planning:plan close-out\n\nThe approved plan is complete and lives in .work/webhook-retry-budgets/PLAN.md. Close it out for the PR.",
+      "expected_output": "Pastes the approved PLAN.md into the PR description inside a details block and into the linked issue, recording distilled values only and citing no path into the memory slice. A decision that passes the ADR admission test (hard to reverse, surprising without context, a real trade-off) becomes an ADR; follow-ups go to the tracker. It commits nothing under the memory slice and does not move or delete files to prune a slice.",
       "files": [],
       "expectations": [
-        "Reports that vault_backend: gitbook is deferred and non-writable rather than treating it as an enabled remote backend",
-        "Uses the documented docs promotion path for the durable artifact",
-        "Does not invoke or configure GitBook API, MCP, or Git Sync writes"
+        "Publishes PLAN.md to the PR description (in a details block) and the linked issue",
+        "Cites no path into the memory slice in the published text",
+        "Applies the three-part ADR admission test before writing an ADR",
+        "Does not commit, move, or delete anything under the memory slice"
       ]
     },
     {

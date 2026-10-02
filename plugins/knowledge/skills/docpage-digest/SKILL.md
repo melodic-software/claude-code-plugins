@@ -19,10 +19,7 @@ pointer to that publisher's recorded pages) lives in a separable publisher profi
 
 Configured library dir: `${user_config.library_dir}`
 
-This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention
-(<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
-the work root resolves through the knowledge plugin's own `library_dir` setting, not the concern
-file's `memory_dir`.
+This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
 
 **Resolve the root once, before the first write**, and record the resolved absolute path in the
 checklist's Provenance block. Every `<work-root>` path below is relative to it, and a resumed
@@ -153,7 +150,7 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 Write `<work-root>/SOURCES.md`: every heading/topic/concern in the source, cross-cutting themes, a
 digest-file map (one row per digest unit), and a status checklist. SOURCES.md opens with a YAML
 frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
-the topic-docs contract's indexable-artifact hook, so a parent slice regen can mirror it. Digest-unit granularity: the
+which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
 their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
 walks. Keep its rows in parity with the digest files.

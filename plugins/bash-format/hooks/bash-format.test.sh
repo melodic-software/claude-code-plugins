@@ -643,7 +643,7 @@ else
   fail "shfmt-absent+findings: composition wrong: $OUT_MIX"
 fi
 
-# jq-absent -> visible once-per-session notice (input parsing gate).
+# jq-absent -> visible once per session and agent notice (input parsing gate).
 rm -f "$FAKEBIN/jq"
 JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_NOJQ=$(

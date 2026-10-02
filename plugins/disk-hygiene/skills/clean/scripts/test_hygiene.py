@@ -1393,6 +1393,8 @@ class HygieneTests(unittest.TestCase):
                             supplied,
                             "--report",
                             str(base / "report.json"),
+                            "--data-root",
+                            str(base),
                         ]
                     )
                     self.assertEqual(2, code)
@@ -4296,6 +4298,8 @@ class HygieneTests(unittest.TestCase):
                         token,
                         "--report",
                         str(base / "report.json"),
+                        "--data-root",
+                        str(base),
                     ]
                 )
             self.assertEqual(2, code)
@@ -4307,8 +4311,8 @@ class HygieneTests(unittest.TestCase):
             base = Path(temporary)
             data_root = base / "plugin-data"
             data_root.mkdir()
-            snapshot_path = base / "snapshot.json"
-            plan_path = base / "plan.json"
+            snapshot_path = data_root / "snapshot.json"
+            plan_path = data_root / "plan.json"
             snapshot_path.write_text("{}", encoding="utf-8")
             plan_path.write_text('{"tier": "high"}', encoding="utf-8")
             output = io.StringIO()
@@ -6443,6 +6447,17 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
         self.assertEqual(entries_under, entries_over)
 
 
+@unittest.skipUnless(os.name == "nt", "real Win32 handle probe")
+class WindowsHandleProbeNativeTests(unittest.TestCase):
+    def test_held_file_probes_open_and_released_file_probes_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "held.tmp"
+            path.write_bytes(b"held")
+            with open(path, "rb"):
+                self.assertEqual("open", hygiene.windows_handle_state(path)[0])
+            self.assertEqual("clear", hygiene.windows_handle_state(path)[0])
+
+
 class LeastObservableEnginePathTests(unittest.TestCase):
     """Direct coverage for the engine paths a consumer can least verify live (F8).
 
@@ -6517,6 +6532,21 @@ class LeastObservableEnginePathTests(unittest.TestCase):
         file_flags = file_dll.CreateFileW.call_args.args[5]
         self.assertEqual(0x02000000, directory_flags)  # FILE_FLAG_BACKUP_SEMANTICS
         self.assertEqual(0x00000080, file_flags)  # FILE_ATTRIBUTE_NORMAL
+
+    def test_windows_handle_probe_requests_delete_access_for_file_and_directory(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            probe = directory / "probe.tmp"
+            probe.write_text("file", encoding="utf-8")
+            _, directory_dll = self.windows_handle_probe(directory, 42)
+            _, file_dll = self.windows_handle_probe(probe, 42)
+        for dll in (directory_dll, file_dll):
+            self.assertEqual(hygiene.DELETE, dll.CreateFileW.call_args.args[1])
+            self.assertEqual(0, dll.CreateFileW.call_args.args[2])  # share mode
+        self.assertEqual(0x00010000, hygiene.DELETE)
 
     @staticmethod
     def lsof_result(returncode: int, stdout: str = "", stderr: str = ""):
@@ -6892,6 +6922,8 @@ class PreviewPlatformBlockerExitTests(unittest.TestCase):
                     str(self.base / "snapshot.json"),
                     "--plan",
                     str(self.base / "plan.json"),
+                    "--data-root",
+                    str(self.base),
                 ]
             )
         return status, json.loads(output.getvalue())
@@ -6960,6 +6992,8 @@ class PreviewPlatformBlockerExitTests(unittest.TestCase):
                     "0" * 24,
                     "--report",
                     str(self.base / "report.json"),
+                    "--data-root",
+                    str(self.base),
                 ]
             )
         self.assertEqual(3, status)
@@ -8089,6 +8123,8 @@ class HandoffVerifyTests(unittest.TestCase):
                 str(snapshot_path),
                 "--paths",
                 str(paths_path),
+                "--data-root",
+                temporary,
             ]
             handle, vcs = self.clear_probe_mocks()
             output = io.StringIO()
@@ -8119,6 +8155,8 @@ class HandoffVerifyTests(unittest.TestCase):
             str(Path(temporary) / "snapshot.json"),
             "--paths",
             str(paths_path),
+            "--data-root",
+            temporary,
         ]
         handle, vcs = self.clear_probe_mocks()
         output = io.StringIO()
@@ -8135,6 +8173,8 @@ class HandoffVerifyTests(unittest.TestCase):
             str(Path(temporary) / "snapshot.json"),
             "--path",
             relative,
+            "--data-root",
+            temporary,
         ]
         handle, vcs = self.clear_probe_mocks()
         output = io.StringIO()
@@ -8175,6 +8215,8 @@ class HandoffVerifyTests(unittest.TestCase):
                                 str(Path(temporary) / "snapshot.json"),
                                 "--path",
                                 relative,
+                                "--data-root",
+                                temporary,
                             ]
                         )
                     self.assertEqual(2, status)
@@ -8185,7 +8227,13 @@ class HandoffVerifyTests(unittest.TestCase):
     def handoff_verify_inline_all(
         self, temporary: str, relatives: list[str]
     ) -> tuple[int, dict[str, Any]]:
-        argv = ["handoff-verify", "--snapshot", str(Path(temporary) / "snapshot.json")]
+        argv = [
+            "handoff-verify",
+            "--snapshot",
+            str(Path(temporary) / "snapshot.json"),
+            "--data-root",
+            temporary,
+        ]
         for relative in relatives:
             argv += ["--path", relative]
         handle, vcs = self.clear_probe_mocks()
@@ -8230,6 +8278,8 @@ class HandoffVerifyTests(unittest.TestCase):
                             "handoff-verify",
                             "--snapshot",
                             str(Path(temporary) / "snapshot.json"),
+                            "--data-root",
+                            temporary,
                         ]
                         for relative in relatives:
                             argv += ["--path", relative]
@@ -9250,6 +9300,27 @@ class GuardTests(unittest.TestCase):
         # into the developer's real plugin data directory.
         self._data_root = cfg / "plugin-data"
         self._authorized_data_root: str | None = None
+        # The guard admits an engine file argument only as an absolute path
+        # inside the authorized data root, so exact engine calls spell these.
+        inputs = self._data_root.resolve() / "runs" / "r"
+        (
+            self.snapshot_arg,
+            self.plan_arg,
+            self.paths_arg,
+            self.evidence_arg,
+            self.output_arg,
+            self.report_arg,
+        ) = (
+            f'"{(inputs / name).as_posix()}"'
+            for name in (
+                "snapshot.json",
+                "plan.json",
+                "paths.json",
+                "evidence.json",
+                "output.json",
+                "report.json",
+            )
+        )
         # Hermetic watchdog deadline for the same reason. The guard's own deny
         # diagnostic tells operators to raise
         # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
@@ -9377,20 +9448,20 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_chained_delete_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         data_root = self.authorize_data_root()
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root}; rm -rf x'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}{data_root}; rm -rf x'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_single_shell_operator_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         data_root = self.authorize_data_root()
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root} | tee report'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}{data_root} | tee report'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_forces_final_prompt_for_exact_engine_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}'
         command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
@@ -9400,7 +9471,7 @@ class GuardTests(unittest.TestCase):
         return (
             f'"{self.python_command()}" "{script}" apply --execute '
             f'--snapshot "{snapshot.as_posix()}" --plan "{plan.as_posix()}" '
-            f'--confirm-tier high --approval-token {"a" * 24} --report r'
+            f'--confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}'
             + self.authorize_data_root()
         )
 
@@ -9410,7 +9481,8 @@ class GuardTests(unittest.TestCase):
         return result["hookSpecificOutput"]["permissionDecisionReason"]
 
     def test_apply_ask_reason_lists_tier_count_and_every_plan_path(self) -> None:
-        base = Path(self._cfg.name).resolve()
+        base = self._data_root.resolve()
+        base.mkdir(parents=True, exist_ok=True)
         paths = ["cache/one.tmp", "build/two", "logs/three.log"]
         plan = base / "plan.json"
         plan.write_text(
@@ -9429,7 +9501,8 @@ class GuardTests(unittest.TestCase):
             self.assertIn(path, reason)
 
     def test_apply_ask_reason_escapes_control_characters_in_plan_strings(self) -> None:
-        base = Path(self._cfg.name).resolve()
+        base = self._data_root.resolve()
+        base.mkdir(parents=True, exist_ok=True)
         plan = base / "plan.json"
         plan.write_text(
             json.dumps(
@@ -9450,7 +9523,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(3, len(reason.splitlines()))
 
     def test_apply_ask_reason_falls_back_when_the_plan_is_unusable(self) -> None:
-        base = Path(self._cfg.name).resolve()
+        base = self._data_root.resolve()
+        base.mkdir(parents=True, exist_ok=True)
         snapshot = base / "snapshot.json"
         snapshot.write_text("{}", encoding="utf-8")
         malformed = base / "malformed.json"
@@ -9461,7 +9535,9 @@ class GuardTests(unittest.TestCase):
         )
         oversized = base / "oversized.json"
         oversized.write_bytes(b" " * (guard._APPLY_PLAN_READ_LIMIT + 1))
-        for plan in (base / "missing.json", malformed, wrong_shape, oversized, base):
+        directory = base / "plan-dir"
+        directory.mkdir()
+        for plan in (base / "missing.json", malformed, wrong_shape, oversized, directory):
             with self.subTest(plan=plan.name):
                 self.assertEqual(
                     guard._APPLY_ASK_GENERIC_REASON,
@@ -9471,7 +9547,8 @@ class GuardTests(unittest.TestCase):
     def test_apply_ask_reason_without_a_snapshot_still_lists_the_plan_paths(
         self,
     ) -> None:
-        base = Path(self._cfg.name).resolve()
+        base = self._data_root.resolve()
+        base.mkdir(parents=True, exist_ok=True)
         plan = base / "plan.json"
         plan.write_text(
             json.dumps({"tier": "low", "candidates": [{"path": "only/one"}]}),
@@ -9484,7 +9561,7 @@ class GuardTests(unittest.TestCase):
 
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}'
         command += self.authorize_data_root()
         result = self.run_guard_disabled(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -9497,8 +9574,8 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         if tail is None:
             tail = (
-                "--execute --snapshot s --path rel/junk --vcs-evidence e "
-                "--report r" + self.authorize_data_root()
+                f"--execute --snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} "
+                f"--report {self.report_arg}" + self.authorize_data_root()
             )
         return f'"{self.python_command()}" "{script}" handoff-apply {tail}'
 
@@ -9510,23 +9587,23 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_every_malformed_handoff_apply(self) -> None:
         data_root = self.authorize_data_root()
-        head = "--execute --snapshot s --path rel/junk"
+        head = f"--execute --snapshot {self.snapshot_arg} --path rel/junk"
         tails = {
-            "no --vcs-evidence": f"{head} --report r{data_root}",
-            "--plan beside --path": f"{head} --vcs-evidence e --report r --plan p{data_root}",
+            "no --vcs-evidence": f"{head} --report {self.report_arg}{data_root}",
+            "--plan beside --path": f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} --plan p{data_root}",
             "--approval-token beside --path": (
-                f"{head} --vcs-evidence e --report r "
+                f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} "
                 f"--approval-token {'a' * 24}{data_root}"
             ),
-            "repeated --path": f"{head} --path rel/other --vcs-evidence e --report r{data_root}",
+            "repeated --path": f"{head} --path rel/other --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}",
             "flag-shaped value": (
-                f"--execute --snapshot s --path -rf --vcs-evidence e --report r{data_root}"
+                f"--execute --snapshot {self.snapshot_arg} --path -rf --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
             ),
-            "no --data-root": f"{head} --vcs-evidence e --report r",
+            "no --data-root": f"{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg}",
             "unauthorized --data-root": (
-                f'{head} --vcs-evidence e --report r --data-root "/somewhere/else"'
+                f'{head} --vcs-evidence {self.evidence_arg} --report {self.report_arg} --data-root "/somewhere/else"'
             ),
-            "no --execute": f"--snapshot s --path rel/junk --vcs-evidence e --report r{data_root}",
+            "no --execute": f"--snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}",
         }
         for label, tail in tails.items():
             with self.subTest(label):
@@ -9559,19 +9636,23 @@ class GuardTests(unittest.TestCase):
         data_root = self.authorize_data_root()
         cases = {
             "apply": (
-                f"apply --execute --snapshot s --plan p --confirm-tier high "
-                f"--approval-token {'a' * 24} --report r",
+                f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high "
+                f"--approval-token {'a' * 24} --report {self.report_arg}",
                 "ask",
                 "deny",
             ),
-            "preview": ("preview --snapshot s --plan p", "allow", "allow"),
+            "preview": (
+                f"preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}",
+                "allow",
+                "allow",
+            ),
             "handoff-verify --path": (
-                "handoff-verify --snapshot s --path rel/junk --vcs-evidence e",
+                f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg}",
                 "allow",
                 "allow",
             ),
             "handoff-verify --paths": (
-                "handoff-verify --snapshot s --paths p.json",
+                f"handoff-verify --snapshot {self.snapshot_arg} --paths {self.paths_arg}",
                 "allow",
                 "allow",
             ),
@@ -9585,7 +9666,7 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual(when_disabled, disabled["permissionDecision"])
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
-        command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} --confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}'
         command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -9594,7 +9675,7 @@ class GuardTests(unittest.TestCase):
         self,
     ) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'python "{script}" scan --target t --output s'
+        command = f'python "{script}" scan --target t --output {self.output_arg}'
         command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -9644,7 +9725,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output snapshot.json'
+        template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output {self.output_arg}'
         template += self.authorize_data_root()
         # Control: a clean payload is admitted, so each denial below is its own.
         self.assertEqual(
@@ -9689,10 +9770,10 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_allows_only_exact_read_only_engine_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        scan = f'"{self.python_command()}" "{script}" scan --target t --output s'
-        preview = f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+        scan = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
+        preview = f'"{self.python_command()}" "{script}" preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}'
         malformed = (
-            f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
+            f'"{self.python_command()}" "{script}" preview --plan {self.plan_arg} --snapshot {self.snapshot_arg}'
         )
         data_root = self.authorize_data_root()
         scan, preview, malformed = (c + data_root for c in (scan, preview, malformed))
@@ -9713,7 +9794,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         command = (
             f'"{self.python_command()}" "{script}" handoff-verify '
-            "--snapshot s --paths p"
+            f"--snapshot {self.snapshot_arg} --paths {self.paths_arg}"
         )
         command += self.authorize_data_root()
         self.assertEqual(
@@ -9725,7 +9806,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         command = (
             f'"{self.python_command()}" "{script}" handoff-verify '
-            "--snapshot s --paths p --vcs-evidence e"
+            f"--snapshot {self.snapshot_arg} --paths {self.paths_arg} --vcs-evidence {self.evidence_arg}"
         )
         command += self.authorize_data_root()
         self.assertEqual(
@@ -9739,7 +9820,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         command = (
             f'"{self.python_command()}" "{script}" handoff-verify '
-            "--snapshot s --paths p"
+            f"--snapshot {self.snapshot_arg} --paths {self.paths_arg}"
         )
         command += self.authorize_data_root()
         self.assertEqual(
@@ -9756,15 +9837,15 @@ class GuardTests(unittest.TestCase):
         # Control: the well-formed shape is admitted, so each denial is its own.
         self.assertEqual(
             "allow",
-            self.run_guard(f"{prefix} --snapshot s --paths p{data_root}")[
+            self.run_guard(f"{prefix} --snapshot {self.snapshot_arg} --paths {self.paths_arg}{data_root}")[
                 "hookSpecificOutput"
             ]["permissionDecision"],
         )
         commands = [
-            f"{prefix} --paths p --snapshot s{data_root}",  # wrong flag order
-            f"{prefix} --snapshot s{data_root}",  # missing --paths
-            f"{prefix} --snapshot s --paths p --report r{data_root}",  # undeclared
-            f"{prefix} --snapshot s --paths p extra{data_root}",  # trailing token
+            f"{prefix} --paths {self.paths_arg} --snapshot {self.snapshot_arg}{data_root}",  # wrong flag order
+            f"{prefix} --snapshot {self.snapshot_arg}{data_root}",  # missing --paths
+            f"{prefix} --snapshot {self.snapshot_arg} --paths {self.paths_arg} --report {self.report_arg}{data_root}",  # undeclared
+            f"{prefix} --snapshot {self.snapshot_arg} --paths {self.paths_arg} extra{data_root}",  # trailing token
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -9781,15 +9862,15 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         data_root = self.authorize_data_root()
-        verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot s'
+        verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot {self.snapshot_arg}'
         apply = (
-            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot s'
+            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg}'
         )
-        apply_tail = f" --vcs-evidence e --report r{data_root}"
+        apply_tail = f" --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
         malformed = {
             "no value": f"{verify} --path{data_root}",
             "joined value": f"{verify} --path=rel/junk{data_root}",
-            "beside --paths": f"{verify} --path rel/junk --paths p.json{data_root}",
+            "beside --paths": f"{verify} --path rel/junk --paths {self.paths_arg}{data_root}",
             "empty quoted value": f'{verify} --path ""{data_root}',
             "flag-shaped value": f"{verify} --path -rf{data_root}",
             "variable expansion": f"{verify} --path $HOME/x{data_root}",
@@ -9846,7 +9927,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         base += self.authorize_data_root()
         allowed = (
             f"{base} --policy p",
@@ -9934,11 +10015,12 @@ class GuardTests(unittest.TestCase):
             (self._data_root if data_root is None else data_root).resolve().as_posix()
         )
         if subcommand == "scan":
-            tail = "scan --target t --output s"
+            tail = f'scan --target t --output "{root}/o.json"'
         else:
             tail = (
-                "apply --execute --snapshot s --plan p --confirm-tier high "
-                f"--approval-token {'a' * 24} --report r"
+                f'apply --execute --snapshot "{root}/s.json" --plan "{root}/p.json" '
+                f"--confirm-tier high --approval-token {'a' * 24} "
+                f'--report "{root}/r.json"'
             )
         return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
 
@@ -10031,7 +10113,7 @@ class GuardTests(unittest.TestCase):
         root = self._data_root.resolve().as_posix()
         command = (
             f'"{self.python_command()}" "{script}" handoff-apply --execute '
-            "--snapshot s --path rel/junk --vcs-evidence e --report r "
+            f"--snapshot {self.snapshot_arg} --path rel/junk --vcs-evidence {self.evidence_arg} --report {self.report_arg} "
             f'--data-root "{root}"'
         )
         for enabled, verdict, rule in (
@@ -10491,7 +10573,7 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("need not have been invoked", belt)
 
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
-        command = f'python "{script}" scan --target t --output s'
+        command = f'python "{script}" scan --target t --output {self.output_arg}'
         belt_result = self.run_guard(command)
         gated_result = self.run_guard_engine_gate(command)
         assert gated_result is not None
@@ -10541,8 +10623,8 @@ class GuardTests(unittest.TestCase):
     def test_engine_mismatch_reason_names_each_early_stage(self) -> None:
         script = guard._display_path(guard._engine_script_path())
         python = self.python_command()
-        root = "/data/root"
-        tail = f'scan --target t --output s --data-root "{root}"'
+        root = Path("/data/root").resolve().as_posix()
+        tail = f'scan --target t --output "{root}/o.json" --data-root "{root}"'
         cases = {
             "wrong interpreter": (
                 f'"/usr/bin/other" "{script}" {tail}',
@@ -10554,11 +10636,11 @@ class GuardTests(unittest.TestCase):
                 "bogus",
             ),
             "missing data-root": (
-                f'"{python}" "{script}" scan --target t --output s',
+                f'"{python}" "{script}" scan --target t --output "{root}/o.json"',
                 "--data-root is missing",
             ),
             "unauthorized data-root": (
-                f'"{python}" "{script}" scan --target t --output s '
+                f'"{python}" "{script}" scan --target t --output "{root}/o.json" '
                 "--data-root /elsewhere",
                 "/elsewhere",
             ),
@@ -10591,7 +10673,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_mismatch_reason_names_only_the_operator_present(self) -> None:
         script = guard._display_path(guard._engine_script_path())
         python = self.python_command()
-        head = f'"{python}" "{script}" scan --target t --output s --data-root /d'
+        head = f'"{python}" "{script}" scan --target t --output {self.output_arg} --data-root /d'
         cases = {
             "pipe": (f"{head} | tail", "a pipe"),
             "redirect": (f"{head} > out", "a redirect"),
@@ -10654,7 +10736,7 @@ class GuardTests(unittest.TestCase):
 
     def test_quoted_braces_keep_engine_relevance_on_both_surfaces(self) -> None:
         script = guard._display_path(guard._engine_script_path())
-        command = f"python3 \"{script}\" scan --target '{{g}}' --output s"
+        command = f"python3 \"{script}\" scan --target '{{g}}' --output {self.output_arg}"
         self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
         self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
         self.assertFalse(guard._engine_gate_relevant("ls '{g}'", "Bash"))
@@ -11988,7 +12070,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_gates_engine_invocations(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         powershell = self.run_guard_engine_gate(
-            f'& python "{script}" scan --target t --output s', "PowerShell"
+            f'& python "{script}" scan --target t --output {self.output_arg}', "PowerShell"
         )
         assert powershell is not None
         self.assertEqual("deny", powershell["hookSpecificOutput"]["permissionDecision"])
@@ -12006,7 +12088,7 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_engine_gate(
-            f'python3 "{script}" scan --target t --output s', "Bash", enabled=False
+            f'python3 "{script}" scan --target t --output {self.output_arg}', "Bash", enabled=False
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -12024,7 +12106,7 @@ class GuardTests(unittest.TestCase):
             # Windows 8.3 short names as a shell-expansion character.
             other = str(Path(temporary).resolve() / "elsewhere")
             env_root = str(Path(temporary).resolve() / "from-env")
-            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
             authorized = self.authorize_data_root()
             self.assertEqual(
                 "allow",
@@ -12054,7 +12136,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         with tempfile.TemporaryDirectory() as temporary:
             command = (
-                f'"{self.python_command()}" "{script}" scan --target t --output s '
+                f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg} '
                 f'--data-root "{Path(temporary).resolve()}"'
             )
             environment = {
@@ -12108,7 +12190,7 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
-            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            base = f'"{self.python_command()}" "{script}" scan --target t --output "{authorized}/o.json"'
             self.assertEqual(
                 "allow",
                 self.run_guard_hook_argv(
@@ -12129,7 +12211,10 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
-            base = f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+            base = (
+                f'"{self.python_command()}" "{script}" preview '
+                f'--snapshot "{authorized}/s.json" --plan "{authorized}/p.json"'
+            )
             self.assertEqual(
                 "allow",
                 self.run_guard_hook_argv(
@@ -12151,8 +12236,10 @@ class GuardTests(unittest.TestCase):
             authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
             base = (
-                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-                f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+                f'"{self.python_command()}" "{script}" apply --execute '
+                f'--snapshot "{authorized}/s.json" --plan "{authorized}/p.json" '
+                f"--confirm-tier high --approval-token {'a' * 24} "
+                f'--report "{authorized}/r.json"'
             )
             self.assertEqual(
                 "ask",
@@ -12171,7 +12258,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         with tempfile.TemporaryDirectory() as temporary:
             target = str(Path(temporary).resolve())
-            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            base = f'"{self.python_command()}" "{script}" scan --target t --output "{target}/o.json"'
             result = self.run_guard_hook_argv(f'{base} --data-root "{target}"', None)
             self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
             self.assertIn(
@@ -12215,7 +12302,7 @@ class GuardTests(unittest.TestCase):
             plugin_root.mkdir(parents=True)
             authorized = str(plugins / "data" / "disk-hygiene-acme")
             other = str(plugins / "data" / "elsewhere")
-            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            base = f'"{self.python_command()}" "{script}" scan --target t --output "{authorized}/o.json"'
             self.assertEqual(
                 "allow",
                 self.run_guard_plugin_root(
@@ -12878,7 +12965,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         base += self.authorize_data_root()
         self.assertEqual(
             "allow",
@@ -12897,7 +12984,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         base += self.authorize_data_root()
         allowed = (
             f"{base} --confirmed-large-scan",
@@ -12931,7 +13018,7 @@ class GuardTests(unittest.TestCase):
         and still fails closed.
         """
         script = SCRIPT_DIR / "hygiene.py"
-        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         base += self.authorize_data_root()
         allowed = (
             f"{base} --quiet",
@@ -12961,7 +13048,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_scan_accepts_root_children_selection_flags(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         base += self.authorize_data_root()
         allowed = (
             f"{base} --root-children",
@@ -12996,7 +13083,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = (
-            f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+            f'"{self.python_command()}" "{script}" preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}'
             f"{self.authorize_data_root()}"
         )
         self.assertEqual(
@@ -13007,8 +13094,8 @@ class GuardTests(unittest.TestCase):
     def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = (
-            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} '
+            f"--plan {self.plan_arg} --confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
             f"{self.authorize_data_root()}"
         )
         self.assertEqual(
@@ -13019,7 +13106,7 @@ class GuardTests(unittest.TestCase):
     def test_powershell_engine_invocation_is_denied(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_powershell(
-            f'& "{self.python_command()}" "{script}" scan --target t --output s'
+            f'& "{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -13160,8 +13247,8 @@ class GuardTests(unittest.TestCase):
     def test_powershell_engine_invocation_still_denied_after_narrowing(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         for command in (
-            f'python3 "{script}" scan --target t --output s',
-            f'& python "{script}" scan --target t --output s',
+            f'python3 "{script}" scan --target t --output {self.output_arg}',
+            f'& python "{script}" scan --target t --output {self.output_arg}',
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
@@ -13469,8 +13556,8 @@ class GuardTests(unittest.TestCase):
         assert powershell is not None
         self.assertEqual("deny", powershell["hookSpecificOutput"]["permissionDecision"])
         apply_command = (
-            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} '
+            f"--plan {self.plan_arg} --confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
         apply_command += self.authorize_data_root()
         bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
@@ -13487,8 +13574,8 @@ class GuardTests(unittest.TestCase):
         hardcoded deny — drives the decision."""
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
-            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} '
+            f"--plan {self.plan_arg} --confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
         apply_command += self.authorize_data_root()
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
@@ -13648,8 +13735,8 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
-            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} '
+            f"--plan {self.plan_arg} --confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
         targets = [
             "resolve_mode",
@@ -13683,8 +13770,8 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
-            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot {self.snapshot_arg} '
+            f"--plan {self.plan_arg} --confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
         with mock.patch.object(
             guard,
@@ -15016,15 +15103,19 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ):
             return guard.resolve_disk_hygiene_enabled()
 
+    # ``{root}`` is the data root the command passes, so the file arguments sit
+    # inside it.
     ENGINE_TAILS = {
-        "scan": "scan --target t --output s",
+        "scan": 'scan --target t --output "{root}/o.json"',
         "inventory": "inventory --target t --deep",
-        "preview": "preview --snapshot s --plan p",
-        "handoff-verify": "handoff-verify --snapshot s --paths q",
-        "catalog": "catalog --snapshot s --run-id run-1",
+        "preview": 'preview --snapshot "{root}/s.json" --plan "{root}/p.json"',
+        "handoff-verify": (
+            'handoff-verify --snapshot "{root}/s.json" --paths "{root}/q.json"'
+        ),
+        "catalog": 'catalog --snapshot "{root}/s.json" --run-id run-1',
         "apply": (
-            "apply --execute --snapshot s --plan p --confirm-tier high "
-            f"--approval-token {'a' * 24} --report r"
+            'apply --execute --snapshot "{root}/s.json" --plan "{root}/p.json" '
+            "--confirm-tier high --approval-token " + "a" * 24 + ' --report "{root}/r.json"'
         ),
     }
 
@@ -15037,9 +15128,8 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
     ) -> str:
         root = self.expected if data_root is None else data_root
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
-        command = (
-            f'"{guard._display_python()}" "{script}" {self.ENGINE_TAILS[subcommand]}'
-        )
+        tail = self.ENGINE_TAILS[subcommand].format(root=root.as_posix())
+        command = f'"{guard._display_python()}" "{script}" {tail}'
         if omit_data_root:
             return command
         return f'{command} --data-root "{root.as_posix()}"'
@@ -15557,6 +15647,8 @@ class EngineGrammarTests(unittest.TestCase):
         """The literal this suite spends for one value-taking flag."""
         if flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT:
             return self.AUTHORITY
+        if flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT_FILE:
+            return f"{self.AUTHORITY}/{flag.dest}.json"
         self.assertIsNotNone(flag.example, flag.name)
         return cast(str, flag.example)
 
@@ -15720,7 +15812,12 @@ class EngineGrammarTests(unittest.TestCase):
                         self.assertEqual(sorted(flag.choices), action.choices)
 
     def _external_checks(self) -> dict[str, object]:
-        return {self.grammar.AUTHORIZED_DATA_ROOT: lambda v: v == self.AUTHORITY}
+        return {
+            self.grammar.AUTHORIZED_DATA_ROOT: lambda v: v == self.AUTHORITY,
+            self.grammar.AUTHORIZED_DATA_ROOT_FILE: (
+                lambda v: v.startswith(f"{self.AUTHORITY}/")
+            ),
+        }
 
     def assert_refused(self, name: str, words: list[str], *named: str) -> None:
         checks = self._external_checks()
@@ -15922,20 +16019,32 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertIsNone(self.classify(spec.name, words))
 
     def test_guard_fails_closed_when_an_external_check_has_no_callable(self) -> None:
+        labels = {
+            flag.external_check
+            for spec in self.grammar.SUBCOMMANDS
+            for flag in spec.flags
+            if flag.external_check is not None
+        }
         for spec in self.grammar.SUBCOMMANDS:
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [*self.head(spec), *self.chunk(flag)]
+                words = self.words(spec, optionals=False, chosen=flag)
+                if flag.name not in words:
+                    words.extend(self.chunk(flag))
+                admit_all = {label: lambda value: True for label in labels}
+                missing = {
+                    label: check
+                    for label, check in admit_all.items()
+                    if label != flag.external_check
+                }
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertTrue(
-                        self.grammar.match_invocation(
-                            spec.name,
-                            words,
-                            {flag.external_check: lambda value: True},
-                        )
+                        self.grammar.match_invocation(spec.name, words, admit_all)
                     )
-                    self.assertFalse(self.grammar.match_invocation(spec.name, words))
+                    self.assertFalse(
+                        self.grammar.match_invocation(spec.name, words, missing)
+                    )
 
     def test_guard_refuses_an_invocation_without_data_root(self) -> None:
         """The engine parses it; the guard does not, so a missing --data-root
@@ -16084,6 +16193,397 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(extra=extra):
                 self.assertIsNone(self.classify("inventory", [*head, *extra]))
                 self.refuse_parse("inventory", [*head, *extra])
+
+
+class EngineFileArgumentCase(unittest.TestCase):
+    """A temp target, data root and honest snapshot, for the guard and the engine."""
+
+    REFUSAL: str
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name).resolve()
+        self.target = base / "target"
+        self.target.mkdir()
+        self.keep = self.target / "keep.tmp"
+        self.keep.write_text("precious", encoding="utf-8")
+        self.data_root = base / "plugin-data"
+        self.run_dir = self.data_root / "runs" / "r1"
+        self.run_dir.mkdir(parents=True)
+        self.outside = base / "outside"
+        self.outside.mkdir()
+        policy = self.outside / "policy.json"
+        policy.write_text(
+            json.dumps({"version": 1, "additional_protected_path_globs": ["keep.tmp"]}),
+            encoding="utf-8",
+        )
+        self.snapshot = self.run_dir / "snapshot.json"
+        code, payload = self.engine(
+            "scan",
+            "--target",
+            str(self.target),
+            "--output",
+            str(self.snapshot),
+            "--policy",
+            str(policy),
+        )
+        self.assertEqual(0, code, payload)
+        self.plan = {
+            "version": hygiene.SCHEMA_VERSION,
+            "tier": "high",
+            "candidates": [candidate("keep.tmp")],
+        }
+
+    def engine(self, *argv: str) -> tuple[int, dict[str, Any]]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = hygiene.main([*argv, "--data-root", str(self.data_root)])
+        return code, json.loads(output.getvalue())
+
+    def write(self, path: Path, payload: dict[str, Any]) -> Path:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def forged_snapshot(self, path: Path) -> Path:
+        forged = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        forged["policy"]["additional_protected_path_globs"] = []
+        return self.write(path, forged)
+
+    def classify(self, name: str, *words: str) -> str | None:
+        python = guard._display_python()
+        engine = guard._display_path(guard._engine_script_path())
+        tail = " ".join(
+            shlex.quote(word)
+            for word in [name, *words, "--data-root", self.data_root.as_posix()]
+        )
+        return guard.classify_exact_engine_command(
+            f'"{python}" "{engine}" {tail}', str(self.data_root)
+        )
+
+    def assert_refused(self, name: str, *words: str) -> None:
+        """Both the guard and the engine refuse, each checked on its own."""
+        with self.subTest(consumer="guard"):
+            self.assertIsNone(self.classify(name, *words))
+        with self.subTest(consumer="engine"):
+            code, payload = self.engine(name, *words)
+            self.assertEqual(2, code, payload)
+            self.assertIn(self.REFUSAL, payload.get("error", ""))
+
+
+class EngineInputConfinementTests(EngineFileArgumentCase):
+    """--snapshot, --plan, --paths and --vcs-evidence are read only from the data root.
+
+    A snapshot carries the protection globs preview and apply enforce, so one
+    read from anywhere else can drop a protection and still preview clean.
+    """
+
+    INPUT_FLAGS = ("--snapshot", "--plan", "--paths", "--vcs-evidence")
+    REFUSAL = "inputs must be read from inside the data root"
+
+    def test_every_input_flag_names_the_data_root_file_check(self) -> None:
+        grammar = hygiene.engine_grammar
+        seen = set()
+        for spec in grammar.SUBCOMMANDS:
+            for flag in spec.flags:
+                if flag.name in self.INPUT_FLAGS:
+                    seen.add(flag.name)
+                    with self.subTest(subcommand=spec.name, flag=flag.name):
+                        self.assertEqual(
+                            grammar.AUTHORIZED_DATA_ROOT_FILE, flag.external_check
+                        )
+        self.assertEqual(set(self.INPUT_FLAGS), seen)
+
+    def test_forged_snapshot_outside_the_data_root_cannot_drive_apply(self) -> None:
+        forged = self.forged_snapshot(self.outside / "snapshot.json")
+        plan = self.write(self.outside / "plan.json", self.plan)
+        self.assert_refused("preview", "--snapshot", str(forged), "--plan", str(plan))
+        token = hygiene.preview(hygiene.load_json(forged), self.plan)["approval_token"]
+        apply_words = (
+            "--execute",
+            "--snapshot",
+            str(forged),
+            "--plan",
+            str(plan),
+            "--confirm-tier",
+            "high",
+            "--approval-token",
+            token,
+            "--report",
+            str(self.run_dir / "report.json"),
+        )
+        self.assert_refused("apply", *apply_words)
+        self.assertTrue(self.keep.exists())
+
+    def test_escaping_spellings_of_an_input_are_refused(self) -> None:
+        plan = self.write(self.run_dir / "plan.json", self.plan)
+        self.forged_snapshot(self.outside / "snapshot.json")
+        link = self.run_dir / "linked-snapshot.json"
+        link.symlink_to(self.outside / "snapshot.json")
+        dotdot = self.run_dir / ".." / ".." / ".." / "outside" / "snapshot.json"
+        for label, snapshot in (("symlink", link), ("dotdot", dotdot)):
+            with self.subTest(spelling=label):
+                words = ("--snapshot", str(snapshot), "--plan", str(plan))
+                self.assert_refused("preview", *words)
+
+    def test_guard_refuses_a_relative_input_it_cannot_resolve(self) -> None:
+        self.assertIsNone(
+            self.classify("preview", "--snapshot", "snapshot.json", "--plan", "p.json")
+        )
+
+    def test_handoff_inputs_outside_the_data_root_are_refused(self) -> None:
+        paths = self.write(
+            self.outside / "paths.json",
+            {"version": hygiene.SCHEMA_VERSION, "paths": ["keep.tmp"]},
+        )
+        evidence = self.write(self.outside / "vcs-evidence.json", {"version": 1})
+        cases = {
+            "paths": (
+                "handoff-verify",
+                "--snapshot",
+                str(self.snapshot),
+                "--paths",
+                str(paths),
+            ),
+            "vcs-evidence": (
+                "handoff-verify",
+                "--snapshot",
+                str(self.snapshot),
+                "--path",
+                "keep.tmp",
+                "--vcs-evidence",
+                str(evidence),
+            ),
+        }
+        for label, (name, *words) in cases.items():
+            with self.subTest(input=label):
+                self.assert_refused(name, *words)
+        apply_words = (
+            "--execute",
+            "--snapshot",
+            str(self.snapshot),
+            "--path",
+            "keep.tmp",
+            "--vcs-evidence",
+            str(evidence),
+            "--report",
+            str(self.run_dir / "report.json"),
+        )
+        self.assert_refused("handoff-apply", *apply_words)
+        self.assertTrue(self.keep.exists())
+
+    def test_inputs_inside_the_data_root_are_still_admitted(self) -> None:
+        plan = self.write(self.run_dir / "plan.json", self.plan)
+        words = ("--snapshot", str(self.snapshot), "--plan", str(plan))
+        self.assertEqual("preview", self.classify("preview", *words))
+        code, payload = self.engine("preview", *words)
+        self.assertEqual(3, code, payload)
+        self.assertEqual(
+            ["consumer-protected-path"], payload["candidates"][0]["blockers"]
+        )
+
+
+class EngineOwnedStateTests(EngineFileArgumentCase):
+    """--output and --report never land on state the engine and its hooks own.
+
+    The guard allows ``scan`` without a prompt, so an output path that resolves
+    onto the guard decision log would erase the guard's audit trail.
+    """
+
+    OWNED = (
+        "guard-decisions/decisions.jsonl",
+        "guard-decisions/decisions.previous.jsonl",
+        "guard-launch-monitor/session.warned",
+        "inventory/inventory-20260101T000000000000Z.json",
+        "catalog.json",
+        "CATALOG.md",
+    )
+    SENTINEL = "sentinel\n"
+    REFUSAL = "engine-owned state"
+
+    def owned(self, relative: str) -> Path:
+        path = self.data_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.SENTINEL, encoding="utf-8")
+        return path
+
+    def spellings(self, relative: str) -> dict[str, Path]:
+        path = self.owned(relative)
+        link = self.run_dir / f"alias-{path.name}"
+        link.symlink_to(path)
+        return {
+            "direct": path,
+            "dotdot": self.run_dir / ".." / ".." / relative,
+            "symlink": link,
+            "case": self.data_root / relative.upper(),
+        }
+
+    def assert_intact(self, path: Path) -> None:
+        self.assertEqual(self.SENTINEL, path.read_text(encoding="utf-8"))
+
+    def scan_words(self, output: Path) -> tuple[str, ...]:
+        return ("--target", str(self.target), "--output", str(output))
+
+    def test_scan_output_onto_engine_owned_state_is_refused(self) -> None:
+        for relative in self.OWNED:
+            for label, spelled in self.spellings(relative).items():
+                with self.subTest(owned=relative, spelling=label):
+                    self.assert_refused("scan", *self.scan_words(spelled))
+                    self.assert_intact(self.data_root / relative)
+
+    def test_apply_report_onto_the_decision_log_is_refused(self) -> None:
+        (self.target / "junk.tmp").write_text("junk", encoding="utf-8")
+        policy = self.outside / "policy.json"
+        snapshot = self.run_dir / "junk-snapshot.json"
+        code, payload = self.engine(
+            "scan", *self.scan_words(snapshot), "--policy", str(policy)
+        )
+        self.assertEqual(0, code, payload)
+        plan_body = {**self.plan, "candidates": [candidate("junk.tmp")]}
+        plan = self.write(self.run_dir / "junk-plan.json", plan_body)
+        checked = hygiene.preview(hygiene.load_json(snapshot), plan_body)
+        self.assertEqual("ready-for-explicit-approval", checked["status"], checked)
+        for label, report in self.spellings(
+            "guard-decisions/decisions.jsonl"
+        ).items():
+            with self.subTest(spelling=label):
+                self.assert_refused(
+                    "apply",
+                    "--execute",
+                    "--snapshot",
+                    str(snapshot),
+                    "--plan",
+                    str(plan),
+                    "--confirm-tier",
+                    "high",
+                    "--approval-token",
+                    checked["approval_token"],
+                    "--report",
+                    str(report),
+                )
+                self.assert_intact(self.data_root / "guard-decisions/decisions.jsonl")
+                self.assertTrue((self.target / "junk.tmp").exists())
+
+    def test_guard_refuses_a_handoff_report_onto_the_decision_log(self) -> None:
+        evidence = self.write(self.run_dir / "vcs-evidence.json", {"version": 1})
+        for label, report in self.spellings(
+            "guard-decisions/decisions.jsonl"
+        ).items():
+            with self.subTest(spelling=label):
+                self.assertIsNone(
+                    self.classify(
+                        "handoff-apply",
+                        "--execute",
+                        "--snapshot",
+                        str(self.snapshot),
+                        "--path",
+                        "keep.tmp",
+                        "--vcs-evidence",
+                        str(evidence),
+                        "--report",
+                        str(report),
+                    )
+                )
+
+    def test_a_hard_link_to_the_decision_log_is_replaced_not_written_through(
+        self,
+    ) -> None:
+        log = self.owned("guard-decisions/decisions.jsonl")
+        link = self.run_dir / "hard-linked.json"
+        os.link(log, link)
+        words = self.scan_words(link)
+        self.assertEqual("scan", self.classify("scan", *words))
+        code, payload = self.engine("scan", *words)
+        self.assertEqual(0, code, payload)
+        self.assert_intact(log)
+        self.assertEqual(
+            str(self.target), json.loads(link.read_text(encoding="utf-8"))["target"]
+        )
+
+    def test_owned_names_match_the_code_that_writes_them(self) -> None:
+        grammar = hygiene.engine_grammar
+        monitor = load_module("guard_launch_monitor", "guard_launch_monitor.py")
+        log = guard.guard_decision_log
+        self.assertEqual(
+            {log.LOG_DIRNAME, monitor._MARKER_DIRNAME, "inventory"},
+            set(grammar.ENGINE_OWNED_DIRS),
+        )
+        hygiene.DATA_ROOT_OVERRIDE = str(self.data_root)
+        try:
+            catalog = hygiene.catalog_paths()
+        finally:
+            hygiene.DATA_ROOT_OVERRIDE = None
+        self.assertEqual(
+            {path.name.casefold() for path in catalog},
+            set(grammar.ENGINE_OWNED_FILES),
+        )
+
+    def test_outputs_beside_engine_owned_state_are_still_admitted(self) -> None:
+        for relative in ("runs/r1/snapshot.json", "catalog.json.d/x.json"):
+            with self.subTest(output=relative):
+                words = self.scan_words(self.data_root / relative)
+                self.assertEqual("scan", self.classify("scan", *words))
+                code, payload = self.engine("scan", *words)
+                self.assertEqual(0, code, payload)
+
+
+class WindowsEscapingEntryTests(unittest.TestCase):
+    """A snapshot-relative path must not leave the target when joined on Windows."""
+
+    ESCAPING = (
+        "C:/Escaped/victim",
+        "C:\\Escaped\\victim",
+        "C:victim",
+        "\\Escaped\\victim",
+        "//server/share/victim",
+        "\\\\server\\share\\victim",
+        "..\\outside\\victim",
+        "sub\\..\\..\\outside\\victim",
+    )
+
+    @staticmethod
+    def snapshot_with(path: str) -> dict[str, Any]:
+        return {"entries": [{"path": "ok.tmp"}, {"path": path}]}
+
+    def test_escaping_forms_really_leave_a_windows_target(self) -> None:
+        for value in self.ESCAPING:
+            with self.subTest(path=value):
+                joined = ntpath.normpath(
+                    ntpath.join("D:\\target", *PurePosixPath(value).parts)
+                )
+                self.assertFalse(joined.startswith("D:\\target\\"), joined)
+
+    def test_snapshot_entry_that_can_leave_the_target_is_refused_on_windows(
+        self,
+    ) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for value in self.ESCAPING:
+                with self.subTest(path=value):
+                    with self.assertRaisesRegex(hygiene.HygieneError, "leave the target"):
+                        hygiene.entry_map(self.snapshot_with(value))
+            self.assertEqual(
+                {"ok.tmp", "a/b.txt"}, set(hygiene.entry_map(self.snapshot_with("a/b.txt")))
+            )
+
+    def test_vcs_evidence_repository_path_cannot_leave_the_approved_path(
+        self,
+    ) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for value in ("checkout/..\\..\\outside", "checkout/C:\\Escaped", "checkout/\\x"):
+                with self.subTest(path=value):
+                    payload = {
+                        "version": 1,
+                        "repositories": [
+                            {"path": value, "remote": None, "stash_copies": []}
+                        ],
+                    }
+                    with self.assertRaisesRegex(hygiene.HygieneError, "outside approved"):
+                        hygiene.validate_vcs_evidence(payload, ["checkout"])
+
+    def test_the_same_names_stay_legal_on_linux(self) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="linux"):
+            entries = hygiene.entry_map(self.snapshot_with("C:\\Escaped\\victim"))
+        self.assertIn("C:\\Escaped\\victim", entries)
 
 
 class InventoryCommandTests(unittest.TestCase):

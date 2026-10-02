@@ -122,7 +122,7 @@ Explore the following: $ARGUMENTS
 
 ## Final step: persist artifact for handoff
 
-Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md`, a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md`, a memory-tier artifact, never committed. Destination and slug resolve per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)).
 
 This file is the authoritative stage summary, a fresh session must be able to resume external research or planning reading only this artifact.
 

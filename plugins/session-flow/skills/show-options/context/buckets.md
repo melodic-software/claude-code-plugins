@@ -70,8 +70,8 @@ across invocations.
 different filenames or formats would each fail to recover what the other surfaced, and the
 least-recently-surfaced ordering would never advance. So:
 
-- **Path:** `<memory_dir>/show-options/spotlight-ledger.json`, with `<memory_dir>` resolved through
-  the plugin's topic-docs binding (default `.work/`). Not under a topic slug, because rotation is a
+- **Path:** `<memory_dir>/show-options/spotlight-ledger.json`, with `<memory_dir>` the memory root
+  (default `.work/`). Not under a topic slug, because rotation is a
   property of the operator's catalog, not of any one topic, and a per-slug ledger would restart the
   rotation on every new piece of work.
 - **Record shape:** a JSON object mapping a fully-qualified invocation name to the ISO-8601 UTC

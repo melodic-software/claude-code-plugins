@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.3] - 2026-10-01
+## [0.46.5] - 2026-10-01
 
 ### Changed
 
@@ -12,6 +12,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the three advisory verify guards, and the `node` and `jq` prerequisites are each a decision with
   a pointer to the anchored hooks section, an as-of date and a recheck trigger, and none of the
   page's wording is stored. No guard behavior changes.
+
+## [0.46.4] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.46.3] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library, the comments beside each `hook::require_jq` call in the hooks and their tests now say the missing-`jq` notice is once per session and agent, and the `cli-flag-verify.sh` comment says the same of the missing-verifier notice (comment wording only, no behavior change).
 
 ## [0.46.2] - 2026-10-01
 

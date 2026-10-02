@@ -76,9 +76,7 @@ case "$FILE" in
 # were CHANGELOG rename entries, all correct as written, and excluding them moves
 # the guard from 3.4% of files firing at 6% precision to 0.5% firing at 57%.
 #
-# Deliberately narrow. `docs/topics/*/PLAN.md` completion records are arguably the
-# same shape, but two of the four real findings on this corpus live there — a
-# broader "historical by contract" rule would cost half the signal.
+# Deliberately narrow: a broader "historical by contract" rule would cost real signal.
 */CHANGELOG.md | CHANGELOG.md) exit 0 ;;
 *.md) ;;
 *) exit 0 ;;
@@ -120,7 +118,7 @@ shopt -u nullglob
 # Failure semantics are unchanged: a missing jq or an unparsable payload yields
 # rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
 # hook::require_jq above has already made the degraded state visible once per
-# session.
+# session and agent.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' \
   '[(.tool_response | objects | .structuredPatch)[]?.lines[]?

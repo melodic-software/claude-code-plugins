@@ -70,7 +70,7 @@ assert_not_contains() {
 # --- Fixture repository ----------------------------------------------------------
 
 REPO="$TEST_TMPDIR/repo"
-mkdir -p "$REPO"/{docs/topics,plugins/demo/skills/audit/vendor,legacy}
+mkdir -p "$REPO"/{docs/guides,plugins/demo/skills/audit/vendor,legacy}
 mkdir -p "$REPO/plugins/demo/skills/audit/evals/fixtures/golden/case-1"
 
 write_file() {
@@ -80,7 +80,7 @@ write_file() {
 
 write_file "$REPO/README.md" "# Demo repo"
 write_file "$REPO/docs/guide.md" "# Guide"
-write_file "$REPO/docs/topics/notes.md" "# Notes"
+write_file "$REPO/docs/guides/notes.md" "# Notes"
 write_file "$REPO/docs/plain.txt" "not markdown"
 write_file "$REPO/plugins/demo/skills/audit/vendor/upstream.md" "# Vendored upstream page"
 write_file "$REPO/plugins/demo/skills/audit/evals/fixtures/golden/case-1/case.md" "# Planted copy"
@@ -138,7 +138,7 @@ assert_exit "stdout is valid JSON" "$?" "0"
 FILES="$(echo "$OUT" | jq -r '.files[]')"
 assert_contains "tracked markdown at the root is listed" "$FILES" "README.md"
 assert_contains "tracked markdown in a subdirectory is listed" "$FILES" "docs/guide.md"
-assert_contains "tracked markdown nested deeper is listed" "$FILES" "docs/topics/notes.md"
+assert_contains "tracked markdown nested deeper is listed" "$FILES" "docs/guides/notes.md"
 assert_not_contains "untracked markdown is not listed" "$FILES" "docs/untracked.md"
 assert_not_contains "tracked non-markdown is not listed" "$FILES" "docs/plain.txt"
 
@@ -315,12 +315,12 @@ assert_eq "an absolute repo-root target scans the whole repository" \
 # --- --paths-file ----------------------------------------------------------------
 
 PATHS="$TEST_TMPDIR/paths.txt"
-printf '%s\n' "docs/guide.md" "docs/topics/notes.md" >"$PATHS"
+printf '%s\n' "docs/guide.md" "docs/guides/notes.md" >"$PATHS"
 PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_eq "--paths-file lists exactly its entries" \
   "$(echo "$PF_OUT" | jq -r '.files | length')" "2"
 assert_contains "--paths-file keeps the listed file" \
-  "$(echo "$PF_OUT" | jq -r '.files[]')" "docs/topics/notes.md"
+  "$(echo "$PF_OUT" | jq -r '.files[]')" "docs/guides/notes.md"
 
 printf '%s\n' "plugins/demo/skills/audit/vendor/upstream.md" >"$PATHS"
 PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"

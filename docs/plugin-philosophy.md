@@ -48,7 +48,7 @@ publisher a runtime dependency and is not conforming. A third-party documentatio
 dependency, so fetching one does not forfeit the citation. This rule reaches publisher-owned targets
 only. For publisher-owned targets, distinguishing
 an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
-statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case.
+statement does not settle it.
 (`plugin.json` publisher metadata sits outside
 this rule entirely, being neither skill, agent, nor schema content. Identifying the source is what
 the manifest is for.)
@@ -616,7 +616,7 @@ values it cannot reconcile, so an obsolete or renamed key surfaces on re-run ins
 silently inert. Schema evolution is handled this way, without a separate `migrate` verb: a plugin
 that versions its own config contract may carry a forward, directional, user-confirmed upgrade of a
 recognized older version, still under `apply`, never a separate verb and never a silent write (the
-versioned standards index is the fleet example), while a plugin that instead takes topic-docs'
+versioned standards index is the fleet example), while a plugin that instead takes a
 clean-break path relocates by hand with no compatibility tooling. What the clean-break stance rules
 out for either is *silent* backward-compatibility shims and dual-read windows that translate a
 changed shape behind the user's back. The one sanctioned dual-read is the declared, WARN-visible
@@ -802,7 +802,6 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 
 | Shared concern | Owner |
 |---|---|
-| Topic-docs two-tier binding | [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md) |
 | Lifecycle artifact protocol | [`docs/plugin-artifact-protocol.md`](plugin-artifact-protocol.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |

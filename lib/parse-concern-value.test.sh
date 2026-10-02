@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for lib/parse-concern-value.sh — the shared topic-docs
+# Regression tests for lib/parse-concern-value.sh — the shared
 # concern-value parser. Run directly: bash lib/parse-concern-value.test.sh
 set -uo pipefail
 
@@ -37,7 +37,7 @@ assert_contains() {
 # Write a concern file holding a single memory_dir line, then resolve it.
 resolve() {
   local content="$1" key="${2:-memory_dir}" fallback="${3:-}"
-  local f="$TEST_TMPDIR/topic-docs.yaml"
+  local f="$TEST_TMPDIR/concern.yaml"
   printf '%s\n' "$content" >"$f"
   bash "$SCRIPT" "$f" "$key" "$fallback"
 }
@@ -71,7 +71,7 @@ assert_eq 'a nested key never answers for an empty root key' ".notes" \
 assert_eq 'a nested key never answers for an absent root key' ".notes" \
   "$(resolve "$(printf 'other:\n  memory_dir: nested\n')" memory_dir '.notes')"
 assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
-  "$(resolve "$(printf '  other:\n    memory_dir: nested\n  contract_dir: docs/x')" memory_dir '.notes')"
+  "$(resolve "$(printf '  other:\n    memory_dir: nested\n  other_key: docs/x')" memory_dir '.notes')"
 # No preamble at column 0 may fix the base indent and hide an indented root map.
 assert_eq 'a leading document marker does not become the base indent' ".scratch" \
   "$(resolve "$(printf -- '---\nmemory_dir: .scratch')")"

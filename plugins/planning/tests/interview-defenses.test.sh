@@ -496,11 +496,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Parts still never become rows the gate grades, so no binding or gate is loosened. The gate
 # commands name the script through `<plugin-root>`, which SKILL.md defines; the same script
 # runs with the same flags.
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "463d7352c0777ad0cb4c45412b869d5af837315f3234bdbdb37f5703321d899b"
+  "b07d31343c4db43bc0920ea9ed8bc5d772abe55f5b4045e96f652e62535a9b23"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -510,20 +511,21 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
   "fa1bf9aafbcc7b0dc42b9037f620444b68c32424e0a2367ee36d4c7f55e8dd8f"
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "efa803aa7bbeba33e8721614c3f13b3f53ca558888c8fd70375d30c1fb37af12"
+  "770c3afb78e4a79f729750c96994a9ad0221f5ba9f3aab834ba598b5861ae440"
 
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "bc000f8d116bad560c8a74646f7d3736aefa7c42d34a8aa5643c30c5bc58a984"
-# Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
-# outlives the branch goes and touches no assumption or Brief rule. Its prune caveat applies
-# under `contract_tier: branch` only; under `local` nothing is committed, so nothing is pruned.
+  "fbd046e02043ddf57ccfbc94cf30fc44e3c1f0b4e34350a77d7d9a6344ef840a"
+# The "memory slice is not a durable home" paragraph names where content that outlives the
+# branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
 # and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
 # never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
@@ -533,7 +535,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "405223026ec44f285049ee3dabfd653819e84fb66f0e128aec40344b86503a3e"
+  "b37963f4ee52f2f30a01d72f3611403040b4728e05761c74105e2f3d1eea8e28"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -559,11 +561,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # It also says a decision the session records in the ledger is mirrored with the same op as a
 # terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
 # The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "0fbfcb797f606a548d8f46e1c97be4f63fdbeb33f8bfee1dd369f5d71a7ea17c"
+  "e2ece32afb7753c9d4872e412db716db44687abab284e8f2c839e245b70a77cf"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -593,19 +596,20 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "0850ba314fc513e1f8ae0f0e749836f57a287fb0b265b6a8db356e29983714fc"
+  "1e19e48122463549cd40c19f61d1307722112f2bd76e21e43676e62ad52d50d6"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
-# not change which rows relentless mode may close. The Delivery bullet's topic-docs link is
-# relative to the spoke; a link target changes no rule.
+# not change which rows relentless mode may close.
+# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "e1ee1e7b928dab78be7062a0d11866044ddc246dc90dba69c2434bc5166d7ea9"
+  "277ca10af8036021fdfefe8b8df1033e1953807e1d948027adc420dc8feb409c"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
@@ -629,14 +633,14 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned after merge: main case 19 (page-surface) plus cases 20 to 23 (mechanism
 # tripwire, assumption sweep, evidence currency, inherited constraint). Each grades a
 # question, row, or label before the contract locks; none licenses a silent capture or a
-# fudged gap, so none contradicts case 15 or 16. Case 24 (contract slice not offered as a
+# fudged gap, so none contradicts case 15 or 16. Case 24 (memory slice not offered as a
 # durable home) grades where content persists after merge and touches neither defense.
 # Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
 # and the queued-output-first order, and resolves no row the user did not answer.
 # Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "2d0f3698af829c4aba3425a667498f4ca378e82f40df26e1c048c8941342ace6"
+  "3914f7edcd0ff6ec266d44c1b3d11a199d1f8e9afb508a082d8782a8f734c22f"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

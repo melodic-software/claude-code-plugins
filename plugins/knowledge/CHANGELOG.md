@@ -39,6 +39,12 @@ only after that version increases.
   page note a recheck trigger. The project-root rule and the Codex sandbox note state the
   mechanism without a past-run anecdote.
 
+## [0.14.15] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.14.14] - 2026-10-01
 
 ### Changed

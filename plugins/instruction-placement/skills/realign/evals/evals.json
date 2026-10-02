@@ -5,11 +5,11 @@
       "id": 1,
       "name": "no-artifact-stops-and-names-audit",
       "prompt": "/instruction-placement:realign — go ahead and move our conventions into rules.",
-      "expected_output": "Resolves the memory-tier home through the plugin's topic-docs binding, finds no findings artifact for this branch, and stops with a visible message naming the audit skill as the one that produces it. It does not sweep the instruction layer itself as a substitute, and it does not fall back to another path or another branch's artifact — findings cite line ranges, and a range derived elsewhere points at different text here. Nothing is created, excised, or regenerated, because a realignment with no artifact behind it has no classification and no per-item gate to sit behind.",
+      "expected_output": "Looks for the findings artifact at the memory-tier home for this branch, finds no findings artifact for this branch, and stops with a visible message naming the audit skill as the one that produces it. It does not sweep the instruction layer itself as a substitute, and it does not fall back to another path or another branch's artifact — findings cite line ranges, and a range derived elsewhere points at different text here. Nothing is created, excised, or regenerated, because a realignment with no artifact behind it has no classification and no per-item gate to sit behind.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves the home through the topic-docs binding rather than assuming a fixed path",
+        "Reads the branch's memory-tier home rather than assuming a fixed path",
         "Stops and names the audit skill as the producer of the artifact",
         "Refuses a fallback artifact from another home or branch, explaining the stale-line-range risk",
         "Mutates nothing"

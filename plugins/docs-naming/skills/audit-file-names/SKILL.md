@@ -41,8 +41,7 @@ acceptance at a time.
 | Read | For |
 |---|---|
 | [`context/tiers.md`](context/tiers.md) | the form table to print before any plan, and why a historical tier keeps its links while a released tier is frozen |
-| [`../../context/file-name-findings.md`](../../context/file-name-findings.md) | the artifact's shape, its stable ids, its status arcs, and the re-audit merge |
-| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | where the artifact goes, and the rung order that resolves it |
+| [`../../context/file-name-findings.md`](../../context/file-name-findings.md) | where the artifact goes, its shape, its stable ids, its status arcs, and the re-audit merge |
 | [`../../reference/config.md`](../../reference/config.md) | every configuration key, its default, and which layer may supply it |
 
 ## Facts before judgment
@@ -97,9 +96,8 @@ inventing one.
 
 ## Where the artifact goes
 
-Resolve the home through the plugin's topic-docs binding and write under it.
-Never compose the documented default's shape yourself: a consumer whose memory
-root is configured elsewhere gets a plan the realign never finds, and that
+Write under the home `../../context/file-name-findings.md` "Where it lives"
+defines. A plan written anywhere else is one the realign never finds, and that
 failure reads exactly like "no audit has been run".
 
 If a plan already exists at the resolved home, the emitter merges into it by

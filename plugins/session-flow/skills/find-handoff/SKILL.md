@@ -99,8 +99,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 ## The recovery ladder. Read-only throughout
 
 1. **Known-location glob first (no transcript needed).** Resolve `<memory_dir>/handoffs/` for the
-   **current repo** through the plugin binding
-   ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
+   **current repo**,
    never the literal `.work`. Read
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
    the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the

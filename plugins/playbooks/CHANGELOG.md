@@ -60,6 +60,15 @@ only after that version increases.
   the upstream checklist by pointer, and renames its groups (frontmatter and body, scripts, evals
   and testing); its eval follows the new names.
 
+## [0.16.1] - 2026-10-01
+
+### Changed
+
+- The `boris` skill's Effort and xhigh rows, tips 67 and 79, and the `foundations`
+  model-selection note point at the current model config docs instead of naming a default or a
+  model. The CLAUDE.md quick-reference row and the `foundations` CLAUDE.md section say to prune as
+  you add, pointing at the memory docs.
+
 ## [0.16.0] - 2026-10-01
 
 ### Added

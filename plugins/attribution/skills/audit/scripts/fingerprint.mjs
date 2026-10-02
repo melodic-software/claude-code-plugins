@@ -16,8 +16,6 @@
 //      containment dilutes a real 27-word match to noise on a real-sized file,
 //      so the separation rule fires on either measure and the spans are what
 //      the fix step edits against.
-//
-// Contract: docs/specs/provenance-type-inventory.md.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7] - 2026-10-01
+
+### Changed
+
+- **The setup skill describes the missing-`jq` notice, and the `powershell-format.sh` comment the trust-gate notice, as once per session and agent.** Each notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
+
 ## [0.9.6] - 2026-10-01
 
 ### Changed

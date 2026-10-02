@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.3] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.25.2] - 2026-10-01
+
+### Changed
+
+- **The `lane-stop-gate.sh` comments describe the missing-`jq`, stale-arm and untrusted-enable notices as once per session and agent.** Each notice is shown once per session and agent and renewed every eighth skip; the comments said once per session. Shared `hooks/hook-utils.sh` resynced (comment wording only, no behavior change).
+
 ## [0.25.1] - 2026-10-01
 
 ### Changed

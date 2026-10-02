@@ -31,8 +31,8 @@ inventory.
   line renders as, a scope that did not arrive in this prompt is a missing scope, not an empty one.
   What is and is not documented about that path:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-- **The memory-slice path** to write into (`<memory_dir>/<slug>/`, resolved by the parent against
-  the consuming repo's topic-docs binding).
+- **The memory-slice path** to write into (`<memory_dir>/<slug>/`, resolved by the parent per
+  the lifecycle artifact protocol).
 - **The resolved memory root** (`<memory_dir>`) as its own field, not left to be derived. The slice
   path is sometimes nested: a sub-slice written because the slice root was already occupied. When it
   is, you cannot tell from the path alone which ancestor is the configured root, and the root is
@@ -137,7 +137,7 @@ in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/
 ("Credentials stay unread, stated once"). Read it there rather than a restatement here.
 
 **Your write destinations are the plugin's single write boundary, stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("The write boundary, stated once"): the artifact files inside the memory-slice path named in your
 dispatch prompt, `scratch-`-prefixed working files inside that same slice, and the memory root's
 self-ignoring `.gitignore` guard when it is absent.** Read that table rather than a restatement of
@@ -348,8 +348,8 @@ only, never about whether anything was written.
   same gate against disk; nothing you return is accepted in place of that gate passing.
 
   Rationale for the mode, and the boundary it sits on:
-  [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
-  ("The contract's by-value boundary is the checkout, not the process").
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+  ("Persistence by value").
 
 **`verification: pending` is non-negotiable.** The parent dispatches the verifier as your sibling.
 
