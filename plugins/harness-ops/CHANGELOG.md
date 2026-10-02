@@ -3,6 +3,33 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.3] - 2026-10-02
+
+### Changed
+
+- `lanes`' example config runs the `babysit` merge lane on `opus`, the strong-tier orchestrator
+  root `docs/conventions/loop-lane/README.md` sets, instead of `sonnet`. The launcher tests assert
+  the new root.
+
+## [2.4.2] - 2026-10-02
+
+### Fixed
+
+- `audit-performance` limits the truthiness trap to the observer-agents flag and dates the
+  documented subagent defaults. `lanes` dates the effort row and points at upstream for what
+  `ultracode` does to the effort level.
+
+## [2.4.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's repair command is valid on Windows. When the reader reports
+  itself broken, `install_command` now takes the platform (default `sys.platform`) and on `win32`
+  prints a Windows PowerShell 5.1 line (`$ErrorActionPreference = 'Stop'`, `Remove-Item`,
+  `New-Item`, `Copy-Item`, `npm.cmd ci --prefix`, `;` chaining, single quotes doubled) instead of the
+  POSIX `rm -rf ... && mkdir -p ... && cp ...` line. The POSIX form is unchanged elsewhere, and
+  the node-missing report still prints no command.
+
 ## [2.4.0] - 2026-10-02
 
 ### Added

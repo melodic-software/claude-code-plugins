@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.17.2] - 2026-10-02
+## [0.17.3] - 2026-10-02
 
 ### Changed
 
@@ -18,6 +18,17 @@ only after that version increases.
   cases), to re-run the evals when a skill's description or body changes, and to keep everything a
   `claude plugin eval` case depends on in the hub `SKILL.md`, with a pointer to the evals plugin's
   record.
+
+## [0.17.2] - 2026-10-02
+
+### Fixed
+
+- `boris` marks the Fable 5, Opus 5 and Opus 4.5 tips as historical and points at the
+  live models overview, cost guidance, workflows and sub-agents pages, each with an as-of date
+  and recheck trigger, in place of copied counts, prices, defaults and option lists. Boris's
+  attributed tips are kept.
+- `skill-authoring` points at the skills page for the `CLAUDE_EFFORT` values instead of
+  listing them.
 
 ## [0.17.1] - 2026-10-01
 

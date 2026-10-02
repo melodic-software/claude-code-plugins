@@ -18,13 +18,7 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 
 ## Pre-launch availability gate
 
-The Workflow tool is org-disableable and not present in every session, and a failed launch is silent, not throwable, so decide availability BEFORE attempting. Any failure → main-thread fallback:
-
-| Check | Unavailable when |
-|---|---|
-| `CLAUDE_CODE_DISABLE_WORKFLOWS` env | set to `1` |
-| merged settings `disableWorkflows` | `true` |
-| Workflow tool absent from this session's toolset | not listed / not loadable |
+The Workflow tool is not present in every session: a user or organization can turn workflows off, and on some plans they stay off until the user turns them on. Decide availability BEFORE attempting a launch. The check is whether the Workflow tool is in this session's toolset (listed or loadable); when it is absent → main-thread fallback. For the switches that turn workflows off, see [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (as of 2026-10-02; recheck when those switches are renamed).
 
 If availability cannot be positively confirmed, fall back (fail-safe, not fail-open).
 
@@ -158,7 +152,7 @@ return {
 
 ## Coverage-parity fallback (Workflows unavailable)
 
-Spawn the SAME roster on the main thread via parallel Agent-tool calls (the main thread CAN spawn agents), using the same resolved review diff base, then run Stages 0–4 main-thread. Coverage and the findings contract are identical; what is lost: background execution, out-of-context intermediates, resume caching, and higher concurrency. If the caller depends on a dropped property, STOP and surface it rather than silently downgrading.
+Spawn the SAME roster on the main thread via parallel Agent-tool calls (the main thread CAN spawn agents), using the same resolved review diff base, then run Stages 0–4 main-thread. Coverage and the findings contract are identical; what is lost: background execution, out-of-context intermediates, and resume caching. If the caller depends on a dropped property, STOP and surface it rather than silently downgrading.
 
 ## Degraded notice
 
@@ -166,10 +160,10 @@ When the fallback is taken, prepend a structurally distinct block at the TOP of 
 
 ```text
 > DEGRADED: Workflows unavailable (<signal>); ran N leaves on the main thread; dropped:
-> background-exec / out-of-context-intermediates / resume-caching / high-concurrency.
+> background-exec / out-of-context-intermediates / resume-caching.
 > Findings coverage is full; only the execution properties above are lost.
 ```
 
 ## Interrupted-run handling
 
-If the Workflow is interrupted, relaunch with `Workflow({scriptPath, resumeFromRunId})` within the same session. The unchanged prefix of `agent()` calls returns cached. Across sessions, re-run from scratch. The report is written ONCE, main-thread, after the reduce returns, never partially from inside concurrent leaves.
+If the Workflow is interrupted, ask for a relaunch of the same script. For which agents return saved results, which run again, and when a run can be relaunched from another session, see [Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause) (as of 2026-10-02; recheck when the resume or cross-session rules change). The report is written ONCE, main-thread, after the reduce returns, never partially from inside concurrent leaves.
