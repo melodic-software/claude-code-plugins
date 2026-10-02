@@ -96,6 +96,9 @@ def main(argv=None):
             if payload is None:
                 print(f"FAIL {name}: no fence follows the label")
                 failures += 1
+            elif all(not ln.strip() or ln in ELLIPSIS for ln in payload.split("\n")):
+                print(f"FAIL {name}: fence payload is empty or only truncation marks, not a quote")
+                failures += 1
             elif payload in raw:
                 print(f"EXACT {name}")
             else:

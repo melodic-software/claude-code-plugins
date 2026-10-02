@@ -114,6 +114,25 @@ class TestZeroRows(TempDigest):
         self.assertEqual(proc.stdout, "0 F row(s) checked, 0 failure(s)\n")
 
 
+class TestEmptyPayload(TempDigest):
+    def assert_empty_fails(self, body: str):
+        proc = run(SOURCE, self.digest(f"**F1.** empty\n\n```text\n{body}```\n"))
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(
+            "FAIL digest.md F1 (line 1): fence payload is empty or only truncation marks, not a quote",
+            proc.stdout,
+        )
+
+    def test_immediately_closed_fence_fails(self):
+        self.assert_empty_fails("")
+
+    def test_blank_line_fence_fails(self):
+        self.assert_empty_fails("\n")
+
+    def test_ellipsis_only_fence_fails(self):
+        self.assert_empty_fails("...\n")
+
+
 class TestFenceShape(TempDigest):
     def test_indented_fence_is_no_fence(self):
         text = "**F1.** indented\n\n    ```text\n    North\n    ```\n"

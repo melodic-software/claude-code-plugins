@@ -12,6 +12,9 @@ only after that version increases.
   quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
   truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
   test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
 
 ## [0.15.2] - 2026-10-02
 
