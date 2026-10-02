@@ -65,4 +65,8 @@ assert_output_contains "the checker's own error is shown" "not a skills root"
 printf '#!/usr/bin/env bash\nprintf "\\n1 passed, 0 failed\\n"\n' >"$stub"
 run 2 "a rollup that undercounts the skills on disk exits 2" "$stub"
 
+# shellcheck disable=SC2016  # the stub expands its own environment
+printf '#!/usr/bin/env bash\n[[ "${CHECK_SKILL_ONLY:-}" == 25 ]] || exit 2\nprintf "\\n2 passed, 0 failed\\n"\n' >"$stub"
+run 0 "the checker runs with CHECK_SKILL_ONLY=25" "$stub"
+
 test_harness::report

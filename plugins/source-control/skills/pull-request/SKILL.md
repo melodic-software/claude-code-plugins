@@ -263,9 +263,13 @@ is the native route, never `/commit-push-pr`. Prefer
 this skill whenever the repository declares a PR convention or the work continues into ready,
 monitor, or merge.
 
-**Offer `/autofix-pr` at monitor entry.** Offer it to the person: "you can run `/autofix-pr`
-instead of or alongside this monitor loop". It fits a PR the person wants watched after this
-session ends. An unattended run records the offer in its output instead of asking.
+**Choose who watches the PR.** At the end of `ready`, and at `monitor` entry when no choice was
+made, pick between this skill's monitor, a background agent, `/background`, `/autofix-pr` and the
+babysit loop by whether the person is staying and whether the machine stays on, after reading the
+plan's rate-limit windows: a window at the pause threshold starts nothing. For a route only
+the person can start, print it ready to run; `/autofix-pr` gets a filled-in prompt carrying this
+skill's review discipline. The matrix and the prompt:
+[reference/watch-handoff.md](reference/watch-handoff.md).
 
 **Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes
 fixes to the PR branch from a cloud session. This skill never chains into any of them on its own

@@ -3622,6 +3622,36 @@ else
   fail "scoped does-not-modify should not warn (rc=$rc): $out"
 fi
 
+# 25m. CHECK_SKILL_ONLY=25 runs check 25 alone: the same mismatch FAILs, and no
+#      other check speaks (check 2's length note is absent).
+out="$(CHECK_SKILL_ONLY=25 run audit 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out" &&
+  grep -q '^CHECK-SKILL audit: FAIL — 1 error(s), 0 warning(s)$' <<<"$out" &&
+  ! grep -q 'description length' <<<"$out"; then
+  pass "CHECK_SKILL_ONLY=25 fails a check-25 mismatch and runs nothing else"
+else
+  fail "CHECK_SKILL_ONLY=25 on a mismatch should fail on check 25 alone (rc=$rc): $out"
+fi
+
+# 25n. CHECK_SKILL_ONLY=25 skips check 1, so a skill with no frontmatter passes.
+out="$(CHECK_SKILL_ONLY=25 run bad-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '^CHECK-SKILL bad-skill: PASS' <<<"$out"; then
+  pass "CHECK_SKILL_ONLY=25 skips the other checks"
+else
+  fail "CHECK_SKILL_ONLY=25 should skip check 1 (rc=$rc): $out"
+fi
+
+# 25o. Any other CHECK_SKILL_ONLY value is a usage error.
+out="$(CHECK_SKILL_ONLY=7 run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'CHECK_SKILL_ONLY=7 is not supported' <<<"$out"; then
+  pass "an unsupported CHECK_SKILL_ONLY value exits 2"
+else
+  fail "CHECK_SKILL_ONLY=7 should exit 2 (rc=$rc): $out"
+fi
+
 # 26a. A reference spoke over 300 lines with no table of contents in its first
 #      40 lines WARNs (advisory: the run still passes). 301 lines is the first
 #      count over the threshold.
