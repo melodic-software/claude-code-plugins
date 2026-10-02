@@ -255,6 +255,49 @@ test('internal and private addresses are never read, from seeds or from searcher
   assert.ok(reads.length > 0)
 })
 
+test('URLs a parser could read as an internal host are refused', async () => {
+  const tricky = ['http://example.com@169.254.169.254/latest', 'http://a@127.0.0.1/', 'http://2852039166/',
+    'http://169.254.43518/', 'http://0xa9.0xfe.0xa9.0xfe/', 'http://0177.0.0.1/', 'http://127.1/',
+    'http://example.com%40169.254.169.254/', 'http://example.com\\@169.254.169.254/', 'http://LOCALHOST./x',
+    'http://a.0x7f/', 'http://224.0.0.1/', 'ftp://example.com/x']
+  const reply = (p, o, d) => (o.label === 'search:1' ? { sources: tricky.map(url => ({ url, tier: 0 })) } : d(p, o))
+  const { calls } = await run({ question: 'q', sources: tricky }, { reply })
+  const reads = by(calls, 'read:').map(c => sourceUrl(c.prompt))
+  for (const u of tricky) assert.ok(!reads.includes(u), u)
+})
+
+test('public hosts and public dotted-quad addresses are accepted', async () => {
+  const ok = ['https://docs.example.com/a?b=1#c', 'https://8.8.8.8/x', 'http://example.org:8080/']
+  const { calls } = await run({ question: 'q', sources: ok })
+  const reads = by(calls, 'read:').map(c => sourceUrl(c.prompt))
+  for (const u of ok) assert.ok(reads.includes(u), u)
+})
+
+test('each finding carries fetch entries keyed to its claim', async () => {
+  const reply = (p, o, d) => (o.label === 'synthesize'
+    ? { summary: 's', dissent: [], findings: [{ id: 'c1', claim: 'A', confidence: 'HIGH', applies_to: 'x', inference: 'i', sources: [{ url: 'https://docs.example/1' }, { url: 'https://never.example/z' }] }] }
+    : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  const f = result.findings.find(x => x.id === 'c1')
+  assert.equal(f.fetches.length, 2)
+  assert.deepEqual(f.fetches[0], { claim: 'c1', url: 'https://docs.example/1', fetched: true, tool: 'WebFetch', outcome: 'ok' })
+  assert.equal(f.fetches[1].fetched, false)
+  assert.equal(f.fetches[1].outcome, 'not fetched by this run')
+})
+
+test('what each source measured reaches consolidation and synthesis', async () => {
+  const reply = (p, o, d) => {
+    if (o.label.startsWith('read:')) {
+      const r = d(p, o)
+      return { ...r, claims: r.claims.map(c => ({ ...c, measures: 'p95 latency, 2026 release' })) }
+    }
+    return d(p, o)
+  }
+  const { calls } = await run({ question: 'q' }, { reply })
+  assert.ok(one(calls, 'consolidate').prompt.includes('p95 latency, 2026 release'))
+  assert.ok(one(calls, 'synthesize').prompt.includes('p95 latency, 2026 release'))
+})
+
 test('skeptics see only cited URLs that were actually read', async () => {
   const reply = (p, o, d) => (o.label === 'consolidate'
     ? { claims: [{ claim: 'A', urls: ['https://docs.example/1', 'https://evil.example/steer'], loadBearing: true }] }

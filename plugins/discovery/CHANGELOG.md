@@ -11,21 +11,24 @@
   `args` carry `question` (required; without it the run dispatches nothing), `angles`, `sources`,
   `roles`, `maxConcurrent` (default 4, clamped to 1-16) and `artifactPath`. A claim survives only
   when a majority of its panel upholds it, and a skeptic that errored, returned nothing or could
-  not check counts as unverified, not refuted. The result carries findings with citations, source
-  tier, date and consensus counts, plus dissent, refuted and unverified claims, the critic's gaps,
-  the fetch log, unread sources and every agent that returned nothing. Searchers and readers take
-  the worker role's fan-out variant, skeptics the verifier's, the critic the verifier's single
-  variant and the synthesizer the orchestrator's, from `/multi-agent:route` when the caller passes
+  not check counts as unverified, not refuted. The result carries findings with citations (each
+  source's tier, date and what it measured), consensus counts and fetch entries keyed to the claim,
+  plus dissent, refuted and unverified claims, the critic's gaps, the per-URL fetch log, unread
+  sources and every agent that returned nothing. Searchers and readers take the worker role's
+  fan-out variant, the merging agent the worker's single variant, skeptics the verifier's fan-out
+  variant, the critic the verifier's single variant and the synthesizer the orchestrator's, from `/multi-agent:route` when the caller passes
   them, else from built-in fallbacks (fan-out stages on `opus`; searchers and readers at `low`
   effort, skeptics at `high`; the critic and synthesizer inherit the session model). The workflow
   writes no files. It runs at most 8 angles and 12 seed sources and logs what it drops.
 - **`discovery:sweep-worker` agent**: every research-sweep stage runs as this agent, whose tools
   are WebFetch and WebSearch only, so no stage that reads untrusted pages holds a shell or file
   access. It inherits the model and pins no effort; the workflow passes both from the role map.
-  The workflow reads only public http(s) URLs (no loopback, link-local, private or bare local
-  hosts), lets a claim cite only URLs that were read, and passes page-derived text to later stages
-  as JSON inside a labeled fence that the text cannot close. `agents/tool-honesty.test.sh` exempts it from the echo-back
-  field, since its return is the structure the workflow's schema forces.
+  The workflow reads only http(s) URLs whose host is a public DNS name or a public dotted-quad
+  IPv4 address; userinfo, percent escapes, backslashes, IPv6 literals and other numeric host forms
+  are refused. A claim may cite only URLs that were read, and page-derived text reaches later
+  stages as JSON inside a labeled fence that the text cannot close. `agents/tool-honesty.test.sh`
+  exempts the agent from the echo-back field, since its return is the structure the workflow's
+  schema forces.
 
 ### Changed
 

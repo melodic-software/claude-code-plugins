@@ -43,18 +43,22 @@ const CLAIM_CAP = 15
 const SKEPTICS = 3
 const MAJORITY = Math.floor(SKEPTICS / 2) + 1
 
-// An http(s) URL whose host is not loopback, link-local, private or a bare
-// local name, so no stage is pointed at an internal address.
+// An http(s) URL whose host is a public DNS name or a public dotted-quad IPv4,
+// so no stage is pointed at an internal address. Fail closed on anything a URL
+// parser could read as a different host: userinfo (`@`), a backslash, percent
+// escapes, IPv6 literals, and numeric hosts in any form but four decimal octets.
 function isPublicUrl(u) {
-  const m = typeof u === 'string' && /^https?:\/\/(\[[^\]]*\]|[^\/:?#\s]+)(:\d+)?([\/?#]\S*)?$/i.exec(u)
+  const m = typeof u === 'string' && /^https?:\/\/([A-Za-z0-9.-]+)(:\d{1,5})?([\/?#][^\s\\]*)?$/.exec(u)
   if (!m) return false
-  const host = m[1].toLowerCase()
-  if (host.startsWith('[')) return false
-  if (!host.includes('.') || /(^|\.)(localhost|local|internal)$/.test(host)) return false
-  const ip = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host)
-  if (!ip) return true
-  const [a, b] = [Number(ip[1]), Number(ip[2])]
-  return !(a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+  const host = m[1].toLowerCase().replace(/\.$/, '')
+  const labels = host.split('.')
+  if (labels.length < 2 || labels.some(l => !l)) return false
+  if (/(^|\.)(localhost|local|internal|localdomain|home|lan)$/.test(host)) return false
+  const numeric = l => /^(0x[0-9a-f]*|\d+)$/.test(l)
+  if (!labels.every(numeric)) return !numeric(labels[labels.length - 1])
+  if (labels.length !== 4 || !labels.every(l => /^(0|[1-9]\d{0,2})$/.test(l) && Number(l) <= 255)) return false
+  const [a, b] = labels.map(Number)
+  return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127))
 }
 
@@ -249,7 +253,7 @@ const CITED = {
     role: { type: 'string', enum: ['primary', 'corroborator'] },
     measures: { type: 'string' },
   },
-  required: ['url', 'tier', 'pool', 'published', 'applies_to', 'role'],
+  required: ['url', 'tier', 'pool', 'published', 'applies_to', 'role', 'measures'],
 }
 const SYNTH_SCHEMA = {
   type: 'object',
@@ -366,7 +370,7 @@ let claims = []
 if (readOk.length) {
   const evidence = readOk.map(r => ({
     url: r.url, tier: r.tier, pool: r.pool || 'unknown', published: r.published || 'undated',
-    claims: r.claims.map(c => ({ claim: c.claim, quote: c.quote, qualifiers: c.qualifiers || [] })),
+    claims: r.claims.map(c => ({ claim: c.claim, quote: c.quote, measures: c.measures || 'unstated', applies_to: c.applies_to || 'unstated', qualifiers: c.qualifiers || [] })),
   }))
   const merged = await agentRetry(
     'Stage: consolidate. The data below holds claims extracted from the sources that were read. Merge ' +
@@ -463,7 +467,10 @@ if (survived.length || refuted.length || unverified.length) {
     skepticObjections: t.refutations,
     sources: t.c.urls.map(u => {
       const r = readIndex.get(u)
-      return { url: u, tier: r.tier, pool: r.pool || 'unknown', published: r.published || 'undated', applies_to: r.applies_to || 'unstated' }
+      return {
+        url: u, tier: r.tier, pool: r.pool || 'unknown', published: r.published || 'undated', applies_to: r.applies_to || 'unstated',
+        extracted: r.claims.map(c => ({ claim: c.claim, quote: c.quote, measures: c.measures || 'unstated', applies_to: c.applies_to || 'unstated' })),
+      }
     }),
   }))
   synthesis = await agentRetry(
@@ -472,7 +479,9 @@ if (survived.length || refuted.length || unverified.length) {
     'surviving claim, keyed by its id: the claim as the sources support it, a confidence (HIGH only ' +
     'when at least two independent pools back it with a dated primary), what it applies to, one line ' +
     'of inference on why it follows from its sources jointly, every qualifier, and its sources with ' +
-    'exactly one marked primary. Do not add claims that are not listed. Then list dissent: skeptic ' +
+    'exactly one marked primary. Each source\'s measures comes from what its reader extracted for ' +
+    'that page (the extracted list); write "unstated" when the reader recorded none, never a guess. ' +
+    'Do not add claims that are not listed. Then list dissent: skeptic ' +
     'objections that did not carry, sources that disagree, and the refuted claims. Write a summary of ' +
     'two or three sentences that answers the question from the findings only. Fetch nothing.' +
     TIERS + DATED + fence('question', QUESTION) + fence('survived', brief) +
@@ -486,11 +495,20 @@ if (survived.length || refuted.length || unverified.length) {
 }
 
 // Consensus counts come from the tally, never from the synthesizer, and a
-// finding whose id did not survive is dropped.
+// finding whose id did not survive is dropped. Each finding carries its own
+// fetch entries, keyed to the claim, from this run's fetch log.
 const tallyById = new Map(survived.map(t => [t.c.id, t]))
+const fetchByUrl = new Map(fetchLog.map(f => [f.url, f]))
 const findings = (synthesis && Array.isArray(synthesis.findings) ? synthesis.findings : [])
   .filter(f => f && tallyById.has(f.id))
-  .map(f => ({ ...f, consensus: tallyById.get(f.id).count }))
+  .map(f => ({
+    ...f,
+    consensus: tallyById.get(f.id).count,
+    fetches: (Array.isArray(f.sources) ? f.sources : []).map(s => ({
+      claim: f.id,
+      ...(fetchByUrl.get(s && s.url) || { url: s && s.url, fetched: false, tool: null, outcome: 'not fetched by this run' }),
+    })),
+  }))
 const unsynthesized = survived.filter(t => !findings.some(f => f.id === t.c.id))
 for (const t of unsynthesized) {
   unverified.push({ id: t.c.id, claim: t.c.claim, consensus: t.count, reason: 'survived verification but the synthesizer returned no finding for it' })
