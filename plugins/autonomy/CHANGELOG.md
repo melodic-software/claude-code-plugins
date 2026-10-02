@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+- **Shared `exec-bash.mjs` synced (#5837); no change to this plugin's hooks.**
   It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copy.
 
