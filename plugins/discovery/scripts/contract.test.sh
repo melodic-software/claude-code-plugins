@@ -269,13 +269,18 @@ assert_absent_in 'setup has no step that writes the gate allow rules to user set
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
   'setup apply` (offers|writes)|setup apply.{0,40}allow rules'
-frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
+# The one sanctioned grant is research-deep's launch of this plugin's own
+# workflow by name; it grants no gate script and never bare Workflow.
+frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |
+  grep -vE '/skills/research-deep/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$')"
 if [[ -z "$frontmatter_grants" ]]; then
-  pass 'neither skill declares allowed-tools (the un-run case is stated instead)'
+  pass 'no skill declares allowed-tools beyond the named research-sweep launch (the un-run case is stated instead)'
 else
-  fail 'neither skill declares allowed-tools (the un-run case is stated instead)'
+  fail 'no skill declares allowed-tools beyond the named research-sweep launch (the un-run case is stated instead)'
   printf '%s\n' "$frontmatter_grants" >&2
 fi
+assert_present 'research-deep grants only the named research-sweep workflow' \
+  'skills/research-deep/SKILL.md' '^allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$'
 assert_present 'the un-run case is stated' \
   'reference/parent-contract.md' 'could not run'
 assert_present 'pre-flight probes gate invocability before routing' \
