@@ -17,11 +17,13 @@ All notable changes to the `education` plugin are documented here. Format follow
 ### Changed
 
 - `eli5` diagrams are `flow` and `stack` tables of boxes, replacing hand-written inline SVG.
-- `eli5` delegates to the upstream `eli5` plugin only for a general concept. A module, tradeoff,
-  or incident takes the inline pass, because the upstream skill's page does not pass through the
-  escape helper.
+- `eli5` never delegates to the upstream `eli5` plugin and no longer prints its install recipe: the
+  fetched text and repository text it works from are untrusted, and the upstream page does not
+  pass through the escape helper.
 - A `codebase` lesson's quiz is a question list the learner answers in chat, replacing the spliced
   quiz component. `topic` lessons are unchanged.
+- A `codebase` lesson chunk takes a `code` list; each snippet renders in a block that keeps its
+  line breaks.
 
 ## [0.12.2] - 2026-10-02
 

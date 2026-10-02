@@ -82,13 +82,13 @@ builder and nowhere else. Pass a JSON object on stdin and write stdout to
 
 ```bash
 "<skill-dir>/scripts/build-lesson.mjs" <<'EOF'
-{"concept":"","mission":"","teach":[{"heading":"","paragraphs":[""],"citations":[""],"quiz":[{"question":"","choices":[""]}]}],"practice":[""],"practiceQuiz":[{"question":"","choices":[""]}],"goDeeper":[""],"citations":[""]}
+{"concept":"","mission":"","teach":[{"heading":"","paragraphs":[""],"code":[""],"citations":[""],"quiz":[{"question":"","choices":[""]}]}],"practice":[""],"practiceQuiz":[{"question":"","choices":[""]}],"goDeeper":[""],"citations":[""]}
 EOF
 ```
 
 `concept` is the raw concept name; the builder writes it, escaped, into the
 `<meta name="concept">` tag the slug-collision guard reads. `paragraphs`, `practice`, and
-`goDeeper` take a string or a list of paragraphs. `citations` and `quiz` are optional per chunk;
+`goDeeper` take a string or a list of paragraphs. `code` is a list of snippets, each rendered whole with its line breaks kept. `citations`, `code` and `quiz` are optional per chunk;
 `choices` is optional (omit it for a free-answer question), and a correct answer never goes in
 the JSON: the coach keeps the key and grades in the conversation. The page has no script, so a
 quiz is a question list the learner answers in chat (for example `1B 2A`), and the splice step

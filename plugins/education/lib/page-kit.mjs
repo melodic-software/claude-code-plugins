@@ -47,6 +47,7 @@ body {
 }
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
 code { font-family: var(--mono); }
+code.block { display: block; white-space: pre; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
 .muted { color: var(--muted); }
 table.flow { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0.25rem; margin: 1rem 0 0.5rem; }
 table.flow td { border: 2px solid var(--line); border-radius: 6px; padding: 0.6rem 0.5rem; text-align: center; overflow-wrap: anywhere; }
@@ -105,6 +106,16 @@ export function e(value) {
 export function paragraphs(value) {
   return textList(value)
     .map((item) => `<p>${e(item)}</p>`)
+    .join("\n");
+}
+
+/**
+ * @param {unknown} value a string or a list of strings, each a code snippet
+ * @returns {string}
+ */
+export function codeBlocks(value) {
+  return textList(value)
+    .map((item) => `<p><code class="block">${e(item)}</code></p>`)
     .join("\n");
 }
 

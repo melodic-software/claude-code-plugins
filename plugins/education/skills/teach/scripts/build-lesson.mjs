@@ -7,7 +7,7 @@
 // guard reads. The page has no script, image, or link: a quiz is a list of
 // questions the learner answers in chat.
 
-import { asText, e, pageShell, paragraphs, rows, runCli, textList } from "../../../lib/page-kit.mjs";
+import { asText, codeBlocks, e, pageShell, paragraphs, rows, runCli, textList } from "../../../lib/page-kit.mjs";
 
 function quizBlock(questions) {
   const items = rows(questions).filter((row) => asText(row.question) !== "");
@@ -30,7 +30,7 @@ function citationList(citations) {
 }
 
 function teachBlock(chunk) {
-  return `<section>\n<h3>${e(chunk.heading)}</h3>\n${paragraphs(chunk.paragraphs)}\n${citationList(chunk.citations)}\n${quizBlock(chunk.quiz)}\n</section>`;
+  return `<section>\n<h3>${e(chunk.heading)}</h3>\n${paragraphs(chunk.paragraphs)}\n${codeBlocks(chunk.code)}\n${citationList(chunk.citations)}\n${quizBlock(chunk.quiz)}\n</section>`;
 }
 
 /**

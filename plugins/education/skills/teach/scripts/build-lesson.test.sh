@@ -87,6 +87,8 @@ check(
 );
 check("exactly one concept meta tag", page.split('<meta name="concept"').length === 2);
 check("a plain concept name round-trips", buildLessonPage({ concept: "C++" }).includes('<meta name="concept" content="C++">'));
+const codePage = buildLessonPage({ concept: "C", teach: [{ heading: "h", code: ["a = 1\nb = <x>"] }] });
+check("a code snippet keeps its line break and escapes markup", codePage.includes("<code class=\"block\">a = 1\nb = &lt;x&gt;</code>"));
 check("an empty model still validates", validateRenderedPage(buildLessonPage({})).ok);
 
 const cli = spawnSync(process.execPath, [builderPath], { input: JSON.stringify(model), encoding: "utf8" });
