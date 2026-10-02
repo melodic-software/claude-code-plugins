@@ -194,6 +194,14 @@ asserts:
   - **Claude Tag product mechanics are `tag-exempt (consumer-surface)`.** The Slack channel,
     standing instructions, and threads a page describes are that product's surface, not the
     harness's. Guidance the page states beyond those mechanics is tagged on its own terms.
+  - **A blog post's outcome counts for claude.ai are `tag-exempt (consumer-surface)` and carry
+    `vendor-claimed (blog, <fetch date> fetch)`.** An outcome count is a figure a post reports for
+    work on claude.ai the product, such as changes merged, load-time gains, or the share of pages
+    or pull requests affected. It documents the consumer product and rests on the vendor's word,
+    so it keeps both labels; the marker still needs the blog-only search below. The method behind
+    a count is a separate row, tagged by the blog row classes at the end of this section. The rule
+    covers both blog hosts. It is the default: a team that wants these figures handled otherwise
+    says so in its own CLAUDE.md or AGENTS.md.
   - **`blog-apparatus` holds only text that neither directs the reader nor asserts a fact.** A
     line that tells the reader to do something, or states anything about a model, product or
     result, takes a vocabulary tag even when it sits in a figure or a summary box. Blog
