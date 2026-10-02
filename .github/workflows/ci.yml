@@ -1047,18 +1047,17 @@ jobs:
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
 
-      # docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole
-      # catalog, so this repo dogfoods everything it publishes"; nothing
-      # enforced it, and ai-slop (#2892), context-budget (#2932) and
-      # improvement (#2985) each reached main catalogued but never enabled. The
-      # failure is silent by construction: .claude/cloud-bootstrap.sh computes
-      # its install set from that same enabledPlugins map. Repo-wide and
-      # static, so it always runs. The self-test runs first so a broken
-      # detector cannot mask a regression behind a green gate.
+      # The cloud plugin list is derived from the catalog's defaultEnabled, and
+      # .claude/settings.json overlays its enabledPlugins keys on it. A key that
+      # names no catalogued plugin silently no-ops, and .claude/cloud-
+      # bootstrap.sh installs only the marketplace it hardcodes, so the gate
+      # holds the keys to the catalog, their order, and that marketplace
+      # name. Repo-wide and static, so it always runs. The self-test runs first
+      # so a broken detector cannot mask a regression behind a green gate.
       - name: Test the plugin-catalog-enablement gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-catalog-enablement.test.sh
-      - name: Check every catalogued plugin carries an enabledPlugins key
+      - name: Check every enabledPlugins key names a catalogued plugin
         id: plugin_catalog_enablement
         continue-on-error: true
         run: scripts/check-plugin-catalog-enablement.sh
@@ -1729,11 +1728,12 @@ jobs:
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          # Dependabot's /.github pip entry bumps the animation wheels here but cannot reach the
-          # plugin's own pins, so a one-sided bump fails here instead of merging as drift.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) \
+          # Dependabot bumps the animation wheels here (its /.github pip entry) and the plugin's
+          # lock (its /plugins/animation entry) in separate pull requests, so a one-sided bump
+          # fails here instead of merging as drift.
+          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
                <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.txt pin different versions; bump the two together"; exit 1; }
+            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \

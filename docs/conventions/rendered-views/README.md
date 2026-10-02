@@ -373,11 +373,14 @@ Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
 Current emitters, grandfathered on their shipped ladder and `medium` only, since the
 content-class rules bind them now (see Content classes): `adhd:clarify`,
-`architecture:improve`, `education:quiz-me`, `education:teach`,
+`architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
 `harness-ops:observability`, `planning:interview` (and planning's other rendered views),
 `overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
 `visualization:visualize`.
+
+Emitters on the escape-helper gate (the third bullet of the security baseline), each building
+its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode).
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
@@ -406,8 +409,8 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   generated and drift-gated by `scripts/sync-shared-copies.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
-  `/review:pr-explainer` is the first lane on that gate. Such a lane is K2 (see Content
-  classes); the shared builder carries the same helper and adds the interactive profile.
+  `/review:pr-explainer` and `/education:quiz-me` are on that gate. Such a lane is K2 (see
+  Content classes); the shared builder carries the same helper and adds the interactive profile.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
   checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`

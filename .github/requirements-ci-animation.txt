@@ -1,10 +1,10 @@
 # CI-only Linux x64 cp314 wheel pins for the animation regression suites
 # (plugins/animation/scripts/test_inkstats.py, test_woodcut_marks.py), so they
 # RUN in test-linux instead of skipping green. The versions must equal
-# plugins/animation/requirements.txt, so bump the two together.
+# plugins/animation/requirements.in, so bump the two together.
 # Kept apart from requirements-ci.txt so the jobs that read only that file do
 # not install these wheels. Regenerate with:
-#   uv pip compile plugins/animation/requirements.txt --generate-hashes \
+#   uv pip compile plugins/animation/requirements.in --generate-hashes \
 #     --python-version 3.14 --python-platform linux --only-binary :all: --no-header
 numpy==2.5.3 \
     --hash=sha256:012e66aca395d795496446e52aeeb5866312a5d4d3f27da270e5a0b43f70dc5c \
@@ -74,7 +74,7 @@ numpy==2.5.3 \
     --hash=sha256:fc36dc566135b5eceec4cf89758fcb719266a019ef07dae1754ae7c9f617ef3e \
     --hash=sha256:ffdc76bfcae6b255dff75202c5e7feaf95b40246bc0a17944facc1fecf9f79ab
     # via
-    #   -r plugins/animation/requirements.txt
+    #   -r plugins/animation/requirements.in
     #   opencv-python-headless
 opencv-python-headless==5.0.0.93 \
     --hash=sha256:030ca5e0837a2963ab36ef896baa9767eb8d2b83353fb28af5a521e40dd8756f \
@@ -86,4 +86,4 @@ opencv-python-headless==5.0.0.93 \
     --hash=sha256:b82f9831daab90b725c7c1ee1b36cb5732c367096ac76d119e64e14eb70d5f3c \
     --hash=sha256:c6bcd96b185975ea240d22cfdb15a1f6d080cc95264cfbe2621f21bb144d89b9 \
     --hash=sha256:ed709fdf9aa0bd1f2ed8549e71d19449b03a675bb581eb292285f6861953be37
-    # via -r plugins/animation/requirements.txt
+    # via -r plugins/animation/requirements.in
