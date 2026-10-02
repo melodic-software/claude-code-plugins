@@ -113,11 +113,11 @@ def test_crlf_and_lf_files_read_the_same(tmp_path):
 
 def test_invalid_utf8_is_replaced_not_raised(tmp_path):
     session = tmp_path / "bytes.jsonl"
-    session.write_bytes(b'{"type": "user", "uuid": "b-01", "message": {"content": "caf\xff"}}\n')
+    session.write_bytes(b'{"type": "user", "uuid": "b-01", "message": {"content": "data\xff"}}\n')
 
     records, stats = read(session)
 
-    assert records[0]["message"]["content"] == "caf�"
+    assert records[0]["message"]["content"] == "data�"
     assert stats["bad_lines"] == 0
 
 
