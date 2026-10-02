@@ -118,6 +118,18 @@ if [[ "$SYS" == *"hand-written resume note"* ]]; then
 else
   fail "operator channel lost the standalone-install fallback: $SYS"
 fi
+# Which option fits is session-flow's rule, not this plugin's: the menu names
+# the options, routes the choice to session-flow's router, and gives an install
+# without session-flow the docs section on a filling context. A ranking or a
+# when-to-use clause in the menu ("last resort", a task test) is the rule
+# restated in a second place, where it drifts from the router.
+if [[ "$SYS" == *"route the next step with /session-flow:workflow"* &&
+  "$SYS" == *"https://code.claude.com/docs/en/context-window#when-your-context-fills-up"* &&
+  "$SYS" != *"last resort"* && "$SYS" != *"same task"* && "$SYS" != *"unrelated"* ]]; then
+  ok "operator menu routes the choice to the router, with the docs link as the fallback"
+else
+  fail "operator menu restates the continuation rule or lost the router or docs fallback: $SYS"
+fi
 
 # 2. Same zone again → silent (once per transition).
 run "$H" "$D" s1

@@ -2,10 +2,10 @@
 
 Alternative execution mode for the staged workflow. Instead of running every stage in ONE long
 session, where every turn re-processes the growing conversation, each stage persists its output to
-disk and the next stage starts fresh via `/clear`.
+disk, so the next stage can work from that artifact.
 
-**Why:** long sessions compound per-turn token cost and invite context rot; clearing between stages
-trades a small re-read cost for tight, purpose-built context per stage.
+**Why:** long sessions compound per-turn token cost and invite context rot; an artifact on disk lets
+each stage boundary carry on by whichever continuation fits without losing the stage's output.
 
 **When to use:** multi-phase features spanning hours, work known in advance to have distinct
 explore + research + plan + implement stages, cross-session work that may pause overnight.
@@ -32,30 +32,30 @@ default). The next stage reads only that artifact.
 ## Execution pattern
 
 ```text
-contract   → writes the brief                → /clear
-explore    → writes findings                 → /clear
-research   → writes cited evidence           → /clear
-plan       → writes the approved plan        → /clear
-implement  → ships code, commits per phase   → (optional /session-flow:handoff if context bloats)
-test → review → verify → /session-flow:retro              ← the back half often runs in one session
+contract   → writes the brief
+explore    → writes findings
+research   → writes cited evidence
+plan       → writes the approved plan
+implement  → ships code, commits per phase
+test → review → verify → /session-flow:retro
 ```
 
-`/clear` between every stage is the maximum-reduction pattern. In practice, collapse adjacent
-stages when context is still small, but commit to clearing at least between research and plan, and
-between plan and implement. Those are the biggest re-processing wins.
+At each arrow, route the continuation with the router in [`continuation.md`](continuation.md); it
+names which stage boundaries stay in one session and which move to a fresh one.
 
 ## Why it saves context
 
 A single-session workflow re-processes the entire growing conversation on every turn. By the
 implement stage, each turn carries every explore finding, every research pass, every plan
-iteration, even though implementation only needs the approved plan. With `/clear` between stages,
-each stage's context is tight and purpose-built, and compaction is rarely reached.
+iteration, even though implementation only needs the approved plan. Because each stage's output is
+on disk, the next stage can work from the artifact rather than from the conversation that produced
+it.
 
-## /handoff: the escape hatch
+## Mid-stage continuation
 
-Mid-stage, if context grows heavy or quality degrades, invoke `/session-flow:handoff` via the Skill tool to snapshot the current
-state and `/clear`. That skill owns which sections a save-point carries. Multiple
-save-points accumulate; timestamps keep them ordered.
+Mid-stage, when quality degrades or the window fills, route the continuation with
+[`continuation.md`](continuation.md) too. When it routes to `/session-flow:handoff`, that skill owns
+which sections a save-point carries. Multiple save-points accumulate; timestamps keep them ordered.
 
 ## Trade-offs
 
@@ -63,4 +63,4 @@ save-points accumulate; timestamps keep them ordered.
 cross-session resumability.
 
 **Costs:** slight overhead writing + reading artifacts; stages must be artifact-complete (anything
-left implicit in conversation is lost to the next stage); over-clearing on tiny tasks is noise.
+left implicit in conversation is lost to the next stage).

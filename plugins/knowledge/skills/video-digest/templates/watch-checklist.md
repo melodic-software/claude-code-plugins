@@ -101,13 +101,13 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **8.0** `recommendations/README.md` hub links menu, takeaways, questions, interview
 - [ ] **8.5** `README.md` per `templates/readme-journey.md`
 - [ ] **8.6** No auto-implement. Verify: no code changes without `/planning:interview`
-- [ ] **8.7** `mark-phase <slice-dir> synthesis` only after 8.1–8.5
+- [ ] **8.7** Synthesis is marked by `watch-state.js close <slice-dir>` (9.3), not before 8.1–8.5; `mark-phase <slice-dir> synthesis` delegates to `close`
 
 ## Phase 9: Outcome verification (mandatory before complete)
 
 - [ ] **9.1** Host verify. Verify: `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report` exit 0
 - [ ] **9.2** `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS. Verify: all `fail` severity checks green
-- [ ] **9.3** `watch.json` `status: complete` only after 9.1. Verify: not complete while synthesizing
+- [ ] **9.3** `watch-state.js close <slice-dir>` exit 0 after 9.1, 9.2 and 9.4; it is the only writer of `status: complete`. Verify: `watch.json` `status: complete`
 - [ ] **9.4** Vision fidelity spot-check (required for a vision-complete claim). Verify: ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
 
 ---

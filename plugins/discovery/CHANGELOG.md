@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.26.1] - 2026-10-02
+## [0.26.2] - 2026-10-02
 
 ### Fixed
 
@@ -9,6 +9,25 @@
   2.1.288 the agent disallows nine. The record now states what that means for this skill (it
   cannot edit files or spawn an agent) and points at `builtin_agents.Explore.disallowed_tools`
   in the inventory instead of copying the list.
+
+## [0.26.1] - 2026-10-02
+
+### Added
+
+- **Single-publisher facts.** A research claim whose every Tier 0/1 source is the publisher
+  speaking about itself (its own pricing, roadmap or product behavior) is worded as an attribution,
+  carries a new claim-level `subject_pool` field equal to that one `pool`, is at most MEDIUM and is
+  never accepted. The research verifier grades `pool` and `subject_pool` for criterion 4, and an
+  eval case covers a vendor pricing claim.
+
+### Changed
+
+- **The research run aims at HIGH, not at the corroborator floor.** Discipline 5, the Gaps line,
+  the discipline file's source-tier ratio, the Phase 1 gap list and the researcher agent now say
+  that criterion 4's count is a floor and acceptance also needs HIGH (criterion 7).
+- **`tests/count-rereads.py` keeps `MultiEdit` on purpose.** The edit-tool set still lists it, now
+  with a pointer record to the permissions page, because transcripts recorded by older Claude Code
+  versions carry the call.
 
 ## [0.26.0] - 2026-10-02
 

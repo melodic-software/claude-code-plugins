@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.2] - 2026-10-02
+## [2.5.3] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   reads the Explore and Plan `disallowed_tools` as partial where the regex reader reads them
   literal, as on 2.1.284-2.1.287 (#5901). The one surface change is the hidden built-in `/update`
   command, renamed `/restart` with `update` kept as an alias.
+- **The installed-build regression covers 2.1.288.** `TestInstalledBuilds` now pins the partial
+  Explore and Plan lists under the parser on 2.1.284-2.1.288.
+
+## [2.5.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [2.5.1] - 2026-10-02
 
