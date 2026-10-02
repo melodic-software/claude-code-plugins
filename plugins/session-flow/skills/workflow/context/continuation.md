@@ -124,8 +124,8 @@ boundary.
    artifact or files and serves the same Original goal or work item, so the session's context is
    still its context.*
 
-**Timing.** Before stepping away for longer than the prompt cache lasts, route now: compact or hand
-off before leaving.
+**Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
+leaving.
 
 **Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
 

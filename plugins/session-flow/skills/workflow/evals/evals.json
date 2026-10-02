@@ -289,6 +289,18 @@
         "It says the comparison with a second compaction is a judgment call, not stated by the cited docs",
         "It does NOT claim the docs say to hand off instead of compacting again"
       ]
+    },
+    {
+      "id": 25,
+      "name": "unrelated-next-task-clears",
+      "prompt": "/workflow continue — the auth refactor PR just merged and is done. Next I want to fix a typo in the billing README, which shares no files or goal with the refactor. How should I continue?",
+      "expected_output": "The next work neither uses the refactor's artifact or files nor serves its goal, so it is unrelated work and question 4 routes to `/clear`; nothing in this context needs carrying forward.",
+      "files": [],
+      "expectations": [
+        "It recommends `/clear`",
+        "It cites the next task being unrelated to the finished work as the evidence",
+        "It does NOT recommend `/compact` or a handoff for this context"
+      ]
     }
   ]
 }

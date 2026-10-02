@@ -98,7 +98,7 @@ carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawn
 In the "after" column the slowest hook on each per-tool-call surface costs 76 to 169 S, and on
 each per-turn surface 16 to 23 S. The per-tool-call cost is the guardrails dispatcher, 1,360 to
 3,048 ms per fire on the Windows measuring host across the Write, Edit and Bash rows (eight guards
-per Bash call at measurement time, and three per Write or Edit), followed by markdown-format's
+per Bash call and three per Write or Edit, both at measurement time), followed by markdown-format's
 `markdownlint-cli2` Node process.
 The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
 before run's samples lived outside the repository, so every Write and verifier guard early-exited

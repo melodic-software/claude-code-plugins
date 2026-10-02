@@ -300,7 +300,7 @@ Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MED
 
 ## Single-publisher facts
 
-Some facts only their publisher can state: its own pricing, roadmap, internal metrics, or how its own product behaves. Two sources sharing a `pool` are one corroborator (`artifact-shape.md`), so such a fact never reaches criterion 4 or criterion 7, however many of the publisher's own pages repeat it, and it is never counted as independently corroborated.
+Some facts only their publisher can state: its own pricing, roadmap, internal metrics, or how its own product behaves. Two sources sharing a `pool` are one corroborator (`artifact-shape.md`), so the publisher's own pages count once toward criterion 4 however many repeat the fact, and such a fact never reaches criterion 7 or counts as independently corroborated.
 
 A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. Carry it this way:
 

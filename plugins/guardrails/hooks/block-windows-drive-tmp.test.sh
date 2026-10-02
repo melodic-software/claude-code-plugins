@@ -87,7 +87,7 @@ run_posix_host() {
   run_posix_host_payload "$1" "$(command_json "$2")"
 }
 
-# File-path lane (0.30.0): Write / Edit / NotebookEdit carry
+# File-path lane (added in 0.30.0): Write / Edit / NotebookEdit carry
 # `file_path` (NotebookEdit `notebook_path`) instead of `command`, and before
 # 0.30.0 the empty-COMMAND early exit returned before any matcher ran.
 # <payload-json> is produced by the caller so one runner covers every tool.
@@ -137,8 +137,8 @@ run_posix_host_payload "Linux host: Write /tmp/x allowed" "$(write_json '/tmp/x'
 run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' 'body')"
 
 # The host gate must be reached BEFORE hook::buffer_stdin and
-# hook::require_jq_blocking. Widening the matcher to Write/Edit/NotebookEdit
-# made the old ordering a hard break: on a Linux or macOS host with
+# hook::require_jq_blocking. Widening the matcher to the file-edit tools in
+# 0.30.0 made the old ordering a hard break: on a Linux or macOS host with
 # no jq on PATH, require_jq_blocking's fail-closed exit 2 fired on EVERY file
 # edit, on a platform where this guard can never find a violation.
 #

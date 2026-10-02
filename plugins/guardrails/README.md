@@ -1047,7 +1047,7 @@ setup work shrank; a Windows Git Bash cold run has been reported at over 11 s an
 is not reproduced on this host.
 
 **0.32.0, the GitHub MCP write lane.** 2026-09-04, Linux CI host. The lane is a NEW
-`hooks.json` row rather than a widening of the `Write|Edit|NotebookEdit`
+`hooks.json` row rather than a widening of the `Write|Edit|MultiEdit|NotebookEdit`
 matcher, which is the whole point of its shape: an MCP matcher on the existing row
 would have put the new tools' cost on every authored write. As a separate row it
 fires only on `mcp__github__push_files` and `mcp__github__create_or_update_file`, also under a plugin-bundled `github` server (`mcp__plugin_<plugin>_github__<tool>`), so
@@ -1171,7 +1171,7 @@ three PreToolUse processes to one, three PostToolUse processes to one.
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
-plus `Write|Edit|NotebookEdit` in **0.30.0**, so the surface that
+plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the surface that
 changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
 ≤ 2 s worst-case.
 
