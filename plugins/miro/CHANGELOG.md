@@ -3,6 +3,16 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-10-02
+
+### Fixed
+
+- The POSIX repair command the launcher prints quotes paths verbatim instead of rewriting each
+  backslash to `/`, so a plugin data directory whose name contains a backslash (a legal POSIX
+  filename character) is the one the command repairs
+  ([#5829](https://github.com/melodic-software/claude-code-plugins/issues/5829)). The Windows
+  PowerShell form is unchanged.
+
 ## [0.5.1] - 2026-10-02
 
 ### Changed
