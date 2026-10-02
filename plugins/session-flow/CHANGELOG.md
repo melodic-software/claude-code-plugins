@@ -26,6 +26,16 @@
   human-message numbers from this version on are lower than earlier retros' for the same kind of
   session; compare across that step with care.
 
+## [0.44.6] - 2026-10-02
+
+### Changed
+
+- **`orchestrate`'s priming addendum points at model and effort routing.** One sentence sends the
+  workflow-or-subagents choice and each spawn's model and effort to `/multi-agent:assess` and
+  `/multi-agent:route` when they resolve, else to the subagents page's "Choose a model" section,
+  with an as-of date and recheck trigger. `context/sources.md` records it. Imperative 7 and the
+  export modes are unchanged.
+
 ## [0.44.5] - 2026-10-02
 
 ### Changed
