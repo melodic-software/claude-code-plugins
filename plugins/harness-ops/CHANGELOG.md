@@ -11,7 +11,8 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   entry held but was filtered out.** Building the native index marked a name seen before
   dropping an empty or `internal` entry, so a later built-in plugin or plugin component of the
   same name was skipped as a duplicate and its overlap candidates were never produced. A name
-  is now marked seen only when its entry is kept. On the 2.1.287 extraction the candidate
+  is now marked seen only when its entry is kept; a filtered name still gets no fallback
+  `plugin_backed` surface, so an internal plugin-backed command stays unscored. On the 2.1.287 extraction the candidate
   report is unchanged, since no name there collides that way.
 
 ## [1.0.1] - 2026-10-01

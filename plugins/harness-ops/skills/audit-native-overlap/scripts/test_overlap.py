@@ -2275,6 +2275,18 @@ class BuiltinPluginSurfaceTests(unittest.TestCase):
                 ]
                 self.assertEqual([s.lane for s in diff], ["builtin_plugins"])
 
+    def test_an_internal_plugin_backed_name_gets_no_fallback_surface(self) -> None:
+        payloads = overlap._lane_payloads(
+            {
+                "builtin_commands": {
+                    "scan": {"name": "scan", "description": "Scan", "internal": True}
+                },
+                "plugin_backed": {"scan": "scanner"},
+            }
+        )
+        names = [s.name for s in overlap.native_surfaces(payloads)]
+        self.assertNotIn("scan", names)
+
 
 def make_dismissal(**overrides):
     entry = {

@@ -459,6 +459,9 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
     plugin_backed = lane_payloads.get("plugin_backed") or {}
     surfaces: list[discover.Surface] = []
     seen: set[str] = set()
+    # A filtered name still keeps the plugin_backed fallback from fabricating
+    # an unmarked surface for it, but does not claim a built-in plugin's name.
+    filtered: set[str] = set()
     for lane, payload in lane_payloads.items():
         if lane == "plugin_backed":
             continue
@@ -467,6 +470,7 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
                 continue
             registrations = registrations_of(entry)
             if not registrations or any(r.get("internal") for r in registrations):
+                filtered.add(name)
                 continue
             seen.add(name)
             # A plugin-backed name the extractor enriched in this lane is one
@@ -478,7 +482,7 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
             )
             surfaces.append(discover.Surface.build(name, klass, source, registrations))
     for name, plugin in plugin_backed.items():
-        if name not in seen:
+        if name not in seen and name not in filtered:
             registrations = [{"name": name, "plugin_name": plugin}]
             surfaces.append(
                 discover.Surface.build(
