@@ -13,8 +13,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   and the babysit loop, by whether the person is staying and whether the machine stays on. For a
   route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
   a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
-  or force-push). New `reference/watch-handoff.md`; `native-surfaces.md` records auto-fix's
-  requirements and limits and `/background`.
+  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
+  the recommendation, and unknown usage points at `/usage` and favors `monitor`. New
+  `reference/watch-handoff.md`, which inlines the rate-limit floor and is registered in
+  `check-loop-lane-floor-drift.sh`; `native-surfaces.md` records auto-fix's requirements and
+  limits, cloud sessions sharing the account's rate limits, and `/background`.
 
 ## [0.73.0] - 2026-10-02
 

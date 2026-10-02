@@ -265,7 +265,8 @@ monitor, or merge.
 
 **Choose who watches the PR.** At the end of `ready`, and at `monitor` entry when no choice was
 made, pick between this skill's monitor, a background agent, `/background`, `/autofix-pr` and the
-babysit loop by whether the person is staying and whether the machine stays on. For a route only
+babysit loop by whether the person is staying and whether the machine stays on, after reading the
+plan's rate-limit windows: a window at the pause threshold starts nothing. For a route only
 the person can start, print it ready to run; `/autofix-pr` gets a filled-in prompt carrying this
 skill's review discipline. The matrix and the prompt:
 [reference/watch-handoff.md](reference/watch-handoff.md).
