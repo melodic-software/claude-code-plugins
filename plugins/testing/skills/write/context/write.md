@@ -76,6 +76,9 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test: one behavioral concept, not one `Assert` statement
 - [ ] Every expected value names its independent source, per `testing:test-value`; a round trip or identity check (`decode(encode(x))` equals `x`) passes when both directions share a mistake, so pair it with a known encoded fixture
+- [ ] Existing coverage does not already catch this regression. Each contract has one primary test at its strongest boundary; another layer needs a risk of its own, such as a transport failure the primary test cannot reach. Extend a table-driven case before adding a near-duplicate
+- [ ] A bug fix adds one regression test at the boundary that owns the bug, not one per layer the bug crosses
+- [ ] The test needs no export, flag or injection hook that no production caller uses; if it does, test through the real boundary instead
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 

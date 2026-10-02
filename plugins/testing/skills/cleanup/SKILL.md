@@ -62,7 +62,7 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
 
 ### 1. Inputs
 
-Gather all three before any edit, and write the candidate list to `decisions.md`:
+Gather all four before any edit, and write the candidate list to `decisions.md`:
 
 1. The scanner's findings over the folder:
    `env CANT_FAIL_SCAN_ROOT="<absolute folder>" bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings`.
@@ -74,6 +74,9 @@ Gather all three before any edit, and write the candidate list to `decisions.md`
    the `testing/judge/rule-restated-expectation` rows whose `Location` is under the folder. A FLAG
    makes its test a candidate; a PASS clears no scanner finding.
 3. The tests the user names as flaky. Cleanup detects no flakiness itself.
+4. The tests the user names as suspected duplicates or layer replays (a suite that re-proves,
+   through a mock, what a stronger suite already proves). `mock-only-oracle` rows from input 1 are
+   where layer replays usually surface.
 
 No candidate: report `nothing to clean in <folder>` and stop.
 
@@ -91,7 +94,8 @@ Invoke `/mutation-testing:audit --exercised <folder> --max <n> --record-mutants 
 through the Skill tool, with no `--paths`. Then read its report:
 
 - A red baseline stops the batch. List the failing tests so the user can name the flaky ones for
-  step 2 or fix them. Quarantine nothing on your own.
+  step 2 or fix them. Quarantine nothing on your own. A test that fails the same way on every run is
+  not flaky: report it as a possible product bug whose fix is its own change, never a quarantine.
 - `K0 empty`, or `no mapping: scope empty`: stop. Nothing the tests kill can be gated.
 - Mutants dropped by the cap: state how many, and continue only on the user's yes or with a larger
   `--max`.
@@ -130,7 +134,11 @@ item listed and unapplied.
 
 ### 6. Gate
 
-Invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
+First re-scan each file the batch rewrote with the step 1 command plus `--file "<path>"`. A finding
+step 1 did not list is a rewrite that cannot fail, such as a rejection the production path never
+reaches: the batch stops and names it until the rewrite is repaired.
+
+Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
 --record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line.
 
 - A red replay baseline (a changed test fails on unmutated code) stops the batch and names the
@@ -171,6 +179,11 @@ user. Unattended runs stop before the commit.
 /source-control:pull-request create
 
 Opens the batch's draft pull request with `pr-body.md` as its body.
+
+A deletion can leave an export, global or wrapper whose only caller was the deleted test. Cleanup
+leaves production code alone, because the replay refuses when it changes; after the merge,
+`/code-tidying:audit-dead-code <folder's production paths>` (if installed) reports those as
+test-only usage.
 
 ## Gotchas
 

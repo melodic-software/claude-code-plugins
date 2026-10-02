@@ -112,6 +112,20 @@ revision of Canon TDD or a successor post that changes step 4.
 modes (`vi.stubGlobal('AudioContext', ...)`); mocking an internal collaborator; testing a private
 method; a test that breaks on a behavior-preserving refactor; a name that says how, not what; a
 snapshot written by hand the same way the code computes it; all tests written before any code.
+Also judgment only:
+
+- a negative test that passes for an unrelated reason: the rejection comes from a different guard,
+  or from an input the production path never reaches;
+- a fixture that supplies the outcome the code should produce (the receipt, the ordering, the
+  callback), or a store asserted on that the path under test never writes;
+- a mock that implements the behavior the test asserts, or one mock standing in for different
+  APIs;
+- a name that promises more than the assertions check, such as "clears the cache" asserting the
+  cache still holds the entry: judge the assertions, not the name;
+- a hand-copied inventory (an export list, a manifest, declared capability flags) compared to the
+  source: a change detector, unless the list is an external contract (`cant-fail-ok: <why>`), and a
+  capability flag is tested by exercising what it promises;
+- a test kept alive only to preserve an export, global or wrapper that no production caller uses.
 
 Matt Pocock's `tdd` skill and his 2026 talk supply most of these examples. This skill corrects
 him in five places: T1 and T2 are change detectors, not tests that cannot fail; call counts are
