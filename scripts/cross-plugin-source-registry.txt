@@ -133,12 +133,13 @@ scripts/context-zone.sh
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
 
-# Dedicated check: scripts/sync-html-escape.sh --check. Canonical:
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-escape.mjs. The review and education plugins carry the adopting
-# copies.
+# copies, generated with a header that names the canonical, so copies stay
+# byte-identical to each other but not to the canonical.
 lib/html-escape.mjs
 
-# Dedicated check: scripts/sync-html-escape.sh --check.
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 

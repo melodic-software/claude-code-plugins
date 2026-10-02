@@ -110,8 +110,28 @@ def _q(path: Path) -> str:
     return shlex.quote(path.as_posix())
 
 
-def install_command(target: Path) -> str:
-    """One shell line that rebuilds `target` from the committed lockfile."""
+def _ps_q(path: Path) -> str:
+    return "'" + str(path).replace("'", "''") + "'"
+
+
+def install_command(target: Path, platform: str = sys.platform) -> str:
+    """One shell line that rebuilds `target` from the committed lockfile.
+
+    POSIX shell elsewhere; Windows PowerShell 5.1 on win32, which has no `&&`.
+    There it names `npm.cmd`: bare `npm` resolves to `npm.ps1`, which the
+    default Restricted execution policy refuses to run.
+    """
+    flags = " ".join(NPM_CI_ARGS[1:])
+    if platform == "win32":
+        q = _ps_q
+        sources = ", ".join(q(JS_DIR / m) for m in MANIFESTS)
+        return (
+            "$ErrorActionPreference = 'Stop'; "
+            f"Remove-Item -LiteralPath {q(target)} -Recurse -Force -ErrorAction SilentlyContinue; "
+            f"New-Item -ItemType Directory -Force -Path {q(target)} | Out-Null; "
+            f"Copy-Item -LiteralPath {sources} -Destination {q(target)}; "
+            f"npm.cmd {NPM_CI_ARGS[0]} --prefix {q(target)} {flags}"
+        )
     q = _q
     sources = " ".join(q(JS_DIR / m) for m in MANIFESTS)
     return (
@@ -211,7 +231,7 @@ class ParserReader:
         self._next_id = 0
         self._keys: dict[tuple[int, int, int], tuple[str, str]] = {}
         self._answers: dict[
-            tuple[int, int, str, int | None], dict[str, Any] | None
+            tuple[str, int, int, str, int | None], dict[str, Any] | None
         ] = {}
         try:
             self._proc = subprocess.Popen(
@@ -277,19 +297,10 @@ class ParserReader:
         helper's UTF-16 offsets stop matching Python's (a bundle read as
         latin1 never holds one). Answers are memoized per reader.
         """
-        module = self._module_key(src, lo, hi)
-        key = (id(src), lo, name, offset)
+        key = ("binding", id(src), lo, name, offset)
         if key in self._answers:
             return self._answers[key]
-        fields: dict[str, Any] = {"module": module, "name": name}
-        fields.update({"top": True} if offset is None else {"offset": offset - lo})
-        res = self.request("binding", **fields)
-        if res.get("need_source"):
-            text = src[lo:hi]
-            if any(ord(c) > 0xFFFF for c in text):
-                res = {"found": False}
-            else:
-                res = self.request("binding", source=text, **fields)
+        res = self._query("binding", src, lo, hi, name, offset)
         answer = None
         if res.get("found") and res["kind"] == "import":
             answer = {"kind": "import", "imported": res["imported"]}
@@ -302,10 +313,55 @@ class ParserReader:
         self._answers[key] = answer
         return answer
 
+    def writes(
+        self, src: str, lo: int, hi: int, name: str, offset: int
+    ) -> dict[str, Any] | None:
+        """Every place that may change the variable `name` read at `offset`
+        resolves to in the module `src[lo:hi]`, from the AST: `writes` and
+        `mutations`, each a list of (kind, offset, top), and `declares`,
+        whether `offset` names a plain declarator of it. None whenever
+        `binding` would be, and for a module that calls `eval` directly.
+        """
+        key = ("writes", id(src), lo, name, offset)
+        if key in self._answers:
+            return self._answers[key]
+        res = self._query("writes", src, lo, hi, name, offset)
+        answer = None
+        if res.get("found"):
+            answer = {
+                "declares": bool(res["declares"]),
+                **{
+                    field: [(k, w + lo, top) for k, w, top in res[field]]
+                    for field in ("writes", "mutations")
+                },
+            }
+        self._answers[key] = answer
+        return answer
+
+    def _query(
+        self, op: str, src: str, lo: int, hi: int, name: str, offset: int | None
+    ) -> dict[str, Any]:
+        """Ask `op` about `name` in the module `src[lo:hi]`, sending the
+        module's text when the helper does not hold it."""
+        fields: dict[str, Any] = {"module": self._module_key(src, lo, hi), "name": name}
+        fields.update({"top": True} if offset is None else {"offset": offset - lo})
+        res = self.request(op, **fields)
+        if res.get("need_source"):
+            text = src[lo:hi]
+            if any(ord(c) > 0xFFFF for c in text):
+                return {"found": False}
+            res = self.request(op, source=text, **fields)
+        return res
+
     @property
     def lookups(self) -> int:
         """Distinct binding lookups answered so far."""
-        return len(self._answers)
+        return sum(key[0] == "binding" for key in self._answers)
+
+    @property
+    def write_lookups(self) -> int:
+        """Distinct writes lookups answered so far."""
+        return sum(key[0] == "writes" for key in self._answers)
 
     def _module_key(self, src: str, lo: int, hi: int) -> str:
         """A name for the module the helper caches it under. `src` is held

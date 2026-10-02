@@ -226,6 +226,23 @@ assert_lacks "an UNTRACKED nested instruction file is excluded" "$out" "pkg/AGEN
 assert_lacks "a GITIGNORED vendor tree is excluded" "$out" "vendor/thirdparty/AGENTS.md"
 assert_lacks "node_modules is excluded" "$out" "node_modules/dep/CLAUDE.md"
 
+# An eval fixture tree imitates a consuming repository as test input. Neither its
+# rules nor its nested instruction files are this repository's conventions.
+fixt="$(mktemp -d "$TMP/x.XXXX")"
+git -C "$fixt" init -q .
+rule_file "$fixt/.claude/rules/real.md" '**/*.cs' 'Real rule'
+rule_file "$fixt/plugins/demo/evals/fixtures/consumer/.claude/rules/one.md" 'src/**' 'Fixture rule'
+mkdir -p "$fixt/svc"
+printf '# Fixture consumer\n' >"$fixt/plugins/demo/evals/fixtures/consumer/CLAUDE.md"
+printf '# Service\n' >"$fixt/svc/AGENTS.md"
+commit_all "$fixt"
+out="$(ip_discover_rules "$fixt")"
+assert_has "a rule outside an eval fixture is discovered" "$out" ".claude/rules/real.md"
+assert_lacks "a rule inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/.claude/rules/one.md"
+out="$(ip_discover_nested_instructions "$fixt")"
+assert_has "a nested file outside an eval fixture is discovered" "$out" "svc/AGENTS.md"
+assert_lacks "a nested file inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/CLAUDE.md"
+
 # Root-level instruction files already load at session start — never "nested".
 root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .

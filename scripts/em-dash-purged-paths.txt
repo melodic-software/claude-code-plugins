@@ -398,7 +398,6 @@ plugins/prototype/README.md
 plugins/prototype/CHANGELOG.md
 plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
-plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
 plugins/rate-limit-guard/CHANGELOG.md
 plugins/rate-limit-guard/bench/README.md

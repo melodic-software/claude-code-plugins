@@ -94,8 +94,8 @@ Build the explainer directly, to the same contract.
 - **Diagrams are boxes and arrows.** Each diagram is a `flow` (boxes joined by arrows) or a
   `stack` (boxes one above the next), listed as `steps`. Build a system up across several
   small diagrams, each adding one box, rather than one crowded diagram.
-- **Name the styles to leave out.** The builder's stylesheet has no cream or off-white
-  background, italic accent words in headings, numbered "01 / 02 / 03" section labels, or
+- **Name the styles to leave out.** The builder's stylesheet has no italic accent words in
+  headings, numbered "01 / 02 / 03" section labels, or
   pill-shaped badges. The look is fixed: when the user dislikes it, say so rather than
   hand-writing a replacement page.
 
@@ -159,6 +159,10 @@ the argument behind a decision, the third reconstructs a sequence.
 - **Reorganizing a dense message** without losing precision is `adhd:clarify` via
   the Skill tool (if that plugin is installed); it changes structure, not medium or
   altitude. Without it, restructure in place and keep the terms verbatim.
+- **Picking the best form for what is already in the conversation** (a table, a
+  flowchart, a chart, a code-shape sketch) is `visualization:visualize` via the Skill
+  tool (if that plugin is installed). It chooses form and medium for the content as it
+  stands. This skill always builds a zero-knowledge picture explainer.
 - **Ongoing coaching** is `/education:teach`, not a one-shot explainer.
 
 ## Gotchas
