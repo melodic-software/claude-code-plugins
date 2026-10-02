@@ -89,6 +89,7 @@ jobs:
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
       lane_base: ${{ steps.base.outputs.ref }}
       test_legs: ${{ steps.legs.outputs.legs }}
+      test_needs: ${{ steps.legs.outputs.needs }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out

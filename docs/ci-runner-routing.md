@@ -96,6 +96,11 @@ to the whole tree when there is no diff base or `ci.yml` changed, and the
 scheduled run scans everything. Replayed on 20 recent pull requests, every
 skipped or narrowed scan landed on a whole-tree success.
 
+`changes` also plans `test-linux`: one leg per 25 selected suites, one to
+four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
+slice needs the animation wheels, the inventory's parser packages or the DuckDB
+CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
+
 The selector's rule R8 covers the gap a full main run used to cover: a change
 anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
 because suites that scan their own plugin directory never name the file that

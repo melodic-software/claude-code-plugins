@@ -163,7 +163,8 @@ run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && f
 # tree) on a schedule, a dispatch, or a push with no usable base.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
-test_legs${TAB}\${{ steps.legs.outputs.legs }}"
+test_legs${TAB}\${{ steps.legs.outputs.legs }}
+test_needs${TAB}\${{ steps.legs.outputs.needs }}"
 # The one data read that is not an env entry: test-linux sizes its matrix from
 # `test_legs`, and an unset value falls back to the full four-leg fan-out.
 MATRIX_READ="leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.test_legs || '[0,1,2,3]') }}"
