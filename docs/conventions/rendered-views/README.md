@@ -79,10 +79,17 @@ came from, not by who wrote it down.
 - **Taint follows the text.** Text derived from a K2 source stays K2 whoever wrote it:
   the model's summary of a fetched page, a `.work/` note quoting an issue, a description
   of a diff.
+- **Operator-installed configuration is K1.** The user's CLAUDE.md, AGENTS.md, and
+  rules, installed plugins' skill and agent text, installed MCP servers' instructions,
+  and harness status blocks (such as the session-start git status) are the operator's
+  trust decision. What those tools return during the task is K2: tool results, fetched
+  pages, pull-request, issue, and comment text, and other people's commits or files read
+  during the task.
 - **Authoring context.** Model-written text and script take the class of the context
   that writes them, not of what they visibly quote or paraphrase. They are K0 only when
-  that context holds no K2 text, for example a fresh subagent given only the K0/K1
-  record and a request that is the user's own typed text. A brief written by a parent
+  that context holds no K2 text, for example a fresh subagent given only
+  operator-installed configuration, the K0/K1 record, and a request that is the user's
+  own typed text. A brief written by a parent
   context that holds K2 text is itself K2, and so is the subagent it briefs. A context
   that has read any K2 text (a diff, an issue, a fetched page) writes K2, whatever the
   output looks like, and its page is built from the checked-in template and runtime

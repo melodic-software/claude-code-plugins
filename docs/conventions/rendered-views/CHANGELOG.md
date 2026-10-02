@@ -44,6 +44,11 @@ versioned; this log records each change to it.
   from a parent context holding K2 text is K2. The K0/K1 meta CSP is the first
   element after the charset meta, and its policy is exact plus one permitted
   `connect-src` addition.
+- **Fifth security review.** Operator-installed configuration is K1: the
+  user's CLAUDE.md, AGENTS.md, and rules, installed plugins' skill and agent
+  text, installed MCP servers' instructions, and harness status blocks. What
+  those tools return during the task is K2. The fresh-subagent K0 example now
+  counts that configuration as part of a K2-free context.
 
 ## Escape helper, 2026-09-28
 
