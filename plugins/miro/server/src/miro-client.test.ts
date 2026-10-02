@@ -1,7 +1,7 @@
 import { MiroApi } from "@mirohq/miro-api";
 import { describe, expect, it, vi } from "vitest";
 
-import { createMiroClients, isTokenUnset, MISSING_TOKEN_MESSAGE } from "./miro-client.js";
+import { createMiroClients, isTokenUnset, MISSING_TOKEN_MESSAGE } from "./miro-client.ts";
 
 describe("isTokenUnset", () => {
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal unexpanded user_config text is the input under test.

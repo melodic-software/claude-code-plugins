@@ -4,6 +4,12 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [1.0.1] - 2026-10-02
+
+- **Exceptions**: the miro MCP server bundle is removed from the table, which is now empty. miro
+  installs its dependencies on first launch under rules 1-3
+  ([#5752](https://github.com/melodic-software/claude-code-plugins/issues/5752)).
+
 ## [1.0.0] - 2026-10-02
 
 Initial published contract, written with the harness-ops inventory parser

@@ -4,7 +4,7 @@ name: dependabot-plugin-release
 # bump plugins/<name>/.claude-plugin/plugin.json or write CHANGELOG.md. The
 # changelog-parity --check-bump gate correctly requires those (Claude Code
 # delivers updates only when the plugin version string changes). This workflow
-# supplies the bump on Dependabot PRs and keeps regenerating the miro bundle.
+# supplies the bump on Dependabot PRs.
 #
 # Commit messages include [dependabot skip] so Dependabot may force-push over
 # the bot commit when rebasing (GitHub docs: Managing pull requests for
@@ -56,30 +56,6 @@ jobs:
         run: |
           git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
           git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
-      - name: Detect miro server manifest changes
-        id: miro
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if git diff --name-only "origin/$BASE_REF"...HEAD | grep -qE '^plugins/miro/server/package(-lock)?\.json$'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Set up Node
-        if: steps.miro.outputs.changed == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: plugins/miro/server/package-lock.json
-      - name: Install and regenerate miro bundle
-        if: steps.miro.outputs.changed == 'true'
-        working-directory: plugins/miro/server
-        run: |
-          npm ci
-          npm run bundle
-          npm run verify-bundle
       - name: Bump plugin manifests and changelogs
         id: bump
         env:
@@ -106,7 +82,7 @@ jobs:
             echo "nothing to commit"
             exit 0
           fi
-          # File contents go through stdin and files, never argv, so a large bundle fits.
+          # File contents go through stdin and files, never argv, so a large file fits.
           adds="$RUNNER_TEMP/additions.jsonl"
           dels="$RUNNER_TEMP/deletions.json"
           payload="$RUNNER_TEMP/payload.json"

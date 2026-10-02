@@ -7,7 +7,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**/*.ts", "!**/build", "!**/dist", "!**/coverage", "!**/node_modules"]
+    "includes": ["src/**/*.ts", "!**/build", "!**/coverage", "!**/node_modules"]
   },
   "formatter": {
     "enabled": true,
@@ -62,7 +62,7 @@
         "useImportExtensions": {
           "level": "error",
           "options": {
-            "forceJsExtensions": true
+            "forceJsExtensions": false
           }
         }
       },

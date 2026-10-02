@@ -37,7 +37,18 @@ Official contracts:
 3. When the plugin is enabled but its tools are absent, report that startup or configuration failed.
    Direct the user to the `/plugin` Errors view and `/mcp`. An unset token is not a startup
    failure: the server runs and each tool call returns the configure instruction, so absent tools
-   point to a different cause.
+   point to a different cause. A first launch that cannot install the server's npm dependencies
+   (no `npm` on `PATH`, no network, a failed `npm ci`) is such a cause: the server exits, and its
+   stderr names the cause and the one shell line that repairs it. To tell the user where to read
+   that stderr, read the two sections below at run time and give the user the route they state;
+   do not read the user's logs for them.
+   - **Pointer**: for where a plugin MCP server's startup error is recorded, see
+     <https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects>
+     and <https://code.claude.com/docs/en/debug-your-config#check-mcp-servers>.
+   - **As of**: 2026-10-02, Claude Code 2.1.287
+   - **Recheck trigger**: either section changing where server stderr is shown or the debug flag
+     that captures it.
+
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
 4. When the scoped Miro tools are present, report only that the server started. The server starts
    and lists its tools with no token, so tool presence proves neither that a token was supplied nor
