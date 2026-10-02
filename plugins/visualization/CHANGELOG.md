@@ -8,8 +8,8 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Fixed
 
 - The terminal pin for pull-request diffs, fetched content and other repositories' files no
-  longer says it lasts "until the escape helper ships" (the helper has shipped). It lasts until
-  the lane is wired through the helper.
+  longer says it lasts "until the escape helper ships" (the helper has shipped), in `SKILL.md` and
+  `context/decision-matrix.md`. It lasts until the lane is wired through the helper.
 - The chrome's ivory background is no longer on the styles-to-leave-out lists, which now name only layout habits.
 
 ### Changed
