@@ -691,17 +691,6 @@
       ]
     },
     {
-      "name": "provenance",
-      "source": "./plugins/provenance",
-      "description": "Deprecated: renamed to attribution. Install attribution@melodic-software; this shim only points at /attribution:audit and /attribution:setup and is removed in a later release.",
-      "category": "quality",
-      "tags": [
-        "deprecated",
-        "provenance",
-        "attribution"
-      ]
-    },
-    {
       "name": "writing",
       "source": "./plugins/writing",
       "category": "presentation",

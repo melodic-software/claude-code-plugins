@@ -119,12 +119,6 @@ stamp forms; enable it where that holds.
 
 Every detector script accepts `--show-config` and names the layer each value came from.
 
-A legacy `provenance.json` or `provenance.local.json` left in any layer is never read. When a
-layer has the legacy file and no `attribution` file, each script that reads the config cascade
-prints one warning naming it and the `attribution` file name to rename it to.
-`/attribution:setup check` reports the two repo-level legacy files as retired conventions, and
-`apply` migrates their keys and removes them once you confirm.
-
 ## Prerequisites
 
 - **bash** for `list-corpus.sh`, `extract-breadcrumbs.sh`, `check-stamps.sh`,
