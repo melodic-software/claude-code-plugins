@@ -48,6 +48,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - Under the parser, `var pY=[...];export{pY}` with no importer reads partial: with no module
   table its file is unknown, so a namespace of it cannot be ruled out.
 
+## [2.4.3] - 2026-10-02
+
+### Changed
+
+- `lanes`' example config runs the `babysit` merge lane on `opus`, the strong-tier orchestrator
+  root `docs/conventions/loop-lane/README.md` sets, instead of `sonnet`. The launcher tests assert
+  the new root.
+
 ## [2.4.2] - 2026-10-02
 
 ### Fixed
