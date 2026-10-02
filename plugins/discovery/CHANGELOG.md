@@ -15,6 +15,9 @@
 - **The research run aims at HIGH, not at the corroborator floor.** Discipline 5, the Gaps line,
   the discipline file's source-tier ratio, the Phase 1 gap list and the researcher agent now say
   that criterion 4's count is a floor and acceptance also needs HIGH (criterion 7).
+- **`tests/count-rereads.py` keeps `MultiEdit` on purpose.** The edit-tool set still lists it, now
+  with a pointer record to the permissions page, because transcripts recorded by older Claude Code
+  versions carry the call.
 
 ## [0.25.25] - 2026-10-02
 

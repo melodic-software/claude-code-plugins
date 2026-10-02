@@ -87,7 +87,7 @@ run_posix_host() {
   run_posix_host_payload "$1" "$(command_json "$2")"
 }
 
-# File-path lane (0.30.0): Write / Edit / MultiEdit / NotebookEdit carry
+# File-path lane (0.30.0): Write / Edit / NotebookEdit carry
 # `file_path` (NotebookEdit `notebook_path`) instead of `command`, and before
 # 0.30.0 the empty-COMMAND early exit returned before any matcher ran.
 # <payload-json> is produced by the caller so one runner covers every tool.
@@ -137,8 +137,8 @@ run_posix_host_payload "Linux host: Write /tmp/x allowed" "$(write_json '/tmp/x'
 run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' 'body')"
 
 # The host gate must be reached BEFORE hook::buffer_stdin and
-# hook::require_jq_blocking. Widening the matcher to Write/Edit/MultiEdit/
-# NotebookEdit made the old ordering a hard break: on a Linux or macOS host with
+# hook::require_jq_blocking. Widening the matcher to Write/Edit/NotebookEdit
+# made the old ordering a hard break: on a Linux or macOS host with
 # no jq on PATH, require_jq_blocking's fail-closed exit 2 fired on EVERY file
 # edit, on a platform where this guard can never find a violation.
 #
@@ -170,7 +170,6 @@ run_win_payload "Write \\tmp\\x drive-root (blocked)" "$(write_json '\tmp\x' 'x'
 run_win_payload "Write D:\\tmp\\x other drive (blocked)" "$(write_json 'D:\tmp\x' 'x')" 2
 run_win_payload "Edit /tmp/x (blocked)" "$(edit_json '/tmp/x' 'x')" 2
 run_win_payload "Edit C:\\tmp\\x (blocked)" "$(edit_json 'C:\tmp\x' 'x')" 2
-run_win_payload "MultiEdit /tmp/x (blocked)" "$(other_tool_json 'MultiEdit' '/tmp/x')" 2
 run_win_payload "NotebookEdit notebook_path /tmp/n.ipynb (blocked)" \
   "$(notebook_json '/tmp/n.ipynb' 'x')" 2
 run_win_payload "NotebookEdit file_path fallback /tmp/n.ipynb (blocked)" \
@@ -252,10 +251,9 @@ run_win_payload "PS: Set-Content -Path:D:/a/tmp/x subdir tmp (allowed)" \
 # Write payload only reaches the hook because hooks.json routes it here. Reverting
 # that registration alone would leave every assertion above green, so assert it.
 # Matchers are split on `|` into EXACT alternatives, not substring-searched: a
-# containment test for "Edit" is satisfied by "MultiEdit" and so can never fail
-# on its own, and a matcher with the pipes removed ("WriteEditNotebookEdit")
-# routes nothing while passing every containment check. Sorting also makes the
-# assertions immune to a harmless reordering of the alternatives.
+# matcher with the pipes removed ("WriteEditNotebookEdit") routes nothing while
+# passing every containment check. Sorting also makes the assertions immune to a
+# harmless reordering of the alternatives.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   def rowtext: .command + " " + ((.args // []) | map(tostring) | join(" "));
@@ -264,7 +262,7 @@ reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
     | .matcher | split("|")[] ]
   | sort | join(" ")' "$HOOKS_JSON" 2>/dev/null)
 assert_eq "hooks.json routes the guard to exactly the intended tools" \
-  "Bash Edit MultiEdit NotebookEdit PowerShell Write" "$reg"
+  "Bash Edit NotebookEdit PowerShell Write" "$reg"
 # The registration must also NAME A FILE THAT EXISTS — a command path typo
 # registers cleanly and then fails to run on every tool call. Exec form keeps
 # that path in args, after ${CLAUDE_PLUGIN_ROOT}/.

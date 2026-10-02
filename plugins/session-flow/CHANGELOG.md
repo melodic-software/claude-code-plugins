@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.44.6] - 2026-10-02
+
+### Changed
+
+- **`retro`'s transcript parser keeps `MultiEdit` on purpose.** The file-modifying tool set still
+  lists it, now with a pointer record to the permissions page, because transcripts recorded by older
+  Claude Code versions carry the call.
+
 ## [0.44.4] - 2026-10-02
 
 ### Changed

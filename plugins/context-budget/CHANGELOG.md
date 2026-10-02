@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.7.4] - 2026-10-02
+
+### Changed
+
+- **The settings-write checkpoint is registered on `Write|Edit|NotebookEdit`.** The `MultiEdit`
+  alternative is dropped from the `hooks.json` matcher and the hook's tool list, so the hook no
+  longer runs for a tool the current tools reference does not list. The contract test now asserts
+  the registered matcher, and the option description and README match.
+
 ## [0.7.2] - 2026-10-02
 
 ### Fixed
