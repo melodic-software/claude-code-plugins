@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.6] - 2026-10-02
+
+### Changed
+
+- **`write-for-humans` makes the 20-word limit for instruction sentences a hard cap.** The load
+  rules in `reference/sentence-rules.md` no longer say "about 20" for instructions.
+- **`write-for-humans` adds three STE rules to its load layer**: simple verb forms (3.2), one topic
+  per paragraph (6.5) and at most six sentences per paragraph (6.6). `sentence-rules.md` owns their
+  text.
+- **`write-for-humans` records the STEMG caveat on AI.** `reference/sources.md` says an AI checker's
+  STE verdict is plausible but unverified, and the STE record carries a new as-of date.
+
 ## [0.24.5] - 2026-10-02
 
 ### Changed

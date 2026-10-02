@@ -38,10 +38,18 @@ Paraphrased from the Google developer documentation style guide.
 
 Paraphrased from ASD-STE100 Simplified Technical English. The numbered rules and the controlled
 dictionary live in the specification itself; these are the transferable principles, which is why
-this file is a paraphrase and never a substitute for the spec.
+this file is a paraphrase and never a substitute for the spec. Rule numbers follow Issue 9; the
+record in [`sources.md`](sources.md) holds the pointer and the recheck trigger.
 
 - One instruction per sentence. One thought per sentence everywhere else.
-- Split instructions longer than about 20 words, and other sentences longer than about 25.
+- An instruction sentence has a hard cap of 20 words (STE 5.1). Count the words: 21 fails, so split
+  the sentence. The cap holds for warnings and cautions too.
+- Split other sentences longer than about 25 words.
+- Use only simple verb forms (STE 3.2): the imperative, the infinitive, the simple present, past,
+  and future, and a past participle used as an adjective. Rewrite "has been installed" and "will
+  be running" with a simple form.
+- One topic per paragraph (STE 6.5). When the text turns to a second topic, start a new paragraph.
+- At most six sentences per paragraph (STE 6.6). Split a longer paragraph at a topic change.
 - Put the warning or condition before the step it guards: "If hot oil touches your skin, injuries
   can occur."
 - Keep "the" and "a". "Remove backup file" reads two ways; "Remove the backup file" reads one.
