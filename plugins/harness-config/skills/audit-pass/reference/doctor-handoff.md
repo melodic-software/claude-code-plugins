@@ -13,6 +13,13 @@ or push it toward answering a confirmation on the operator's behalf.
 
 **The handoff is therefore an operator instruction.** The pass finishes its own phases, then tells
 the operator to run `/doctor` themselves. Nothing in this pass invokes it, waits on it, or drives it.
+`/doctor prompt-audit` is handed off the same way, as an operator-run instruction-file audit this
+pass never dispatches.
+
+- **Pointer**: for its scope, write posture and version floor, see
+  <https://code.claude.com/docs/en/memory#audit-your-instruction-files>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section changes its write posture or version floor, or moves.
 
 **What it does not do is refuse the result the operator brings back.** "Never parses its output as a
 lane result" would make the `delegated` tier unreachable. The lane could never leave `open`, and
