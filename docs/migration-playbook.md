@@ -482,7 +482,7 @@ against the plugin you actually invoked. Then:
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
 
-- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`),
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/`,
   bundled and cache-isolated, never reaching outside the plugin directory.
 - Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
   `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
@@ -936,9 +936,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread, and is prohibited by default per the component stance table in
    [plugin-philosophy.md](plugin-philosophy.md); an exception requires the documented justification
-   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
-   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
-   is reviewed like any hook script.
+   the stance demands, reviewed here. A top-level `bin/` is not accepted (the component stance table and
+   `scripts/check-plugin-manifest-presence.sh` carry the reason); executables live under
+   `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.

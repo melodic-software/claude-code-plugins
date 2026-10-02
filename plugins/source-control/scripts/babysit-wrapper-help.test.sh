@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Regression tests for the bin/ wrappers' --help path.
+# Regression tests for the scripts/ wrappers' --help path.
 #
 # /source-control:setup's lane-script reachability probe (#787) invokes
-# `bin/source-control-babysit-merge --help` as a permission canary: the exact
+# `scripts/source-control-babysit-merge --help` as a permission canary: the exact
 # path form the lane mandates for every merge, chosen because it is provably
 # non-mutating. That framing is only honest while --help genuinely short-circuits
 # -- reaching no network, needing no allowlist, and exiting 0. If it ever
@@ -11,7 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="$SCRIPT_DIR/../bin"
+BIN="$SCRIPT_DIR"
 
 FAILED=0
 CASE_NUM=0
