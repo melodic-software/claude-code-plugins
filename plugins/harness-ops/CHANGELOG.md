@@ -16,30 +16,37 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   an export to every importer and re-export, and an argument to an imported function into its
   one exporter. The list stays literal only when every hop is known not to change it. These keep
   it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
-  `instanceof`; an exported name any module reads by name as a property (`ns.pY`); an export whose
-  file, read from its importers' `from"..."`, is taken whole by `import*as`, `export*from`,
-  `import(...)` or `require(...)`; a bundle with any module that may change `Array.prototype` or
-  `Object.prototype` (through an alias, `["prototype"]`, `{prototype:P}=Array`, a function
-  parameter, `__proto__`, `Object.getPrototypeOf` or `constructor.prototype`); and a flow too deep
-  for the helper's stack, which no longer crashes it. New helper ops `keys_used` and `exports`
-  back those checks, and `reader.flow_lookups` counts the lookups. `reference/extraction.md` lists
-  the assumptions that remain unchecked.
+  `instanceof`; a flow too deep for the helper's stack, which no longer crashes it; an exported
+  name any module reads by name as a property (`ns.pY`); an export whose module's file is loaded
+  whole anywhere (`import*as`, `export*from`, `import(...)`, `require(...)`,
+  `import.meta.require(...)`), or is unknown; and a sink for a name the walk trusted as built in.
+- **A sink rule on trusted names.** The flow reports the names it trusts (each method it calls on
+  the array, each name it relies on the prototypes not holding, and the lookups of a coercion),
+  and the helper's new `sinks` op finds any write of one on an object not provably fresh: a member
+  write of the name or with a computed key that names nothing, the name as a string or `Symbol.x`
+  argument to any call, an object-literal key given to `Object.assign` or `defineProperties`, a
+  definer (`Object.defineProperty`, `Reflect.set`, `__defineGetter__`) given a computed key or
+  read other than as a direct callee, an alias of `Object` or `Reflect`, and a prototype swap.
+- `read_bundle` names each module's `/$bunfs/root/...` file from Bun's standalone module table.
+  New helper ops `keys_used`, `exports` and `sinks` back the checks, and `reader.flow_lookups`
+  counts the flow lookups. `reference/extraction.md` lists the assumptions that remain unchecked.
 
 ### Changed
 
 - **BREAKING: the default inventory reader now needs Node.js and npm.** `inventory.py` reads the
   bundle with `--reader=parser` by default, which installs its pinned parser on first use; without
   Node.js or npm the report shows `binary: broken` with the repair command and no binary
-  sections. Pass `--reader=regex` to keep the old behavior; `--reader=compare` stays selectable. The inventory and audit-native-overlap skills pass
-  `--deps-dir "${CLAUDE_PLUGIN_DATA}"`. The changelog skill's native-drift step runs the inventory
-  without it and installs into the fallback, `<config dir>/plugins/data/harness-ops-melodic-software`,
-  the same directory `${CLAUDE_PLUGIN_DATA}` names for this plugin.
-- Under the parser, the Explore and Plan agents' `disallowed_tools` read literal again on 2.1.284
-  to 2.1.287, with the regex reader's values: their array is exported, aliased, returned to a
-  `.some(t)` caller whose `t` holds no function, re-exported under a name no module imports, and
-  passed to an imported function that only reads it.
-- Under the parser, `var pY=[...];export{pY}` with no importer keeps the literal: the bundle is
-  taken as the whole program.
+  sections. Pass `--reader=regex` to keep the old behavior; `--reader=compare` stays selectable.
+  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`. The
+  changelog skill's native-drift step runs the inventory without it and installs into the
+  fallback, `<config dir>/plugins/data/harness-ops-melodic-software`, the same directory
+  `${CLAUDE_PLUGIN_DATA}` names for this plugin.
+- Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
+  2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
+  every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14
+  times. No value differs between the readers.
+- Under the parser, `var pY=[...];export{pY}` with no importer reads partial: with no module
+  table its file is unknown, so a namespace of it cannot be ruled out.
 
 ## [2.4.2] - 2026-10-02
 

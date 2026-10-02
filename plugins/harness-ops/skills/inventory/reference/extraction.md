@@ -433,26 +433,33 @@ callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `
 A target is cleared only when it is provably fresh: a literal, a function, `Object.create(...)`,
 `this` in a class constructor, a variable that only ever holds one of those, or the `prototype`
 of a function or class declared in the module and never replaced. A module that does not parse
-or calls `eval` is a sink. An export also stays partial when a file its importers name in `from"..."` is taken
-whole anywhere: `import*as N from`, `export*from`, `import(...)`, `require(...)` or
-`import.meta.require(...)` with that file's literal path, since a computed read (`N[k]`) or an
-enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches the export without naming it.
+or calls `eval` is a sink.
+
+The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
+read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
+without naming it. `read_bundle` names each module's own file from Bun's standalone module table
+(after the `---- Bun! ----` trailer, the offsets block points at 52-byte records whose first two
+(offset, length) pairs are the module's path and source), and an export hop stays partial when
+the exporting or re-exporting module's file is loaded whole anywhere: `import*as N from`,
+`export*from`, `import(...)`, `require(...)` or `import.meta.require(...)` with its literal path.
+Without a table the file is the one its importers name in `from"..."`, and a module whose file is
+still unknown counts as loaded whole. A namespace object is not followed to its reads: any whole
+load of the file counts. On 2.1.284 to 2.1.287 the chunk re-exporting the Explore and Plan array
+as `ARTIFACT_FAMILY_TOOL_NAMES` is not the entry chunk; it is loaded whole 13 to 14 times.
 
 Stated assumptions, not checked:
 
-- The bundle is the whole program: no code outside it imports its modules. An export no module
-  imports by name has no known file, so a namespace of it is not seen. The 2.1.284 to 2.1.287 entry
-  chunk re-exports the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES`, which no module
-  imports; it is taken as consumed outside the bundle, in a separate realm.
 - Code built from strings is not analyzed: `new Function(...)`, `Function("...")` and
   `vm.runInThisContext`, which the module spans of 2.1.284 and 2.1.287 hold 2, 5 and 0 times.
 - A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
+- A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
+  watch `Symbol.iterator` or the array iterator's `next` for a spread.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop and trusts `some`, `includes` and `has`; every build has sinks for them (on 2.1.287, 189 modules with a write whose key names nothing on a target not shown fresh, 88 with a definer given such a key), so both lists read partial under the parser | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value->value change; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop and trusts `some`, `includes` and `has`; every build has sinks for them (on 2.1.287, 189 modules with a write whose key names nothing on a target not shown fresh, 88 with a definer given such a key), and the re-exporting chunk is loaded whole, so both lists read partial under the parser | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value->value change; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 
