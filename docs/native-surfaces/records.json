@@ -4745,7 +4745,7 @@
         "skill": "setup",
         "kind": "skill"
       },
-      "reason": "The bundled verify skill exercises a code change end to end before committing; verification:setup reports where the verification plugin's artifacts land. Both are user-only, so no routing exists. Shared words only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "reason": "The bundled verify skill exercises a code change end to end before committing; verification:setup reports where the verification plugin's artifacts land. Both are user-only, so no routing exists. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
