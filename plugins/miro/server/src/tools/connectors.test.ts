@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { strokeColorSchema } from "./connectors.js";
+import { strokeColorSchema } from "./connectors.ts";
 
 describe("strokeColorSchema", () => {
   it("should default to #000000 when omitted", () => {
