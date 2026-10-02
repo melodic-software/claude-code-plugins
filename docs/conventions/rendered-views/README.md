@@ -59,18 +59,14 @@ Two sentences reconcile this with the local-first residence decision:
 Rendered views are untracked by default; publishing anywhere is optional and configured,
 never the default.
 
-Artifact sharing as the upstream artifacts doc describes it (as of 2026-10-02, Claude Code
-v2.1.287): a new artifact is visible only to its owner, and the owner shares it from the
-page's Share control. Team and Enterprise plans can grant named organization members, or the
-whole organization, viewer or editor access; a public link needs no sign-in and stays off
-until an Owner enables it. The doc does not describe sharing with a person outside the
-organization by email invitation, so a plan that depends on that checks the live Share
-dialog first. Pointer:
-<https://code.claude.com/docs/en/artifacts#share-an-artifact>.
+A plan that depends on sharing or editing a rendered view across accounts or subscriptions
+does not assume it works: it checks the live Share dialog first.
 
-Standing re-check trigger: re-read that section and the Claude Code changelog on each Claude
-Code version bump, and before any plan relies on cross-account or cross-subscription
-sharing or editing (present or absent).
+- **Pointer**: for artifact sharing and its permissions, see
+  <https://code.claude.com/docs/en/artifacts#share-an-artifact>.
+- **As of**: 2026-10-02 (Claude Code v2.1.287)
+- **Recheck trigger**: a Claude Code version bump, or a plan about to rely on cross-account or
+  cross-subscription sharing or editing (present or absent).
 
 ## Genre rubric and stopping rule
 

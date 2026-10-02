@@ -6,8 +6,8 @@ rule, genre rubric, or cascade keys.
 
 ## Sharing claim and chrome background, 2026-10-02
 
-- **The sharing paragraph describes sharing as the upstream doc states it today**, with an
-  as-of date and a recheck trigger, in place of the earlier "verified absent" claim.
+- **The sharing paragraph records the repository decision plus a pointer**, an as-of date and a
+  recheck trigger, in place of the earlier "verified absent" claim. It states no upstream text.
 - **The chrome's ivory background is the sanctioned default.** No skill's styles-to-leave-out
   list names a cream or off-white background; those lists name layout habits. Carve-outs for
   pull-request diffs, fetched content and other repositories' files now read "until the lane is
