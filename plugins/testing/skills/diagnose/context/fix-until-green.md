@@ -37,7 +37,7 @@ Offer it; launch only on the user's yes. The run edits the working tree and comm
 | `maxRounds` | Fix rounds, default 3, clamped to 1-5. |
 | `maxConcurrent` | Fixer wave size, default 2, clamped to 1-16. |
 | `roles` | The route output above, or omitted. |
-| `finalVerify` | Default true: after a green run that changed files, one verifier re-runs the command and reviews the whole diff. |
+| `finalVerify` | Default true: after a green run that dispatched any fixer, one verifier re-runs the command and reviews the whole diff. |
 
 For an unattended or lane run, keep `maxRounds` and `maxConcurrent` at their defaults: which runs
 pause at a usage limit is upstream's rule; see

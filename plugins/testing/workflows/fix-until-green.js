@@ -38,12 +38,19 @@ const GROUP_CAP = 8
 // output decides what the runner reports.
 const norm = p => p.trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '')
 const isRelative = p => !!p && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..')
-// A reported path under one of these never reaches a fixer: git internals and
-// ignored dependency trees escape the diff the check reads, and agent settings
-// or CI workflows run code or widen permissions outside the test run.
-const PROTECTED = ['.git', '.claude', '.github', 'node_modules']
+// A reported path under one of these directories, or with one of these names,
+// never reaches a fixer: git internals and ignored dependency trees escape the
+// diff the check reads, and agent settings, hooks, CI, editor tasks and package
+// manifests run code outside the test run. Segments compare case-insensitively
+// with trailing dots and spaces stripped, as a case-insensitive filesystem would.
+const PROTECTED_DIRS = ['.git', '.claude', '.github', '.husky', '.vscode', 'node_modules', '.venv', 'venv', '.tox']
+const PROTECTED_NAMES = ['package.json', 'makefile', 'lefthook.yml', '.pre-commit-config.yaml', '.envrc', '.gitattributes', '.gitmodules']
 const shaOf = v => (typeof v === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(v.trim()) ? v.trim() : null)
-const isEditable = p =>isRelative(p) && !p.split('/').some(s => PROTECTED.includes(s))
+const isEditable = p => {
+  if (!isRelative(p)) return false
+  const segs = p.split('/').map(s => s.toLowerCase().replace(/[. ]+$/, ''))
+  return !segs.some(s => PROTECTED_DIRS.includes(s)) && !PROTECTED_NAMES.includes(segs[segs.length - 1])
+}
 const askedScope = (Array.isArray(input.scope) ? input.scope : typeof input.scope === 'string' ? [input.scope] : [])
   .filter(s => typeof s === 'string' && s.trim() !== '')
 const SCOPE = askedScope.map(norm).filter(isRelative)
@@ -143,6 +150,7 @@ const RUN_SCHEMA = {
         required: ['id', 'file', 'message'],
       },
     },
+    root: { type: 'string' },
     head: { type: 'string' },
     note: { type: 'string' },
   },
@@ -200,8 +208,9 @@ async function runCommand(label) {
     'test or check: a stable id (the test name or check rule), the repo-relative file it lives in, the ' +
     'failure message in one or two lines, and as suspects the repo-relative source files the output ' +
     'points at (stack frames, compiler errors) plus the project source files the failing test file ' +
-    'imports, read with a read-only command such as grep. When the command fails with no ' +
-    'failure you can attribute to a file, say so in note. Then run `git rev-parse HEAD` and report its output as head.' + fence('command', COMMAND),
+    'imports, read with a read-only command such as grep. List only files `git ls-files` reports as tracked. When the command fails with no ' +
+    'failure you can attribute to a file, say so in note. Then run `git rev-parse HEAD` and ' +
+    '`git rev-parse --show-toplevel` and report their output as head and root.' + fence('command', COMMAND),
     { label, phase: 'Run', schema: RUN_SCHEMA, ...opts('testing:green-runner', R.retrieval.single) }
   )
   if (got == null) { nulls.push(label); return null }
@@ -212,7 +221,7 @@ async function runCommand(label) {
       suspects: (Array.isArray(f.suspects) ? f.suspects : []).filter(s => typeof s === 'string').map(norm).filter(isEditable),
     }))
   if (failures.length > FAILURE_CAP) log(label + ': ' + (failures.length - FAILURE_CAP) + ' failures past the cap of ' + FAILURE_CAP + ' wait for a later round')
-  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), note: got.note || '' }
+  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, note: got.note || '' }
 }
 
 // Group failures into components that share no file: two failures sharing a
@@ -253,11 +262,20 @@ if (!first) {
 // The commit the run started from. Every check diffs against it, so a staged or
 // committed change is as visible as an unstaged one, and a moved HEAD stops the run.
 const BASE = first.head
+const ROOT = first.root
 if (!first.passed && !BASE) {
   return { green: false, rounds: 0, remaining: first.failures, changes: [], stoppedBecause: 'no-base', nulls, ran: ['run:0'] }
 }
 const DIFF = '`git diff ' + BASE + '`'
+// What every check reports about the tree. Untracked files count: a new
+// config or conftest file can skip tests without touching a tracked line.
+const CHANGED =
+  ' Report as changedFiles every path `git diff --name-only ' + BASE + '` lists plus every path ' +
+  '`git ls-files --others --exclude-standard` lists, and as head the output of `git rev-parse HEAD`. ' +
+  'Read each untracked file in full and judge it with the diff: a new file that deselects, skips or ' +
+  'reconfigures tests is weakening.'
 const everAllowed = new Set()
+let dispatched = false
 let outsideEdits = []
 
 // Judge what a check agent saw: a changed tracked file no fixer was allowed to
@@ -299,6 +317,7 @@ while (true) {
 
   const fixers = groups.map((g, i) => ({ label: 'fix:' + rounds + ':' + (i + 1), g, allowed: g.files.filter(inScope) }))
   for (const f of fixers) for (const x of f.allowed) everAllowed.add(x)
+  dispatched = true
   const results = await inWaves(fixers.map(f => () => agentRetry(
     'Stage: fix. Fix the failing tests below at their root cause. You may edit only the files in the allowed ' +
     'list; other fixers are editing other files in this same working tree at the same time. Reproduce with ' +
@@ -314,8 +333,8 @@ while (true) {
     .map((f, i) => ({ label: f.label, allowed: f.allowed, failures: f.g.failures.map(x => x.id), result: results[i] }))
     .filter(r => r.result != null)
     .map(r => {
-      // An absolute path ending in an allowed repo-relative path is that path.
-      const rel = x => (isRelative(x) ? x : r.allowed.find(a => x.endsWith('/' + a)) || x)
+      // An absolute path under the repository root the runner reported is relative to it.
+      const rel = x => (ROOT && x.startsWith(ROOT + '/') ? x.slice(ROOT.length + 1) : x)
       const changed = (Array.isArray(r.result.filesChanged) ? r.result.filesChanged : []).filter(x => typeof x === 'string').map(norm).map(rel)
       return {
         label: r.label, failures: r.failures, status: r.result.status, rootCause: r.result.rootCause,
@@ -341,31 +360,28 @@ while (true) {
   const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened, deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
   changes.push(round)
 
-  // A fixer's own report of what it changed is a claim, so the check runs
-  // whenever any fixer returned, and the changed-file list comes from git.
+  // A fixer's own report of what it changed is a claim, and a fixer that
+  // returned nothing may still have edited, so the check runs whenever any
+  // fixer was dispatched, and the changed-file list comes from git.
   phase('Check')
-  if (reports.length) {
-    const label = 'check:' + rounds
-    ran.push(label)
-    const check = await agentRetry(
-      'Stage: check. Fixers just edited this working tree to make failing tests pass. Run ' + DIFF + ', ' +
-      '`git diff --name-only ' + BASE + '`, `git status --porcelain` and `git rev-parse HEAD` ' +
-      'yourself. Report as changedFiles every path the name-only diff lists, and as head the output of ' +
-      'rev-parse. Judge every change to a test, snapshot, fixture or test configuration file against the ' +
-      'testing:test-value skill, and report each change that weakens a test: a deleted, skipped or disabled ' +
-      'test, a loosened or removed assertion, an expected value recomputed from the code under test, or a ' +
-      'snapshot rewritten to match new output. Quote the diff lines as evidence. A change that fixes ' +
-      'production code, or corrects a test whose expected value was wrong with the reason stated, is not ' +
-      'weakening. Change no file.' + fence('fixer-reports', reports),
-      { label, phase: 'Check', schema: CHECK_SCHEMA, ...opts('testing:green-verifier', R.verifier.single) }
-    )
-    if (check == null) { nulls.push(label); stoppedBecause = 'check-failed'; break }
-    weakening = Array.isArray(check.weakened) ? check.weakened : []
-    round.weakened = weakening
-    if (weakening.length) { stoppedBecause = 'test-weakening'; break }
-    const tree = judgeTree(check, reports.flatMap(r => r.strayEdits))
-    if (tree) { round.outsideEdits = outsideEdits; stoppedBecause = tree; break }
-  }
+  const checkLabel = 'check:' + rounds
+  ran.push(checkLabel)
+  const check = await agentRetry(
+    'Stage: check. Fixers just edited this working tree to make failing tests pass. Run ' + DIFF + ' yourself.' +
+    CHANGED + ' Judge every change to a test, snapshot, fixture or test configuration file against the ' +
+    'testing:test-value skill, and report each change that weakens a test: a deleted, skipped or disabled ' +
+    'test, a loosened or removed assertion, an expected value recomputed from the code under test, or a ' +
+    'snapshot rewritten to match new output. Quote the diff lines as evidence. A change that fixes ' +
+    'production code, or corrects a test whose expected value was wrong with the reason stated, is not ' +
+    'weakening. Change no file.' + fence('fixer-reports', reports),
+    { label: checkLabel, phase: 'Check', schema: CHECK_SCHEMA, ...opts('testing:green-verifier', R.verifier.single) }
+  )
+  if (check == null) { nulls.push(checkLabel); stoppedBecause = 'check-failed'; break }
+  weakening = Array.isArray(check.weakened) ? check.weakened : []
+  round.weakened = weakening
+  if (weakening.length) { stoppedBecause = 'test-weakening'; break }
+  const tree = judgeTree(check, reports.flatMap(r => r.strayEdits))
+  if (tree) { round.outsideEdits = outsideEdits; stoppedBecause = tree; break }
   if (scopeStops.length) { stoppedBecause = 'out-of-scope'; break }
   // Nothing changed and a group widened: the failures stand as they are, so
   // the next round regroups them without a re-run.
@@ -385,7 +401,7 @@ while (true) {
 
 let green = stoppedBecause === 'green'
 let finalCheck = null
-if (green && FINAL_VERIFY && changes.some(c => c.fixers.some(f => f.filesChanged.length))) {
+if (green && FINAL_VERIFY && dispatched) {
   phase('Verify')
   ran.push('verify')
   const v = await agentRetry(
@@ -393,9 +409,7 @@ if (green && FINAL_VERIFY && changes.some(c => c.fixers.some(f => f.filesChanged
     'from the repository root and report whether it passed. Then read the whole ' + DIFF + ' and report every ' +
     'change that weakens a test, judged against the testing:test-value skill: a deleted, skipped or disabled ' +
     'test, a loosened or removed assertion, an expected value recomputed from the code under test, or a ' +
-    'rewritten snapshot. Quote the diff lines as evidence. Report as changedFiles every path ' +
-    '`git diff --name-only ' + BASE + '` lists, and as head the output of `git rev-parse HEAD`. ' +
-    'Change no file.' + fence('command', COMMAND),
+    'rewritten snapshot. Quote the diff lines as evidence.' + CHANGED + ' Change no file.' + fence('command', COMMAND),
     { label: 'verify', phase: 'Verify', schema: FINAL_SCHEMA, ...opts('testing:green-verifier', R.verifier.single) }
   )
   if (v == null) nulls.push('verify')

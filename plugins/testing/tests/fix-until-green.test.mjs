@@ -214,11 +214,33 @@ test('a fixer that throws twice is null; one that throws once is retried', async
   assert.ok(logs.some(l => l.includes('retrying once')))
 })
 
-test('every fixer returning null skips the check and the no-progress stop catches it', async () => {
+test('every fixer returning null still gets the check, and the no-progress stop catches it', async () => {
   const stuck = red(fail('a.test.js', 2))
   const { result, calls } = await run({ command: 'npm test' }, makeReply([stuck], { 'fix:1:1': null, 'fix:2:1': null }))
-  assert.equal(by(calls, 'check:').length, 0)
+  assert.equal(by(calls, 'check:').length, 2)
   assert.equal(result.stoppedBecause, 'no-progress')
+})
+
+test('a null fixer before a green re-run still gets the final verifier', async () => {
+  const { result, calls } = await run({ command: 'x' }, makeReply([red(fail('a.test.js')), GREEN], { 'fix:1:1': null }))
+  assert.ok(one(calls, 'check:1'))
+  assert.ok(one(calls, 'verify'))
+  assert.equal(result.green, true)
+})
+
+test('checks count untracked files and judge their content', async () => {
+  const { calls } = await run({ command: 'x' }, makeReply(TWO_FILES))
+  for (const label of ['check:1', 'verify']) {
+    assert.match(one(calls, label).prompt, /git ls-files --others --exclude-standard/)
+    assert.match(one(calls, label).prompt, /Read each untracked file in full/)
+  }
+})
+
+test('an untracked file outside the allowed set stops the run', async () => {
+  const check = { weakened: [], head: SHA, changedFiles: ['a.test.js', 'conftest.py'] }
+  const { result } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'check:1': check }))
+  assert.equal(result.stoppedBecause, 'outside-edit')
+  assert.deepEqual(result.outsideEdits, ['conftest.py'])
 })
 
 test('concurrency cap: fixers run in waves of maxConcurrent', async () => {
@@ -300,7 +322,7 @@ test('a fixer that needs an editable in-scope file gets it next round without a 
 })
 
 test('a requested file that is out of scope, protected or unsafe stops the run', async () => {
-  for (const [scope, file] of [[['test'], 'src/a.js'], [[], '.github/workflows/ci.yml'], [[], '../x.js'], [[], '']]) {
+  for (const [scope, file] of [[['test'], 'src/a.js'], [[], '.github/workflows/ci.yml'], [[], '../x.js'], [[], 'package.json'], [[], '']]) {
     const ask = { status: 'out-of-scope', rootCause: 'r', filesChanged: [], outsideFile: file }
     const { result } = await run({ command: 'x', scope }, makeReply([red(fail('test/a.test.js'))], { 'fix:1:1': ask }))
     assert.equal(result.stoppedBecause, 'out-of-scope', JSON.stringify(file))
@@ -333,12 +355,26 @@ test('paths under .git, .claude, .github or node_modules never reach a fixer', a
   assert.deepEqual(allowed(fixers[0].prompt), ['a.test.js', 'src/a.js'])
 })
 
-test('an absolute filesChanged path that ends in an allowed file counts as that file', async () => {
+test('protected paths match case-insensitively and cover hook, manifest and venv files', async () => {
+  const suspects = ['.GIT/hooks/pre-commit', '.Claude./settings.json', '.venv/bin/activate', 'web/package.json', 'Makefile', 'lefthook.yml', '.husky/pre-push', 'src/a.js']
+  const { calls } = await run({ command: 'x' }, makeReply([red(fail('a.test.js', 1, suspects)), GREEN]))
+  assert.deepEqual(allowed(one(calls, 'fix:1:1').prompt), ['a.test.js', 'src/a.js'])
+})
+
+test('an absolute filesChanged path under the runner\'s repository root counts as relative to it', async () => {
+  const runs = TWO_FILES.map(r => ({ ...r, root: '/home/u/repo' }))
   const abs = { status: 'fixed', rootCause: 'r', filesChanged: ['/home/u/repo/a.test.js'] }
-  const { result } = await run({ command: 'x' }, makeReply(TWO_FILES, { 'fix:1:1': abs }))
+  const { result } = await run({ command: 'x' }, makeReply(runs, { 'fix:1:1': abs }))
   assert.deepEqual(result.changes[0].fixers[0].filesChanged, ['a.test.js'])
   assert.deepEqual(result.changes[0].fixers[0].strayEdits, [])
   assert.equal(result.green, true)
+})
+
+test('an absolute filesChanged path in another checkout stays a stray edit', async () => {
+  const runs = TWO_FILES.map(r => ({ ...r, root: '/home/u/repo' }))
+  const abs = { status: 'fixed', rootCause: 'r', filesChanged: ['/home/u/other/a.test.js'] }
+  const { result } = await run({ command: 'x' }, makeReply(runs, { 'fix:1:1': abs }))
+  assert.equal(result.stoppedBecause, 'outside-edit')
 })
 
 test('a changed file no fixer was allowed to edit stops the run, whatever the fixers reported', async () => {

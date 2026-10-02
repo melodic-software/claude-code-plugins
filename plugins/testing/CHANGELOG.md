@@ -16,10 +16,11 @@ All notable changes to the `testing` plugin are documented here. Format follows
   rounds in a row with no fewer failures, when a fixer's root cause sits in a file that is out of
   scope or protected (an editable in-scope file joins that fixer's group next round instead), when
   the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
-  and never reverts them. Paths that are absolute, contain `..`, or sit under `.git`, `.claude`,
-  `.github` or `node_modules` never reach a fixer, and fixers are told to run no git command that
-  writes. After a green run that changed files, a final verifier re-runs the command and reviews
-  the whole diff. Its `args` carry `command` (required; without it the run returns
+  and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent
+  settings, hooks, CI, editor tasks or dependency trees, or name a package manifest or build file,
+  never reach a fixer (matched case-insensitively). The checks count untracked files, and fixers
+  are told to run no git command that writes. After any round that dispatched a fixer, a green run
+  gets a final verifier that re-runs the command and reviews the whole diff. Its `args` carry `command` (required; without it the run returns
   `{error: "missing-command"}` and dispatches nothing), `scope` (path prefixes the fixers may
   edit), `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16),
   `roles` and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`,
