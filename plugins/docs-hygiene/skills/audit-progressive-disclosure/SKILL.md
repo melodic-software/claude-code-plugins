@@ -52,7 +52,7 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 | structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-NOT-to-use clause is advisory color (community-sourced), never a violation |
 | structure | `orphan-spoke` | Bundled spoke no hub references. Unreachable by pointer | 2 | 3-way: add the missing pointer, merge the content up, or delete the spoke |
 | structure | `deep-nesting` | Spoke-to-spoke chain, required reading more than one level from the hub (documented partial-read failure) | 2; 1 when the chain is the only path to required content | Re-link the deep target directly from the hub, or flatten |
-| structure | `missing-toc` | Reference file >300 lines with no TOC = definite; 100–300 lines with none = awareness only, citing the official 100-vs-300 conflict | 1 (>300) / 3 (100–300) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
+| structure | `missing-toc` | Reference file >300 lines with no TOC = definite; 100–300 lines with none = awareness only, citing the source conflict on the TOC threshold | 1 (>300) / 3 (100–300) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
 
 Thresholds are advisory and tier-calibrated, never hard gates; consuming repos refine them via
 their own `CLAUDE.md` / rules. There is deliberately **no** "should have spokes" shape: disclosure
@@ -130,7 +130,7 @@ sibling divergences it owns.
 |------|------|-------|------|----------|-----------|
 | 1    | split | tier-mismatch | 41 | "## Deploy procedure" (multi-step) in always-loaded CLAUDE.md | Move to a skill; leave a one-line pointer |
 | 2    | structure | blind-pointer | 12 | "[details](context/tier-model.md)" — no when-clause | Attach the read condition and intent |
-| 3    | structure | missing-toc | — | reference file, 180 lines, no TOC (official guidance conflicts: 100 vs 300) | awareness only |
+| 3    | structure | missing-toc | — | reference file, 180 lines, no TOC (sources disagree on the TOC threshold: 100 vs 300) | awareness only |
 | 1    | split | tier-mismatch | 41 | "## Deploy procedure" in always-loaded file listed as synced in `sync/README.md` | upstream: file with the owner, citing the decision |
 ```
 
@@ -158,8 +158,8 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 - Ownership is usually stated outside the audited targets. A file that looks local may be synced
   or vendored; grep the repo, not just the target.
-- The 500/200 numbers are **ceilings, not targets**; the official split trigger is *approaching*
-  the cap, and the internal-practice hub figure (~30 lines) is far below it. Size alone under the
+- The 500/200 numbers are **ceilings, not targets**; we treat *approaching* the cap as the split
+  trigger, and a well-split hub sits far below it (about 30 lines is common). Size alone under the
   cap never fires `oversize`.
 - Invocation-loaded is **cheap to have, not cheap to use**: once a skill body loads, every line
   recurs for the session, so mutually-exclusive content inside one body defeats the tier and
@@ -168,8 +168,9 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
   are alternates (not required reading) are legitimate.
 - An unresolved pointer (`resolved=no`) is upstream breakage worth surfacing, but rename sweeps
   belong to `/docs-hygiene:rename-references`, not here.
-- The TOC bands exist because Anthropic's own surfaces disagree (100 vs 300); never present
-  either number as the single official rule.
+- The TOC bands exist because two Anthropic sources disagree on the TOC threshold (the Agent
+  Skills best-practices page and skill-creator, both under Sources); never present either source's
+  number as the single official rule.
 
 ## What this skill is NOT
 
@@ -183,13 +184,17 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 ## Sources
 
+Each entry names the topic this skill relies on the source for, never what the source says; the
+pointer, as-of date and recheck trigger for each threshold live in
+[context/tier-model.md](context/tier-model.md).
+
 - [Claude Code skills docs](https://code.claude.com/docs/en/skills). Loading levels, listing cap, compaction budgets, split triggers
 - [Claude Code memory docs](https://code.claude.com/docs/en/memory). CLAUDE.md/rules loading, 200-line target, fact-vs-procedure routing
 - [Claude Code large-codebases docs](https://code.claude.com/docs/en/large-codebases). Root-orients / per-directory layering, escalation ladder
 - [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, >100-line TOC guidance
 - [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, ~100-token metadata
-- [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills). Mutual-exclusivity split rule
-- [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents). Just-in-time retrieval, pointer doctrine
+- [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns). Mutual-exclusivity split rule (correlate with [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills))
+- [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
 - [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, >300-line TOC guidance
 - [UC Davis disclosure study (arXiv 2607.17598)](https://arxiv.org/abs/2607.17598). Scale boundary, depth>1 harm (academic corroboration)
 - [happyskills: listing eviction](https://happyskills.ai). Community source for eviction scoring and the when-NOT-to-use description clause (advisory color only)

@@ -1,5 +1,5 @@
 ---
-version: 1.25.0
+version: 1.26.0
 last-updated: 2026-10-01
 ---
 
@@ -46,6 +46,8 @@ Look up a specific check by ID: run `grep -n '^### I<N>:'` over this file.
   - [I33: Sibling-file meta-commentary](#i33-sibling-file-meta-commentary)
   - [I34: Maintainer rationale inside model-facing YAML comments](#i34-maintainer-rationale-inside-model-facing-yaml-comments)
   - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
+  - [I36: Tool-discouraging language](#i36-tool-discouraging-language)
+  - [I37: Harness text after every tool result](#i37-harness-text-after-every-tool-result)
 - [Stopping condition](#stopping-condition)
 - [Out-of-catalog defects](#out-of-catalog-defects)
 - [AGENTS.md content-home advisory](#agentsmd-content-home-advisory)
@@ -67,12 +69,14 @@ which the catalog-wide trigger already covers. One staleness event fires the who
 check that noticed it. Model-specific pages, the per-model prompting guides under Sources, are
 superseded on each model generation.
 
-**Per-row verification stamps.** A row that restates a volatile upstream *literal*, such as a level
-name, a model range, or a type predicate, additionally carries the four-part record that claim needs: the
-claim, its basis, an as-of date, and a recheck trigger naming an observable event (the shape is
-`docs/conventions/upstream-drift/README.md` in this monorepo; in a standalone install the four
-parts, not the path, are the requirement). A row that restates nothing and only points at its page
-carries no stamp, because a pointer cannot go stale.
+**Per-row verification stamps.** A row whose firing rule acts on a volatile upstream *literal*,
+such as a level name, a model range, or a type predicate, keeps that literal as its own setting and
+additionally carries the record that decision needs: the decision in our words, a pointer to the
+exact upstream section, an as-of date, and a recheck trigger naming an observable event, with no
+upstream text (the shape is `docs/conventions/upstream-drift/README.md` in this monorepo; in a
+standalone install those parts, not the path, are the requirement). A row whose Source line only
+names its page and section, and whose firing rule acts on no such literal, carries no stamp: the
+catalog-wide trigger already covers it.
 
 A per-row stamp **supplements** the catalog-wide trigger above; it never replaces or narrows it.
 The catalog trigger already fires every row on any Sources change, so a per-row trigger adds no
@@ -84,8 +88,12 @@ because it is the wider one and a staleness signal is not something to resolve b
 narrower authority.
 
 The requirement **binds on touch**, per the convention above: rows predating this rule keep their
-citations as they are and adopt the four parts the next time they change. A missing stamp on an
+citations as they are and adopt the record parts the next time they change. A missing stamp on an
 older row is therefore not itself a defect in this catalog.
+
+**Source lines name, never quote.** A row's Source line names the page and the section that
+documents its mechanic; the firing rule above it is this catalog's decision, in its own words, and
+works without a live fetch. Read the section's wording at the page.
 
 **Admission.** A row's observable must be **anchored to text that is present**. A check detects a
 passage a surface actually contains: either what it says, or an attribute it lacks while saying it.
@@ -121,6 +129,21 @@ model name in prose. Promotion to fleet-wide (unscoped) happens only through the
 authoritative model-agnostic upstream doc states the claim, OR multiple model guides converge on
 it. Unannotated checks are model-agnostic and always fire.
 
+**Tokens of models that are no longer current.** A scope token stays while Claude Code can still
+put a session on its model by fallback. On 2026-10-01 that held for `opus-5`, `opus-4-8` and
+`sonnet-5`, so no row drops one. `fable-5` is not in this set: we treat Fable 5 as a current model,
+since Claude Code still offers it for selection. Each row scoped to a token in this set, or to
+`fable-5`, carries a "Re-justified" line saying why its scope neither drops nor widens to another
+current model.
+
+- **Pointer**: for the fallback targets, see
+  [model configuration: automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback);
+  for how Fable 5 is selected, see
+  [model configuration: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
+- **As of**: 2026-10-01
+- **Recheck trigger**: a model leaves Claude Code's model page, which retires its token in every
+  row that names it, or Fable 5 stops being selectable there.
+
 **`OPINION` enablement.** Enablement attaches to *detection*, never to advice, and splits on what a
 rule does:
 
@@ -144,10 +167,10 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
 `~/.claude/rules/`) their findings route to the `harness-memory` plugin's `audit` skill when it is
 installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
-not. Checks I6–I12, I16–I28, I30, and I35 apply to all surfaces. I15 also applies to all surfaces,
-but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14, I29, I31,
-I32, I33, and I34 name narrower surface sets in their own rows, and a lane runs each only on the
-surfaces its row names.
+not. Checks I6–I12, I16–I28, I30, and I35–I37 apply to all surfaces. I15 also applies to all
+surfaces, but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14,
+I29, I31, I32, I33, and I34 name narrower surface sets in their own rows, and a lane runs each only
+on the surfaces its row names.
 
 ## Sources
 
@@ -158,35 +181,30 @@ surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Prompting Claude Opus 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
-- The bundled `claude-api` skill's model-migration reference. The `fable-5-1` widenings below were
-  taken from Claude Code 2.1.258 (sections Migrating to Claude Fable 5.1 and Migrating to Claude
-  Fable 5.1 from Claude Fable 5). Re-read 2026-09-28 from the skill inside Claude Code 2.1.282:
-  those sections are still present, the guide adds `## Ground the migration with an eval` (the
-  2.1.260 refresh, which also moved the Go, Java, and C# samples onto current-generation model
-  ids), and the bundled `prompt-audit` guide still runs Steps 0–7 over Groups 1–4. Changelog
-  2.1.283 is the next release that names `prompt-audit`, so this stamp does not claim the guide is
-  byte-identical past 2.1.282. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
-  which replaces this basis and joins this list in its place, or a release note that changes
-  `prompt-audit` or the model-migration sections this catalog cites.
+- Prompting Claude Fable 5.1:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>.
+  The `fable-5-1` widenings below rest on it, in place of the bundled `claude-api` skill's
+  model-migration reference they first cited; that skill's record lives in
+  [bundled-claude-api.md](bundled-claude-api.md).
+- What's new in Claude Fable 5.1 (its refusal categories, for I10):
+  <https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1>
+- Prompting Claude Sonnet 5.5 (the `sonnet-5-5` rows and widenings below):
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
 - Prompting Claude Opus 5.5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
-- Getting the most out of Opus 5.5 in Claude and Claude Code (vendor blog, published 2026-09-22,
-  which carries the Opus 5.5 guide's chat-scoped claims to saved Claude Code instructions; a dated
-  post, cited where it adds that reach and otherwise corroborating, so the citing rows keep the
-  `ANTHROPIC-DOCS` Authority of the guide above):
-  <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
-- Prompting Claude Sonnet 5.5:
-  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
+- Getting the most out of Opus 5.5 in Claude and Claude Code (vendor blog, published 2026-09-22).
+  Not a pointer (correlate only): the docs pointer is Prompting Claude Opus 5.5 above, and the
+  citing rows keep that guide's `ANTHROPIC-DOCS` Authority;
+  correlate with <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
 - Prompting Claude Sonnet 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Prompting Claude Opus 4.8:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8>
 - The new rules of context engineering for Claude 5 generation models (vendor blog, published
-  2026-07-24, which corroborates I6 from the model-delta side and I15 from the reasoning-cost side;
-  a dated post, static once published, so a recheck is expected to find it unchanged; it
-  corroborates rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of
-  their primary documentation sources and the closed four-value Authority set above is unchanged):
-  <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
+  2026-07-24). Not a pointer (correlate only): the docs pointer is Prompting best practices above,
+  for I6 and I15, whose rows keep the `ANTHROPIC-DOCS` Authority of their documentation sources, so
+  the closed four-value Authority set above is unchanged;
+  correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
 - Memory (CLAUDE.md, a natively read AGENTS.md, rules, auto memory):
   <https://code.claude.com/docs/en/memory>
 - The `.claude` directory: <https://code.claude.com/docs/en/claude-directory>
@@ -202,8 +220,9 @@ surfaces its row names.
 - Introducing Claude Fable 5 and Claude Mythos 5 (which models carry the safety classifiers):
   <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
 - Thinking (the sanctioned reasoning-visibility path, the `display` field, the thinking-block
-  round-trip protocol, the models that reject a thinking-disable outright, and what a thinking or
-  effort change does to the cache prefix):
+  round-trip protocol, the per-model table of accepted `thinking` values including `between_tools`,
+  the models that reject a thinking-disable outright or non-default sampling parameters, and what a
+  thinking or effort change does to the cache prefix):
   <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - Steering thinking (the turn-validation relaxation, and the models that still enforce a leading
   thinking block):
@@ -211,12 +230,14 @@ surfaces its row names.
 - Troubleshooting thinking (the per-request 400s, the models the effort restriction covers, and the
   internal-tag leakage a don't-think directive worsens):
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
-- Model migration guide (the model ranges over which manual extended thinking is rejected, and
-  the ranges over which non-default sampling parameters are rejected):
-  <https://platform.claude.com/docs/en/about-claude/models/migration-guide>
-- What's new in Claude Sonnet 5 (the sampling-parameter constraint's arrival on the Sonnet class,
-  the new tokenizer, and the launch behavior changes):
-  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>
+- Model migration guides. The migration-guide URL is an index of per-model guides
+  (<https://platform.claude.com/docs/en/about-claude/models/migration-guide>); I25 cites the Fable
+  and Mythos guide's section on migrating from Claude Opus 5:
+  <https://platform.claude.com/docs/en/models/fable-5/migration-guide#migrating-to-claude-mythos-5-and-claude-fable-5-from-claude-opus-5>.
+  The model ranges that reject manual extended thinking (I17-c) and non-default sampling
+  parameters (I25) are read from Thinking, above.
+- Claude Sonnet 5 model page, "Good to know" (the sampling-parameter constraint on the Sonnet class):
+  <https://platform.claude.com/docs/en/models/sonnet-5/overview#good-to-know>
 - Effort (the levels, `high`'s equivalence to omitting the parameter, the carry-over sweep advice,
   and where thinking may not be disabled):
   <https://platform.claude.com/docs/en/build-with-claude/effort>
@@ -227,10 +248,12 @@ surfaces its row names.
 - Settings (the `effortLevel` value set): <https://code.claude.com/docs/en/settings>
 - Environment variables (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`, and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` with the models it reaches):
-  <https://code.claude.com/docs/en/env-vars>; read it verbatim per the
+  <https://code.claude.com/docs/en/env-vars>; read it whole per the
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
   because a summarizing fetch truncates this page well before these rows
 - Prompt caching (what belongs to the cache key): <https://code.claude.com/docs/en/prompt-caching>
+- Errors (what Claude Code sends, or reports, when thinking is off at an effort level the model
+  refuses with it): <https://code.claude.com/docs/en/errors>
 - CLI reference (`claude doctor` and the other terminal forms):
   <https://code.claude.com/docs/en/cli-reference>
 - Subagents (what loads into a subagent at startup): <https://code.claude.com/docs/en/sub-agents>
@@ -267,8 +290,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
   removal changes behavior only on the occasion it was written for, which this criterion cannot
   observe.
-- **Source:** best-practices, "For each line, ask: *Would removing this cause Claude to make
-  mistakes?* If not, cut it."
+- **Source:** best-practices, "Write an effective CLAUDE.md" (the per-line removal test).
 
 ### I2: Length and skimmability
 
@@ -277,8 +299,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** a surface long or dense enough that its own rules start getting ignored; the tell is
   the model breaking a rule the file contains.
 - **Remediate:** prune, split into path-scoped rules or skills, tighten structure.
-- **Source:** best-practices, "Bloated CLAUDE.md files cause Claude to ignore your actual
-  instructions."
+- **Source:** best-practices, "Write an effective CLAUDE.md" (file length and ignored rules).
 
 ### I3: Broad-applicability placement
 
@@ -316,7 +337,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   trades guaranteed presence for a deferral the agent cannot rely on. Name a destination the agent itself
   reaches, meaning a skill the agent's definition **invokes at runtime** or text kept in the
   definition, and never a `paths:`-scoped rule. **A `skills:` preload is not such a destination**:
-  the full content of each listed skill is injected into every dispatch of that agent, so the
+  we treat every preloaded skill's whole body as loaded into each dispatch of that agent, so the
   content is resident for every unrelated use exactly as it was in the definition, and the move
   defers nothing. That is the same disqualification `@path` imports carry above. When the agent has
   no conditional runtime invocation to move the content to, report that no safe deferral is
@@ -325,19 +346,18 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality*, an instruction sitting
   away from the thing it governs, is I16, and an instruction can be correctly deferred here and
   still misplaced there.
-- **Source:** best-practices, "only include things that apply broadly. For domain knowledge or
-  workflows that are only relevant sometimes, use skills instead."; memory, "splitting into `@path`
-  imports helps organization but doesn't reduce context, since imported files load at launch";
-  context-window, "What survives compaction", for the per-destination cost; skills, "skill
-  descriptions are loaded into context so Claude knows what's available, but full skill content only
-  loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
-  characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
-  `skillOverrides`."; subagents, on a skill named in an agent's `skills:` field, "The full content
-  of each listed skill is injected into the subagent's context at startup." All quoted spans
-  verified 2026-08-31 against <https://code.claude.com/docs/en/skills#frontmatter-reference> (the
-  1,536 cap and invocation-control quotes) and <https://code.claude.com/docs/en/sub-agents> (the
-  preload quote); recheck trigger: a fetch of either page no longer carrying its quoted span
-  re-derives this check's Remediate mechanics.
+- **Source:** best-practices, "Write an effective CLAUDE.md" (broad applicability, skills for
+  sometimes-relevant content); memory, "Import additional files" (imports load at launch);
+  context-window, "What survives compaction", for the per-destination cost; skills, "Frontmatter
+  reference" (description loading, the listing truncation this check keeps as its own 1,536
+  setting, and the invocation-control fields) and "Override skill visibility from settings"
+  (`skillOverrides` and plugin skills); subagents, the `skills:` field (preloaded skill content).
+  Pointer: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
+  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> and
+  <https://code.claude.com/docs/en/sub-agents>. As of: 2026-08-31. Recheck trigger: either page
+  changes the listing cap, which field keeps a description out of context, whether
+  `skillOverrides` reaches plugin skills, or what a `skills:` preload injects; that re-derives
+  this check's Remediate mechanics.
 
 ### I4: Inferable or redundant content
 
@@ -354,8 +374,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   the hold and its class; propose compression in place instead. The register is non-exhaustive, so
   a candidate absent from it is judged on this criterion's normal terms, never deleted *because* it
   is absent.
-- **Source:** best-practices include/exclude table, which excludes "Anything Claude can figure out by
-  reading code" and "Standard language conventions Claude already knows."
+- **Source:** best-practices, "Write an effective CLAUDE.md", the include/exclude table (its exclude
+  column).
 
 ### I5: Rule-to-hook or delete
 
@@ -372,8 +392,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   "The model already does this" is the weakest possible evidence against a rail whose absence is
   unrecoverable, and the hook conversion stays available: converting a protected rule to a
   deterministic mechanism is a remediation, deleting it is not.
-- **Source:** best-practices, "If Claude already does something correctly without the instruction,
-  delete it or convert it to a hook."
+- **Source:** best-practices, "Avoid common failure patterns" (already-followed rules) and "Set up
+  hooks".
 
 ### I6: Bare prohibition to positive reframing
 
@@ -388,18 +408,10 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Remediate:** reframe positively, stating what to do instead, as the primary fix. Where a
   genuine hard "never" survives, keep it but add its rationale (see I7) as the fallback.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** prompting best-practices, "Tell Claude what to do instead of what not to do."
-  Corroborated from the model-delta side at the context-engineering blog, under "Then and now" in
-  the paired "Then: Give Claude rules" / "Now: Let Claude use judgment" headings. The bare
-  prohibition quoted below was a guardrail for older models, since "newer models have better
-  judgment and can handle these decisions well without explicit rules", and its shipped
-  replacement is an instance of this row's remediation shape: "Write code that reads like the
-  surrounding code: match its comment density, naming, and idiom."
-
-  <!-- ai-slop-ignore-start: verbatim quotation of the retired prohibition from the context-engineering blog -->
-  "In code: default to writing no comments. Never write multi-paragraph docstrings or
-  multi-line comment blocks — one short line max."
-  <!-- ai-slop-ignore-end -->
+- **Source:** prompting best-practices, "Control the format of responses" (positive framing).
+  Corroborated from the model-delta side (correlate with the context-engineering blog under
+  Sources, its "Then and now" section, whose worked example is an instance of this row's
+  remediation shape).
 
 ### I7: Reason with the request
 
@@ -410,12 +422,8 @@ so this fires for every target model.
 - **Detect:** an instruction that states a request with no intent or motivation attached.
 - **Remediate:** add the why: the model connects the task to relevant context instead of inferring
   intent on its own.
-- **Source:** Fable 5 guide, "Give the reason, not only the request": "Claude Fable 5 tends to
-  perform better when it understands the intent behind a request." Convergent model-agnostic
-  source (the gate-meeting one): Prompting best practices, "Add context to improve performance":
-  "Providing context or motivation behind your instructions, such as explaining to Claude why
-  such behavior is important, can help Claude better understand your goals and deliver more
-  targeted responses."
+- **Source:** Fable 5 guide, "Give the reason, not only the request". Convergent model-agnostic
+  source (the gate-meeting one): Prompting best practices, "Add context to improve performance".
 
 ### I8: Model-era re-audit
 
@@ -427,12 +435,10 @@ convergent model guides meet the gate for each (see the rows); the base row's de
 worked instance keeps a `fable-5` scope of its own.
 
 **Base row** · Unscoped. Promotion gate MET on 2026-08-08: the model-agnostic best-practices page
-states the claim under its all-current-models framing, "Prefer general instructions over
-prescriptive steps. A prompt like 'think thoroughly' often produces better reasoning than a
-hand-written step-by-step plan. Claude's reasoning frequently exceeds what a human would
-prescribe." **The worked instance
+states the claim under its all-current-models framing (section "Leverage thinking & interleaved
+thinking capabilities", on general instructions over prescriptive steps). **The worked instance
 below keeps a `fable-5` scope of its own**, because its basis is Fable-specific and the Opus guides
-run the other way.
+disagree with it.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists: instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
@@ -440,11 +446,11 @@ run the other way.
   only on a `fable-5` or `fable-5-1` resolved target: a delegation throttle**, meaning a cap on
   concurrent workers, a one-at-a-time rule, or an instruction to block until each subagent returns
   before dispatching the next, where the surface's own ground for it is that subagent handling is
-  unreliable. The Fable 5 guide runs the other way, asking for readier dispatch and asynchronous
-  orchestrator-to-worker communication, so a throttle resting on that premise is the generic case
-  with a name on it. On `opus-5` and `opus-4-8` targets this instance is inert, not merely
-  unattested: those guides recommend delegation caps and note fewer spawns by default, so a
-  throttle there is the recommended shape rather than a workaround. **A cap carrying its own
+  unreliable. On a Fable target we treat a throttle resting on that premise as the generic case
+  with a name on it. The Fable 5 guide ("Parallel subagents") and the Opus 5 and Opus 4.8 guides
+  ("Controlling subagent spawning") disagree on throttling subagent dispatch, so on `opus-5` and
+  `opus-4-8` targets this instance is inert, not merely unattested: there we treat a throttle as
+  the recommended shape rather than a workaround. **A cap carrying its own
   non-model rationale is not this instance.** Reviewability of returns, rate limits, cost, or
   shared mutable state each justify a bound on their own terms, and that justification is the
   surface's to make, not this row's to override.
@@ -452,32 +458,24 @@ run the other way.
   consequential removal needs a closed watch, an editorial one does not) that default performance
   holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities",
-  the prefer-general-instructions statement quoted above (the gate-meeting, model-agnostic one).
-  Convergent model guide: Fable 5, "Skills developed for prior models are often too prescriptive
-  for Claude Fable 5 and can degrade output quality." The worked instance's basis is the same
-  guide, "Parallel subagents": "Claude Fable 5 dispatches parallel subagents more readily than
-  prior models. Use subagents frequently … and prefer asynchronous communication between
-  orchestrator and subagents over blocking until each subagent returns"; its Opus counter-basis is
-  the Opus 5 guide's "Controlling subagent spawning" ("set deterministic caps … keep spawn counts
-  low") and the Opus 4.8 guide's "Controlling subagent spawning" ("tends to spawn fewer subagents
-  by default").
-- **The general principle, and why it is cited separately.** The migration-framed sentences above
+- **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities"
+  (the gate-meeting, model-agnostic one). Convergent model guide: Fable 5, "Recommended
+  scaffolding changes" (prior-model skills as too prescriptive). The worked instance's basis is
+  the same guide, "Parallel subagents"; its Opus counter-basis is the Opus 5 guide's and the Opus
+  4.8 guide's "Controlling subagent spawning".
+- **The general principle, and why it is cited separately.** The migration-framed sources above
   point a reader at what looks like leftover prior-model scaffolding, walking straight past
   freshly authored over-enumeration, which is the same defect with no legacy provenance to
-  recognize it by. The principle is also stated on its own in the Fable 5 guide's "Strong
-  instruction following": "Instruction-following is
-  improved enough that you can steer most behaviors with a brief instruction rather than enumerating
-  each behavior by name," and that guide's own worked case is a *newly written* brevity
-  instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
-  Detect over-enumeration wherever it was written and whenever.
+  recognize it by. The Fable 5 guide's "Strong instruction following" states the principle on its
+  own (a brief instruction in place of an enumeration), and that section's worked case is a *newly
+  written* instruction, not a migration. **Age is not an element of this row.** Detect
+  over-enumeration wherever it was written and whenever.
 
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 
-- **Detect:** instructions telling the model to re-check work it already checks: "double-check
-  your answer," "re-verify before responding," "include a final verification step for any
-  non-trivial task," "use a subagent to verify". This includes legacy harness scaffolding that adds
-  separate verification steps.
+- **Detect:** instructions telling the model to re-check work it already checks. The pre-scan's
+  stems are `double-check`, `re-verify`, `final verification step`, and `subagent to verify`. Older
+  harness text that bolts an extra checking pass onto every task counts too.
 - **Classify by reviewer INDEPENDENCE, not invocation source:** architected independent review,
   meaning a fresh-context reviewer blind to the producing rationale or a different-vendor verifier,
   is NOT a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never
@@ -486,20 +484,30 @@ run the other way.
 - **Remediate:** propose removal; verify per Deletion tiers (a consequential removal needs a closed
   watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below.
-- **Source:** Opus 5 guide, "Task scope and over-verification", which says to remove explicit
-  verification instructions: they "cause over-verification on Claude Opus 5, and removing them
-  reduces wasted tokens with no loss in quality"; "Self-correction", which says to avoid instructing
-  re-checks it already performs.
+- **Source:** Opus 5 guide, "Task scope and over-verification" and "Self-correction".
 - **The independence carve-out is corroborated by a second guide, and the scope does not move.** The
-  Fable 5 guide reaches the same line from the opposite direction: it asks for self-verification to
-  be made explicit on long runs, and states that "separate, fresh-context verifier subagents tend to
-  outperform self-critique" ("Recommended scaffolding changes"). Read without that sentence, the two
-  guides look contradictory, remove verification instructions versus add them, and a reader has to
-  resolve it alone. They are not: the anti-pattern is the instructed **self**-check, and an
-  architected independent verifier is the thing the Fable 5 guide is asking for. **This does not meet
-  the promotion gate**, because the gate wants a second guide stating this row's *detection* claim,
-  that verification instructions cause over-verification, and the Fable 5 guide states no such
-  thing. The scope annotation stands; only the carve-out gains a second source.
+  Fable 5 guide's "Recommended scaffolding changes" section reaches the same line from the opposite
+  direction, on making verification explicit on long runs with fresh-context verifiers. Read
+  without that section, the two guides look contradictory, remove verification instructions versus
+  add them, and a reader has to resolve it alone. We read them as consistent: the anti-pattern is
+  the instructed **self**-check, and an architected independent verifier is what the Fable 5
+  section covers. **This does not meet the promotion gate**, because the gate wants a second guide
+  stating this row's *detection* claim, that verification instructions cause over-verification,
+  and the Fable 5 guide states no such thing. The scope annotation stands; only the carve-out gains
+  a second source.
+- **Re-justified 2026-10-01 against the current models:** the scope stays `opus-5` (see "Tokens of
+  models that are no longer current"). Our probe of the Fable 5.1, Opus 5.5 and Sonnet 5.5 guides
+  that day (each read whole as raw markdown; no artifact stored) found no statement of the
+  detection claim. We do not widen to `sonnet-5-5`: a finding there would remove the check the
+  posture catalog's P13 asks a code-changing component to carry, and P13 cites this section.
+  Pointer: [Sonnet 5.5 guide, verification on coding
+  tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks);
+  the probe covered the whole of [Prompting Claude Fable
+  5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+  and [Prompting Claude Opus
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5),
+  so it names no section. As of: 2026-10-01. Recheck trigger: a current model's guide stating that
+  verification instructions cause over-verification.
 
 **Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped. Promotion gate MET
 on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the shared
@@ -527,21 +535,20 @@ target model.
   self-filter is genuinely wanted, keep it but **state the bar concretely**, as an enumerable test
   the reader can decide a novel finding against, rather than a qualitative term.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Opus 5 guide, "Code review and bug-finding": if the prompt says "only report
-  high-severity issues" or "be conservative," the model "may follow that instruction literally and
-  report less; ask it to report everything and filter in a separate pass instead." Convergent
-  second model guide (the gate-meeting one): Sonnet 5 guide, "Code review harnesses", on the same
-  three phrases: "Claude Sonnet 5 may follow that instruction more faithfully than earlier models
-  did: it may investigate the code just as thoroughly, identify the bugs, and then not report
-  findings it judges to be below your stated bar." The third trigger phrase, **"don't nitpick",
-  which appears nowhere in the Opus 5 guide**, is stated in the Sonnet 5 guide and again in the
-  Opus 4.8 guide ("Code review harnesses"), which repeats the claim, the coverage prompt, and the
-  concrete-bar half near-verbatim for its own model; the Sonnet 5 guide states that half as: "be
-  concrete about where the bar is rather than using qualitative terms like 'important'" (the
-  upstream page double-quotes the word). (Opus 4.8 corroboration verified 2026-08-08 against that
-  guide's raw `.md`, 15,905 bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`; the gate was already met
-  without it. The "nowhere in the Opus 5 guide" negative re-verified 2026-08-08 against the Opus 5
-  guide's raw `.md`: zero occurrences of "nitpick".)
+- **Source:** the gate rests on two model guides that name the trigger phrases: the Opus 5 guide
+  for the first two and the report-everything-then-filter remediation, and the Sonnet 5 guide for
+  all three and the Remediate line's concrete-bar half. The Opus 4.8 guide corroborates the third
+  phrase, "don't nitpick"; the gate was met without it. The Opus 5 guide does not use that phrase.
+  Pointer: [Opus 5 guide, capability
+  improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements)
+  (its code review and bug-finding item), [Sonnet 5 guide, code review
+  harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses)
+  and [Opus 4.8 guide, code review
+  harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#code-review-harnesses).
+  As of: 2026-08-08 (our probes, no artifact stored: the Opus 4.8 guide's raw `.md`, 15,905 bytes,
+  MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`; the Opus 5 guide's raw `.md`, zero occurrences of
+  "nitpick"). Recheck trigger: either gate guide drops the trigger phrases from its section, or
+  the Opus 5 guide starts using "nitpick".
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
 `opus-5-5`, `sonnet-5-5`.
@@ -550,25 +557,22 @@ claim (see Source), and it is a model-agnostic feature page, the surface where a
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
 choice, on the same reasoning I10 applies to a declined widening.
 
-- **Detect:** instructions telling the model not to think or not to reason. With thinking
-  disabled these increase internal-tag leakage. Also flag tag-hygiene rules that name thinking
-  tags specifically (less effective than the general form).
-- **Where it shows, and why it outlives the turn.** The leakage is "most commonly on tool-heavy
-  workloads such as search", so a surface governing a tool-driven lane is where to look, and the
-  damage is not confined to the response that leaks: "A leaked tool call never runs, and in agentic
-  loops the leaked text stays in the conversation history, so later turns are affected as well."
-  The page states the history effect, not this consequence. Read here, that means an autonomous
-  lane carries the poisoned turn forward as context.
+- **Detect:** a directive forbidding the model to think or reason. We treat such a directive as
+  making internal-tag leakage worse when thinking is off. Also flag tag-hygiene rules that name
+  thinking tags specifically (less effective than the general form).
+- **Where it shows, and why it outlives the turn.** We look first at a surface governing a
+  tool-driven lane, such as search, since the troubleshooting page places the leakage on tool-heavy
+  workloads, and we treat the damage as not confined to the response that leaks: a tool call
+  emitted as text is never executed, and that text remains in the loop's history afterwards. The
+  page states the history effect, not this consequence. Read here, that means an autonomous lane
+  carries the poisoned turn forward as context.
 - **Remediate:** remove the directive; where output-tag hygiene is genuinely needed, use the
   general "internal or system XML tags" phrasing.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Opus 5 guide, "Running with thinking disabled": "If your system prompt contains a
-  rule instructing the model not to think or not to reason, remove it; that kind of instruction
-  increases tag leakage"; naming thinking tags is "less effective than the general form."
-  Corroborated at troubleshooting thinking, "Tool calls or XML tags appear in the text output",
-  which reaches the same claim from the symptom side, "System-prompt rules instructing the model
-  not to think or not to reason increase the tag leakage", and is the source of the condition and
-  consequence above. **Verified 2026-08-04** against that page, fetched as raw markdown.
+- **Source:** Opus 5 guide, "Running with thinking disabled" (the removal, and the general form over
+  naming thinking tags). Corroborated at troubleshooting thinking, "Tool calls or XML tags appear in
+  the text output", which reaches the same claim from the symptom side and is the source of the
+  condition and consequence above. **As of 2026-08-04** (that page read as raw markdown).
   **Recheck trigger:** a second model name appearing beside Claude Opus 5 in either section that
   states the claim: the Opus 5 guide's "Running with thinking disabled", or this page's "Tool
   calls or XML tags appear in the text output". A new name re-opens the scoping question, not the
@@ -578,27 +582,44 @@ choice, on the same reasoning I10 applies to a declined widening.
   enumerates the models that do *not* leak, so those two sections are the whole of what there is
   to re-read.
 - **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Prompts written for thinking
-  disabled", says to re-test the thinking-disabled mitigations and to "remove the no-thinking rule
-  either way", since thinking is always on for that model. On `opus-5-5` the Detect clause's
-  leakage premise does not apply; the finding stands on that removal instruction alone. **Verified
-  2026-09-23** against the guide's raw `.md` (28,311 bytes, MD5
+  disabled", prescribes removing the no-thinking rule on that model, where thinking is always on.
+  On `opus-5-5` the Detect clause's leakage premise does not apply; the finding stands on that
+  removal alone. **As of 2026-09-23** (our probe: the guide's raw `.md`, 28,311 bytes, MD5
   `fb3bff7f41e20fbbb71be78770edb8cb`). **Recheck trigger:** that section ceasing to prescribe the
   removal.
-- **Widened to `sonnet-5-5` on 2026-10-01:** the Sonnet 5.5 guide, "Running without up-front
-  thinking", says that when a request sends `between_tools` any instruction not to think should go,
-  because it makes internal XML tags in the visible output more likely; "Calibrate effort" adds
-  that asking in the system prompt for less thinking "doesn't reliably reduce its thinking", so
-  lowering effort is the control. The leakage premise applies where `between_tools` is in use;
-  elsewhere on `sonnet-5-5` the finding stands on the second statement. **Verified 2026-10-01**
-  against the guide's raw `.md` (27,412 bytes, MD5 `2bcb67cc9f72b68e8823f197034c06d6`). **Recheck
-  trigger:** either section dropping its statement.
+- **Considered for `sonnet-5-5` on 2026-10-01 and declined.** We read the Sonnet 5.5 guide as
+  covering this directive only under the `between_tools` thinking setting (pointer below), and no
+  Claude Code surface exposes that setting, so a session reading a Claude Code surface never runs
+  under it. On a `sonnet-5-5` target the row stays inert. Ownership of `between_tools` text is
+  split once, the same way in this row and in I17's third arm: a prompt in application source that
+  sends `between_tools` is the bundled `claude-api` skill's (SKILL.md, "Boundary"); instruction
+  text that prescribes a `between_tools` request is in this catalog only through I17's third arm,
+  which flags the refused pairings and not this directive.
+  Pointer: [Sonnet 5.5 guide, running without up-front
+  thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#running-without-up-front-thinking).
+  For the Claude Code negative, our probe read [model
+  configuration](https://code.claude.com/docs/en/model-config),
+  [settings](https://code.claude.com/docs/en/settings), [settings
+  reference](https://code.claude.com/docs/en/settings-reference) and [environment
+  variables](https://code.claude.com/docs/en/env-vars#variables) whole as raw markdown and found
+  no control for that setting (no artifact stored). As of: 2026-10-01. Recheck trigger: Claude
+  Code gains a `between_tools` control, or the Sonnet 5.5 guide states the claim outside
+  `between_tools`.
+- **Re-justified 2026-10-01 against the current models:** `opus-5` stays (see "Tokens of models
+  that are no longer current"), and both sections the trigger above watches still name Claude Opus
+  5 alone. Pointer: [Opus 5 guide, running with thinking
+  disabled](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#running-with-thinking-disabled)
+  and [troubleshooting thinking: tool calls or XML tags appear in the text
+  output](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#tool-calls-or-xml-in-text)
+  (the rendered page gives this heading the id `tool-calls-or-xml-in-text`). As of: 2026-10-01.
+  Recheck trigger: the same as this row's trigger above.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5, fable-5-1`.
 
 - **Detect:** instruction text resting on the premise that a turn is short: a directive to answer
   quickly or keep turns brief, or any required progress rhythm pinned to a turn rather than to the
-  work. Individual requests now run for many minutes at higher effort and autonomous runs for hours,
-  so a rhythm calibrated to the old turn length fires as noise on work that has not reached a
+  work. We treat a single high-effort request as lasting minutes and an autonomous run as lasting
+  hours, so a rhythm calibrated to the old turn length fires as noise on work that has not reached a
   reportable boundary, and it interrupts precisely the long uninterrupted runs the model is being
   used for.
 - **The forced interim-status cadence shape is owned fleet-wide by I8-e**, which is unscoped since
@@ -625,14 +646,27 @@ choice, on the same reasoning I10 applies to a declined widening.
   client configuration rather than instruction content, so it is not audited here and no row claims
   it; a surface whose *instruction text* prescribes a short client timeout is the shape that would
   reach this catalog, and none is attested.
-- **Source:** Fable 5 guide, "Longer turns by default": "Individual requests on hard tasks can run
-  for many minutes at higher effort settings … and autonomous runs can extend for hours. This is one
-  of the largest shifts teams encounter when adjusting to Claude Fable 5."
-- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
-  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
-  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
-  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
-  whose statement of this claim replaces this basis and joins `## Sources`.
+- **Source:** Fable 5 guide, "Longer turns by default".
+- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
+  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
+  widening now rests on our rule that a Fable 5 row applies to Fable 5.1 unless the Fable 5.1 guide
+  names a difference on the row's subject, and on our reading of that guide on 2026-10-01 (read
+  whole as raw markdown; no artifact stored): no section names a turn-length difference. Pointer:
+  [Prompting Claude Fable
+  5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),
+  the text above its first heading, which carries no heading id on the rendered page, so the link
+  is to the page. As of: 2026-10-01. Recheck trigger: the Fable 5.1 guide naming a turn-length
+  difference from Fable 5, or its opening changing what it says about Fable 5 prompts.
+- **Re-justified 2026-10-01 against the current models:** `fable-5` stays, since Fable 5 is a
+  current model (see "Tokens of models that are no longer current"). Our probe of the Opus 5.5 and
+  Sonnet 5.5 guides that day (each
+  read whole as raw markdown; no artifact stored) found no statement of the short-turn claim, so
+  the row does not widen to them. Pointer: [Prompting Claude Opus
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
+  and [Prompting Claude Sonnet
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5),
+  whole pages, since the probe is a negative over every section. As of: 2026-10-01. Recheck
+  trigger: either guide gains a section on turn length.
 
 **Row I8-e: forced interim-status cadence** · Tier `behavioral`. Unscoped. Promotion gate MET:
 two model guides state the claim (see Source).
@@ -642,17 +676,17 @@ Unscoped: two model guides state the claim (see Source), which meets the promoti
 **This row owns the cadence shape on every target**; I8-d cedes it (see that row) so the two
 report one finding per line rather than two.
 
-- **Detect:** an instruction requiring interim status output on a fixed mechanical interval. The
-  guide's own example is "After every 3 tool calls, summarize progress"; equivalents this row also
-  reaches, the catalog's rather than the guide's, are "check in after each file" and "post an update
-  every N minutes". The subject is the *forced rhythm*, not the reporting: an instruction to report
+- **Detect:** an instruction requiring interim status output on a fixed mechanical interval, such
+  as a summary after every few tool calls, "check in after each file", or "post an update every N
+  minutes". The subject is the *forced rhythm*, not the reporting: an instruction to report
   at a genuine work boundary (a phase completing, a gate failing) pins to the work and is not a
   finding.
 - **Remediate:** name the guarantee the cadence was protecting, that the user can see progress or
   that a long run stays interruptible, and either state that outcome and let the model meet it, or
   move it to a mechanism rather than an instructed rhythm. Where the *content* of native updates is
-  miscalibrated rather than absent, describe what a good update contains and give examples; that is
-  the upstream remediation and it does not reintroduce a cadence. Verify per Deletion tiers (a
+  miscalibrated rather than absent, describe what a good update contains and give examples; that
+  remediation comes from the Sonnet 5 guide and does not reintroduce a cadence. Verify per
+  Deletion tiers (a
   consequential removal needs a closed watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
@@ -667,33 +701,27 @@ report one finding per line rather than two.
   chapter counter-steering it, or a verification record quoting it, on the same audience test I8-b
   applies. This catalog's own detect text is the canonical instance; the deterministic pre-scan
   seeds no pattern for this row, so it carries no fixtures of its own.
-- **Source:** Sonnet 5 guide, "User-facing progress updates": "Claude Sonnet 5 provides regular,
-  higher-quality updates to the user throughout long agentic traces. If you've added scaffolding to
-  force interim status messages ("After every 3 tool calls, summarize progress"), try removing it."
-  That guide also supplies the Remediate line's second half: where updates are miscalibrated,
-  "explicitly describe what these updates should look like in the prompt and provide examples."
-  Convergent second model guide (the gate-meeting one): Opus 4.8 guide, "User-facing progress
-  updates": "Claude Opus 4.8 provides more regular, higher-quality updates to the user throughout
-  long agentic traces. If you've added scaffolding to force interim status messages ("After every 3
-  tool calls, summarize progress"), try removing it."
-- **Verified 2026-08-08** against both gate sources, fetched as raw markdown: the Sonnet 5 guide
-  (15,864 bytes, MD5 `6d23959f0ed226feb06bf20c314029e3`, byte-identical to 2026-07-29 and
-  2026-08-04 captures) and the Opus 4.8 guide (15,905 bytes, MD5
-  `6b9db5b784ad6a7b2e6307c1481b8be9`). The 2026-08-04 **verified negative** on the Fable 5 guide
-  was re-verified 2026-08-08 against that guide's raw `.md` and is retained as a reading of that
-  guide on which the scope does not rest. That negative: "Longer turns by default" prescribes only
-  client-side adjustments, no section prescribes removing instructed status cadence, and "Create a
-  send-to-user tool" runs the other way. **Recheck trigger:** either gate source ceasing to
-  prescribe removal of forced status scaffolding, which re-opens the scoping question.
+- **Source:** Sonnet 5 guide, "User-facing progress updates" (removing forced status scaffolding,
+  and the Remediate line's second half). Convergent second model guide (the gate-meeting one): Opus
+  4.8 guide, "User-facing progress updates".
+- **As of 2026-08-08** (our probe of both gate sources as raw markdown: the Sonnet 5 guide, 15,864
+  bytes, MD5 `6d23959f0ed226feb06bf20c314029e3`, byte-identical to 2026-07-29 and 2026-08-04
+  captures; the Opus 4.8 guide, 15,905 bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`). The
+  2026-08-04 **verified negative** on the Fable 5 guide was re-checked 2026-08-08 against that
+  guide's raw `.md` and is retained as our reading of that guide, on which the scope does not rest:
+  no section of it prescribes removing instructed status cadence ("Longer turns by default" covers
+  client-side adjustments only, and "Create a send-to-user tool" points the other way). **Recheck
+  trigger:** either gate source ceasing to prescribe removal of forced status scaffolding, which
+  re-opens the scoping question.
 
 **Row I8-f: think-carefully steer** · Tier `behavioral` · Model scope: `opus-5-5`. **The gate is
-unmet by contradiction, not only by absence:** the base row's model-agnostic source recommends
-"think thoroughly" over a hand-written plan, so an unscoped row would contradict it.
+unmet by contradiction, not only by absence:** the base row's model-agnostic source favors a
+general think-thoroughly prompt over a hand-written plan, so an unscoped row would contradict it.
 
 - **Detect:** a standing instruction telling the model to think carefully, hard, deeply, or step by
   step before answering, or an `ultrathink`-style keyword written into a saved instruction rather
-  than typed for one piece of work. The Opus 5.5 model always thinks and decides how much itself,
-  so the line adds latency without a clear quality gain.
+  than typed for one piece of work. We treat the line as adding latency without a clear quality
+  gain on Opus 5.5, where thinking is always on and the model sets its own depth.
 - **Remediate:** delete the line. Where the intent was more or less depth, change effort, the
   documented control; where a fast answer to simple questions was the intent, lower effort first,
   and add an "Answer directly." line only after measuring quality with it, since less thinking can
@@ -702,19 +730,21 @@ unmet by contradiction, not only by absence:** the base row's model-agnostic sou
   human reader; a per-invocation keyword the human types (I21 owns effort pinning); a document
   *about* the pattern, on the audience test I8-b applies.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": for instructions
-  "that tell Claude to think carefully before answering, consider removing them"; removing such a
-  line "made replies start sooner, with no clear decline in the quality of the reply"; "Calibrate
-  effort" for the lower-effort-first remediation. The guide scopes the claim to chat system prompts;
-  the vendor usage guide (Sources) extends it to "your prompts and your saved instructions" and
-  names effort as the Claude Code control. **Verified 2026-09-23** against the guide's raw `.md`
-  (hash as in I8-c). **Recheck trigger:** a second model guide stating the claim, which re-opens
-  the scoping question, or the section dropping it.
-- **Not widened to `sonnet-5-5`:** the Sonnet 5.5 guide does not state this claim. For JSON answers
-  that need a few steps of working out it prescribes a think-first line, "Think the problem through
-  before you answer.", so the removal premise does not carry ("Reasoning tasks with JSON output";
-  verified 2026-10-01, hash as in I8-c's `sonnet-5-5` widening). **Recheck trigger:** that section dropping the line, or a later guide on the model
-  stating the removal claim.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts" (the removal and its
+  effect); "Calibrate effort" for the lower-effort-first remediation. The guide scopes the claim to
+  chat system prompts; we apply it to saved Claude Code instructions as well, with effort as the
+  Claude Code control (correlate with the vendor usage guide under Sources). **As of 2026-09-23**
+  (our probe: the guide's raw `.md`, hash as in I8-c). **Recheck trigger:** a second model
+  guide stating the claim, which re-opens the scoping question, or the section dropping it.
+- **Cross-reference, Sonnet 5.5.** The row stays scoped to `opus-5-5` and is inert on a
+  `sonnet-5-5` target. Its firing set on an `opus-5-5` target is unchanged: a surface that also
+  serves Sonnet 5.5 is still flagged. When the flagged line asks for reasoning on a task answered in
+  JSON, the finding adds that the line may be serving Sonnet 5.5, and proposes splitting it per
+  model rather than deleting it; for that model's position, follow the pointer.
+  Pointer: [Sonnet 5.5
+  guide, reasoning tasks with JSON
+  output](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#reasoning-tasks-with-json-output).
+  As of: 2026-10-01. Recheck trigger: either guide changes its position on thinking instructions.
 
 ### I9: Example hygiene
 
@@ -729,61 +759,77 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   `argument-hint`. That destination clause is **`OPINION`-derived**, since no official page states
   it, so it rides this check's enablement and severity per the `OPINION` policy above, is labeled
   as `OPINION` in the finding, and is never fix-applied.
-- **Source:** prompting best-practices, "Use examples effectively": examples are "one of the most
-  reliable ways to steer Claude's output format, tone, and structure"; keep them diverse enough
-  "that Claude doesn't pick up unintended patterns."
+- **Source:** prompting best-practices, "Use examples effectively" (examples as format, tone and
+  structure steering, and diversity against unintended patterns).
 
 ### I10: Reasoning-echo directives
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`fable-5, fable-5-1, opus-5-5, sonnet-5-5` (the cited refusal category is documented per model; promotion gate
-unmet).
+`fable-5, fable-5-1, opus-5-5, sonnet-5-5` (the cited refusal category is documented per model;
+promotion gate unmet, see "Unscoping considered" below).
 
-- **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
-  reasoning as response text. The deterministic pre-scan marks show-your-thinking phrasing.
+- **Detect:** instructions asking the model to put its internal reasoning into the reply itself,
+  whether by showing, repeating, writing out, or narrating it. The deterministic pre-scan marks
+  show-your-thinking phrasing.
 - **Remediate:** remove them; where reasoning visibility is genuinely needed, read structured
   `thinking` blocks through the surface that already exposes them: in Claude Code, `Ctrl+O` verbose
   mode and the `showThinkingSummaries: true` setting (model configuration); on the API,
   `display: "summarized"` (Thinking). A send-to-user tool remains the path when the reasoning has to
   reach the user as ordinary response text.
-- **Source:** Fable 5 guide: such instructions "can trigger the `reasoning_extraction` refusal
-  category on Claude Fable 5, causing elevated fallbacks." Corroborated by the Thinking page, which
-  states the same refusal for the same model: "On Claude Fable 5, a request that attempts to elicit
-  the model's internal reasoning as part of the response text can be refused with
-  `stop_details.category: "reasoning_extraction"`." That second citation does **not** move the
-  promotion gate: its own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent
-  raw-chain-of-thought property, then names Fable 5 alone for the refusal. That is a
-  sentence-adjacent chance to widen, declined, so the narrower scope is deliberate.
+- **Source:** Fable 5 guide, "Recommended scaffolding changes" (the `reasoning_extraction` refusal
+  category on Claude Fable 5). Corroborated by the Thinking page, which documents the same refusal
+  category for the same model. That second citation does **not** move the promotion gate: its own
+  section names both Claude Fable 5 and Claude Mythos 5 for the adjacent raw-chain-of-thought
+  property, then names Fable 5 alone for the refusal. That is a sentence-adjacent chance to widen,
+  declined, so the narrower scope is deliberate.
 
   **`Model scope: fable-5` is positively sourced**,
-  in two statements each taken from the page that owns its half. The page that owns Mythos 5 states
-  the exclusion at the level of the whole classifier set: "Claude Fable 5 includes safety
-  classifiers that can decline certain requests. Claude Mythos 5 does not include these classifiers,
-  so this section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
+  in two statements each taken from the page that owns its half. The page that owns Mythos 5 scopes
+  the whole classifier set to Claude Fable 5 and excludes Claude Mythos 5 ([Introducing Claude
+  Fable 5 and Claude Mythos
   5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
-  fetched 2026-08-03). Refusals and fallback places this row's category inside that set, listing
+  read 2026-08-03). Refusals and fallback places this row's category inside that set, listing
   `reasoning_extraction` among the classifier categories a refusal reports. Which
   models carry the classifier set is a per-model fact and moves, so the introducing page joins
   `## Sources`: the catalog-wide trigger then fires this row whenever that page changes, and no
   narrower per-row trigger is owed.
 
-- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
-  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
-  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
-  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
-  whose statement of this claim replaces this basis and joins `## Sources`.
-- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Safeguard refusals": "Requests
-  that push the model to reproduce its internal reasoning in the response text can be declined with
-  the `reasoning_extraction` category, which is new if you're coming from Claude Opus 5." The same
-  section notes that server-side fallback returns these declines to the caller instead of
-  retrying them on a fallback model. Remediate there as above, or ask for what the reader needs instead, such
-  as the rationale in a few sentences. **Verified 2026-09-23** against the guide's raw `.md` (hash
-  as in I8-c). **Recheck trigger:** that section dropping the category.
-- **Widened to `sonnet-5-5` on 2026-10-01:** the Sonnet 5.5 guide, "Safeguard refusals", lists
-  `reasoning_extraction` among the categories a refusal reports: "the request asks the model to
-  reproduce its internal reasoning in the response text." Remediate there as above. **Verified
-  2026-10-01** against the guide's raw `.md` (hash as in I8-c's `sonnet-5-5` widening). **Recheck
-  trigger:** that section dropping the category.
+- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
+  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published.
+  The widening now rests on the refusals section of Fable 5.1's own model page. Pointer: [What's
+  new in Claude Fable 5.1, refusals, fallback, and
+  billing](https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1#refusals-fallback-and-billing).
+  As of: 2026-10-01. Recheck trigger: that section stops covering the `reasoning_extraction`
+  category for Fable 5.1.
+- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Safeguard refusals", documents the
+  `reasoning_extraction` category for that model, and how server-side fallback handles those
+  declines. Remediate there as above, or ask for what the reader needs instead, such as the
+  rationale in a few sentences. **As of 2026-09-23** (our probe: the guide's raw `.md`, hash as in
+  I8-c). **Recheck trigger:** that section dropping the category.
+- **Widened to `sonnet-5-5` on 2026-10-01.** On a `sonnet-5-5` target, fire on the same Detect and
+  remediate as above. Pointer: [Sonnet 5.5 guide, safeguard
+  refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#safeguard-refusals).
+  As of: 2026-10-01. Recheck trigger: that section drops the `reasoning_extraction` category.
+- **Unscoping considered on 2026-10-01 and declined.** Four model guides now name the category
+  (Sonnet 5.5, Opus 5.5, Fable 5.1 and Fable 5), which on its face meets the convergent-guides arm
+  of the promotion gate. We keep the row scoped because we read the category as a per-model
+  classifier, not a behavior every model shares, so an unscoped row would flag text on targets
+  where the line draws no refusal. Pointer: the four places that name the category, [Sonnet 5.5
+  guide, safeguard
+  refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#safeguard-refusals),
+  [Opus 5.5 guide, safeguard
+  refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals),
+  [Prompting Claude Fable
+  5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+  (the note above its first heading, which carries no heading id on the rendered page, so the link
+  is to the page) and [Fable 5 guide, recommended scaffolding
+  changes](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#recommended-scaffolding-changes);
+  for the categories themselves, see [refusals and fallback: refusal
+  response](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#refusal-response).
+  As of: 2026-10-01. Recheck trigger: a model-agnostic page stating that every current model
+  declines reasoning extraction.
+- **Re-justified 2026-10-01 against the current models:** `fable-5` stays, since Fable 5 is a
+  current model (see "Tokens of models that are no longer current").
 
 ### I11: CLI over MCP where equivalent
 
@@ -793,8 +839,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   the surface's concern is context cost rather than a capability the MCP server uniquely provides.
 - **Remediate:** prefer the CLI for the equivalent operation; keep the MCP path where it adds
   capability.
-- **Source:** best-practices, "CLI tools are the most context-efficient way to interact with
-  external services."
+- **Source:** best-practices, "Use CLI tools" (context efficiency).
 
 ### I12: Stale or misattributed harness-capability claim
 
@@ -831,9 +876,8 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   their `settings.json` chains or which hooks they wire. That describes a file, not the harness, so
   it is not a harness-behavior claim. When the evidence in hand shows it false, report it under
   [Out-of-catalog defects](#out-of-catalog-defects).
-- **Source:** CLI reference, "Print read-only installation and settings diagnostics from the
-  terminal without starting a session … For the in-session setup checkup that can also apply
-  fixes, run `/doctor`."
+- **Source:** CLI reference, "CLI commands", the `claude doctor` row (terminal diagnostics versus
+  the in-session `/doctor`).
 
 ### I13: Citation form that does not load
 
@@ -861,9 +905,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   package scope (`@anthropic-ai/…`), a decorator, an email address, or a `@username` handle. A
   backticked `` `@path` ``, which the import parser skips by design and which is the documented
   way to mention a path without importing it. A path cited without an `@` at all.
-- **Source:** memory, "CLAUDE.md files can import additional files using `@path/to/import`
-  syntax", against skills, where supporting files are instead referenced "so Claude knows what
-  each file contains and when to load it" and no import syntax is defined.
+- **Source:** memory, "Import additional files" (import syntax on the CLAUDE.md family), against
+  skills, "Add supporting files", where supporting files are referenced for Claude to load when
+  needed and no import syntax is defined.
 
 ### I14: Retrieval of an already-loaded surface
 
@@ -930,21 +974,26 @@ skill bodies.
   current disk contents. The startup copy is a snapshot taken at launch; another process can have
   changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
   produces a patch against stale text. A rule restated in a
-  delegation prompt for the built-in Explore and Plan agents, which are documented as the only
-  subagents that skip `CLAUDE.md` and have no per-agent setting to change that.
-- **Source:** subagents, "What loads at startup": a non-fork subagent's initial context contains
-  "every level of the CLAUDE.md hierarchy the main conversation loads, including
-  `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
-  *the main conversation loads* is what bounds this check: memory documents lazy loading for
-  "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
-  memory, on `@path` imports, is what puts an imported supporting document inside it: "Imported
-  files are expanded and loaded into context at launch alongside the CLAUDE.md that references
-  them", and "Imported files can recursively import other files, with a maximum depth of four hops";
-  memory's `AGENTS.md` guidance names exactly such an import as what carries an `AGENTS.md` into a
-  session that cannot read it directly, and it is the portable form on Windows, where the symlink
-  alternative needs elevation (code.claude.com/docs/en/memory, "When AGENTS.md support is
-  unavailable" and "Share one file with other coding tools"; verified 2026-09-19; recheck trigger:
-  that section stops naming the import, or a release note names `AGENTS.md` loading).
+  delegation prompt for a subagent that starts without the user, project and local `CLAUDE.md`:
+  the built-in Explore and Plan agents, and a custom agent whose definition sets
+  `omitClaudeMd: true`. In such an agent's own body, an instruction to read the root `CLAUDE.md`
+  is likewise not redundant. Pointer: [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  and the `omitClaudeMd` row of [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+  The page's system-prompt section disagrees with both on whether `CLAUDE.md` still loads under
+  that field. As of: 2026-10-01. Recheck trigger: the page reconciles the two, or the field is renamed.
+- **Source:** subagents, "What loads at startup": we treat a non-fork subagent's initial context as
+  holding every level of the CLAUDE.md hierarchy *the main conversation loads*, except an agent
+  whose definition sets `omitClaudeMd: true` (see the Must NOT flag above), and that qualifier
+  is what bounds this check: memory documents lazy loading for path-specific rules and
+  subdirectory files ("How CLAUDE.md files load"), so those are outside the guarantee. memory,
+  "Import additional files", is what puts an imported supporting document inside it: imports load
+  at launch with the file that references them and recurse up to four hops. We treat such an
+  import as what carries an `AGENTS.md` into a session that cannot read it directly, and as the
+  portable form on Windows, where the symlink alternative needs elevation. Pointer:
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable> and
+  <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools>. As of:
+  2026-09-19. Recheck trigger: that section stops naming the import, or a release note names
+  `AGENTS.md` loading.
 
 ### I15: Cross-surface instruction conflict
 
@@ -991,13 +1040,10 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   objects. An absolute carrying its own exception beside a directive presupposing that exception. A
   pair one of whose sides already states which wins. The full set with worked instances is in
   [conflict-criteria.md](conflict-criteria.md).
-- **Source:** memory, "If two rules contradict each other, Claude may pick one arbitrarily", which
-  is why an unarbitrated pair is a finding rather than a stylistic note. Corroborated at the
-  context-engineering blog, "Unhobbling Claude", where Anthropic's own system prompt, skills, and
-  user requests clash, "several conflicting messages in a single request like 'leave documentation
-  as appropriate,' or 'DO NOT add comments'", with the cost stated even for the resolved case:
-  "Claude must think more carefully about these overlapping and conflicting messages before
-  deciding what to do." So a conflict taxes reasoning even when no arbitrary pick occurs.
+- **Source:** memory, "Write effective instructions" (contradicting rules and an arbitrary pick),
+  which is why an unarbitrated pair is a finding rather than a stylistic note. We also treat a
+  conflict as taxing reasoning even when no arbitrary pick occurs (correlate with the
+  context-engineering blog under Sources, its "Unhobbling Claude" section).
 
 ### I16: Definition-site locality
 
@@ -1028,145 +1074,197 @@ by `--opinion`.
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all. Unscoped.
 Promotion gate MET: the claim is stated on a model-agnostic feature page, not in a model guide.
-**The model ranges are Detect conditions, not a `Model scope` annotation.** One source says the
-restriction "applies to Claude Opus 5 and later models"; the other names Fable 5, Mythos 5 and
-Mythos Preview. The annotation's exact-string matching has no range form. Annotating `opus-5` would
+**The model ranges are Detect conditions, not a `Model scope` annotation.** The pairing arm is an
+Opus 5 range; the outright-disable arm is a set spanning three families (Opus, Sonnet, and Fable
+and Mythos), listed in the second arm below. The annotation's exact-string matching has no range
+form. Annotating `opus-5` would
 make the row inert on the next generation while the restriction still holds, and no single
 annotation spans two disjoint families at once. I20 handles a model range the same way.
 
 Each row below carries its own decisive source; they share a subject, not a citation.
 
-**Base row: the configurations the model rejects.** Two arms with different shapes: a pairing that
-fails only at the top of the effort ladder, and a disable that fails at every level. Both are
-`error`, since both are a rejected request.
+**Base row: the configurations the model rejects.** Three arms with different shapes: a pairing
+that fails only at the top of the effort ladder, a disable that fails at every level, and an API
+thinking setting that refuses the top levels and per-turn effort changes. All three are `error`,
+since each prescribes a request the model refuses.
 
 - **Detect:** a surface that recommends, documents, or sets a **thinking-disable surface**, meaning
   `MAX_THINKING_TOKENS=0`, `alwaysThinkingEnabled: false`, the `/config` global toggle, the
   `Alt+T` / `Option+T` session toggle, or API `thinking: {"type": "disabled"}`, together with
   `xhigh` or `max` effort, on Claude Opus 5 or a later model. Both operands are configuration
-  literals, so a surface prescribing both publishes a per-request 400 that nothing recovers.
+  literals. Fire on the API form and on the harness forms alike: in neither does the prescribed
+  level reach the model, so the finding and its remediation are the same for both. What Claude
+  Code sends in place of the prescribed level is behind the pointer.
+  Pointer: for the harness outcome, see
+  [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking)
+  and [errors: effort isn't available with thinking turned
+  off](https://code.claude.com/docs/en/errors#effort-isnt-available-with-thinking-turned-off).
+  As of: 2026-10-01. Recheck trigger: either section changes what Claude Code sends when thinking
+  is off and the prescribed level is `xhigh` or `max`.
 - **Effort literals do not all reach every surface, and the literal set is not the whole set.**
-  `max` reaches a session through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`, or skill and
-  subagent `effort` frontmatter, the frontmatter case being a surface this skill already
-  inventories. **The `ultracode` *setting* also trips this** without matching either literal: it is
-  a Claude Code setting rather than an effort level and "sends `xhigh` to the model", so a surface
-  pairing it with a thinking-disable surface produces the identical rejection. Only the
-  effort-setting forms count: instruction text prescribing `/effort ultracode`, `--effort
-  ultracode`, or `--settings` / Agent SDK `"ultracode": true` or `effortLevel: "ultracode"`. Match
-  on the effort that reaches the request, not on the spelling.
-- **Second arm: the models that reject the disable outright, at every effort level.** Claude
-  Fable 5, Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type: "disabled"}`
-  whatever effort is in force, so on that family the disable surface alone is the finding and no
-  effort operand has to be present for the request to fail. Read the effort operand as a condition
-  that *narrows* the Opus 5 arm, never as a precondition the whole row inherits. Carried across, it
-  would pass a surface prescribing thinking-off at `high` on Fable 5 as compliant. **Only the API
-  form belongs to this arm.** On **Fable 5** the harness thinking-disable surfaces fail differently,
-  and that failure is I17-a's, not this row's: model configuration states thinking cannot be turned
-  off there and that the session toggle, `alwaysThinkingEnabled` and `MAX_THINKING_TOKENS=0` "have
-  no effect there", so they are silent no-ops rather than errors. **For Mythos 5 and Mythos
-  Preview the harness pages state nothing**, so this row makes no claim about their harness surfaces
-  in either direction; the API reject is the whole of what is stated for them.
+  Count `max` wherever text sets it through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`, or
+  skill and subagent `effort` frontmatter, the frontmatter case being a surface this skill already
+  inventories. **Count two `ultracode` forms as `xhigh`:** `--effort ultracode`, and
+  `effortLevel: "ultracode"` sent through the Agent SDK. Count `/effort ultracode` and the
+  `ultracode` setting only where the level already in effect is `xhigh` or `max`. Match on the
+  effort that reaches the request, not on the spelling. **Narrowed on 2026-10-01:** this row
+  formerly counted all four `ultracode` forms as `xhigh`. It now counts `/effort ultracode` and the
+  setting only on the condition above, because the row matches the effort that reaches the request
+  and we treat those two forms as leaving the level in effect unchanged.
+  Pointer: for which ultracode forms set the level, see
+  [model configuration: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+  As of: 2026-10-01. Recheck trigger: that section changes which ultracode forms set the effort
+  level.
+- **Second arm: the models that reject the disable outright, at every effort level.** We treat
+  `thinking: {type: "disabled"}` as failing whatever effort is in force on this row's set: Claude
+  Opus 5.5, Claude Sonnet 5.5, Claude Fable 5.1, Claude Mythos 5.1, Claude Fable 5, Claude Mythos
+  5 and Claude Mythos Preview. On that set the disable surface alone is the finding and no effort
+  operand has to be present for the request to fail. Read the effort operand as a condition that
+  *narrows* the Opus 5 arm, never as a precondition the whole row inherits. Carried across, it
+  would pass a surface prescribing thinking-off at `high` on Fable 5.1 as compliant. On Sonnet 5.5
+  the remediation also points at the guide's thinking-off alternative, which the third arm bounds.
+  **Only the API form belongs to this arm.** On **the models in I17-a's no-effect
+  set** the harness thinking-disable surfaces fail differently, and that failure is I17-a's, not
+  this row's: we treat thinking as unable to be turned off there, and the session toggle,
+  `alwaysThinkingEnabled` and `MAX_THINKING_TOKENS=0` as silent no-ops rather than errors. **For
+  the Mythos models the harness pages state nothing**, so this row makes no claim about their
+  harness surfaces in either direction; the API reject is the whole of what is stated for them.
+  Pointer: for the per-model accepted values, see [thinking: configuring
+  thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking)
+  and the [troubleshooting
+  table](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models);
+  for the harness no-ops, see
+  [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
+  As of: 2026-10-01. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
+  table, or the harness no-op list changes.
+- **Third arm, API requests only: `between_tools` at a level or with a change it refuses.** Flag
+  instruction text that prescribes, or a code sample it tells the reader to send, a request to
+  Claude Sonnet 5.5 carrying `thinking: {"type": "between_tools"}` together with `xhigh` or `max`
+  effort, or together with a per-message effort change. No Claude Code surface sets
+  `between_tools` (see I8-c's declined `sonnet-5-5` widening), so this arm reaches only instruction
+  surfaces that prescribe Messages API requests, such as a skill or reference doc that tells the
+  reader what to send. A prompt in application source that sends `between_tools` is not this
+  catalog's: it belongs to the bundled `claude-api` skill (SKILL.md, "Boundary"), the same split
+  I8-c records. Pointer: for the levels and changes
+  `between_tools` refuses, see the [Sonnet 5.5
+  guide, running without up-front
+  thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#running-without-up-front-thinking)
+  and [thinking: configuring
+  thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking).
+  As of: 2026-10-01. Recheck trigger: either page changes which effort levels `between_tools`
+  accepts, or per-message effort changes become valid with it.
 - **Remediate:** on the Opus 5 arm, lower the effort to `high` or below, or leave thinking on, and
   state which, since the pairing has no third resolution. **On the second arm there is only one
-  resolution: leave thinking on.** No effort level permits the disable on that family, so a
-  remediation that offers the reader the choice sends them to a request that still fails.
-- **Scope, and where the config check lives:** this row audits **instruction text**. Either arm
+  resolution: leave thinking on.** No effort level permits the disable on that set, so a
+  remediation that offers the reader the choice sends them to a request that still fails. The one
+  addition is Sonnet 5.5 in a prescribed API request: point the reader at the third arm's guide
+  pointer for the model's thinking-off alternative rather than naming a setting here. **On the
+  third arm**, drop whichever operand the surface does not need, the top effort level or the
+  per-turn change; where the surface needs both, replace the request shape with the guide's form at
+  the third arm's pointer.
+- **Scope, and where the config check lives:** this row audits **instruction text**. Any arm
   expressed as *settings keys* is a config-mechanics finding and belongs to
   `harness-config:audit`, per this skill's own routing. An instruction-content catalog that also
   scanned settings files would claim authority a sibling already holds. Instruction text that
   happens to *live* in a settings file, such as a prompt-type hook's injected text, stays here: the
   discriminator is whether the content instructs, not which file holds it.
-- **Must NOT flag:** `effortLevel: max` as a literal to hunt **in instruction text**. The settings
-  schema's `enum` accepts `"low"`, `"medium"`, `"high"`, `"xhigh"` only, so a schema-aware editor
-  flags the value where it is actually written, and an instruction-text auditor sent after the
-  literal finds nothing and learns nothing. The value is writable, not unreachable: the schema is
+- **Must NOT flag:** `effortLevel: max` as a literal to hunt **in instruction text**. We rely on
+  the settings schema rejecting `max` for that key (pointer: the SchemaStore document
+  `https://json.schemastore.org/claude-code-settings.json`, its `properties.effortLevel` entry; as
+  of: 2026-10-01; recheck trigger: the schema accepts `max` there), so a schema-aware editor flags
+  the value where it is actually written, and an instruction-text auditor sent after the literal
+  finds nothing and learns nothing. The value is writable, not unreachable: the schema is
   advisory and the harness reads a file that violates it, which is why the settings-file check is
-  `harness-config:audit` category H rather than absent. **A document that states either arm to
+  `harness-config:audit` category H rather than absent. **A document that states any arm to
   describe or forbid it**, such as this row, a model-adaptation delta chapter, or a verification
-  record quoting it, on the same audience test I8-b applies: either arm prescribed inside an
+  record quoting it, on the same audience test I8-b applies: any arm prescribed inside an
   operative directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
   keyword.** Instruction text telling a reader to include it in a typed prompt runs one task as a
-  workflow "without changing the session's effort level", so no effort reaches the request and the
+  workflow without changing the session's effort level, so no effort reaches the request and the
   rejected pairing never assembles. **A thinking-disable surface named with no effort level in reach
   of it, on the Opus 5 arm only**, where the pairing is what fails. On the second arm that is the
   finding itself, so this fence is scoped to the arm that earns it rather than to the row.
-- **Source:** effort, "On Claude Opus 5, thinking cannot be disabled at `xhigh` or `max` effort:
-  requests that set `thinking: {"type": "disabled"}` at those levels return a 400 error."
-  Corroborated at thinking-troubleshooting, which supplies the model range and adds that the
-  restriction "is enforced on each request". The per-surface value sets are read from the surfaces'
-  own pages: settings for `effortLevel`, environment variables for `CLAUDE_CODE_EFFORT_LEVEL`,
-  skills and subagents for `effort` frontmatter, and model configuration for `/effort`, the session
-  and global thinking toggles, and ultracode, the last enumerating the three routes that turn the
-  *setting* on (`/effort`, `--effort`, `--settings` / Agent SDK). The keyword's separation from the
-  setting is read from workflows, "Ask for a workflow in your prompt": including `ultracode` in a
-  prompt runs "a single task as a workflow without changing the session's effort level". The second
-  arm is thinking's, stated in the paragraph directly after that page's own statement of the Opus 5
-  arm: "Claude Fable 5, Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type:
-  "disabled"}`: thinking cannot be turned off on these models." That sentence carries no effort
-  qualifier, which is what makes the arm unconditional rather than a wider pairing, and the
-  adjacency is why the two must be read as separate arms rather than one range.
+- **Source:** effort, its Opus 5 section (the `xhigh`/`max` disable rejection). Corroborated at
+  thinking-troubleshooting, which supplies the model range and the per-request enforcement. The
+  per-surface value sets are read from the surfaces' own pages: settings for `effortLevel`,
+  environment variables for `CLAUDE_CODE_EFFORT_LEVEL`, skills and subagents for `effort`
+  frontmatter, and model configuration for `/effort`, the session and global thinking toggles, and
+  ultracode, the last enumerating the three routes that turn the *setting* on (`/effort`,
+  `--effort`, `--settings` / Agent SDK). The keyword's separation from the setting is read from
+  workflows, "Ask for a workflow in your prompt". The second arm is thinking's per-model table,
+  where those models refuse `"disabled"` with no effort qualifier while Opus 5 refuses it only at
+  the top levels: that is what makes the arm unconditional rather than a wider pairing, and why
+  the two are read as separate arms rather than one range.
 - **Local coverage of the second arm, measured 2026-08-04: zero operative instances in the
   repository that authored it.** The disable literal occurs six times across four files: three in
   this catalog, once in the Opus 5 model-adaptation delta chapter, twice in changelog entries.
   Every one is a document *about* the restriction, which is the audience-test fence above rather
   than a passed check. **Re-measure when** a surface here begins prescribing a thinking-disable
   instead of describing one.
-- **Verified 2026-08-04** against those pages, fetched as raw markdown. **Recheck trigger:** the
-  effort level set gaining or losing a name, the set of `ultracode` forms that reach `xhigh`
-  changing, the restriction's model range moving, or the set of models that reject the disable
-  outright changing.
+- **As of 2026-08-04** for the Opus 5 pairing as first written (those pages read as raw markdown);
+  the harness consequence, the `ultracode` forms, the second arm's model set and the third arm
+  carry their own 2026-10-01 records above. **Recheck trigger:** the effort level set gaining or
+  losing a name, the set of `ultracode` forms that reach `xhigh` changing, the restriction's model
+  range moving, or the set of models that reject the disable outright changing.
 
 **Row I17-a: `MAX_THINKING_TOKENS=0` presented as a universal off switch** · Tier `mechanical` ·
 Severity `warning`.
 
-- **Detect:** text stating or implying that `MAX_THINKING_TOKENS=0` turns thinking off generally.
-  It does not. On Fable 5 it has no effect at all, and neither do the session toggle or
-  `alwaysThinkingEnabled`. On third-party providers it omits the `thinking` parameter instead,
-  so an adaptive-reasoning model may still think. Also flag text treating
-  `CLAUDE_CODE_DISABLE_THINKING` as equivalent: that variable omits the parameter on every
-  provider, which on a model that thinks by default leaves it still thinking. Also flag text
-  presenting the session thinking toggle or `alwaysThinkingEnabled` as turning thinking off on
-  Fable 5. Model configuration states they "have no effect there", so the reader is promised a
-  control that is a silent no-op on that model.
+- **Detect:** text stating or implying that `MAX_THINKING_TOKENS=0` turns thinking off generally,
+  naming neither exception this row keeps: the whole no-effect set (Fable 5.1, Fable 5, Opus 5.5
+  and Sonnet 5.5), or third-party providers. Also flag text treating `CLAUDE_CODE_DISABLE_THINKING`
+  as equivalent to it, and text presenting the session thinking toggle or `alwaysThinkingEnabled`
+  as turning thinking off on a model in the no-effect set. For what each control does on each
+  model and provider, follow the pointer.
 - **Remediate:** carry the exceptions with the claim, or point at the page instead of restating it.
 - **Adjacent axis:** this is also a harness-capability claim, so **I12 can fire on the same line**.
   I12 asks whether the claim matches its page; this row asks whether a reader following it gets the
   behavior they were promised. Report both when both hold.
-- **Must NOT flag:** a mention that already carries the Fable 5 or third-party exception. A bare
-  reference to the variable making no claim about its reach.
-- **Source:** environment variables, `MAX_THINKING_TOKENS` "Set to `0` to disable thinking on the
-  Anthropic API, except on Fable 5, which cannot have thinking turned off; on third-party providers,
-  `0` omits the `thinking` parameter instead". Model configuration heads the same control "Disable
-  regardless of effort", so a surface repeating that heading unqualified inherits a claim the
-  variable's own page contradicts.
-- **Verified 2026-08-02** against those two pages, fetched as raw markdown; the session-toggle and
-  `alwaysThinkingEnabled` arm re-verified 2026-08-04 against model configuration. **Recheck
-  trigger:** the set of models that cannot disable thinking changing.
+- **Must NOT flag:** a mention that already names the whole no-effect set or the third-party
+  exception; either one is enough. A mention naming only part of the set, such as Fable alone,
+  names neither and still fires. A bare reference to the variable making no claim about its reach.
+- **Source:** environment variables, the `MAX_THINKING_TOKENS` and `CLAUDE_CODE_DISABLE_THINKING`
+  rows, and model configuration, "Extended thinking" (the no-effect set, the toggles, and the
+  third-party behavior). Pointer: [environment variables:
+  variables](https://code.claude.com/docs/en/env-vars#variables), those two rows (read whole per
+  the fetch route under Sources), and [model configuration: extended
+  thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
+- **As of 2026-10-01** (both pages read as raw markdown that day). **Recheck trigger:** the set
+  of models that cannot have thinking turned off changing, or the third-party behavior changing.
 
 **Row I17-b: mid-session thinking or effort change prescribed without its cost** · Tier
 `mechanical` · Severity `info`.
 
 - **Detect:** an instruction directing a reader to change **effort**, or the **thinking
-  configuration**, part-way through a session without naming what it costs. Both are rendered into
-  the request, so either change starts a new cache prefix and the next request re-reads the whole
-  conversation uncached. The thinking half covers switching among `adaptive`, `enabled` and
-  `disabled`, and changing `budget_tokens`.
-- **Must NOT flag: a Claude Code surface prescribing an *effort* change**, where the harness already
-  surfaces the cost: it "asks you to confirm before applying the change", and a change resolving to
-  the level already in effect skips the dialog and keeps the cache. Nor flag a change prescribed
-  *with* its cost stated, which is the remediation.
+  configuration**, part-way through a session, with no statement of the prompt-cache cost beside
+  it. The thinking half covers switching among `adaptive`, `enabled` and `disabled`, and changing
+  `budget_tokens`. For why such a change costs the cache, follow the Source.
+- **Must NOT flag: a Claude Code surface prescribing an *effort* change.** We leave that cost to
+  Claude Code's own handling of an effort change, so the surface owes no warning of its own. Nor
+  flag a change prescribed *with* its cost stated, which is the remediation.
+  Pointer: for how Claude Code handles an effort change, see
+  [prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
+  As of: 2026-10-01. Recheck trigger: that section stops covering how Claude Code handles the
+  cache cost of an effort change, or Claude Code's changelog names a change to that handling.
+- **On an API surface, the remediation may offer the per-message effort route, never with
+  `between_tools`.** Offer it where the model supports it. Never offer it to a surface that sends
+  `between_tools`: that combination is I17's third arm, not this row. Pointer: for the
+  per-message route, see [effort: change effort mid-conversation
+  (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta);
+  for the `between_tools` combination, see the [Sonnet 5.5 guide, calibrate
+  effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#calibrate-effort).
+  As of: 2026-10-01. Recheck trigger: per-message effort leaves beta or changes its cache
+  behavior, or `between_tools` starts accepting it.
 - **Reach differs by half, and this is the whole of it.** The effort half reaches every surface, with
   Claude Code surfaces carved out above. **The thinking half reaches API and Agent SDK surfaces
-  only.** That is where the page's claim is anchored and where no dialog exists. A Claude Code
-  surface prescribing a mid-session thinking toggle is **out of reach of this row**, neither excused
-  by the effort carve-out nor flagged by the thinking half.
+  only.** A Claude Code surface prescribing a mid-session thinking toggle is **out of reach of
+  this row**, neither excused by the effort carve-out nor flagged by the thinking half.
 - **Why the carve-out does not simply extend to thinking, and why the row stops short instead.**
-  Claude Code's prompt-caching page names exactly two settings that sit outside the prompt text and
-  are still part of the cache key, model and effort level, and documents the confirmation dialog
-  for effort alone. So the dialog's protection cannot be assumed for a thinking toggle; but the
-  harness-side *consequence* of one is equally undocumented, and this catalog does not flag what its
-  sources do not state. Hence out of reach rather than covered. **Re-scope when** the harness
-  documents what a mid-session thinking change costs.
+  The carve-out's pointer covers effort changes only, and on our reading of 2026-10-01 no Claude
+  Code page covers what a mid-session thinking change costs. So we neither assume Claude Code
+  handles a thinking toggle the way it handles effort nor flag a cost no source states: out of
+  reach rather than covered. **Re-scope when** a Claude Code page covers what a mid-session
+  thinking change costs.
 - **Why the thinking half is not I17-c, and why both can fire, on accepted changes only.** This
   row asks what a change *costs*. A switch among the modes, or a change to `budget_tokens`,
   restarts the cache when the new configuration is accepted and a turn runs under it. I17-c asks
@@ -1181,34 +1279,43 @@ Severity `warning`.
 - **Local coverage of the thinking half, measured 2026-08-04: zero operative instances here.** The
   session-toggle and `budget_tokens` literals appear only in this catalog, in two model-adaptation
   delta chapters, and in changelog entries, which are descriptions, not prescriptions.
-- **Remediate:** name the re-read cost, and prefer choosing both dials at session start.
-- **Source:** prompt caching: "**Effort level**: each effort level has its own cache for the same
-  model. Changing it mid-session recomputes the entire request, and Claude Code asks you to confirm
-  before applying the change." The thinking half is thinking's, which puts the thinking
-  configuration and the resolved effort level in the same position, since both "are rendered into the
-  prompt itself, so changing any of them starts a new cache prefix". It then enumerates the
-  changes: "Switching between `adaptive`, `enabled`, and `disabled`, changing `budget_tokens`,
-  and changing the effort value all invalidate cache breakpoints: message-level breakpoints always
-  miss, and tool and system-prompt breakpoints can miss too, depending on where the model renders
-  the configuration."
-- **Verified 2026-08-04** against those two pages, fetched as raw markdown. **Recheck trigger:**
-  effort or the thinking configuration leaving the cache key, the confirmation behavior changing, or
-  the harness gaining a documented dialog for thinking changes.
+- **Remediate:** name the re-read cost, and prefer choosing both dials at session start. On an API
+  surface, offer the per-message effort change where the model supports it and the request does
+  not send `between_tools`.
+- **Source:** prompt caching, "Changing effort level" (the effort half in Claude Code). The thinking
+  half, and the API effort half, point at [thinking: thinking and prompt
+  caching](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-prompt-caching).
+- **As of 2026-08-04** for the thinking half (that page read as raw markdown); the carve-out and the
+  API per-message route carry their own 2026-10-01 records above. **Recheck trigger:** effort or
+  the thinking configuration leaving the cache key on the thinking page, or a Claude Code page
+  starting to cover what a mid-session thinking change costs.
 
 **Row I17-c: fixed thinking budget prescribed where adaptive reasoning ignores or rejects it** ·
 Tier `mechanical` · Severity `warning`. Unscoped. Promotion gate MET: the claim is stated on
-model-agnostic surface pages and a cross-model migration guide, not in a model guide. **The model
+model-agnostic surface pages (thinking, environment variables, model configuration), not in a model guide. **The model
 ranges below are Detect conditions, not a `Model scope` annotation**, for the reason I17 base states.
 
 - **Detect:** instruction text directing a reader to control thinking *depth* with a fixed token
-  budget on a model that always uses adaptive reasoning. Two arms, with opposite failure modes:
+  budget on a model that always uses adaptive reasoning: this row's set is Opus 4.7 and later
+  (Opus 4.7, Opus 4.8, Opus 5, Opus 5.5), Sonnet 5 and later (Sonnet 5, Sonnet 5.5), and the Fable
+  and Mythos 5-series models (Fable 5.1, Fable 5, Mythos 5.1, Mythos 5). Two arms, with opposite
+  failure modes:
   - **Harness arm: silent no-op.** A nonzero `MAX_THINKING_TOKENS`, or
-    `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` offered as the way to make one take effect. Nonzero
-    values are ignored on adaptive-reasoning models, and that variable reaches none of the models
-    that always use adaptive reasoning, so a reader who follows the instruction sees no error and no
-    effect, which is the worst of the two failures.
+    `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` offered as the way to make one take effect, on a
+    model in the set. We rank this the worse of the two arms because nothing tells the reader it
+    failed.
   - **API arm: hard 400.** `thinking: {type: "enabled", budget_tokens: N}`, or prose presenting a
-    thinking budget as a tunable number, on Opus 4.7 and later, Sonnet 5, Fable 5, or Mythos 5.
+    thinking budget as a tunable number, on any model in the set. Claude Mythos Preview is outside
+    this row's set.
+  Pointer: for the API arm, see [thinking: configuring
+  thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking)
+  (its `"enabled"` column); for the harness arm, see the `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`
+  row of [environment variables:
+  variables](https://code.claude.com/docs/en/env-vars#variables) and [model configuration:
+  adaptive reasoning and fixed thinking
+  budgets](https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets).
+  As of: 2026-10-01. Recheck trigger: a model gains or loses a 400 for `"enabled"` in that column,
+  or the set of always-adaptive models changes.
 - **Why this is not I17-a.** That row is about `MAX_THINKING_TOKENS=0`, the claim that thinking can
   be turned *off*, and whether the exceptions travel with it. This row is the claim that thinking
   depth can be *set to a number*. Different literal, different promise, different failure; both can
@@ -1229,26 +1336,22 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   config-mechanics or source-code finding on the same discriminator I17 base, I21 and I22 apply, and
   this catalog audits instruction text.
 - **Remediate:** point at the effort parameter as the depth control on adaptive-reasoning models, or
-  carry the model gate with the claim. Upstream's own framing is "It has no direct replacement:
-  thinking is adaptive, and the `effort` parameter is a separate output-level control, not a thinking
-  budget".
-- **Source:** environment variables: `MAX_THINKING_TOKENS` "Nonzero values are ignored on adaptive
-  reasoning models unless `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is set", and that variable, "From
-  v2.1.111, has no effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use adaptive
-  reasoning". The version qualifier is the second half of the gate fence above. Model
-  configuration states the same partition from the other side: "Fable 5, Sonnet 5, and Opus 4.7 and
-  later always use adaptive reasoning. The fixed thinking budget mode and
-  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` do not apply to them", while "On Opus 4.6 and Sonnet 4.6,
-  you can set `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` to revert", which is the fence above,
-  stated upstream. The API arm comes from the migration guide:
-  `thinking: {type: "enabled", budget_tokens: N}`
-  "is no longer supported on Claude Opus 4.7 or later models and returns a 400 error", with the same
-  stated for Fable 5 and Mythos 5; corroborated for this model generation by the Sonnet 5 guide,
-  "Calibrating effort and thinking depth", where manual extended thinking "is not supported on Claude
-  Sonnet 5 and returns a 400 error. It was deprecated on Claude Sonnet 4.6 and is now removed."
-- **Verified 2026-08-04** against those four pages, fetched as raw markdown. **Recheck trigger:** the
-  set of models that always use adaptive reasoning changing, `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`
-  regaining or losing reach, or manual extended thinking being reinstated on any model in the range.
+  carry the model gate with the claim. We do not offer effort as a like-for-like budget
+  replacement: effort is a separate control, not a thinking budget (effort page).
+- **Source:** environment variables, the `MAX_THINKING_TOKENS` and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` rows (nonzero values ignored on adaptive-reasoning
+  models; the latter's loss of reach from v2.1.111 over the always-adaptive models). The version
+  qualifier is the second half of the gate fence above. Model configuration, "Adaptive reasoning
+  and fixed thinking budgets", covers the same partition from the other side, including the Opus
+  4.6 and Sonnet 4.6 revert that is the fence above. The API arm's model range is read from
+  thinking's per-model table (the Pointer under Detect); the migration-guide URL that first carried
+  it is now an index of per-model guides. Corroborated for this model generation by the Sonnet 5
+  guide, "Calibrating effort and thinking depth".
+- **As of 2026-10-01** for the model set under Detect; **as of 2026-08-04** for the v2.1.111
+  version fence, which the environment-variables row no longer states (re-read 2026-10-01), so that
+  fence rests on its first reading. **Recheck trigger:** the set of models that always use adaptive
+  reasoning changing, `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` regaining or losing reach, or manual
+  extended thinking being reinstated on any model in the range.
 
 **Row I17-d: tool reliance with thinking disabled and no explicit tool nudge** · Tier `behavioral` ·
 Severity `warning` · Model scope: `sonnet-5`.
@@ -1256,32 +1359,40 @@ Severity `warning` · Model scope: `sonnet-5`.
 - **Detect:** a surface that both (a) prescribes running with thinking off, meaning any
   thinking-disable surface I17 base enumerates, or a workload the surface states runs
   thinking-disabled, and (b) depends on the model reaching for tools (search, retrieval, self-verification loops, agentic tool
-  chains) while stating no explicit instruction about when and how to use those tools. The guide
-  states the coupling and its remedy in one sentence: "With thinking disabled, the model is less
-  likely to reach for tools or consider searching; if you rely on tool calls with thinking off, add
-  an explicit nudge in the system prompt." A brief that turns thinking off and then relies on
-  default tool reach depends on a disposition that configuration reduced, and the failure is
-  silent: fewer tool calls, not an error.
-- **Remediate:** add the explicit nudge the sentence above prescribes, describing which tools,
-  when, and why, or leave thinking on. Effort is a second lever: "`high` or `xhigh` effort
-  settings show substantially more tool usage in agentic search and coding."
+  chains) while stating no explicit instruction about when and how to use those tools. We treat
+  thinking-off as reducing the model's reach for tools, so a brief that turns thinking off and then
+  relies on default tool reach depends on a disposition that configuration reduced, and the
+  failure is silent: fewer tool calls, not an error.
+- **Remediate:** add an explicit tool nudge to the system prompt, describing which tools, when, and
+  why, or leave thinking on. Effort is a second lever: we treat `high` or `xhigh` as raising tool
+  use in agentic search and coding.
 - **Must NOT flag:** a thinking-disable with no tool dependence. A tool-dependent surface that
   already instructs its tool use explicitly. That is the remediation, present. A surface with no
   control over and no claim about the thinking configuration, whose tool reliance runs under the
   default (thinking on). A document *about* the pattern, such as this row, a model-adaptation delta
   chapter, or a verification record, on the audience test I8-b applies.
 - **Why scoped:** the coupling claim is stated only in the Sonnet 5 guide. The Opus 4.8 guide's
-  "Tool use triggering" section states a different default for its model, "a tendency to favor
-  reasoning over tool calls", with no thinking-off coupling, so it is not a second statement of
-  this claim; the halves the two guides do share (effort as a tool-usage lever, describe-why-and-how
-  tool instruction) are general advice, not this row's detect condition.
-- **Source:** Sonnet 5 guide, "Tool use triggering": the sentence quoted above, plus the
-  effort-lever sentence.
-- **Verified 2026-08-08** against the Sonnet 5 guide (15,864 bytes, MD5
-  `6d23959f0ed226feb06bf20c314029e3`) and, for the scope negative, the Opus 4.8 guide (15,905
-  bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`), both fetched as raw markdown. **Recheck
+  "Tool use triggering" section covers a different default for its model with no thinking-off
+  coupling, so it is not a second statement of this claim; the halves the two guides do share
+  (effort as a tool-usage lever, describe-why-and-how tool instruction) are general advice, not
+  this row's detect condition.
+- **Source:** Sonnet 5 guide, "Tool use triggering" (the coupling, the nudge, and the effort
+  lever).
+- **As of 2026-08-08** (our probe of the Sonnet 5 guide, 15,864 bytes, MD5
+  `6d23959f0ed226feb06bf20c314029e3`, and, for the scope negative, the Opus 4.8 guide, 15,905
+  bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`, both read as raw markdown). **Recheck
   trigger:** a second model guide stating the thinking-off tool-reach coupling, which would meet the
   promotion gate and unscope this row.
+- **Re-justified 2026-10-01 against the current models:** `sonnet-5` stays (see "Tokens of models
+  that are no longer current"). The row does not widen to `sonnet-5-5`: that model is in I17-a's
+  no-effect set, so half (a) of Detect cannot hold there, and our probe of its guide that day (read
+  whole as raw markdown; no artifact stored) found no thinking-off coupling. Tool-discouraging text
+  on that target is I36's. Pointer: [model configuration: extended
+  thinking](https://code.claude.com/docs/en/model-config#extended-thinking) for the no-effect set;
+  [Prompting Claude Sonnet
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5),
+  the whole page, for the negative. As of: 2026-10-01. Recheck trigger: Sonnet 5.5 leaves the
+  no-effect set, or its guide states a thinking-off tool-reach coupling.
 
 ### I18: Thinking blocks altered on the way back to the model
 
@@ -1305,8 +1416,8 @@ is what a surface believes about blocks that are *not there*. They share a subje
      omits `redacted_thinking` blocks, which the protocol requires back unchanged.
   3. **Within-turn echo integrity.** An instruction to reorder, edit, truncate, or partially drop
      the consecutive `thinking` blocks of the latest assistant message, including "keep only the
-     last one" and "strip thinking before resending" advice. Modified blocks are rejected with a
-     400.
+     last one" and "strip thinking before resending" advice. We treat any altered block as a 400
+     rejection.
 - **Reach: this is wider than Messages API client code.** Any instruction whose output eventually
   becomes a request body is in scope: Agent SDK callers, harness integrations, and **tooling that
   parses, excerpts or rewrites a stored transcript that will later be replayed or resumed**. What
@@ -1324,19 +1435,14 @@ is what a surface believes about blocks that are *not there*. They share a subje
   a model-adaptation delta chapter, or a verification record quoting it, on the same audience test
   I8-b applies: the predicate quoted inside an operative directive is still operative and is a
   finding; a document *about* the pattern is not.
-- **Source:** Thinking, "Preserving thinking blocks": "Pass every `thinking` block back to the API
-  complete and unmodified, alongside the `tool_use` block it accompanied", and "Within the latest
-  assistant message, the sequence of consecutive `thinking` blocks must match what the model
-  generated in the original request: you can't rearrange, edit, or partially drop them." Same page,
-  "Thinking encryption": "Full thinking content is encrypted and returned in the `signature` field
-  on each thinking block", and "Redacted thinking blocks": "Filtering on
-  `block.type == "thinking"` alone silently drops `redacted_thinking` blocks and breaks the
-  multi-turn protocol…".
+- **Source:** Thinking, "Preserving thinking blocks" (echoing blocks back complete and unmodified,
+  and within-turn sequence integrity); same page, "Thinking encryption" (the `signature` field)
+  and "Redacted thinking blocks" (what a type-equality filter drops).
 - **Local coverage, measured 2026-08-02: zero instances of all three shapes in the repository that
   authored this row**, which ships it consumer-facing and unexercised by its own corpus. Stated so
   the absence reads as an as-of measurement rather than as a passed check. **Re-measure when** a
   round-trip or transcript-replay path lands here.
-- **Verified 2026-08-02** against the Thinking page, fetched as raw markdown. **Recheck trigger:** a
+- **As of 2026-08-02** (the Thinking page read as raw markdown). **Recheck trigger:** a
   content-block type joining or leaving the set the protocol requires echoed back.
 
 **Row I18-a: a leading thinking block treated as required where the model does not require one** ·
@@ -1345,18 +1451,18 @@ Tier `mechanical` · Severity `warning`.
 - **Detect:** instruction text asserting, or directing work premised on, a validation rule that
   assistant turns must begin with a thinking block. Three shapes:
   1. **Reinsertion.** An instruction to insert, synthesize, or restore a leading `thinking` block
-     when assembling history from mixed sources, so that each assistant turn "starts with one".
+     when assembling history from mixed sources, so that each assistant turn starts with one.
   2. **History rewriting on resume.** An instruction to rewrite, normalize, or discard a
      conversation because it began without thinking or ran under a different thinking
      configuration.
   3. **Presence-assuming logic.** An instruction to read, index, or branch on an assistant turn's
-     first content block as though it were a `thinking` block. A turn where Claude chose not to
-     think carries none, and the same conversation can hold turns of both kinds.
+     first content block as though it were a `thinking` block. We treat an assistant turn produced
+     without thinking as having no such block, and one conversation as able to mix both kinds.
 - **Why the belief is a finding and not a harmless one.** The remediation a reader reaches for is
   fabrication, and a hand-built block carries no valid `signature`, which is the base row's shape 1,
   and a rejected request. This row is therefore the upstream cause of the base row's violation, not
   a restatement of it; report both when a surface states the premise *and* acts on it.
-- **Remediate:** pass history back in whatever shape you have it, and treat a thinking block as
+- **Remediate:** send history back as it is, without reshaping it, and treat a thinking block as
   optional per assistant turn, in tests too, where a no-thinking turn is the case the assumption
   hides.
 - **Reach: the base row's, unchanged, and for all three shapes.** A path back to the model is what
@@ -1367,37 +1473,29 @@ Tier `mechanical` · Severity `warning`.
   logic rather than a rejected request, which is a code-correctness matter this catalog does not
   audit. **Re-scope when** the stored transcript's content-block shape is documented.
 - **Must NOT flag: text scoped to a legacy manual thinking budget AND to the final assistant
-  turn**, where the requirement is real. The page carves it out itself, stating that those models
-  "enforce that the final assistant turn of a thinking-enabled request begins with one", and the
-  enforcement is exactly that wide: the final assistant turn of a thinking-enabled request, no other turn. A
+  turn**, where the requirement is real. The page carves it out itself, and we treat the
+  enforcement as exactly that wide: only the last assistant turn, and only when the request has
+  thinking on. A
   legacy-scoped instruction demanding a leading block on *every* assistant turn over-requires past
   its own source and still flags. The gate is the model's thinking mode plus the turn it names, not
   the sentence's confidence, and as in I17-c **the finding is the missing gate, never the
   mention.**
-  **The base row's own advice**, which is not this row's inverse: the relaxation "is about
-  validation, not about what you should send", so an instruction to pass blocks you *have* back
-  unmodified, particularly during tool use, is correct and stays correct. Reading this row as
+  **The base row's own advice**, which is not this row's inverse: we read the relaxation as about
+  validation, not about what to send, so an instruction to return the blocks you *have* untouched,
+  tool-use turns above all, is correct and stays correct. Reading this row as
   license to drop blocks inverts both rows at once. A document *about* the assumption, on the
   audience test I8-b applies.
-- **Source:** Steering thinking, "Turn validation": "Assistant turns don't need to start with a
-  thinking block", with the three consequences stated there, one per shape above: turns where
-  Claude chose not to think "are valid history as-is"; a conversation begun without thinking, or
-  under a different thinking configuration, resumes "without rewriting its history"; and history
-  assembled from mixed sources "doesn't need thinking blocks reinserted at the start of each
-  assistant turn to pass validation". The legacy carve-out is that same "Turn validation" section's
-  own parenthetical, quoted in the fence above. The presence half is the same page, "How Claude
-  decides when to think": "a turn where Claude chose not to think contains no thinking block. Don't
-  build application logic that assumes every assistant turn starts with one."
+- **Source:** Steering thinking, "Turn validation" (the relaxation, with one consequence per shape
+  above, and the legacy carve-out the fence above relies on); the presence half is the same page,
+  "How Claude decides when to think".
 - **Why this page is cited and not the sibling.** The Thinking page carries the same pair, but
-  compressed into a single sentence inside "Thinking with tool use": in extended (manual) mode the
-  API "additionally enforces that the final assistant turn of a thinking-enabled request begins with
-  a thinking block", and "Adaptive mode relaxes this: no assistant turn needs to start with one."
-  That corroborates this row; it does not carry it. Steering thinking is where the relaxation is
-  stated operatively, with the three history-shape consequences the detect shapes are drawn from,
-  plus the presence caution, so it is cited as decisive and the sibling as corroboration. Separate from
-  both is that page's *strip* claim, that the API "may strip thinking blocks that would create an
-  invalid turn structure": server-side degradation of a request, not a rule about what history a
-  caller may send, and it licenses nothing here.
+  compressed into one passage inside "Thinking with tool use" (manual-mode enforcement and the
+  adaptive-mode relaxation). That corroborates this row; it does not carry it. Steering thinking
+  is where the relaxation is stated operatively, with the three history-shape consequences the
+  detect shapes are drawn from, plus the presence caution, so it is cited as decisive and the
+  sibling as corroboration. Separate from both is that page's *strip* claim about turn structure:
+  we read it as server-side degradation of a request, not a rule about what history a caller may
+  send, and it licenses nothing here.
 - **Local coverage, measured 2026-08-04: zero operative instances here**, on the same footing as the
   base row, since nothing in this repository assembles, rewrites, or replays history back to the
   model.
@@ -1405,7 +1503,7 @@ Tier `mechanical` · Severity `warning`.
   own `type` rather than by position, so it is correct by construction rather than by this rule.
   Stated as an as-of measurement, not a passed check. **Re-measure when** a history-assembly or
   replay path lands here.
-- **Verified 2026-08-04** against the Steering thinking page, fetched as raw markdown. **Recheck
+- **As of 2026-08-04** (the Steering thinking page read as raw markdown). **Recheck
   trigger:** the turn-validation relaxation narrowing, or the set of models that enforce a leading
   thinking block changing.
 
@@ -1420,10 +1518,11 @@ by `--opinion`.
   report against a different harness, and a later release reorders the table, so a figure with no
   stated re-derivation event silently becomes a claim about the past told in the present tense.
 - **Remediate:** either point at the vendor's announcement and restate nothing, or keep the figure
-  and attach the four-part record: the claim, the announcement it came from, the as-of date, and a
-  trigger naming an observable event (a new frontier-model release, a suite version bump, a decision
-  that would turn on the figure). Label the figures as launch-day snapshots where that is what they
-  are; leaving them as history is a valid outcome and usually the right one.
+  as the surface's own recorded decision and attach the record beside it: a pointer to the exact
+  source section the figure came from, the as-of date, and a recheck trigger naming an observable
+  event (a new frontier-model release, a suite version bump, a decision that would turn on the
+  figure). Label the figures as launch-day snapshots where that is what they are; leaving them as
+  history is a valid outcome and usually the right one.
 - **Must NOT flag: a verbatim upstream baseline held for drift detection.** A vendored copy exists
   to be compared byte-for-byte against its source, so stamping it would corrupt the comparison it
   exists to serve. This is a genuine suppression, not a routing case, which is what distinguishes
@@ -1433,9 +1532,10 @@ by `--opinion`.
 - **Must NOT flag:** a benchmark named as a pointer with no figure attached. A figure already
   carrying a trigger, whatever heading that trigger sits under.
 - **Source:** none. No official page states that a restated benchmark figure needs a re-derivation
-  event, which is why this check is `OPINION`-tier and off by default. The four-part shape it asks
-  for is this monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the
-  four parts, not the path, are the requirement.
+  event, which is why this check is `OPINION`-tier and off by default. The record shape it asks for
+  (the decision, a pointer, an as-of date, a recheck trigger) is this monorepo's
+  `docs/conventions/upstream-drift/README.md`; in a standalone install those parts, not the path,
+  are the requirement.
 
 ### I20: Prefilled assistant response
 
@@ -1460,13 +1560,10 @@ condition, not a `Model scope` annotation**, for the reason I17 states.
   row, a migration guide, or a model-delta chapter, on the same audience test I8-b applies: a prefill
   prescribed inside an operative directive is a finding; a document *about* prefill is not.
   Instructions targeting an explicitly pinned earlier model, which still supports it.
-- **Source:** prompting best practices, "Migrating away from prefilled responses": "Starting with
-  Claude 4.6 models and Claude Mythos Preview, prefilled responses (providing a partial assistant
-  message for Claude to continue from) on the last assistant turn are no longer supported. Requests
-  with prefilled assistant messages to these models return a 400 error… Earlier models continue to
-  support prefills, and adding assistant messages elsewhere in the conversation is not affected."
-- **Verified 2026-08-02** against that page, fetched as raw markdown; the standalone prefill
-  technique page now redirects to the prompt-engineering overview. **Recheck trigger:** any change to
+- **Source:** prompting best practices, "Migrating away from prefilled responses" (the unsupported
+  model range, the 400, and what stays unaffected).
+- **As of 2026-08-02** (that page read as raw markdown; the standalone prefill technique page
+  redirected to the prompt-engineering overview). **Recheck trigger:** any change to
   that page, or the unsupported-model range moving.
 
 ### I21: Effort level pinned across a model change with no re-sweep
@@ -1480,30 +1577,29 @@ not a `Model scope` annotation**, for the reason I17 states.
 
 - **Detect:** a surface prescribing a **durable** effort level that states no re-derivation when the
   pinned model changes: a fleet-wide or project-wide pin, a "set effort to X and leave it"
-  instruction, a level tied to a named model lane. The effort scale is calibrated per model, so the same
-  level name does not carry the same underlying value across models; a level measured against one
-  model and carried to the next is a pin nobody re-measured.
-- **The consequence varies by model, which is why the range sits in Detect.** The first-run hold
-  sentence for Fable 5, Opus 4.8, and Opus 4.7 is no longer on the model-config page. Opus 5.5
-  starts at `medium` unless an explicit choice sets a level, and a top-level `effortLevel` in the
-  user settings file does not count for Opus 5.5. That key still applies on Opus 5, Fable 5.1, and
-  earlier models. Opus 5.5 and models released after it start at their own default until `/effort`
-  or the `/model` picker saves a level for them. A top-level `effortLevel` in project, local, or
-  managed settings, or one passed with `--settings`, applies to every model. Launching with
-  `--effort` is an explicit choice and applies to that launch. **Claim, basis, as of, recheck:**
-  that paragraph,
-  [model-config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-  2026-09-28, and a re-fetch of that section that no longer matches it. The row fires on the
-  missing re-derivation regardless of model; the hold is severity context, never a fence.
+  instruction, a level tied to a named model lane. We treat the effort scale as calibrated per
+  model, so a level name measured against one model is not the same setting on the next; a level
+  carried across a model change is a pin nobody re-measured.
+- **The consequence varies by model, which is why the range sits in Detect.** We treat Opus 5.5 as
+  starting at `medium` unless an explicit choice sets a level, with a top-level `effortLevel` in
+  the user settings file not counting for it (Opus 5, Fable 5.1 and older models still honor that
+  key), and models released after Opus 5.5 as starting at their own default until `/effort` or the
+  `/model` picker saves a level. Every model takes the level a top-level `effortLevel` sets in the
+  project, local or managed file or through `--settings`, and `--effort` sets it for one launch.
+  The model-config page no longer carries a first-run effort hold for Fable 5, Opus 4.8 or Opus
+  4.7. The row fires on the missing re-derivation regardless of model; the hold is
+  severity context, never a fence.
+  Pointer: [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+  As of: 2026-09-28. Recheck trigger: that section changes which sources set a model's level, or
+  the user-settings exemption for Opus 5.5.
 - **Remediate:** attach the re-derivation to the pin, naming the model the level was measured
-  against and stating that a model change re-opens it, or run the sweep. Upstream's own wording for the
-  action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
-  your evals rather than reusing them."
-- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** Setting
-  the default "produces exactly the same behavior as omitting the `effort` parameter entirely", so
-  on a model that defaults to `high` such a pin carries no measured calibration that could go stale.
-  **The exemption keys to the resolved target, never to the wording.** In Claude Code `high` is the
-  default on every model that supports effort **except Opus 5.5 and Sonnet 5.5, which default to
+  against and stating that a model change re-opens it, or run a fresh effort sweep on the
+  surface's evals rather than reusing carried-over levels.
+- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** We
+  treat setting the default as equivalent to omitting the `effort` parameter, so on a model that
+  defaults to `high` such a pin carries no measured calibration that could go stale.
+  **The exemption keys to the resolved target, never to the wording.** In Claude Code every
+  effort-capable model defaults to `high` **except Opus 5.5 and Sonnet 5.5, which default to
   `medium`, and Opus 4.7, which defaults to `xhigh`**, so when the run's resolved target is one of
   those the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
   "always use `high`" that names no model at all**. That broad pin is the sharper case rather than
@@ -1534,13 +1630,12 @@ not a `Model scope` annotation**, for the reason I17 states.
   chapter, or a verification record, on the audience test I8-b applies. Nor a level **reported as a
   named third party's practice** rather than prescribed to the reader: a practitioner's stated setup
   is `OPINION`-tier testimony, not a pin the surface owns.
-- **Source:** model configuration: "The effort scale is calibrated per model, so the same level name
-  does not represent the same underlying value across models", stated with no model qualifier, and
-  the whole basis for the check. The same page supplies the resolution order, with the default carve-out:
-  "`high` on every model that supports effort, except that Opus 5.5 and Sonnet 5.5 default to
-  `medium`, Opus 4.7 defaults to `xhigh`". Effort supplies the remediation's wording and the
-  equivalence of the default to omitting the parameter.
-- **Verified 2026-09-28** against both pages, fetched as raw markdown (model configuration 109,848
+- **Source:** model configuration, "Choose an effort level" (the per-model calibration, stated with
+  no model qualifier, and the whole basis for the check) and "Adjust effort level" (the resolution
+  order and the per-model defaults this row keeps as its own settings above). Effort, "How effort
+  works" and its per-model sections, supplies the remediation and the equivalence of the default
+  to omitting the parameter.
+- **As of 2026-09-28** (our probe: both pages read as raw markdown, model configuration 109,848
   bytes; effort 39,458 bytes). **Recheck trigger:** the calibration property being restated as
   cross-model-stable, a first-run effort hold returning to the model-config page, the resolution
   order or the `effortLevel` user-settings exemption for Opus 5.5 changing, or `high` ceasing to be
@@ -1558,8 +1653,9 @@ by `--opinion`.
   matrices are revised on every release, so lanes derived from one reading and written down without
   their provenance become a claim about a model generation that has since passed, told in the present
   tense.
-- **Remediate:** name the baseline and the triggers. State which vet or reading the lanes came from
-  and when, then list the events that re-open it: the pinned model changes, per-model guidance or
+- **Remediate:** name the baseline and the triggers, as the record parts beside the doctrine: a
+  pointer to the vet or reading the lanes came from, its as-of date, and the observable events
+  that re-open it: the pinned model changes, per-model guidance or
   its notes change, the selection-matrix rows change, a volatile figure a lane turns on drifts.
   **The action on a trigger is a targeted delta check against the named baseline, never a
   re-derivation from scratch.** That is what makes the trigger cheap enough to honor, and a trigger
@@ -1582,16 +1678,17 @@ by `--opinion`.
   instead of restating lanes has nothing to go stale. Nor doctrine already carrying a baseline and
   triggers, whatever heading they sit under.
 - **Why this is not I19, and not the catalog trigger.** I19 covers a restated *benchmark figure* and
-  asks for the four-part record; it says nothing about lane assignments and nothing about how to
+  asks for the record parts; it says nothing about lane assignments and nothing about how to
   *act* when a trigger fires. The delta-not-re-run discipline is this row's own contribution. The
   catalog-wide recheck trigger does not reach it either: that trigger governs **this catalog's**
   staleness against its Sources, not an audited surface's staleness against the pages its doctrine
   was read from.
 - **Source:** none. No official page states that model-routing doctrine must name a baseline and
   delta triggers, which is why this check is `OPINION`-tier and off by default, the same footing as
-  I19, and it adds no Sources entry for the same reason. The four-part shape it asks for is this
-  monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the four parts, not
-  the path, are the requirement.
+  I19, and it adds no Sources entry for the same reason. The record shape it asks for (a pointer to
+  the baseline, an as-of date, observable recheck triggers beside the doctrine) is this monorepo's
+  `docs/conventions/upstream-drift/README.md`; in a standalone install those parts, not the path,
+  are the requirement.
 
 ### I23: Context-budget directive to stop, summarize, or hand off
 
@@ -1602,7 +1699,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 readable, which tempts a `mechanical` tag, but I8-b's Detect is a literal three-phrase match and is
 even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest on a documented hard
 consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
-This row rests on a reported model *tendency*, "can occasionally suggest a new session", with no
+This row rests on a reported model *tendency* (an occasional new-session suggestion), with no
 documented hard consequence, which is the behavioral tier's definition. The stake is the Output
 format rule: behavioral findings ship as proposals verified per Deletion tiers, never as
 confident removals.
@@ -1611,8 +1708,8 @@ confident removals.
   summarize, hand off, trim its work, or start a new session **on that basis**, and instruction text
   or injected hook output that surfaces a remaining-context count to the model where the surface
   could avoid it. The guide names the count as the usual trigger for the behavior, so the disclosure
-  and the directive are one subject; it also hedges the disclosure arm to "where possible", and this
-  row tracks that hedge rather than reading it as an absolute.
+  and the directive are one subject; it also hedges the disclosure arm, and this row tracks that
+  hedge rather than reading it as an absolute.
 - **The discriminator is who decides, on what evidence.** A directive tells the model to judge its
   own window and act; a mechanism resolves the window from an instrumented signal and acts itself.
   Only the first is this row's subject.
@@ -1659,8 +1756,9 @@ confident removals.
   reasoning with it.
 - **Residency is a severity input, not an admission test.** A trigger in a `description` is resident
   whenever the skill listing admits it, which is the default, since `disable-model-invocation: true`
-  also suppresses the description from context ([Skills](https://code.claude.com/docs/en/skills),
-  verified 2026-08-08). A body-borne trigger costs context only once the skill loads, or at startup
+  also suppresses the description from context (pointer:
+  [Skills](https://code.claude.com/docs/en/skills#frontmatter-reference), as of 2026-08-08). A
+  body-borne trigger costs context only once the skill loads, or at startup
   in a subagent with the skill preloaded. Both are findings; the resident one is the more expensive to
   leave. **Second-source recheck trigger:** that page's invocation-control table changing which
   fields keep a description in context, which would re-rank the two residencies and is the only fact
@@ -1679,24 +1777,37 @@ confident removals.
   over-production is the same contract I8's families carry. It is deliberately **not** anchored to
   the bare term "context window", which is ordinary vocabulary in any surface discussing sessions and
   would return the corpus instead of a candidate set.
-- **Source:** Fable 5 guide, "Rare cases of context-budget concern": "In very long sessions, Claude
-  Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
-  work. This is most often triggered when the harness shows a remaining-token countdown to the model.
-  Avoid surfacing explicit context-budget counts where possible."
-- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
+- **Source:** Fable 5 guide, "Rare cases of context-budget concern" (the behaviors, the
+  remaining-token countdown as the usual trigger, and the hedged advice against surfacing counts).
+- **As of 2026-08-08** (our probe: that guide read as raw markdown, 177 lines). **Verified
   negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
-  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for this
-  claim. Neither states it. Opus 5's only mention of the context window is a capability statement,
-  that its instruction following, tool calling, and reasoning "stay consistent throughout the
-  window", which is the opposite subject: a reason the concern does not arise, not a counter-steer
-  against it. **Recheck trigger:** a second model guide stating the claim, which would meet the
+  Sonnet 5 guide (15,864 bytes) were read as raw markdown the same day and searched for this
+  claim. Neither states it. Opus 5's only mention of the context window is a capability statement
+  about consistency across the window, which is the opposite subject: a reason the concern does
+  not arise, not a counter-steer against it. **Recheck trigger:** a second model guide stating
+  the claim, which would meet the
   promotion gate and unscope this row, or that section ceasing to name the remaining-token
   countdown as the trigger, which is what joins the disclosure arm to the directive arm.
-- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
-  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
-  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
-  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
-  whose statement of this claim replaces this basis and joins `## Sources`.
+- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
+  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
+  widening now rests on our reading of that guide on 2026-10-01 (read whole as raw markdown; no
+  artifact stored): no section names a context-budget difference from Fable 5, so we keep the
+  Fable 5 claim for `fable-5-1`. Pointer: [Prompting Claude Fable
+  5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),
+  the text above its first heading, which carries no heading id on the rendered page, so the link
+  is to the page. As of: 2026-10-01. Recheck trigger: the Fable 5.1 guide naming a context-budget
+  difference from Fable 5, or its opening changing what it says about Fable 5 prompts.
+- **Re-justified 2026-10-01 against the current models:** `fable-5` stays, since Fable 5 is a
+  current model (see "Tokens of models that are no longer current"). The row does not widen to
+  `sonnet-5-5`: a countdown after tool
+  results on that target is I37's subject, and our probe of the Opus 5.5 and Sonnet 5.5 guides that
+  day (each read whole as raw markdown; no artifact stored) found no statement of this row's claim.
+  Pointer: [Prompting Claude Opus
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
+  and [Prompting Claude Sonnet
+  5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5),
+  whole pages, since the probe is a negative over every section. As of: 2026-10-01. Recheck
+  trigger: either guide states this row's claim, which meets the promotion gate.
 
 ### I24: Instruction relying on silent generalization
 
@@ -1705,10 +1816,9 @@ Promotion gate MET: two model guides state the identical claim (see Source).
 
 - **Detect:** instruction text that demonstrates or names ONE instance while the author's evident
   intent is a whole class, with no explicit scope statement: text a literal-minded executor would
-  satisfy by doing exactly the one instance and stopping. Current models "interpret prompts
-  literally and explicitly, particularly at lower effort levels": they do "not silently generalize
-  an instruction from one item to another", and do "not infer requests you didn't make". Four
-  shapes:
+  satisfy by doing exactly the one instance and stopping. We treat current models as reading
+  instructions literally, more so at lower effort: an instruction about one item is not carried to
+  its siblings, and unstated requests are not inferred. Four shapes:
   1. **A worked example standing in for a rule**, "rename this field like so" meaning every such
      field, with no "apply to every / all / each" scope line.
   2. **An enumeration whose tail the executor must guess**: a list ended with "etc." or "and
@@ -1717,9 +1827,9 @@ Promotion gate MET: two model guides state the identical claim (see Source).
      where the surrounding procedure plainly processes many.
   4. **A per-item step whose iteration is implied but never stated**: "check the frontmatter" in a
      skill that processes N files.
-- **Remediate:** state the scope explicitly. The guides' own worked remediation: "Apply this
-  formatting to every section, not just the first one." Name the class an "etc." tail was standing
-  in for; attach the iteration to the per-item step.
+- **Remediate:** state the scope explicitly, as one line naming every item the instruction covers
+  rather than only the first. Name the class an "etc." tail was standing in for; attach the
+  iteration to the per-item step.
 - **Must NOT flag:** an instruction whose single-instance reading is correct, because the request
   really is one item. Scope stated anywhere in reach of the instruction (a "for each X below" frame,
   a table iterated by contract, a stated general rule the example sits inside as a labeled example).
@@ -1731,9 +1841,9 @@ Promotion gate MET: two model guides state the identical claim (see Source).
   proposes scope statements, so the Stopping condition's high-consequence withholding does not
   bind it: adding explicitness to a safety gate is safe where trimming one is not.
 - **Source:** Sonnet 5 guide, "More literal instruction following", and Opus 4.8 guide, "More
-  literal instruction following". The two sections state the Detect sentences verbatim-identically
-  for their respective models, and both give the same remediation example quoted above.
-- **Verified 2026-08-08** against both guides, fetched as raw markdown (Sonnet 5: 15,864 bytes, MD5
+  literal instruction following". The two sections state the same claim for their respective
+  models, and both give the same remediation example.
+- **As of 2026-08-08** (our probe of both guides as raw markdown; Sonnet 5: 15,864 bytes, MD5
   `6d23959f0ed226feb06bf20c314029e3`; Opus 4.8: 15,905 bytes, MD5
   `6b9db5b784ad6a7b2e6307c1481b8be9`). **Recheck trigger:** either guide ceasing to state the
   literalism claim, or a model guide stating that its model resumes generalizing instructions,
@@ -1743,22 +1853,26 @@ Promotion gate MET: two model guides state the identical claim (see Source).
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all. The severity is
 `error` because following the instruction produces a rejected request, the same consequence class
-as I17, I18 and I20. Unscoped. Promotion gate MET: the claim is stated in the cross-model migration
-guide, not only in model guides. **The model range is a Detect condition, not a `Model scope` annotation**,
-for the reason I17 base states.
+as I17, I18 and I20. Unscoped. Promotion gate MET: the claim is stated on a model-agnostic feature
+page (thinking, "Sampling parameters", the pointer under Detect), not only in model guides. **The
+model range is a Detect condition, not a `Model scope` annotation**, for the reason I17 base
+states.
 
-- **Detect:** instruction text directing a reader to set `temperature`, `top_p`, or `top_k` to a
-  non-default value, commonly "raise the temperature" for variety, creativity, or design
+- **Detect:** instruction text directing a reader to move `temperature`, `top_p`, or `top_k` off
+  its default, commonly "raise the temperature" for variety, creativity, or design
   divergence, or "set `temperature = 0`" for determinism, where the run's resolved target model is
-  Claude Opus 4.7 or later, Claude Sonnet 5, Claude Fable 5, or Claude Mythos 5 (the same range
-  I17-c's API arm names). On those models a non-default sampling parameter returns a 400 error; the
-  SDK request types still define the fields for compatibility, so the instruction type-checks and
-  fails only at the API.
-- **Remediate:** remove the parameter and steer the behavior in prompt text. Upstream's framing:
-  "Remove these parameters when migrating, and use system-prompt instructions to guide tone and
-  variety instead." For design variety specifically, the propose-options pattern is the documented
-  replacement (see I26). Where the prescription was `temperature = 0` for determinism, carry
-  upstream's note that "it never guaranteed identical outputs" on prior models either.
+  in this row's set: Claude Opus 4.7 or later (Opus 4.7, Opus 4.8, Opus 5, Opus 5.5), Claude
+  Sonnet 5 or later (Sonnet 5, Sonnet 5.5), Claude Fable 5.1, Claude Fable 5, Claude Mythos 5.1,
+  Claude Mythos 5, or Claude Mythos Preview. Fire on those models whether or not the surface also
+  sets thinking, and even where the instruction would type-check against an SDK. A model outside
+  the set is outside this row, whatever it does with thinking on.
+  Pointer: for the set, see [thinking: sampling
+  parameters](https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters).
+  As of: 2026-10-01. Recheck trigger: a model joins or leaves that section's list.
+- **Remediate:** remove the parameter and steer tone and variety with system-prompt instructions
+  instead. For design variety specifically, the propose-options pattern is the documented
+  replacement (see I26). Where the prescription was `temperature = 0` for determinism, note that
+  it did not guarantee identical outputs on prior models either.
 - **Must NOT flag: a claim carrying its own model gate.** Text scoped to a pinned earlier model
   where the parameters are live is correct rather than stale. As in I17-c, **the finding is the
   missing gate, never the mention.** **The parameter expressed as an SDK request field, config
@@ -1767,21 +1881,18 @@ for the reason I17 base states.
   of the word**, such as body temperature, disk or thermal temperature, or color temperature, which
   share the token and nothing else. A document *about* the pattern, on the audience test I8-b
   applies.
-- **Source:** migration guide, "Migrating to Claude Sonnet 5", where sampling parameters "set to a
-  non-default value are not accepted and return a 400 error"; same guide for the Opus range:
-  "Setting `temperature`, `top_p`, or `top_k` to any non-default value on Claude Opus 4.7 or later
-  models, including Claude Opus 5, returns a 400 error", with the SDK-compatibility and
-  determinism notes quoted from its Opus 5 section; same guide for the Fable/Mythos arm, "Migrating
-  to Claude Mythos 5 and Claude Fable 5 from Claude Opus 5": "The prefill and sampling-parameter
-  restrictions, and the thinking display behavior, carry over from Claude Opus 5 unchanged."
-  Corroborated at What's new in Claude Sonnet 5 ("This is new for Sonnet-class models; the same
-  constraint was previously introduced on Claude Opus 4.7") and in the Sonnet 5 guide, "Tone and
-  writing style", which supplies the Remediate quote. The migration guide and What's new in Claude
-  Sonnet 5 are Sources entries.
-- **Verified 2026-08-08** against those pages, fetched as raw markdown (migration guide 148,590
-  bytes, MD5 `bfe459a13cd59d6ac93a6826910d5a28`; whats-new-sonnet-5 11,490 bytes, MD5
-  `19acce78670ceb337b99ce8fbac03fc5`). **Recheck trigger:** the rejecting model range moving, or
-  sampling parameters being reinstated on any model in it.
+- **Source:** thinking, "Sampling parameters" (the set and the gate, under Detect). The Fable and
+  Mythos guide's section on migrating from Claude Opus 5 (under Sources) keeps the Fable/Mythos
+  carry-over. Corroborated at the Claude Sonnet 5 model page and in the Sonnet 5 guide, "Tone and
+  writing style", which supplies the Remediate line. Both are Sources entries.
+  Pointer: [Claude Sonnet 5, good to
+  know](https://platform.claude.com/docs/en/models/sonnet-5/overview#good-to-know) and
+  [Sonnet 5 guide, tone and writing
+  style](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tone-and-writing-style).
+  As of: 2026-10-01 for the set and the corroborating pages; the determinism note under Remediate
+  rests on our 2026-08-08 reading of a page no current page replaces. Recheck trigger: the
+  rejecting model set moving, sampling parameters being reinstated on any model in it, or a docs
+  page starting to cover the determinism note.
 
 ### I26: Generic negative steering on open-ended design briefs
 
@@ -1789,21 +1900,20 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 Promotion gate MET: two model guides converge (see Source).
 
 - **Detect:** operative instruction text steering visual design away from a model's default style
-  with generic negatives or vague qualifiers such as "don't use that color", "make it clean and
-  minimal", "less corporate", or "avoid a generic AI look", with neither a concrete specification nor a propose-options step.
-  Both guides
-  state the failure the same way: such instructions "tend to shift the model to a different fixed
-  palette rather than producing variety." Also flag text recommending sampling parameters as the
-  design-variety mechanism, which additionally reaches I25 on an in-range target.
-- **Remediate:** either of the two approaches both guides state work reliably: (1) specify a
-  concrete alternative, since the model "follows explicit specs precisely"; or (2) have the model
-  propose distinct visual directions first (each as background / accent / typeface plus a one-line
-  rationale), have the user pick one, and implement only that, on Sonnet 5 "the recommended way to
-  produce meaningfully different design directions across runs", since `temperature` is not
-  accepted there. A short anti-generic-aesthetics directive with concrete, enumerable negatives
+  with generic negatives or vague qualifiers (banning a color without naming its replacement,
+  asking for "clean" or "minimal", "less corporate", "not generic") with neither a concrete
+  specification nor a propose-options step. We treat such instructions as trading one default look
+  for another default look, not as producing variety. Also flag text recommending sampling
+  parameters as the design-variety mechanism, which additionally reaches I25 on an in-range target.
+- **Remediate:** either of the two approaches both guides cover: (1) specify a concrete
+  alternative, which the model follows precisely; or (2) have the model propose distinct visual
+  directions first (each naming its colors and type with a short reason), have the
+  user pick one, and implement only that, which is the recommended route to distinct directions
+  across runs on Sonnet 5, where `temperature` is not accepted. A short anti-generic-aesthetics
+  directive with concrete, enumerable negatives
   (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding. Pair the
-  exclusion list with an iteration step: check which styles the result used instead, and extend
-  the list when those are unwanted too.
+  exclusion list with an iteration step: look at what the output fell back to, and add those
+  styles to the list when they are unwanted as well.
 - **Must NOT flag:** concrete enumerable negatives. Naming the exact fonts, palettes, or patterns
   to avoid is the sanctioned shape, distinct from a vague qualifier. Non-design uses of "clean" /
   "minimal" (a clean audit, a minimal reproduction). A surface that already runs the propose-options
@@ -1813,11 +1923,9 @@ Promotion gate MET: two model guides converge (see Source).
   frontend defaults", convergent on the default-style behavior, the fixed-palette failure of
   generic instructions, and both remediations; the Sonnet 5 guide adds the temperature-is-gone
   ground for preferring propose-options. Third convergent guide: Opus 5.5, "Frontend design
-  defaults", where "avoid a generic AI look" "mostly swaps one default for another", named patterns
-  work, and the iteration step is "check which styles the first result used instead, and extend
-  the list if needed."
-- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24); the
-  Opus 5.5 guide verified 2026-09-23 (hash as in I8-c).
+  defaults" (the generic-look negative, named patterns, and the iteration step).
+- **As of 2026-08-08** (our probe of both guides as raw markdown, hashes as in I24); the Opus 5.5
+  guide as of 2026-09-23 (hash as in I8-c).
   **Recheck trigger:** either guide's design section dropping the fixed-palette claim or the
   propose-options recommendation.
 
@@ -1835,8 +1943,8 @@ gate is unmet).
   adjudicates that the line actually premises brevity on effort rather than merely co-locating the
   two.
 - **Remediate:** replace the effort clause with an explicit length or style instruction, the
-  documented control for response length ("To control response length, prompt for it explicitly"),
-  keeping any effort change only where its stated ground is thinking volume, cost, or latency.
+  documented control for response length, keeping any effort change only where its stated ground
+  is thinking volume, cost, or latency.
 - **Must NOT flag: effort lowered on thinking-volume, cost, or latency grounds**, since "reduce
   effort to cut thinking cost on mechanical work" states the property the docs confirm; this row
   fires only on the length premise.
@@ -1847,26 +1955,35 @@ gate is unmet).
 - **Must NOT flag: `effortLevel` settings keys and `effort:` frontmatter as such**, on the same
   discriminator as I21 and I17: a config value implements a choice without stating the premise;
   this row audits instruction text, including instruction text that lives in a config file.
-- **Source:** Opus 5 prompting guide: "The effort parameter controls how much the model thinks
-  rather than how much it says: lowering effort can reduce thinking volume without reliably
-  shortening the visible response. To control response length, prompt for it explicitly."
-  Corroborated by Effort, whose Opus 5 section states it unhedged: "Effort controls thinking
-  volume, not visible response length: on Claude Opus 5, changing effort does not reliably shorten
-  responses, so prompt for length instead." The guide's "can" hedge is quoted as written. The
-  detection needs only the negative half (not reliably shortening), which both pages state.
-- **Verified 2026-08-08** against the live guide raw-`.md` (11,225 bytes, MD5
+- **Source:** Opus 5 prompting guide, "Response length and verbosity" (effort governs thinking
+  volume, not response length, with a hedge). Corroborated by Effort, "Recommended effort levels
+  for Claude
+  Opus 5", which states it unhedged. The detection needs only the negative half (effort does not
+  reliably shorten the response), which both pages state.
+- **As of 2026-08-08** (our probe: the live guide raw-`.md`, 11,225 bytes, MD5
   `8579d63fc9f793784b8c56320fd74e71`, byte-identical to the 2026-07-25 corpus capture) and the
   effort page's Opus 5 section, both fetched that day. **Recheck trigger:** either page restating
   the property model-agnostically or a second model guide stating it (gate met → unscope), or
   either statement disappearing from its page.
+- **Re-justified 2026-10-01 against the current models:** `opus-5` stays (see "Tokens of models
+  that are no longer current"). We do not widen it. A model joins this row's scope only when its
+  guide states that effort does not reliably shorten the response. On 2026-10-01 neither the Opus
+  5.5 nor the Sonnet 5.5 effort section stated that. We read both as tying higher effort to longer
+  output, which runs against this row's premise rather than with it, so widening to either model
+  would flag a line its guide supports. Pointer: [Opus
+  5.5 guide, calibrate
+  effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort)
+  and [Sonnet 5.5 guide, calibrate
+  effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#calibrate-effort).
+  As of: 2026-10-01. Recheck trigger: either section starts stating that effort does not reliably
+  shorten the response, or stops tying higher effort to longer output.
 
 ### I28: Over-aggressive trigger emphasis and blanket tool defaults
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped.
 The claim sits on the model-agnostic best-practices page, its Migration considerations restate it
-generation-wide ("Claude 4.6 models are more proactive and may overtrigger on instructions that
-were needed for previous models"), and no later model guide reverses it; the Sonnet 5 and Opus 4.8
-literalism sections ("interprets prompts literally and explicitly") corroborate the mechanism.
+generation-wide (overtriggering on instructions written for earlier models), and no later model
+guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the mechanism.
 
 - **Detect:** two arms of one defect, prompting written against undertriggering that no longer
   exists:
@@ -1883,19 +2000,30 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   fact, however emphatically set. **Must NOT flag: a document *about* the pattern**, on the same
   audience test I8-b applies. This row is the canonical instance.
 - **Remediate:** for arm 1, normal conditional phrasing: "Use this tool when …". For arm 2, replace
-  the blanket default with the condition it was standing in for: "Use [tool] when it would enhance
-  your understanding of the problem." Verify per Deletion tiers (a consequential removal needs a
+  the blanket default with the condition it was standing in for: "Use [tool] when <the condition
+  the default stood in for>." Verify per Deletion tiers (a consequential removal needs a
   closed watch, an editorial one does not); watch for overtriggering receding, not just continued
   triggering.
-- **Source:** prompting best practices, "Tool usage": prompts "designed to reduce undertriggering
-  on tools or skills … may now overtrigger. The fix is to dial back any aggressive language. Where
-  you might have said 'CRITICAL: You MUST use this tool when…', you can use more normal prompting
-  like 'Use this tool when…'"; "Overthinking and excessive thoroughness": "Replace blanket
-  defaults with more targeted instructions … Instructions like 'If in doubt, use [tool]' will
-  cause overtriggering"; "Migration considerations": "Tune anti-laziness prompting".
-- **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
+- **Source:** prompting best practices, "Tool usage" (dialing back aggressive trigger language, with
+  a worked example), "Overthinking and excessive thoroughness" (targeted instructions over blanket
+  defaults), and "Migration considerations" (anti-laziness prompting).
+- **As of 2026-08-08** (that page read as raw markdown). **Recheck trigger:** those
   three sections changing, or any model guide stating that a current model undertriggers and needs
   emphasis restored, which would re-open the scoping question.
+- **That trigger fired on 2026-10-01, and the arms stand.** Two current guide sections on tool
+  and search triggering (pointers below) were re-read that day; neither asks for emphasis or a
+  blanket default back. So the row stays unscoped and keeps both arms, with one fence added:
+  **Must NOT flag a search instruction scoped to a named class of facts**, even when it overrides
+  the model's own judgment that no search is needed. That is a targeted condition, the arm-2
+  remediation's own shape, not a blanket default; a line discouraging tool use is I36's.
+  Pointer: [Sonnet 5.5 guide, tool use in
+  chat and knowledge
+  work](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tool-use-in-chat-and-knowledge-work)
+  and [Fable 5.1 guide, search triggering at low
+  effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#search-triggering-at-low-effort).
+  As of: 2026-10-01. **Recheck trigger, restated:** a model guide asking for forced-compliance
+  emphasis or a blanket tool default to be restored on a current model, which re-opens the scoping
+  question; a guide describing under-triggering and prescribing a targeted condition does not.
 - **Routes to the findings relay.** I28 and I29 (scanner-fed) and I30 to I33 (lane-fed, admitted
   through `--from-lane`) are the checks in this catalog whose findings reach `review:fanout`'s apply
   relay, behind `--persist-findings`. I28's two arms carry one
@@ -1907,8 +2035,8 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   including the body-scope fence, are [context/persist-findings.md](../context/persist-findings.md).
 - **The remediation is a downgrade, never a deletion.** The directive survives verbatim and only
   its volume changes. A proposal that removes the instruction rather than its shouting has misread
-  the check. The Source's own worked example replaces `"CRITICAL: You MUST use this tool when…"`
-  with `"Use this tool when…"`, keeping the instruction and dropping the shout.
+  the check. The Source's own worked example drops a leading `CRITICAL: You MUST` and keeps the
+  instruction, dropping only the shout.
   **One byte may legitimately differ: sentence-initial capitalization.** Where the emphasis is a
   *leading* wrapper, dropping it promotes the next word to sentence-initial position, so
   `…MUST resolve the item id` becomes `Resolve the item id`. That is forced by the edit, not a
@@ -1975,17 +2103,18 @@ I19 from benchmark figures to every dated claim about a harness, a tool, an upst
 measurement.
 
 - **Detect:** a claim carrying an as-of date ("verified 2026-07-13", "as of 2.1.240") but no
-  observable event that would re-open it. The four-part record is claim, basis, as-of date, and
-  recheck trigger; a stamp with three of the four is the finding.
+  observable event that would re-open it. The record is the decision, a pointer to the exact
+  source section, an as-of date, and a recheck trigger beside the decision; a dated stamp that
+  lacks the trigger is the finding, whether or not its pointer is present.
 - **Must NOT flag:** a dated stamp whose trigger lives in a named owner record the site points at
   ("recheck per `reference/parent-contract.md`"); a CHANGELOG entry or ADR, which are history by
   design; a date that is data (a release date in a table) rather than a verification stamp.
 - **Must NOT flag: a moving ref or an undated version literal** (`main`, a branch name, "requires
   2.1.200"). With no as-of date there is no stamp for this row to judge. When the evidence in hand
   shows the literal is stale, report it under [Out-of-catalog defects](#out-of-catalog-defects).
-- **Remediate:** add the trigger as an observable event (a release note naming the flag, a fetch
-  no longer carrying the quoted span, a version floor moving), or point the site at the dated
-  owner record.
+- **Remediate:** add the trigger as an observable event (a release note naming the flag, the
+  pointed-at section changing the value the decision rests on, a version floor moving), or point
+  the site at the dated owner record.
 
 ---
 
@@ -2003,7 +2132,7 @@ phrasing costs the same wherever it sits.
   never saw.
 - **Must NOT flag:** a structural contrast between two current alternatives ("separate body Bash
   calls rather than pre-compute lines" names two present mechanisms); a CHANGELOG or ADR; a dated
-  four-part record whose trigger legitimately names the prior state.
+  record (pointer, as-of date, recheck trigger) whose trigger legitimately names the prior state.
 - **Remediate:** state the current rule and its reason in the present tense; move the history to
   the CHANGELOG or an ADR.
 
@@ -2033,11 +2162,12 @@ surface (CLAUDE.md, a natively read AGENTS.md, rules, a user or project skill or
   `~/.claude/skills/synced/`), or gated by settings, environment, plan, or host, since none of
   those rosters can be enumerated from files; a capability named by class ("a visualization
   capability") that deliberately avoids a binding; a reference inside a fenced example.
-- **Stamp:** the reserved `anthropic-skills` namespace and the `~/.claude/skills/synced/` download
-  directory are from <https://code.claude.com/docs/en/skills> ("Claude Code reserves the name
-  `anthropic-skills` ... for skills synced from claude.ai"; "Claude Code downloads your account's
-  skills into `~/.claude/skills/synced/`"). **Verified 2026-09-27.** **Recheck trigger:** either
-  span leaving that page, or a release note moving synced skills to another namespace or directory.
+- **Stamp:** we treat `anthropic-skills` as the namespace reserved for skills synced from
+  claude.ai, and `~/.claude/skills/synced/` as their download directory. Pointer:
+  <https://code.claude.com/docs/en/skills#when-a-synced-skill-name-matches-another-command> and
+  <https://code.claude.com/docs/en/skills#where-synced-skills-load>. **As of 2026-09-27.**
+  **Recheck trigger:** that page stops reserving the namespace or naming the directory, or a
+  release note moves synced skills to another namespace or directory.
 - **Remediate:** name the skill that exists, or describe the capability by class per the
   seam-phrasing convention; never leave a route to nowhere.
 
@@ -2095,12 +2225,67 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Must NOT flag:** the instruction on a long-chat or project surface for short back-and-forth
   follow-ups, which is the shape the guide recommends; a document *about* the pattern, on the
   audience test I8-b applies.
-- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": "Leave it out where
-  you want the model to keep re-examining its earlier work, for example in long analyses, or in
-  agentic tasks where a later step can reveal a mistake in an earlier one", and the instruction "may
-  also make the model less likely to point out a mistake in an earlier answer on its own".
-  **Verified 2026-09-23** against the guide's raw `.md` (hash as in I8-c). **Recheck trigger:** that
-  section dropping the carve-out, or a second model guide stating it.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts" (where to leave the
+  instruction out, and its cost to self-correction).
+  **As of 2026-09-23** (our probe: the guide's raw `.md`, hash as in I8-c). **Recheck trigger:**
+  that section dropping the carve-out, or a second model guide stating it.
+
+### I36: Tool-discouraging language
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`sonnet-5-5` (a single guide states the claim; promotion gate unmet).
+
+- **Detect:** a line that restricts tool or search use as a standing policy, naming no particular
+  tool and giving no reason tied to one, or that ranks the model's recall above checking a source.
+  The line must sit on a component that has, or hands work to an agent that has, a search or
+  retrieval tool.
+- **Remediate:** where the component's work depends on facts that change, propose replacing the
+  line with the guide's form at the pointer; otherwise propose deleting it. That form is targeted,
+  not a blanket default, so the replacement does not reach I28.
+- **Must NOT flag:** a limit on one named tool that carries its own reason (side effects, cost, a
+  rate limit, a slow or destructive tool), which is the surface's to set. I11's steering from an MCP
+  tool to an equivalent CLI, which redirects tool use rather than discouraging it. A surface with
+  no tool that could check a fact. A document *about* the pattern, on the audience test I8-b
+  applies.
+- **Adjacent rows:** I28 flags the opposite calibration, emphasis written to force a trigger; one
+  line is never both. I17-d covers reduced tool reach with thinking off, on `sonnet-5`.
+- **Source:** Sonnet 5.5 guide, "Tool use in chat and knowledge work". Pointer: [Sonnet 5.5 guide,
+  tool use in chat and knowledge
+  work](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tool-use-in-chat-and-knowledge-work).
+  As of: 2026-10-01. Recheck trigger: a second model guide stating the claim, which meets the
+  promotion gate and unscopes the row, or the section dropping it.
+
+### I37: Harness text after every tool result
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all, chiefly hook
+instruction text and text that configures a harness · Model scope: `sonnet-5-5` (a single guide
+states the claim; promotion gate unmet).
+
+- **Detect:** in an interactive session (one where the user can type while a turn runs), any
+  configuration or instruction that adds model-visible text of any kind after every tool result
+  without a condition. In Claude Code the
+  mechanical form is a `PostToolUse` hook whose matcher covers every tool and which returns
+  `additionalContext` on every call; elsewhere it is an instruction to a harness to append text on
+  every step. For why the frequency matters, follow the pointer.
+- **Remediate:** gate the text on the condition that needs the model's attention (a narrower
+  matcher, a failure, a threshold) and delete any figure nothing acts on. For a harness built on
+  the API, place the text as the pointer's section directs rather than as this row restates it.
+- **Must NOT flag:** the API's own task-budget feature, which this row does not cover. A hook that
+  fires on a narrow condition or only occasionally. A run where nobody can type mid-turn, such as a
+  non-interactive `-p` run or an unattended lane. Hook output that reaches only the user, such as a
+  status line or a transcript notice. A document *about* the pattern, on the audience test I8-b
+  applies.
+- **Adjacent rows:** I23 (scoped to Fable) covers a model deciding to stop or hand off on a budget
+  it was shown; this row covers where and how often harness text lands. Their scopes do not
+  overlap, so one countdown never draws both on one target.
+- **Source:** Sonnet 5.5 guide, "Mid-turn user messages". Which hook output reaches the model is
+  read from hooks, "PostToolUse decision control". Pointer: [Sonnet 5.5 guide, mid-turn user
+  messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets)
+  and [hooks: PostToolUse decision
+  control](https://code.claude.com/docs/en/hooks#posttooluse-decision-control).
+  As of: 2026-10-01. Recheck trigger: a second model guide covering the same topic, which meets
+  the promotion gate and unscopes the row, or that section changing which kinds of per-step text
+  it covers.
 
 ---
 
@@ -2121,8 +2306,8 @@ more aggressive.
   is not the posture in the places where being wrong is expensive.
 - **Report every withholding** in the run's own section, naming the check it moderated and the
   ground. A silently suppressed finding reads as coverage.
-- **Source:** none. The "except in highly important areas" carve-out appears on no official page,
-  and it is the calibration knob the de-prescription guidance (I8's Fable 5 source) leaves unset.
+- **Source:** none. A high-consequence carve-out appears on no official page, and it is the
+  calibration knob the de-prescription guidance (I8's Fable 5 source) leaves unset.
 
 ---
 

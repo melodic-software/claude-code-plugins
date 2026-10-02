@@ -1,5 +1,5 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or four-part stamped records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or stamped pointer records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,12 +33,13 @@ as such in the audit's declined/limits section, never read it as an empty config
 ## Purpose
 
 Find prose in tracked markdown that restates content an external source owns, and convert it
-into a pointer, a quoted citation, or a four-part stamped record.
+into a pointer, a quoted citation, or a stamped record.
 
 The harm being reduced is drift, not plagiarism. A copied paragraph starts accurate and stops
 being accurate the next time the upstream page changes, with nothing in the repository recording
 that it did. Citing the source and fetching it at read time removes that risk; a stamped record
-keeps it honest where a surface must restate a specific to function.
+(the surface's own decision, a pointer, an as-of date and a recheck trigger) keeps it honest where
+a surface must act on a specific without the source.
 
 Detection is LLM-led and breadcrumb-first. The deterministic scripts do only reasoning-free work
 (path filtering, breadcrumb extraction, date arithmetic, fingerprint comparison of two concrete

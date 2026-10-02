@@ -27,17 +27,29 @@ the `audit` and `audit-automation-gaps` skills in the `harness-config` plugin).
 
 ## Scope
 
-| Entity | Location | Loaded | Audited here |
+| Entity | Location | Load model this audit uses | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
-| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Every session, full, both files, when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the root or any directory above it displaces them (the user root's own `~/.claude/CLAUDE.md` does not count); under a `@AGENTS.md` shim it loads as that file's import instead | Yes, as the project instructions (the C-checks) |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Audited only where discovery reports Claude Code reads it; `scripts/lib/agents-md.sh` holds the condition and its record | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
-| Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
-| Nested `AGENTS.md` | `**/AGENTS.md` below the root | On a Read in that directory, unless a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on its path is read instead; then only through one that imports or symlinks it | Reachability only (N1); content is not audited |
+| Auto-memory | `~/.claude/projects/<project>/memory/` | The M1 budget: first 200 lines / 25KB of MEMORY.md | Yes |
+| Nested `AGENTS.md` | `**/AGENTS.md` below the root | Reachable unless a `CLAUDE.md`-family file on its path displaces it without importing or symlinking it (N1) | Reachability only (N1); content is not audited |
 | Settings, hooks, MCP, agents, skills | Various | Various | No. Use `harness-config`'s `audit` / `audit-automation-gaps` |
+
+The load-model column is this audit's working model, not a restatement of the docs; each check in
+[reference/criteria.md](reference/criteria.md) carries the pointer it rests on.
+
+- **Pointer**: for how each file loads, see
+  [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
+  [Organize rules with `.claude/rules/`](https://code.claude.com/docs/en/memory#organize-rules-with-claude/rules/),
+  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
+  and auto memory's [How it works](https://code.claude.com/docs/en/memory#how-it-works).
+- **As of**: 2026-10-01
+- **Recheck trigger**: a Claude Code release note or a change to one of those sections alters which
+  files load at session start, on demand, or within the auto-memory limits.
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
 from a single scope: [`${CLAUDE_PLUGIN_ROOT}/skills/stateless/context/status.md`](../stateless/context/status.md),
@@ -85,18 +97,23 @@ plus the provenance classification each finding carries) yields byte-identical f
 repo state; its **judgment tier**
 (C2-C9, R1-R4, M3-M4) applies fixed criteria with model reading, so findings vary in wording though
 not in criteria. Label those "judgment candidate" in the report. Criteria derive from official Claude
-Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));
-refresh both via the `update` action.
+Code documentation: [reference/official-guidance.md](reference/official-guidance.md) holds, per
+topic, the audit's decision and a pointer to the docs section behind it, never the docs' text.
+Refresh both via the `update` action.
 
 ## Script paths
 
 The `context/` and `reference/` files write each bundled script as `<skill-dir>/scripts/<name>.sh`,
 where `<skill-dir>` is this skill's directory: `${CLAUDE_SKILL_DIR}`. Put that path in place of the
-placeholder before running a command. Those files arrive through the Read tool as plain bytes, so a
-`${…}` token in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference, "Where each variable resolves",
-and the skills page, "Available string substitutions", both verified 2026-09-27; recheck when either
-table adds supporting files to where a `${…}` reference resolves.
+placeholder before running a command. We never put a `${…}` token in those files: we do not rely on
+one being substituted in a file read through the Read tool, or on the Bash tool's environment
+carrying `CLAUDE_PLUGIN_ROOT`.
+
+- **Pointer**: for where each `${…}` reference resolves, see
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves)
+  and [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+- **As of**: 2026-09-27
+- **Recheck trigger**: either table adds supporting files to where a `${…}` reference resolves.
 
 ## Audit mode (default)
 
@@ -129,12 +146,19 @@ It prints `<repo-identity>/<worktree-discriminator>`, the scheme `harness-config
 and `audit-prompting-postures` uses. Run it and use its output as the key. Pass `--explain` when
 the report should say which rung produced its key.
 
-**Why the key exists.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to
-the plugin identifier and nothing else. No project, checkout, worktree, or session segment
-([plugins reference](https://code.claude.com/docs/en/plugins-reference), § Persistent data directory).
-A fixed `audit/last-audit.md` is therefore **one file per machine**. Losing reports is the smaller
-half; the larger half is the read. `report` mode would serve whatever that file currently holds and
-`fix` mode would act on it, so on a machine with two repositories, project B can be shown project A's
+**Why the key exists.** We treat `${CLAUDE_PLUGIN_DATA}` as one directory per plugin per machine,
+with no project, checkout, worktree, or session segment. A fixed `audit/last-audit.md` is therefore
+**one file per machine**.
+
+- **Pointer**: for the plugin data directory, see
+  [Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables).
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section adds a project, worktree, or session segment to the data
+  directory's path.
+
+Losing reports is the smaller half; the larger half is the read. `report` mode would serve whatever
+that file currently holds and `fix` mode would act on it, so on a machine with two repositories,
+project B can be shown project A's
 findings and offered edits derived from another repository's memory layer. That is a wrong answer
 served, not merely an artifact lost, which is why an append-only history does not close it and the
 *path* has to carry project identity.

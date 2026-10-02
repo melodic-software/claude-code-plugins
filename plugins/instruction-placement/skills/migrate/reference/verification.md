@@ -99,13 +99,14 @@ Then confirm in the session rollout that **no shell command went looking for the
 that greps its way to the answer proves the file is on disk, which was never in doubt, and not that
 Codex loaded it.
 
-- **Claim**: Codex writes a session rollout to
-  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. A shell call appears as a JSONL record whose
-  `payload.type` is `custom_tool_call`, with the command inside `payload.input`; one run observed
-  it as `exec_command` instead, so match either. Two rollout files can land a second apart, so
-  pick the one whose records contain the prompt rather than the newest by mtime.
-- **Basis**: observed on codex-cli 0.155.1 across the migration runs that produced this file.
-- **As of**: 2026-09-19.
+The check reads the session rollout at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. It matches a
+shell call as a JSONL record whose `payload.type` is `custom_tool_call`, with the command inside
+`payload.input`, or `exec_command`, which one run used instead. Two rollout files can land a second
+apart, so it picks the one whose records contain the prompt rather than the newest by mtime.
+
+- **Pointer**: our observation on codex-cli 0.155.1 across the migration runs that produced this
+  file.
+- **As of**: 2026-09-19
 - **Recheck trigger**: a codex-cli release that changes the session-file layout, the record type,
   or where rollouts are written.
 
@@ -167,7 +168,7 @@ Muse Code `1.4.1`:
 | `@path` import in an instruction file | not expanded | not expanded | not expanded |
 | Symlinked instruction file | followed | followed | followed |
 | `Agents.md`, `AGENT.md`, `.claude/CLAUDE.md` | not read | all eight names read | not read |
-| 262,156-byte `AGENTS.md` | loads | loads | skipped, "over the 256000 byte load limit" |
+| 262,156-byte `AGENTS.md` | loads | loads | skipped, with a load-limit message on stderr |
 | Nested files, cwd at the git root | attach when a file under them is read | absent | absent, and a read attaches nothing |
 | Nested files, cwd in the nested directory | ancestor chain loads, 12 levels | chain loads, 12 levels | chain loads, 12 levels |
 | Non-git copy, cwd nested | ancestors load | cwd directory only | cwd directory only |
@@ -176,8 +177,8 @@ Muse Code `1.4.1`:
 | `.cursor/rules/x.mdc` | loads with frontmatter only | not loaded | not tested |
 
 Grok's two `.claude/` names disappear with `GROK_CLAUDE_AGENTS_ENABLED=false`; the six top-level
-names stay. Muse prints "is ignored this session because AGENTS.md takes precedence in that
-directory" on stderr for a shadowed sibling.
+names stay. For a shadowed sibling, Muse names the file on stderr as ignored in favor of
+`AGENTS.md`.
 
 ## Progressive disclosure, with a caveat
 
