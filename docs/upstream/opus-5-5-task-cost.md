@@ -241,10 +241,10 @@ Owner rows (Q46: every item in a file another session owns has a confirmed doer)
 |---|---|---|---|
 | Two "default high" effort lines point at model-config | Q19 | Building With Claude Sonnet 5.5 | Landed: [#5759](https://github.com/melodic-software/claude-code-plugins/pull/5759) (`6b0802bdd`) |
 | Boris superseded lines and the `foundations.md` amendment | Q33 | Building With Claude Sonnet 5.5 | Landed: [#5759](https://github.com/melodic-software/claude-code-plugins/pull/5759) (`6b0802bdd`) |
-| `criteria.md` I17-b: the provider-scoped effort-cache exception | Q32 | Prompting Sonnet 5.5 | PR: pending (Gate S1) |
-| docpage-digest: blog-apparatus category, exact-byte write route, pin freeze applying to the parent | Q10, Q11, Q12 | Prompting Sonnet 5.5 | PR: pending (Gate S1) |
-| Sonnet 5.5 model-adaptation chapter; `opus-5-5.md` unchanged | Q37 | Prompting Sonnet 5.5 | PR: pending (Gate S1) |
-| The #5678 model-tier points in `docs/plugin-philosophy.md` | Q20 | Prompting Sonnet 5.5 | PR: pending (Gate S1) |
+| `criteria.md` I17-b: the provider-scoped effort-cache exception | Q32 | Prompting Sonnet 5.5 | Landed: [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767) (`43dd88073`) |
+| docpage-digest: blog-apparatus category, exact-byte write route, pin freeze applying to the parent | Q10, Q11, Q12 | Prompting Sonnet 5.5 | Landed: [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767) (`43dd88073`) |
+| Sonnet 5.5 model-adaptation chapter; `opus-5-5.md` unchanged | Q37 | Prompting Sonnet 5.5 | Landed: [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767) (`43dd88073`) |
+| The #5678 model-tier points in `docs/plugin-philosophy.md` | Q20 | Prompting Sonnet 5.5 | Landed: [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767) (`43dd88073`) |
 | `docs/upstream/claude-code.md` `_FORCE` row; the two queued posts | Q39 | Released to this branch (Phase 1; Phase 7) | This branch |
 | `prompts/loops/loop-lane-prompts.md` tier qualification | Q20 | Released to this branch by Building (Phase 5) | This branch |
 | `scoped-implementer` effort pin at medium | Q41 | Released to this branch by Prompting (Phase 5) | This branch |
@@ -257,6 +257,8 @@ Filed:
   independent plan phases in parallel by default, on subagents for focused work and on agent teams
   only where the user enabled them and the workers must coordinate; the one-worker pilot before a
   wide fan-out stays (Q35).
+- [#5772](https://github.com/melodic-software/claude-code-plugins/issues/5772), sub-issue: decide
+  which `/doctor prompt-audit` gap rows and ritual patterns audit-instructions checks (Q18).
 
 Decisions on this branch:
 
