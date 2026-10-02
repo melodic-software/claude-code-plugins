@@ -4,9 +4,9 @@
 
 ### Fixed
 
-- The `design` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
-  inside brackets with an unspaced `|` and drops the prose after the grammar, which the skill body
-  now carries.
+- The `design` `argument-hint` uses Claude Code's official bracket notation: the target changes
+  from optional to required, `<app|skill <name>|plugin <path>>`, because a run with no target asks
+  for one, and the `target:` label is dropped.
 - The `plugin-eval` `argument-hint` uses Claude Code's official bracket notation: it keeps
   alternatives inside brackets with an unspaced `|`.
 

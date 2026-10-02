@@ -59,6 +59,8 @@ but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` 
 writable artifact this plugin must place, because it is the durable path the operator's own wiring
 names. `apply` writes that one file and nothing else.
 
+Action routing: no argument or `check` runs the check.
+
 **Why the shim exists (the durable-wiring rule).** `${CLAUDE_PLUGIN_ROOT}` is version-pinned and
 changes on every plugin update, and the old version directory is pruned about 14 days later
 (plugins reference, "Plugin cache and file access"). A statusline wired straight to

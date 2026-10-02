@@ -14,6 +14,8 @@ consuming marketplace's config-cascade expression doctrine.
 converges exactly TWO consumer artifacts, the marked pointer-line region in the root instruction
 file and the topic doc `<home>/plugin-quality/README.md`, and nothing else.
 
+Action routing: no argument or `check` runs the check.
+
 The key reference is `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (keys, topic-doc location,
 resolution order, retired layers, sink ladder, item schema). Read it first; this skill reports
 against that contract rather than restating it.

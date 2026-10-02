@@ -26,6 +26,8 @@ whose schema it defines and whose values the operator may edit, and the statusli
 `bin/statusline-shim.sh`, the durable path the operator's wiring names, and those owned writable
 artifacts are what oblige an `apply`. `apply` is scoped to that directory and touches nothing else.
 
+Action routing: no argument or `check` runs the check.
+
 **Why the shim exists (the durable-wiring rule).** `${CLAUDE_PLUGIN_ROOT}` is version-pinned and
 changes on every plugin update, and the old version directory is pruned about 14 days later
 (plugins reference, "Plugin cache and file access"). A statusline wired straight to

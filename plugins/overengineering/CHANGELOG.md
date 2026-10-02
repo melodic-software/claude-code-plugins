@@ -7,8 +7,9 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 
 ### Fixed
 
-- The `justify` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
-  inside brackets with an unspaced `|`.
+- The `justify` `argument-hint` uses Claude Code's official bracket notation: the target changes
+  from required `<...>` to optional `[...]`, because a run with no target falls back to session
+  context, and alternatives sit inside the brackets with an unspaced `|`.
 
 ## [0.4.22] - 2026-10-01
 

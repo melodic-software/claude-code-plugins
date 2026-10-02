@@ -10,7 +10,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - The `improve` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
   the skill accepts.
 - The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
-  action and keeps alternatives inside brackets with an unspaced `|`.
+  action and keeps alternatives inside brackets with an unspaced `|`. The `setup` body now states
+  that no argument runs the check.
 
 ## [0.18.0] - 2026-10-02
 

@@ -12,7 +12,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - The `ship` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
   inside brackets with an unspaced `|`.
 - The `track` `argument-hint` uses Claude Code's official bracket notation: it lists the actions the
-  skill accepts.
+  skill accepts. The `track` arguments line now leads with the same hint and names `help` among the
+  actions.
 
 ## [0.43.7] - 2026-10-01
 

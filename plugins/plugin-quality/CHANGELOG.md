@@ -12,7 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `audit` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
   inside brackets with an unspaced `|`.
 - The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
-  action and keeps alternatives inside brackets with an unspaced `|`.
+  action and keeps alternatives inside brackets with an unspaced `|`. The `setup` body now states
+  that no argument runs the check.
 
 ## [0.11.2] - 2026-10-01
 

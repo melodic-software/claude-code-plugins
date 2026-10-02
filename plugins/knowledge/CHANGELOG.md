@@ -13,7 +13,8 @@ only after that version increases.
 - The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
   action and keeps alternatives inside brackets with an unspaced `|`.
 - The `video-digest` `argument-hint` uses Claude Code's official bracket notation: it keeps
-  alternatives inside brackets with an unspaced `|`.
+  alternatives inside brackets with an unspaced `|`. The action router gains an empty-argument row:
+  with no argument the skill names its actions and asks which to run.
 
 ## [0.14.15] - 2026-10-01
 

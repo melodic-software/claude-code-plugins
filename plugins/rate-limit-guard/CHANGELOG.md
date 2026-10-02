@@ -8,7 +8,8 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 ### Fixed
 
 - The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
-  action and keeps alternatives inside brackets with an unspaced `|`.
+  action and keeps alternatives inside brackets with an unspaced `|`. The `setup` body now states
+  that no argument runs the check.
 
 ## [0.10.2] - 2026-10-01
 

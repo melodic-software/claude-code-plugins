@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `<action> [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, and audit.
+Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|help] [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, audit, and help.
 
 ## Shared tracker context
 

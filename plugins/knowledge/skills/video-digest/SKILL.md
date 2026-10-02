@@ -65,6 +65,7 @@ conflicts explicitly; never silently adopt a video's shortcut over team rules.
 
 | Action | Behavior |
 | --- | --- |
+| (empty) | Name the actions below and ask which to run. |
 | `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key. |
 | `queue list` | Show `QUEUE.md` table + active `claims/*.json` stubs. |
 | `transcript <url>` | Captions only. No video download. Runs acquisition + transcript pipeline. |
