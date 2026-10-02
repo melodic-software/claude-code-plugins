@@ -212,7 +212,7 @@ else
 fi
 
 # --- Case: PYTHONUTF8=1 exported before invoking babysit_python (#597) --------
-# Matches the convention the bin/ babysit wrappers already apply
+# Matches the convention the scripts/ babysit wrappers already apply
 # (source-control-babysit-merge, source-control-babysit-resolve-thread): this
 # gate is the third babysit_python caller and the one that parses
 # fetch-all-pr-comments.sh-shaped JSON, which commonly carries non-ASCII bytes
