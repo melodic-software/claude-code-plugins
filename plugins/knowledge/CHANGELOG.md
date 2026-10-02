@@ -6,6 +6,14 @@ only after that version increases.
 
 ## [0.15.3] - 2026-10-02
 
+### Changed
+
+- `course-digest` writes `continuation-prompt.md` and the `course.json` phase markers after every
+  module, and at a module boundary routes the next step with `/session-flow:workflow`, naming the
+  course slug, the next module and the `course.json` path for a compaction focus. A new session
+  resumes with `continue <slug>`. Without session-flow it links the docs section on when context
+  fills up.
+
 ### Fixed
 
 - `video-digest` no longer labels auto captions as manual. A bare `<id>.en.vtt` counts as manual
