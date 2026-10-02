@@ -3,14 +3,25 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.1] - 2026-10-02
+## [2.5.2] - 2026-10-02
 
 ### Changed
 
 - **The inventory is validated against Claude Code 2.1.288.** `VALIDATED_AGAINST` moves from
-  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value that differs
-  between the regex and parser readers (2167 of 2167 modules parse). The one surface change is
-  the hidden built-in `/update` command, renamed `/restart` with `update` kept as an alias.
+  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value->value
+  difference between the regex and parser readers (2167 of 2167 modules parse). The parser still
+  reads the Explore and Plan `disallowed_tools` as partial where the regex reader reads them
+  literal, as on 2.1.284-2.1.287 (#5901). The one surface change is the hidden built-in `/update`
+  command, renamed `/restart` with `update` kept as an alias.
+
+## [2.5.1] - 2026-10-02
+
+### Fixed
+
+- `restart-consumer.sh` treats a set but empty `RESTART_CONSUMER_FAKE_ALIVE_PIDS` as "no owner pid is
+  alive" instead of falling through to `kill -0`. The lock-reclaim test seeds owner pid 4242 and
+  failed whenever the host had a live process with that pid, as busy CI runners sometimes do. The
+  test now records its own live pid as the gone owner, so a fall-through fails every run.
 
 ## [2.5.0] - 2026-10-02
 
