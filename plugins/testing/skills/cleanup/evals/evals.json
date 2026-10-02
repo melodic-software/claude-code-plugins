@@ -116,7 +116,7 @@
     {
       "id": "resumes_own_dirty_batch",
       "prompt": "A /testing:cleanup shop_tests batch on branch feat/cleanup stopped after step 5 while waiting for the user's yes on the test_product_name deletion. The quarantine and the test_price_is_consistent rewrite are uncommitted and recorded in .work/testing-cleanup/shop_tests/decisions.md. In a new session, the user says yes to the deletion and runs /testing:cleanup shop_tests again.",
-      "expected_output": "Does not refuse for the dirty tree: every changed path is an edit decisions.md records. Reads the batch state from .work/testing-cleanup/shop_tests/, applies the approved deletion without re-recording the baseline or re-classifying, and continues to step 6 with the existing before.tsv. A changed path that decisions.md does not record would still be refused.",
+      "expected_output": "Does not refuse for the dirty tree: every changed path's git hash-object equals the hash decisions.md recorded after the batch's last edit to it. Reads the batch state from .work/testing-cleanup/shop_tests/, applies the approved deletion without re-recording the baseline or re-classifying, and continues to step 6 with the existing before.tsv. A changed path that decisions.md does not record, or whose hash differs (an edit the batch did not make), would still be refused.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",

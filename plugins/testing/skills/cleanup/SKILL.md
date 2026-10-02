@@ -28,7 +28,8 @@ the conversation). No folder: ask for one.
 Every step reads and writes `<work>` = `.work/testing-cleanup/<folder-slug>/` in the repository
 root, `<folder-slug>` being the folder path lowercased with every character outside `[a-z0-9._-]`
 replaced by `-`. It holds `before.tsv` and `after.tsv` (the mutant records), `classifier-brief.md`,
-`classifier-answer.md`, `decisions.md` (the decision table, with each item's approval state) and
+`classifier-answer.md`, `decisions.md` (the decision table, each item's approval state, the step
+reached, and for every file the batch edits its `git hash-object` after the last edit) and
 `pr-body.md`. Read them from that path at every step, never from conversation memory, so a
 compacted or resumed session continues where the files say it stopped. Before the first write,
 confirm `.work/` is ignored (`git check-ignore -q .work/x`); when it is not, create `.work/.gitignore`
@@ -42,7 +43,9 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
 
 - The current branch is the default branch, or the working tree is dirty. Cleanup stages a batch
   that must be reviewable as one diff. A resumed batch is the exception: when `<work>/decisions.md`
-  exists and every changed path is an edit it records, continue at the step it records instead.
+  exists and every changed path's `git hash-object "<path>"` equals the hash it recorded for that
+  path after its last edit, continue at the step it records. A path with a different hash carries
+  an edit the batch did not make: refuse.
 - The `mutation-testing` plugin is not installed. Cleanup has no gate without it, and no degraded
   mode: report that the gate needs that plugin and stop.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
