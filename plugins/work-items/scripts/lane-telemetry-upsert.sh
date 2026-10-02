@@ -32,7 +32,7 @@
 #   --help
 #
 # MARKER. `work-items:<lane>@<instance>`, and the sentinel written as the body's
-# first line is `<!-- claude-ops:lane-telemetry marker=<marker> -->`. The sentinel
+# first line is `<!-- harness-ops:lane-telemetry marker=<marker> -->`. The sentinel
 # is an HTML comment: invisible when rendered, distinct per writer, so sibling
 # instances each own one comment on the SAME issue without colliding.
 #
@@ -218,7 +218,7 @@ for bin in gh jq; do
 done
 
 MARKER="work-items:$LANE@$INSTANCE"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"
+SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 
 # --- Pre-write body gate -----------------------------------------------------
 if [[ ! -s "$BODY_FILE" ]]; then

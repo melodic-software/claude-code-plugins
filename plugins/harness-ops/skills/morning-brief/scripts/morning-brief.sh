@@ -890,12 +890,14 @@ print_telemetry() {
     return
   fi
 
-  # A lane comment carries a `lane:` field. For each, pull lane, last-cycle, flags.
+  # A lane comment opens with the lane-telemetry sentinel and carries a `lane:`
+  # field. For each, pull lane, last-cycle, flags.
   local n
   n="$(jq -r 'length' <<<"$comments" 2>/dev/null || echo 0)"
   local i body lane last flags any=0
   for ((i = 0; i < n; i++)); do
     body="$(jq -r ".[$i].body // \"\"" <<<"$comments" 2>/dev/null)"
+    [[ "$body" == "<!-- harness-ops:lane-telemetry marker="* ]] || continue
     lane="$(grep -im1 -oE '(^|[^a-z])lane:[[:space:]]*[a-z0-9_-]+' <<<"$body" | sed -E 's/.*lane:[[:space:]]*//')"
     [[ -n "$lane" ]] || continue
     any=1

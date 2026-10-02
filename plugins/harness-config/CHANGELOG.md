@@ -5,6 +5,70 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.3.0] - 2026-10-02
+
+### Added
+
+- **`audit-instructions` rows I36 and I37** (`criteria.md` 1.26.0), both scoped to `sonnet-5-5`:
+  I36 flags an instruction that limits tool or search use as a general policy on a component that
+  has a search or retrieval tool; I37 flags model-visible text added after every tool result in an
+  interactive session without a condition.
+- **`audit-prompting-postures` P12, P13 and P14** and an `ideating` purpose: no self-started steps
+  after the run's end at `xhigh` or `max`, a runnable check behind a done claim, and ideas first on
+  an open-ended request, each stated as a check over the component's own text. P12 alone carries
+  the Sonnet 5.5 model condition; the catalog no longer says every row citing that subpage is
+  model-neutral.
+- **The `audit` checklist flags a code-changing or verifying component pinned below `medium`**,
+  the marketplace effort floor.
+
+### Changed
+
+- **The `audit-instructions` criteria catalog keeps its firing rules in our words and names its
+  sources.** A row's Source line names the page and section that documents its mechanic and quotes
+  nothing; the firing rule above it works without a live fetch. A row that acts on a volatile
+  upstream literal keeps the literal as its own setting and carries the links-only record: the
+  decision, a pointer to the exact section, an as-of date and an observable recheck trigger. The
+  vendor blog posts the catalog cites are marked correlate-only beside their docs pointer.
+- **`audit-instructions` records a source conflict.** The Fable 5 guide and the Opus 5 and Opus 4.8
+  guides disagree on throttling subagent dispatch, so the catalog records the disagreement with the
+  guide sections and keeps its per-target treatment of a throttle.
+- **The `audit-permission-state`, `audit-prompting-postures` and `agents-md-liveness` records use the
+  same shape.** The conditions under which `AGENTS.md` support is unavailable, the four **Project
+  instructions** values and where the setting is honored are stated as what our checks read, each
+  with a pointer to its anchored section of the memory page, an as-of date and a recheck trigger,
+  and none of the page's wording is stored.
+- **`audit-instructions` widens to Sonnet 5.5 and current models.** I10 fires on `sonnet-5-5`; I17
+  and I17-b cover `between_tools` in API code; the model sets of I17, I17-a, I17-c and I25 cover
+  Opus 5.5, Sonnet 5.5 and Fable 5.1; I17's ultracode count is narrowed to the effort that reaches
+  the request, and the row says so. I8-c records a declined `sonnet-5-5` widening and splits
+  `between_tools` ownership with I17; I17-a's Detect and Must-NOT agree; I17-b leaves the cache cost
+  of an effort change to Claude Code, with a pointer; rows that keep tokens of older models are
+  re-justified, and Fable 5 is treated as current.
+- **`audit-prompting-postures` repoints P2, P5, P6 and P8** to the current model subpages (P5 to the
+  one section that still covers its check), with a Sonnet 5.5 pointer block.
+- **The `audit` checklist's records are links-only**, and its exec-form, plugin-manifest,
+  fallback-model, effort-default and managed-settings rows are reduced to firing rules plus
+  pointers.
+- The `AGENTS.md` liveness reference lists three availability conditions with their version
+  floors, re-read against the memory page. audit-permission-state reads which sessions start in
+  auto mode at the permission-modes page instead of keeping a copy of its table. audit-
+  instructions points I25 and its Sources at the Sonnet 5 model page, since the old what's-new URL
+  now redirects, and names the surface pages behind I17-c's promotion gate. Postures P2 and P6
+  state their present-when conditions in our own terms.
+- audit-instructions I14 no longer says only the built-in Explore and Plan agents skip `CLAUDE.md`:
+  a custom agent with `omitClaudeMd: true` does too, so a rule restated for it is not flagged as
+  redundant. The record names the sub-agents page's internal disagreement on that field.
+
+## [1.2.1] - 2026-10-02
+
+### Changed
+
+- **The `audit` findings default to `.work/harness-config-audit/findings.json`.** The
+  `.work/claude-config-audit/` path is not read.
+- **The README drops the migration sections for `claude-config`, `claude-memory`, `claude-ops`
+  and `claude-config-audit`.** The marketplace no longer carries a `renames` map, so an install
+  that names an old id must be re-enabled under the `harness-*` name.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added

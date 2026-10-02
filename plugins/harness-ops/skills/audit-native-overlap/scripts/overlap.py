@@ -1403,28 +1403,18 @@ def check_presence_mentions(repo: Path) -> list[str]:
 def build_native_index(
     inventory: dict[str, Any], lane_payloads: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
-    """Native name -> {class, lane, entry}, first lane wins in workflow, skill,
-    command, agent, tool, built-in plugin order; plugin-backed built-ins
+    """Native name -> {class, lane, entry}: the first entry that is not
+    filtered, in LANE_ORDER, the registration native_surfaces scores first; a
+    name whose every entry is filtered keeps its first. Plugin-backed built-ins
     override. `lane` is the lane the entry was read from: two lanes share the
     plugin-backed-builtin class, so the class alone cannot name it."""
     native_index: dict[str, dict[str, Any]] = {}
-    for lane in (
-        "bundled_workflows",
-        "bundled_skills",
-        "builtin_commands",
-        "builtin_agents",
-        "builtin_tools",
-        PLUGIN_COMPONENT_LANE,
-    ):
+    for lane in LANE_ORDER:
+        if lane == "plugin_backed":
+            continue
         for name, entry in (lane_payloads.get(lane) or {}).items():
             held = native_index.get(name)
-            # A built-in plugin component takes a name only a filtered entry
-            # held, the same selection native_surfaces scores.
-            if held is None or (
-                lane == PLUGIN_COMPONENT_LANE
-                and is_filtered(held["entry"])
-                and not is_filtered(entry)
-            ):
+            if held is None or (is_filtered(held["entry"]) and not is_filtered(entry)):
                 native_index[name] = {
                     "class": CLASS_OF_LANE[lane],
                     "lane": lane,
@@ -1674,14 +1664,13 @@ def cmd_detect(args: argparse.Namespace) -> int:
         ]
 
     def keyed(scored: list[discover.Scored]) -> dict[tuple[str, str, str, str], Any]:
-        return {
-            key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind}): (
-                s,
-                score,
-                matched,
-            )
-            for s, c, score, matched in scored
-        }
+        # A name scored in two lanes keeps its first surface's pair, the
+        # registration the native index holds.
+        out: dict[tuple[str, str, str, str], Any] = {}
+        for s, c, score, matched in scored:
+            key = key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind})
+            out.setdefault(key, (s, score, matched))
+        return out
 
     # Seeds read their score from every scored pair, so a seed below the
     # discovery cut still shows how far lexical evidence alone would carry it.

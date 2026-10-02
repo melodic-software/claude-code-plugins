@@ -14,6 +14,44 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - `breadth_max` declares `min` 0 and `max` 100, since it is a percent of tracked files. A value
   above 100, which could never report a glob over-broad, is now rejected when set.
 
+## [0.18.4] - 2026-10-02
+
+### Fixed
+
+- `migrate`'s shim rule checks every directory between the repository root and a nested
+  `AGENTS.md` for a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, with the same walk as
+  `ip_entry_points_on_path`, instead of only the directory holding the file. A blocker anywhere on
+  the path, or an unreadable directory, keeps every shim (#5800).
+- The shim rule's `InstructionsLoaded` condition also scans the `hooks:` frontmatter of skill,
+  command and agent files in the repository, the config root, the plugins root, the managed
+  settings directory and each `--add-dir` directory the operator names, following symlinked
+  roots and links inside them. A hit, a root that cannot be resolved or read, a symlink loop, an
+  unnamed `--add-dir` set, or a source not on disk keeps the shim until the operator answers for
+  it (#5794).
+
+## [0.18.3] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` prints the shim-cost record by its new labels.** The price of removal is the
+  decision paragraph directly above the record's `Pointer` line plus the pointer itself, stopping
+  before the as-of line, in place of the old claim-to-basis span. A new test fixture pins that
+  output.
+- **The `migrate` sources and verification references, the `check` and `setup` skills, the README
+  and `verified-mechanics.md` hold decisions plus pointers.** Each record states our decision in our
+  words and points at the exact documentation section, an as-of date and a recheck trigger, with
+  no upstream text. `cutover-check.sh` names the same pointer-record shape in its comments and
+  usage.
+- `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
+  page's workaround section.
+
+## [0.18.2] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` names the shim-doctrine floor by the current plugin id, `harness-memory`,
+  only.**
+
 ## [0.18.1] - 2026-10-02
 
 ### Fixed

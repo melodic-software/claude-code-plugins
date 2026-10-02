@@ -12,6 +12,21 @@ All notable changes to the `testing` plugin are documented here. Format follows
   convention (`docs/conventions/plugin-option-naming/`). A value outside the list, which the hook
   already ignored in favor of the default, is now rejected when set.
 
+## [0.18.4] - 2026-10-02
+
+### Changed
+
+- **`write` no longer asks for a self-check before writing tests.** It states the interface it
+  assumes in one line and proceeds.
+
+## [0.18.3] - 2026-10-02
+
+### Changed
+
+- **The judge-calibration u16 case moves to `cases/u16/plugins/harness-ops/`, and the u31
+  fixtures carry the `harness-ops:lane-telemetry` sentinel.** The `source` column keeps its
+  commit-pinned `path@sha`, which resolves only under the path at that commit.
+
 ## [0.18.2] - 2026-10-02
 
 ### Fixed

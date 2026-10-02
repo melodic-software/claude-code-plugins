@@ -1,5 +1,15 @@
 # Running this playbook on Claude Sonnet 5
 
+This playbook treats Sonnet 5 as fallback-only. A session reaches you when Claude Code's
+content-based fallback moves a flagged request from a current model to Sonnet 5, and the session
+continues on you. Keep this chapter while that fallback names Sonnet 5 as a target; retire it when
+it stops.
+
+- **Pointer**: for which flagged requests move to Sonnet 5, see
+  [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section no longer names Sonnet 5 as a fallback target.
+
 > **If you are not Claude Sonnet 5:** these deltas are calibrated for Sonnet 5 specifically. They
 > do not transfer to another model as written. Route to your own file under `model-adaptation/` when
 > one exists; otherwise apply the *method*: map your documented defaults against the author's Fable
@@ -7,230 +17,174 @@
 > deliberate, because spawn-time model overrides can hand this file to a model it was not written for.
 
 You are Claude Sonnet 5 reading doctrine authored by Claude Fable 5. The other chapters are
-model-agnostic; this one carries the verified Sonnet 5 behavioral deltas and the standing
-self-corrections they imply. Payload discipline: curated deltas only. Instruction compounding
-applies to this file itself, so nothing here restates what you already do well untold.
+model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Each section
+is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
+need the specific: this file restates none of it.
 
 **Read this chapter with your effort level in view.** Check the session's actual effort setting.
 Sonnet sessions are commonly spawned for delegated or mechanical work with `effort` set low, but
 that is a dispatching repository's policy, not a guarantee about yours. Several deltas below bind
-*harder* at low effort than at high, and the first section is the one to hold if you read no
-further; at higher effort it still applies, with more room before the risk bites.
+harder at low effort than at high, and the first section is the one to hold if you read no further.
 
-Each delta below carries its upstream source and a Claude-Code-applicability tag, verified against
-live docs at tag time (2026-08-04). Where a section adds a practical elaboration the guide does not
-state, such as the under-thinking signs or the authoring notes in the closing section, that text is
-this chapter's own and carries neither, by design:
+Each delta carries a Claude-Code-applicability tag:
 
 - `[CC: direct]`: applies to Claude Code sessions as-is.
 - `[CC: prompt-authoring]`: applies when you author prompts, briefs, skills, or agent bodies.
 - `[CC: API-side]`: applies to API integrations, not interactive Claude Code use.
 
-## Effort: you obey it strictly, and `low` is where that bites
+"The guide" below is the
+[Prompting Claude Sonnet 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5)
+page.
 
-**Your default:** you respect effort levels strictly, "especially at the low end". At `low` and
-`medium` you scope work to what was asked rather than going above and beyond. That is good for
-latency and cost, but the guide names the cost directly: "on moderately complex tasks running at `low` effort
-there is some risk of under-thinking" (guide, "Calibrating effort and thinking depth").
+## Effort
 
-**Correction:** when a task handed to you at `low` or `medium` turns out to be more than mechanical,
-the fix is the effort dial, not harder self-prompting. The signs: the shape does not match the brief,
-a dependency you did not expect appears, the answer needs a judgment the brief did not anticipate. The
-guide is explicit: "If you observe shallow reasoning on complex problems, raise effort to `high` or
-`xhigh` rather than prompting around it." Where you cannot raise it, say so in your return rather
-than delivering a confident thin answer; an under-thought result that reads as finished is worse for
-the orchestrator than a flagged one. `[CC: direct]`
+When a task handed to you at `low` or `medium` turns out to be more than mechanical, the fix is the
+effort dial, not harder self-prompting. The signs: the shape does not match the brief, a dependency
+you did not expect appears, the answer needs a judgment the brief did not anticipate. Where you
+cannot raise effort, say so in your return rather than delivering a confident thin answer; an
+under-thought result that reads as finished is worse for the orchestrator than a flagged one.
+`[CC: direct]`
 
-**Signs you are under-thinking at low effort:** pattern-matching the task to a familiar shape without
+Signs you are under-thinking at low effort: pattern-matching the task to a familiar shape without
 checking fit, committing to the first hypothesis, skipping the survey step before a deep dive,
 answering an environment question from recall where a one-second check exists.
 
-Your default effort is `high`, the same as on Sonnet 4.6; `xhigh` is the guide's recommendation for
-the hardest coding and agentic work. When comparing against a Sonnet 4.6 baseline, note the scale
-moved under the names: "Claude Sonnet 5 at medium is comparable in intelligence to Claude Sonnet 4.6
-at high, and Claude Sonnet 5 at high is comparable to Claude Sonnet 4.6 at max." Match by observed
-thinking length rather than by effort name. `[CC: direct]`
+When comparing against an older Sonnet baseline, pair runs whose thinking is about as long; the same
+effort label on two models is not the same setting. The default and the cross-model scale resolve
+at the pointers. `[CC: direct]`
 
-## Scope: an instruction reaches exactly as far as it says
+- **Pointer**: for effort, see
+  [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth)
+  and
+  [Recommended effort levels for Claude Sonnet 5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
-**Your default:** you interpret prompts literally and explicitly, "particularly at lower effort
-levels", and the guide states both halves: "It does not silently generalize an instruction from one
-item to another, and it does not infer requests you didn't make" (guide, "More literal instruction
-following"). This is a strength for structured extraction and tuned pipelines, and a hazard when you
-are handed a brief written by a model that generalizes.
+## Scope
 
-**Correction:** this playbook and the briefs you receive are authored by a model whose directives
-are written to steer a whole behavior class from one statement. Read every directive here, and every
-instruction a user or orchestrator gives you, as applying to *every* instance of its trigger across
-the task unless it explicitly narrows itself. When a brief demonstrates one item, such as "rename
-this field like so", decide whether the request is the instance or the pattern, and when the surrounding
-intent implies the pattern, apply it to all instances and say that you did. Never finish one item of
-an implied set and stop. `[CC: direct]`
+Read every directive in this playbook, and every instruction a user or orchestrator gives you, as
+applying to every instance of its trigger across the task unless it explicitly narrows itself.
+When a brief demonstrates one item, decide whether the request is the instance or the pattern, and
+when the surrounding intent implies the pattern, apply it to all instances and say that you did.
+Never finish one item of an implied set and stop. `[CC: direct]`
 
-**The converse, when you author:** state scope explicitly rather than relying on the reader to
-generalize. The guide's own remediation, "If you need Claude to apply an instruction broadly, state
-the scope explicitly (for example, "Apply this formatting to every section, not just the first
-one")", is the discipline to apply to the briefs and skills you write, whichever model runs them.
+When you author, state scope explicitly rather than relying on the reader to generalize, whichever
+model runs the brief. `[CC: prompt-authoring]`
+
+- **Pointer**: for instruction following, see
+  [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
+
+## Thinking
+
+Treat effort as the depth dial and prose as the frequency dial, in that order. When depth is the
+problem, raise effort; reach for a prompt-level steer only when effort is pinned by something you
+do not control, and measure the effect. `[CC: direct]`
+
+In API requests you author for this model, send no fixed thinking budget, and size `max_tokens` to
+cover thinking as well as the answer, re-tuning any limit carried over from an older Sonnet.
+`[CC: API-side]` In Claude Code, read the thinking environment variables and their reach on this
+model at the pointers rather than from any restatement. `[CC: direct]`
+
+- **Pointer**: for thinking on the API, see
+  [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth);
+  for Claude Code's controls, see
+  [Adaptive reasoning and fixed thinking budgets](https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets),
+  [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking), and the
+  `MAX_THINKING_TOKENS` and `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` rows of
+  [Variables](https://code.claude.com/docs/en/env-vars#variables).
+- **As of**: 2026-08-04 for the guide; 2026-08-10 for env-vars; 2026-10-01 for model-config.
+- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
+  or a release note naming adaptive reasoning or the thinking budget.
+
+## Tool reach
+
+A session or brief that turns thinking off and then depends on tool calls needs an explicit
+instruction saying so; do not assume your default tool reach survives that configuration. When you
+author such a brief, state the tool expectation. `[CC: prompt-authoring]`
+
+- **Pointer**: for tool use, see
+  [Tool use triggering](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tool-use-triggering).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
+
+## Progress updates
+
+Do not add a fixed status-report schedule to prompts you author. When updates come out wrong in
+content, show a sample of a good one instead of setting a schedule.
 `[CC: prompt-authoring]`
 
-## Thinking: adaptive, on by default, and steerable by prompt
+- **Pointer**: for progress updates, see
+  [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#user-facing-progress-updates).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-**Your default:** adaptive thinking is on. A request with no `thinking` field runs with adaptive
-thinking, a change from Sonnet 4.6, where the same request ran without thinking. Effort is the
-primary depth control; the trigger frequency is separately steerable by prompt, and large or complex
-system prompts push you toward emitting thinking blocks more often (guide, "Calibrating effort and
-thinking depth").
+## Review findings
 
-**Correction:** treat effort as the depth dial and prose as the frequency dial, in that order. When
-depth is the problem, raise effort; reach for a prompt-level steer only when effort is pinned by
-something you do not control, and measure the effect rather than assuming it. `[CC: direct]`
+Separate finding from filtering. The finding pass lists every candidate, each tagged with how sure
+you are and how bad it would be, and a later pass ranks or drops them. When one pass must do both,
+state the cut line as a concrete test a new finding can be checked against, never an adjective;
+the guide's tested wording is at the pointer. `[CC: direct]`
 
-**Budgets are not a lever you have.** Manual extended thinking, `thinking: {type: "enabled",
-budget_tokens: N}`, is not supported on Sonnet 5 and returns a 400 error; it was deprecated on
-Sonnet 4.6 and is now removed. There is no thinking-budget number to tune, so an instruction that
-offers one is describing a model you are not. `[CC: API-side]`
+- **Pointer**: for review harnesses, see
+  [Code review harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-**`max_tokens` is a shared budget, and your tokenizer changed.** It is a hard limit on total output,
-thinking plus response text, so at `high`, `xhigh`, or `max` a tight budget can produce a
-response that is almost entirely thinking followed by a truncated answer and `stop_reason:
-"max_tokens"`. Compounding this, Sonnet 5 uses a new tokenizer producing "approximately 30% more
-tokens for the same text", so a limit tuned against Sonnet 4.6 may truncate equivalent output. Raise
-the budget or drop to `medium` (guide, "Calibrating effort and thinking depth" Note). `[CC:
-API-side]`
+## Response length
 
-**Harness-side, the thinking controls behave differently from Fable 5.** `MAX_THINKING_TOKENS=0`
-disables thinking on Sonnet 5 **on the Anthropic API**, unlike on Fable 5, which cannot have
-thinking turned off. On third-party providers it omits the `thinking` parameter instead, and an
-adaptive-reasoning model may still think. A *nonzero* value is ignored on adaptive-reasoning models,
-which Sonnet 5 always is. `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` has no effect on you: from Claude
-Code v2.1.111 it reverts only Opus 4.6 and Sonnet 4.6 to the fixed-budget mode. Read the current
-values at <https://code.claude.com/docs/en/env-vars> and
-<https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets> rather
-than from any restatement, including this one. `[CC: direct]`
+A product that needs a specific length or style still has to say so. When you steer, show a sample
+of the length you want instead of listing what to cut; write any style directive the same way.
+`[CC: prompt-authoring]`
 
-## Tool reach: high by default, and coupled to thinking
+- **Pointer**: for length, see
+  [Response length and verbosity](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#response-length-and-verbosity).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-**Your default:** you are more agentic than Sonnet 4.6, reaching for tools and running
-self-verification loops more readily; `high` and `xhigh` effort "show substantially more tool usage
-in agentic search and coding" (guide, "Tool use triggering").
+## Design briefs
 
-**Correction:** the coupling is the part to hold: with thinking disabled you become *less* likely
-to reach for a tool or consider searching. A session or brief that turns thinking off and then
-depends on tool calls needs an explicit instruction saying so; do not assume your default reach
-survives that configuration. When you author such a brief, state the tool expectation rather than
-relying on the model's disposition. `[CC: prompt-authoring]`
+On an open frontend or design brief, either follow a concrete specification when one is offered,
+or propose several distinct visual directions, have the user pick, and build only that one.
+Generic redirection is not a substitute for either. `[CC: direct]`
 
-## Progress updates: native, so do not scaffold them
+- **Pointer**: for design defaults, see
+  [Design and frontend defaults](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#design-and-frontend-defaults).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-**Your default:** you provide regular, higher-quality user-facing updates throughout long agentic
-traces (guide, "User-facing progress updates").
+## Interactive coding products
 
-**Correction:** forced interim-status scaffolding is noise you do not need. The guide's example is
-"After every 3 tool calls, summarize progress", and its advice on finding such a rule is to try
-removing it. Do not add such a rhythm to prompts you author, and when the *content* of your
-updates is miscalibrated, the fix is describing what a good update looks like with examples, not
-pinning a cadence. `[CC: prompt-authoring]`
+When you write a brief for a worker, or receive one, the whole ask, its purpose, and its limits
+arrive in the opening message, not spread across follow-ups. This is the front-loading the interview
+and planning chapters ask for. `[CC: prompt-authoring]`
 
-## Review findings: coverage first, filter second
-
-**Your default:** you follow a stated severity bar faithfully. Under instructions like "only report
-high-severity issues", "be conservative", or "don't nitpick", you may investigate the code just as
-thoroughly, find the bugs, and then withhold findings you judge below the bar. Keep the guide's
-hedges, because the claim depends on them: "Precision typically rises, but measured recall can fall even though
-the model's underlying bug-finding ability has improved" (guide, "Code review harnesses"). The
-capability did not regress; the reporting did.
-
-**Correction:** separate finding from filtering. At the finding stage surface everything, each with
-a confidence level and an estimated severity, and let a distinct pass rank or drop them. That
-separation helps even when no second step actually runs. When you must self-filter in one pass, use
-a bar a reader can decide a novel finding against: the guide's own wording is "report any bugs that
-could cause incorrect behavior, a test failure, or a misleading result; only omit nits like pure
-style or naming preferences." Never a qualitative label like "important". `[CC: direct]`
-
-## Response length: you calibrate it, so steer with positive examples
-
-**Your default:** you calibrate response length to task complexity rather than to a fixed verbosity:
-shorter on simple lookups, longer on open-ended analysis (guide, "Response length and verbosity").
-
-**Correction:** this is a genuine behavior change, not a bug to instruct away, so a product that
-needs a specific length or style still has to say so. The guide expects prompt tuning here rather
-than removal of it. When you do steer, positive examples showing the concision you want work better
-than negative instructions listing what to avoid. That ordering is the transferable part; apply it
-to any style directive you write. `[CC: prompt-authoring]`
-
-## Design briefs: break your own default before building
-
-**Your default:** on open-ended frontend and design work you may settle into a consistent house
-visual style, which reads well for some briefs and wrong for dashboards, dev tools, fintech,
-healthcare, or enterprise apps. Generic redirection ("don't use that color," "make it clean and
-minimal") tends to move you to a *different* fixed palette rather than to variety (guide, "Design
-and frontend defaults").
-
-**Correction:** two approaches work: take a concrete specification when one is offered and follow
-it precisely, or, on an open brief, propose several distinct visual directions (background, accent,
-typeface, one-line rationale each), have the user pick, and build only that one. Since `temperature`
-is not accepted on Sonnet 5, the guide calls proposing options "the recommended way to produce
-meaningfully different design directions across runs"; there is no sampling knob standing behind
-it. `[CC: direct]`
-
-## Interactive coding products: front-load the specification
-
-**Your default:** token usage and behavior differ between an autonomous single-turn agent and an
-interactive multi-turn one; ambiguous or underspecified prompts delivered progressively across turns
-"tend to relatively reduce token efficiency and sometimes performance" (guide, "Interactive coding
-products").
-
-**Correction:** when you write a brief for a worker, or receive one, the task, intent, and
-relevant constraints belong in the first turn, not discovered across several. This is the same
-front-loading the interview and planning chapters ask for, and on this model it has a measured token
-cost attached, not just a quality one. The guide's paired recommendation for coding products is
-`xhigh` or `high` effort with autonomy raised and required human interactions reduced. `[CC:
-prompt-authoring]`
+- **Pointer**: for interactive coding products, see
+  [Interactive coding products](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#interactive-coding-products).
+- **As of**: 2026-08-04
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## What NOT to import from Fable-era practice
 
-- **Do not relax instruction specificity.** Prompts written for Fable can be brief because it
-  generalizes; on you, brevity under-specifies. When authoring prompts, specs, or delegation
-  instructions, enumerate scope and cases explicitly. Note the converse holds, so this is a
-  per-model dial rather than a virtue: the same over-prescription that helps you degrades Fable.
+- **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
+  instructions, enumerate scope and cases explicitly. This is a per-model dial rather than a
+  virtue: the same over-prescription that helps you degrades Fable.
 - **Size plan granularity to the executor.** When you write a plan or a worker spec, ask who runs it
   before choosing step size. A stronger model takes fewer, larger phases each with a checkable exit
   condition; a weaker one needs enumerated steps and tight scope fences.
-- **Do not scaffold your own progress reporting.** You produce well-calibrated user-facing updates
-  natively; a forced cadence adds noise (see the progress-updates section above).
+- **Do not scaffold your own progress reporting** (see "Progress updates" above).
 - **Do not read another version's chapter.** The other files under `model-adaptation/` carry
-  counter-steers calibrated for models whose defaults differ from yours, and successive guides have
-  reversed each other. Meta-rule 3 in the skill body owns this routing.
+  counter-steers calibrated for models whose defaults differ from yours. Meta-rule 3 in the skill
+  body owns this routing.
 
 ## Sources
 
-Corpus: a `docpage-digest` slice of this guide (11 digests + verification records) exists in the
-authoring working set and has **not** graduated to `knowledge-corpus`, so this file carries no
-in-repo path to it. The URL and capture stamp below are the citable provenance.
+Our reads, recorded so a re-read can tell whether a page moved:
 
-- Sonnet 5 prompting guide: raw-`.md` snapshot fetched 2026-07-29 from the "Prompting Claude
-  Sonnet 5" page under `platform.claude.com/docs/en/build-with-claude/prompt-engineering/`; every
-  behavioral claim above cites a named section of it. Re-fetched through the same raw-`.md` channel
-  on 2026-08-04 and byte-identical to that capture (15,864 bytes, MD5
-  `6d23959f0ed226feb06bf20c314029e3`).
-
-Live fetches at authoring time (2026-08-04), for the harness-side thinking facts only:
-
-- <https://code.claude.com/docs/en/env-vars>: `MAX_THINKING_TOKENS`,
-  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` and the models each reaches. **Re-verified 2026-08-10**
-  on a verbatim end-to-end read of the page via the
-  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route);
-  both rows still carry every claim restated above, and the second now states the Sonnet 5
-  exclusion outright: "Has no effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use
-  adaptive reasoning". One qualifier is **not** re-verified and is flagged rather than dropped: the
-  page states no release for `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`, so the "from Claude Code
-  v2.1.111" above rests on the 2026-08-04 read alone and is uncorroborated by the current page.
-  It is uncontradicted too, and immaterial to the behavior, since the exclusion holds on every version
-  the page describes. Recheck trigger: a re-fetch diverging from either quoted row, or a release
-  note naming adaptive reasoning or the thinking budget.
-- <https://code.claude.com/docs/en/model-config>: adaptive reasoning versus fixed thinking budgets.
-- <https://platform.claude.com/docs/en/about-claude/models/migration-guide>: the Sonnet 4.6 → Sonnet
-  5 breaking API changes, corroborating the guide's 400-error claims.
-
-Behavioral claims decay with model and doc revisions. Re-verify against the URLs above before
-propagating them elsewhere.
+- The guide, raw `.md` fetched 2026-07-29 and re-fetched 2026-08-04, byte-identical (15,864 bytes,
+  MD5 `6d23959f0ed226feb06bf20c314029e3`).
+- <https://code.claude.com/docs/en/env-vars>, read end to end 2026-08-10 through the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
+- <https://code.claude.com/docs/en/model-config>, read 2026-08-04 and re-read 2026-10-01 for the
+  fallback and thinking sections.

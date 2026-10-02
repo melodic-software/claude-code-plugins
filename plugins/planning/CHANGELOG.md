@@ -14,6 +14,17 @@ All notable changes to the `planning` plugin are documented here. Format follows
   characters; the rest of it, and the `surface` fallback rule, move to the README's "Option
   details".
 
+## [0.59.4] - 2026-10-02
+
+### Changed
+
+- **The interview's model-versus-effort guidance is stated as the skill's own decision.**
+  `context/session-config.md` keeps the recommendation rules in our words and points at the
+  model-config effort section and the choosing-a-model section, with the Claude blog post as a
+  correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
+  wording kept, and its record says no docs page states it, with the trigger "a docs page starts
+  covering it".
+
 ## [0.59.3] - 2026-10-02
 
 ### Fixed

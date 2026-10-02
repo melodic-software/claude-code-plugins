@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.20] - 2026-10-02
+## [0.19.21] - 2026-10-02
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `implementation` plugin are documented here. Format f
   its description fits 300 characters, per the plugin option naming convention
   (`docs/conventions/plugin-option-naming/`). The rest of the description moves to the README's
   "Option details".
+
+## [0.19.20] - 2026-10-02
+
+### Changed
+
+- **The README's migration note no longer cites the marketplace `renames` map,** which the
+  marketplace no longer carries.
 
 ## [0.19.19] - 2026-10-02
 

@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.44.4] - 2026-10-02
+## [0.44.5] - 2026-10-02
 
 ### Changed
 
@@ -8,6 +8,24 @@
   (`docs/conventions/plugin-option-naming/`): the "Observer:" colon prefix becomes plain leading
   words, descriptions are 300 characters or fewer in plain text and name their defaults, and the
   cut detail moves to the README's "Option details". No key, type, or default changes.
+
+## [0.44.4] - 2026-10-02
+
+### Changed
+
+- **`handoff`, `keep-going` and `orchestrate` state their upstream-derived rules as decisions plus
+  pointers.** The fresh-window continuation rule, the resume-subagents note and the `/export`
+  suggestion (backed by our own probes) each carry a pointer to the exact section, an as-of date
+  and a recheck trigger. `orchestrate/context/sources.md` now lists, per imperative, the section
+  that backs it instead of quoted and paraphrased page text, and the orchestrate gotchas follow the
+  same shape.
+- **`orchestrate` no longer gives non-work steps a self-check.** A step that is not the work gets
+  no verifier. The workflow size anchor is re-derived (5 to 9 agents medium, 10 or more large, and
+  read the size guideline in force), and the workflow-concurrency override is recorded.
+- `keep-going`'s `/usage` link follows the docs site's new heading id.
+- `orchestrate`'s delegation, spawn-spec and run-workers imperatives state our rules in our words:
+  the multi-agent post's brief elements and research multiplier sit behind a correlate note, and
+  the dispatch and reason guidance points at the Fable 5 guide's sections.
 
 ## [0.44.3] - 2026-10-02
 

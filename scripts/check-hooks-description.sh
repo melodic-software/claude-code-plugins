@@ -6,12 +6,11 @@
 #                                         absent, not a string, blank, or
 #                                         multi-line
 #
-# Why: the plugins reference states "Define plugin hooks in `hooks/hooks.json`
-# with an optional top-level `description` field" (raw `plugins-reference.md`,
-# fetched 2026-09-05), and the field is the one place a plugin can label its
-# hooks as a set, distinct from the per-handler `statusMessage` shown while a
-# hook runs. Nothing else reads the field, so nothing else would notice a new
-# plugin shipping without it, or a rewrite dropping it.
+# Why: this marketplace requires the optional top-level `description` field in
+# every plugin's `hooks/hooks.json`, because it is the one place a plugin can
+# label its hooks as a set, distinct from the per-handler `statusMessage` shown
+# while a hook runs. Nothing else reads the field, so nothing else would notice
+# a new plugin shipping without it, or a rewrite dropping it.
 #
 # The rule: `plugins/*/hooks/hooks.json` is scanned; a plugin with no such file
 # has no hooks to label and is skipped. The file must parse as JSON and its
@@ -19,10 +18,11 @@
 # character and no line break. Wording is not judged here; the field is a one
 # sentence label, and a reviewer reads it in the diff.
 #
-# Basis: https://code.claude.com/docs/en/plugins-reference (the hooks component,
-# "with an optional top-level `description` field"). Recheck trigger: the
-# reference renames, removes, or makes the field required; either way this
-# comment and the rule are re-derived from the page, not patched from memory.
+# Pointer: for the plugin hooks.json `description` field, see
+# https://code.claude.com/docs/en/hooks#reference-scripts-by-path (the plugin
+# scripts tab). As of: 2026-09-05. Recheck trigger: the docs rename, remove, or
+# make the field required; either way this comment and the rule are re-derived
+# from the page, not patched from memory.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script

@@ -85,10 +85,10 @@
       "name": "offline-load-bearing-condenses-not-points",
       "prompt": "/attribution:audit fix a fingerprint-confirmed copy that sits in a reference file a subagent reads mid-dispatch, with no network available at read time. Choose and justify the disposition.",
       "narration": true,
-      "expected_output": "The disposition is condense-to-stamped-record, not convert-to-pointer, because the surface must work when the source is unreachable. The record carries all four parts: claim, basis URL, as-of date, and a recheck trigger naming an observable event. The as-of date is written in ISO 8601 so the stamp checker can parse it later.",
+      "expected_output": "The disposition is condense-to-stamped-record, not convert-to-pointer, because the surface must work when the source is unreachable. The record carries the surface's own decision in its own words, a pointer to the source section, an as-of date, and a recheck trigger naming an observable event, and stores no source text. The as-of date is written in ISO 8601 so the stamp checker can parse it later.",
       "expectations": [
         "Chooses condense-to-stamped-record and rejects a bare convert-to-pointer for an offline-load-bearing surface",
-        "Writes all four parts, including a recheck trigger that names an observable event rather than a date or a review cadence",
+        "Writes the decision, the pointer, the as-of date and a recheck trigger that names an observable event rather than a date or a review cadence, with no source text in the record",
         "Uses an ISO 8601 date so check-stamps.sh can parse the record on a later run",
         "Runs the semantic-diff guard blind to the rewrite rationale and reverts any flagged hunk before closing the file"
       ]

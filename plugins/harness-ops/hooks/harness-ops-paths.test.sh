@@ -17,7 +17,7 @@ PROJECT="$TEST_TMPDIR/project"
 mkdir -p "$PROJECT"
 
 assert_eq "valid nested path resolves under project" "$PROJECT/telemetry/skills" \
-  "$(claude_ops::resolve_project_relative_dir "$PROJECT" 'telemetry/skills')"
+  "$(harness_ops::resolve_project_relative_dir "$PROJECT" 'telemetry/skills')"
 
 for case_name in posix_absolute windows_drive windows_drive_relative unc traversal backslash_traversal; do
   case "$case_name" in
@@ -36,7 +36,7 @@ for case_name in posix_absolute windows_drive windows_drive_relative unc travers
     continue
     ;;
   esac
-  if claude_ops::resolve_project_relative_dir "$PROJECT" "$value" >/dev/null; then
+  if harness_ops::resolve_project_relative_dir "$PROJECT" "$value" >/dev/null; then
     bad "$case_name path rejected"
   else
     ok "$case_name path rejected"
@@ -46,7 +46,7 @@ done
 OUTSIDE="$TEST_TMPDIR/outside"
 mkdir -p "$OUTSIDE"
 if ln -s "$OUTSIDE" "$PROJECT/escape" 2>/dev/null && [[ -L "$PROJECT/escape" ]]; then
-  if claude_ops::resolve_project_relative_dir "$PROJECT" 'escape/skills' >/dev/null; then
+  if harness_ops::resolve_project_relative_dir "$PROJECT" 'escape/skills' >/dev/null; then
     bad "escaping symlink ancestor rejected"
   else
     ok "escaping symlink ancestor rejected"
@@ -75,7 +75,7 @@ EOF
 #!/usr/bin/env bash
 source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/harness-ops-paths.sh"
-claude_ops::resolve_project_relative_dir 'Q:/no-such-ancestor' 'telemetry/skills'
+harness_ops::resolve_project_relative_dir 'Q:/no-such-ancestor' 'telemetry/skills'
 EOF
   chmod +x "$SHIM_DIR/dirname"
   timeout 10 env PATH="$SHIM_DIR:$PATH" bash "$SHIM_DIR/run-walkup.sh" >/dev/null 2>&1
@@ -91,10 +91,10 @@ fi
 FAKE_HOME="$TEST_TMPDIR/home"
 mkdir -p "$FAKE_HOME"
 assert_eq "repo scope resolves under project" "$PROJECT/.claude/observability" \
-  "$(claude_ops::resolve_skill_usage_dir repo "$PROJECT" '.claude/observability')"
+  "$(harness_ops::resolve_skill_usage_dir repo "$PROJECT" '.claude/observability')"
 assert_eq "user scope resolves under HOME" "$FAKE_HOME/.claude/observability" \
-  "$(HOME="$FAKE_HOME" claude_ops::resolve_skill_usage_dir user "$PROJECT" '.claude/observability')"
-if HOME="$FAKE_HOME" claude_ops::resolve_skill_usage_dir user "$PROJECT" '../outside' >/dev/null; then
+  "$(HOME="$FAKE_HOME" harness_ops::resolve_skill_usage_dir user "$PROJECT" '.claude/observability')"
+if HOME="$FAKE_HOME" harness_ops::resolve_skill_usage_dir user "$PROJECT" '../outside' >/dev/null; then
   bad "user scope traversal rejected"
 else
   ok "user scope traversal rejected"
@@ -102,34 +102,34 @@ fi
 
 DATA_DIR="$TEST_TMPDIR/plugin-data"
 mkdir -p "$DATA_DIR"
-slug=$(claude_ops::repo_slug "$PROJECT")
+slug=$(harness_ops::repo_slug "$PROJECT")
 case "$slug" in
 *[!A-Za-z0-9._-]*) bad "repo_slug emits only safe bytes" ;;
 '') bad "repo_slug non-empty" ;;
 *) ok "repo_slug emits only safe bytes" ;;
 esac
 mkdir -p "$TEST_TMPDIR/a-b" "$TEST_TMPDIR/a/b"
-if [[ "$(claude_ops::repo_slug "$TEST_TMPDIR/a-b")" != "$(claude_ops::repo_slug "$TEST_TMPDIR/a/b")" ]]; then
+if [[ "$(harness_ops::repo_slug "$TEST_TMPDIR/a-b")" != "$(harness_ops::repo_slug "$TEST_TMPDIR/a/b")" ]]; then
   ok "repo_slug distinguishes fold-colliding paths"
 else
   bad "repo_slug distinguishes fold-colliding paths"
 fi
-assert_eq "repo_slug is stable across calls" "$slug" "$(claude_ops::repo_slug "$PROJECT")"
+assert_eq "repo_slug is stable across calls" "$slug" "$(harness_ops::repo_slug "$PROJECT")"
 
 assert_eq "normalize_rel_segments drops ./ and //" ".claude/observability" \
-  "$(claude_ops::normalize_rel_segments './.claude//observability/')"
+  "$(harness_ops::normalize_rel_segments './.claude//observability/')"
 # portability-ok: 'telemetry\skills' is a backslash-separated path fixture, not
 # a GNU grep \s class — folding it is what this case asserts.
 assert_eq "normalize_rel_segments folds backslashes" "telemetry/skills" \
-  "$(claude_ops::normalize_rel_segments 'telemetry\skills')"
+  "$(harness_ops::normalize_rel_segments 'telemetry\skills')"
 
 assert_eq "gitignore_escape escapes glob metachars" 'telemetry\*/a\?b/\[x]' \
-  "$(claude_ops::gitignore_escape 'telemetry*/a?b/[x]')"
+  "$(harness_ops::gitignore_escape 'telemetry*/a?b/[x]')"
 assert_eq "gitignore_escape leaves ordinary paths intact" '.claude/observability' \
-  "$(claude_ops::gitignore_escape '.claude/observability')"
+  "$(harness_ops::gitignore_escape '.claude/observability')"
 assert_eq "data-dir scope keys by repo slug" "$DATA_DIR/skill-usage/$slug" \
-  "$(CLAUDE_PLUGIN_DATA="$DATA_DIR" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability')"
-if CLAUDE_PLUGIN_DATA="" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability' >/dev/null; then
+  "$(CLAUDE_PLUGIN_DATA="$DATA_DIR" harness_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability')"
+if CLAUDE_PLUGIN_DATA="" harness_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability' >/dev/null; then
   bad "data-dir scope without CLAUDE_PLUGIN_DATA fails"
 else
   ok "data-dir scope without CLAUDE_PLUGIN_DATA fails"
@@ -139,7 +139,7 @@ fi
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"
 if git -C "$REPO" init -q 2>/dev/null; then
-  claude_ops::ensure_git_exclude "$REPO" '.claude/observability'
+  harness_ops::ensure_git_exclude "$REPO" '.claude/observability'
   EXCL="$REPO/.git/info/exclude"
   if grep -qxF -- '/.claude/observability/' "$EXCL" 2>/dev/null; then
     ok "exclude line added to .git/info/exclude"
@@ -147,7 +147,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
     bad "exclude line added to .git/info/exclude"
   fi
   before=$(grep -cxF -- '/.claude/observability/' "$EXCL")
-  claude_ops::ensure_git_exclude "$REPO" '.claude/observability'
+  harness_ops::ensure_git_exclude "$REPO" '.claude/observability'
   assert_eq "exclude append is idempotent" "$before" \
     "$(grep -cxF -- '/.claude/observability/' "$EXCL")"
   mkdir -p "$REPO/.claude/observability"
@@ -160,7 +160,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
   REPO3="$TEST_TMPDIR/repo3"
   mkdir -p "$REPO3"
   git -C "$REPO3" init -q 2>/dev/null
-  claude_ops::ensure_git_exclude "$REPO3" './.claude//observability/'
+  harness_ops::ensure_git_exclude "$REPO3" './.claude//observability/'
   if grep -qxF -- '/.claude/observability/' "$REPO3/.git/info/exclude" 2>/dev/null; then
     ok "denormalized configured dir yields canonical exclude line"
   else
@@ -177,7 +177,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
   mkdir -p "$REPO2"
   git -C "$REPO2" init -q 2>/dev/null
   CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE=false \
-    claude_ops::ensure_git_exclude "$REPO2" '.claude/observability'
+    harness_ops::ensure_git_exclude "$REPO2" '.claude/observability'
   if grep -qxF -- '/.claude/observability/' "$REPO2/.git/info/exclude" 2>/dev/null; then
     bad "skill_usage_git_exclude=false suppresses the exclude write"
   else
@@ -189,7 +189,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
   REPO4="$TEST_TMPDIR/repo4"
   mkdir -p "$REPO4"
   git -C "$REPO4" init -q 2>/dev/null
-  claude_ops::ensure_git_exclude "$REPO4" 'telemetry*'
+  harness_ops::ensure_git_exclude "$REPO4" 'telemetry*'
   if grep -qxF -- '/telemetry\*/' "$REPO4/.git/info/exclude" 2>/dev/null; then
     ok "glob-metachar configured dir written as literal exclude pattern"
   else
@@ -199,7 +199,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
   REPO5="$TEST_TMPDIR/repo5"
   mkdir -p "$REPO5"
   git -C "$REPO5" init -q 2>/dev/null
-  claude_ops::ensure_git_exclude "$REPO5" '.'
+  harness_ops::ensure_git_exclude "$REPO5" '.'
   if grep -qxF -- '/skill-usage.jsonl' "$REPO5/.git/info/exclude" 2>/dev/null; then
     ok "repo-root store excludes the store file, not the tree"
   else
@@ -213,7 +213,7 @@ if git -C "$REPO" init -q 2>/dev/null; then
   fi
 fi
 # --- The skill-usage store record -------------------------------------------
-# One writer for the row: claude_ops::record_skill_use formats it through
+# One writer for the row: harness_ops::record_skill_use formats it through
 # session-log-lib.sh, so the row's escaping is the plugin's one escaping path
 # and costs no jq process. The store keeps its OWN key set (`event:
 # "SkillUse"`), read by skills/audit-skill-visibility; it is not a hook event
@@ -227,9 +227,9 @@ SU_SCHEMA='(.ts|type)=="string" and .event=="SkillUse"
 SU_LOG="$SU_PROJ/.claude/observability/skill-usage.jsonl"
 SU_SKILL='a:one "quoted" \ tricky'
 export CLAUDE_PROJECT_DIR="$SU_PROJ"
-claude_ops::record_skill_use PostToolUse skill-usage-audit \
+harness_ops::record_skill_use PostToolUse skill-usage-audit \
   '{"session_id":"s1"}' "$SU_SKILL" tool '' >/dev/null
-claude_ops::record_skill_use UserPromptExpansion skill-usage-expansion-audit \
+harness_ops::record_skill_use UserPromptExpansion skill-usage-expansion-audit \
   '{"session_id":"s1"}' b:two expansion slash_command >/dev/null
 unset CLAUDE_PROJECT_DIR
 if [[ -s "$SU_LOG" ]]; then
@@ -255,7 +255,7 @@ if git -C "$SU_REPO" init -q 2>/dev/null &&
   SU_REPO_LOG="$SU_REPO/.claude/observability/skill-usage.jsonl"
   SU_REPO_BRANCH="$(git -C "$SU_REPO" rev-parse --abbrev-ref HEAD)"
   export CLAUDE_PROJECT_DIR="$SU_REPO"
-  claude_ops::record_skill_use PostToolUse skill-usage-audit \
+  harness_ops::record_skill_use PostToolUse skill-usage-audit \
     '{"session_id":"s2"}' one tool '' >/dev/null
   assert_eq "skill-usage route: branch is the checked-out branch" "$SU_REPO_BRANCH" \
     "$(head -1 "$SU_REPO_LOG" | jq -r '.branch')"
@@ -264,7 +264,7 @@ fi
 
 NONREPO="$TEST_TMPDIR/nonrepo"
 mkdir -p "$NONREPO"
-claude_ops::ensure_git_exclude "$NONREPO" '.claude/observability'
+harness_ops::ensure_git_exclude "$NONREPO" '.claude/observability'
 ok "non-repo project is a silent no-op for exclude hygiene"
 
 report

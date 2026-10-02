@@ -6,10 +6,9 @@ telemetry envelope. The [plugin philosophy](../../plugin-philosophy.md) owns the
 advisory-versus-blocking, fail-open-versus-closed. This doc owns which of the three surfaces a
 given situation uses and how each is shaped.
 
-Grounded against the official Claude Code hooks reference
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). Every field name, cap, and timing
-claim below is sourced from that fetch, not from training-data recall, per this repo's own
-research-verification discipline.
+The rules below are this convention's decisions. Where one depends on hook behavior Claude Code
+owns, it points at the section of the [hooks reference](https://code.claude.com/docs/en/hooks) to
+read live, with the date it was checked and the event that sends someone back.
 
 ## The three surfaces
 
@@ -26,8 +25,10 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 }
 ```
 
-Displayed as the UI spinner label while the hook process runs. **A hook script never emits this.
-There is no runtime JSON output field by this name.** **Rollout status: near-complete.** As of
+It labels the spinner while the hook runs. **A hook script never emits this: it is configuration,
+not a runtime output field.** Pointer: for the field, see
+<https://code.claude.com/docs/en/hooks#common-fields>. As of: 2026-10-01. Recheck trigger: that
+table moves the field or a runtime output field takes the name. **Rollout status: near-complete.** As of
 2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
 plugins declare `statusMessage`; the sole remaining holdout is
 `plugins/disk-hygiene/hooks/hooks.json`. Tracked against
@@ -40,14 +41,16 @@ telemetry..."`), not a generic `"Running hook..."`.
 
 ### 2. `systemMessage`: user-visible, scoped by who can act on the content
 
-A JSON output field (`hookSpecificOutput` sibling) that Claude Code reads on every exit code, exit 2
-included ("Claude Code still reads any valid JSON output on stdout", hooks reference, Exit code 2,
-fetched 2026-09-27), 10,000-character cap (an overflow to a
-file, not a truncation; see [Output caps](#output-caps-stated-by-the-reference)), shown to the
-user immediately. Composed via `hook::emit_channels` / `hook::emit_skip_notice`
-(`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document. Claude Code parses a
-hook's entire stdout as a single document, so a hook with both agent-channel content and a
-pending notice must compose them there, never `printf` twice.
+A JSON output field (`hookSpecificOutput` sibling) addressed to the user. We compose it on any exit
+code, exit 2 included, and size it under the cap in
+[Output caps](#output-caps-stated-by-the-reference). Pointer: for which exit codes still read JSON
+output, see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-09-27. Recheck
+trigger: that section changes whether JSON output is read on exit 2. Composed via
+`hook::emit_channels` / `hook::emit_skip_notice`
+(`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document: a hook with both
+agent-channel content and a pending notice composes them there and never prints two objects.
+Pointer: for how stdout is parsed as JSON, see <https://code.claude.com/docs/en/hooks#exit-code-0>.
+As of: 2026-10-01. Recheck trigger: that section changes how a multi-object stdout is read.
 
 **Scope, required for exactly one situation:** a missing runtime prerequisite (binary, config
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
@@ -65,12 +68,14 @@ edits a file the user is working in, on the strength of an unrelated tool call, 
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
 edit (likely a formatter)" line that names no hook and shows no change, quoted from an observed
 session, not from a docs page, and used here only as an illustration of the shape such a
-notice takes. What the docs settle is the negative this rule actually rests on, verified against
-<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
-carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
-identically. Recheck trigger: a Claude Code release that adds a file-change or diff surface to the
-hook output schema, whether a fourth output field or such a payload on one of
-[the three](#the-three-surfaces), which would make this rule's disclosure requirement redundant.
+notice takes. The rule rests on a negative: we found no file-change or diff surface among the hook
+output channels, so a benign reflow and a wrong dictionary rewrite arrive identically.
+
+- **Pointer**: for the hook output fields, see <https://code.claude.com/docs/en/hooks#json-output>.
+- **As of**: 2026-08-10
+- **Recheck trigger**: a Claude Code release that adds a file-change or diff surface to the hook
+  output schema, whether a fourth output field or such a payload on one of
+  [the three](#the-three-surfaces), which would make this rule's disclosure requirement redundant.
 
 The person whose file was changed is the only one who can judge whether the change was correct, so
 **the hook must name what it changed on the user channel**, not only the agent one: what
@@ -82,10 +87,11 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 
-- **Exit-2 blocking paths.** A `PreToolUse` hook that blocks a tool call via exit code 2 is
-  already user-visible through Claude Code's own permission-denial UI, and Claude reads its stderr
-  as the denial reason. Repeating the block reason on `systemMessage` would be redundant, not more
-  observable. The field is not discarded on a block (see above), so a blocking hook may still carry
+- **Exit-2 blocking paths.** We treat a `PreToolUse` block via exit code 2 as already visible to
+  both the user and Claude, with its stderr as the reason, so repeating the block reason on
+  `systemMessage` would be redundant, not more observable. Pointer: for the blocking message, see
+  <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-01. Recheck trigger: that
+  section changes what a `PreToolUse` block shows or which text becomes its reason. The field is not discarded on a block (see above), so a blocking hook may still carry
   one, but only for content that meets the carve-out below, never for the reason itself.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
   for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
@@ -112,17 +118,22 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   3. the emission is keyed to a **state transition**, not to every invocation.
 
   **Delivery may never be asserted.** The model channel may state that a choice belongs to the
-  operator; it may **never** state that the operator has seen it. No documented behavior tells a hook
-  whether an operator is present. `systemMessage` is documented only as a message shown to the user,
-  and nothing upstream describes its behavior in non-interactive runs, so a delivery claim is a fact
-  the hook cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel
-  is harmless; telling the model a human holds the choice when none does is not.
+  operator; it may **never** state that the operator has seen it. We found no documented way for a
+  hook to learn whether an operator is present, so a delivery claim is a fact the hook cannot know
+  in *any* mode, not only headless ones. Emitting to an unread operator channel is harmless;
+  telling the model a human holds the choice when none does is not.
 
-  **Honest limit.** The docs state that `additionalContext` is inserted into the conversation and
-  saved to the transcript, and say no such thing about `systemMessage`; that the latter stays out of
-  model context is *inferred from the asymmetry*, not stated. If that inference is ever falsified,
-  this carve-out collapses, since content forbidden to the model would reach it either way, and the
-  correct response is to drop the payload, not to re-route it.
+  **Synchronous hooks only.** The carve-out holds only where `systemMessage` stays off the model
+  channel, and the reference decides that per hook kind and per event. We admit it from a
+  synchronous hook on an event whose own section leaves the field on the user channel, and never
+  from an `async` hook. Where the field would reach the model, drop the payload; never re-route it.
+
+  - **Pointer**: for the field's delivery, see <https://code.claude.com/docs/en/hooks#json-output>
+    and the event's section under <https://code.claude.com/docs/en/hooks#hook-events>; for
+    background hooks, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: either section changes where `systemMessage` is delivered, or an event's
+    section changes how it treats the field.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require_jq`
@@ -134,9 +145,11 @@ share the parent's context and would otherwise never see why the hook skipped. A
 latch renews with a one-line notice every `HOOK_NOTICE_RENEW_EVERY` skips (default 8). A plugin
 README states this as "once per session and agent, renewed every eighth skip", never "once per session". The exception is a missing external binary: `hook::notice_once <key> <input> prerequisite` latches on the session alone and each renewal keeps the full notice with its install route, so the README states "once per session, renewed with the install route every eighth skip".
 
-**Important exit-code caveat, grounded in the fresh fetch:** on exit 0, **stderr is never shown to
-the user or the agent**, and only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
-**not visible**, regardless of intent. `scripts/check-silent-skips.sh` **still treats a bare
+**Important exit-code caveat:** on exit 0, **we treat stderr as visible to neither the user nor
+the agent**; only stdout JSON carries a notice. A bare `echo "..." >&2; exit 0` skip is **not
+visible**, regardless of intent. Pointer: for where exit-0 stderr goes, see
+<https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-08-10. Recheck trigger: that
+section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh` **still treats a bare
 stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
 for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
 states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against
@@ -160,49 +173,37 @@ candidate; give it a helper call.
 
 ### Output caps stated by the reference
 
-Re-read 2026-09-05 against <https://code.claude.com/docs/en/hooks.md> by the rung-1 route in
-[upstream-drift](../upstream-drift/README.md#the-rungs): a `curl` of the raw-markdown channel,
-317,632 bytes, first heading `# Hooks reference`, slug listed in `llms.txt`, SHA-256
-`c30a50b8192dadf4e6ba016e451685f57a6d1d2c360d268887a9a94022d29f3e`. The channel claims above still
-match the page. Three cap facts the page states and this doc did not carry are recorded below, each
-as a four-part record (claim, basis, as-of date, recheck trigger). Line numbers are positions in
-that fetch, given so a re-check can find the span; the quoted text is the basis.
+Three cap decisions, each with the section that owns the figure.
 
-1. **Output over the cap overflows to a file; it is not truncated.** Basis, line 913: "Hook output
-   strings, including `additionalContext`, `systemMessage`, and plain stdout, are capped at 10,000
-   characters. Output that exceeds this limit is saved to a file and replaced with a preview and
-   file path, the same way a large valid Bash result is handled". As of 2026-09-05. Recheck
-   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behavior
-   under its JSON-output section changed or gone. What it means for a hook: an over-cap disclosure
-   is not lost, but it stops being the inline account the content-mutation rule above requires, and
-   in write mode the file has already been rewritten by then. A hook that must stay inline caps
-   itself under the figure with a truncation that keeps its counts and says it truncated, leaving
-   headroom for JSON escaping. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`
-   (4,000 for `systemMessage`, 8,000 for `additionalContext`).
+1. **This convention sizes every user- or agent-channel string under 10,000 characters.** A
+   disclosure the content-mutation rule above requires must reach the reader inline and whole, so
+   a hook that must stay inline caps itself under the figure with a truncation that keeps its
+   counts and says it truncated, leaving headroom for JSON escaping. What happens to a value over
+   the cap is the pointer's to state. The adopting reference is `plugins/typos-format/hooks/typos-format.sh` (4,000 for
+   `systemMessage`, 8,000 for `additionalContext`).
+   - **Pointer**: for the output cap, see <https://code.claude.com/docs/en/hooks#json-output>.
+   - **As of**: 2026-09-05
+   - **Recheck trigger**: that section changes the 10,000 figure or what happens over it.
 
-2. **The `additionalContext` cap is per value; there is no pool shared across hooks.** Basis, line
-   993: "When several hooks return `additionalContext` for the same event, Claude receives all of
-   the values. If a value exceeds 10,000 characters, Claude Code writes the full text to a file in
-   the session directory and passes Claude the file path with a short preview instead". As of
-   2026-09-05. Recheck trigger: the same re-fetch finds the "all of the values" sentence changed or
-   a shared budget stated for the field. What it means for a hook: size the value against 10,000
+2. **Each `additionalContext` value is sized on its own.** We size the value against the cap above
    and never against what other hooks on the same event emit.
+   - **Pointer**: for how several hooks' values are delivered, see
+     <https://code.claude.com/docs/en/hooks#add-context-for-claude>.
+   - **As of**: 2026-09-05
+   - **Recheck trigger**: that section states a budget shared across hooks.
 
-3. **`classifierContext` carries its own 2,000-character cap, shared across hooks, and governs
-   neither channel above.** The field is a `PostToolUse` `hookSpecificOutput` member addressed to
-   the auto-mode classifier ("requires Claude Code v2.1.236 or later", line 1999). Basis, lines
-   2019 to 2021: "Claude Code caps the notes for one tool call at 2,000 characters and truncates the
-   rest. The cap is shared across every hook that responds to that call"; "Claude Code ignores the
-   field in the response of a hook that runs in the background"; "the classifier's transcript omits
-   read-only lookups such as file reads and searches. Claude Code discards a note attached to one
-   of those calls". As of 2026-09-05. Recheck trigger: the re-fetch finds the 2,000 figure, the
-   sharing rule, or the event list for the field changed. Why this doc records it: a 2026-09-04
-   peer review read the 2,000-character shared cap as the `additionalContext` cap and filed the
-   typos-format 8,000-character self-cap as a bug; the report was withdrawn on this reading of the
-   page, and this is where the next reader should find the answer. The field is not a fourth
-   surface for this convention: it reaches the classifier, never the user or the model, so it
-   changes nothing about which channel a fleet hook writes a notice to. No fleet hook emits it
-   today, and a `PreToolUse` guard cannot: the page lists it under `PostToolUse` only.
+3. **`classifierContext` is not a fourth surface, and its cap governs neither channel above.** It
+   is a `PostToolUse` field addressed to the auto-mode classifier, never the user or the model, so
+   it changes nothing about which channel a fleet hook writes a notice to. No fleet hook emits it
+   today, and a `PreToolUse` guard cannot. Why this doc records it: a 2026-09-04 peer review read
+   the classifier note's shared cap as the `additionalContext` cap and filed the typos-format
+   8,000-character self-cap as a bug; the report was withdrawn on this reading of the page, and
+   this is where the next reader should find the answer.
+   - **Pointer**: for the field and its limits, see
+     <https://code.claude.com/docs/en/hooks#annotate-a-result-for-the-auto-mode-classifier>.
+   - **As of**: 2026-09-05
+   - **Recheck trigger**: that section changes the field's cap, its sharing rule, or the events
+     that accept it.
 
 ### 3. OTel-style telemetry envelope
 
@@ -215,20 +216,51 @@ skipped-for-cause). A pure inapplicability short-circuit before any check logic 
 type, excluded path, missing prerequisite) does not need one; see the Conformance section below
 for the precise rule and why.
 
-**Why a local file sink, not a real OTel exporter.** Claude Code strips every `OTEL_*` exporter
-environment variable from hook subprocesses it spawns
-(<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>), so a hook process
-cannot emit real OpenTelemetry even if it tried. The file-sink envelope is the only telemetry
-surface available to a hook; this is a grounded constraint, not an oversight.
+**Why a local file sink, not a real OTel exporter.** A hook process does not receive the session's
+`OTEL_*` exporter configuration, so it cannot emit real OpenTelemetry. The file-sink envelope is
+the only telemetry surface we give a hook; this is a constraint, not an oversight. Pointer: for
+which subprocesses get no `OTEL_*` variables, see
+<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>. As of: 2026-10-01.
+Recheck trigger: that section starts passing `OTEL_*` variables to hook subprocesses.
 
-**Deferred: `prompt_id` correlation.** Hook input JSON carries a `prompt_id` field (Claude Code
-v2.1.196+) that matches the `prompt.id` attribute on real OpenTelemetry events, which would let
-external tooling correlate a hook's local envelope with the same turn's real OTel stream. Adding
-it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every producer's
-`data_json` construction, out of scope for this doc's three-surface convention.
+**Deferred: `prompt_id` correlation.** Carrying the hook input's `prompt_id` in the envelope would
+let external tooling correlate a hook's local envelope with the same turn's real OTel stream.
+Adding it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every
+producer's `data_json` construction, out of scope for this doc's three-surface convention.
+Pointer: for the field, see <https://code.claude.com/docs/en/hooks#common-input-fields>. As of:
+2026-10-01. Recheck trigger: that table drops the field or its OpenTelemetry match.
 melodic-software/claude-code-plugins#930 is closed: the per-session event log (`harness-ops`,
 melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
 promotion is tracked at melodic-software/claude-code-plugins#3758.
+
+## Text a hook adds for the model: frequency and phrasing
+
+A hook's `additionalContext` on a tool event lands beside the tool result, where untrusted tool
+output also arrives. We treat agent-channel text that repeats often or tells the model what to do
+as a prompt-injection risk, both for the hook's own text and for a genuine user message that
+arrives in the same place. Two rules follow.
+
+- **Frequency.** Emit agent-channel text only when it changes what the model does next: a finding,
+  a state transition, or a missing prerequisite under the repeat-notice latch above. A check that
+  ran clean says nothing on the agent channel; its outcome goes to the telemetry envelope. A fleet
+  hook adds no per-call status line, no reminder repeated on every tool call, and no countdown or
+  budget line after tool results.
+- **Phrasing.** Write facts with their source, never orders. Name the hook, what it observed, and
+  where (`typos-format: 2 misspellings in docs/a.md:12`), and state a remedy as a fact about the
+  project (`markdownlint: README.md:40 is 131 characters; this repo wraps markdown at 100`). Hook
+  text claims no authority it lacks
+  (system, administrator, user) and never presents itself as a message from the user.
+
+This section is documentation only: it measures no hook's emission rate and moves no hook to a
+different event.
+
+- **Pointer**: for where `additionalContext` lands and how to phrase it, see
+  <https://code.claude.com/docs/en/hooks#add-context-for-claude>; for the model behavior behind
+  the risk, see
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: either section changes where hook text lands or how the model treats text
+  that arrives beside tool results.
 
 ## What this convention is not
 
@@ -246,11 +278,11 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
   model can act on is itself a conformance defect (redundant user noise, or misrouting
   agent-actionable content to the user channel).
 - **Not a UI feature, but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
-  exist and one of them carries hook output: "Async hook completion notifications are suppressed by
-  default. To see them, enable verbose mode with `Ctrl+O` or start Claude Code with `--verbose`"
-  (hooks reference, verified 2026-08-11). Alongside it are the `verbose` and `viewMode` settings,
-  the `--verbose` flag, `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and
-  `--include-hook-events` for the stream-json event feed.
+  exist, and the hooks reference names one that carries background-hook output. Pointer: for that
+  surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. As of: 2026-08-11.
+  Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
+  `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and `--include-hook-events` for
+  the stream-json event feed.
 
   The rule this doc needs does not depend on what those surfaces are, only on what an author may
   assume: **every one of them is off unless the consumer turned it on, and none of them changes
@@ -286,10 +318,9 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
   > The counts above illustrate that error and support no rule: nothing in this doc's rules
   > depends on how many pages carry the word. They are deliberately floored ("at least 13") and
   > need no recheck, since a count that only ever grows cannot falsify the point it illustrates. The
-  > one claim here that the rules *do* rest on is the quoted `Ctrl+O` / `--verbose` sentence
-  > (basis: <https://code.claude.com/docs/en/hooks>, rung-1 raw-markdown read, 2026-08-11), and it
-  > argues **for** the rule rather than against it, so its recheck trigger is the one on the
-  > paragraph above.
+  > one fact here that the rules *do* rest on is the background-hook surface the pointer above
+  > names, and it argues **for** the rule rather than against it, so its recheck trigger is the one
+  > on the paragraph above.
 
 ## Conformance
 
@@ -319,9 +350,12 @@ Fleet audits check, per wired producer hook:
   (wrong tool type, excluded path, empty content, outside the project) that fires before any
   check logic runs carries no diagnostic information and does not need one. This matches how
   every current telemetry-emitting hook in the fleet is already shaped.
+- Agent-channel text follows the frequency and phrasing rules in
+  [Text a hook adds for the model](#text-a-hook-adds-for-the-model-frequency-and-phrasing). Not
+  mechanically gated, but reviewed per hook.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
 above). A bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
-per the fresh fetch above), even though the gate does not yet reject it. After that correction, a
+per the exit-code caveat above), even though the gate does not yet reject it. After that correction, a
 quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.

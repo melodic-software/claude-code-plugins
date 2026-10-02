@@ -17,23 +17,12 @@ different question about the same surface:
 The instruction/memory-layer *hygiene* question (is `CLAUDE.md` too long, well-placed, free of
 inferable content) is owned by the `audit` skill in the separate `harness-memory` plugin;
 `audit-instructions` here owns the distinct *capability* question (do these instructions still fit
-what current models need) and routes memory-layer hygiene findings to `harness-memory:audit`. See
-"Migrating from `claude-config-audit`" below if you relied on the old `memory-health` skill here.
+what current models need) and routes memory-layer hygiene findings to `harness-memory:audit`.
 
 Boundary: `harness-memory` owns the health of `CLAUDE.md`, `AGENTS.md`, `CLAUDE.local.md`,
 `.claude/rules/` and auto-memory (structure, size, placement, index integrity); `audit-instructions`
 here judges whether instruction text across those files and skills, agents and hooks still fits the
 current model, and runs no memory-file hygiene checks.
-
-## Migrating from `claude-config`, `claude-memory` and `claude-ops`
-
-These plugins were renamed `harness-config`, `harness-memory` and `harness-ops` because
-`claude plugin validate` rejects third-party names starting `claude-`. The marketplace `renames` map
-rewrites the old keys in `enabledPlugins` and `pluginConfigs` at your next session (Claude Code
-2.1.193 or later). Run `/plugin install <new-name>@melodic-software` once per plugin, and replace
-`/claude-config:*`, `/claude-memory:*` and `/claude-ops:*` invocations with the new prefix. Data
-under `~/.claude/plugins/data/<old-name>-melodic-software/` is not moved for you: move it to
-`<new-name>-melodic-software/` before uninstalling the old plugin, which deletes that directory.
 
 All default to report-only; mutations (`--fix`, `--implement`) require explicit opt-in and per-item
 user approval. `audit-permission-grants` is report-only (its correct remediation is operator-manual).
@@ -244,23 +233,6 @@ first shipper is this marketplace's `guardrails` plugin.
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install harness-config@melodic-software
-```
-
-## Migrating from `claude-config-audit`
-
-The marketplace's `renames` map still carries a historical `claude-config-audit` →
-`claude-config` entry, chained to `harness-config`, so settings that name the old plugin id resolve
-to this one at your next session. No action is needed for `audit`, `audit-automation-gaps`, and
-`audit-permission-grants`. The map is append-only and takes only renames upstream forces (see the
-[migration playbook](../../docs/migration-playbook.md#version-pinning-and-update-delivery)).
-
-The `memory-health` skill did **not** move to `harness-config`. It was extracted into the new,
-separate `harness-memory` plugin (now its `audit` skill). The rename only rewrites the `claude-config-audit`
-plugin key; it does not enable additional plugins, so `harness-memory` is not installed for you
-automatically. If you used `/claude-config-audit:memory-health`, install it explicitly:
-
-```shell
-/plugin install harness-memory@melodic-software
 ```
 
 ## Configuration

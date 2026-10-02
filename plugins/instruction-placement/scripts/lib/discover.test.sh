@@ -407,6 +407,27 @@ ip_index_target_loaded "$alt" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an import from .claude/CLAUDE.md also makes the target reachable" "0" "$?"
 
 # ==========================================================================
+# Entry points on a nested path: the walk migrate's shim rule (condition A)
+# runs for each nested AGENTS.md
+# ==========================================================================
+walk="$(mktemp -d "$TMP/x.XXXX")"
+mkdir -p "$walk/svc/deep/.claude" "$walk/other"
+printf '@AGENTS.md\n' >"$walk/CLAUDE.md"
+printf 'local\n' >"$walk/svc/CLAUDE.local.md"
+printf '@AGENTS.md\n' >"$walk/svc/deep/CLAUDE.md"
+printf 'x\n' >"$walk/svc/deep/.claude/CLAUDE.md"
+printf 'x\n' >"$walk/other/CLAUDE.local.md"
+out="$(ip_entry_points_on_path "$walk" "svc/deep")"
+assert_lists "every entry point from a nested directory to the root is listed, nearest first" \
+  "$walk/svc/deep/CLAUDE.md
+$walk/svc/deep/.claude/CLAUDE.md
+$walk/svc/CLAUDE.local.md
+$walk/CLAUDE.md" "$out"
+assert_has "an intermediate CLAUDE.local.md above a nested AGENTS.md is a blocker on its path" \
+  "$out" "$walk/svc/CLAUDE.local.md"
+assert_lacks "a sibling directory's CLAUDE.local.md is off the path" "$out" "$walk/other/CLAUDE.local.md"
+
+# ==========================================================================
 # Determinism
 # ==========================================================================
 a="$(ip_discover_rules "$repo")"

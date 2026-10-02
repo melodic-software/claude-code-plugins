@@ -710,22 +710,5 @@
         "skill"
       ]
     }
-  ],
-  "renames": {
-    "book-distill": "knowledge",
-    "diagnose": "debugging",
-    "improve-architecture": "architecture",
-    "teach": "education",
-    "review-toolkit": "review",
-    "mcp-tool-audit": "mcp-tools",
-    "codebase-audit": "codebase-health",
-    "claude-config-audit": "claude-config",
-    "boris": "playbooks",
-    "thariq-skills": "playbooks",
-    "fable-5-playbook": "playbooks",
-    "re-anchor": "discipline",
-    "claude-config": "harness-config",
-    "claude-memory": "harness-memory",
-    "claude-ops": "harness-ops"
-  }
+  ]
 }

@@ -21,6 +21,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   declared method, then squash, as an unset value behaved), `squash`, `merge`, and `rebase`. The
   merge wrapper's `--method` accepts `auto` and treats it as unset.
 
+## [0.71.6] - 2026-10-02
+
+### Changed
+
+- **`babysit-loop` documents the lane telemetry sentinel as
+  `<!-- harness-ops:lane-telemetry marker=... -->`,** matching the `harness-ops` and
+  `work-items` writers.
+
 ## [0.71.5] - 2026-10-02
 
 ### Changed

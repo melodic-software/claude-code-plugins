@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.3.0] - 2026-10-02
+## [2.2.0] - 2026-10-02
 
 ### Changed
 
@@ -16,6 +16,97 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - `install_new` (`ask`, `all`, `none`) and `skill_usage_scope` (`repo`, `user`, `data-dir`) are
   pickers in `/config`. A value outside the list can no longer be chosen there; one set by hand
   still falls back to the default as before.
+
+## [2.1.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` answers binding lookups with the parser.** The helper's new
+  `binding` op parses a module on first lookup (acorn, then eslint-scope; the last 16 modules
+  stay cached) and returns the variable a name read at an offset resolves to: its declarations,
+  every write, and whether each sits in the module scope, or the imported name, or one implicit
+  global for an undeclared name. `_declaration`, `_binding_value` (and through it
+  `_scoped_constant`) and `_nearest_binding` let the parser pick the variable and keep the regex
+  rule for which of its writes a read sees; `_written_elsewhere` counts a write only when the
+  parser resolves it to the same binding. Finding writes, and every mutation check, stay on the
+  regex reader until P3 of #5640. `--reader=regex` is unchanged and stays the default.
+  `reader.binding_lookups` and `reader.extract_seconds` record the work.
+
+### Fixed
+
+- Under `--reader=parser`, declaration text inside a string, comment or template no longer
+  shadows a write to the outer binding (finding 5 on #5640): `var pY=[...];function f(){"let
+  pY";pY=["B"]}` reads `...pY` as partial instead of the initializer.
+- Every `test_inventory.py` fixture now parses as a module: the four shortcut shapes (an export
+  of an undeclared name, padding run into the next token, adjacent string literals, a bare object
+  literal) are rewritten, and `test_fixture_parse.py` requires all of them to parse.
+- Under `--reader=parser`, a write to a function parameter, a catch parameter or a destructured
+  parameter of the same name no longer counts as a write to an outer binding, so a spread of that
+  binding reads as its literal instead of partial: `var pY=[...];function g(pY){pY=["B"]}` keeps
+  `...pY` literal, as JavaScript does.
+
+### Known issues
+
+- Under `--reader=parser`, a direct `eval` in a module leaves every binding lookup in that module
+  unresolved: eslint-scope marks its scopes dynamic, and `optimistic` stays off because `eval`
+  can rebind names. The regex reader still reads those values. No module in 2.1.284 to 2.1.287 has
+  one; P4 of #5640 weighs it before the parser becomes the default.
+
+## [2.0.2] - 2026-10-02
+
+### Changed
+
+- **The `audit-native-overlap` bake step writes the links-only record shape.** A reference it bakes
+  into a skill holds our decision in our words, a pointer to the exact upstream section, the as-of
+  date and the recheck trigger, with no upstream text. A table form uses the header
+  `| Decision | Pointer | As of | Recheck when |` in place of `| Claim | Basis | Recheck trigger |
+  Verified |`, and the skill's own two upstream dependencies are restated in that form.
+- **The `known-issues`, `observability` and `plugins` records follow the same shape.** The model
+  fallback and quality-tracker notes, the hook-latency event record and the plugin scope
+  semantics each state our decision and point at the docs section or at our own probe, instead of
+  restating the page.
+- **The `known-issues` model-fallback note was re-read after its trigger fired.** It now covers a
+  refusal when a flagged category has no fallback target, with a 2026-10-01 as-of date.
+- `observability` points its latency record at the documented `hook_execution_complete` event and
+  keeps only the string-typed duration as our probe. `plugins` scope-semantics treats `--force` as
+  the answer to the MCP or LSP reload warning only, and records that the reference now offers a
+  fixed-options list for `userConfig` and when we adopt it. Two cloud-sessions links in `audit-
+  native-overlap` follow the docs site's new heading ids.
+
+## [2.0.1] - 2026-10-02
+
+### Fixed
+
+- **`audit-native-overlap` detect reads seeded pairs and dismissals against the registration it
+  scores.** The native index that seeded pairs and dismissal drift read replaced a filtered
+  (empty or `internal`) entry only with a built-in plugin component, and walked the lanes in a
+  different order from scoring. It now holds the first entry that is not filtered, in scoring
+  lane order, so an internal bundled skill followed by a built-in command and a built-in plugin
+  component of the same name resolves to the command in both. A name scored in two lanes now
+  reports the pair from its first lane, the one the index holds, instead of the last. On the
+  2.1.287 extraction the only change is the seeded `fork` pair's score (0.0448 to 0.057), now
+  read from the built-in command its verdict names rather than the built-in agent of the same
+  name; every count is unchanged.
+
+## [2.0.0] - 2026-10-02
+
+### Changed
+
+- **BREAKING: every remaining `claude-ops` name is now `harness-ops`.** The lane telemetry
+  sentinel is `<!-- harness-ops:lane-telemetry marker=... -->` and the restart consumer's
+  marker is `harness-ops:restart-consumer`; a comment posted under the old marker is no longer
+  found, and a new one is written. The environment variables are `HARNESS_OPS_LANES_CONFIG`,
+  `HARNESS_OPS_CHANGELOG_LEDGER`, `HARNESS_OPS_CHANGELOG_CAP_RELEASES` and
+  `HARNESS_OPS_CHANGELOG_CAP_ITEMS`; the `CLAUDE_OPS_*` names are not read. The shared shell
+  helpers are `harness_ops::*`. The restart consumer's Windows scheduled task is
+  `HarnessOps Lane Restart Consumer`; delete a task registered under the old `ClaudeOps` name
+  and register it again from `restart-consumer.sh print-schedule`.
+- **`morning-brief` reads only lane comments that open with the
+  `<!-- harness-ops:lane-telemetry marker=... -->` sentinel,** so a comment left under an older
+  sentinel is not reported as a second, stale row for its lane.
+- **BREAKING: `probe-observability-state.sh --otel-store` recognizes only the `harness-ops@`
+  plugin key.** A prune task whose launcher still names `claude-ops@` reports `stale path`;
+  rerun the provisioning apply (melodic-software/provisioning#670).
 
 ## [1.2.0] - 2026-10-02
 

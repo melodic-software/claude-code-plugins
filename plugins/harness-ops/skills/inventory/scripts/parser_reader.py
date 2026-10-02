@@ -209,6 +209,10 @@ class ParserReader:
         env = dict(os.environ, NODE_PATH=str(target / "node_modules"))
         self._stderr = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
         self._next_id = 0
+        self._keys: dict[tuple[int, int, int], tuple[str, str]] = {}
+        self._answers: dict[
+            tuple[int, int, str, int | None], dict[str, Any] | None
+        ] = {}
         try:
             self._proc = subprocess.Popen(
                 [node, str(HELPER)],
@@ -260,6 +264,57 @@ class ParserReader:
     def parse_ok(self, source: str) -> tuple[bool, str | None]:
         res = self.request("parse_ok", source=source)
         return bool(res["parsed"]), res.get("error")
+
+    def binding(
+        self, src: str, lo: int, hi: int, name: str, offset: int | None
+    ) -> dict[str, Any] | None:
+        """The variable `name` read at `offset` resolves to in the module
+        `src[lo:hi]`, or its module-scope variable when `offset` is None.
+
+        Offsets in and out are positions in `src`. None when the name is
+        undeclared there or the module does not parse, and for a module
+        holding a character outside the Basic Multilingual Plane, where the
+        helper's UTF-16 offsets stop matching Python's (a bundle read as
+        latin1 never holds one). Answers are memoized per reader.
+        """
+        module = self._module_key(src, lo, hi)
+        key = (id(src), lo, name, offset)
+        if key in self._answers:
+            return self._answers[key]
+        fields: dict[str, Any] = {"module": module, "name": name}
+        fields.update({"top": True} if offset is None else {"offset": offset - lo})
+        res = self.request("binding", **fields)
+        if res.get("need_source"):
+            text = src[lo:hi]
+            if any(ord(c) > 0xFFFF for c in text):
+                res = {"found": False}
+            else:
+                res = self.request("binding", source=text, **fields)
+        answer = None
+        if res.get("found") and res["kind"] == "import":
+            answer = {"kind": "import", "imported": res["imported"]}
+        elif res.get("found"):
+            answer = {
+                "kind": res["kind"],
+                "defs": [(t, n + lo, s + lo, top) for t, n, s, top in res["defs"]],
+                "writes": [(w + lo, top) for w, top in res["writes"]],
+            }
+        self._answers[key] = answer
+        return answer
+
+    @property
+    def lookups(self) -> int:
+        """Distinct binding lookups answered so far."""
+        return len(self._answers)
+
+    def _module_key(self, src: str, lo: int, hi: int) -> str:
+        """A name for the module the helper caches it under. `src` is held
+        here, so its id is not reused while the key stands."""
+        held = (id(src), lo, hi)
+        if held not in self._keys:
+            digest = hashlib.sha256(src[lo:hi].encode("utf-8", "surrogatepass"))
+            self._keys[held] = (src, f"{hi - lo}:{digest.hexdigest()[:16]}")
+        return self._keys[held][1]
 
     def close(self) -> None:
         if self._proc.stdin:
