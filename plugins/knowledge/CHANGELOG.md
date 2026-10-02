@@ -35,7 +35,8 @@ only after that version increases.
   longer credits a `~15m` row to region 5.
 - `video-digest` now extracts an extra frame inside any stretch between timed frames longer than
   `maxFrameGapSec` (60 s by default, `run-watch.js --max-frame-gap-sec` per run), including the
-  start and end of the video. `watch.json` and `coverage-plan.json` record the value, so
+  start and end of the video. Gaps are measured over every timed frame examined, before dedup,
+  so an unchanged slide whose frames dedup dropped is not refilled. `watch.json` and `coverage-plan.json` record the value, so
   `run-watch.js --recover` plans with the run's own gap (an older slice without it gets the
   default); `SKILL.md` and `watch-pipeline.md` list the flag. The coverage-plan rationale names
   stratified sampling only when that pass runs.

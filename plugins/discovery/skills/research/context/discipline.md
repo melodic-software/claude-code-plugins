@@ -306,8 +306,10 @@ A claim is single-publisher when every Tier 0/1 source behind it shares one `poo
 
 - **Worded as an attribution.** The claim reads "<publisher> states ...", never as a bare fact, in the sidecar, the evidence table and the answer.
 - **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabeled, and the verifier fails it on criterion 4.
-- **At most MEDIUM, never accepted.** Report it under Gaps labeled `single-publisher (<pool>)`, with its fetch-log entry and date. More searching cannot close it.
-- **Independent measurements sit beside it.** A third party that measured the same thing is listed next to it, and a disagreement between them is a Conflicts entry.
+- **At most MEDIUM, never accepted.** Report it under Gaps labeled `single-publisher (<pool>)`, with its fetch-log entry and date. More of the publisher's own pages cannot close it; an
+  independent Tier 0/1 source outside the subject pool (your own run of the tool, a third party's
+  measurement) can, because the claim then no longer fits the definition.
+- **Independent measurements sit beside it.** A Tier 2 third party that measured the same thing is listed next to it, and a disagreement between them is a Conflicts entry.
 
 ## Joint-inference check
 

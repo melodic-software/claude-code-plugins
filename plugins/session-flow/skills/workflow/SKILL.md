@@ -113,8 +113,9 @@ to carry on, the *mechanism* question is separate from the *next stage* question
 `/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
 its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
 context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
-skip this, the default is simply to continue. Mid-stage on the same task with a bloated window,
-the route is `/compact <focus>`, typed by the user.
+skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
+too: on the same task it usually lands on `/compact <focus>`, typed by the user, but its earlier
+questions (two failed corrections, an already-compacted run that is degrading) come first.
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license

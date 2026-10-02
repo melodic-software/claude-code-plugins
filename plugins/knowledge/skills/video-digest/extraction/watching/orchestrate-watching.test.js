@@ -278,6 +278,55 @@ describe("orchestrateWatching", () => {
     expect(requested.filter((t) => t > 100 && t < 300).length).toBeGreaterThan(0);
   });
 
+  it("does not refill a static stretch whose frames dedup dropped", async () => {
+    // Timed scene frames every 50s across 300s, all of one unchanged slide: the
+    // deduplicator keeps only the first. The screen was seen every 50s, so no
+    // gap-fill extraction may follow the anchor pass.
+    const keepFirstDedup = vi.fn(async (inputs) => {
+      const frames = inputs.map((input) => ({ ...input }));
+      const unique = frames.slice(0, 1);
+      return { frames, unique, total: frames.length, duplicates: frames.length - 1 };
+    });
+    const extractAnchorFrames = vi.fn(async (_videoPath, _dir, timestampsSec) =>
+      timestampsSec.map((t) => ({
+        path: `/tmp/anchor_${t}.png`,
+        file: `anchor_${t}.png`,
+        timestampSec: t,
+      })),
+    );
+    await orchestrateWatching(
+      {
+        videoPath: "/tmp/video.mp4",
+        framesDir: "/tmp/frames",
+        contactSheetsDir: "/tmp/sheets",
+        cues: [],
+      },
+      {
+        extractSceneFrames: vi.fn(async () => ({
+          method: "scene-detection",
+          count: 7,
+          sceneCount: 7,
+          frames: [0, 50, 100, 150, 200, 250, 300].map((t) => ({
+            path: `/tmp/scene_${t}.png`,
+            file: `scene_${t}.png`,
+            timestampSec: t,
+          })),
+        })),
+        deduplicateFrames: keepFirstDedup,
+        createContactSheet: vi.fn(async (paths, outputPath) => ({
+          outputPath,
+          inputPaths: paths,
+          frameCount: paths.length,
+        })),
+        probeVideoDuration: vi.fn(async () => ({ durationSec: 300, formatName: "mp4" })),
+        extractAnchorFrames,
+        log: { info: vi.fn(), warn: vi.fn() },
+      },
+    );
+
+    expect(extractAnchorFrames.mock.calls.length).toBeLessThanOrEqual(1);
+  });
+
   it("uses a caller's maximum gap in place of the default", async () => {
     const { state, requested } = await watchSparseScenes({ maxFrameGapSec: 250 });
 

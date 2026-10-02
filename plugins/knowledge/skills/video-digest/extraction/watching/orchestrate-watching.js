@@ -102,8 +102,10 @@ export async function orchestrateWatching(
   ]);
   const dedupResult = await runDedup(mergedCandidates, {}, { log });
 
+  // Gaps are measured over every timed frame examined, before dedup: a frame dedup dropped
+  // still shows the screen at that time, so a static stretch is covered, not a gap to refill.
   const fillTimestamps = gapFillTimestamps(
-    dedupResult.unique.flatMap(({ timestampSec }) =>
+    [...sceneResult.frames, ...anchorFrames].flatMap(({ timestampSec }) =>
       timestampSec != null && Number.isFinite(timestampSec) ? [timestampSec] : [],
     ),
     durationSec,
