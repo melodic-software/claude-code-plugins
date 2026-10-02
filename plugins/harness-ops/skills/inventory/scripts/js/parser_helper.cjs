@@ -29,10 +29,11 @@
 //     compound, update, destructure, for-in-of, plus a function or class
 //     declaration of the same name as kind declaration. `mutations` are
 //     the reads that may change the value, which is every read except a
-//     spread into an array or call and a member read used as a value:
-//     member-write (`x.y=`, `x[i]++`, `[x.y]=`), member-delete
-//     (`delete x.y`), method-call (any call along a member chain rooted at
-//     the variable), object-assign (`Object.assign(x,...)`), call-argument
+//     spread into an array or call and a member read in a value-only
+//     position (`valueOnly`): member-write (`x.y=`, `x[i]++`, `[x.y]=`),
+//     member-delete (`delete x.y`), method-call (a member chain rooted at
+//     the variable as the callee of a call, `new` or tagged template),
+//     member-escape (a member read in any other position), object-assign (`Object.assign(x,...)`), call-argument
 //     (passed directly to any call, `new` or tagged template), and escape
 //     (anything else: an alias, a literal holding it, a return, an operand,
 //     `await`, a loop iterable, a destructuring source, an export).
@@ -259,6 +260,60 @@ function forwards(holder, node) {
   }
 }
 
+function isCallee(holder, node) {
+  switch (holder?.type) {
+    case "CallExpression":
+    case "NewExpression":
+      return holder.callee === node;
+    case "TaggedTemplateExpression":
+      return holder.tag === node;
+    default:
+      return false;
+  }
+}
+
+// Whether `holder` only reads the value of its child `node`: the member
+// read is then a value, never invoked or written through. Any position not
+// listed counts as an escape.
+function valueOnly(holder, node) {
+  switch (holder?.type) {
+    case "BinaryExpression":
+    case "TemplateLiteral":
+    case "ExpressionStatement":
+    case "ReturnStatement":
+    case "ArrayExpression":
+    case "SpreadElement":
+      return true;
+    case "UnaryExpression":
+      return holder.operator !== "delete";
+    case "IfStatement":
+    case "WhileStatement":
+    case "DoWhileStatement":
+    case "ForStatement":
+    case "ConditionalExpression":
+      return holder.test === node;
+    case "SwitchStatement":
+      return holder.discriminant === node;
+    case "SwitchCase":
+      return holder.test === node;
+    case "MemberExpression":
+      return holder.computed && holder.property === node;
+    case "VariableDeclarator":
+      return holder.init === node;
+    case "AssignmentExpression":
+      return holder.operator === "=" && holder.right === node;
+    case "Property":
+      return holder.value === node && !holder.computed;
+    case "CallExpression":
+    case "NewExpression":
+      return holder.arguments.includes(node);
+    case "ArrowFunctionExpression":
+      return holder.body === node;
+    default:
+      return false;
+  }
+}
+
 // How a read of `id` may change the value it reads, or null when it cannot.
 // Only two shapes are known safe: a spread into an array or a call, which
 // copies the elements, and a member read whose result is used as a value.
@@ -276,18 +331,19 @@ function mutationKind(parents, id) {
   }
   if (!parent) return "escape";
   if (member) {
-    // Any method may return the receiver (`x.valueOf().push()`), and a
-    // method read can reach the call through an operand (`(0,x.push)()`).
-    let callee = node;
-    let holder = parent;
-    while (forwards(holder, callee)) {
-      callee = holder;
-      holder = parents.get(holder);
-    }
-    if (holder?.type === "CallExpression" && holder.callee === callee) return "method-call";
     if (parent.type === "UnaryExpression" && parent.operator === "delete") return "member-delete";
     if (parent.type === "UpdateExpression" || isTarget(parents, node)) return "member-write";
-    return null;
+    // A method read can reach its call through an operand (`(0,x.push)()`).
+    let value = node;
+    let holder = parent;
+    while (forwards(holder, value)) {
+      value = holder;
+      holder = parents.get(holder);
+    }
+    // Any method may change the array or return it (`x.valueOf().push()`),
+    // whether called, tagged or constructed.
+    if (isCallee(holder, value)) return "method-call";
+    return valueOnly(holder, value) ? null : "member-escape";
   }
   if (parent.type === "SpreadElement") {
     const holder = parents.get(parent)?.type;

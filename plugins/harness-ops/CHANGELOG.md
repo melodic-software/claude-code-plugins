@@ -11,9 +11,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
   a write (init, assign, compound, update, destructure, for-in-of), a function or class
   declaration of the same name, and every read that may change the value. Only two reads are
-  known safe: a spread into an array or a call, and a member read used as a value (`x.length`,
-  `x[0]`). Every other read counts, by kind: a member write or `delete`, any method call (a method
-  may return the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  known safe: a spread into an array or a call, and a member read in a listed value-only position
+  (`x.length` as an operand, a condition, an argument or an initializer; any other position counts
+  as an escape). Every other read counts, by kind: a member write or `delete`, any method call,
+  whether called, optionally called, tagged (`` x.pop`a` ``) or constructed (a method may return
+  the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
   call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
   a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
   an export). Each comes with its kind and offset. A module that calls `eval` directly answers

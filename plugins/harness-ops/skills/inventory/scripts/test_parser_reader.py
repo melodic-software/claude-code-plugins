@@ -356,6 +356,21 @@ class TestWritesQuery(unittest.TestCase):
             ],
         )
 
+    def test_a_member_read_is_safe_only_in_a_value_only_position(self) -> None:
+        src = (
+            "var pY=[1];pY.pop`x`;new pY.c();pY.pop?.();x=await pY.pop;"
+            "if(pY.length)f(pY[0],`${pY.a}`);o={k:pY.b};"
+        )
+        self.assertEqual(
+            self._kinds(src, "mutations"),
+            [
+                ("method-call", "pY.pop`x"),
+                ("method-call", "pY.c();p"),
+                ("method-call", "pY.pop?."),
+                ("member-escape", "pY.pop;i"),
+            ],
+        )
+
     def test_a_function_declaration_of_the_name_is_a_write(self) -> None:
         src = "function hL(e){function e(){}return e}"
         got = self.reader.writes(src, 0, len(src), "e", src.index("{"))

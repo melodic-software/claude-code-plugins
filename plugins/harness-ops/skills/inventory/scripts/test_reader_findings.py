@@ -155,6 +155,15 @@ class TestOpenFindings(unittest.TestCase):
             ("Object.assign(pY,[xt])", INITIAL),
             ("new G(pY)", INITIAL),
             ("t`${pY}`", INITIAL),
+            # #5828 review: a member chain as a tagged-template tag, a `new`
+            # callee or an optional call, and through call/apply/bind.
+            ("pY.pop`x`", INITIAL),
+            ("new pY.constructor(1)", INITIAL),
+            ("pY.pop?.()", INITIAL),
+            ("pY.pop.call(xt)", INITIAL),
+            ("pY.pop.apply(xt,[])", INITIAL),
+            ("var p=pY.pop.bind(xt)", INITIAL),
+            ("(await pY.pop)()", INITIAL),
         ):
             with self.subTest(mutation=mutation):
                 self.assert_pinned(
