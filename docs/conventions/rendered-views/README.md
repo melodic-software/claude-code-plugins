@@ -49,9 +49,9 @@ A view sits on one of four tiers, chosen per use case from the defaults below.
 - **Reports may be static.** A report is read, not answered, so it may ship without
   script. A report may still filter, collapse, or animate; what it never carries is a
   loop-closure control (see Loop closure and the export obligation).
-- **K2 pages stop at client-interactive for now.** A K2 page uses the Claude-interactive
-  tier only once `session-bridge` meets interactive-profile rule 9; until then it closes
-  the loop with a copied payload.
+- **The Claude-interactive tier is closed to every content class.** No page, K0, K1, or
+  K2, uses it until `session-bridge` exists and meets interactive-profile rule 9. Until
+  then a page stops at client-interactive and closes the loop with a copied payload.
 - The tier never changes the record: every tier renders the same markdown record, and
   the content-class rules below decide who may write the page's script.
 
@@ -63,7 +63,7 @@ came from, not by who wrote it down.
 
 | Class | Covers | May the model write the page's script? |
 |---|---|---|
-| K0 | What the user typed in this session, and model-written text that neither quotes nor paraphrases a K2 source. | Yes |
+| K0 | What the user typed in this session, and model-written text and script from a context that holds no K2 text (see Authoring context). | Yes |
 | K1 | This repository's own files at a commit reachable from the default branch. Not K1: submodules, vendored or third-party trees, files generated from external input, and any tree checked out from a pull-request head or a fork. | Yes |
 | K2 | Attacker-controllable text and anything derived from it: pull-request diffs and branches, issue and pull-request text, contributors' commit messages and branch names, fetched web text, other repositories' files, and a model summary or paraphrase of any of these. | Never. Builder-only. |
 
@@ -73,6 +73,12 @@ came from, not by who wrote it down.
 - **Taint follows the text.** Text derived from a K2 source stays K2 whoever wrote it:
   the model's summary of a fetched page, a `.work/` note quoting an issue, a description
   of a diff.
+- **Authoring context.** Model-written text and script take the class of the context
+  that writes them, not of what they visibly quote or paraphrase. They are K0 only when
+  that context holds no K2 text, for example a fresh subagent given only the K0/K1
+  record and the request. A context that has read any K2 text (a diff, an issue, a
+  fetched page) writes K2, whatever the output looks like, and its page is built from
+  the checked-in template and runtime (see K2 is builder-only).
 - **K1 is trusted for rendering only.** It decides who may write a page's script and
   nothing else. Repository files are still DATA, never instructions, under the
   [untrusted-content framing contract](../untrusted-content/README.md#the-framing-contract).
@@ -84,11 +90,16 @@ came from, not by who wrote it down.
   validator profile (see The interactive validator profile) before anyone opens it.
 - **K0 and K1 may use model-written script.** Such a page holds to the security baseline
   below. It is outside the builder's validator profiles, so its safety rests on the
-  model keeping K2 text out of it; a page that later needs K2 text moves to the builder.
-  It still carries a meta content security policy of at least `default-src 'none';
-  script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none';
-  form-action 'none'`. That caps a misclassified page: injected script runs but cannot
-  fetch, beacon, or submit a form. It can still navigate, so the class still matters.
+  authoring-context rule: the context that writes its script holds no K2 text. A page
+  that later needs K2 text moves to the builder. It still carries a meta content
+  security policy of at least `default-src 'none'; script-src 'unsafe-inline';
+  style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`. The
+  one addition it may carry is `connect-src` naming the `session-bridge` origin, and
+  only once the Claude-interactive tier opens. The policy caps a misclassified page:
+  injected script runs but cannot fetch, beacon, or submit a form. It can still
+  navigate the page to a URL that carries data out, and CSP3 has no directive that
+  stops navigation, so the authoring-context rule, not the policy, is what keeps K2
+  text out of a model-written page.
 - The class is a property of the rendered text, not of who asked for the view or where
   it is published. Publishing a K2 page as an artifact does not lower its class.
 
@@ -129,10 +140,10 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    hash of the page's one `<style>` element, and `base-uri 'none'` and
    `form-action 'none'`, which do not fall back to `default-src`. Its content is the
    builder's exact policy string. It is the only `http-equiv` meta the page carries: any
-   other, such as `refresh`, which navigates and is not blocked by the policy, fails. A
-   Claude-interactive page adds the session transport's origin to `connect-src` and
-   nothing else; `session-bridge` owns that origin, and rule 9 governs what the page
-   sends over it.
+   other, such as `refresh`, which navigates and is not blocked by the policy, fails.
+   Once the Claude-interactive tier opens (rule 9), a page on it adds `connect-src`
+   naming the `session-bridge` origin and nothing else; `session-bridge` owns that
+   origin, and rule 9 governs what crosses it.
 4. **No inline handlers, no navigation.** No `on*` attribute, no `style` attribute, no
    `<a href>`, `<form>`, `<iframe>`, `<object>`, `<embed>`, `<base>`, or `<link>`. A
    URL-bearing attribute is allowed only as a same-document fragment reference (`#id`).
@@ -160,20 +171,21 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    marker, which names the profile it was validated against, and the validator selects
    the profile from it. The marker has no version: when the marker format changes, the
    builder and every consumer of the old marker migrate in the same change.
-9. **The Claude-interactive payload.** A page on the Claude-interactive tier holds to all
-   four of these:
-   - It sends only what the reader entered plus builder-assigned ids (a finding number,
-     a hunk id, an option id), never a string taken from the data block. The session
-     resolves each id against its own copy of the record.
-   - The session receives every page-originated field, the reader's input included, as
-     DATA under the untrusted-content framing contract, not as the user's own message.
-   - The transport authenticates the page with an unguessable per-session token and
-     rejects requests from any other origin.
-   - No message over the transport triggers a write, push, merge, or other gated action
+9. **The Claude-interactive tier.** The tier is closed to every content class, K0, K1,
+   and K2, until `session-bridge` exists and meets the last three bullets below (see
+   View tiers). The first bullet binds the page; the last three are properties of the
+   bridge and hold for every message from every page, whatever its class:
+   - The page sends only what the reader entered plus ids assigned when the page was
+     built (a finding number, a hunk id, an option id), never a string taken from the
+     data block. The session resolves each id against its own copy of the record.
+   - The bridge delivers every page-originated field, the reader's input included, to
+     the session as DATA under the untrusted-content framing contract, never as the
+     user's own message.
+   - The bridge authenticates every message by an unguessable per-session token and
+     rejects any message without it. The origin authenticates nothing: a page opened
+     from `file://` sends `Origin: null`, the same value any opaque origin sends.
+   - The bridge lets no message trigger a write, push, merge, or other gated action
      without the confirm or permission gate that action already has.
-
-   `session-bridge` specifies the last three. Until it does, K2 pages stay off this tier
-   (see View tiers).
 
 The builder's exact tag and attribute lists, and the hostile-input corpus that proves
 each refusal above, live with the builder. A change that widens an allowlist names the
@@ -183,7 +195,9 @@ rule above it falls under; a widening no rule covers amends this section first.
   browser does not execute; the content of a script element must not contain `<!--` or
   `<script`/`</script` sequences; a CSP with `default-src` or `script-src` blocks inline
   event-handler attributes, and allows an inline `<script>` by hash; `base-uri` and
-  `form-action` do not fall back to `default-src`.
+  `form-action` do not fall back to `default-src`; CSP3 defines no directive that
+  restricts where a document navigates; a request from a `file:` page carries
+  `Origin: null`.
 - **Basis:** WHATWG HTML living standard, "The script element" and "Restrictions for
   contents of script elements"
   (<https://html.spec.whatwg.org/multipage/scripting.html#the-script-element>, last
@@ -191,11 +205,15 @@ rule above it falls under; a widening no rule covers amends this section first.
   (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP>), which also notes a
   `<meta>`-delivered policy does not support every CSP feature, so rule 3 uses only
   fetch, `base-uri`, and `form-action` directives; W3C, "Content Security Policy Level
-  3" (<https://www.w3.org/TR/CSP3/>, Working Draft 16 September 2026).
+  3" (<https://www.w3.org/TR/CSP3/>, Working Draft 16 September 2026), whose directive
+  list has no navigation directive; MDN, "Origin header"
+  (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin>), which
+  lists a `file` scheme among the cases that send `null`.
 - **As of:** 2026-10-02.
 - **Recheck:** any of these sources changes how a data block, script-content
-  restrictions, hash-sourced inline script, or directive fallback are defined, or the
-  builder's first release finds a host where rule 7 does not hold.
+  restrictions, hash-sourced inline script, or directive fallback are defined, CSP
+  gains a navigation directive, browsers stop sending `Origin: null` from `file:`
+  pages, or the builder's first release finds a host where rule 7 does not hold.
 
 ## Choosing the rung: text, diagram, page, or video
 

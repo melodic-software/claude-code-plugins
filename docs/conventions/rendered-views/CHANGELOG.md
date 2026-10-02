@@ -11,12 +11,16 @@ versioned; this log records each change to it.
   Content classes K0 (session-authored) and K1 (this repo's default-branch files)
   may use model-written script under a minimum CSP; K2 (attacker-controllable
   text, and anything derived from it) is builder-only: a checked-in template plus
-  escaped JSON data. The interactive validator profile is specified for the
-  shared builder, with an exact script-body exemption, `base-uri` and
-  `form-action` set to `'none'`, named SVG refusals, and a Claude-interactive
-  payload rule; K2 pages stay off the Claude-interactive tier until
-  `session-bridge` meets it. New rung guidance says when text beats a diagram, a
-  page, or a video.
+  escaped JSON data. Model-written text and script are K0 only when the context
+  that writes them holds no K2 text; otherwise the page is K2. The interactive
+  validator profile is specified for the shared builder, with an exact
+  script-body exemption, `base-uri` and `form-action` set to `'none'`, named SVG
+  refusals, and a Claude-interactive rule whose framing, token, and gate bullets
+  bind `session-bridge` for every message from every page. The
+  Claude-interactive tier is closed to every class until `session-bridge` exists
+  and meets that rule; the per-session token, not the origin, authenticates a
+  page, since a `file://` page sends `Origin: null`. New rung guidance says when
+  text beats a diagram, a page, or a video.
 - **Three amendments.** The boundary rule now names video and audio as views and
   emits person-facing views interactive by default; dual-audience reports still
   offer. The generator-skill ban becomes "no generic HTML skill; thin
