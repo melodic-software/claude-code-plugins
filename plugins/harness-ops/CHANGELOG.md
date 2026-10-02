@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.1] - 2026-10-02
+
+### Fixed
+
+- `audit-performance` limits the truthiness trap to the observer-agents flag and dates the
+  documented subagent defaults. `lanes` dates the effort row and points at upstream for what
+  `ultracode` does to the effort level.
+
 ## [2.3.0] - 2026-10-02
 
 ### Added

@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.1] - 2026-10-02
+
+### Fixed
+
+- `draft-goal-condition` no longer says `/effort ultracode` sets `xhigh` effort; it points at
+  the workflows page for ultracode's effect on the effort level.
+
 ## [0.60.0] - 2026-10-02
 
 ### Changed

@@ -170,7 +170,7 @@ proportion"). System recall covers only tests the session created or changed (DT
 ### Judge runs and the model sweep
 
 `metrics.sh --sweep` runs the frozen judge over every row for 7 arms: `sonnet` at `low`, `medium`,
-`high` and `xhigh`, and `opus` at `low`, `medium` and `high`. Haiku waits on research gap G8. The
+`high` and `xhigh`, and `opus` at `low`, `medium` and `high`. Haiku is not in the sweep yet; it has no effort levels, so it would join as one arm with no effort setting ([model config](https://code.claude.com/docs/en/model-config#adjust-effort-level), as of 2026-10-02; recheck when Haiku gains effort support). The
 runs go through `judge::run` and `judge::validate`, the functions the hooks use, so the sweep
 scores what a session would see relayed. Each row's verdict is kept in
 `sweep/<model>-<effort>.tsv`, and each run's cost and wall time in `sweep/<model>-<effort>.runs.tsv`.
@@ -214,7 +214,7 @@ arm and recorded in
 
 On every new model in a class, re-run `metrics.sh --sweep` and change the default only when the
 sweep says so: the settings hold class aliases, so a new version needs no code change. Add Haiku
-once G8 confirms its effort support.
+as that single arm.
 
 ## Results
 

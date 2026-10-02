@@ -99,11 +99,12 @@ Because the orchestrator stays on the default branch, **every source-touching op
    frontier routing, dispatches at the frontier tier's current alias, and a run that cannot
    resolve that alias STOPs (autonomously: escalates) rather than dispatching lower, and a session
    whose own model resolves above the binding may pass that model. Never pass a `model` that
-   undercuts the frontmatter binding for source-editing work. (Model resolution order: the
-   per-invocation `model` parameter, then the definition's `model` frontmatter, then
-   `CLAUDE_CODE_SUBAGENT_MODEL` when set to a model alias or id, then the main conversation's model,
-   per <https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified 2026-09-11. Recheck when
-   a release note touches subagent model selection.)
+   undercuts the frontmatter binding for source-editing work. (For the model resolution order, and
+   for `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which overrides both the frontmatter and a per-call
+   `model`, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of 2026-10-02;
+   recheck when that section changes the order or what the force variable overrides. When the force
+   variable is set, report it in the run summary: it is an operator choice, not a reason to refuse
+   dispatch.)
    Dispatch a wave, up to the cap's worker rows from the current phase, and keep working while it
    runs: verify returns from the same phase as they arrive, compose the next brief, and run the
    build/test gate on accepted returns, except under commit authority `orchestrator` in a shared worktree, where the gate runs after the wave settles (see Concurrency). Rows in a shared worktree dispatch one per wave unless commit authority is `orchestrator` (see Gates). Intervene when
@@ -192,5 +193,5 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Shared worktrees follow the one-writer rule.** See Gates and Concurrency
 - **Two well-formed fences can overlap unseen.** See Dispatch cadence item 1.1
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary. Classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
-- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer` and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` routes only upward (frontier-alias for security-surface work, or the session's own higher tier). `CLAUDE_CODE_SUBAGENT_MODEL` ranks below both the per-invocation parameter and the frontmatter, so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
+- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer` and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` routes only upward (frontier-alias for security-surface work, or the session's own higher tier). `CLAUDE_CODE_SUBAGENT_MODEL` alone cannot undercut the binding, but `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides it and every per-call `model`; see the resolution-order pointer in the dispatch step, and report the force variable when it is set rather than refusing to dispatch
 - **An omitted `--wave-cap` with the operator option unset keeps the internal 3–5. Never coerce an absent value into a number.** See Arguments
