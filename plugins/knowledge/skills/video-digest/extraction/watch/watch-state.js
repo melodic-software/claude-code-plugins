@@ -47,6 +47,8 @@ import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-ses
  *   "Synthesis target resolution"), a portable repo name/slug never an absolute local-checkout
  *   path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
+ * @property {number} [maxFrameGapSec] - the coverage plan's maximum gap between timed frames for
+ *   this run (`--max-frame-gap-sec` or the default), recorded at watch start so recovery reuses it
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
  * @property {number} [frameSelection.targetMinFrames]
@@ -81,15 +83,25 @@ export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
  *   to resolve later (out of scope here — see "Synthesis target resolution" in SKILL.md).
  * @param {Record<string, unknown>} [meta.sourceMetadata] - `source:`-prefixed
  *   envelope metadata subset; persisted only when non-empty
+ * @param {number} [meta.maxFrameGapSec] - the run's effective maximum frame gap
  * @returns {WatchState}
  */
-export function createWatchState({ videoId, videoSlug, sourceUrl, title, target, sourceMetadata }) {
+export function createWatchState({
+  videoId,
+  videoSlug,
+  sourceUrl,
+  title,
+  target,
+  sourceMetadata,
+  maxFrameGapSec,
+}) {
   return {
     videoId,
     videoSlug,
     sourceUrl,
     title,
     ...(target ? { target } : {}),
+    ...(maxFrameGapSec === undefined ? {} : { maxFrameGapSec }),
     ...(sourceMetadata && Object.keys(sourceMetadata).length > 0 ? { sourceMetadata } : {}),
     status: "pending",
     phases: {

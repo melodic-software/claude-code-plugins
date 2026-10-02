@@ -76,54 +76,7 @@ describe("recovery frame times", () => {
   });
 
   it("reloads frame times from frame-times.json and leaves frames without a basis untimed", async () => {
-    const workDir = path.join(sliceDir, "work");
-    const framesDir = path.join(sliceDir, "frames");
-    const sheetsDir = path.join(sliceDir, "sheets");
-    for (const dir of [workDir, framesDir, sheetsDir]) await fs.mkdir(dir, { recursive: true });
-
-    await writeWatchState(
-      sliceDir,
-      createWatchState({
-        videoId: "abc123",
-        videoSlug: "slug",
-        sourceUrl: "https://www.youtube.com/watch?v=abc123",
-        title: "T",
-      }),
-    );
-    await fs.writeFile(path.join(workDir, "abc123.mp4"), "");
-    await fs.writeFile(
-      path.join(workDir, "abc123.en.vtt"),
-      "WEBVTT\n\n00:00:00.000 --> 00:01:00.000\nintro\n\n00:01:00.000 --> 00:02:00.000\noutro\n",
-    );
-    await fs.writeFile(
-      path.join(workDir, "abc123.info.json"),
-      JSON.stringify({ id: "abc123", title: "T", description: "" }),
-    );
-    for (const file of [
-      "scene_0001.png",
-      "scene_0002.png",
-      "scene_0003.png",
-      "anchor_00073000_0001.png",
-    ]) {
-      await fs.writeFile(path.join(framesDir, file), "");
-    }
-    await fs.writeFile(
-      path.join(framesDir, "frame-times.json"),
-      JSON.stringify({
-        "scene_0001.png": { timestampSec: 12.5, timestampSource: "scene-detection" },
-        "scene_0002.png": { timestampSec: 47.25, timestampSource: "scene-detection" },
-      }),
-    );
-    await fs.writeFile(path.join(sheetsDir, "sheet_001.jpg"), "");
-
-    const code = await recoverWatchBootstrapCli([
-      "node",
-      "recover-watch-bootstrap.js",
-      sliceDir,
-      workDir,
-      framesDir,
-      sheetsDir,
-    ]);
+    const code = await recoverSeededSlice();
 
     expect(code).toBe(0);
     const selection = JSON.parse(
@@ -140,6 +93,101 @@ describe("recovery frame times", () => {
     });
   });
 });
+
+describe("recovery maximum frame gap", () => {
+  beforeEach(async () => {
+    sliceDir = await fs.mkdtemp(path.join(os.tmpdir(), "recover-gap-"));
+    captured.stderr.length = 0;
+  });
+
+  afterEach(async () => {
+    await fs.rm(sliceDir, { recursive: true, force: true });
+  });
+
+  /** @param {string} lane @param {string} file */
+  async function readSliceJson(lane, file) {
+    return JSON.parse(await fs.readFile(path.join(sliceDir, lane, file), "utf8"));
+  }
+
+  it("plans with the maxFrameGapSec the run recorded and keeps it in watch.json", async () => {
+    expect(await recoverSeededSlice({ maxFrameGapSec: 30 })).toBe(0);
+
+    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(30);
+    expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(30);
+  });
+
+  it("falls back to the 60s default for a slice recorded before the field existed", async () => {
+    expect(await recoverSeededSlice()).toBe(0);
+
+    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(60);
+  });
+
+  it.each([0, "abc"])("falls back to the 60s default for a recorded value of %j", async (value) => {
+    expect(await recoverSeededSlice({ maxFrameGapSec: value })).toBe(0);
+
+    expect((await readSliceJson("key-frames", "coverage-plan.json")).maxFrameGapSec).toBe(60);
+    expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(60);
+  });
+});
+
+/**
+ * Seed `sliceDir` with a recorded watch.json and the temp work, frames and
+ * contact-sheet dirs an interrupted run leaves behind, then run recovery.
+ *
+ * @param {{ maxFrameGapSec?: unknown }} [recorded] - fields the original run recorded
+ * @returns {Promise<number>} the recovery CLI's exit code
+ */
+async function recoverSeededSlice(recorded = {}) {
+  const workDir = path.join(sliceDir, "work");
+  const framesDir = path.join(sliceDir, "frames");
+  const sheetsDir = path.join(sliceDir, "sheets");
+  for (const dir of [workDir, framesDir, sheetsDir]) await fs.mkdir(dir, { recursive: true });
+
+  await writeWatchState(
+    sliceDir,
+    createWatchState({
+      videoId: "abc123",
+      videoSlug: "slug",
+      sourceUrl: "https://www.youtube.com/watch?v=abc123",
+      title: "T",
+      ...recorded,
+    }),
+  );
+  await fs.writeFile(path.join(workDir, "abc123.mp4"), "");
+  await fs.writeFile(
+    path.join(workDir, "abc123.en.vtt"),
+    "WEBVTT\n\n00:00:00.000 --> 00:01:00.000\nintro\n\n00:01:00.000 --> 00:02:00.000\noutro\n",
+  );
+  await fs.writeFile(
+    path.join(workDir, "abc123.info.json"),
+    JSON.stringify({ id: "abc123", title: "T", description: "" }),
+  );
+  for (const file of [
+    "scene_0001.png",
+    "scene_0002.png",
+    "scene_0003.png",
+    "anchor_00073000_0001.png",
+  ]) {
+    await fs.writeFile(path.join(framesDir, file), "");
+  }
+  await fs.writeFile(
+    path.join(framesDir, "frame-times.json"),
+    JSON.stringify({
+      "scene_0001.png": { timestampSec: 12.5, timestampSource: "scene-detection" },
+      "scene_0002.png": { timestampSec: 47.25, timestampSource: "scene-detection" },
+    }),
+  );
+  await fs.writeFile(path.join(sheetsDir, "sheet_001.jpg"), "");
+
+  return recoverWatchBootstrapCli([
+    "node",
+    "recover-watch-bootstrap.js",
+    sliceDir,
+    workDir,
+    framesDir,
+    sheetsDir,
+  ]);
+}
 
 describe("recovery CLI argument validation", () => {
   beforeEach(() => {

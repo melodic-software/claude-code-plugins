@@ -21,6 +21,16 @@ only after that version increases.
   stays untimed and renders as `untimed` rather than 0:00. Scene detection writes the times to
   `frame-times.json` in the temp frames directory, which recovery reloads instead of recomputing
   them, and `selection.json` now carries each frame's time source.
+- `visual-gaps.md` logs a densification window as a gap only when no promoted frame's exact time
+  falls inside it; whole-minute labels are used only for slices with no promoted frames on disk.
+  Each row keeps its `~Nm` region and adds the window's exact bounds, and the outcome check no
+  longer credits a `~15m` row to region 5.
+- `video-digest` now extracts an extra frame inside any stretch between timed frames longer than
+  `maxFrameGapSec` (60 s by default, `run-watch.js --max-frame-gap-sec` per run), including the
+  start and end of the video. `watch.json` and `coverage-plan.json` record the value, so
+  `run-watch.js --recover` plans with the run's own gap (an older slice without it gets the
+  default); `SKILL.md` and `watch-pipeline.md` list the flag. The coverage-plan rationale names
+  stratified sampling only when that pass runs.
 
 ## [0.15.0] - 2026-10-02
 

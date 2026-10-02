@@ -36,12 +36,17 @@ On resume: if companion is unmarked, run 0b before vision even when CLI phases a
 ## CLI bootstrap
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
+node "<skill-dir>/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
 ```
 
 Pass an explicit `--target <repo>` through from the invoking `watch <url> --target <repo>` command.
 It is recorded in `watch.json` (`state.target`) so an interrupted watch's `resume` recovers it
 instead of re-asking (see [Phase 7](#phase-7-synthesis)).
+
+`--max-frame-gap-sec <sec>` sets the longest stretch between timed frames before a gap-fill frame
+is extracted; without it the run uses `MAX_FRAME_GAP_SEC`. The effective value is recorded in
+`watch.json` (`state.maxFrameGapSec`) and `coverage-plan.json`, and `run-watch.js --recover` plans
+with the recorded value.
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:

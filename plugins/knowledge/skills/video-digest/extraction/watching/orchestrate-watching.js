@@ -11,6 +11,7 @@ import { createLogger } from "@melodic/video-digestion/shared/logger";
 import {
   cueAnchorTimestamps,
   densificationAnchorTimestamps,
+  gapFillTimestamps,
   planFrameCoverage,
   stratifiedSampleTimestamps,
 } from "./compute-coverage-plan.js";
@@ -32,6 +33,7 @@ import {
  * @property {string} contactSheetsDir - Temp dir for contact sheets
  * @property {TranscriptCue[]} cues - Parsed transcript cues for densification
  * @property {number} [contactSheetBatchSize=16]
+ * @property {number} [maxFrameGapSec] - Overrides the coverage plan's maximum gap between timed frames
  */
 
 /**
@@ -39,6 +41,8 @@ import {
  *
  * Frames keep the times scene detection measured or estimated and the exact
  * times anchors were extracted at; a frame with neither stays untimed (`null`).
+ * After the second dedup, every stretch longer than the plan's `maxFrameGapSec`
+ * between timed frames gets anchor frames; untimed frames never count as coverage.
  *
  * @param {OrchestrateWatchingOptions} options
  * @param {object} [deps]
@@ -51,7 +55,7 @@ import {
  * @returns {Promise<WatchingSelectionState>}
  */
 export async function orchestrateWatching(
-  { videoPath, framesDir, contactSheetsDir, cues, contactSheetBatchSize = 16 },
+  { videoPath, framesDir, contactSheetsDir, cues, contactSheetBatchSize = 16, maxFrameGapSec },
   {
     extractSceneFrames: runSceneDetect = extractSceneFrames,
     deduplicateFrames: runDedup = deduplicateFrames,
@@ -72,6 +76,7 @@ export async function orchestrateWatching(
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
     sceneCandidateCount: sceneDedup.unique.length,
+    maxFrameGapSec,
   });
 
   /** @type {number[]} */
@@ -97,14 +102,35 @@ export async function orchestrateWatching(
   ]);
   const dedupResult = await runDedup(mergedCandidates, {}, { log });
 
-  const selection = selectFramesForCoverage(dedupResult.unique, {
+  const fillTimestamps = gapFillTimestamps(
+    dedupResult.unique.flatMap(({ timestampSec }) =>
+      timestampSec != null && Number.isFinite(timestampSec) ? [timestampSec] : [],
+    ),
+    durationSec,
+    coveragePlan.maxFrameGapSec,
+  );
+  /** @type {import('@melodic/video-digestion/frames/models').FrameCandidate[]} */
+  let uniqueFrames = dedupResult.unique;
+  if (fillTimestamps.length > 0) {
+    log.info(`watching: gap-fill extraction starting count=${fillTimestamps.length}`);
+    const fillFrames = await runAnchorExtract(videoPath, framesDir, fillTimestamps, { log });
+    uniqueFrames = mergeFrameCandidates([
+      ...dedupResult.unique,
+      ...fillFrames.map((frame) => ({
+        ...frame,
+        timestampSource: /** @type {const} */ ("anchor"),
+      })),
+    ]);
+  }
+
+  const selection = selectFramesForCoverage(uniqueFrames, {
     windows,
     targetMinFrames: coveragePlan.targetMinFrames,
     durationSec,
   });
 
   log.info(
-    `watching: pass-1 complete unique=${dedupResult.unique.length} selected=${selection.selected.length} highVolume=${selection.highVolume}`,
+    `watching: pass-1 complete unique=${uniqueFrames.length} selected=${selection.selected.length} highVolume=${selection.highVolume}`,
   );
 
   log.info("watching: pass-2 starting (contact sheets + interleave)");
@@ -140,7 +166,7 @@ export async function orchestrateWatching(
 
   return {
     sceneFrames: sceneResult.frames,
-    uniqueFrames: dedupResult.unique,
+    uniqueFrames,
     densificationWindows: windows,
     coveragePlan,
     selectedFrames: selection.selected,

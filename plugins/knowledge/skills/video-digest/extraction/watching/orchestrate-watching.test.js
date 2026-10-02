@@ -170,4 +170,118 @@ describe("orchestrateWatching", () => {
     expect(byFile["scene_0003.png"].timestampSec).toBeNull();
     expect(byFile["anchor_0073.png"].timestampSource).toBe("anchor");
   });
+
+  /**
+   * Scene frames at 0s and 200s of a 300s video plus one untimed frame, which
+   * keeps the scene yield high enough that no stratified pass runs, and no cues,
+   * so no densification or cue anchors are planned.
+   *
+   * @param {{ maxFrameGapSec?: number }} [options]
+   */
+  async function watchSparseScenes(options = {}) {
+    const extractAnchorFrames = vi.fn(async (_videoPath, _dir, timestampsSec) =>
+      timestampsSec.map((t) => ({
+        path: `/tmp/anchor_${t}.png`,
+        file: `anchor_${t}.png`,
+        timestampSec: t,
+        isInterval: true,
+      })),
+    );
+    const state = await orchestrateWatching(
+      {
+        videoPath: "/tmp/video.mp4",
+        framesDir: "/tmp/frames",
+        contactSheetsDir: "/tmp/sheets",
+        cues: [],
+        ...options,
+      },
+      {
+        extractSceneFrames: vi.fn(async () => ({
+          method: "scene-detection",
+          count: 3,
+          sceneCount: 3,
+          frames: [
+            { path: "/tmp/scene_0001.png", file: "scene_0001.png", timestampSec: 0 },
+            { path: "/tmp/scene_0002.png", file: "scene_0002.png", timestampSec: 200 },
+            { path: "/tmp/scene_0003.png", file: "scene_0003.png", timestampSec: null },
+          ],
+        })),
+        deduplicateFrames: passThroughDedup(),
+        createContactSheet: vi.fn(async (paths, outputPath) => ({
+          outputPath,
+          inputPaths: paths,
+          frameCount: paths.length,
+        })),
+        probeVideoDuration: vi.fn(async () => ({ durationSec: 300, formatName: "mp4" })),
+        extractAnchorFrames,
+        log: { info: vi.fn(), warn: vi.fn() },
+      },
+    );
+    const requested = extractAnchorFrames.mock.calls.flatMap((call) => call[2]);
+    return { state, requested };
+  }
+
+  it("extracts a frame inside a gap between scene frames longer than the maximum gap", async () => {
+    const { state, requested } = await watchSparseScenes();
+
+    expect(state.coveragePlan.forceStratifiedPass).toBe(false);
+    expect(requested.some((t) => t > 0 && t < 200)).toBe(true);
+    const filled = state.uniqueFrames.find(
+      (frame) => frame.timestampSec > 0 && frame.timestampSec < 200,
+    );
+    expect(filled?.timestampSource).toBe("anchor");
+  });
+
+  it("never counts an untimed frame as coverage of a gap", async () => {
+    // Timed frames at 0s and 100s of 300s leave 100-300s uncovered. The two
+    // untimed frames (null time, and no time field) have no place on the
+    // timeline, so they must not hide that gap.
+    const extractAnchorFrames = vi.fn(async (_videoPath, _dir, timestampsSec) =>
+      timestampsSec.map((t) => ({
+        path: `/tmp/anchor_${t}.png`,
+        file: `anchor_${t}.png`,
+        timestampSec: t,
+      })),
+    );
+    await orchestrateWatching(
+      {
+        videoPath: "/tmp/video.mp4",
+        framesDir: "/tmp/frames",
+        contactSheetsDir: "/tmp/sheets",
+        cues: [],
+      },
+      {
+        extractSceneFrames: vi.fn(async () => ({
+          method: "scene-detection",
+          count: 4,
+          sceneCount: 4,
+          frames: [
+            { path: "/tmp/scene_0001.png", file: "scene_0001.png", timestampSec: 0 },
+            { path: "/tmp/scene_0002.png", file: "scene_0002.png", timestampSec: 100 },
+            { path: "/tmp/scene_0003.png", file: "scene_0003.png", timestampSec: null },
+            { path: "/tmp/scene_0004.png", file: "scene_0004.png" },
+          ],
+        })),
+        deduplicateFrames: passThroughDedup(),
+        createContactSheet: vi.fn(async (paths, outputPath) => ({
+          outputPath,
+          inputPaths: paths,
+          frameCount: paths.length,
+        })),
+        probeVideoDuration: vi.fn(async () => ({ durationSec: 300, formatName: "mp4" })),
+        extractAnchorFrames,
+        log: { info: vi.fn(), warn: vi.fn() },
+      },
+    );
+
+    const requested = extractAnchorFrames.mock.calls.flatMap((call) => call[2]);
+    expect(requested.filter((t) => t > 100 && t < 300).length).toBeGreaterThan(0);
+  });
+
+  it("uses a caller's maximum gap in place of the default", async () => {
+    const { state, requested } = await watchSparseScenes({ maxFrameGapSec: 250 });
+
+    expect(state.coveragePlan.maxFrameGapSec).toBe(250);
+    expect(requested).toEqual([]);
+  });
 });

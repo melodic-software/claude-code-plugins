@@ -18,7 +18,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
+import { MAX_FRAME_GAP_SEC, planFrameCoverage } from "../watching/compute-coverage-plan.js";
 import { normalizeVttCues } from "../watching/cue-normalize.js";
 import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
 import { mergeFrameCandidates } from "../watching/merge-frame-candidates.js";
@@ -48,6 +48,18 @@ export async function resolveRecoverySourceUrl(sliceDir) {
   const state = await readWatchState(sliceDir);
   const sourceUrl = state?.sourceUrl;
   return typeof sourceUrl === "string" && sourceUrl.length > 0 ? sourceUrl : null;
+}
+
+/**
+ * The maximum frame gap the original run recorded in `watch.json`, or the
+ * default for a slice recorded before the field existed.
+ *
+ * @param {string} sliceDir
+ * @returns {Promise<number>}
+ */
+async function resolveRecoveryMaxFrameGapSec(sliceDir) {
+  const recorded = (await readWatchState(sliceDir))?.maxFrameGapSec;
+  return typeof recorded === "number" && recorded > 0 ? recorded : MAX_FRAME_GAP_SEC;
 }
 
 /**
@@ -203,9 +215,11 @@ export async function recoverWatchBootstrapCli(argv) {
   const rawFrames = loadFramesFromDir(framesDir);
   const merged = mergeFrameCandidates(rawFrames);
 
+  const maxFrameGapSec = await resolveRecoveryMaxFrameGapSec(sliceDir);
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
     sceneCandidateCount: merged.length,
+    maxFrameGapSec,
   });
 
   let selection = selectFramesForCoverage(merged, {
@@ -266,6 +280,7 @@ export async function recoverWatchBootstrapCli(argv) {
     videoSlug: path.basename(sliceDir),
     sourceUrl,
     title: metadata.title,
+    maxFrameGapSec,
   });
   state.tempSession = tempSession;
   state.status = "vision";

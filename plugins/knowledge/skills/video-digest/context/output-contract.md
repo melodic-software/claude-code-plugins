@@ -141,7 +141,7 @@ slice is graded on the source, research, and recommendations lanes alone.
 | `key-frames/triage/manifest.json` | key-frames | yes | METADATA | script (`merge-triage-json.js` over batches) |
 | `key-frames/frame-triage-log.md` | key-frames | yes | METADATA | script (`render-triage-log.js` from manifest) |
 | `key-frames/visual-frames.md` | key-frames | yes | METADATA | script (`rebuild-visual-frames.js`; pass-2 detail log) |
-| `key-frames/visual-gaps.md` | key-frames | yes (optional) | METADATA | script (`expand-visual-gaps.js`; densification windows without frames) |
+| `key-frames/visual-gaps.md` | key-frames | yes (optional) | METADATA | script (`expand-visual-gaps.js`; one row per densification window with no promoted frame's exact time inside it, region `~Nm (<start>-<end>s)`, e.g. `~5m (300.0-312.4s)`) |
 | `key-frames/promotion-decisions.json` | key-frames | yes | DELIVERABLE | agent (vision verdict per candidate PNG) |
 | `key-frames/promotion-map.json` | key-frames | yes | METADATA | script (`vision-gated-promote.js`; name map + traceability) |
 | `key-frames/key-frames-manifest.md` | key-frames | yes | METADATA | script (`render-key-frames-manifest.js`) |
