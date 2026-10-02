@@ -25,7 +25,10 @@
   access. It inherits the model and pins no effort; the workflow passes both from the role map.
   The workflow reads only http(s) URLs whose host is a public DNS name or a public dotted-quad
   IPv4 address; userinfo, percent escapes, backslashes, IPv6 literals and other numeric host forms
-  are refused. A claim may cite only URLs that were read, and page-derived text reaches later
+  are refused, and so are names that encode an IP address for a wildcard-DNS service to echo back
+  and the known echo domains. The script has no resolver, so a private DNS record under an ordinary
+  name is out of reach of these checks; the web-only agent bounds that case. A claim may cite only
+  URLs that were read, and page-derived text reaches later
   stages as JSON inside a labeled fence that the text cannot close. `agents/tool-honesty.test.sh`
   exempts the agent from the echo-back field, since its return is the structure the workflow's
   schema forces.

@@ -259,7 +259,9 @@ test('URLs a parser could read as an internal host are refused', async () => {
   const tricky = ['http://example.com@169.254.169.254/latest', 'http://a@127.0.0.1/', 'http://2852039166/',
     'http://169.254.43518/', 'http://0xa9.0xfe.0xa9.0xfe/', 'http://0177.0.0.1/', 'http://127.1/',
     'http://example.com%40169.254.169.254/', 'http://example.com\\@169.254.169.254/', 'http://LOCALHOST./x',
-    'http://a.0x7f/', 'http://224.0.0.1/', 'ftp://example.com/x']
+    'http://a.0x7f/', 'http://224.0.0.1/', 'ftp://example.com/x',
+    'http://169.254.169.254.nip.io/latest', 'http://10-0-0-1.sslip.io/', 'http://7f000001.nip.io/',
+    'http://a9fea9fe.example.com/', 'http://app.localtest.me/', 'http://127.0.0.1.example.com/']
   const reply = (p, o, d) => (o.label === 'search:1' ? { sources: tricky.map(url => ({ url, tier: 0 })) } : d(p, o))
   const { calls } = await run({ question: 'q', sources: tricky }, { reply })
   const reads = by(calls, 'read:').map(c => sourceUrl(c.prompt))

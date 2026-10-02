@@ -55,7 +55,19 @@ function isPublicUrl(u) {
   if (labels.length < 2 || labels.some(l => !l)) return false
   if (/(^|\.)(localhost|local|internal|localdomain|home|lan)$/.test(host)) return false
   const numeric = l => /^(0x[0-9a-f]*|\d+)$/.test(l)
-  if (!labels.every(numeric)) return !numeric(labels[labels.length - 1])
+  if (!labels.every(numeric)) {
+    if (numeric(labels[labels.length - 1])) return false
+    // A name can still resolve to an internal address, and this script has no
+    // resolver. Refuse the names that encode an address for a wildcard-DNS
+    // service to echo back (169.254.169.254.nip.io, 10-0-0-1.sslip.io,
+    // 7f000001.nip.io) and the known echo domains themselves; a private record
+    // under an ordinary name stays out of reach of any string check, and the
+    // web-only sweep-worker tool set is what bounds that case.
+    if (/(^|\.)(nip\.io|sslip\.io|xip\.io|traefik\.me|localtest\.me|lvh\.me|vcap\.me|1u\.ms|rbndr\.us)$/.test(host)) return false
+    if (/(^|[.-])\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]\d{1,3}([.-]|$)/.test(host)) return false
+    if (labels.slice(0, -1).some(l => /^(0x)?[0-9a-f]{8}$/.test(l) && /\d/.test(l))) return false
+    return true
+  }
   if (labels.length !== 4 || !labels.every(l => /^(0|[1-9]\d{0,2})$/.test(l) && Number(l) <= 255)) return false
   const [a, b] = labels.map(Number)
   return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) ||
