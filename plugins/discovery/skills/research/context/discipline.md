@@ -305,8 +305,8 @@ Some facts only their publisher can state: its own pricing, roadmap, internal me
 A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. Carry it this way:
 
 - **Worded as an attribution.** The claim reads "<publisher> states ...", never as a bare fact, in the sidecar, the evidence table and the answer.
-- **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabelled, and the verifier fails it on criterion 4.
-- **At most MEDIUM, never accepted.** Report it under Gaps labelled `single-publisher (<pool>)`, with its fetch-log entry and date. More searching cannot close it.
+- **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabeled, and the verifier fails it on criterion 4.
+- **At most MEDIUM, never accepted.** Report it under Gaps labeled `single-publisher (<pool>)`, with its fetch-log entry and date. More searching cannot close it.
 - **Independent measurements sit beside it.** A third party that measured the same thing is listed next to it, and a disagreement between them is a Conflicts entry.
 
 ## Joint-inference check

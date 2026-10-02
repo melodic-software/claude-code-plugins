@@ -19,7 +19,7 @@ afterEach(() => {
  * Seed a slice with the two inputs expandVisualGaps reads.
  *
  * `promotedMinutes` are written in the `| ~Nm |` row shape that
- * parsePromotedTimestampsSec parses. With no promoted PNGs under
+ * parsePromotedTimestampsSec parses. With no promoted PNG files under
  * key-frames/frames/, these minute rows are the only promoted times.
  *
  * @param {{startSec: number, endSec: number, reason: string}[]} densificationWindows

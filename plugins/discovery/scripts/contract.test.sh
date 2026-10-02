@@ -1044,7 +1044,7 @@ done
 
 # ---------------------------------------------------------------------------
 # 19. The run aims at the acceptance bar, and a single-publisher fact is
-#     labelled, never accepted
+#     labeled, never accepted
 #
 # Criterion 4's corroborator count is a floor; acceptance also needs HIGH
 # (criterion 7). Summaries that stated only the floor under-aimed the run. A
@@ -1069,14 +1069,14 @@ assert_present 'each claim can carry subject_pool' \
   'skills/research/context/artifact-shape.md' '^ {4}subject_pool: '
 assert_present 'the researcher names criterion 7 beside the corroborator floor' \
   'agents/researcher.md' '^- the criterion requiring ≥2 \*\*independent\*\* corroborators per claim.*criterion 7'
-assert_present 'the researcher verification request names single-publisher labelling' \
+assert_present 'the researcher verification request names single-publisher labeling' \
   'agents/researcher.md' '^  criterion: ".*single-publisher'
 for field in pool subject_pool; do
   assert_present "the research verifier grades \`$field\`" \
     'agents/research-verifier.md' "\`$field\`"
 done
 assert_present 'evals grade a single-publisher claim that is not accepted' \
-  'skills/research/evals/evals.json' 'single-publisher-claim-is-labelled-not-accepted'
+  'skills/research/evals/evals.json' 'single-publisher-claim-is-labeled-not-accepted'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

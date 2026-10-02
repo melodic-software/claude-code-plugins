@@ -298,7 +298,7 @@ applicability: pass         # pass | fail, mirrors check-source-applicability.py
 verification: pending       # never anything else; you render no verdict on your own confidence
 verification_request:
   target: <the same path as artifact: above>
-  criterion: "independent corroboration with every single-publisher claim labelled and not accepted, HIGH confidence, and joint-inference validity per accepted claim"
+  criterion: "independent corroboration with every single-publisher claim labeled and not accepted, HIGH confidence, and joint-inference validity per accepted claim"
   worker: fresh-context subagent
 gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact.sh, check-coverage-complete.sh and check-source-applicability.py: it also owes the discovery:research-verifier dispatch and project fit. Source: the discovery plugin's skills/research/SKILL.md 'Post-dispatch acceptance gate' and reference/parent-contract.md 'Running the acceptance gate'"
 open_questions:

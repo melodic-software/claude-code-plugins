@@ -24,7 +24,7 @@ function makeOutputDir() {
 }
 
 /**
- * Fake ffmpeg: writes `count` numbered PNGs for the output pattern it is given
+ * Fake ffmpeg: writes `count` numbered PNG files for the output pattern it is given
  * and returns stderr carrying one showinfo line per frame time.
  *
  * @param {Record<string, { times: (number|string)[] }>} byPrefix
