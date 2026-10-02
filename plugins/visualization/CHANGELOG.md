@@ -3,7 +3,7 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.1] - 2026-10-02
+## [0.9.2] - 2026-10-02
 
 ### Fixed
 
@@ -16,6 +16,14 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 - `visualize` and `education:eli5` name each other: this skill picks a form for what is already
   in the conversation, and `eli5` builds a zero-knowledge picture explainer.
+
+## [0.9.1] - 2026-10-02
+
+### Added
+
+- Two `visualize` evals for medium resolution: the default `auto` defers to a user-global
+  `~/.claude/rendered-views.md` `medium:` value, and an explicitly set `medium` still overrides
+  the cascade.
 
 ## [0.9.0] - 2026-10-02
 
