@@ -177,6 +177,7 @@ jobs:
       run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
+      run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
       # VALUES, not gates: the ref every diff-scoped step diffs against (empty
       # for the whole tree), read only as an env entry, and the test-linux
       # matrix as a JSON list of leg numbers.
@@ -388,6 +389,12 @@ jobs:
               scripts/verb-contract-baseline.txt
               scripts/lib/**
               .github/workflows/ci.yml
+            manifests:
+              .github/**
+              .claude-plugin/**
+              plugins/*/.claude-plugin/**
+              scripts/check-manifest-duplicate-keys*
+              .python-version
       # THE test-linux FAN-OUT IS SIZED FROM THE SELECTION it will run: one leg
       # per 25 suites, one to four. Every leg derives the same selection again
       # and keeps its shard, so this count only sizes the matrix. Four whenever
@@ -492,12 +499,46 @@ jobs:
         with:
           python-version-file: .python-version
 
+      # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
+      # at a time, so an unchanged file's verdict is the one its last green run
+      # gave. The whole tree when there is no diff base (a schedule or dispatch
+      # run), when a markdownlint config or this workflow changed, or when a
+      # changed path holds a character the composite's whitespace-split glob
+      # list cannot carry. A diff that changed no markdown lints README.md
+      # alone, because the composite reads an empty list as "everything".
+      - name: Select the changed markdown
+        id: changed_md
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          globs='**/*.md'
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only --diff-filter=d "$DIFF_BASE...HEAD") &&
+            ! grep -qE '(^|/)\.markdownlint[^/]*$|^\.github/workflows/ci\.yml$' <<<"$changed"; then
+            md=$(grep -E '\.md$' <<<"$changed" || true)
+            if [ -z "$md" ]; then
+              globs=README.md
+            elif ! grep -qE '[^A-Za-z0-9._/-]' <<<"$md"; then
+              globs=$(tr '\n' ' ' <<<"$md")
+            fi
+          fi
+          echo "globs=$globs" >>"$GITHUB_OUTPUT"
+      # The composite runs `npx --yes markdownlint-cli2@<pin>`, which downloads
+      # the package on every run; the npx cache keeps it. Keyed on the
+      # composite pin, which fixes the version.
+      - name: Restore the markdownlint download
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm/_npx
+            ~/.npm/_cacache
+          key: npx-markdownlint-cli2-${{ runner.os }}-a267a27f7a321452267e20c82d57699b6c057cb0
       - name: Lint markdown
         id: markdown
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/markdown@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           config: .markdownlint-cli2.jsonc
+          globs: ${{ steps.changed_md.outputs.globs }}
 
       - name: Spell-check
         id: typos
@@ -534,15 +575,20 @@ jobs:
         with:
           config: .editorconfig-checker.json
 
+      # The path-scoped readers gate on the filter group of what they read:
+      # actionlint and the dependabot and workflow schemas on `run_workflows`
+      # (.github/**), the two manifest schemas and the duplicate-key detector
+      # on `run_manifests`. Both rows carry the docs-only term, and on a push,
+      # schedule or dispatch every group reports true.
       - name: Lint workflows
         id: actionlint
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_workflows == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/actionlint@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
 
       - name: Validate marketplace manifest
         id: marketplace_schema
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_manifests == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
@@ -550,7 +596,7 @@ jobs:
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_manifests == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
@@ -576,13 +622,13 @@ jobs:
       # whole-tree run runs every suite twice a day.
       - name: Detect duplicate keys in plugin/marketplace manifests
         id: duplicate_keys
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_manifests == 'true'
         continue-on-error: true
         run: python3 scripts/check-manifest-duplicate-keys.py
 
       - name: Validate dependabot.yml
         id: dependabot_schema
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_workflows == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
@@ -590,7 +636,7 @@ jobs:
           files: .github/dependabot.yml
       - name: Validate workflows
         id: workflow_schema
-        if: needs.changes.outputs.run_full == 'true'
+        if: needs.changes.outputs.run_workflows == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
@@ -679,10 +725,28 @@ jobs:
       # falsifies every sentence that counted the old set. Measured: PR #3011
       # went stale on six such counts, each caught by a different reviewer
       # rather than by anything mechanical.
+      #
+      # A DIFF THAT CHANGED NONE OF A GATE'S INPUTS SKIPS ITS SCAN: the verdict
+      # over unchanged inputs is the one the last green run gave. Here and in
+      # the eval-coverage and fixture-isolation gates of `lint-2` the inputs
+      # are pathspecs beside the call, this workflow is always one of them, a
+      # failed `git diff` runs the scan, and the scheduled run scans the whole
+      # tree. Claims live in plugin READMEs, manifests and skill bodies, and
+      # the count is the skills/ tree.
       - name: Check every skill-count claim against the tree
         id: skill_count_claims
         continue-on-error: true
-        run: scripts/check-skill-count-claims.sh --check
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            'plugins/*.md' 'plugins/*/.claude-plugin/plugin.json' 'plugins/*/skills/*' \
+            'scripts/check-skill-count-claims.sh' scripts/skill-count-claim-exemptions.txt \
+            .github/workflows/ci.yml) && [ -z "$changed" ]; then
+            echo "::notice::No skill-count claim input changed since $DIFF_BASE; the scheduled run scans the whole tree."
+            exit 0
+          fi
+          scripts/check-skill-count-claims.sh --check
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.changes.outputs.run_full == 'false'
@@ -730,12 +794,12 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
-            marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.duplicate_keys.outcome }}
-            dependabot-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.dependabot_schema.outcome }}
-            workflow-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.workflow_schema.outcome }}
+            actionlint=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
+            marketplace-schema=${{ needs.changes.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.changes.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.changes.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
+            dependabot-schema=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
+            workflow-schema=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
@@ -864,10 +928,22 @@ jobs:
       # detector emits must be named by an eval case, and every id an eval case
       # names must be one the detector can emit. The second direction is what
       # catches a suite asserting a scope the detector outgrew (#4149).
+      # Skipped on a diff that touches no skill script or eval set: every
+      # registered pair and every discovered candidate lives under
+      # plugins/*/skills/*/{scripts,evals}/ (see `lint` for the pattern).
       - name: Check every emitted check id has an eval case, and every eval-named id is emittable
         id: detector_eval_coverage
         continue-on-error: true
-        run: scripts/check-detector-eval-coverage.sh --check
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            'plugins/*/skills/*/scripts/*' 'plugins/*/skills/*/evals/*' \
+            'scripts/check-detector-eval-coverage.sh' .github/workflows/ci.yml) && [ -z "$changed" ]; then
+            echo "::notice::No skill script or eval set changed since $DIFF_BASE; the scheduled run checks every pair."
+            exit 0
+          fi
+          scripts/check-detector-eval-coverage.sh --check
 
       - name: Check for unregistered cross-plugin skill leaf-name collisions
         id: skill_leaf_names
@@ -1079,10 +1155,21 @@ jobs:
       # in the CALLER's .git/config — shared by every worktree of the clone —
       # and the caller's next commit is silently re-authored. That failed
       # required_signatures with `no_user` and cost #2827 -> #2830 (#2840).
+      # Skipped on a diff that touches no shell or Python file and not the
+      # baseline: the gate reads exactly those (see `lint` for the pattern).
       - name: Check fixture git isolation
         id: fixture_git_isolation
         continue-on-error: true
-        run: scripts/check-fixture-git-isolation.sh --check
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/ci.yml) &&
+            [ -z "$changed" ]; then
+            echo "::notice::No shell or Python file changed since $DIFF_BASE; the scheduled run scans the whole tree."
+            exit 0
+          fi
+          scripts/check-fixture-git-isolation.sh --check
 
       # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
       # collector-output assertion in audit-fleet.test.sh (or be
@@ -1330,10 +1417,33 @@ jobs:
       # criterion items, unresolvable files fixtures; WARN tier stays advisory
       # and never fails the step). Whole-repo and static, so it runs on every
       # event like the schema step above.
+      # Each eval set is linted on its own, so a diff lints the sets it changed;
+      # the whole corpus when the lint itself, this workflow or a fixture tree
+      # changed, or when there is no diff base.
       - name: Lint every eval set for quality
         id: evals_quality
         continue-on-error: true
-        run: bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/*/skills/*/evals/evals.json
+        env:
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
+        run: |
+          sets=(plugins/*/skills/*/evals/evals.json)
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
+            'plugins/*/skills/*/evals/*' 'plugins/skill-quality/scripts/check-evals-quality*' \
+            .github/workflows/ci.yml); then
+            if [ -z "$changed" ]; then
+              echo "::notice::No eval set changed since $DIFF_BASE; the scheduled run lints every set."
+              exit 0
+            fi
+            # Only when every change is an eval set that still exists; a deleted
+            # set, a fixture, the lint or this workflow keeps the whole corpus.
+            if ! grep -qvE '^plugins/[^/]+/skills/[^/]+/evals/evals\.json$' <<<"$changed"; then
+              mapfile -t candidate <<<"$changed"
+              present=()
+              for f in "${candidate[@]}"; do [ -f "$f" ] && present+=("$f"); done
+              [ "${#present[@]}" -eq "${#candidate[@]}" ] && sets=("${present[@]}")
+            fi
+          fi
+          bash plugins/skill-quality/scripts/check-evals-quality.sh "${sets[@]}"
       - name: Report precompute git+multi-line violations (warn-only)
         id: precompute_compose
         continue-on-error: true
@@ -1843,11 +1953,27 @@ jobs:
         # against this ref and skips (with a notice) when it is unset. The
         # checkout-with-base step above already deepens history and fetches
         # origin/<base_ref> on pull_request, so the ref resolves here.
+        #
+        # A diff validates the plugins it touched: each per-plugin pass reads
+        # only its own directory. Every repository-wide pass (contracts,
+        # catalog, the --strict catalog pass, mods) still runs. Every plugin
+        # when there is no diff base, or when the validator, its report
+        # renderer, the CLI's lockfile or this workflow changed.
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
+          DIFF_BASE: ${{ needs.changes.outputs.lane_base }}
         run: |
           [ "$LEG" = $((1 % LEGS)) ] || exit 0
-          scripts/validate-plugins.sh
+          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD") &&
+            ! grep -qE '^(\.github/workflows/ci\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
+            touched=''
+            while IFS= read -r plugin; do
+              [ -d "plugins/$plugin" ] && touched+="$plugin "
+            done < <(sed -n 's#^plugins/\([^/]*\)/.*#\1#p' <<<"$changed" | sort -u)
+            scripts/validate-plugins.sh --only "$touched"
+          else
+            scripts/validate-plugins.sh
+          fi
 
       # The shared-library sync gates. Each keeps two steps: the byte equality
       # check against the canonical copy, and the delivery check that a change

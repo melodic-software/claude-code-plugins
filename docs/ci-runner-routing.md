@@ -86,6 +86,16 @@ diff-scoped step diffs against it:
   scan over every skill. This run catches what a diff cannot show: a suite that
   asserts against the live tree, or a dependency the selector does not see.
 
+Whole-tree gates whose verdict depends only on their own inputs are scoped the
+same way on a diff: markdownlint lints the changed markdown (its download is
+cached), the eval-quality lint reads the changed eval sets, `claude plugin
+validate` runs for the touched plugins, the manifest and workflow schemas run
+when their filter group matched, and the skill-count, eval-coverage and
+fixture-isolation scans skip when none of their inputs changed. Each falls back
+to the whole tree when there is no diff base or `ci.yml` changed, and the
+scheduled run scans everything. Replayed on 20 recent pull requests, every
+skipped or narrowed scan landed on a whole-tree success.
+
 The selector's rule R8 covers the gap a full main run used to cover: a change
 anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
 because suites that scan their own plugin directory never name the file that
