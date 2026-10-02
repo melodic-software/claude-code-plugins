@@ -6,7 +6,9 @@
 //
 //   {"id":1,"op":"ping"}
 //     -> {"id":1,"ok":true,"node":"v24.0.0","acorn":"8.18.0","eslint_scope":"9.1.2"}
-//   {"id":2,"op":"parse_ok","source":"..."}
+//   {"id":2,"op":"parse_ok","source":"...","module":"<key>"}
+//     `module` is optional; with it the module's property names are kept
+//     for `keys_used`.
 //     -> {"id":2,"ok":true,"parsed":true}
 //     -> {"id":2,"ok":true,"parsed":false,"error":"Unexpected token (3:4)","pos":17}
 //   {"id":3,"op":"binding","module":"<key>","source":"...","offset":120,"name":"pY"}
@@ -42,11 +44,20 @@
 //     found false, since code inside the eval can write any name.
 //     -> {"id":5,"ok":true,"found":true,"declares":true,
 //         "writes":[["init",120,true]],"mutations":[["method-call",160,true]]}
+//   {"id":6,"op":"flow","module":"<key>","source":"...","start":{...}}
+//     Whether an array value stays unchanged inside the module, following
+//     it through aliases, returns, arguments and callbacks; `flow` below
+//     documents `start` and the reply. The hops that leave the module come
+//     back as `exits` for the caller to follow.
+//   {"id":7,"op":"keys_used","module":"<key>","source":"...","names":["pY"]}
+//     -> {"id":7,"ok":true,"used":["pY"]}   names the module reads as a property
+//   {"id":8,"op":"exports","module":"<key>","source":"..."}
+//     -> {"id":8,"ok":true,"names":["pY","default"]}   every name it exports
 //   anything else
 //     -> {"id":...,"ok":false,"error":"..."}
 //
-// A binding or writes lookup parses its module once and keeps the scope
-// analysis for the next MODULE_CACHE lookups' worth of other modules.
+// A binding, writes or flow lookup parses its module once and keeps the
+// scope analysis for the next MODULE_CACHE lookups' worth of other modules.
 //
 // acorn and eslint-scope are resolved through NODE_PATH, which the Python
 // side points at the node_modules `npm ci` installed from this directory's
@@ -314,6 +325,31 @@ function valueOnly(holder, node) {
   }
 }
 
+// How a member read rooted at `object` may change the object, or null when
+// it cannot: the member chain's own position decides.
+function memberKind(parents, object) {
+  let node = object;
+  let parent = parents.get(node);
+  while (parent && ((parent.type === "MemberExpression" && parent.object === node) || parent.type === "ChainExpression")) {
+    node = parent;
+    parent = parents.get(node);
+  }
+  if (!parent) return "member-escape";
+  if (parent.type === "UnaryExpression" && parent.operator === "delete") return "member-delete";
+  if (parent.type === "UpdateExpression" || isTarget(parents, node)) return "member-write";
+  // A method read can reach its call through an operand (`(0,x.push)()`).
+  let value = node;
+  let holder = parent;
+  while (forwards(holder, value)) {
+    value = holder;
+    holder = parents.get(holder);
+  }
+  // Any method may change the array or return it (`x.valueOf().push()`),
+  // whether called, tagged or constructed.
+  if (isCallee(holder, value)) return "method-call";
+  return valueOnly(holder, value) ? null : "member-escape";
+}
+
 // How a read of `id` may change the value it reads, or null when it cannot.
 // Only two shapes are known safe: a spread into an array or a call, which
 // copies the elements, and a member read whose result is used as a value.
@@ -321,30 +357,9 @@ function valueOnly(holder, node) {
 // (an alias, a literal holding it, a return, an operand, `await`, a loop
 // iterable, a destructuring source, an export), so it counts.
 function mutationKind(parents, id) {
-  let node = id;
-  let parent = parents.get(node);
-  let member = false;
-  while (parent && ((parent.type === "MemberExpression" && parent.object === node) || parent.type === "ChainExpression")) {
-    member ||= parent.type === "MemberExpression";
-    node = parent;
-    parent = parents.get(node);
-  }
+  const parent = parents.get(id);
   if (!parent) return "escape";
-  if (member) {
-    if (parent.type === "UnaryExpression" && parent.operator === "delete") return "member-delete";
-    if (parent.type === "UpdateExpression" || isTarget(parents, node)) return "member-write";
-    // A method read can reach its call through an operand (`(0,x.push)()`).
-    let value = node;
-    let holder = parent;
-    while (forwards(holder, value)) {
-      value = holder;
-      holder = parents.get(holder);
-    }
-    // Any method may change the array or return it (`x.valueOf().push()`),
-    // whether called, tagged or constructed.
-    if (isCallee(holder, value)) return "method-call";
-    return valueOnly(holder, value) ? null : "member-escape";
-  }
+  if (parent.type === "MemberExpression" && parent.object === id) return memberKind(parents, id);
   if (parent.type === "SpreadElement") {
     const holder = parents.get(parent)?.type;
     if (holder === "ArrayExpression" || holder === "CallExpression" || holder === "NewExpression") return null;
@@ -387,6 +402,515 @@ function writes(req) {
   return { ok: true, found: true, declares, ...out };
 }
 
+// Array methods that never change the array they run on, by where each
+// passes the array to its callback (null: no callback sees the array).
+const CALLBACK_SLOT = new Map([
+  ...["some", "every", "forEach", "map", "filter", "find", "findIndex", "findLast", "findLastIndex", "flatMap"].map((m) => [m, 2]),
+  ...["reduce", "reduceRight"].map((m) => [m, 3]),
+  ...["includes", "indexOf", "lastIndexOf", "join", "slice", "at", "concat", "flat", "keys", "values", "entries", "toString"].map(
+    (m) => [m, null],
+  ),
+]);
+const FUNCTIONS = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
+const FLOW_STEPS = 20000;
+
+class Unresolved extends Error {
+  constructor(reason, at) {
+    super(reason);
+    this.at = at;
+  }
+}
+
+const propertyName = (member) =>
+  !member.computed ? member.property.name : typeof member.property.value === "string" ? member.property.value : null;
+
+// Follows one array value through a module: every place it can reach, until
+// each is known not to change it, leaves the module (an export, an
+// imported callee), or is a place the walk cannot follow, which throws
+// Unresolved. `exits` collects the hops to other modules for the caller.
+class Flow {
+  constructor(entry) {
+    this.entry = entry;
+    this.parents = parentsOf(entry);
+    this.exits = [];
+    this.seen = new Set();
+    this.steps = 0;
+  }
+
+  once(key) {
+    if (++this.steps > FLOW_STEPS) throw new Unresolved("the flow is too long to follow", null);
+    if (this.seen.has(key)) return false;
+    this.seen.add(key);
+    return true;
+  }
+
+  exit(...hop) {
+    this.exits.push(hop);
+  }
+
+  // The name `export var` or `export function` exports `v` under, or null.
+  exportedName(v) {
+    const def = v.defs[0];
+    const decl = def?.type === "Variable" ? def.parent : def?.type === "FunctionName" || def?.type === "ClassName" ? def.node : null;
+    const holder = decl && this.parents.get(decl);
+    if (holder?.type === "ExportDefaultDeclaration") throw new Unresolved("a default export", decl.start);
+    return holder?.type === "ExportNamedDeclaration" ? v.name : null;
+  }
+
+  // Every read of `v`. A write replaces what `v` holds and changes nothing
+  // the old value was.
+  variable(v) {
+    if (!this.once(v)) return;
+    const exported = this.exportedName(v);
+    if (exported) this.exit("export", exported);
+    for (const r of v.references) {
+      if (!r.isWrite()) this.value(r.identifier);
+    }
+  }
+
+  // Where the value `node` evaluates to goes next.
+  value(node) {
+    let parent = this.parents.get(node);
+    while (forwards(parent, node) || parent?.type === "ChainExpression") {
+      node = parent;
+      parent = this.parents.get(node);
+    }
+    const at = node.start;
+    switch (parent?.type) {
+      case "SpreadElement": {
+        const holder = this.parents.get(parent)?.type;
+        if (holder === "ArrayExpression" || holder === "CallExpression" || holder === "NewExpression") return;
+        break;
+      }
+      case "MemberExpression":
+        if (parent.object === node) return this.member(node, parent);
+        break;
+      case "VariableDeclarator":
+        if (parent.init === node && parent.id.type === "Identifier") return this.variable(this.entry.decls.get(parent.id.start));
+        break;
+      case "AssignmentExpression":
+        if (parent.operator === "=" && parent.right === node && parent.left.type === "Identifier") {
+          const ref = this.entry.refs.get(parent.left.start);
+          if (!ref?.resolved) throw new Unresolved("an assignment to an undeclared name", at);
+          this.variable(ref.resolved);
+          return this.value(parent);
+        }
+        break;
+      case "ExpressionStatement":
+      case "BinaryExpression":
+        return;
+      case "SequenceExpression":
+        if (parent.expressions.at(-1) !== node) return;
+        break;
+      case "UnaryExpression":
+        if (parent.operator !== "delete") return;
+        break;
+      case "TemplateLiteral":
+        if (this.parents.get(parent)?.type !== "TaggedTemplateExpression") return;
+        break;
+      case "IfStatement":
+      case "WhileStatement":
+      case "DoWhileStatement":
+      case "ForStatement":
+      case "ConditionalExpression":
+      case "SwitchCase":
+        if (parent.test === node) return;
+        break;
+      case "SwitchStatement":
+        if (parent.discriminant === node) return;
+        break;
+      case "ReturnStatement":
+        return this.returned(node);
+      case "ArrowFunctionExpression":
+        if (parent.body === node) return this.returned(node);
+        break;
+      case "CallExpression":
+        if (parent.arguments.includes(node)) return this.argument(parent, parent.arguments.indexOf(node));
+        break;
+      case "ExportSpecifier":
+        if (parent.local === node) return this.exit("export", parent.exported.name ?? parent.exported.value);
+        break;
+    }
+    throw new Unresolved(`the array reaches a ${parent?.type ?? "module end"}`, at);
+  }
+
+  // A member read on the array: a call of a method that never changes it,
+  // or the member positions the mutation check already knows are safe. A
+  // name neither Array.prototype nor Object.prototype holds reads
+  // undefined, so calling it throws before anything runs.
+  member(object, member) {
+    const call = this.parents.get(member);
+    const name = propertyName(member);
+    if (call?.type === "CallExpression" && call.callee === member && name !== null) {
+      if (CALLBACK_SLOT.has(name)) {
+        const slot = CALLBACK_SLOT.get(name);
+        if (slot !== null && call.arguments.length) this.callback(call.arguments[0], slot);
+        return;
+      }
+      if (!(name in [])) return;
+    }
+    const kind = memberKind(this.parents, object);
+    if (kind) throw new Unresolved(`a ${kind} on the array`, member.start);
+  }
+
+  // The array as argument `index` of `call`: each function the callee can
+  // be receives it as that parameter.
+  argument(call, index) {
+    if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) {
+      throw new Unresolved("a spread before the argument", call.start);
+    }
+    if (call.callee.type !== "Identifier") throw new Unresolved("a call through a member or expression", call.start);
+    this.callback(call.callee, index);
+  }
+
+  // `fn` is called with the array as parameter `index`.
+  callback(fn, index) {
+    if (fn.type === "SpreadElement") throw new Unresolved("a spread callback", fn.start);
+    for (const value of this.values(fn, new Set())) {
+      if (value === "uncallable") continue;
+      if (value.imported !== undefined) this.exit("param", value.imported, index);
+      else this.parameter(value, index);
+    }
+  }
+
+  // The array as parameter `index` of the function node `fn`.
+  parameter(fn, index) {
+    if (!this.once(`${fn.start}:${index}`)) return;
+    const params = fn.params;
+    if (params.slice(0, index + 1).some((p) => p.type === "RestElement")) throw new Unresolved("a rest parameter", fn.start);
+    if (fn.type !== "ArrowFunctionExpression") {
+      const scope = this.entry.manager.acquire(fn, true);
+      if (!scope || scope.set.get("arguments")?.references.length) {
+        throw new Unresolved("a function that reads `arguments`", fn.start);
+      }
+    }
+    const param = params[index];
+    if (param === undefined) return;
+    const id = param.type === "AssignmentPattern" ? param.left : param;
+    if (id.type !== "Identifier") throw new Unresolved("a destructured parameter", param.start);
+    this.variable(this.entry.decls.get(id.start));
+  }
+
+  // `node` is returned from its function: every call of it yields the array.
+  returned(node) {
+    let fn = this.parents.get(node);
+    while (fn && !FUNCTIONS.has(fn.type)) fn = this.parents.get(fn);
+    if (!fn || fn.async || fn.generator) throw new Unresolved("a return from an async, generator or unknown function", node.start);
+    const v = this.binding(fn);
+    if (!v) throw new Unresolved("a return from a function bound to no plain name", fn.start);
+    this.calls(v);
+  }
+
+  // Every call of the function variable `v` yields the array.
+  calls(v) {
+    if (!this.once(`calls:${v.defs[0]?.name.start}`)) return;
+    const exported = this.exportedName(v);
+    if (exported) this.exit("export-call", exported);
+    for (const r of v.references) {
+      if (r.isWrite()) continue;
+      const parent = this.parents.get(r.identifier);
+      if (parent?.type === "CallExpression" && parent.callee === r.identifier) this.value(parent);
+      else if (parent?.type === "ExportSpecifier" && parent.local === r.identifier) {
+        this.exit("export-call", parent.exported.name ?? parent.exported.value);
+      } else throw new Unresolved("the function is used other than by a call", r.identifier.start);
+    }
+  }
+
+  // The variable that holds the function node `fn` and only it: a function
+  // declaration's name, or a declarator initialized with it and never
+  // written again. Null for any other function.
+  binding(fn) {
+    if (fn.type === "FunctionDeclaration") {
+      const v = fn.id && this.entry.decls.get(fn.id.start);
+      return v && v.defs.length === 1 && !v.references.some((r) => r.isWrite()) ? v : null;
+    }
+    if (fn.id) return null;
+    const holder = this.parents.get(fn);
+    if (holder?.type !== "VariableDeclarator" || holder.init !== fn || holder.id.type !== "Identifier") return null;
+    const v = this.entry.decls.get(holder.id.start);
+    return v && v.defs.length === 1 && v.references.every((r) => !r.isWrite() || r.identifier === holder.id) ? v : null;
+  }
+
+  // Every value `node` can evaluate to: "uncallable" (a value that is no
+  // function, so calling it throws), a function node, or {imported} for a
+  // function another module exports. Throws Unresolved when any value is
+  // unknown.
+  values(node, seen) {
+    if (++this.steps > FLOW_STEPS) throw new Unresolved("the flow is too long to follow", null);
+    switch (node.type) {
+      case "Literal":
+      case "TemplateLiteral":
+      case "UnaryExpression":
+      case "BinaryExpression":
+      case "UpdateExpression":
+      case "ObjectExpression":
+      case "ArrayExpression":
+        return ["uncallable"];
+      case "ArrowFunctionExpression":
+      case "FunctionExpression":
+        return [node];
+      case "ConditionalExpression":
+        return [...this.values(node.consequent, seen), ...this.values(node.alternate, seen)];
+      case "LogicalExpression":
+        return [...this.values(node.left, seen), ...this.values(node.right, seen)];
+      case "SequenceExpression":
+        return this.values(node.expressions.at(-1), seen);
+      case "Identifier": {
+        const ref = this.entry.refs.get(node.start);
+        if (ref && !ref.resolved && node.name === "undefined") return ["uncallable"];
+        const v = ref?.resolved ?? this.entry.decls.get(node.start);
+        if (!v) throw new Unresolved(`\`${node.name}\` is not declared`, node.start);
+        return this.variableValues(v, seen);
+      }
+    }
+    throw new Unresolved(`a value from a ${node.type}`, node.start);
+  }
+
+  variableValues(v, seen) {
+    if (seen.has(v)) return [];
+    seen.add(v);
+    if (v.defs.length !== 1) throw new Unresolved(`\`${v.name}\` has ${v.defs.length} declarations`, null);
+    const def = v.defs[0];
+    const at = def.name.start;
+    const otherWrites = v.references.some((r) => r.isWrite() && r.identifier !== def.name);
+    switch (def.type) {
+      case "FunctionName":
+        if (otherWrites || v.references.some((r) => r.isWrite())) break;
+        return [def.node];
+      case "Variable": {
+        const loop = this.parents.get(def.parent);
+        if (otherWrites || def.node.id !== def.name || (isLoop(loop) && loop.left === def.parent)) break;
+        return def.node.init ? this.values(def.node.init, seen) : ["uncallable"];
+      }
+      case "ImportBinding": {
+        const spec = def.node;
+        if (spec.type !== "ImportSpecifier") break;
+        return [{ imported: spec.imported.name ?? spec.imported.value }];
+      }
+      case "Parameter":
+        if (otherWrites) break;
+        return this.parameterValues(def.node, def.name, seen);
+    }
+    throw new Unresolved(`the values of \`${v.name}\``, at);
+  }
+
+  // What the parameter named by `id` of `fn` holds across every call of
+  // `fn`: the argument, a default, or one property of an object literal
+  // argument the parameter destructures.
+  parameterValues(fn, id, seen) {
+    const index = fn.params.findIndex((p) => id.start >= p.start && id.end <= p.end);
+    let param = fn.params[index];
+    if (index < 0 || fn.params.slice(0, index).some((p) => p.type === "RestElement")) {
+      throw new Unresolved("a parameter after a rest parameter", id.start);
+    }
+    const fallback = param.type === "AssignmentPattern" ? param.right : null;
+    if (fallback) param = param.left;
+    // `key` is the property the parameter reads when it destructures one.
+    let key = null;
+    let keyDefault = null;
+    if (param !== id) {
+      const prop =
+        param.type === "ObjectPattern" &&
+        param.properties.find((p) => p.type === "Property" && (p.value === id || p.value.left === id));
+      if (!prop || prop.computed) throw new Unresolved("a nested destructured parameter", id.start);
+      key = prop.key.name ?? prop.key.value;
+      keyDefault = prop.value.type === "AssignmentPattern" ? prop.value.right : null;
+    }
+    const v = this.binding(fn);
+    if (!v || this.exportedName(v)) throw new Unresolved("a parameter of an exported function or one bound to no plain name", fn.start);
+    const out = [];
+    const read = (arg) => {
+      if (key === null) return out.push(...this.values(arg, seen));
+      if (arg.type !== "ObjectExpression") throw new Unresolved("a destructured argument that is not an object literal", arg.start);
+      if (arg.properties.some((p) => p.type !== "Property" || p.computed)) {
+        throw new Unresolved("an object literal with a spread or computed key", arg.start);
+      }
+      const prop = arg.properties.findLast((p) => (p.key.name ?? p.key.value) === key);
+      if (prop) return out.push(...this.values(prop.value, seen));
+      if (!keyDefault) throw new Unresolved(`an argument without \`${key}\``, arg.start);
+      out.push(...this.values(keyDefault, seen));
+    };
+    for (const r of v.references) {
+      if (r.isWrite()) continue;
+      const call = this.parents.get(r.identifier);
+      if (call?.type !== "CallExpression" || call.callee !== r.identifier) {
+        throw new Unresolved("the function is used other than by a call", r.identifier.start);
+      }
+      if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) {
+        throw new Unresolved("a spread before the argument", call.start);
+      }
+      const arg = call.arguments[index];
+      if (arg) read(arg);
+      if (fallback) read(fallback);
+      else if (!arg) {
+        if (key !== null) throw new Unresolved("a destructured parameter without its argument", call.start);
+        out.push("uncallable");
+      }
+    }
+    return out;
+  }
+}
+
+// Whether one array value stays unchanged in this module. `start` names
+// where it is:
+//   {"var":true, offset|top, name}  every read of that variable
+//   {"param":i, name}               parameter i of the module-scope function `name`
+//   {"import":Z, "calls":bool}      the module's imports of the exported name Z,
+//                                   or the results of calling them
+// -> {"safe":true,"exits":[hop...]} each hop leaves the module:
+//      ["export", Z]                the value is exported as Z
+//      ["export-call", Z]           a function returning it is exported as Z
+//      ["param", Z, i]              it is argument i of the function imported as Z
+// -> {"safe":false,"reason":"...","at":offset|null}
+function flow(req) {
+  if (typeof req.module !== "string" || typeof req.start !== "object" || req.start === null) {
+    return { ok: false, error: "flow needs a string `module` and an object `start`" };
+  }
+  const entry = moduleFor(req);
+  if (entry === null) return { ok: true, need_source: true };
+  if (entry.error) return { ok: true, safe: false, reason: `the module does not parse: ${entry.error}`, at: null };
+  if (entry.evals) return { ok: true, safe: false, reason: "the module calls eval directly", at: null };
+  const walk = new Flow(entry);
+  const start = req.start;
+  try {
+    if (start.var) {
+      const v = lookup(entry, { ...start, top: start.top === true });
+      if (!v) throw new Unresolved(`\`${start.name}\` is not declared`, null);
+      walk.variable(v);
+    } else if (Number.isInteger(start.param)) {
+      const v = entry.top?.set.get(start.name);
+      if (!v) throw new Unresolved(`\`${start.name}\` is not declared at module scope`, null);
+      for (const value of walk.variableValues(v, new Set())) {
+        if (value === "uncallable") continue;
+        if (value.imported !== undefined) walk.exit("param", value.imported, start.param);
+        else walk.parameter(value, start.param);
+      }
+    } else if (typeof start.import === "string") {
+      for (const node of entry.ast.body) {
+        if (node.type === "ImportDeclaration") {
+          for (const spec of node.specifiers) {
+            if (spec.type === "ImportSpecifier" && (spec.imported.name ?? spec.imported.value) === start.import) {
+              const v = entry.decls.get(spec.local.start);
+              if (start.calls) walk.calls(v);
+              else walk.variable(v);
+            }
+          }
+        } else if (node.type === "ExportNamedDeclaration" && node.source) {
+          for (const spec of node.specifiers) {
+            if ((spec.local.name ?? spec.local.value) === start.import) {
+              walk.exit(start.calls ? "export-call" : "export", spec.exported.name ?? spec.exported.value);
+            }
+          }
+        }
+      }
+    } else {
+      return { ok: false, error: "flow `start` needs var, param or import" };
+    }
+  } catch (e) {
+    if (!(e instanceof Unresolved)) throw e;
+    return { ok: true, safe: false, reason: e.message, at: e.at };
+  }
+  return { ok: true, safe: true, exits: walk.exits };
+}
+
+// {"op":"exports","module":key,"source"?:...}
+//   -> {"names":[every name the module exports]}; a module that does not
+//      parse answers {"error":...}.
+function exportsOf(req) {
+  if (typeof req.module !== "string") return { ok: false, error: "exports needs a string `module`" };
+  const entry = moduleFor(req);
+  if (entry === null) return { ok: true, need_source: true };
+  if (entry.error) return { ok: true, error: entry.error };
+  const names = [];
+  for (const node of entry.ast.body) {
+    if (node.type === "ExportDefaultDeclaration") names.push("default");
+    if (node.type !== "ExportNamedDeclaration") continue;
+    for (const spec of node.specifiers) names.push(spec.exported.name ?? spec.exported.value);
+    const decl = node.declaration;
+    if (decl?.id) names.push(decl.id.name);
+    for (const d of decl?.declarations ?? []) {
+      for (const v of entry.manager.getDeclaredVariables(d)) names.push(v.name);
+    }
+  }
+  return { ok: true, names };
+}
+
+// Every name a module reads by name as a property, whatever object it
+// reads it from: a member name (`x.k`, `x["k"]`, `` x[`k`] ``) and a
+// destructured key (`{k}=x`, `{k:y}=x`, `{"k":y}=x`). A computed read
+// with any other key reads no name here. Kept per module key for
+// `keys_used`.
+// The pseudo-key a module gets when it may change Array.prototype or
+// Object.prototype, which the flow's method rules take as built in.
+const PATCHES_BUILTINS = "\u0000builtins";
+const keySets = new Map();
+
+// `Array.prototype` or `Object.prototype`.
+const isBuiltinProto = (n) =>
+  n?.type === "MemberExpression" &&
+  !n.computed &&
+  n.property.name === "prototype" &&
+  n.object.type === "Identifier" &&
+  (n.object.name === "Array" || n.object.name === "Object");
+const PATCHERS = new Set(["defineProperty", "defineProperties", "assign", "setPrototypeOf", "set"]);
+
+function keysOf(ast) {
+  const keys = new Set();
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
+    const target = node.type === "AssignmentExpression" ? node.left : node.type === "UpdateExpression" ? node.argument : null;
+    if (target?.type === "MemberExpression" && (isBuiltinProto(target.object) || isBuiltinProto(target))) keys.add(PATCHES_BUILTINS);
+    if (
+      node.type === "CallExpression" &&
+      node.callee.type === "MemberExpression" &&
+      PATCHERS.has(node.callee.property.name) &&
+      node.arguments.some(isBuiltinProto)
+    ) {
+      keys.add(PATCHES_BUILTINS);
+    }
+    if (node.type === "MemberExpression") {
+      const p = node.property;
+      if (!node.computed) keys.add(p.name);
+      else if (p.type === "Literal") keys.add(String(p.value));
+      else if (p.type === "TemplateLiteral" && p.expressions.length === 0) keys.add(p.quasis[0].value.cooked);
+    } else if (node.type === "ObjectPattern") {
+      for (const prop of node.properties) {
+        if (prop.type !== "Property") continue;
+        if (!prop.computed) keys.add(prop.key.name ?? String(prop.key.value));
+        else if (prop.key.type === "Literal") keys.add(String(prop.key.value));
+      }
+    }
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      for (const c of Array.isArray(child) ? child : [child]) {
+        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+      }
+    }
+  }
+  return keys;
+}
+
+// {"op":"keys_used","module":key,"source"?:...,"names":[...]}
+//   -> {"used":[names the module reads as a property]}; a module that does
+//      not parse uses every name.
+function keysUsed(req) {
+  if (typeof req.module !== "string" || !Array.isArray(req.names)) {
+    return { ok: false, error: "keys_used needs a string `module` and a `names` list" };
+  }
+  let keys = keySets.get(req.module);
+  if (keys === undefined) {
+    if (typeof req.source !== "string") return { ok: true, need_source: true };
+    try {
+      keys = keysOf(acorn.parse(req.source, PARSE_OPTIONS));
+    } catch {
+      keys = null;
+    }
+    keySets.set(req.module, keys);
+  }
+  return { ok: true, used: req.names.filter((n) => keys === null || keys.has(n)) };
+}
+
 function handle(req) {
   switch (req.op) {
     case "ping":
@@ -401,15 +925,23 @@ function handle(req) {
         return { ok: false, error: "parse_ok needs a string `source`" };
       }
       try {
-        acorn.parse(req.source, PARSE_OPTIONS);
+        const ast = acorn.parse(req.source, PARSE_OPTIONS);
+        if (typeof req.module === "string") keySets.set(req.module, keysOf(ast));
         return { ok: true, parsed: true };
       } catch (e) {
+        if (typeof req.module === "string") keySets.set(req.module, null);
         return { ok: true, parsed: false, error: e.message, pos: e.pos ?? null };
       }
     case "binding":
       return binding(req);
     case "writes":
       return writes(req);
+    case "flow":
+      return flow(req);
+    case "keys_used":
+      return keysUsed(req);
+    case "exports":
+      return exportsOf(req);
     default:
       return { ok: false, error: `unknown op: ${JSON.stringify(req.op)}` };
   }

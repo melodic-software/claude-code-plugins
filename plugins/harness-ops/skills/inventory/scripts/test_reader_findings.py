@@ -87,9 +87,9 @@ class TestOpenFindings(unittest.TestCase):
 
     # Finding 3: the regex reader does not model mutation of the spread
     # array, so the literal keeps the initializer. The parser reader counts
-    # a member write, a mutating method call, and (by the operator decision)
-    # any call the array is passed to, so the list reads as partial: fixed
-    # there.
+    # a member write, a mutating method call, and a call the array is passed
+    # to unless it follows the callee's parameter and finds it unchanged, so
+    # the list reads as partial: fixed there.
     #
     # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887
 
@@ -210,7 +210,6 @@ class TestOpenFindings(unittest.TestCase):
             'for(const e of[pY])e.push("B")',
             'var{a:q}={a:pY};q.push("B")',
             'async function g(){(await pY).push("B")}g()',
-            "export{pY}",
             "pY.map(f)",
             "pY()",
         ):
@@ -221,6 +220,15 @@ class TestOpenFindings(unittest.TestCase):
                     ["(changed)"],
                     parser=PARTIAL,
                 )
+
+    def test_an_export_no_module_imports_keeps_the_literal(self) -> None:
+        """P4 of #5640: the parser follows an export to the modules that
+        import it. The bundle is the whole program, and here none imports
+        `pY` or reads it off a namespace, so nothing can change the list and
+        JavaScript has the initializer."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];export{pY};', INITIAL, INITIAL[0], parser=INITIAL
+        )
 
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,

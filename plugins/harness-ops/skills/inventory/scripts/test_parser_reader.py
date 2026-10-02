@@ -422,12 +422,14 @@ class _StubReader:
 
     lookups = 0
     write_lookups = 0
+    flow_lookups = 0
 
     def __init__(self) -> None:
         self.parsed = 0
 
-    def parse_ok(self, source: str) -> tuple[bool, str | None]:
+    def parse_module(self, src: str, lo: int, hi: int) -> tuple[bool, str | None]:
         self.parsed += 1
+        source = src[lo:hi]
         return ("UNPARSABLE" not in source, None if "UNPARSABLE" not in source else "x")
 
     def __enter__(self) -> _StubReader:

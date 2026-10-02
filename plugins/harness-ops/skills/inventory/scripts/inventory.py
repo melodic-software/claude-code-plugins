@@ -2141,18 +2141,148 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
 def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
     """`_written_elsewhere` from the AST: true unless `pos` names a plain
     `var`/`let`/`const` declarator (so neither a bare assignment nor an
-    arrow body) whose variable has no other write and no possible mutation,
-    which is any reference except a spread into an array or call and a
-    member read used as a value: an alias, an export, a method call or a
-    call argument lets the array change later. Text in strings and comments
-    is no reference, and a write the parser resolves to another binding is
+    arrow body) whose variable has no other write and whose array no code
+    may change. A reference other than a spread into an array or call and a
+    member read used as a value may let the array change later, so the
+    array is then followed (`_flow_holds`) and counts as written unless
+    every place it reaches is known safe. Text in strings and comments is
+    no reference, and a write the parser resolves to another binding is
     that binding's. A name the parser cannot answer for counts as
     written."""
     assert _PARSER is not None
     found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
     if found is None or not found["declares"]:
         return True
-    return bool(found["mutations"]) or any(w != pos for _, w, _ in found["writes"])
+    if any(w != pos for _, w, _ in found["writes"]):
+        return True
+    return bool(found["mutations"]) and not _flow_holds(src, ident, pos)
+
+
+# How many module-level steps `_flow_holds` takes before it gives up.
+FLOW_HOPS = 256
+
+
+def _flow_holds(src: str, ident: str, pos: int) -> bool:
+    """Whether the array declared as `ident` at `pos` reaches no code that
+    may change it. The parser's `flow` op follows it inside a module
+    through aliases, returns, arguments and callbacks of array methods that
+    never change the array; this follows the hops that leave the module:
+
+    - an export, to every module importing the exported name (a re-export
+      exports it again), when no module reads that name as a property,
+      since `ns.name` on a module namespace reaches the export too;
+    - an argument to an imported function, to that function's parameter in
+      the one module exporting it.
+
+    Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
+    is a bundle with a module that may change Array.prototype or
+    Object.prototype, whose methods the walk takes as built in. The bundle
+    is taken as the whole program: nothing outside it imports its
+    modules."""
+    assert _PARSER is not None
+    if _PARSER.keys_used(src, parser_reader.PATCHES_BUILTINS, _module_spans(src)):
+        return False
+    pending = [(_chunk_span(src, pos), {"var": True, "offset": pos, "name": ident})]
+    done: set[tuple[tuple[int, int], str]] = set()
+    while pending:
+        span, start = pending.pop()
+        key = (span, json.dumps(start, sort_keys=True))
+        if key in done:
+            continue
+        done.add(key)
+        if len(done) > FLOW_HOPS:
+            return False
+        found = _PARSER.flow(src, *span, start)
+        if not found["safe"]:
+            return False
+        for hop in found["exits"]:
+            if hop[0] == "param":
+                home = _sole_exporter(src, hop[1])
+                if home is None:
+                    return False
+                pending.append(
+                    (_chunk_span(src, home[0]), {"param": hop[2], "name": home[1]})
+                )
+                continue
+            name = hop[1]
+            if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
+                return False
+            pending.extend(
+                (importer, {"import": name, "calls": hop[0] == "export-call"})
+                for importer in _importers(src, name)
+            )
+    return True
+
+
+def _module_spans(src: str) -> list[tuple[int, int]]:
+    """The bundle's modules, in order: the runs the parser parsed for
+    `src`, else every `_chunk_span`."""
+    assert _PARSER is not None
+    return _PARSER.module_spans(src) or [
+        (lo, _chunk_span(src, lo)[1]) for lo in _chunk_starts(src)
+    ]
+
+
+_EXPORT_DECL_RE = re.compile(
+    r"(?<![\w$.])export\s+(?:async\s+)?(?:function|class|var|let|const)(?![\w$])"
+)
+
+
+@functools.lru_cache(maxsize=4)
+def _export_decl_sites(src: str) -> tuple[int, ...]:
+    return tuple(m.start() for m in _EXPORT_DECL_RE.finditer(src))
+
+
+def _sole_exporter(src: str, name: str) -> tuple[int, str] | None:
+    """The start of the one module exporting `name` and its local name
+    there. None when no module or several do. The export-list index reads
+    only a module's closing `export{...}`, so another module whose text
+    holds an `export function`/`export var` declaration and the name has
+    its exports read by the parser, and a module that does not parse
+    counts as exporting it."""
+    assert _PARSER is not None
+    homes = _export_index(src).get(name, [])
+    if len(homes) != 1:
+        return None
+    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
+    spans = _module_spans(src)
+    starts = [lo for lo, _ in spans]
+    checked = {homes[0][0]}
+    for at in _export_decl_sites(src):
+        k = bisect.bisect_right(starts, at) - 1
+        if k < 0 or at >= spans[k][1] or starts[k] in checked:
+            continue
+        checked.add(starts[k])
+        if token.search(src, *spans[k]):
+            names = _PARSER.exports(src, *spans[k])
+            if names is None or name in names:
+                return None
+    return homes[0]
+
+
+@functools.lru_cache(maxsize=256)
+def _importers(src: str, name: str) -> tuple[tuple[int, int], ...]:
+    """Every module that may import `name` or re-export it from another:
+    any `{...}from"..."` list holding the name as a word. A superset; the
+    parser's `flow` op reads the specifiers."""
+    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
+    tail = re.compile(r"\s*from\s*[\"'`]")
+    out: list[tuple[int, int]] = []
+    for m in token.finditer(src):
+        opened = src.rfind("{", max(0, m.start() - 262_144), m.start())
+        closed = src.find("}", m.end())
+        if (
+            opened < 0
+            or closed < 0
+            or "}" in src[opened : m.start()]
+            or "{" in src[m.end() : closed]
+            or not tail.match(src, closed + 1)
+        ):
+            continue
+        span = _chunk_span(src, m.start())
+        if span not in out:
+            out.append(span)
+    return tuple(out)
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
@@ -5619,7 +5749,7 @@ def _read_with_parser(
             started = time.perf_counter()
             unparsed = []
             for start, end in spans:
-                ok, error = reader.parse_ok(src[start:end])
+                ok, error = reader.parse_module(src, start, end)
                 if not ok:
                     unparsed.append({"offset": start, "error": error})
             info["parse_seconds"] = round(time.perf_counter() - started, 3)
@@ -5630,6 +5760,7 @@ def _read_with_parser(
             info["extract_seconds"] = round(time.perf_counter() - started, 3)
             info["binding_lookups"] = reader.lookups
             info["write_lookups"] = reader.write_lookups
+            info["flow_lookups"] = reader.flow_lookups
     except parser_reader.ReaderBroken as exc:
         block.update(status="broken", reason=exc.reason, remediation=exc.command)
         report["sources"]["binary"] = {

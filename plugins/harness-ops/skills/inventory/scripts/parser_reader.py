@@ -54,6 +54,9 @@ COMPONENT = "inventory-parser"
 PLUGIN_DATA_ID = "harness-ops-melodic-software"
 NPM_CI_ARGS = ("ci", "--ignore-scripts", "--no-audit", "--no-fund")
 NPM_TIMEOUT_SECONDS = 600
+# The name `keys_used` reports for a module that may change Array.prototype
+# or Object.prototype (the helper's PATCHES_BUILTINS).
+PATCHES_BUILTINS = "\0builtins"
 STALE_PARTIAL_SECONDS = 2 * NPM_TIMEOUT_SECONDS
 
 
@@ -210,9 +213,8 @@ class ParserReader:
         self._stderr = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
         self._next_id = 0
         self._keys: dict[tuple[int, int, int], tuple[str, str]] = {}
-        self._answers: dict[
-            tuple[str, int, int, str, int | None], dict[str, Any] | None
-        ] = {}
+        self._spans: dict[int, list[tuple[int, int]]] = {}
+        self._answers: dict[tuple[Any, ...], dict[str, Any] | None] = {}
         try:
             self._proc = subprocess.Popen(
                 [node, str(HELPER)],
@@ -264,6 +266,75 @@ class ParserReader:
     def parse_ok(self, source: str) -> tuple[bool, str | None]:
         res = self.request("parse_ok", source=source)
         return bool(res["parsed"]), res.get("error")
+
+    def parse_module(self, src: str, lo: int, hi: int) -> tuple[bool, str | None]:
+        """`parse_ok` for the module `src[lo:hi]`, which also files the
+        module among the ones `keys_used` reads for `src`."""
+        self._spans.setdefault(id(src), []).append((lo, hi))
+        res = self.request(
+            "parse_ok", source=src[lo:hi], module=self._module_key(src, lo, hi)
+        )
+        return bool(res["parsed"]), res.get("error")
+
+    def flow(self, src: str, lo: int, hi: int, start: dict[str, Any]) -> dict[str, Any]:
+        """Whether an array value stays unchanged in the module `src[lo:hi]`
+        (the helper's `flow` op). `start["offset"]`, when present, is a
+        position in `src`; so is the `at` of an unsafe answer."""
+        key = ("flow", id(src), lo, json.dumps(start, sort_keys=True))
+        cached = self._answers.get(key)
+        if cached is not None:
+            return cached
+        fields = dict(start)
+        if "offset" in fields:
+            fields["offset"] -= lo
+        res = self._send("flow", src, lo, hi, start=fields)
+        if res.get("unreadable"):
+            answer = {
+                "safe": False,
+                "reason": "the module holds a character outside the BMP",
+                "at": None,
+            }
+        elif res["safe"]:
+            answer = {"safe": True, "exits": [tuple(hop) for hop in res["exits"]]}
+        else:
+            at = res.get("at")
+            answer = {
+                "safe": False,
+                "reason": res["reason"],
+                "at": None if at is None else at + lo,
+            }
+        self._answers[key] = answer
+        return answer
+
+    def module_spans(self, src: str) -> list[tuple[int, int]] | None:
+        """The modules `parse_module` filed for `src`, in order, if any."""
+        return self._spans.get(id(src))
+
+    def exports(self, src: str, lo: int, hi: int) -> list[str] | None:
+        """Every name the module `src[lo:hi]` exports, or None when it does
+        not parse."""
+        res = self._send("exports", src, lo, hi)
+        return None if res.get("unreadable") or "error" in res else res["names"]
+
+    def keys_used(
+        self, src: str, name: str, spans: list[tuple[int, int]] | None = None
+    ) -> bool:
+        """Whether any module of `src` reads `name` by name as a property:
+        `x.name`, `x["name"]`, or a destructured key. A computed read with
+        any other key is not seen. The modules are those `parse_module`
+        filed for `src`, else `spans`. A module that does not parse reads
+        every name."""
+        key = ("keys", id(src), name)
+        cached = self._answers.get(key)
+        if cached is None:
+            cached = {"used": False}
+            for lo, hi in self._spans.get(id(src)) or spans or [(0, len(src))]:
+                res = self._send("keys_used", src, lo, hi, names=[name])
+                if res.get("unreadable") or res["used"]:
+                    cached["used"] = True
+                    break
+            self._answers[key] = cached
+        return cached["used"]
 
     def binding(
         self, src: str, lo: int, hi: int, name: str, offset: int | None
@@ -323,13 +394,23 @@ class ParserReader:
     ) -> dict[str, Any]:
         """Ask `op` about `name` in the module `src[lo:hi]`, sending the
         module's text when the helper does not hold it."""
-        fields: dict[str, Any] = {"module": self._module_key(src, lo, hi), "name": name}
+        fields: dict[str, Any] = {"name": name}
         fields.update({"top": True} if offset is None else {"offset": offset - lo})
+        res = self._send(op, src, lo, hi, **fields)
+        return {"found": False} if res.get("unreadable") else res
+
+    def _send(
+        self, op: str, src: str, lo: int, hi: int, **fields: Any
+    ) -> dict[str, Any]:
+        """Ask `op` about the module `src[lo:hi]`, sending its text when the
+        helper does not hold it. `unreadable` when the module holds a
+        character outside the BMP, where offsets stop matching."""
+        fields["module"] = self._module_key(src, lo, hi)
         res = self.request(op, **fields)
         if res.get("need_source"):
             text = src[lo:hi]
             if any(ord(c) > 0xFFFF for c in text):
-                return {"found": False}
+                return {"unreadable": True}
             res = self.request(op, source=text, **fields)
         return res
 
@@ -342,6 +423,11 @@ class ParserReader:
     def write_lookups(self) -> int:
         """Distinct writes lookups answered so far."""
         return sum(key[0] == "writes" for key in self._answers)
+
+    @property
+    def flow_lookups(self) -> int:
+        """Distinct flow lookups answered so far."""
+        return sum(key[0] == "flow" for key in self._answers)
 
     def _module_key(self, src: str, lo: int, hi: int) -> str:
         """A name for the module the helper caches it under. `src` is held
