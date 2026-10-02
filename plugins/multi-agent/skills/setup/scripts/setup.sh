@@ -81,14 +81,14 @@ check() {
 # Render sorted `dotted.key<TAB>value` records as the YAML subset.
 render() {
   LC_ALL=C sort -t $'\t' -k1,1 | awk -F '\t' '
-    BEGIN { print "schema: 1"; pn = 0 }
+    BEGIN { print "schema: 1"; prev_depth = 0 }
     {
       n = split($1, p, ".")
       c = 0
-      while (c < n - 1 && c < pn && p[c + 1] == pp[c + 1]) c++
+      while (c < n - 1 && c < prev_depth && p[c + 1] == pp[c + 1]) c++
       for (i = c + 1; i < n; i++) printf "%" (2 * (i - 1)) "s%s:\n", "", p[i]
       printf "%" (2 * (n - 1)) "s%s: %s\n", "", p[n], $2
-      pn = n - 1
+      prev_depth = n - 1
       for (i = 1; i <= n; i++) pp[i] = p[i]
     }'
 }

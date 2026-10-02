@@ -109,7 +109,7 @@ fixture broken
 mkdir -p "$T/broken/repo/.claude"
 printf 'schema: 1\nroles:\n\tworker:\n' >"$T/broken/repo/.claude/multi-agent.local.yaml"
 run broken apply --layer local --write roles.worker.effort=low >/dev/null
-assert_eq "an unparseable layer is not overwritten" 1 "$?"
+assert_eq "an unparsable layer is not overwritten" 1 "$?"
 assert_contains "the parse error names the line" "$(cat "$T/broken.err")" 'line 3: tab indentation'
 
 fixture symlink
