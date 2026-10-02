@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.2] - 2026-10-01
+
+### Changed
+
+- **The interview hub restates its three gates in an early `## Gates` block.** The auto-guard, the `lock` STOP-on-gap and the register gate sat past the part of SKILL.md a compaction re-attaches, so a compacted session lost them. The block sits before the Action Router; the full rules stay in Step 1.5, the Action Router and Step 3. `interview-defenses.test.sh` digests the block and pins each line once inside it, and `reattach-slice.test.sh` now asserts the block stays in the re-attach slice ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
 ## [0.59.1] - 2026-10-01
 
 ### Changed

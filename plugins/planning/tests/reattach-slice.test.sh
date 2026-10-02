@@ -2,8 +2,9 @@
 # The plan, prd, and design hubs' mandatory gates stay inside the compaction
 # re-attach slice (#4255). The stand-in for 5,000 tokens is the first 20,000
 # bytes. A phrase that also appears after that cut is a gate the re-attach can
-# drop. The interview hub is not asserted here: its gate lines are pinned to
-# other positions by interview-defenses.test.sh.
+# drop. The interview hub's full gate rules stay where interview-defenses.test.sh
+# pins them, past the cut; its "## Gates" block restates them early and is
+# asserted here.
 #
 # shellcheck disable=SC2016  # single quotes are deliberate: assert_gate phrases are verbatim
 # markdown lines that hold literal backticks, and expanding them would break the match.
@@ -64,6 +65,13 @@ assert_gate 'is withheld, recorded as a `deferred` thread'
 assert_gate 'MUST produce `design-resolution.md`'
 assert_gate '## Handoff gate (`handoff` action)'
 assert_gate 'This skill carries no gate criteria of its own'
+
+load_hub interview
+assert_gate '## Gates'
+assert_gate "**The user's decisions are never synthesized.**"
+assert_gate '**A gap during `lock` synthesis halts the run.**'
+assert_gate '**The register gate runs before the contract locks.**'
+assert_gate 'Full rule: Step 3, "Register gate".'
 
 if grep -q '^## Execution-shape analysis$' "$PLUGIN_DIR/skills/plan/context/plan-template.md"; then
   ok 'step 4.5 analysis lives in the plan template'
