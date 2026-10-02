@@ -145,7 +145,7 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertTrue(
             cmd.endswith(
-                f"npm ci --prefix {target} --ignore-scripts --no-audit --no-fund"
+                f"npm.cmd ci --prefix {target} --ignore-scripts --no-audit --no-fund"
             )
         )
 

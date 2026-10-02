@@ -78,7 +78,7 @@ When `npm` is missing, the network is down, `npm ci` fails, or the installed set
 component reports itself **broken** and prints one command line that repairs it: remove the install
 directory, recreate it, copy the two manifests in, and run `npm ci --prefix` on it with the flags
 above. The line is POSIX shell, except on Windows, where it is Windows PowerShell 5.1 (no `&&`,
-single quotes doubled). When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
+single quotes doubled, `npm.cmd` named because the default execution policy blocks `npm.ps1`). When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
 the report says to install Node.js and rerun instead of printing that line. It never falls back to a different implementation that could return a different
 value, and never reports a partial result as complete.
 
