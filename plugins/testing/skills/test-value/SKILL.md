@@ -10,7 +10,7 @@ metadata:
 # Test value
 
 A test is worth keeping when it fails for the bug it guards and passes for any correct
-implementation. `/tdd:principles` (when the `tdd` plugin is installed) carries the wider Beck and
+implementation. `/tdd:principles` (when the `tdd` plugin is enabled) carries the wider Beck and
 Khorikov doctrine.
 
 ## 1. Every expected value names its independent source

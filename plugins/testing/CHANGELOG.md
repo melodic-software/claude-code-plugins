@@ -3,11 +3,17 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.1] - 2026-10-02
+## [0.20.2] - 2026-10-02
 
 ### Changed
 
 - The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and `playwright` and `mutation-testing` now install disabled. `cleanup` stops when `mutation-testing` is not enabled.
 
 ## [0.20.0] - 2026-10-02
 
