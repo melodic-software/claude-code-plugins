@@ -1362,7 +1362,7 @@ fi
 
 # Token shapes that never belong in a claim or detail. Used here to redact a
 # hook command and in category F to flag a tracked settings value.
-SECRET_RE='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
+SECRET_RE='gh[pousr]_[A-Za-z0-9]{20,}|ghs_[0-9]+_[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
   # resolve_hook_path <command> <plugin-path> -> the first token with placeholders expanded

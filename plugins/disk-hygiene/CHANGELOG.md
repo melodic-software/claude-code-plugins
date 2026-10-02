@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.10] - 2026-10-02
+
+### Fixed
+
+- The guard decision log redacts GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format
+  GitHub rolls out from 2026-04-27. The old pattern stopped at the `_` after the app ID, so the
+  token was written to the log in full.
+
 ## [0.42.9] - 2026-10-02
 
 ### Changed

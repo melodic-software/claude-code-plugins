@@ -455,6 +455,27 @@ def test_validate_secret_shape_is_warn_only(tmp_path):
     )
 
 
+def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
+    token = (
+        "ghs"
+        + "_1234567_FAKEheaderNOTaJWT.FAKEpayload"
+        + "A" * 450
+        + ".FAKEsignatureNOTreal"
+    )
+    text = text.replace(
+        "None. Nothing waits on a person or an access grant.",
+        f"None. The token {token} was rotated.",
+    )
+    target.write_text(text, encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 0, out(result)
+    assert "secret-shaped" in out(result) and "GitHub token" in out(result)
+
+
 @pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])
 def test_validate_refuses_a_bulleted_next_headline(tmp_path, marker):
     handoffs = materialize(tmp_path, "good-chain")

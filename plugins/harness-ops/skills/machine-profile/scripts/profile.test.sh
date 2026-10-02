@@ -215,6 +215,7 @@ refuse "an unknown mode is refused" '{"key":"k","value":"v","verdict":"set","obs
 refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"blocked","observed_by":"ls","mode":"observed"}'
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_FAKEheader.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a sensitive userConfig key is refused" '{"key":"dometrain-mcp.dometrain_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'

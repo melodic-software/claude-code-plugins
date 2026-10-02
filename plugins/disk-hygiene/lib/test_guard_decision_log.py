@@ -143,6 +143,17 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertIn(decision_log.REDACTED, entry["command"])
         self.assertIn(decision_log.REDACTED, entry["reason"])
 
+    def test_github_app_installation_token_jwt_form_is_redacted(self) -> None:
+        # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
+        payload = "FAKEpayload" + ("A" * 450)
+        token = (
+            "ghs" + "_1234567_FAKEheaderNOTaJWT." + payload + ".FAKEsignatureNOTreal"
+        )
+        self.write_one(command="echo " + token)
+        (entry,) = self.read_records()
+        self.assertNotIn(payload[:40], entry["command"])
+        self.assertEqual("echo " + decision_log.REDACTED, entry["command"])
+
     def test_none_and_deny_by_default_persist_length_not_command_text(self) -> None:
         secret = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
         self.write_one(

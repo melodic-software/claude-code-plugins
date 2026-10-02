@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.3.4] - 2026-10-02
+
+### Fixed
+
+- The audit engine's secret-shape check (`SECRET_RE`, which flags a token in tracked `settings.json` and redacts hook commands) covers GitHub OAuth, user, server and refresh tokens (`gho_`, `ghu_`, `ghs_`, `ghr_`) and the `ghs_<APPID>_<JWT>` installation-token format GitHub rolls out from 2026-04-27. Before, only `ghp_` and `github_pat_` were matched.
+
 ## [1.3.3] - 2026-10-02
 
 ### Changed

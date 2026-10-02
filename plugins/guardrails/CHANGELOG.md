@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.9] - 2026-10-02
+
+### Fixed
+
+- Secret detection catches GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format
+  GitHub rolls out from 2026-04-27 (about 520 characters, length varies). The new pattern matches
+  `ghs_`, a numeric app ID, `_`, and three dot-separated base64url segments; the 36-character
+  `ghs_`/`ghu_` form is still detected.
+
 ## [0.46.8] - 2026-10-02
 
 ### Changed

@@ -94,7 +94,10 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
         re.DOTALL,
     ),
     re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"),
+    re.compile(
+        r"\b(?:ghs_[0-9]+_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}"
+        r"|gh[pousr]_[A-Za-z0-9]{20,})"
+    ),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),

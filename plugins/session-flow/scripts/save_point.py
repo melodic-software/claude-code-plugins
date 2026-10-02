@@ -226,7 +226,13 @@ PRIOR_SEPARATOR = "|---|---|---|---|---|"
 SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----"), "private key"),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "API key"),
-    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "GitHub token"),
+    (
+        re.compile(
+            r"\b(?:ghs_[0-9]+_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}"
+            r"|gh[pousr]_[A-Za-z0-9]{20,})"
+        ),
+        "GitHub token",
+    ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS key id"),
     (

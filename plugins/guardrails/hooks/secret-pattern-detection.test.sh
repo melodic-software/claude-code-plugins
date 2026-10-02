@@ -52,6 +52,12 @@ AWS_PREFIX='AKIA'
 AWS_TOKEN="${AWS_PREFIX}IOSFODNN7EXAMPLE"
 GH_PREFIX='ghp_'
 GH_PAT="${GH_PREFIX}$(printf 'a%.0s' {1..36})"
+GHS_PREFIX='ghs_'
+GH_APP_TOKEN="${GHS_PREFIX}$(printf 'b%.0s' {1..36})"
+# The ghs_<APPID>_<JWT> installation-token format GitHub rolls out from
+# 2026-04-27, about 520 characters: dot-separated JWT segments that spell
+# FAKE and are not base64 JSON.
+GH_APP_TOKEN_JWT="${GHS_PREFIX}1234567_FAKEheaderNOTaJWT.FAKEpayload$(printf 'A%.0s' {1..450}).FAKEsignatureNOTreal"
 SLACK_PREFIX='xoxb-'
 SLACK_TOKEN="${SLACK_PREFIX}1234567890123-9876543210987"
 STRIPE_PREFIX='sk_live_'
@@ -78,6 +84,16 @@ OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_PAT'")" 2>&1)
 RC=$?
 assert_exit "GitHub PAT → exit 2" 2 "$RC"
 assert_contains "GH PAT → message" "$OUT" "GitHub PAT"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_APP_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "GitHub App token, 36-char form → exit 2" 2 "$RC"
+assert_contains "GH App token, 36-char form → message" "$OUT" "GitHub App Token"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_APP_TOKEN_JWT'")" 2>&1)
+RC=$?
+assert_exit "GitHub App token, ghs_<APPID>_<JWT> form → exit 2" 2 "$RC"
+assert_contains "GH App token, ghs_<APPID>_<JWT> form → message" "$OUT" "GitHub App Token"
 
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "SLACK='$SLACK_TOKEN'")" 2>&1)
 RC=$?

@@ -535,6 +535,17 @@ assert_eq "case 11: undocumented var is info" "info" "$(jq -r '.findings[] | sel
 mkdir -p "$m/nodocs"
 out=$(DOCS_FIXTURE="$m/nodocs" run "$m" --json 2>&1) || true
 assert_eq "case 11: without the env-vars page the documentation row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="env-page-not-fetched:MY_SINK") | .status' <<<"$out")"
+# GitHub app and OAuth tokens, including the ghs_<APPID>_<JWT> installation
+# token format GitHub rolls out from 2026-04-27. Assembled at runtime so no
+# token-shaped literal sits in this file; the JWT segments spell FAKE and are
+# not base64 JSON, so only the GitHub rule can match them.
+ghs_prefix='ghs_'
+for tok in "${ghs_prefix}1234567_FAKEheaderNOTaJWT.FAKEpayload$(printf 'A%.0s' {1..450}).FAKEsignatureNOTreal" \
+  "${ghs_prefix}$(printf 'b%.0s' {1..36})" "gho""_$(printf 'c%.0s' {1..36})" "ghu""_$(printf 'd%.0s' {1..36})"; do
+  printf '%s\n' "$CLEAN_SETTINGS" | jq --arg t "$tok" '. + {env:{GH:$t}}' >"$m/project/.claude/settings.json"
+  out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
+  assert_eq "case 11: ${tok:0:12}... is a secret-shaped error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"
+done
 # Keys keep their tab-separated-values encoding, so a control character never
 # splits one key into two rows and existing claim identities stay stable.
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"A\nB":"1"}}' >"$m/project/.claude/settings.json" # portability-ok: a JSON newline escape, not a regex escape

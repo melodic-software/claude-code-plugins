@@ -815,6 +815,12 @@ class Redaction(unittest.TestCase):
         self.assertIn(
             "<REDACTED: GitHub token>", r("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
         )
+        # ghs_<APPID>_<JWT> installation token, about 520 characters; the
+        # segments spell FAKE.
+        jwt = "FAKEheaderNOTaJWT.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
+        self.assertEqual(
+            "tok <REDACTED: GitHub token> z", r("tok ghs" + "_1234567_" + jwt + " z")
+        )
         self.assertIn("<REDACTED: connection string>", r("postgres://u:p@h/db"))
         self.assertIn("<REDACTED: email>", r("a.b+c@ex.co"))
         self.assertIn("<REDACTED: secret>", r('password: "hunter2hunter2"'))
