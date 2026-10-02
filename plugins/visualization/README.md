@@ -64,13 +64,12 @@ rendered diagram. These facts and their sources are documented in the catalog.
 
 ## Configuration
 
-- **`medium`** (`userConfig`, string, default `auto`). Preferred delivery medium
-  when the skill auto-selects: `auto` (decide by content and available surfaces),
-  `terminal` (always inline), `file` (rich forms as a local HTML file, never
-  published off the machine), or `artifact` (prefer a published Artifact when
-  available, else a local file, else terminal). An unrecognized value is reported
-  and treated as `auto`; validated in-skill. It is a free string, not a `/config`
-  picker, because an empty value leaves the choice to the `rendered-views` cascade.
+- **`medium`** (`userConfig`, string, default `auto`). Preferred delivery medium:
+  `auto` (defer to the `rendered-views` cascade, then decide by content and
+  available surfaces), `terminal` (always inline), `file` (rich forms as a local
+  HTML file, never published off the machine), or `artifact` (prefer a published
+  Artifact when available, else a local file, else terminal). A `/config` picker
+  offers these four values.
 - **`thin_context_prompt`** (`userConfig`, string, default `auto`). What the skill
   does when code is pasted with little conversational context and no form named:
   `auto` (ask one ranked question only when two or more code-shape forms fit about
@@ -106,7 +105,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium when the skill auto-selects. auto (default) decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a local file, else terminal. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 
 ### How to set these

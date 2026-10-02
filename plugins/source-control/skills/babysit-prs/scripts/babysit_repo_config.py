@@ -270,9 +270,13 @@ def merge_repo_config(
 def fallback_from_args(args: object) -> dict[str, str | None]:
     """The `userConfig` fallback mapping from a parsed CLI namespace.
 
-    A flag the calling script does not define reads as unset.
+    A flag the calling script does not define reads as unset, and so does a merge
+    method of `auto`, the picker's name for repo convention then squash.
     """
-    return {key: getattr(args, dest, None) for key, dest in FLAG_DESTS.items()}
+    fallback = {key: getattr(args, dest, None) for key, dest in FLAG_DESTS.items()}
+    if fallback["babysit_merge_method"] == "auto":
+        fallback["babysit_merge_method"] = None
+    return fallback
 
 
 def _contents_readable(gh_runner: GhRunner, owner: str, name: str) -> bool:

@@ -22,8 +22,9 @@
     "medium": {
       "type": "string",
       "title": "Preferred delivery medium",
-      "description": "Preferred delivery medium when the skill auto-selects. auto (default) decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a local file, else terminal.",
-      "default": "auto"
+      "description": "Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file.",
+      "default": "auto",
+      "options": ["auto", "terminal", "file", "artifact"]
     },
     "thin_context_prompt": {
       "type": "string",

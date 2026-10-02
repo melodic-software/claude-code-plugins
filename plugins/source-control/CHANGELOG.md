@@ -17,6 +17,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   number); a non-numeric value is now rejected at configuration time.
 - `babysit_default_tier` is now a picker with the values `safe`, `worker`, and `autopilot`; any
   other value is now rejected at configuration time.
+- `babysit_merge_method` is now a picker with the values `auto` (the new default: the repository's
+  declared method, then squash, as an unset value behaved), `squash`, `merge`, and `rebase`. The
+  merge wrapper's `--method` accepts `auto` and treats it as unset.
 
 ## [0.71.4] - 2026-10-02
 

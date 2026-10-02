@@ -115,7 +115,9 @@
     "babysit_merge_method": {
       "type": "string",
       "title": "Babysit merge method",
-      "description": "Merge method for gate-proven merges: merge, squash, or rebase. Absent: repo convention, then squash."
+      "description": "Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none.",
+      "default": "auto",
+      "options": ["auto", "squash", "merge", "rebase"]
     },
     "babysit_autopilot_merge_tier": {
       "type": "boolean",
