@@ -5,13 +5,6 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ## [3.0.0] - 2026-10-02
 
-### BREAKING
-
-- **The default inventory reader now needs Node.js and npm.** `inventory.py` reads the bundle with
-  `--reader=parser` by default, which installs its pinned parser on first use; without Node.js or
-  npm the report shows `binary: broken` with the repair command and no binary sections. Pass
-  `--reader=regex` to keep the old behavior.
-
 ### Added
 
 - **The parser reader follows a spread array across modules.** Where `--reader=parser` used to
@@ -34,8 +27,10 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ### Changed
 
-- **`--reader=parser` is the inventory's default.** `--reader=regex` and `--reader=compare` stay
-  selectable. The inventory and audit-native-overlap skills pass
+- **BREAKING: the default inventory reader now needs Node.js and npm.** `inventory.py` reads the
+  bundle with `--reader=parser` by default, which installs its pinned parser on first use; without
+  Node.js or npm the report shows `binary: broken` with the repair command and no binary
+  sections. Pass `--reader=regex` to keep the old behavior; `--reader=compare` stays selectable. The inventory and audit-native-overlap skills pass
   `--deps-dir "${CLAUDE_PLUGIN_DATA}"`. The changelog skill's native-drift step runs the inventory
   without it and installs into the fallback, `<config dir>/plugins/data/harness-ops-melodic-software`,
   the same directory `${CLAUDE_PLUGIN_DATA}` names for this plugin.
