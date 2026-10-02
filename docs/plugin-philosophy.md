@@ -311,7 +311,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model`, which we use only as a per-turn override, including for a forked subagent. Pointer for `model`: the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck trigger: that row changes what `model` accepts, or auto mode stops keeping the session model. | 2026-09-29 |
 | [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
-| [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
+| [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: plan gating and the user and organization off switches are upstream's, listed at [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (recheck when a switch or plan gate changes); so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. One ships: review's `fanout-sweep`, which `/review:fanout run-everything` launches and which keeps a main-thread fallback. Scripts follow the [workflow authoring convention](#workflow-authoring-convention). | 2026-10-02 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](conventions/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the harness-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
@@ -1187,6 +1187,8 @@ needs no edit here. Which model each alias resolves to is read live from the mod
 differs by provider: the same alias can name an older model on a cloud provider's platform than on
 the Anthropic API.
 
+For generic agents in a multi-agent run, the per-role defaults built on these rows live in `plugins/multi-agent/reference/defaults.yaml`.
+
 | Tier | Alias |
 |---|---|
 | Judgment verdict (never weaker than the work it checks) | `opus`, or the tier of the checked work when that is higher, with `fable` the rung above |
@@ -1595,6 +1597,43 @@ and the release.
 - **As of:** 2026-10-01.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
   which models support effort.
+
+### Workflow authoring convention
+
+A Workflow script this repository ships follows these rules;
+`plugins/review/workflows/fanout-sweep.js` is the reference.
+
+- **Aliases only.** A script names a model by alias, never by model id, for the reason the
+  [tier table](#model-tiers) gives.
+- **Roles arrive through `args.roles`.** The launching skill runs
+  `/multi-agent:route all session=<alias>` and passes the printed `roles` object unchanged. A stage
+  that runs one agent reads a role's `single` variant; a stage that runs several reads its `fanout`
+  variant. The keys are in `plugins/multi-agent/reference/config.md`.
+- **Built-in fallbacks.** A script runs without `args.roles`: it carries a fallback for each role it
+  reads and logs that the fallbacks applied, so the multi-agent plugin stays optional.
+- **`inherit` means omit `opts.model`.** Effort is always explicit on a generic `agent()` call, as
+  [Effort tiers](#effort-tiers) sets out.
+- **Named agents keep their pins.** A call by `agentType` passes neither `model` nor `effort`, and
+  the role map does not govern it.
+- **Fan-out frontier guard.** A stage that runs more than one agent never runs them on a frontier
+  model, so a Fable root never fans out into Fable agents. When the session model is unknown, the
+  fan-out names `opus`. A single synthesis or judge agent may inherit.
+- **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
+  default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
+- **Unattended runs stay small,** because which runs pause at a usage limit is upstream's rule
+  (pointer below).
+- **Pointers, not restated limits.** Concurrency, agent caps and the size guideline are read from
+  the workflows page, never copied into a script or its docs.
+
+- **Pointer:** for the usage-limit pause, see
+  [workflows: when a run hits your usage limit](https://code.claude.com/docs/en/workflows#when-a-run-hits-your-usage-limit);
+  for the runtime limits, see
+  [workflows: behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits);
+  for how a script's model ranks, see
+  [workflows: cost](https://code.claude.com/docs/en/workflows#cost).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** the usage-limit pause covers headless or background runs, or the workflows
+  page changes how a script-named model ranks.
 
 ### Declared patterns
 
