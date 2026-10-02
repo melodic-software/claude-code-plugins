@@ -1,5 +1,36 @@
 # Changelog: discovery plugin
 
+## [0.26.0] - 2026-10-02
+
+### Added
+
+- **`/discovery:research-sweep` workflow** (`workflows/research-sweep.js`): one searcher per
+  angle (official docs first by default, then vendor blogs, practitioners, and issues and
+  changelogs), one reader per selected source, one agent that merges the read claims, three
+  independent skeptics per load-bearing claim, one completeness critic and one synthesizer. Its
+  `args` carry `question` (required; without it the run dispatches nothing), `angles`, `sources`,
+  `roles`, `maxConcurrent` (default 4, clamped to 1-16) and `artifactPath`. A claim survives only
+  when a majority of its panel upholds it, and a skeptic that errored, returned nothing or could
+  not check counts as unverified, not refuted. The result carries findings with citations, source
+  tier, date and consensus counts, plus dissent, refuted and unverified claims, the critic's gaps,
+  the fetch log, unread sources and every agent that returned nothing. Searchers and readers take
+  the worker role's fan-out variant, skeptics the verifier's, the critic the verifier's single
+  variant and the synthesizer the orchestrator's, from `/multi-agent:route` when the caller passes
+  them, else from built-in fallbacks (fan-out stages on `opus`; searchers and readers at `low`
+  effort, skeptics at `high`; the critic and synthesizer inherit the session model). The workflow
+  writes no files.
+
+### Changed
+
+- **`research-deep` Tier 1 launches `discovery:research-sweep`** instead of looking for a
+  project-provided engine. It resolves roles with `/multi-agent:route all research` when that skill
+  resolves, else omits them and says once that enabling multi-agent makes routing configurable.
+  It writes `RESEARCH.md` and its sidecars from the result, then closes the existing post-dispatch
+  boundary. The availability gate and the Tier 2 and Tier 3 fallbacks are unchanged.
+  `research-deep` grants `Workflow(discovery:research-sweep)` only, and `scripts/contract.test.sh`
+  accepts that one named grant while still failing any other frontmatter grant.
+- **`research-deep` gains a `## Next` section** naming `/planning:plan`.
+
 ## [0.25.28] - 2026-10-02
 
 ### Changed

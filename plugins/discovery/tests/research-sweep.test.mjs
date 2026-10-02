@@ -1,0 +1,276 @@
+// Runs workflows/research-sweep.js against stubbed workflow hooks (agent,
+// parallel, pipeline, phase, log, args) and asserts what it dispatches.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const source = readFileSync(join(here, '..', 'workflows', 'research-sweep.js'), 'utf8')
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+const body = source.replace(/^export const meta\b/m, 'const meta')
+
+// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
+for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
+  test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
+}
+
+// Default stub: each searcher finds two sources, each reader extracts one
+// claim, consolidation marks every claim load-bearing, skeptics uphold.
+function defaultReply(prompt, o) {
+  const label = o.label || ''
+  if (label.startsWith('search:')) {
+    const n = label.split(':')[1]
+    return { sources: [{ url: `https://docs.example/${n}`, tier: 1 }, { url: `https://blog.example/${n}`, tier: 2 }] }
+  }
+  if (label.startsWith('read:')) {
+    const url = prompt.match(/Source: (\S+)/)[1]
+    return { url, fetched: true, tool: 'WebFetch', outcome: 'ok', tier: 1, pool: 'example', published: '2026-09', applies_to: 'x 1+', claims: [{ claim: 'claim from ' + url, quote: 'q' }] }
+  }
+  if (label === 'consolidate') return { claims: [{ claim: 'A', urls: ['https://docs.example/1'], loadBearing: true }, { claim: 'B', urls: ['https://docs.example/2'], loadBearing: true }, { claim: 'aside', urls: [], loadBearing: false }] }
+  if (label.startsWith('skeptic:')) return { verdict: 'upheld', reason: 'checked' }
+  if (label === 'critic') return { gaps: [{ gap: 'no changelog read', why: 'recency' }] }
+  if (label === 'synthesize') {
+    const ids = [...prompt.matchAll(/^### (c\d+):/gm)].map(m => m[1])
+    return {
+      summary: 'answer',
+      findings: ids.map(id => ({ id, claim: id, confidence: 'HIGH', applies_to: 'x 1+', inference: 'i', sources: [] }))
+        .concat([{ id: 'c99', claim: 'invented', confidence: 'HIGH', applies_to: 'x', inference: 'i', sources: [] }]),
+      dissent: [],
+    }
+  }
+  throw new Error('unexpected label ' + label)
+}
+
+async function run(args, { reply } = {}) {
+  const calls = []
+  const logs = []
+  const agent = async (prompt, opts = {}) => {
+    calls.push({ prompt, opts })
+    return (reply || defaultReply)(prompt, opts, defaultReply)
+  }
+  const parallel = async thunks => Promise.all(thunks.map(t => t().catch(() => null)))
+  const pipeline = async () => { throw new Error('not used') }
+  const fn = new AsyncFunction('agent', 'parallel', 'pipeline', 'phase', 'log', 'args', 'budget', 'workflow', body)
+  const result = await fn(agent, parallel, pipeline, () => {}, m => logs.push(m), args, { total: null }, null)
+  return { result, calls, logs }
+}
+
+const by = (calls, prefix) => calls.filter(c => (c.opts.label || '').startsWith(prefix))
+const one = (calls, label) => calls.find(c => c.opts.label === label)
+const fanouts = calls => [...by(calls, 'search:'), ...by(calls, 'read:'), ...by(calls, 'skeptic:')]
+
+const FRONTIER_ROLES = {
+  orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
+  worker: { single: { model: 'inherit', effort: 'low' }, fanout: { model: 'opus', effort: 'low' } },
+  verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
+}
+const OPUS_ROLES = {
+  orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
+  worker: { single: { model: 'inherit', effort: 'low' }, fanout: { model: 'inherit', effort: 'low' } },
+  verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
+}
+
+test('missing question returns an error and dispatches nothing', async () => {
+  const { result, calls } = await run({ angles: ['docs'] })
+  assert.equal(result.error, 'missing-question')
+  assert.equal(calls.length, 0)
+})
+
+test('bare invocation (no args) dispatches nothing', async () => {
+  const { result, calls } = await run(undefined)
+  assert.equal(result.error, 'missing-question')
+  assert.equal(calls.length, 0)
+})
+
+test('a blank question dispatches nothing', async () => {
+  const { result, calls } = await run({ question: '   ' })
+  assert.equal(result.error, 'missing-question')
+  assert.equal(calls.length, 0)
+})
+
+test('frontier session: searchers, readers and skeptics get opus; searchers and readers low, skeptics high', async () => {
+  const { calls } = await run({ question: 'q', roles: FRONTIER_ROLES })
+  for (const c of [...by(calls, 'search:'), ...by(calls, 'read:')]) {
+    assert.equal(c.opts.model, 'opus', c.opts.label)
+    assert.equal(c.opts.effort, 'low', c.opts.label)
+  }
+  assert.ok(by(calls, 'skeptic:').length > 0)
+  for (const c of by(calls, 'skeptic:')) {
+    assert.equal(c.opts.model, 'opus', c.opts.label)
+    assert.equal(c.opts.effort, 'high', c.opts.label)
+  }
+  const synth = one(calls, 'synthesize')
+  assert.ok(!('model' in synth.opts), 'the single synthesizer inherits')
+  assert.equal(synth.opts.effort, 'high')
+})
+
+test('non-frontier session: fan-out agents omit model and keep explicit effort', async () => {
+  const { calls } = await run({ question: 'q', roles: OPUS_ROLES })
+  for (const c of fanouts(calls)) {
+    assert.ok(!('model' in c.opts), c.opts.label + ' carries no model option')
+    assert.equal(typeof c.opts.effort, 'string')
+  }
+})
+
+test('session model unknown (no roles passed): every fan-out stage gets opus', async () => {
+  const { calls, logs } = await run({ question: 'q' })
+  const f = fanouts(calls)
+  assert.ok(f.length > 0)
+  for (const c of f) assert.equal(c.opts.model, 'opus', c.opts.label)
+  for (const c of [...by(calls, 'search:'), ...by(calls, 'read:')]) assert.equal(c.opts.effort, 'low')
+  for (const c of by(calls, 'skeptic:')) assert.equal(c.opts.effort, 'high')
+  assert.ok(!('model' in one(calls, 'synthesize').opts))
+  assert.ok(logs.some(l => l.includes('built-in fallbacks')))
+})
+
+test('a malformed role variant falls back and is logged', async () => {
+  const roles = { verifier: { fanout: { model: 'claude-opus-5-5', effort: 'high' } } }
+  const { calls, logs } = await run({ question: 'q', roles })
+  assert.equal(by(calls, 'skeptic:')[0].opts.model, 'opus')
+  assert.ok(logs.some(l => l.includes('roles.verifier.fanout')))
+})
+
+test('every agent passes effort explicitly', async () => {
+  const { calls } = await run({ question: 'q' })
+  for (const c of calls) assert.equal(typeof c.opts.effort, 'string', c.opts.label)
+})
+
+test('only load-bearing claims are verified, by three skeptics each', async () => {
+  const { calls } = await run({ question: 'q' })
+  const sk = by(calls, 'skeptic:')
+  assert.equal(sk.length, 6)
+  assert.ok(!sk.some(c => c.prompt.includes('"aside"')))
+})
+
+test('majority vote: two of three upheld survives with its consensus count', async () => {
+  const reply = (p, o, d) => (o.label === 'skeptic:c1:3' ? { verdict: 'refuted', reason: 'newer release' } : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  const c1 = result.findings.find(f => f.id === 'c1')
+  assert.deepEqual(c1.consensus, { upheld: 2, refuted: 1, unverified: 0, panel: 3 })
+})
+
+test('majority vote: two of three refuted kills the claim', async () => {
+  const reply = (p, o, d) => (/^skeptic:c1:[12]$/.test(o.label) ? { verdict: 'refuted', reason: 'wrong' } : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.ok(!result.findings.some(f => f.id === 'c1'))
+  assert.equal(result.refuted.length, 1)
+  assert.equal(result.refuted[0].id, 'c1')
+  assert.deepEqual(result.refuted[0].reasons, ['wrong', 'wrong'])
+})
+
+test('a skeptic that errors or cannot verify counts as unverified, never refuted', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'skeptic:c1:1') throw new Error('429 rate limited')
+    if (o.label === 'skeptic:c1:2') return null
+    if (o.label === 'skeptic:c1:3') return { verdict: 'unverifiable', reason: 'fetch blocked' }
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.equal(result.refuted.length, 0)
+  const u = result.unverified.find(x => x.id === 'c1')
+  assert.deepEqual(u.consensus, { upheld: 0, refuted: 0, unverified: 3, panel: 3 })
+  assert.ok(!result.findings.some(f => f.id === 'c1'))
+})
+
+test('one upheld, one refuted, one error is unverified: no majority either way', async () => {
+  const reply = (p, o, d) => {
+    if (o.label === 'skeptic:c1:2') return { verdict: 'refuted', reason: 'x' }
+    if (o.label === 'skeptic:c1:3') return null
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.ok(result.unverified.some(x => x.id === 'c1'))
+  assert.ok(!result.refuted.some(x => x.id === 'c1'))
+})
+
+test('null results are filtered and named', async () => {
+  const reply = (p, o, d) => (o.label === 'search:2' || o.label === 'read:1' ? null : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.ok(result.nulls.includes('search:2'))
+  assert.ok(result.nulls.includes('read:1'))
+  assert.ok(!result.fetchLog.find(f => f.url === 'https://docs.example/2'), 'a null searcher contributes no source')
+  const r1 = result.fetchLog[0]
+  assert.equal(r1.fetched, false)
+  assert.equal(r1.outcome, 'no result from reader')
+})
+
+test('the synthesizer cannot add a finding that did not survive', async () => {
+  const { result } = await run({ question: 'q' })
+  assert.deepEqual(result.findings.map(f => f.id).sort(), ['c1', 'c2'])
+})
+
+test('a surviving claim the synthesizer dropped is reported unverified, never lost', async () => {
+  const reply = (p, o, d) => (o.label === 'synthesize' ? { summary: 's', findings: [], dissent: [] } : d(p, o))
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.equal(result.findings.length, 0)
+  assert.deepEqual(result.unverified.map(u => u.id).sort(), ['c1', 'c2'])
+})
+
+test('maxConcurrent caps each wave', async () => {
+  let live = 0
+  let peak = 0
+  const reply = async (p, o, d) => {
+    live++
+    peak = Math.max(peak, live)
+    await new Promise(r => setImmediate(r))
+    live--
+    return d(p, o)
+  }
+  const { calls } = await run({ question: 'q', angles: ['a', 'b', 'c', 'd', 'e'], maxConcurrent: 2 }, { reply })
+  assert.equal(by(calls, 'search:').length, 5)
+  assert.ok(peak <= 2, `peak concurrency ${peak}`)
+})
+
+test('the read cap is logged and the unread sources are returned', async () => {
+  const angles = Array.from({ length: 8 }, (_, i) => 'angle ' + i)
+  const { result, calls, logs } = await run({ question: 'q', angles })
+  assert.equal(by(calls, 'read:').length, 12)
+  assert.equal(result.unread.length, 4)
+  assert.ok(logs.some(l => l.includes('past the cap')))
+})
+
+test('seed sources are always read first', async () => {
+  const { calls } = await run({ question: 'q', sources: ['https://seed.example/a', 'not a url'] })
+  assert.ok(by(calls, 'read:')[0].prompt.includes('Source: https://seed.example/a'))
+  assert.ok(!calls.some(c => c.prompt.includes('Source: not a url')))
+})
+
+test('a thrown dispatch is retried once', async () => {
+  let thrown = 0
+  const reply = (p, o, d) => {
+    if (o.label === 'search:1' && thrown === 0) {
+      thrown++
+      throw new Error('transient')
+    }
+    return d(p, o)
+  }
+  const { result } = await run({ question: 'q' }, { reply })
+  assert.equal(thrown, 1)
+  assert.ok(!result.nulls.includes('search:1'))
+})
+
+test('no sources at all returns an error before any reader runs', async () => {
+  const reply = (p, o, d) => (o.label.startsWith('search:') ? { sources: [] } : d(p, o))
+  const { result, calls } = await run({ question: 'q' }, { reply })
+  assert.equal(result.error, 'no-sources')
+  assert.equal(by(calls, 'read:').length, 0)
+})
+
+test('returned shape and pass-through artifactPath', async () => {
+  const { result } = await run({ question: 'q', artifactPath: '.work/x/RESEARCH.md' })
+  assert.equal(result.question, 'q')
+  assert.equal(result.artifactPath, '.work/x/RESEARCH.md')
+  assert.equal(result.summary, 'answer')
+  assert.equal(result.gaps.length, 1)
+  for (const k of ['findings', 'dissent', 'refuted', 'unverified', 'fetchLog', 'unread', 'angles', 'nulls', 'ran', 'roles']) {
+    assert.ok(k in result, k)
+  }
+  assert.ok(result.ran.includes('skeptic:c2:3'))
+})
+
+test('string args are parsed as JSON', async () => {
+  const { result } = await run(JSON.stringify({ question: 'q' }))
+  assert.equal(result.question, 'q')
+})
