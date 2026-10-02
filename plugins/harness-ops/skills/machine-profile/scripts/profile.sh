@@ -30,7 +30,9 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 CRED_RE='token|secret|passw(?:or)?d|credential|api.?key|private.?key'
 # Value shapes the validator refuses in any string of a record: GitHub, AWS, Slack and
 # sk- API tokens, JWTs, private-key blocks, and a password embedded in a URL.
-VAL_RE='ghs_[0-9]+_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?<![A-Za-z0-9])(AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])|(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
+# jq's regex engine backtracks: a JWT header is bounded and its segments spelled out
+# (a counted group is far slower), or a repeated `ghs_1_eyJ-` takes quadratic time.
+VAL_RE='ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?<![A-Za-z0-9])(AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])|(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{8,512}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
 
 # Every record in a document is checked here. Prints one line per problem.
 # shellcheck disable=SC2016  # jq source, not shell expansion

@@ -15,6 +15,9 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - `machine-profile` refuses a record value holding a GitHub App installation token in the
   `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
   than only through the generic JWT rule.
+- `machine-profile` validates a long record value in linear time. jq's regex engine backtracks,
+  and the generic JWT rule took about 10 seconds on a 300 KB value of repeated `ghs_1_eyJ`; its
+  header segment is now capped at 512 characters, as is the `ghs_` rule's.
 
 ## [2.5.0] - 2026-10-02
 

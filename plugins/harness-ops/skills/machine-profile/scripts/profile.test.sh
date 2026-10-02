@@ -215,7 +215,19 @@ refuse "an unknown mode is refused" '{"key":"k","value":"v","verdict":"set","obs
 refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"blocked","observed_by":"ls","mode":"observed"}'
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_FAKEheader.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_eyJFAKE.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+# Values that once kept jq's backtracking regex busy for 10-60 s. `timeout 10` is
+# the backstop: a slow validation reads as rc 124, a finished one as 0 or 1.
+for shape in 'ghs_1_-:50000' 'ghs_1_eyJ:30000' 'ghs_1_eyJa.:30000' 'ghs_1_eyJ-:30000'; do
+  unit="${shape%:*}" count="${shape##*:}"
+  printf -v value '%*s' "$count" ''
+  printf '%s' "${value// /$unit}" >"$OUT/slow-value"
+  jq -nc --rawfile v "$OUT/slow-value" \
+    '{machine: {facts: [{key: "k", value: $v, verdict: "set", observed_by: "ls", mode: "observed", supplied_by: "host"}]}, domains: {}}' >"$OUT/slow-doc"
+  (cd "$FIX/repo" && timeout 10 bash "$SCRIPT" record --data-dir "$OUT/slow" --confirm - <"$OUT/slow-doc" >/dev/null 2>&1)
+  rc=$?
+  expect_eq "validating '$unit' x$count finishes" finished "$([[ $rc -ne 124 ]] && echo finished || echo "timed out")"
+done
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a sensitive userConfig key is refused" '{"key":"dometrain-mcp.dometrain_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'

@@ -58,6 +58,10 @@ ROTATED_FILENAME = "decisions.previous.jsonl"
 # Per generation; two generations are kept, so the bound is about 2 MiB.
 MAX_BYTES = 1_048_576
 MAX_TEXT_CHARS = 400
+# Redaction cost grows faster than linearly on some shapes, so a longer value
+# is scanned only up to here; a secret starting in the kept text and longer
+# than the scan bound less MAX_TEXT_CHARS is not seen.
+MAX_SCAN_CHARS = 4096
 
 FILE_MODE = 0o600
 DIR_MODE = 0o700
@@ -94,8 +98,10 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
         re.DOTALL,
     ),
     re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"),
+    # The bounded `eyJ` header and the spelled-out segments keep this linear;
+    # an unbounded first segment is quadratic on a repeated `ghs_1_-`.
     re.compile(
-        r"\b(?:ghs_[0-9]+_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}"
+        r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
         r"|gh[pousr]_[A-Za-z0-9]{20,})"
     ),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
@@ -107,10 +113,12 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
         r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"
     ),
     re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+    # One attempt per name, consumed possessively: two open-ended runs around the
+    # keyword backtrack in cubic time on a name like `KEYKEY...`.
     re.compile(
-        r"(?i)(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*"
-        r"(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL)[A-Za-z0-9_]*"
-        r"\s*[=:]\s*['\"]?[^\s'\"]+"
+        r"(?i)(?:\$env:)?(?<![A-Za-z0-9_])[0-9]*+"
+        r"(?=[A-Za-z_][A-Za-z0-9_]*?(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL))"
+        r"[A-Za-z0-9_]++\s*[=:]\s*['\"]?[^\s'\"]+"
     ),
 )
 
@@ -141,6 +149,13 @@ def _clip(value: object) -> str | None:
     if value is None:
         return None
     text = value if isinstance(value, str) else str(value)
+    if len(text) > MAX_SCAN_CHARS:
+        # Scan only a bounded prefix, and narrow the kept window by what
+        # redaction removed, so every kept character comes from the first
+        # MAX_TEXT_CHARS of the input and a secret cut at the bound stays out.
+        scanned = _redact_secrets(text[:MAX_SCAN_CHARS])
+        window = MAX_TEXT_CHARS - max(0, MAX_SCAN_CHARS - len(scanned))
+        return scanned[: max(0, window)] + "..."
     text = _redact_secrets(text)
     if len(text) > MAX_TEXT_CHARS:
         return text[:MAX_TEXT_CHARS] + "..."

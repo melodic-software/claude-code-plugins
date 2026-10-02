@@ -6,8 +6,8 @@
 
 - The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
   match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
-  2026-04-27. The old pattern stopped at the `_` after the app ID, so such a token was neither
-  redacted nor warned about.
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
 
 ## [0.44.6] - 2026-10-02
 

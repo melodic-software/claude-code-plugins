@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -146,13 +147,37 @@ class GuardDecisionLogTests(unittest.TestCase):
     def test_github_app_installation_token_jwt_form_is_redacted(self) -> None:
         # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
         payload = "FAKEpayload" + ("A" * 450)
-        token = (
-            "ghs" + "_1234567_FAKEheaderNOTaJWT." + payload + ".FAKEsignatureNOTreal"
-        )
+        token = "ghs" + "_1234567_eyJFAKE." + payload + ".FAKEsignatureNOTreal"
         self.write_one(command="echo " + token)
         (entry,) = self.read_records()
         self.assertNotIn(payload[:40], entry["command"])
         self.assertEqual("echo " + decision_log.REDACTED, entry["command"])
+
+    def test_redaction_of_adversarial_commands_finishes_promptly(self) -> None:
+        # Shapes that made a backtracking pattern take seconds to minutes.
+        for command in (
+            "ghs_1_-" * 50000,
+            "ghs_1_eyJ" * 30000,
+            "ghs_1_eyJa." * 30000,
+            "ghs_1_eyJ-" * 30000,
+            "KEY" * 1300,
+            "-eyJ" * 75000,
+        ):
+            with self.subTest(command=command[:12]):
+                start = time.monotonic()
+                decision_log.build_record(
+                    hook="destructive-guard", decision="deny", rule="r", command=command
+                )
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_secret_cut_at_the_scan_bound_stays_out_of_the_record(self) -> None:
+        # Two redacted assignments shrink the scanned text to a few dozen
+        # characters, which would pull a token cut at the bound into view.
+        assignments = ("token=" + "v" * 2000 + " ") * 2
+        token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsig"
+        self.write_one(command=assignments + token)
+        (entry,) = self.read_records()
+        self.assertNotIn("FAKE", entry["command"])
 
     def test_none_and_deny_by_default_persist_length_not_command_text(self) -> None:
         secret = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"

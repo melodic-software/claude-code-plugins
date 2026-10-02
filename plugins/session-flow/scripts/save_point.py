@@ -227,8 +227,10 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----"), "private key"),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "API key"),
     (
+        # The bounded `eyJ` header and the spelled-out segments keep this
+        # linear; an unbounded first segment is quadratic on a repeated `ghs_1_-`.
         re.compile(
-            r"\b(?:ghs_[0-9]+_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}"
+            r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
             r"|gh[pousr]_[A-Za-z0-9]{20,})"
         ),
         "GitHub token",

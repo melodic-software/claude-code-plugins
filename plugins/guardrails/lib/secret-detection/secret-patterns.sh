@@ -8,10 +8,12 @@
 #
 # Pattern selection: only HIGH-confidence patterns with distinctive prefixes
 # and fixed lengths or a fixed structure (the ghs_<APPID>_<JWT> installation
-# token varies in length, so it is matched by its dot-separated JWT segments).
-# Generic patterns (password=, api_key=, secret=) are
+# token varies in length, so it is matched by its `eyJ` JWT header and
+# dot-separated segments). Generic patterns (password=, api_key=, secret=) are
 # excluded — too many false positives for a real-time blocking hook. Sourced
-# from gitleaks, TruffleHog, and secrets-patterns-db. grep -E (POSIX ERE) only.
+# from gitleaks, TruffleHog, and secrets-patterns-db. grep -E (POSIX ERE) only,
+# run under LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long
+# line against the combined set.
 
 # (label, ERE) parallel arrays — one combined grep can fast-reject the common
 # (no-secret) case in a single process. Index alignment is load-bearing: the
@@ -32,19 +34,19 @@ SECRET_LABELS=(
   "Private Key (PEM)"
 )
 SECRET_PATTERNS=(
-  '(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'              # AWS (AKIA/ASIA/ABIA/ACCA + 16)
-  'ghp_[0-9a-zA-Z]{36}'                            # GitHub PAT
-  'gho_[0-9a-zA-Z]{36}'                            # GitHub OAuth
-  'gh[us]_[0-9a-zA-Z]{36}'                         # GitHub app (ghu_/ghs_)
-  'ghs_[0-9]+_[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2}' # GitHub app ghs_<APPID>_<JWT>
-  'github_pat_[0-9a-zA-Z_]{82}'                    # GitHub fine-grained PAT
-  'glpat-[0-9a-zA-Z_-]{20}'                        # GitLab PAT
-  'xoxb-[0-9]{10,13}-[0-9]{10,13}'                 # Slack bot token
-  'xox[pe]-[0-9]{10,13}-'                          # Slack user/app token
-  '[sr]k_(test|live|prod)_[0-9a-zA-Z]{10,99}'      # Stripe key
-  'sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}'     # OpenAI prefixed API key
-  'sk-[A-Za-z0-9]{20,}'                            # OpenAI legacy bare sk- key
-  '-----BEGIN [A-Z ]*PRIVATE KEY-----'             # PEM private key header
+  '(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'                            # AWS (AKIA/ASIA/ABIA/ACCA + 16)
+  'ghp_[0-9a-zA-Z]{36}'                                          # GitHub PAT
+  'gho_[0-9a-zA-Z]{36}'                                          # GitHub OAuth
+  'gh[us]_[0-9a-zA-Z]{36}'                                       # GitHub app (ghu_/ghs_)
+  'ghs_[0-9]+_eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' # GitHub app ghs_<APPID>_<JWT>
+  'github_pat_[0-9a-zA-Z_]{82}'                                  # GitHub fine-grained PAT
+  'glpat-[0-9a-zA-Z_-]{20}'                                      # GitLab PAT
+  'xoxb-[0-9]{10,13}-[0-9]{10,13}'                               # Slack bot token
+  'xox[pe]-[0-9]{10,13}-'                                        # Slack user/app token
+  '[sr]k_(test|live|prod)_[0-9a-zA-Z]{10,99}'                    # Stripe key
+  'sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}'                   # OpenAI prefixed API key
+  'sk-[A-Za-z0-9]{20,}'                                          # OpenAI legacy bare sk- key
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'                           # PEM private key header
 )
 
 # secrets::scan_text <content>
@@ -68,13 +70,13 @@ secrets::scan_text() {
   for pattern in "${SECRET_PATTERNS[@]}"; do
     grep_e_args+=(-e "$pattern")
   done
-  if ! grep -qE "${grep_e_args[@]}" < <(printf '%s' "$content") 2>/dev/null; then
+  if ! LC_ALL=C grep -qE "${grep_e_args[@]}" < <(printf '%s' "$content") 2>/dev/null; then
     return 0
   fi
   for i in "${!SECRET_PATTERNS[@]}"; do
     label="${SECRET_LABELS[$i]}"
     pattern="${SECRET_PATTERNS[$i]}"
-    lines=$(grep -nE -- "$pattern" < <(printf '%s' "$content") 2>/dev/null |
+    lines=$(LC_ALL=C grep -nE -- "$pattern" < <(printf '%s' "$content") 2>/dev/null |
       head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
     if [[ -n "$lines" ]]; then
       printf '%s (line %s)\n' "$label" "$lines"

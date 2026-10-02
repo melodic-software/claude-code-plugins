@@ -10,6 +10,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - The guard decision log redacts GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format
   GitHub rolls out from 2026-04-27. The old pattern stopped at the `_` after the app ID, so the
   token was written to the log in full.
+- Redacting a command for the guard decision log no longer stalls the guard hook. The
+  credential-name rule (`FOO_KEY=...`) backtracked in cubic time, so a 4 KB command of repeated
+  `KEY` took about 40 seconds; it now makes one attempt per name. A value longer than 4096
+  characters is scanned only to that bound, and the kept text is narrowed by what redaction
+  removed, so a secret cut at the bound is never shown.
 
 ## [0.42.9] - 2026-10-02
 
