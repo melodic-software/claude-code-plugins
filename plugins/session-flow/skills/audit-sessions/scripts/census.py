@@ -50,6 +50,7 @@ SECTIONS = frozenset(
 UNKNOWN_VERSION = "unknown"
 DEFAULT_MIN_COUNT = 20
 DEFAULT_VERSIONS = 3
+# Sessions the newest version needs before a missing canary counts as lost.
 DEFAULT_SESSION_FLOOR = 3
 
 
@@ -61,14 +62,18 @@ def store_dir(data_dir: Path) -> Path:
     return data_dir / "audit-sessions" / "store" / "v1" / "sessions"
 
 
-def write_atomic(path: Path, payload: dict) -> bool:
-    """Write via a unique temp file and os.replace; False when a reader lock outlasts the retries."""
+def write_atomic(path: Path, payload: dict | str) -> bool:
+    """Write JSON (a dict) or text via a unique temp file and os.replace; False when a reader lock
+    outlasts the retries."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+            if isinstance(payload, str):
+                handle.write(payload)
+            else:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.write("\n")
         # Windows refuses the replace while a reader holds the target open.
         for _ in range(20):
             try:

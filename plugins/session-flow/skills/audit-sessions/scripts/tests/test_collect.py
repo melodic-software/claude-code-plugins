@@ -41,7 +41,7 @@ def test_tracer_end_to_end(data_dir, copy_fixture):
     sweep_env = envelope(swept)
     assert sweep_env["schema"] == "audit-sessions.sweep/v1"
     assert sweep_env["data"]["window"]["sessions"] == 1
-    assert sweep_env["data"]["metrics"]["tokens.main.output"]["value"] == TRACER_OUTPUT_TOKENS
+    assert sweep_env["data"]["metrics"]["tokens.main"]["value"] == TRACER_OUTPUT_TOKENS
 
 
 # --- multi fixture: proj-a/sess-a1 (rich, one subagent), proj-a/sess-a2, proj-b/sess-b1 ---

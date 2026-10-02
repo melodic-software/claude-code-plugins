@@ -53,7 +53,6 @@ DRIFT_SCHEMA = "audit-sessions.drift/v1"
 RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
 HEAD_BYTES = 4096
-# Sessions the newest version needs before a missing canary counts as lost.
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
