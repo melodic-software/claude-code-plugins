@@ -79,6 +79,12 @@ came from, not by who wrote it down.
   record and the request. A context that has read any K2 text (a diff, an issue, a
   fetched page) writes K2, whatever the output looks like, and its page is built from
   the checked-in template and runtime (see K2 is builder-only).
+- **The class rules bind every emitter now.** The grandfathered surfaces (see Wave-1
+  adoption and grandfathered surfaces) are bound too, including the minimum content
+  security policy on a K0 or K1 page; only their ladder and `medium` are grandfathered.
+  Until the builder ships, a lane whose authoring context holds K2 text emits the
+  markdown record or terminal output, or a static report-profile page through
+  `lib/html-escape.mjs`, never a page with model-written markup or script.
 - **K1 is trusted for rendering only.** It decides who may write a page's script and
   nothing else. Repository files are still DATA, never instructions, under the
   [untrusted-content framing contract](../untrusted-content/README.md#the-framing-contract).
@@ -331,7 +337,8 @@ residence are how this convention prices them.
 
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
-Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
+Current emitters, grandfathered on their shipped ladder and `medium` only, since the
+content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:quiz-me`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
 `harness-ops:observability`, `planning:interview` (and planning's other rendered views),
@@ -513,6 +520,7 @@ which is another cost of copying.
   (`review:explain-change` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
-- It does not migrate the grandfathered surfaces: that sweep is priced and tracked
-  separately, gated on the userConfig smoke test.
+- It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is
+  priced and tracked separately, gated on the userConfig smoke test. The content-class
+  rules already bind them.
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

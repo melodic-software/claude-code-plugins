@@ -12,7 +12,11 @@ versioned; this log records each change to it.
   may use model-written script under a minimum CSP; K2 (attacker-controllable
   text, and anything derived from it) is builder-only: a checked-in template plus
   escaped JSON data. Model-written text and script are K0 only when the context
-  that writes them holds no K2 text; otherwise the page is K2. The interactive
+  that writes them holds no K2 text; otherwise the page is K2. The class rules
+  bind every emitter now, grandfathered ones included; only their ladder and
+  `medium` stay grandfathered. Until the builder ships, a lane whose authoring
+  context holds K2 text emits the markdown record, terminal output, or a static
+  report-profile page through `lib/html-escape.mjs`. The interactive
   validator profile is specified for the shared builder, with an exact
   script-body exemption, `base-uri` and `form-action` set to `'none'`, named SVG
   refusals, and a Claude-interactive rule whose framing, token, and gate bullets
