@@ -15,7 +15,7 @@
 # --out        The resolved stub home. Created when absent.
 # --scan-dir   The resolved reviews location the fix action scans for this
 #              branch. Required. Never resolved here: both homes are the
-#              caller's to resolve through its binding.
+#              caller's to resolve.
 # --memory-root The root --out must sit UNDER. Optional, and the caller passes
 #              it exactly when the caller COMPOSED --out from a root plus a
 #              branch slug, which is the only case in which a segment of --out
@@ -34,7 +34,7 @@
 # in the document can neither satisfy this parse nor be dragged into it.
 #
 # THE HOME FENCE. A stub must never be admitted by the fix action's merge set.
-# That action scans the binding's resolved reviews location for `*.md` files
+# That action scans the resolved reviews location for `*.md` files
 # whose frontmatter declares `type: review-findings`. A stub declares
 # `type: enforceability-stub`, and THAT marker is the load-bearing exclusion:
 # the merge set is keyed on `type:`, so a stub is excluded by declaring the
@@ -723,12 +723,12 @@ may_be_within() {
 
 # has_dotdot_segment <path>: true when the path AS GIVEN carries a `..`
 # segment. Checked before normalization, which collapses `..` and would hide
-# it. No home a binding resolves carries one, so its presence means a segment
+# it. No home under the memory root carries one, so its presence means a segment
 # was pasted in raw, which is how an unsanitized slug escapes a tree.
 has_dotdot_segment() {
   local p="${1//\\//}"
   [[ "$p" == ".." || "$p" == "../"* || "$p" == *"/.." || "$p" == *"/../"* ]] && return 0
-  # A trailing `.` names the parent as the home. No binding resolves one, and a
+  # A trailing `.` names the parent as the home. No resolved home ends in one, and a
   # slug of `.` that survived the charset rule is how it appears.
   [[ "$p" == "." || "$p" == *"/." ]]
 }
@@ -753,7 +753,7 @@ has_unaddressable_segment() {
 # network share. The lexical normalizer collapses the empty segment, so the
 # fence would compare a path that does not exist while the OS still resolves the
 # RAW argument back to a real directory, possibly inside a fenced one. Refused
-# rather than reasoned about: no binding resolves a share this way.
+# rather than reasoned about: no resolved home is a share this way.
 is_unc_path() {
   local p="${1//\\//}"
   [[ "$p" == //* ]]
@@ -885,7 +885,7 @@ fi
 # --- The home fences -----------------------------------------------------------
 
 if has_dotdot_segment "$out"; then
-  printf 'refusing: the stub home %s carries a ".." segment. No home a binding resolves carries one, and a branch slug that reached the path unsanitized is how one appears; sanitize the slug rather than letting it steer the path.\n' \
+  printf 'refusing: the stub home %s carries a ".." segment. No home under the memory root carries one, and a branch slug that reached the path unsanitized is how one appears; sanitize the slug rather than letting it steer the path.\n' \
     "$out" >&2
   exit 3
 fi

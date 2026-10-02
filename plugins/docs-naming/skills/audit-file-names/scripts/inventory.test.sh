@@ -62,7 +62,7 @@ assert_contains "an all-caps name is proposed in lower kebab" "$out" "OFFENDER	d
 assert_contains "an underscore becomes a hyphen" "$out" "OFFENDER	docs/Gamma_Three.md	docs/gamma-three.md"
 
 assert_contains "a conventional uppercase basename is exempt" "$out" "EXEMPT	docs/README.md	exempt_basenames"
-assert_contains "the contract slice is exempt by path" "$out" "EXEMPT	docs/topics/t/PLAN.md	exempt_paths"
+assert_contains "a tree listed in exempt_paths is exempt by path" "$out" "EXEMPT	docs/frozen/t/NOTES.md	exempt_paths"
 assert_contains "a code file is exempt by extension" "$out" "EXEMPT	docs/tool.py	exempt_extensions"
 
 assert_lacks "an already-legal dotted stem is not an offender" "$out" "docs/v1.2.schema.json	docs/"

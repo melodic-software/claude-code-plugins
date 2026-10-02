@@ -130,7 +130,7 @@ triggering tool result, so their presence is read straight off the transcript.
 
 1. **Absent before the read.** At dispatch the subagent held the root `CLAUDE.md`/`AGENTS.md` pair
    only. Neither rule body was present, which reproduces finding 4's non-inheritance unchanged.
-2. **Present after a matching read.** A `Read` of a `.py` path under `docs/specs/` returned with
+2. **Present after a matching read.** A `Read` of a `.py` path the rule's glob covers returned with
    `Contents of <repo-root>/.claude/rules/ruff-pin.md:` and the rule's full body appended to the
    result. A `Read` of `plugins/autonomy/CLAUDE.md` likewise returned with
    `plugins/autonomy/AGENTS.md` appended, so the nested-shim `@import` hop defers and fires inside

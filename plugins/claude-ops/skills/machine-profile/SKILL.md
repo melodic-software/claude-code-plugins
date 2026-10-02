@@ -11,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Record, once per machine, what the host has and which identity domains it holds, with the observation behind every value, so a plugin `setup` run starts from observed answers and a kept default says whether anyone looked. The profile drives setups; it never replaces their prerequisite logic. Design and rulings: `docs/specs/machine-profile-design.md`, placement in ADR 0041.
+Record, once per machine, what the host has and which identity domains it holds, with the observation behind every value, so a plugin `setup` run starts from observed answers and a kept default says whether anyone looked. The profile drives setups; it never replaces their prerequisite logic. Design and rulings: [machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md), placement in ADR 0041.
 
 Everything here is read-only except two steps the operator confirms in that turn: `record --confirm` (writes the profile document) and `apply --confirm` (prints what to hand to each setup; it writes nothing itself).
 

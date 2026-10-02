@@ -25,8 +25,7 @@ The fleet previously practiced this in five-plus places under four names: "reche
 ([ecosystem-commands](../ecosystem-commands/README.md), the
 [migration playbook](../../migration-playbook.md)), "re-trigger" (the migration playbook again, on a
 plugin-acceptance review record), "re-derivation triggers"
-([loop-lane](../loop-lane/README.md)), plus the unlabeled "What would reopen it"
-([topic-docs](../topic-docs/README.md)), with no shared definition of what a trigger must contain
+([loop-lane](../loop-lane/README.md)), with no shared definition of what a trigger must contain
 and no statement of what makes one checkable. Under the
 [convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule
 that is the fragmentation this doc closes
@@ -363,7 +362,6 @@ contract to fit its exceptions.
 | [official-docs](../../official-docs.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
 | [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed: the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design, decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral; not a four-part record. |
-| [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only: an in-repo source-hoisting decision; not a four-part record. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: revision-pinned four-part record over the Wikipedia source page (claim, `oldid` basis, as-of date, recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week), plus a recorded fetch-gap note for two source sections the same trigger covers. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one four-part record per external writing standard the skill falls back to (Diátaxis, Google developer documentation style, ASD-STE100, Global English), each carrying claim, basis, as-of date, and an observable recheck trigger. Three are publication events (an STE issue, a Global English edition, a Diátaxis revision); the Google record's is a page-content divergence, because that guide is a continuously-edited site with no edition to pin. The contract admits either shape, and the record names which one it is. The STE record additionally states a fidelity ceiling: the layer is a principles subset, not the specification, so a document written to it is not thereby STE-conformant. |
 

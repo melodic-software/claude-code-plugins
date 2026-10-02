@@ -58,7 +58,7 @@ Adjacent intake and sources, each invoked via the Skill tool and each only if in
 
 ## Lessons and Reference
 
-The unit of teaching is a **lesson**. One tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only. Rarely revisited and regenerable. Never in the topic-docs sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference**. The compressed cheat-sheet the user returns to. Authoring format, the platform-aware HTML-first default, the assets splice, reuse-first scaffolds, inline citations: [lessons.md](lessons.md).
+The unit of teaching is a **lesson**. One tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only. Rarely revisited and regenerable. Never in the storage sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference**. The compressed cheat-sheet the user returns to. Authoring format, the platform-aware HTML-first default, the assets splice, reuse-first scaffolds, inline citations: [lessons.md](lessons.md).
 
 Concept diagrams: `/visualization:visualize` when installed; otherwise native mermaid blocks (markdown fences, or `<pre class="mermaid">` where a host renders HTML) cover most structural diagrams. In-lesson charts follow the `dataviz` skill's constraints when that skill is present.
 

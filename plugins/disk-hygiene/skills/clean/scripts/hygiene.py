@@ -101,6 +101,7 @@ CLOUD_PLACEHOLDER_ATTRIBUTES = (
 )
 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 FILE_ATTRIBUTE_NORMAL = 0x00000080
+DELETE = 0x00010000
 OPEN_EXISTING = 3
 # st_blocks is documented in units of 512-byte blocks on every Unix Python
 # cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
@@ -4015,8 +4016,9 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     ]
     create_file.restype = ctypes.c_void_p
     flags = FILE_FLAG_BACKUP_SEMANTICS if path.is_dir() else FILE_ATTRIBUTE_NORMAL
-    # Share mode 0 requests exclusive access; an already-open file fails the probe.
-    handle = create_file(str(path), 0, 0, None, OPEN_EXISTING, flags, None)
+    # A zero-access open skips the share check, so it succeeds on a held file.
+    # DELETE access with share mode 0 conflicts with any existing handle.
+    handle = create_file(str(path), DELETE, 0, None, OPEN_EXISTING, flags, None)
     invalid = ctypes.c_void_p(-1).value
     if handle == invalid:
         error = ctypes.get_last_error()

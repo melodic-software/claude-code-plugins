@@ -21,7 +21,7 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - Look at `git log --oneline -20` for recent direction
 - Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a module
 - List the project's own rules files that govern the area
-- Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains (prior PLAN.md, PRD, design artifacts) and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts, ledgers)
+- Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains (prior PLAN.md, PRD, design artifacts, exploration/research artifacts, ledgers)
 
 Classify the domain from what the survey shows before anything Brief-related. The task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
 
@@ -76,7 +76,7 @@ The ledger's `## Constraint ledger` section sits above `## Open-question registe
 
 ```text
 - C1 | confirmed | V1 ships without SSO | user, round 1
-- C2 | inherited | no new runtime dependencies | docs/topics/exports/PLAN.md Brief
+- C2 | inherited | no new runtime dependencies | .work/exports/PLAN.md Brief
 ```
 
 - **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
@@ -148,7 +148,7 @@ When the surface resolves to `page`, or the user asks for it, the frontier rende
 
 The read-only decision table (the degrade):
 
-- **Delivery:** write a **self-contained** HTML file to the topic-docs **ephemeral tier**, not the memory slice. Nothing downstream reads a round table again, and the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth, so mirror the repo's HTML-vs-markdown convention when it declares one). Create **one** OS temp directory per interview run through the platform's temp primitive, naming the temp root in the template (`mktemp -d "${TMPDIR:-/tmp}/interview-XXXXXX"` on Unix, the positional-template form GNU and BSD accept identically, and the only form that reliably leaves the working directory; a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and write that run's `interview-round-<n>.html` files inside it, one directory per run, never an accumulating tree in the repo. Resolve that one path deterministically: never branch on whether the harness injected a scratchpad path or set `CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Give the user the file's path to open, and do **not** delete it. The path is the delivery mechanism, so it must still be readable when the reader opens it, and it outlives this invocation. A resumed interview starts a **new** run directory: after the handoff-and-clear in "Incremental persistence + branch-out", the prior run's directory is not re-resolvable, and it does not need to be. The ledger and Brief carry every resolved answer, and the temp path is deliberately not recorded anywhere to make it so (a pointer into the temp tree is not memory-tier content). Rules and rationale: the binding [`reference/topic-docs.md`](../../../reference/topic-docs.md).
+- **Delivery:** write a **self-contained** HTML file to the OS temp directory, not the memory slice. Nothing downstream reads a round table again, and the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth, so mirror the repo's HTML-vs-markdown convention when it declares one). Create **one** OS temp directory per interview run through the platform's temp primitive, naming the temp root in the template (`mktemp -d "${TMPDIR:-/tmp}/interview-XXXXXX"` on Unix, the positional-template form GNU and BSD accept identically, and the only form that reliably leaves the working directory; a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and write that run's `interview-round-<n>.html` files inside it, one directory per run, never an accumulating tree in the repo. Resolve that one path deterministically: never branch on whether the harness injected a scratchpad path or set `CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Give the user the file's path to open, and do **not** delete it. The path is the delivery mechanism, so it must still be readable when the reader opens it, and it outlives this invocation. A resumed interview starts a **new** run directory: after the handoff-and-clear in "Incremental persistence + branch-out", the prior run's directory is not re-resolvable, and it does not need to be. The ledger and Brief carry every resolved answer, and the temp path is deliberately not recorded anywhere to make it so (a pointer into the temp tree is not memory-slice content). Rules and rationale: [`reference/artifact-protocol.md`](../../../reference/artifact-protocol.md).
 - **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation`, the answer **with its 2-3 sentence codebase-grounded basis**, the same grounding an inline round carries, never a terse label | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes, meaning what this answer changes downstream).
 - **Constraint probe kept:** render the round's closing probe (the invitation to surface a constraint that would flip a recommendation) with the table, in the terminal residue or beneath the table, so the challenge mechanism the inline contract requires is not lost.
 - **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the table is read-only scanning, not an input surface.
@@ -305,7 +305,7 @@ bash "<plugin-root>/scripts/check-open-questions.sh" \
 # Step 4, immediately after writing the Brief (engineering sessions only).
 bash "<plugin-root>/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
-  --brief <contract_dir>/<topic-slug>/PLAN.md
+  --brief <memory_dir>/<topic-slug>/PLAN.md
 ```
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
@@ -384,7 +384,7 @@ Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwa
 
 ### Brief template (the literal shape)
 
-Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/planning:interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
+Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic's memory slice). `/planning:interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
 
 ```markdown
 ## Brief

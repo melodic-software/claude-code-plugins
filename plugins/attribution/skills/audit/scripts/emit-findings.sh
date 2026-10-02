@@ -4,11 +4,11 @@
 #   emit-findings.sh --report <sidecar.json> --out <path> [--branch <b>]
 #
 # The FINDINGS HOME is never resolved here. The caller — the audit skill's
-# context/persist-findings.md — resolves it through the topic-docs rung order
+# context/persist-findings.md — resolves it from the memory root
 # and runs the detector-findings fetch-and-refuse gate, then hands the resolved
 # path in as --out. That split follows the ai-slop precedent exactly, and it is
-# required rather than stylistic: rung resolution reads prose (a CLAUDE.md
-# declaration, a configured memory_dir) and is therefore model work under Brief
+# required rather than stylistic: resolution reads prose (a CLAUDE.md
+# declaration of a working-docs root) and is therefore model work under Brief
 # constraint C1. A bash implementation would either violate C1 or silently
 # collapse to the documented default, which is the one case that fails without
 # reporting anything. What is left here is reasoning-free composition: cell
@@ -29,8 +29,7 @@
 # judgment verdict. Its Confidence cell is empty, because a judgment selected the row.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/specs/provenance-type-inventory.md, which lands in
-# docs/conventions/detector-findings/README.md at registration (Phase 7). That
+# docs/conventions/detector-findings/README.md. That
 # table is the source of truth — a tier change lands there first and is copied
 # here, never the reverse.
 #

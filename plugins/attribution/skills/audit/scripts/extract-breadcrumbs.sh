@@ -30,7 +30,6 @@
 # A URL inside an HTML comment is reported as that fence's source_url and not
 # again under `urls`, so one breadcrumb is counted once.
 #
-# Contract: docs/specs/provenance-type-inventory.md.
 # Exit: 0 on a clean run, 2 on usage error or an unreadable input path.
 set -uo pipefail
 

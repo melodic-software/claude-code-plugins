@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Unit tests for check-docs-only.sh. Each scenario builds a throwaway git repo
-# with the REAL shipped allowlist (scripts/docs-only-paths.txt), commits a base
-# tree, commits a change, and asserts the emitted docs_only flag. Using the real
-# allowlist makes these tests the honesty proof the #532 liveness convention
-# wants: the README / protocol / taxonomy cases below fail the moment someone
-# widens the allowlist to cover a doc a code lane actually reads.
+# with the REAL shipped allowlist (scripts/docs-only-paths.txt) plus one fixture
+# prefix, commits a base tree, commits a change, and asserts the emitted
+# docs_only flag. Using the real allowlist makes these tests the honesty proof
+# the #532 liveness convention wants: the README / protocol / taxonomy cases
+# below fail the moment someone widens the allowlist to cover a doc a code lane
+# actually reads.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -34,10 +35,13 @@ mk_repo() {
   fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
   dir="${!1}"
   cp "$ALLOWLIST" "$dir/scripts/docs-only-paths.txt"
+  # The shipped list holds no prefix, so the fixture adds one to exercise the
+  # matching logic; the false cases below still run against the shipped entries.
+  printf 'docs/inert/\n' >>"$dir/scripts/docs-only-paths.txt"
   # A committed base tree spanning every path class the assertions touch.
-  mkdir -p "$dir/docs/topics/example" "$dir/docs" "$dir/plugins/p1/skills/alpha" \
+  mkdir -p "$dir/docs/inert/example" "$dir/docs" "$dir/plugins/p1/skills/alpha" \
     "$dir/plugins/miro" "$dir/.github/workflows"
-  printf 'seed\n' >"$dir/docs/topics/example/PLAN.md"
+  printf 'seed\n' >"$dir/docs/inert/example/PLAN.md"
   printf 'seed\n' >"$dir/README.md"
   printf 'seed\n' >"$dir/docs/plugin-artifact-protocol.md"
   printf 'seed\n' >"$dir/docs/catalog-taxonomy.md"
@@ -74,9 +78,9 @@ assert_flag() {
   rm -rf "$repo"
 }
 
-# --- the honest win: a diff confined to docs/topics/ ------------------------
-assert_flag "docs/topics-only" true "docs/topics/example/PLAN.md"
-assert_flag "docs/topics new nested file" true "docs/topics/new-precedent/NOTES.md"
+# --- the honest win: a diff confined to an allowlisted prefix ---
+assert_flag "allowlisted-prefix-only" true "docs/inert/example/PLAN.md"
+assert_flag "allowlisted prefix, new nested file" true "docs/inert/new-precedent/NOTES.md"
 
 # --- the grep payoff: docs a code lane actually consumes are NOT docs-only --
 assert_flag "README.md (not on the allowlist; runs full)" false "README.md"
@@ -85,15 +89,15 @@ assert_flag "docs/catalog-taxonomy.md (catalog reads it)" false "docs/catalog-ta
 assert_flag "docs/skill-cheat-sheet.md (cheat-sheet --check reads it)" false "docs/skill-cheat-sheet.md"
 assert_flag "docs/catalog.md (catalog --check reads it)" false "docs/catalog.md"
 
-# --- conservative: any non-topics doc, and every code class, run full ------
-assert_flag "non-topics docs/ file" false "docs/migration-playbook.md"
+# --- conservative: any non-allowlisted doc, and every code class, run full ------
+assert_flag "non-allowlisted docs/ file" false "docs/migration-playbook.md"
 assert_flag "plugin SKILL.md is code" false "plugins/p1/skills/alpha/SKILL.md"
 assert_flag "plugin source" false "plugins/miro/index.ts"
 assert_flag "scripts/ change" false "scripts/run-plugin-tests.sh"
 assert_flag ".github/ workflow change" false ".github/workflows/ci.yml"
 assert_flag "toolchain lockfile" false "package-lock.json"
-assert_flag "sibling of an allowed prefix (docs/topics-archive/)" false "docs/topics-archive/old.md"
-assert_flag "mixed docs+code" false "docs/topics/example/PLAN.md" "plugins/p1/skills/alpha/SKILL.md"
+assert_flag "sibling of an allowed prefix (docs/inert-archive/)" false "docs/inert-archive/old.md"
+assert_flag "mixed docs+code" false "docs/inert/example/PLAN.md" "plugins/p1/skills/alpha/SKILL.md"
 
 # --- hygiene job's docs-irrelevant step set: their inputs are NOT docs-only --
 # ShellCheck (scripts/, plugins/**), actionlint + workflow-schema (.github/
@@ -117,7 +121,7 @@ rm -rf "$repo"
 mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
 : >"$repo/empty-allowlist.txt"
-printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
+printf 'changed\n' >"$repo/docs/inert/example/PLAN.md"
 git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null
 out="$(cd "$repo" && DOCS_ONLY_ALLOWLIST=empty-allowlist.txt bash scripts/check-docs-only.sh "$base" 2>/dev/null)"
 if [[ "$out" == "docs_only=false" ]]; then
@@ -130,7 +134,7 @@ rm -rf "$repo"
 # --- GITHUB_OUTPUT is written for the step to consume ----------------------
 mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
-printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
+printf 'changed\n' >"$repo/docs/inert/example/PLAN.md"
 git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null
 gho="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$repo" && GITHUB_OUTPUT="$gho" bash scripts/check-docs-only.sh "$base" >/dev/null 2>&1)

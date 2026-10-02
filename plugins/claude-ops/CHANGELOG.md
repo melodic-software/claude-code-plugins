@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.81.1] - 2026-10-01
+## [0.82.1] - 2026-10-01
 
 ### Added
 
@@ -16,7 +16,28 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   partial, and declaration text in a string or comment hiding a write) as expected failures
   that flip when a reader fix lands. `test_fixture_parse.py` checks every JavaScript fixture
   the inventory tests feed the reader parses as a module under acorn, when node and acorn
-  resolve, and lists the 39 tests whose fixtures do not yet.
+  resolve, and lists the 47 tests whose fixtures do not yet.
+
+## [0.82.0] - 2026-10-01
+
+### Added
+
+- **The inventory lists Claude Code's built-in plugins (`cc-plugin-*@builtin`).** A new
+  `builtin_plugins` lane reads each plugin the binary registers: its id, description, the
+  conditions under which the loader requires it, its default-enabled state, the feature flags its
+  availability gate tests, and its skills, agents, commands and hook events with names and
+  descriptions. Each field carries a `_source`, and anything the read cannot resolve is listed in
+  the plugin's `partial` and degrades the lane. The lane has its own integrity entry, so
+  `--self-check` covers it. On Claude Code 2.1.287 it reads 11 plugins. `audit-native-overlap
+  detect` now scores each built-in plugin and its components as plugin-backed built-ins.
+- **A seeded overlap pair for the built-in `cc-plugin-agents-md` plugin.** `canonical-pairs.json`
+  proposes it against `/instruction-placement:migrate`.
+
+## [0.81.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree. The `machine-profile` skill and the README cite its design document by commit permalink.
 
 ## [0.81.0] - 2026-10-01
 

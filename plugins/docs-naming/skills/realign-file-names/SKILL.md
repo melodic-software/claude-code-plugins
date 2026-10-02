@@ -42,9 +42,8 @@ and the acceptance is one file's worth.
 | Read | For |
 |---|---|
 | [`context/apply-recipe.md`](context/apply-recipe.md) | the present-apply-sweep-verify loop, and what a decline offers |
-| [`../../context/file-name-findings.md`](../../context/file-name-findings.md) | the record's fields, its status arc, and why `applying` resumes |
+| [`../../context/file-name-findings.md`](../../context/file-name-findings.md) | where the plan lives, the record's fields, its status arc, and why `applying` resumes |
 | [`../audit-file-names/context/tiers.md`](../audit-file-names/context/tiers.md) | the form table to print before each acceptance |
-| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | where the plan lives, and the rung order that resolves it |
 
 ## One acceptance is one finding
 
@@ -66,9 +65,9 @@ accepted is applied without asking a second time.
 
 ## Find the plan, and check it belongs here
 
-Resolve the artifact's home through the plugin's topic-docs binding. Never
-compose the documented default's shape yourself: a consumer whose memory root is
-configured elsewhere gets "no plan found" for a plan that exists.
+Read the artifact from the home `../../context/file-name-findings.md` "Where it
+lives" defines. A plan looked for anywhere else is reported as "no plan found"
+for a plan that exists.
 
 The artifact's `branch:` frontmatter proves which branch it belongs to, not the
 directory it sits in. A mismatch against the current branch is a refusal with

@@ -29,6 +29,9 @@ Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](http
 
 ## 79. High-Effort Default + xhigh + Raised Rate Limits
 
+> **Superseded:** default effort differs by model and has changed since this tip. For the current
+> defaults, see [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+
 Opus 4.8 moved the default effort UP. The old deliberate `xhigh` choice is closer to baseline. Reach for `/effort xhigh` for hard problems, async runs, and dynamic workflows; short conversational tasks don't need it. Rate limits were raised alongside the launch to cover the extra reasoning tokens.
 
 ## 80. Dynamic Workflows: Days or Weeks Instead of Quarters

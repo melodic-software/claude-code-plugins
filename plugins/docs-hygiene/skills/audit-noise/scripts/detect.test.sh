@@ -96,10 +96,9 @@ cat >"$CLEAN" <<'EOF'
 # Clean fixture
 
 Plain prose with no noise shapes. The schema uses .work/<slug>/PLAN.md as a
-slot-variable example, which is not a ghost ref. Contract slices land in
-docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/, review
-reports in .work/reviews/<branch-slug>/, and running-retro ledgers in
-.work/running-retros/; .claude/topic-docs.yaml is the tracked concern file.
+slot-variable example, which is not a ghost ref. Session handoffs sit in
+.work/handoffs/, review reports in .work/reviews/<branch-slug>/, and
+running-retro ledgers in .work/running-retros/.
 
 ## Cross-references
 
@@ -203,16 +202,16 @@ printf '%s\n' "$CLEAN" >"$PATHS"
 pf_out="$(bash "$DETECT" --paths-file "$PATHS")"
 assert_contains "paths-file target audited" "$pf_out" "Summary file: $CLEAN"
 
-# --- 8. Topic-docs taxonomy: concrete contract slice flags; convention forms pass ----
+# --- 8. Memory-slice taxonomy: a concrete slice flags; convention forms pass ----
 
 TAXONOMY="$TEST_TMPDIR/taxonomy.md"
 cat >"$TAXONOMY" <<'EOF'
 # Taxonomy fixture
 
-The worked example lives at docs/topics/net-hardening/PLAN.md on the branch.
+The worked example lives at .work/net-hardening/PLAN.md on the branch.
 EOF
 tax_out="$(bash "$DETECT" "$TAXONOMY")"
-assert_contains "concrete contract-slice path is a ghost ref" "$tax_out" "Finding shape: ghost-ref"
+assert_contains "concrete memory-slice path is a ghost ref" "$tax_out" "Finding shape: ghost-ref"
 
 # --- 9. Retired .claude artifact locations always flag -------------------------------
 
@@ -258,10 +257,10 @@ MIXED="$TEST_TMPDIR/mixed-line.md"
 cat >"$MIXED" <<'EOF'
 # Mixed-line fixture
 
-See docs/topics/auth-fix/PLAN.md and the concern file .claude/topic-docs.yaml for detail.
+See .work/auth-fix/PLAN.md and the ledgers under .work/running-retros/ for detail.
 EOF
 mixed_out="$(bash "$DETECT" "$MIXED")"
-assert_contains "concern-file token does not exempt a concrete slice on the same line" "$mixed_out" "Finding shape: ghost-ref"
+assert_contains "a bare-root token does not exempt a concrete slice on the same line" "$mixed_out" "Finding shape: ghost-ref"
 
 DEEP="$TEST_TMPDIR/deep-review.md"
 cat >"$DEEP" <<'EOF'
@@ -276,7 +275,7 @@ DIGIT="$TEST_TMPDIR/digit-slug.md"
 cat >"$DIGIT" <<'EOF'
 # Digit-slug fixture
 
-Plan lives at docs/topics/2026-migration/PLAN.md today.
+Plan lives at .work/2026-migration/PLAN.md today.
 EOF
 digit_out="$(bash "$DETECT" "$DIGIT")"
 assert_contains "digit-leading slug is a ghost ref" "$digit_out" "Finding shape: ghost-ref"
@@ -387,67 +386,10 @@ PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
 cat >"$PLACEHOLDER" <<'EOF'
 # Placeholder fixture
 
-docs/topics/<slug>/PLAN.md
+.work/<slug>/PLAN.md
 EOF
 ph_out="$(bash "$DETECT" "$PLACEHOLDER")"
 assert_not_contains "slot-variable placeholder is not a ghost ref" "$ph_out" "Finding shape: ghost-ref"
-
-# --- Configured convention roots (concern file overrides) ---------------------------
-
-CONF_ROOT="$TEST_TMPDIR/configured-repo"
-mkdir -p "$CONF_ROOT/.claude"
-cat >"$CONF_ROOT/.claude/topic-docs.yaml" <<'EOF'
-memory_dir: .scratch
-contract_dir: product/topics
-EOF
-CONFIGURED="$TEST_TMPDIR/configured.md"
-cat >"$CONFIGURED" <<'EOF'
-# Configured-roots fixture
-
-Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
-.scratch/reviews/ is self-ignoring
-.scratch/running-retros/ holds session ledgers
-EOF
-conf_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
-assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
-assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
-assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
-assert_not_contains "configured bare running-retros root stays exempt" "$conf_out" ".scratch/running-retros/"
-
-# Regression: a configured contract root's bare reviews/handoffs child must
-# NOT inherit the memory-root exemption. AUDIT_NOISE_CONTRACT_ROOT set only
-# inside a command-substitution subshell is lost, and product/topics/reviews/
-# is then incorrectly treated like .work/reviews/.
-CONF_CONTRACT_BARE="$TEST_TMPDIR/configured-contract-bare.md"
-cat >"$CONF_CONTRACT_BARE" <<'EOF'
-# Configured-contract bare-root fixture
-
-product/topics/reviews/ must flag — contract roots have no bare-child exemption.
-product/topics/handoffs/ likewise.
-EOF
-conf_bare_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONF_CONTRACT_BARE")"
-assert_contains "configured contract bare reviews/ flags (F6)" "$conf_bare_out" "product/topics/reviews/"
-assert_contains "configured contract bare handoffs/ flags (F6)" "$conf_bare_out" "product/topics/handoffs/"
-
-# A quoted memory_dir with an interior '#' and a trailing comment: the old
-# hand-rolled `${val%%#*}`-first strip truncated this to `.scratch` (dropping
-# everything from the interior '#' on, including the closing quote), so the
-# configured root never matched. The shared parse-concern-value.sh helper
-# resolves quotes before stripping comments, keeping the interior '#'.
-CONF_ROOT_QUOTED="$TEST_TMPDIR/configured-repo-quoted"
-mkdir -p "$CONF_ROOT_QUOTED/.claude"
-cat >"$CONF_ROOT_QUOTED/.claude/topic-docs.yaml" <<'EOF'
-memory_dir: ".scratch#dir/"    # trailing comment must not eat the quoted value
-EOF
-CONFIGURED_QUOTED="$TEST_TMPDIR/configured-quoted.md"
-cat >"$CONFIGURED_QUOTED" <<'EOF'
-# Configured-roots quoted fixture
-
-Notes at .scratch#dir/foo/EXPLORE.md.
-EOF
-conf_quoted_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT_QUOTED" bash "$DETECT" "$CONFIGURED_QUOTED")"
-assert_contains "quoted memory_dir with interior # and trailing comment flags concrete slice" \
-  "$conf_quoted_out" ".scratch#dir/foo/"
 
 # --- Exemption gaps (frontmatter / marker / fence / section-state) -------------------
 

@@ -55,7 +55,7 @@ the finding; a tool behavior you did not probe is an assumption, and the finding
 ### Plan mechanics
 - Every phase has at least one mechanically verifiable Sanity Check
 - Every brief scope-item maps to a phase; nothing silently dropped
-- No machine-specific path (a drive letter such as `C:\`, or a `/Users/<name>` or `/home/<name>` path) unless it is marked as a deliberate example; a committed PLAN.md is read on other machines
+- No machine-specific path (a drive letter such as `C:\`, or a `/Users/<name>` or `/home/<name>` path) unless it is marked as a deliberate example; a published PLAN.md is read on other machines
 - Contract migrations have a pre-flight consumer check as the first work item
 - The plan cites the standards sections loaded for the surfaces it touches, or states why grounding was skipped (scale tier)
 

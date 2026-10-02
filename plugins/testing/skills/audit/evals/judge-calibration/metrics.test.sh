@@ -154,7 +154,7 @@ assert_contains "a missing column is named" "$out" "no stratum column"
 # A repository laid out like this one: the prompt, the labels, calibration.md.
 CR="$TMP/check-repo"
 LBL="$CR/plugins/testing/skills/audit/evals/judge-calibration/labels.tsv"
-CAL="$CR/docs/specs/tautological-tests-judge/calibration.md"
+CAL="$CR/plugins/testing/skills/audit/evals/judge-calibration/calibration.md"
 mkdir -p "${LBL%/*}" "${CAL%/*}" "$CR/plugins/testing/hooks"
 git -C "$CR" init -q -b main
 commit() { git -C "$CR" add -A && git -C "$CR" -c user.name=t -c user.email=t@t commit -qm "$1"; }
