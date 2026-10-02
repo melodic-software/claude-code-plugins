@@ -50,7 +50,7 @@ no-op that only refreshes the consumer's own freshness telemetry.
 
 Discovered from the producers (`work-items:work-loop`,
 `source-control:babysit-loop`), not assumed: each lane upserts one
-sentinel-marked comment (`<!-- claude-ops:lane-telemetry marker=... -->`) on its
+sentinel-marked comment (`<!-- harness-ops:lane-telemetry marker=... -->`) on its
 `Lane telemetry: <lane>` issue whose fenced JSON state block carries
 `restart_request`, emitted as `null` in every published example. No producer
 specifies a non-null shape, so the consumer treats **any non-null value** as a
@@ -91,8 +91,8 @@ Git Bash, whose MSYS path conversion rewrites `/`-style options (`schtasks
 `/TR` paths are Windows-form (`cygpath -w`), since cmd.exe cannot use the
 MSYS-form paths Git Bash resolves.
 
-**Verify:** from cmd.exe, `schtasks /Query /TN "ClaudeOps Lane Restart
-Consumer"`, then `schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and
+**Verify:** from cmd.exe, `schtasks /Query /TN "HarnessOps Lane Restart
+Consumer"`, then `schtasks /Run /TN "HarnessOps Lane Restart Consumer"` and
 confirm a fresh `last-cycle:` on the consumer's **telemetry comment**. That one
 signal, and not a local-file alternative, is the whole check: `last-cycle:` is
 written only by `upsert_own_telemetry`, which returns early unless the action is
@@ -148,7 +148,7 @@ parity claim.
 ## Observability (the consumer must not become the next silent gap)
 
 - **Morning-brief surfacing.** On every `run` the consumer upserts its own
-  sentinel-marked comment (marker `claude-ops:restart-consumer`) carrying the
+  sentinel-marked comment (marker `harness-ops:restart-consumer`) carrying the
   same `lane:` / `last-cycle:` / `flags:` header `morning-brief.sh` already
   parses. The comment must land on the ONE issue that reader resolves, so the
   consumer's default discovery reuses the brief's own title search; when that

@@ -15,7 +15,7 @@
 # Marker resolution, first hit wins:
 #   1. The ledger's marker line:
 #        **Last audited upstream state:** changelog through `X.Y.Z`
-#      Ledger path: --ledger, else $CLAUDE_OPS_CHANGELOG_LEDGER (verbatim), else
+#      Ledger path: --ledger, else $HARNESS_OPS_CHANGELOG_LEDGER (verbatim), else
 #      <git toplevel, or the working directory outside a repo>/docs/upstream/claude-code.md.
 #   2. A Conventional Commits SUBJECT on the current branch naming an applied release:
 #        <type>(<scope>): address Claude Code v<A>[..<B>] changelog
@@ -38,8 +38,8 @@
 # the newest published release. --range A..B (v prefix optional) is inclusive at
 # both ends and ignores the marker; --range X is the single release X.
 # Core items: bullet lines inside an <Update> block, excluding lines tagged [VSCode].
-# Cap: --cap-releases (default $CLAUDE_OPS_CHANGELOG_CAP_RELEASES, else 10) and
-# --cap-items (default $CLAUDE_OPS_CHANGELOG_CAP_ITEMS, else 300). Beyond the cap,
+# Cap: --cap-releases (default $HARNESS_OPS_CHANGELOG_CAP_RELEASES, else 10) and
+# --cap-items (default $HARNESS_OPS_CHANGELOG_CAP_ITEMS, else 300). Beyond the cap,
 # replaying items costs more than it returns because the current docs already carry
 # the cumulative state, so the output recommends a docs-conformance recheck of the
 # components and a marker reset instead of a replay.
@@ -73,8 +73,8 @@ ledger_arg=""
 changelog_arg=""
 no_fetch=0
 range_arg=""
-cap_releases="${CLAUDE_OPS_CHANGELOG_CAP_RELEASES:-10}"
-cap_items="${CLAUDE_OPS_CHANGELOG_CAP_ITEMS:-300}"
+cap_releases="${HARNESS_OPS_CHANGELOG_CAP_RELEASES:-10}"
+cap_items="${HARNESS_OPS_CHANGELOG_CAP_ITEMS:-300}"
 
 need_value() {
   if [[ $# -lt 2 || -z "$2" ]]; then
@@ -175,8 +175,8 @@ fi
 # --- Ledger and marker -----------------------------------------------------------
 if [[ -n "$ledger_arg" ]]; then
   ledger="$ledger_arg"
-elif [[ -n "${CLAUDE_OPS_CHANGELOG_LEDGER:-}" ]]; then
-  ledger="$CLAUDE_OPS_CHANGELOG_LEDGER"
+elif [[ -n "${HARNESS_OPS_CHANGELOG_LEDGER:-}" ]]; then
+  ledger="$HARNESS_OPS_CHANGELOG_LEDGER"
 else
   ledger="$repo_root/docs/upstream/claude-code.md"
 fi

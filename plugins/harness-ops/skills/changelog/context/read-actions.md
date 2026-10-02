@@ -20,7 +20,7 @@ requires. Git history of the ledger records when the line moved.
 
 Where the ledger lives, first hit wins:
 
-1. `CLAUDE_OPS_CHANGELOG_LEDGER`, used verbatim when set.
+1. `HARNESS_OPS_CHANGELOG_LEDGER`, used verbatim when set.
 2. `docs/upstream/claude-code.md` under the repository root (the git toplevel, or the working
    directory outside a repository).
 
@@ -42,7 +42,7 @@ marker; a single `vX` is that one release.
 
 The replay cap is ten releases or 300 core items (bullet lines in a release block, `[VSCode]` lines
 excluded), overridable with `--cap-releases` and `--cap-items` or the
-`CLAUDE_OPS_CHANGELOG_CAP_RELEASES` and `CLAUDE_OPS_CHANGELOG_CAP_ITEMS` environment variables. Beyond
+`HARNESS_OPS_CHANGELOG_CAP_RELEASES` and `HARNESS_OPS_CHANGELOG_CAP_ITEMS` environment variables. Beyond
 the cap, replaying items costs more than it returns: the current docs already carry the cumulative
 state, so the honest move is a docs-conformance recheck of the components against them, then a
 marker set at the newest published release and a `diff` from there. `diff` and `apply` stop at an

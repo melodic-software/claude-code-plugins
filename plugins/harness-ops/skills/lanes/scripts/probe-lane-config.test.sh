@@ -12,7 +12,7 @@
 # proving anything.
 #
 # Coverage:
-#   - CLAUDE_OPS_LANES_CONFIG override: used verbatim, no
+#   - HARNESS_OPS_LANES_CONFIG override: used verbatim, no
 #     `.work/lanes/lanes.json` suffix appended; an EMPTY value falls through to
 #     the default
 #   - default path from the git toplevel, and from the working directory when
@@ -59,7 +59,7 @@ assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; f
 # --- The inline equivalent of the resolution the script bundles --------------
 ORIGINAL="$TMP/original.sh"
 cat >"$ORIGINAL" <<'ORIG'
-r="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"; c="${CLAUDE_OPS_LANES_CONFIG:-}"; if [[ -z "$c" ]]; then c="$r/.work/lanes/lanes.json"; [[ ! -f "$c" && -f "$r/.work/lanes.json" ]] && c="$r/.work/lanes.json"; fi; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"
+r="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"; c="${HARNESS_OPS_LANES_CONFIG:-}"; if [[ -z "$c" ]]; then c="$r/.work/lanes/lanes.json"; [[ ! -f "$c" && -f "$r/.work/lanes.json" ]] && c="$r/.work/lanes.json"; fi; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"
 ORIG
 
 # --- Stubs -------------------------------------------------------------------
@@ -158,7 +158,7 @@ run_both() {
 
 # --- 1. Env override, present config -----------------------------------------
 export STUB_GIT_TOPLEVEL="$ROOT"
-export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
+export HARNESS_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
 if ((HAVE_JQ)); then
   run_both "override → present config with a lane count" "$ROOT/.work/lanes/lanes.json (3 lanes)"
 else
@@ -166,19 +166,19 @@ else
 fi
 
 # --- 2. Env override used verbatim (no .work/lanes/lanes.json suffix appended) -
-export CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json"
+export HARNESS_OPS_LANES_CONFIG="$TMP/nowhere.json"
 run_both "override is used verbatim when the file is absent" \
   "absent ($TMP/nowhere.json) — author one (see context/config.md)"
 
 # --- 3. Empty override falls through to the default --------------------------
-export CLAUDE_OPS_LANES_CONFIG=""
+export HARNESS_OPS_LANES_CONFIG=""
 if ((HAVE_JQ)); then
   run_both "empty override falls through to <toplevel>/.work/lanes/lanes.json" \
     "$ROOT/.work/lanes/lanes.json (3 lanes)"
 else
   run_both "empty override falls through (jq absent; equivalence only)" "SKIP"
 fi
-unset CLAUDE_OPS_LANES_CONFIG
+unset HARNESS_OPS_LANES_CONFIG
 
 # --- 4. Default path from the git toplevel -----------------------------------
 export STUB_GIT_TOPLEVEL="$ELSEWHERE"
@@ -220,20 +220,20 @@ fi
 # --- 7. `.lanes` absent from the config, and malformed JSON ------------------
 export STUB_GIT_TOPLEVEL="$ROOT"
 if ((HAVE_JQ)); then
-  export CLAUDE_OPS_LANES_CONFIG="$NO_LANES_KEY"
+  export HARNESS_OPS_LANES_CONFIG="$NO_LANES_KEY"
   run_both "config without a .lanes key counts 0" "$NO_LANES_KEY (0 lanes)"
-  export CLAUDE_OPS_LANES_CONFIG="$MALFORMED"
+  export HARNESS_OPS_LANES_CONFIG="$MALFORMED"
   run_both "malformed config degrades the count to empty" "$MALFORMED ( lanes)"
-  unset CLAUDE_OPS_LANES_CONFIG
+  unset HARNESS_OPS_LANES_CONFIG
 else
   printf 'SKIP: jq absent — real-count cases not exercised\n'
 fi
 
 # --- 8. jq missing → the count degrades to empty, not an error ---------------
 export PATH="$NOJQ:$BASE_PATH"
-export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
+export HARNESS_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
 run_both "jq missing degrades the count to empty" "$ROOT/.work/lanes/lanes.json ( lanes)"
-unset CLAUDE_OPS_LANES_CONFIG
+unset HARNESS_OPS_LANES_CONFIG
 export PATH="$BASE_PATH"
 
 # --- 9. Argument validation ---------------------------------------------------

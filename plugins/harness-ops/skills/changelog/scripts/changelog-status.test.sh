@@ -16,7 +16,7 @@
 #   - a body whose first heading is not the changelog page is refused, and a body
 #     with the heading but no release blocks is a parse failure, not "up to date"
 #   - the installed-version warn compares against the newest release IN THE RANGE
-#   - CLAUDE_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
+#   - HARNESS_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
 #   - a PATH-stub `claude` older than the newest release produces the warn line
 #   - an unknown argument exits 3
 #
@@ -223,10 +223,10 @@ REPO_ENV="$TMP/repo-env"
 make_repo "$REPO_ENV"
 mkdir -p "$REPO_ENV/notes"
 sed 's/2\.1\.260/2.1.259/' "$LEDGER" >"$REPO_ENV/notes/cc.md"
-OUT="$(cd "$REPO_ENV" && CLAUDE_OPS_CHANGELOG_LEDGER="$REPO_ENV/notes/cc.md" bash "$SCRIPT" --changelog "$CHANGELOG" 2>/dev/null)"
+OUT="$(cd "$REPO_ENV" && HARNESS_OPS_CHANGELOG_LEDGER="$REPO_ENV/notes/cc.md" bash "$SCRIPT" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_contains "env: override path read" "$OUT" "last-applied: 2.1.259"
 assert_contains "env: source names the override" "$OUT" "source: ledger:$REPO_ENV/notes/cc.md"
-OUT="$(cd "$REPO_ENV" && CLAUDE_OPS_CHANGELOG_LEDGER="$REPO_ENV/notes/cc.md" bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
+OUT="$(cd "$REPO_ENV" && HARNESS_OPS_CHANGELOG_LEDGER="$REPO_ENV/notes/cc.md" bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_contains "env: --ledger wins over the env" "$OUT" "last-applied: 2.1.260"
 
 # --- Case 11: default ledger path under the repo root ---------------------------------
