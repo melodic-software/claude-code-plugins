@@ -81,10 +81,11 @@ came from, not by who wrote it down.
   of a diff.
 - **Operator-installed configuration is K1.** The user's CLAUDE.md, AGENTS.md, and
   rules, installed plugins' skill and agent text, installed MCP servers' instructions,
-  and harness status blocks (such as the session-start git status) are the operator's
-  trust decision. What those tools return during the task is K2: tool results, fetched
-  pages, pull-request, issue, and comment text, and other people's commits or files read
-  during the task.
+  and the harness-authored parts of a status block (working directory, clean or dirty
+  flag, file counts) are the operator's trust decision. A status block's branch name and
+  commit subjects are K2, as the K2 row says. What those tools fetch during the task is
+  K2: fetched pages, pull-request, issue, and comment text, and other people's commits or
+  files. A read of a K1 file keeps the file's class.
 - **Authoring context.** Model-written text and script take the class of the context
   that writes them, not of what they visibly quote or paraphrase. They are K0 only when
   that context holds no K2 text, for example a fresh subagent given only
@@ -210,7 +211,9 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      the session as DATA under the untrusted-content framing contract, never as the
      user's own message.
    - The bridge authenticates every message by an unguessable per-session token and
-     rejects any message without it. The origin authenticates nothing: a page opened
+     rejects any message without it. The token is issued per session when the page opens
+     and expires with the session; it never enters a published, shared, or exported copy
+     of the page. The origin authenticates nothing: a page opened
      from `file://` sends `Origin: null`, the same value any opaque origin sends.
    - The bridge lets no message trigger a write, push, merge, or other gated action
      without the confirm or permission gate that action already has.
@@ -297,7 +300,9 @@ Two sentences reconcile this with the local-first residence decision:
    priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
-(`review:explain-change`) ships `medium: artifact` as its default. An operator who wants the digest local sets `medium: file`
+lane (`review:pr-explainer` today, `review:explain-change` once #5835 C1 lands) takes
+`medium: artifact` as its default only after that lane's own external-publication
+review signs off. An operator who wants the digest local sets `medium: file`
 in their personal layer (`~/.claude/rendered-views.md` or the repo overlay); the
 cascade below resolves it like any other key.
 
@@ -554,7 +559,7 @@ which is another cost of copying.
 - It never makes a view the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML skill, one whose job is "make a page" for any content. Thin
   intent-named skills are allowed: a skill named for what the reader is trying to do
-  (`review:explain-change` explains a pull request) may emit a view as its deliverable,
+  (`review:pr-explainer` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is
