@@ -1,8 +1,8 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired', 'compare two sessions'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"
+argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -10,7 +10,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS]
+**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS], compare <session-a> <session-b>
 
 ## Repository context. Gather first
 
@@ -132,6 +132,7 @@ remains the durable record).
 |---|---|---|
 | `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` `[--hook-root REL]` `[--skill-usage-scope repo\|user\|data-dir]` `[--skill-usage-dir REL]` `[--keep-skill-usage-days N]` (default 365) | Prune the hook log root (the shared file line by line, session files untouched for the window whole, stale `prune-pending/` sets regardless of the logging switch), the retired shared file while it exists, and the OTEL store. See [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh`. Skill-usage pruning is **opt-in**: inert unless `--skill-usage-scope` is passed, and `data-dir` requires an explicit `--skill-usage-dir` rather than trusting `CLAUDE_PLUGIN_DATA` |
 | `latency` | `[--days N \| --since YYYY-MM-DD]` (default `--days 7`) `[--budget EVENT=MS]`... `[--min-fires N]` (20) `[--min-sessions N]` (5, minimum 3) | Read-only. Per lane and hook event from `hook_execution_complete` in the hot OTEL store: p50/p95 against a p95 budget, and a within-session slope that flags latency growing across a session. Fires `clean` has compacted to the cold tier are not included; a window reaching past the oldest hot fire prints a warning. Exit 0 none flagged, 1 flagged, 2 cannot evaluate. Takes about 60 s on a large store: run on demand or from a routine or loop, never a SessionStart hook. See `scripts/hook-latency.sh --help` |
+| `compare` | `<session-a> <session-b>` (two different `session.id` values, `^[A-Za-z0-9._-]+$`) | Read-only. One task run as two sessions, side by side from the hot OTEL store: `claude_code.token.usage` by type (`cacheCreation` its own column) split by model and effort (`none` when the attribute is absent), per-type totals, and each session's `claude_code.cost.usage` reconciled against its `api_request` events with status `match`, `events short` or `events exceed metric`. The metric is the total of record. Costs are Claude Code's estimate: on a subscription they measure work, not a bill. Exit 0 rendered, 2 cannot evaluate: a session with no metric rows (aged to the cold tier, or `OTEL_METRICS_INCLUDE_SESSION_ID` off) or a non-delta metric ("cannot reconcile: cumulative metrics"). See `scripts/session-compare.sh --help` |
 
 `latency` telemetry record:
 
@@ -140,6 +141,14 @@ remains the durable record).
 - **Pointer**: for the event and its attributes, see <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>; the string-typed duration is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
 - **As of**: 2026-10-01 for the docs sections; 2026-09-24, Claude Code 2.1.281, for the probe
 - **Recheck trigger**: that section renames the event or an attribute `latency` reads, a release note changes the duration's type, or `latency` exits 2 with no rows on a store that has recent sessions.
+
+`compare` reconciliation record:
+
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
+
+- **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
+- **As of**: 2026-10-01; #98193 open.
+- **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
 
 Action invocation: `/harness-ops:observability clean [flags]`.
 
@@ -160,7 +169,7 @@ When the user asks to inspect traces, logs, metrics, or hook data outside a scop
 
 ### 0. Dispatch. Action vs scope
 
-If the first argument is `clean` or `latency`: delegate to `scripts/clean.sh` or `scripts/hook-latency.sh` with the remaining arguments and return its exit code.
+If the first argument is `clean`, `latency` or `compare`: delegate to `scripts/clean.sh`, `scripts/hook-latency.sh` or `scripts/session-compare.sh` with the remaining arguments and return its exit code.
 
 ```bash
 if [[ "${1:-}" == "clean" ]]; then
@@ -171,11 +180,15 @@ if [[ "${1:-}" == "latency" ]]; then
   shift
   exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/hook-latency.sh" "$@"
 fi
+if [[ "${1:-}" == "compare" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/session-compare.sh" "$@"
+fi
 SCOPE="${1:-week}"
 case "$SCOPE" in
   session|day|week|month|all) ;;
   session:*|since:*) ;;
-  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency" >&2; exit 1 ;;
+  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency|compare <id-a> <id-b>" >&2; exit 1 ;;
 esac
 ```
 

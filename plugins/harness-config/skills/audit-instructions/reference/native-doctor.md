@@ -11,7 +11,7 @@ any session.
 | `/doctor prompt-audit` (also `/checkup prompt-audit`) audits `CLAUDE.md` files, skills, agents, and commands for prompting patterns written for older models | Claude Code changelog 2.1.283 | 2026-09-29 | A release note changes or removes `prompt-audit` |
 | The commands page describes it as auditing `CLAUDE.md` files, skills, and other configuration for outdated or conflicting instructions, instead of running the checkup, and requires v2.1.283 or later | The `/doctor` row of <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes |
 | `/doctor` stays typable under `disableBundledSkills`; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry `"doctor": "off"` hides it | <https://code.claude.com/docs/en/skills>, bundled skills section | 2026-09-29 | The skills page changes its gating for `/doctor` |
-| Whether `prompt-audit` edits files or only reports is not stated on the commands page or in the changelog; the checkup it replaces reports first and asks before changing anything | The `/doctor` row of the commands page | 2026-09-29 | The commands page or a release note states `prompt-audit`'s write posture |
+| Our decision: offer `prompt-audit` to the person and leave applying its proposed edits to them; never chain into it. Its write posture and its dependency on the bundled `claude-api` skill are read live from the pointer | <https://code.claude.com/docs/en/memory#audit-your-instruction-files> | 2026-10-02 | That section changes when the audit edits files, or which settings turn it off |
 
 ## Why the verdict is complementary
 
