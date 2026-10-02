@@ -62,20 +62,23 @@ class AsyncMergeHarness(unittest.TestCase):
         polls: list[dict[str, Any]] | None = None,
         *,
         merged: bool | None = True,
+        landed_head: str = HEAD,
         base: str = "main",
         default_branch: str | None = "main",
         merge_action: str = "direct_merge",
         stack_lands: bool = False,
-        stack_listings: list[list[dict[str, Any]]] | None = None,
+        stack_listings: list[list[dict[str, Any]] | Exception] | None = None,
         extra: tuple[str, ...] = (),
         clock: list[float] | None = None,
         ready: bool = True,
         merge_flag: bool = True,
+        pinned: bool = True,
+        head: str | None = HEAD,
     ) -> int:
         verdict = {
             "ready": ready,
             "blockers": [] if ready else ["1 unresolved review thread(s) [reviewer]"],
-            "headRefOid": HEAD,
+            "headRefOid": head,
             "baseRef": base,
             "mergeAction": merge_action,
             "stack": {
@@ -110,7 +113,10 @@ class AsyncMergeHarness(unittest.TestCase):
                 return answer
             if args[1] == "repos/owner/repo/stacks/7":
                 self.stack_reads += 1
-                return {"number": 7, "pull_requests": listings.pop(0)}
+                listing = listings.pop(0)
+                if isinstance(listing, Exception):
+                    raise listing
+                return {"number": 7, "pull_requests": listing}
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         self.stack_reads = 0
@@ -120,7 +126,14 @@ class AsyncMergeHarness(unittest.TestCase):
             "owner/repo#1",
             "--allowed-owners",
             "owner",
-            *(("--merge", "--expected-head", HEAD) if merge_flag else ()),
+            *(("--merge",) if merge_flag else ()),
+            *(
+                ("--expected-head", HEAD)
+                if merge_flag and pinned
+                else ("--allow-unpinned-head",)
+                if merge_flag
+                else ()
+            ),
             *extra,
         ]
         out = io.StringIO()
@@ -133,7 +146,14 @@ class AsyncMergeHarness(unittest.TestCase):
             mock.patch.object(
                 merge, "repository_default_branch", return_value=default_branch
             ),
-            mock.patch.object(merge, "pull_request_merged", return_value=merged),
+            mock.patch.object(
+                merge,
+                "pull_request_landed",
+                return_value={
+                    "merged": merged,
+                    "head": None if merged is None else landed_head,
+                },
+            ),
             mock.patch.object(merge, "_poll_sleep", side_effect=self.sleeps.append),
             mock.patch.object(merge, "_poll_clock", side_effect=lambda: next(ticks)),
             contextlib.redirect_stdout(out),
@@ -193,6 +213,17 @@ class DirectMergeGoesThroughTheAsyncApi(AsyncMergeHarness):
         self.assertEqual(code, 0)
         self.assertEqual(self.output["merge"]["httpStatus"], 409)
         self.assertTrue(self.polls[0][1].endswith(UUID))
+
+    def test_already_merged_answer_at_another_head_is_not_a_success(self) -> None:
+        code = self._run(
+            _proc({"status": "merged", "details": {"message": "m", "sha": "d" * 40}}),
+            landed_head="f" * 40,
+        )
+        self.assertEqual(code, 10)
+        self.assertTrue(self.output["merged"])
+        self.assertFalse(self.output["merge"]["success"])
+        self.assertEqual(self.output["merge"]["mergedHead"], "f" * 40)
+        self.assertIn("escalate", self.output["merge"]["message"])
 
     def test_failed_request_is_not_a_merge(self) -> None:
         code = self._run(_proc(_async("pending")), [_async("failed", "head moved")])
@@ -268,6 +299,123 @@ class DirectMergeGoesThroughTheAsyncApi(AsyncMergeHarness):
     def test_unreadable_default_branch_keeps_gh_pr_merge(self) -> None:
         self._run(_proc(), default_branch=None)
         self.assertEqual(self.captures[0][:2], ["pr", "merge"])
+
+
+def _conflict(body: dict[str, Any]) -> mock.Mock:
+    return _proc(body, returncode=1, stderr="gh: Conflict (HTTP 409)")
+
+
+def _pending_with_options(
+    head: str = HEAD, action: str = "direct_merge"
+) -> dict[str, Any]:
+    """A 409 body naming the pending request's options, per GitHub's pending
+    `details` schema (`expected_head_sha`, `merge_action`)."""
+    details = {"message": "", "uuid": UUID}
+    details |= {"expected_head_sha": head, "merge_action": action}
+    return {"status": "pending", "details": details}
+
+
+class ConflictAdoptsOnlyTheVettedRequest(AsyncMergeHarness):
+    """A 409 names a request this run did not send; it is reported as this
+    run's merge only when it is pinned to the vetted head and action, or the
+    PR is read back merged at the vetted head."""
+
+    def test_a_pending_request_for_another_head_is_not_adopted(self) -> None:
+        code = self._run(_conflict(_pending_with_options(head="f" * 40)))
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["merged"])
+        self.assertFalse(self.output["merge"]["success"])
+        self.assertEqual(self.polls, [])
+        self.assertEqual(
+            self.output["merge"]["conflictingRequest"]["expected_head_sha"], "f" * 40
+        )
+
+    def test_a_pending_request_for_another_action_is_not_adopted(self) -> None:
+        code = self._run(_conflict(_pending_with_options(action="merge_queue")))
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["merge"]["success"])
+        self.assertEqual(self.polls, [])
+
+    def test_a_request_pinned_to_the_vetted_head_is_polled_to_merged(self) -> None:
+        code = self._run(_conflict(_pending_with_options()), [_async("merged")])
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+
+    def test_an_unpinned_request_that_merged_another_head_is_not_a_success(
+        self,
+    ) -> None:
+        code = self._run(
+            _conflict(_async("pending")), [_async("merged")], landed_head="f" * 40
+        )
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["merge"]["success"])
+        self.assertEqual(self.output["merge"]["mergedHead"], "f" * 40)
+
+    def test_an_unpinned_request_whose_merge_cannot_be_read_is_unconfirmed(
+        self,
+    ) -> None:
+        code = self._run(_conflict(_async("pending")), [_async("merged")], merged=None)
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self.output["mergeUnconfirmed"])
+
+    def test_a_request_not_adopted_is_still_recorded_as_live(self) -> None:
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        self._run(
+            _conflict(_pending_with_options(head="f" * 40)),
+            extra=("--state-dir", state.name),
+        )
+        path = pathlib.Path(state.name) / merge.PENDING_MERGES_FILE
+        records = json.loads(path.read_text(encoding="utf-8"))["requests"]
+        self.assertEqual(records["owner/repo#1"]["uuid"], UUID)
+
+
+class PullRequestReadBack(unittest.TestCase):
+    def _landed(self, payload: Any) -> dict[str, Any]:
+        with mock.patch.object(merge, "gh_json", return_value=payload):
+            return merge.pull_request_landed("owner/repo", 1)
+
+    def test_a_merged_pull_request_reports_its_head(self) -> None:
+        self.assertEqual(
+            self._landed({"merged": True, "head": HEAD}),
+            {"merged": True, "head": HEAD},
+        )
+
+    def test_a_merge_with_no_readable_head_is_unconfirmed(self) -> None:
+        self.assertEqual(
+            self._landed({"merged": True, "head": None}),
+            {"merged": None, "head": None},
+        )
+
+    def test_a_failed_read_is_unconfirmed(self) -> None:
+        with mock.patch.object(
+            merge, "gh_json", side_effect=RuntimeError("gh: (HTTP 502)")
+        ):
+            landed = merge.pull_request_landed("owner/repo", 1)
+        self.assertEqual(landed, {"merged": None, "head": None})
+
+
+class UnpinnedMergeStillPinsTheEvaluatedHead(AsyncMergeHarness):
+    """`--allow-unpinned-head` waives only the `--expected-head` argument: the
+    request still pins the head the gate just evaluated."""
+
+    def test_async_request_carries_the_evaluated_head(self) -> None:
+        code = self._run(_proc(_async("merged")), pinned=False)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._fields(self._put())["sha"], HEAD)
+
+    def test_gh_pr_merge_carries_the_evaluated_head(self) -> None:
+        code = self._run(_proc(), base="release", pinned=False)
+        self.assertEqual(code, 0)
+        [legacy] = self.captures
+        self.assertEqual(legacy[legacy.index("--match-head-commit") + 1], HEAD)
+
+    def test_no_evaluated_head_sends_no_request(self) -> None:
+        code = self._run(_proc(_async("merged")), pinned=False, head=None)
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["merge"]["attempted"])
+        self.assertEqual(self.captures, [])
 
 
 class MergeQueueIsEnqueued(AsyncMergeHarness):
@@ -455,6 +603,111 @@ class PendingRequestOutlivesTheRun(AsyncMergeHarness):
         )
         self.assertEqual(self.output["pendingMergeRequest"]["status"], "expired")
         self.assertEqual(self._records(), {})
+
+    def test_a_record_with_an_unusable_request_id_is_held_and_never_read(
+        self,
+    ) -> None:
+        path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
+        entry = {
+            "uuid": "../../../user",
+            "head": HEAD,
+            "mergeAction": "direct_merge",
+            "requestedAt": merge.datetime.now(merge.UTC).isoformat(),
+        }
+        merge.write_state(
+            path, {"schema_version": 1, "requests": {"owner/repo#1": entry}}
+        )
+        code = self._run(_proc(), [], extra=("--state-dir", self.state.name))
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertIn("corrupt", self.output["blockers"][0])
+        self.assertEqual(self.polls, [])
+        self.assertEqual(self.captures, [])
+        self.assertIn("owner/repo#1", self._records())
+
+
+class PendingRequestIsVerifiedWhenItLands(AsyncMergeHarness):
+    """The request's `sha` pins only the top PR, so a request that finishes in
+    a later run is checked against every head the gate evaluated."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.state = tempfile.TemporaryDirectory()
+        self.addCleanup(self.state.cleanup)
+
+    def _leave_pending(self, *, stack: bool = True) -> None:
+        code = self._run(
+            _proc(_async("pending")),
+            [_async("pending")],
+            clock=[0.0, merge.ASYNC_MERGE_POLL_TIMEOUT_SECONDS + 1],
+            base="feat/b" if stack else "main",
+            stack_lands=stack,
+            stack_listings=[AS_EVALUATED] if stack else None,
+            extra=("--state-dir", self.state.name)
+            + (("--stacked-prs",) if stack else ()),
+        )
+        self.assertEqual((code, self.output["merge"]["status"]), (10, "pending"))
+
+    def _later_run(self, listing: Any = None, **kwargs: Any) -> int:
+        self.captures.clear()
+        return self._run(
+            _proc(),
+            [_async("merged")],
+            merge_flag=False,
+            stack_listings=None if listing is None else [listing],
+            extra=("--state-dir", self.state.name),
+            **kwargs,
+        )
+
+    def _records(self) -> dict[str, Any]:
+        path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
+        return json.loads(path.read_text(encoding="utf-8"))["requests"]
+
+    def test_the_record_keeps_the_evaluated_lower_layers(self) -> None:
+        self._leave_pending()
+        stack = self._records()["owner/repo#1"]["stack"]
+        self.assertEqual(stack["number"], 7)
+        self.assertEqual(
+            [(layer["number"], layer["headRefOid"]) for layer in stack["layers"]],
+            [(2, LAYER2)],
+        )
+
+    def test_a_layer_that_landed_at_another_head_escalates(self) -> None:
+        self._leave_pending()
+        other = [_listed(2, "e" * 40, merged=True), _listed(1, HEAD, merged=True)]
+        code = self._later_run(other)
+        self.assertEqual(code, 10)
+        self.assertIn("escalate", self.output["blockers"][0])
+        verification = self.output["pendingMergeRequest"]["verification"]
+        self.assertFalse(verification["verified"])
+        [mismatch] = verification["mismatches"]
+        self.assertEqual(
+            (mismatch["pr"], mismatch["evaluatedHead"], mismatch["reportedHead"]),
+            ("owner/repo#2", LAYER2, "e" * 40),
+        )
+
+    def test_a_stack_that_landed_as_evaluated_clears_the_record(self) -> None:
+        self._leave_pending()
+        code = self._later_run(LANDED)
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["pendingMergeRequest"]["verification"]["verified"])
+        self.assertEqual(self._records(), {})
+
+    def test_an_unreadable_stack_keeps_the_record_and_holds(self) -> None:
+        self._leave_pending()
+        code = self._later_run(RuntimeError("gh: Server Error (HTTP 502)"))
+        self.assertEqual(code, 10)
+        self.assertIsNone(
+            self.output["pendingMergeRequest"]["verification"]["verified"]
+        )
+        self.assertIn("owner/repo#1", self._records())
+
+    def test_a_top_pull_request_that_merged_another_head_escalates(self) -> None:
+        self._leave_pending(stack=False)
+        code = self._later_run(landed_head="f" * 40)
+        self.assertEqual(code, 10)
+        self.assertIn("escalate", self.output["blockers"][0])
+        [mismatch] = self.output["pendingMergeRequest"]["verification"]["mismatches"]
+        self.assertEqual(mismatch["reportedHead"], "f" * 40)
 
 
 class GateEvaluation(unittest.TestCase):

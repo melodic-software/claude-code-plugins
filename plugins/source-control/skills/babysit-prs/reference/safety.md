@@ -666,12 +666,18 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   the async API has no auto-merge form. On the default branch a 404 from the endpoint (a host that
   lacks it) falls back to `gh pr merge` with the same pin; a queue or a stack has no other API and
   holds.
-- **Request.** `sha` is the vetted head, `merge_method` is sent for a direct merge only,
+- **Request.** `sha` is always the head the gate just evaluated: `--allow-unpinned-head` waives only
+  the `--expected-head` argument, never the pin, and `gh pr merge` carries the same head as
+  `--match-head-commit`. `merge_method` is sent for a direct merge only,
   `merge_action` is `direct_merge` or `merge_queue`, and `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
-- **Result.** The gate polls for up to 60 seconds. A 409 means a request is already pending, and
-  the gate polls the UUID it returns; a 200 means already merged or already queued. A reported merge
-  is confirmed by reading the PR: a contradiction is not counted, and a failed read reports
+- **Result.** The gate polls for up to 60 seconds; a 200 means already merged or already queued. A
+  409 means a request is already pending, possibly another actor's. When its body states that
+  request's `expected_head_sha` or `merge_action`, each must equal this run's pin and action;
+  otherwise the gate does not poll it, reports it as `merge.conflictingRequest` with exit `10`, and
+  records it as pending, since it can still merge. A reported merge is confirmed by reading the PR
+  back, merged and at the pinned head: a contradiction is not counted; a merge at another head
+  reports `merged: true`, `merge.mergedHead`, and exit `10` for a human; a failed read reports
   `merged: false`, `mergeUnconfirmed: true`, and exit `10`, so re-run the read-only check rather
   than call it merged. A 400 is basic PR state only: GitHub does not evaluate rules when it accepts
   the request, which is why the readiness gate always runs first.
@@ -679,10 +685,16 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   it can still merge after a hold appears that would refuse a new request. The gate records its UUID
   under `--state-dir` and every later run, read-only or merging, reads it first: while it is
   pending, or cannot be read, the run reports `action: merge-pending` with that hold first in
-  `blockers`, exit `10`, and sends nothing. A finished request (or one past GitHub's 24-hour
-  retention) clears the record and shows as `pendingMergeRequest`. Report a merge-pending PR as
-  "merge may still land", never as held. Without `--state-dir` nothing is recorded and a later run
-  cannot see the request, so `--state-dir <state-dir>` rides on every merge form.
+  `blockers`, exit `10`, and sends nothing. A record whose request id is not GitHub's UUID shape is
+  corrupt: it is never put in an API path or cleared, and holds the same way until a human inspects
+  it. A finished request (or one past GitHub's 24-hour retention) clears the record and shows as
+  `pendingMergeRequest`. A request that finished merged is first checked against every head the
+  gate evaluated, the PR's and, for a stack, each lower layer's, recorded with it
+  (`pendingMergeRequest.verification`). A mismatch puts an escalation first in `blockers` with exit
+  `10`; heads that cannot be read back keep the record, hold the same way, and are re-checked next
+  run. Report a merge-pending PR as "merge may still land", never as held. Without `--state-dir`
+  nothing is recorded and a later run cannot see the request, so `--state-dir <state-dir>` rides on
+  every merge form.
 - **Merge queue.** A default-branch base that requires a merge queue is no longer a blocker. Once
   every other condition holds, the merge enqueues (`action: enqueue`). `enqueued` is final for the
   request and is not a merge: a later cycle reads the PR as merged, or finds it back out of the
@@ -698,14 +710,16 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   top layer only, so the gate re-reads the stack immediately before the request and refuses if any
   open lower layer was pushed, added, or closed since evaluation. After a reported merge it checks
   that every lower layer merged at the head it evaluated; a mismatch reports
-  `stackVerification.verified: false` with exit `10` (`merged` stays true) and goes to a human.
-  What remains is the window from the request to its completion: a lower-layer push in that window
-  is not pinned by GitHub, and only that after-the-fact check catches it.
+  `stackVerification.verified: false` with exit `10` (`merged` stays true) and goes to a human. A
+  request that completes in a later run gets the same check from its pending record. What remains
+  is the window from the request to its completion: a lower-layer push in that window is not pinned
+  by GitHub and lands unvetted, caught only after the fact. `--stacked-prs` therefore assumes only
+  trusted actors can push to the lower layers' branches; leave it off where anyone else can.
 
-**Claim, basis, as of, recheck:** the endpoint's request fields, statuses, 409, 200, and 400
-semantics, its 24-hour result retention, the absence of any route to cancel a request (the page
-documents only the `PUT` and the `GET`), its listing under the default API version, and its
-inclusion of every open downstack PR,
+**Claim, basis, as of, recheck:** the endpoint's request fields, statuses, a pending request's
+`details` (`expected_head_sha`, `merge_action`), 409, 200, and 400 semantics, its 24-hour result
+retention, the absence of any route to cancel a request (the page documents only the `PUT` and the
+`GET`), its listing under the default API version, and its inclusion of every open downstack PR,
 [merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously)
 and [async merge API GA](https://github.blog/changelog/2026-10-01-github-async-merge-api-generally-available/);
 stack membership, trunk rules, and merge behavior,

@@ -1361,7 +1361,11 @@ class AutoMergeArming(unittest.TestCase):
             mock.patch.object(merge, "allowed_method", return_value="squash"),
             mock.patch.object(merge, "gh_capture", side_effect=capture),
             mock.patch.object(merge, "repository_default_branch", return_value="main"),
-            mock.patch.object(merge, "pull_request_merged", return_value=True),
+            mock.patch.object(
+                merge,
+                "pull_request_landed",
+                return_value={"merged": True, "head": HEAD},
+            ),
             contextlib.redirect_stdout(io.StringIO()) as out,
         ):
             code = merge.main()

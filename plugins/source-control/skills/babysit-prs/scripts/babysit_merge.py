@@ -1532,7 +1532,7 @@ def request_async_merge(
     repo: str,
     number: int,
     *,
-    sha: str | None,
+    sha: str,
     merge_action: str,
     method: str | None,
 ) -> dict[str, Any]:
@@ -1553,9 +1553,9 @@ def request_async_merge(
         f"merge_action={merge_action}",
         "-F",
         "bypass_rules=false",
+        "-f",
+        f"sha={sha}",
     ]
-    if sha:
-        cmd += ["-f", f"sha={sha}"]
     if method and merge_action == "direct_merge":
         cmd += ["-f", f"merge_method={method}"]
     proc = gh_capture(cmd)
@@ -1568,6 +1568,11 @@ def request_async_merge(
         "uuid": str(details.get("uuid") or ""),
         "message": str(details.get("message") or payload.get("message") or ""),
         "stderr": proc.stderr.strip(),
+        "options": {
+            key: details[key]
+            for key in ("expected_head_sha", "merge_action")
+            if key in details
+        },
     }
 
 
@@ -1582,13 +1587,6 @@ def poll_async_merge(
     clock: Callable[[], float] | None = None,
 ) -> dict[str, Any]:
     """Poll one async merge request until it is terminal or the bound elapses."""
-    if not ASYNC_UUID_RE.match(uuid):
-        return {
-            "status": "",
-            "message": f"unusable async merge request id {uuid!r}",
-            "readError": True,
-            "expired": False,
-        }
     sleep = sleep or _poll_sleep
     clock = clock or _poll_clock
     deadline = clock() + timeout_seconds
@@ -1605,7 +1603,19 @@ def poll_async_merge(
 
 def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
     """One read of an async merge request. `expired` is a 404: GitHub keeps a
-    result for 24 hours after its last update and then forgets the UUID."""
+    result for 24 hours after its last update and then forgets the UUID.
+
+    A UUID that is not GitHub's shape never reaches the API path: it reads as
+    `corrupt`, which keeps a recorded request held.
+    """
+    if not ASYNC_UUID_RE.match(uuid):
+        return {
+            "status": "",
+            "message": f"unusable async merge request id {uuid!r}",
+            "readError": True,
+            "expired": False,
+            "corrupt": True,
+        }
     try:
         payload = gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
     except (RuntimeError, json.JSONDecodeError) as exc:
@@ -1624,23 +1634,36 @@ def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
     }
 
 
-def pull_request_merged(repo: str, number: int) -> bool | None:
-    """Whether GitHub reads the PR as merged; None when it cannot be read."""
+def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
+    """Whether GitHub reads the PR as merged, and its head SHA.
+
+    `merged` is None, and `head` with it, when the PR cannot be read or reads
+    merged with no head: the head a merge landed cannot then be confirmed.
+    """
     try:
         data = gh_json(
-            ["api", f"repos/{repo}/pulls/{number}", "--jq", "{merged: .merged}"]
+            [
+                "api",
+                f"repos/{repo}/pulls/{number}",
+                "--jq",
+                "{merged: .merged, head: .head.sha}",
+            ]
         )
     except (RuntimeError, json.JSONDecodeError):
-        return None
-    merged = data.get("merged") if is_json_object(data) else None
-    return merged if isinstance(merged, bool) else None
+        data = None
+    data = data if is_json_object(data) else {}
+    merged, head = data.get("merged"), data.get("head")
+    head = head if isinstance(head, str) and head else None
+    if not isinstance(merged, bool) or (merged and head is None):
+        return {"merged": None, "head": None}
+    return {"merged": merged, "head": head}
 
 
 def async_merge(
     repo: str,
     number: int,
     *,
-    sha: str | None,
+    sha: str,
     merge_action: str,
     method: str | None,
 ) -> dict[str, Any]:
@@ -1670,6 +1693,20 @@ def async_merge(
     accepted = request["ok"] or request["httpStatus"] == 409
     if not accepted:
         return record
+    # A 409 names a request this run did not send, possibly another actor's.
+    # Options it states must be this run's; options it omits leave the
+    # read-back below to confirm the head that merged.
+    expected = {"expected_head_sha": sha, "merge_action": merge_action}
+    if request["httpStatus"] == 409 and any(
+        request["options"].get(key, value) != value for key, value in expected.items()
+    ):
+        record["conflictingRequest"] = request["options"]
+        record["message"] = (
+            f"another async merge request is pending for this pull request "
+            f"({request['options']}), not this run's vetted merge -- held; it "
+            "can still merge"
+        )
+        return record
     status = request["status"]
     if status not in ASYNC_TERMINAL_STATUSES:
         polled = poll_async_merge(repo, number, request["uuid"])
@@ -1677,11 +1714,18 @@ def async_merge(
         record["message"] = polled["message"] or record["message"]
     record["status"] = status or None
     if status == "merged":
-        verified = pull_request_merged(repo, number)
+        landed = pull_request_landed(repo, number)
+        verified = landed["merged"]
         # None (the read failed) is surfaced as unconfirmed, never as a merge.
         record["verifiedMerged"] = verified
-        record["success"] = verified is True
-        if verified is False:
+        record["mergedHead"] = landed["head"]
+        record["success"] = verified is True and landed["head"] == sha
+        if verified is True and landed["head"] != sha:
+            record["message"] = (
+                f"the pull request merged at head {landed['head']}, not the vetted "
+                f"head {sha} -- escalate to a human"
+            )
+        elif verified is False:
             record["message"] = (
                 "the async merge API reported merged but the pull request reads "
                 "unmerged -- not counted as merged"
@@ -1779,6 +1823,37 @@ def verify_stack_landed(repo: str, result: dict[str, Any]) -> dict[str, Any]:
     return {"verified": not mismatches, "mismatches": mismatches}
 
 
+def verify_request_landed(
+    repo: str, number: int, entry: dict[str, Any]
+) -> dict[str, Any]:
+    """Whether a recorded request merged every head the gate evaluated: the PR
+    at its recorded head and, for a stack, each lower layer at its own."""
+    landed = pull_request_landed(repo, number)
+    if landed["merged"] is None:
+        return {
+            "verified": None,
+            "mismatches": [],
+            "message": "pull request unreadable",
+        }
+    head = str(entry.get("head") or "")
+    mismatches = []
+    if not landed["merged"] or landed["head"] != head:
+        mismatches.append(
+            {
+                "pr": f"{repo}#{number}",
+                "evaluatedHead": head,
+                "reportedHead": landed["head"],
+                "merged": landed["merged"],
+            }
+        )
+    if is_json_object(entry.get("stack")):
+        stack = verify_stack_landed(repo, entry)
+        if stack["verified"] is None:
+            return stack
+        mismatches += stack["mismatches"]
+    return {"verified": not mismatches, "mismatches": mismatches}
+
+
 PENDING_MERGES_FILE = "merge-requests.json"
 # GitHub keeps an async merge result for 24 hours after its last update; a
 # record older than that (plus slack) can no longer be read and is dropped.
@@ -1821,28 +1896,44 @@ def check_pending_request(
     A request left pending stays live on GitHub: it can still merge after a
     hold appears that would refuse a new one. There is no route to cancel it,
     so every later run reads it first. A terminal or expired request clears
-    the record; an unreadable one stays recorded and counts as pending.
+    the record; an unreadable one stays recorded and counts as pending, and a
+    corrupt one (an unusable request id) is held however old it is.
+
+    A merged request is checked against every head the gate evaluated
+    (`verification`), since its `sha` pinned only this PR. A check that cannot
+    read the heads back keeps the record for the next run.
     """
     key = f"{repo}#{number}"
     with state_lock(path):
         entry = _load_pending(path).get(key)
     if not is_json_object(entry):
         return None
+    uuid = str(entry.get("uuid") or "")
     requested = parse_github_timestamp(str(entry.get("requestedAt") or ""))
     age = (
         ((now or datetime.now(UTC)) - requested).total_seconds() if requested else None
     )
-    if age is not None and age > PENDING_MERGE_MAX_AGE_SECONDS:
+    if (
+        age is not None
+        and age > PENDING_MERGE_MAX_AGE_SECONDS
+        and ASYNC_UUID_RE.match(uuid)
+    ):
         update_pending(path, key, None)
         return {**entry, "status": "expired", "message": "older than GitHub retains"}
-    current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
+    current = read_async_merge(repo, number, uuid)
     report = {
         **entry,
         "status": current["status"] or None,
         "message": current["message"],
     }
+    if current.get("corrupt"):
+        report["corrupt"] = True
     if current["expired"]:
         report["status"] = "expired"
+    if current["status"] == "merged":
+        report["verification"] = verify_request_landed(repo, number, entry)
+        if report["verification"]["verified"] is None:
+            return report
     if current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES:
         update_pending(path, key, None)
     return report
@@ -1853,7 +1944,7 @@ def _record_pending(
     repo: str,
     number: int,
     record: dict[str, Any],
-    pin: str | None,
+    pin: str,
     result: dict[str, Any],
 ) -> None:
     """Keep a request that is still live on GitHub; forget a finished one."""
@@ -1861,16 +1952,24 @@ def _record_pending(
     live = (
         bool(record.get("uuid")) and record.get("status") not in ASYNC_TERMINAL_STATUSES
     )
-    entry = (
-        {
+    entry: dict[str, Any] | None = None
+    if live:
+        entry = {
             "uuid": record["uuid"],
-            "head": pin or result.get("headRefOid"),
+            "head": pin,
             "mergeAction": record.get("mergeAction"),
             "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
-        if live
-        else None
-    )
+        stack = json_object(result.get("stack"))
+        if stack.get("landsLowerLayers"):
+            # The heads a later run checks the landed layers against.
+            entry["stack"] = {
+                "number": stack.get("number"),
+                "layers": [
+                    {"number": layer, "headRefOid": head}
+                    for layer, head in _evaluated_layers(result)
+                ],
+            }
     try:
         update_pending(path, key, entry)
     except (RuntimeError, OSError) as exc:
@@ -2007,8 +2106,9 @@ def main() -> int:
         "--allow-unpinned-head",
         action="store_true",
         help=(
-            "permit --merge without --expected-head (interactive only); disables "
-            "the TOCTOU guard that pins the vetted head SHA"
+            "permit --merge without --expected-head (interactive only); the merge "
+            "still pins the head this run evaluates, but nothing ties that head "
+            "to one you vetted"
         ),
     )
     parser.add_argument(
@@ -2281,7 +2381,15 @@ def main() -> int:
 
     if prior is not None:
         result["pendingMergeRequest"] = prior
-        if prior.get("status") in (None, "pending"):
+        verified = json_object(prior.get("verification")).get("verified", True)
+        hold = reason = None
+        if prior.get("corrupt"):
+            hold = (
+                f"the recorded async merge request for this PR is corrupt "
+                f"({prior.get('message')}) -- merge pending until a human "
+                "inspects the record; no new request is sent"
+            )
+        elif prior.get("status") in (None, "pending"):
             # Live (or unreadable) on GitHub: it can still merge whatever this run
             # found, so no verdict here may read as settled and no new request goes.
             hold = (
@@ -2290,11 +2398,24 @@ def main() -> int:
                 "still merge regardless of this verdict -- merge pending; no new "
                 "request is sent"
             )
+        elif verified is not True:
+            reason = hold = (
+                f"the async merge request ({prior.get('uuid')}) merged, but "
+                + (
+                    "the heads it landed could not be read back -- unconfirmed; "
+                    "the record is kept and re-checked next run"
+                    if verified is None
+                    else "a head it landed is not the head the gate evaluated -- "
+                    "escalate to a human"
+                )
+            )
+        if hold:
+            if reason is None:
+                result["action"] = "merge-pending"
             result["ready"] = False
             result["blockers"].insert(0, hold)
             result["autoMerge"] = {"ready": False, "blockers": [hold]}
-            result["action"] = "merge-pending"
-            result["merge"] = {"attempted": False, "reason": "merge pending"}
+            result["merge"] = {"attempted": False, "reason": reason or "merge pending"}
             print(json.dumps(result, indent=2))
             return 10
 
@@ -2338,13 +2459,17 @@ def main() -> int:
 
     result["mergeMethod"] = method
     # Atomic head pin: GitHub refuses the merge unless the head still equals the
-    # exact full SHA we vetted, closing the preflight-to-merge TOCTOU window.
-    vetted_head = result.get("headRefOid")
-    pin = (
-        vetted_head
-        if args.expected_head and isinstance(vetted_head, str) and vetted_head
-        else None
-    )
+    # exact full SHA the gate just evaluated, closing the preflight-to-merge
+    # TOCTOU window. `--allow-unpinned-head` waives only the `--expected-head`
+    # argument, never this pin.
+    pin = result.get("headRefOid")
+    if not isinstance(pin, str) or not pin:
+        reason = "the gate read no head SHA to pin the merge to -- held"
+        result["ready"] = False
+        result["blockers"].append(reason)
+        result["merge"] = {"attempted": False, "reason": reason}
+        print(json.dumps(result, indent=2))
+        return 10
 
     # A ready PR merges through the async merge API: REST (so it works where
     # GraphQL is refused), and the only API that enqueues or lands a stack. It is
@@ -2381,7 +2506,12 @@ def main() -> int:
                         "or stack merge has no other API -- held"
                     )
                 result["merge"] = record
-                result["merged"] = record["success"] and record["status"] == "merged"
+                # A merge read back at another head is still a merge, reported
+                # with exit 10 for a human, like a stack layer landing elsewhere.
+                result["merged"] = (
+                    record["status"] == "merged"
+                    and record.get("verifiedMerged") is True
+                )
                 result["enqueued"] = (
                     record["success"] and record["status"] == "enqueued"
                 )
@@ -2411,8 +2541,7 @@ def main() -> int:
     merge_cmd = ["pr", "merge", str(number), "-R", repo, f"--{method}"]
     if arm_auto:
         merge_cmd.append("--auto")
-    if pin:
-        merge_cmd += ["--match-head-commit", pin]
+    merge_cmd += ["--match-head-commit", pin]
     proc = gh_capture(merge_cmd)
     result["merge"] = {
         "attempted": True,

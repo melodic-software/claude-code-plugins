@@ -13,6 +13,15 @@ stack layer: merging it lands that PR alone, into that branch.
 - Put each dependency in the same layer or a lower one, never a higher one.
 - Each layer is a pull request in its own right: open it as a draft, take it through `ready` and
   `monitor`, and hold its title and body to the same contract as any other PR.
+- Inside a linked worktree (`/source-control:worktree`), use extension v0.2.0 or later with Git
+  2.36 or later. Earlier versions track a stack per directory, so a stack built in one worktree is
+  invisible from another. Unattended lanes set `GH_STACK_NO_UPDATE_NOTIFIER=1` to keep its upgrade
+  notice out of their output.
+
+**Claim, basis, as of, recheck:** repository-scoped stack tracking, cross-worktree `rebase`,
+`sync` and `modify`, the Git floor, and the notifier switch,
+[gh-stack v0.2.0 release notes](https://github.com/github/gh-stack/releases/tag/v0.2.0);
+2026-10-02. Recheck on the extension's next minor release.
 
 ## Merge
 
