@@ -172,11 +172,11 @@ class RepairLine(unittest.TestCase):
         real = sys.platform
         sys.platform = 'win32'
         try:
-            line = pydeps.repair_line("C:\\Users\\o'brien\\data")
+            line = pydeps.repair_line("D:\\data\\o'brien\\data")
         finally:
             sys.platform = real
         self.assertTrue(line.startswith("& '"), line)
-        self.assertTrue(line.endswith("'--data-dir' 'C:\\Users\\o''brien\\data'"), line)
+        self.assertTrue(line.endswith("'--data-dir' 'D:\\data\\o''brien\\data'"), line)
         self.assertNotIn('&&', line)
 
 
