@@ -41,10 +41,25 @@ temporary.
         "lane_stop_gate_enabled": true, "lane_stop_gate_marker": ".lane-complete" } } } } },
     { "name": "work-2",  "prompt": "work-2.md",  "model": "opus",   "effort": "high" },
     { "name": "babysit", "prompt": "babysit.md", "model": "opus",   "effort": "medium" },
-    { "name": "decide",  "prompt": "decide.md" }
+    { "name": "decide",  "prompt": "decide.md",                    "effort": "high" }
   ]
 }
 ```
+
+Each example lane's level follows a row of model-config's
+[Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+table:
+
+- `high` (`work`, `work-2`, `decide`): these lanes render verdicts, the worker lanes' fail-closed
+  admission verdict and `decide`'s decisions, and the `high` row is the one for work where
+  verification matters.
+- `medium` (`babysit`): the merge lane is mechanical, so it passes its model's default level
+  explicitly, and the `medium` row is the default on Opus 5.5 and Sonnet 5.5. A lane pinned this
+  way does not follow a later change to that default.
+
+Verification record. Claim: the `high` row names work where verification matters, and `medium` is
+the default on Opus 5.5 and Sonnet 5.5. Basis: the table linked above. As of: 2026-10-02. Recheck:
+that section is renamed, its rows change, or the default of a model a lane launches on changes.
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -52,7 +67,7 @@ temporary.
 | `lanes[].name` | yes | The lane's session name, the `--name` value the launcher gives the background session, and the key `status`/`stop` match on. Keep distinct from ad-hoc session names. |
 | `lanes[].prompt` | yes | Path to the lane's canonical prompt file. Relative → resolved against `prompt_dir`; absolute → used as-is. The file's full contents seed the session (positional prompt). A missing or empty file skips that lane with an error. |
 | `lanes[].model` | no | Passed as `claude --model`. An alias (`opus`, `sonnet`, `fable`) or a full model id. Omit to inherit the machine default. |
-| `lanes[].effort` | no | Passed as `claude --effort`. One of `low`, `medium`, `high`, `xhigh`, `max`, `ultracode` (validated; a bad value skips the lane). `ultracode` [requires Claude Code v2.1.203 or later](https://code.claude.com/docs/en/model-config#adjust-effort-level); below that floor the CLI rejects the value outright (`Unknown --effort value 'ultracode'`) and starts the session at the default effort, so the launcher checks the installed `claude --version` and skips the lane rather than launching it at an unintended effort. `restart` makes that check before stopping, so a refused lane keeps running. For what `ultracode` does to the effort level and when a model cannot run it, see the same section. As of 2026-10-02; recheck when the effort level set or the ultracode version floor changes. Omit to inherit the default. |
+| `lanes[].effort` | yes | Passed as `claude --effort`. Required on every lane, chosen from the "Choose an effort level" table above: `start` and `restart` refuse a lane with no effort (or a `null` one) with an error naming the lane, this key and that table, and still launch the other lanes; `restart` refuses before stopping, so the running session stays up. When `CLAUDE_CODE_EFFORT_LEVEL` is set in the launcher's environment, which every lane inherits, the launcher prints one warning per run: that variable [takes precedence over `--effort`](https://code.claude.com/docs/en/env-vars) and over agent and skill effort pins, so the configured levels may not hold (as of 2026-10-02; recheck when that row's precedence changes). One of `low`, `medium`, `high`, `xhigh`, `max`, `ultracode` (validated; a bad value skips the lane). `ultracode` [requires Claude Code v2.1.203 or later](https://code.claude.com/docs/en/model-config#adjust-effort-level); below that floor the CLI rejects the value outright (`Unknown --effort value 'ultracode'`) and starts the session at the default effort, so the launcher checks the installed `claude --version` and skips the lane rather than launching it at an unintended effort. `restart` makes that check before stopping, so a refused lane keeps running. For what `ultracode` does to the effort level and when a model cannot run it, see the same section. As of 2026-10-02; recheck when the effort level set or the ultracode version floor changes. |
 | `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings`, a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. A gate request (`lane_stop_gate_enabled: true` under an `autonomy` key) additionally triggers launch-time ARMING: the launcher runs autonomy's `hooks/lane-stop-gate-arm.sh` and injects a random `lane_stop_gate_arm_id` into the launched settings, the trusted per-session channel the gate actually honors (it ignores the bare env mirror a repo `env` block could forge). A gate-requesting lane that cannot be armed (autonomy missing/pre-0.12.0, arming error, managed-settings veto) is skipped with an error rather than launched silently ungated. |
 
 Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing is

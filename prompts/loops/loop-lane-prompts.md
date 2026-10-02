@@ -404,9 +404,9 @@ Two consequences of that order:
     `model` values.
 
 ```bash
-claude --model opus     # worker lane
-claude --model opus     # merge lane
-claude --model opus     # attended queue
+claude --model opus --effort high     # worker lane
+claude --model opus --effort medium   # merge lane
+claude --model opus --effort high     # attended queue
 ```
 
 Swap `opus` for `best` on a lane root where the organization runs its
@@ -423,12 +423,30 @@ advisor pairing is a settings value fixed at launch.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
-Leave effort at its default. Each model ships its own default, and a lane that
-pins a level stops following it when the lane's model changes. For the current
-defaults, see
-[Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-**As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed,
-or stops stating each model's default effort.
+Launch every lane with an explicit `--effort`, chosen by matching the lane's
+work against each level's "When to use it" text in
+[Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+A lane that renders a verdict, such as the worker lane's admission verdict or
+the attended queue's decisions, takes the level whose text names work where
+verification matters. A mechanical lane, such as the merge lane, passes the
+launching model's default level explicitly, so it does not follow a later
+change to that default. Code and verification work never runs below `medium`.
+The lanes config sets the level per lane (`lanes[].effort`), and the launcher
+refuses a lane that names none.
+
+The lane's `--effort` covers the orchestrator's own turns. A Workflow dispatch
+sets effort per task, and an Agent-tool dispatch runs at the effort pinned in
+the agent's definition.
+
+The level a lane passes is not proof of the level it ran at. An organization
+effort cap or the `maxEffortLevel` setting clamps it, a level the model does
+not support falls back to the highest supported level below it, and
+`CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and every agent or skill pin.
+The launcher warns when that variable is set.
+
+**As of:** 2026-10-02. **Recheck trigger:** the "Choose an effort level"
+section is renamed, its rows change, or the default effort of a model a lane
+launches on changes.
 
 ## Concurrent workers on one repository
 

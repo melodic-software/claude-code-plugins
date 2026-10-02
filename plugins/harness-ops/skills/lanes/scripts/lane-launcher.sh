@@ -101,9 +101,14 @@
 #   prompt      required; path to the canonical prompt file (absolute, or
 #               relative to prompt_dir).
 #   model       optional; passed as --model.
-#   effort      optional; passed as --effort (low|medium|high|xhigh|max|ultracode).
+#   effort      required; passed as --effort (low|medium|high|xhigh|max|ultracode).
+#               start/restart refuse a lane with none; the other lanes still launch.
 #               ultracode additionally requires the installed CLI to meet
 #               ULTRACODE_MIN_VERSION; a lane below it is skipped, not launched.
+#
+# CLAUDE_CODE_EFFORT_LEVEL in the launcher's environment, which every lane
+# inherits, takes precedence over --effort and over agent and skill effort pins,
+# so start/restart print one WARNING per run naming its value.
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
@@ -135,6 +140,10 @@
 set -uo pipefail
 
 VALID_EFFORTS="low medium high xhigh max ultracode"
+
+# Where a lane's level is chosen, named in the no-effort refusal. As of
+# 2026-10-02; recheck when that section is renamed or moved.
+EFFORT_TABLE_URL="https://code.claude.com/docs/en/model-config#choose-an-effort-level"
 
 # `ultracode` is the one effort upstream gates on a CLI version, so it is the one
 # the static allowlist cannot settle on its own. Below the floor the CLI rejects the
@@ -766,7 +775,7 @@ run() {
 }
 
 # --- Lane launch --------------------------------------------------------------
-# Validates a lane's launch inputs (prompt present + non-empty, effort allowed);
+# Validates a lane's launch inputs (prompt present + non-empty, effort set + allowed);
 # returns 1 with a per-lane error on the first failure. Split out from launch_lane
 # so restart can preflight these BEFORE stopping a running lane — a recoverable
 # prompt/effort error must not take a healthy session down and fail to relaunch it.
@@ -780,7 +789,11 @@ validate_launch_inputs() {
     err "lane '$name': prompt file is empty: $prompt_path — skipped"
     return 1
   fi
-  if [[ -n "$effort" ]] && [[ " $VALID_EFFORTS " != *" $effort "* ]]; then
+  if [[ -z "$effort" ]]; then
+    err "lane '$name': no effort set — add lanes[].effort, chosen from the \"Choose an effort level\" table at $EFFORT_TABLE_URL — skipped"
+    return 1
+  fi
+  if [[ " $VALID_EFFORTS " != *" $effort "* ]]; then
     err "lane '$name': invalid effort '$effort' (want: $VALID_EFFORTS) — skipped"
     return 1
   fi
@@ -846,7 +859,7 @@ launch_lane() {
     cmd+=(--permission-prompts none)
   fi
   [[ -n "$model" ]] && cmd+=(--model "$model")
-  [[ -n "$effort" ]] && cmd+=(--effort "$effort")
+  cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")
 
   local marker_path
@@ -1011,12 +1024,21 @@ _status_one() {
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
 }
 
+# The variable outranks every lane's --effort and every agent pin
+# (https://code.claude.com/docs/en/env-vars, CLAUDE_CODE_EFFORT_LEVEL row; as of
+# 2026-10-02, recheck when that row's precedence changes), so a set value is said once.
+warn_effort_env_override() {
+  [[ -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]] || return 0
+  warn "CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set and every lane inherits it; it overrides lane --effort values and agent effort pins, so those may not hold"
+}
+
 # scope suffix for the header line, e.g. " (work babysit)" when lanes are named.
 lane_scope() { ((${#TARGET_LANES[@]})) && printf ' (%s)' "${TARGET_LANES[*]}"; }
 
 action_start() {
   local rc=0
   info "== lanes: start =="
+  warn_effort_env_override
   # A failed refresh aborts BEFORE launching: never seed lanes from stale
   # repo/plugin state the user did not sign off on (--no-pull/--no-update is the
   # intentional-skip path, which leaves the refresh status 0).
@@ -1029,6 +1051,7 @@ action_start() {
 action_restart() {
   local rc=0
   info "== lanes: restart$(lane_scope) =="
+  warn_effort_env_override
   refresh_repo_and_plugins || return 1
   info "lanes:"
   for_each_lane _restart_one || rc=1
