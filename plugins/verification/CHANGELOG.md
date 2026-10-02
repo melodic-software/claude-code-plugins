@@ -11,6 +11,13 @@ All notable changes to the `verification` plugin are documented here. Format fol
   row and the advisor capability rule, as of 2026-10-02, rechecked at the next model release. The
   pin is unchanged.
 
+### Fixed
+
+- **`confirm` raises its fresh-context verifier to the model that produced the work.** When that
+  model is known and stronger than the session's, the verifier dispatch passes it as a
+  per-invocation `model`, upward only; when it is not known, the report says the verifier's model
+  was not matched to it. The skill's claim about the verifier's model now states the same rule.
+
 ## [0.7.0] - 2026-10-02
 
 ### Added

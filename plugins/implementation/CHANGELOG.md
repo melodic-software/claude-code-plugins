@@ -14,9 +14,13 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - **`phase-verifier` pins `effort: high`, up from `medium`.** Its pin record points at the
   model-config `high` row and the advisor capability rule. Its model rule now reads as never weaker than the work it checks, and a phase routed
   upward passes the verifier the same tier.
-- **`implement-dispatch` points at the "Model tiers" ladder for the verifier's model raise.** The
-  raise itself is unchanged. `implementer`'s model-binding note no longer assumes a fast
-  orchestrator root.
+- **`implement-dispatch` raises the `phase-verifier` to the model the phase's implementer ran on.**
+  When a phase's implementer ran above the verifier's binding (the frontier alias for
+  security-surface work, or a session model above it), the phase's one verifier gets a
+  per-invocation `model` at or above that model, upward only, per the checked-work row of the
+  "Model tiers" ladder. The raise used to follow the orchestrating session's model, so a phase
+  routed upward under an `opus` session was certified on `opus`. `implementer`'s model-binding
+  note no longer assumes a fast orchestrator root.
 
 ## [0.20.1] - 2026-10-02
 
