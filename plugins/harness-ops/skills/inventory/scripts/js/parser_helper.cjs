@@ -951,21 +951,23 @@ function sinks(req) {
             ["FunctionExpression", "ClassExpression"].includes(def.node.init?.type) &&
             onlyInit(v));
         // F.prototype stays the object F was made with only when nothing can
-        // reach F to replace it: every reference is a call or `new` callee,
-        // or a `.prototype` read that is never written.
+        // reach F to replace it. Every reference must be `F.prototype.k` with
+        // a named key other than `constructor`: a call or `new` makes an
+        // instance whose `.constructor` is F, and `F.prototype.constructor`
+        // is F itself, either of which can set `F.prototype`.
         return (
           own &&
           v.references.every((r) => {
             if (r.isWrite()) return r.identifier === def.name;
             const m = parents.get(r.identifier);
-            if ((m?.type === "CallExpression" || m?.type === "NewExpression") && m.callee === r.identifier) return true;
+            const use = m && parents.get(m);
+            const key = use?.type === "MemberExpression" && use.object === m ? memberName(use) : null;
             return (
               m?.type === "MemberExpression" &&
               m.object === r.identifier &&
               memberName(m) === "prototype" &&
-              !isTarget(parents, m) &&
-              parents.get(m)?.type !== "UpdateExpression" &&
-              !(parents.get(m)?.type === "UnaryExpression" && parents.get(m).operator === "delete")
+              key !== null &&
+              key !== "constructor"
             );
           })
         );

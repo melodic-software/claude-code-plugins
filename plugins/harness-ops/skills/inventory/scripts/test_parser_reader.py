@@ -659,7 +659,12 @@ class TestFlowQuery(unittest.TestCase):
                 "class D extends B{constructor(k){super();this[k]=1}}",
                 ["computed-write"],
             ),
-            ("function F(){}F.prototype.includes=f;new F;F.prototype.x;", []),
+            ("function F(){}F.prototype.includes=f;F.prototype.x;", []),
+            ("function F(){}F.prototype.includes=f;new F;", ["write"]),
+            (
+                "function F(){}F.prototype.constructor.prototype=P;F.prototype.includes=f;",
+                ["write"],
+            ),
             ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
             ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
             ('var o=Object.create(null);Object.defineProperty(o,"includes",{});', []),

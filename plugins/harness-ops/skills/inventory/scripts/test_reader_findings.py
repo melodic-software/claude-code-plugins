@@ -321,6 +321,9 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
+            # F.prototype.constructor is F, so it can replace F.prototype.
+            "function F(){}F.prototype.constructor.prototype=Array.prototype;"
+            "F.prototype.includes=" + patch + ';pY.includes("x")',
             # A derived class's `this` is what `super()` returned.
             "class B0{constructor(){return Array.prototype}}"
             "class X extends B0{constructor(){super();this.includes="
