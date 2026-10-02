@@ -47,7 +47,7 @@ class TestOpenFindings(unittest.TestCase):
             "#5640 finding is fixed, so replace this pin with that result.",
         )
 
-    # Finding 3: mutation of the spread array is not modelled, so the literal
+    # Finding 3: mutation of the spread array is not modeled, so the literal
     # keeps the initializer. The call-argument case follows the operator
     # decision that any call argument counts as possible mutation.
 

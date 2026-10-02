@@ -10,7 +10,7 @@ wrapped: every extraction builds the brace map from its source first, so
 the wrapper sees exactly the text each test hands the reader, including
 text a test assembles in a loop.
 
-Modules known not to parse are listed in KNOWN_UNPARSEABLE as
+Modules known not to parse are listed in KNOWN_UNPARSABLE as
 `<test id>#<first 12 hex of the module's sha256>`, for P2 to rewrite. The
 check fails when a new key appears or a listed one is gone, so a module that
 breaks or is repaired inside an already-listed test changes the comparison;
@@ -54,7 +54,7 @@ process.stdout.write(JSON.stringify({ acorn: acorn.version, failed }));
 # header with no `eo` declared; `z` padding run straight into the next
 # token (`zzz…function f`); the version anchor repeated as adjacent string
 # literals (`"2.1.287""2.1.287"`); and a bare object literal as a statement.
-KNOWN_UNPARSEABLE: frozenset[str] = frozenset(
+KNOWN_UNPARSABLE: frozenset[str] = frozenset(
     {
         "TestAgentAndToolIntegrity.test_a_missing_canary_breaks_only_that_lane#b5868a7055b1",
         "TestAgentAndToolIntegrity.test_an_empty_lane_is_broken#b5868a7055b1",
@@ -157,7 +157,7 @@ def _acorn_skip_reason() -> str | None:
     return None
 
 
-def unparseable(fixtures: list[str]) -> tuple[str, list[tuple[int, str]]]:
+def unparsable(fixtures: list[str]) -> tuple[str, list[tuple[int, str]]]:
     """Acorn's version, and (index, error) for each fixture that fails."""
     with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as fh:
         json.dump(fixtures, fh)
@@ -183,16 +183,14 @@ class TestFixturesParse(unittest.TestCase):
             for module in modules(src):
                 owners.setdefault(module, set()).update(tests)
         fixtures = sorted(owners)
-        _, failed = unparseable(fixtures)
+        _, failed = unparsable(fixtures)
         bad: dict[str, str] = {}
         for i, error in failed:
             digest = hashlib.sha256(fixtures[i].encode()).hexdigest()[:12]
             for test in owners[fixtures[i]]:
                 bad[f"{test}#{digest}"] = error
         lines = [f'"{k}",  # {e}' for k, e in sorted(bad.items())]
-        self.assertEqual(
-            sorted(bad), sorted(KNOWN_UNPARSEABLE), "\n" + "\n".join(lines)
-        )
+        self.assertEqual(sorted(bad), sorted(KNOWN_UNPARSABLE), "\n" + "\n".join(lines))
 
 
 if __name__ == "__main__":
