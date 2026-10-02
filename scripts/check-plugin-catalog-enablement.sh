@@ -1,64 +1,45 @@
 #!/usr/bin/env bash
-# Gate: every plugin this repo's catalog publishes must be enabled somewhere
-# a cloud session on this repo reads, and its own enabled-plugin set must name
-# only catalogued plugins.
+# Gate: this repo's committed enabled-plugin set must name only catalogued
+# plugins, in byte order, and the cloud bootstrap must install the marketplace
+# that set belongs to.
 #
 #   scripts/check-plugin-catalog-enablement.sh   run the gate (no flags)
 #
-# WHY. docs/cloud-sessions.md states the property this repo depends on: this
-# repo dogfoods everything it publishes, so a regression in any plugin
-# surfaces here first. The failure is silent by construction: a plugin nothing enables is simply
-# never installed by .claude/cloud-bootstrap.sh, so the session comes up green
-# with the plugin's skills missing and no line of output naming what is
-# absent. That is the docs/conventions/liveness-assertion/ shape -- a
-# documented guarantee with no gate behind it -- and it costs exactly the
-# dogfooding the directory-source marketplace exists to provide.
-#
-# WHERE ENABLEMENT LIVES. The fleet cloud plugin list in standards
-# (components/cloud-environment/fleet-plugins.json) is what every cloud
-# snapshot installs, and the bootstrap reads its snapshot copy overlaid with
-# this repo's .claude/settings.json. So a catalogued plugin is covered when
-# the fleet list enables it OR this file carries an explicit key for it, and
-# this file does not mirror the whole catalog (a mirror writes one
-# project-scope install record per plugin per checkout on every local session
-# start). The fleet list is fetched from its published URL at gate time; an
-# unreachable list is a usage error, never a pass.
-#
-# OFFLINE AND FORKS. The fleet list is required for correctness in the
-# docs/plugin-philosophy.md "Prerequisites and failure behavior" sense: with no
-# network, or from a fork whose standards repository lives elsewhere, the gate
-# stops with exit 2 and names both overrides below rather than skipping. A
-# visible skip would still read as a pass in the lane that runs this.
+# WHAT A CLOUD SESSION HERE INSTALLS. The cloud environment's setup (setup.sh
+# in the standards repository, components/cloud-environment/) derives the
+# fleet list every snapshot installs from this catalog: each entry whose
+# `defaultEnabled` is absent or `true`. .claude/cloud-bootstrap.sh reads that
+# list overlaid with .claude/settings.json, whose `enabledPlugins` block
+# carries only this repo's deltas: `false` opts out of an on-by-default
+# plugin, `true` opts in to an off-by-default one. Because the list comes from
+# the catalog, no catalogued plugin can go missing unannounced: it is on by
+# default, or the catalog records it as off. So this gate checks the deltas
+# block, not per-plugin coverage. The block does not mirror the catalog: a
+# mirror writes one project-scope install record per plugin per checkout on
+# every local session start.
 #
 # NOT COVERED ELSEWHERE. plugins/harness-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos. It reads this
 # repo's catalog too (a relative `directory` source), but it diffs the catalog
 # only against the `enabledPlugins` keys of one settings file, reports a plugin
-# with no key as NEW (report only, exit 0), never reads the fleet list, and
-# checks no key order, so it cannot gate this repo.
-# scripts/check-plugin-manifest-presence.sh holds the catalog against the
-# filesystem (manifest present, name matches, no unregistered directory); it
-# says nothing about whether a catalogued plugin is ever enabled.
+# with no key as NEW (report only, exit 0), and checks no key order, so it
+# cannot gate this repo. scripts/check-plugin-manifest-presence.sh holds the
+# catalog against the filesystem (manifest present, name matches, no
+# unregistered directory).
 #
-# WHAT IS CHECKED (both directions):
-#   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the
-#      fleet list does not enable AND that has no `<name>@<marketplace>` key
-#      in .claude/settings.json `enabledPlugins`.
-#   2. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
+# WHAT IS CHECKED:
+#   1. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
 #      names no catalog entry. What a plugin rename or removal leaves behind;
 #      the id resolves to nothing and the install silently no-ops.
-#   3. UNSORTED KEYS     -- `enabledPlugins` keys out of byte order. The same
-#      doc calls the alphabetical one-per-line layout the reason a single
-#      plugin can be flipped to `false` without disturbing the rest, and an
-#      insertion at the wrong point is how a duplicate-looking near-miss hides.
+#   2. UNSORTED KEYS     -- `enabledPlugins` keys out of byte order.
+#      docs/cloud-sessions.md calls the alphabetical one-per-line layout the
+#      reason a single plugin can be flipped without disturbing the rest, and
+#      an insertion at the wrong point is how a duplicate-looking near-miss
+#      hides.
+#   3. IDENTITY          -- the bootstrap's `marketplace_name` must equal the
+#      marketplace the settings file declares (see the check below).
 #
-# A key set to `false` PASSES. An explicit `false` is a recorded decision:
-# the gate treats every matching settings key as coverage regardless of
-# value, so a disable of a plugin the fleet list never enabled still
-# passes. When the fleet list does enable that plugin, the bootstrap's
-# overlay honors the `false` as an opt-out (settings-wins). An absent key
-# is the drift this gate exists to name. The two are different states and
-# only one of them is silent.
+# A key's value is not judged: `true` and `false` are both recorded deltas.
 #
 # Exit codes: 0 clean, 1 drift, 2 fatal (inputs missing or unreadable).
 #
@@ -66,18 +47,7 @@
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
 #   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
-#
-# Env overrides (fleet list source):
-#   PLUGIN_CATALOG_ENABLEMENT_FLEET        -- path to a local fleet list,
-#                                             instead of fetching the URL
-#                                             (offline, or the cloud
-#                                             snapshot's copy)
-#   PLUGIN_CATALOG_ENABLEMENT_FLEET_URL    -- https URL to fetch it from
-#                                             (a fork or mirror); defaults
-#                                             to the standards repository
 set -euo pipefail
-
-FLEET_URL="${PLUGIN_CATALOG_ENABLEMENT_FLEET_URL:-https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -143,7 +113,7 @@ declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | t
 # file, so a regex metacharacter in it would change what the pattern matches
 # rather than what it says: a name like 'melodic.software' would make the '.'
 # match any character, silently accepting 'alpha@melodicXsoftware' as this
-# marketplace's key and reporting the real plugin as unenabled. A gate whose
+# marketplace's key and reporting it as an orphan. A gate whose
 # whole purpose is to catch silent drift must not have a silent-wrongness path
 # of its own. Flagged as informational (not a finding) by the security review
 # on #3235, on the grounds that the value is repo-controlled and crosses no
@@ -156,51 +126,9 @@ enabled="$(
   done <<<"$declared_keys" | sort -u
 )"
 
-# The fleet list: a local path from the test seam, else the published file.
-# Fetch failure is fatal (exit 2): a gate that cannot read the list it judges
-# by must not report green.
-fleet_tmp=''
-if [[ -n "${PLUGIN_CATALOG_ENABLEMENT_FLEET:-}" ]]; then
-  FLEET="$PLUGIN_CATALOG_ENABLEMENT_FLEET"
-else
-  fleet_tmp="$(mktemp)"
-  trap 'rm -f "$fleet_tmp"' EXIT
-  if ! curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 3 \
-    "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
-    printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
-    echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
-    echo '  Offline, point PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy; from a fork, set' >&2
-    echo '  PLUGIN_CATALOG_ENABLEMENT_FLEET_URL to the https URL your standards repository publishes.' >&2
-    exit 2
-  fi
-  FLEET="$fleet_tmp"
-fi
-if ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$FLEET" >/dev/null 2>&1; then
-  printf 'check-plugin-catalog-enablement: fleet list %s is not a settings-shaped JSON object\n' "$FLEET" >&2
-  exit 2
-fi
-fleet_enabled="$(
-  jq -r --arg mp "$MARKET" '.enabledPlugins // {} | to_entries[]
-    | select(.value == true) | .key
-    | select(endswith("@" + $mp)) | .[:length - ($mp | length) - 1]' "$FLEET" |
-    tr -d '\r' | sort -u
-)"
-covered="$(printf '%s\n%s\n' "$enabled" "$fleet_enabled" | grep . | sort -u || true)"
-
 errors=0
 
-# 1. FORWARD -- catalogued but enabled nowhere.
-while IFS= read -r name; do
-  [[ -n "$name" ]] || continue
-  printf "UNENABLED PLUGIN: %s catalogs '%s', but the fleet list does not enable '%s@%s' and %s enabledPlugins has no key for it.\n" \
-    "$MARKETPLACE" "$name" "$name" "$MARKET" "$SETTINGS" >&2
-  printf "  .claude/cloud-bootstrap.sh installs the fleet list overlaid with that file, so '%s' never loads in a session here.\n" \
-    "$name" >&2
-  printf "  Add it to the fleet list in standards (components/cloud-environment/fleet-plugins.json), or carry an explicit key here.\n" >&2
-  errors=$((errors + 1))
-done < <(comm -23 <(printf '%s\n' "$catalog") <(printf '%s\n' "$covered"))
-
-# 2. INVERSE -- enabled but no longer catalogued.
+# 1. ORPHANS -- enabled but no longer catalogued.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
   printf "ORPHANED ENABLED ENTRY: %s enables '%s@%s', but %s catalogs no such plugin.\n" \
@@ -209,7 +137,7 @@ while IFS= read -r name; do
   errors=$((errors + 1))
 done < <(comm -13 <(printf '%s\n' "$catalog") <(printf '%s\n' "$enabled"))
 
-# 3. LAYOUT -- keys must stay in byte order, one per line.
+# 2. LAYOUT -- keys must stay in byte order, one per line.
 if [[ -n "$declared_keys" ]]; then
   if ! diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$declared_keys" | LC_ALL=C sort) >/dev/null; then
     printf 'UNSORTED enabledPlugins: keys in %s are not in byte order.\n' "$SETTINGS" >&2
@@ -221,7 +149,7 @@ if [[ -n "$declared_keys" ]]; then
   fi
 fi
 
-# 4. IDENTITY -- the bootstrap must agree on which marketplace this is.
+# 3. IDENTITY -- the bootstrap must agree on which marketplace this is.
 # This gate derives the suffix from extraKnownMarketplaces; .claude/cloud-
 # bootstrap.sh hardcodes `marketplace_name` and selects its install set with
 # endswith("@" + $n). Rename the marketplace and update both settings keys and
@@ -251,10 +179,8 @@ fi
 if ((errors > 0)); then
   {
     echo
-    echo "Every $MARKETPLACE entry must be enabled by the fleet list or carry an"
-    echo "enabledPlugins key in $SETTINGS, and every enabledPlugins key for the"
-    echo "'$MARKET' marketplace must name a catalogued plugin. A key set to false"
-    echo "is a recorded decision and passes; a plugin nothing enables is drift."
+    echo "Every enabledPlugins key in $SETTINGS for the '$MARKET' marketplace"
+    echo "must name a $MARKETPLACE entry, with keys in byte order, and"
     echo "$BOOTSTRAP must name that same marketplace, or what it installs and"
     echo "what this gate checks are two different sets."
   } >&2
@@ -262,4 +188,4 @@ if ((errors > 0)); then
 fi
 
 catalog_count="$(printf '%s\n' "$catalog" | grep -c . || true)"
-echo "Every one of the $catalog_count catalogued plugins is enabled by the fleet list or carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."
+echo "Every enabledPlugins key for '$MARKET' names one of the $catalog_count catalogued plugins; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."
