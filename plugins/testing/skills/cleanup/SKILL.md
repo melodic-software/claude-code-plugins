@@ -135,8 +135,10 @@ item listed and unapplied.
 ### 6. Gate
 
 First re-scan each file the batch rewrote with the step 1 command plus `--file "<path>"`. A finding
-step 1 did not list is a rewrite that cannot fail, such as a rejection the production path never
-reaches: the batch stops and names it until the rewrite is repaired.
+step 1 did not list is a rewrite that cannot fail or checks little, such as a weak oracle or a
+recomputed expectation: the batch stops and names it until the rewrite is repaired. The re-scan
+sees only the scanner's rules; the judgment-only shapes in `test-value` §5 stay with the review of
+each rewrite's row.
 
 Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
 --record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line.

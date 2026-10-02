@@ -40,8 +40,8 @@ independent source". A rewrite takes its expected value from a source that secti
 | # | Condition | Action |
 |---|---|---|
 | 1 | F | quarantine (the skill applies it; return the row only) |
-| 2 | CF and K | rewrite: same behavior, expected value from the contract |
-| 3 | B and K | rewrite to assert the observable outcome through the public API |
+| 2 | CF and K, not L | rewrite: same behavior, expected value from the contract |
+| 3 | B and K, not L | rewrite to assert the observable outcome through the public API |
 | 4 | CF or B, and a positive no-contract statement | delete; if real logic lives in a collaborator, name the test to add there |
 | 5 | D or L, both tests cited | D: merge (parameterize) or delete the duplicate; L: delete the replay |
 | 6 | none | keep |
@@ -80,4 +80,5 @@ candidate, F when named flaky>
 
 Write the subagent's table to `<work>/classifier-answer.md` unchanged. A row without a quoted line,
 a row 2 or 3 without a `file:line` K citation, or a row 4 without a positive no-contract statement
-is treated as row 6 (keep), and the decision table says why.
+is treated as row 6 (keep), and the decision table says why. So is a row 5 that names L without
+both the keeper's `file:line` and a quoted line of the keeper's assertion.

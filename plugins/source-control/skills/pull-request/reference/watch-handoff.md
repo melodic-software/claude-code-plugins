@@ -18,8 +18,9 @@ under the rate-limit floor below and act on what it says:
   say which routes run until stopped (`/autofix-pr`, a background agent, the babysit loop). The
   person decides.
 - **Unknown** (no file, a stale snapshot, no `rate_limits`, as in a cloud session or under API-key
-  auth): say so, point at `/usage`, and prefer `monitor` here, which stays in view, over an
-  open-ended route.
+  auth): say so and point at `/usage` beside the row the person's situation picks. For a person
+  who is staying, prefer `monitor`, which stays in view, over an open-ended route; for one who is
+  leaving, keep their row and say its launch is unchecked against the windows.
 
 The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no tee file,
 so nothing pauses it as the windows fill; a local `monitor` or loop that trips later follows the
@@ -67,6 +68,7 @@ applies to a watcher that later pauses.
 ## Ask one question
 
 "Are you staying in this session, leaving with this machine left on, or leaving with it off?"
+For "left on", also ask whether this conversation should keep going or a fresh agent is enough.
 When the person already said (for example "I'm heading out"), use that and do not ask. An
 unattended run asks nothing, starts nothing, and records the matrix row it would pick in its output.
 
@@ -75,8 +77,8 @@ unattended run asks nothing, starts nothing, and records the matrix row it would
 | Situation | Route | Who starts it |
 |---|---|---|
 | Staying | `/source-control:pull-request monitor <N>` in this session | The model, now |
-| Leaving, machine stays on | `/session-flow:continue-in-background` seeded with `monitor <N>`, a fresh background agent under this skill's full monitor discipline | The model, only on the person's explicit yes |
-| Leaving, machine stays on, wants this conversation to continue | `/background` detaches this whole session | The person types it |
+| Leaving, machine stays on, this conversation should keep going | `/background` detaches this whole session | The person types it |
+| Leaving, machine stays on, a fresh agent is enough | `/session-flow:continue-in-background` seeded with `monitor <N>`, a fresh background agent under this skill's full monitor discipline | The model, only on the person's explicit yes |
 | Leaving, machine may go off | `/autofix-pr` with the prompt below, from a terminal on the PR's branch | The person types it |
 | Several open PRs, not just this one | `/source-control:babysit-loop <owner/repo>` under `/loop` | The person, or the model on request |
 
