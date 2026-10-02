@@ -3,6 +3,13 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.11] - 2026-10-01
+
+### Fixed
+
+- `render-index.sh` no longer indexes rules or nested instruction files inside an `evals/fixtures/` tree. Those trees imitate a consuming repository as test input, and their rows were reaching this repository's always-loaded `AGENTS.md` index.
+- `glob-tools.sh rules` (the `/instruction-placement:check` glob gate) no longer checks rules inside an `evals/fixtures/` tree, so a fixture rule whose globs name the fixture's files no longer fails the gate as a zero match. The exclusion lives in the shared discovery layer (`lib/discover.sh`), so the index, the glob gate, `detect.sh` and the wiring gate apply one filter.
+
 ## [0.16.9] - 2026-10-01
 
 ### Changed

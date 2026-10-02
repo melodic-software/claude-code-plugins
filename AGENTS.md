@@ -44,6 +44,7 @@ and its content is not already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
+| `.claude/rules/cost-claims.md` | `plugins/*/skills/**, plugins/*/agents/**, plugins/*/reference/**, docs/**/*.md, prompts/**` | Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labelled vendor-reported |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |

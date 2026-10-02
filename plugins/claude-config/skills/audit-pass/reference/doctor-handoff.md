@@ -13,6 +13,10 @@ or push it toward answering a confirmation on the operator's behalf.
 
 **The handoff is therefore an operator instruction.** The pass finishes its own phases, then tells
 the operator to run `/doctor` themselves. Nothing in this pass invokes it, waits on it, or drives it.
+`/doctor prompt-audit` is handed off the same way: it reports outdated or conflicting instructions
+first and changes no file until the operator asks, and it needs Claude Code v2.1.283 or later
+([audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files),
+checked 2026-10-01; recheck when that section changes its write posture or version floor).
 
 **What it does not do is refuse the result the operator brings back.** "Never parses its output as a
 lane result" would make the `delegated` tier unreachable. The lane could never leave `open`, and

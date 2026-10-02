@@ -210,7 +210,7 @@ Runs second, so Phases 2 and 3 can dispatch through the route it creates. Model:
 - `bash plugins/skill-quality/scripts/check-skill.sh plugins/implementation/skills plugins/planning/skills plugins/work-items/skills` exits 0.
 - Changelog parity, one mode per call: `bash scripts/check-changelog-parity.sh --check`, `bash scripts/check-changelog-parity.sh --check-bump origin/main`, `bash scripts/check-changelog-parity.sh --check-order` and `bash scripts/check-changelog-parity.sh --check-preserved origin/main` each exit 0.
 
-### Phase 2: Pointer edits and cost-claims rule [TODO]
+### Phase 2: Pointer edits and cost-claims rule [DONE]
 
 Model: sonnet, dispatched through `scoped-implementer`. This is the first real use of the Phase 5 route. Files:
 
@@ -238,7 +238,7 @@ Version bumps and CHANGELOG entries for playbooks, planning, claude-config and i
 - `git diff --stat origin/main -- docs/decisions/` prints nothing.
 - Changelog parity: the four single-mode calls from Phase 5 each exit 0.
 
-### Phase 3: Research outcome-gate row 7 [DONE except step 4, the re-grade]
+### Phase 3: Research outcome-gate row 7 [DONE]
 
 Model: sonnet, through `scoped-implementer`.
 

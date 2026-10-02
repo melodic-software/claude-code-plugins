@@ -9,6 +9,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The plan's per-phase routing table gains a `Model` column (`sonnet`, `opus` or `frontier`).** `sonnet` is allowed only for a phase with a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and no security-surface work; `/implementation:implement-dispatch` sends such a row to `implementation:scoped-implementer`. `opus` covers architectural work, per-file judgment and multi-step reasoning, and is the value when in doubt. The template links the docs' `opusplan` setting and agent team token costs instead of restating either, and Step 4.5 points at the column.
 
+### Changed
+
+- `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
+
 ## [0.58.4] - 2026-10-01
 
 ### Fixed
