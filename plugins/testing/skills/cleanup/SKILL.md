@@ -30,9 +30,11 @@ root, `<folder-slug>` being the folder path lowercased with every character outs
 replaced by `-`. It holds `before.tsv` and `after.tsv` (the mutant records), `classifier-brief.md`,
 `classifier-answer.md`, `decisions.md` (the decision table, each item's approval state, the step
 reached, and for every file the batch edits its `git hash-object` after the last edit) and
-`pr-body.md`. Right after each edit to a test file (the quarantine in step 2, each change in step 5,
-each revert the user makes in step 6), run `git hash-object "<path>"` and record the hash and the
-step reached in `decisions.md`; step 0's resume check reads them. Read them from that path at every step, never from conversation memory, so a
+`pr-body.md`. Right after each edit to a test file (the quarantine in step 2, each rewrite,
+deletion or merge in step 5, each revert the user makes in step 6), run `git hash-object "<path>"`
+and record the hash and the step reached in `decisions.md`; step 0's resume check reads them.
+
+Read the working files from that path at every step, never from conversation memory, so a
 compacted or resumed session continues where the files say it stopped. Before the first write,
 confirm `.work/` is ignored (`git check-ignore -q .work/x`); when it is not, create `.work/.gitignore`
 holding `*`, and say so.
