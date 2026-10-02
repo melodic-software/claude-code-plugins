@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.2] - 2026-10-02
+## [2.5.3] - 2026-10-02
 
 ### Security
 
@@ -12,6 +12,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
   generator marker. The page has no script, and a hostile skill, hook, or session name renders as
   text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
+## [2.5.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [2.5.1] - 2026-10-02
 

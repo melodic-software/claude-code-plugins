@@ -118,16 +118,19 @@ export function densityAtTimestamp(timestampSec, windows) {
 }
 
 /**
- * Score a frame by densification windows and base scene priority.
+ * Score a frame by densification windows and base scene priority. An untimed
+ * frame is scored as outside every window.
  *
  * @param {import('@melodic/video-digestion/frames/models').FrameCandidate} frame
- * @param {number} index - Ordinal position in unique frame list
  * @param {DensificationWindow[]} windows
  * @returns {number}
  */
-export function scoreFramePriority(frame, index, windows) {
-  const timestamp = frame.timestampSec ?? index;
-  const density = densityAtTimestamp(timestamp, windows);
+export function scoreFramePriority(frame, windows) {
+  const timestamp = frame.timestampSec;
+  const density =
+    timestamp != null && Number.isFinite(timestamp)
+      ? densityAtTimestamp(timestamp, windows)
+      : DEFAULT_SPARSE_MULTIPLIER;
   const intervalPenalty = frame.isInterval ? 0.5 : 1;
   return density * intervalPenalty + (frame.sceneScore ?? 0);
 }

@@ -11,6 +11,7 @@ import { createLogger } from "@melodic/video-digestion/shared/logger";
 import {
   cueAnchorTimestamps,
   densificationAnchorTimestamps,
+  gapFillTimestamps,
   planFrameCoverage,
   stratifiedSampleTimestamps,
 } from "./compute-coverage-plan.js";
@@ -32,27 +33,16 @@ import {
  * @property {string} contactSheetsDir - Temp dir for contact sheets
  * @property {TranscriptCue[]} cues - Parsed transcript cues for densification
  * @property {number} [contactSheetBatchSize=16]
+ * @property {number} [maxFrameGapSec] - Overrides the coverage plan's maximum gap between timed frames
  */
-
-/**
- * Assign approximate timestamps to frames by ordinal position and video duration hint.
- *
- * @param {import('@melodic/video-digestion/frames/models').FrameCandidate[]} frames
- * @param {number} [durationSec=0]
- */
-export function assignFrameTimestamps(frames, durationSec = 0) {
-  if (frames.length === 0 || durationSec <= 0) return;
-
-  const step = durationSec / frames.length;
-  for (let i = 0; i < frames.length; i++) {
-    if (frames[i].timestampSec == null) {
-      frames[i].timestampSec = Math.round(i * step * 10) / 10;
-    }
-  }
-}
 
 /**
  * Run the deterministic two-pass watching pipeline.
+ *
+ * Frames keep the times scene detection measured or estimated and the exact
+ * times anchors were extracted at; a frame with neither stays untimed (`null`).
+ * After the second dedup, every stretch longer than the plan's `maxFrameGapSec`
+ * between timed frames gets anchor frames; untimed frames never count as coverage.
  *
  * @param {OrchestrateWatchingOptions} options
  * @param {object} [deps]
@@ -65,7 +55,7 @@ export function assignFrameTimestamps(frames, durationSec = 0) {
  * @returns {Promise<WatchingSelectionState>}
  */
 export async function orchestrateWatching(
-  { videoPath, framesDir, contactSheetsDir, cues, contactSheetBatchSize = 16 },
+  { videoPath, framesDir, contactSheetsDir, cues, contactSheetBatchSize = 16, maxFrameGapSec },
   {
     extractSceneFrames: runSceneDetect = extractSceneFrames,
     deduplicateFrames: runDedup = deduplicateFrames,
@@ -81,12 +71,12 @@ export async function orchestrateWatching(
   const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
 
   const sceneResult = await runSceneDetect(videoPath, framesDir, {}, { log });
-  const scenePaths = sceneResult.frames.map((frame) => frame.path);
-  const sceneDedup = await runDedup(scenePaths, {}, { log });
+  const sceneDedup = await runDedup(sceneResult.frames, {}, { log });
 
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
     sceneCandidateCount: sceneDedup.unique.length,
+    maxFrameGapSec,
   });
 
   /** @type {number[]} */
@@ -103,34 +93,46 @@ export async function orchestrateWatching(
 
   log.info(`watching: anchor extraction starting count=${anchorTimestamps.length}`);
   const anchorFrames = await runAnchorExtract(videoPath, framesDir, anchorTimestamps, { log });
-  const mergedCandidates = mergeFrameCandidates([...sceneDedup.unique, ...anchorFrames]);
-  const mergedPaths = mergedCandidates.map((frame) => frame.path);
-  const dedupResult = await runDedup(mergedPaths, {}, { log });
+  const mergedCandidates = mergeFrameCandidates([
+    ...sceneDedup.unique,
+    ...anchorFrames.map((frame) => ({
+      ...frame,
+      timestampSource: /** @type {const} */ ("anchor"),
+    })),
+  ]);
+  const dedupResult = await runDedup(mergedCandidates, {}, { log });
 
-  // The deduplicator reconstructs frames from bare paths with timestampSec=null,
-  // dropping the exact cue/densification anchor times. Re-attach them by path so
-  // assignFrameTimestamps only fabricates ordinals for the truly-unknown frames.
-  const knownTimestampByPath = new Map(
-    mergedCandidates
-      .filter((frame) => frame.timestampSec != null)
-      .map((frame) => [frame.path, frame.timestampSec]),
+  // Gaps are measured over every timed frame examined, before dedup: a frame dedup dropped
+  // still shows the screen at that time, so a static stretch is covered, not a gap to refill.
+  const fillTimestamps = gapFillTimestamps(
+    [...sceneResult.frames, ...anchorFrames].flatMap(({ timestampSec }) =>
+      timestampSec != null && Number.isFinite(timestampSec) ? [timestampSec] : [],
+    ),
+    durationSec,
+    coveragePlan.maxFrameGapSec,
   );
-  for (const frame of dedupResult.unique) {
-    if (frame.timestampSec == null && knownTimestampByPath.has(frame.path)) {
-      frame.timestampSec = knownTimestampByPath.get(frame.path);
-    }
+  /** @type {import('@melodic/video-digestion/frames/models').FrameCandidate[]} */
+  let uniqueFrames = dedupResult.unique;
+  if (fillTimestamps.length > 0) {
+    log.info(`watching: gap-fill extraction starting count=${fillTimestamps.length}`);
+    const fillFrames = await runAnchorExtract(videoPath, framesDir, fillTimestamps, { log });
+    uniqueFrames = mergeFrameCandidates([
+      ...dedupResult.unique,
+      ...fillFrames.map((frame) => ({
+        ...frame,
+        timestampSource: /** @type {const} */ ("anchor"),
+      })),
+    ]);
   }
 
-  assignFrameTimestamps(dedupResult.unique, durationSec);
-
-  const selection = selectFramesForCoverage(dedupResult.unique, {
+  const selection = selectFramesForCoverage(uniqueFrames, {
     windows,
     targetMinFrames: coveragePlan.targetMinFrames,
     durationSec,
   });
 
   log.info(
-    `watching: pass-1 complete unique=${dedupResult.unique.length} selected=${selection.selected.length} highVolume=${selection.highVolume}`,
+    `watching: pass-1 complete unique=${uniqueFrames.length} selected=${selection.selected.length} highVolume=${selection.highVolume}`,
   );
 
   log.info("watching: pass-2 starting (contact sheets + interleave)");
@@ -166,7 +168,7 @@ export async function orchestrateWatching(
 
   return {
     sceneFrames: sceneResult.frames,
-    uniqueFrames: dedupResult.unique,
+    uniqueFrames,
     densificationWindows: windows,
     coveragePlan,
     selectedFrames: selection.selected,

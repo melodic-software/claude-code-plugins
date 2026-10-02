@@ -31,6 +31,9 @@
  * @property {string} path
  * @property {string} file
  * @property {number|null} timestampSec
+ * @property {FrameCandidate['timestampSource']} [timestampSource]
+ * @property {FrameCandidate['timestampMethod']} [timestampMethod]
+ * @property {FrameCandidate['timestampErrorSec']} [timestampErrorSec]
  * @property {number} priorityScore - Higher = more likely to keep under budget
  * @property {boolean} textDense - Escalate detail read to native 1080p when true
  * @property {'1280x720'|'1920x1080'} readResolution - Per design-threads T3
@@ -43,7 +46,7 @@
  *
  * @typedef {Object} InterleavedReadItem
  * @property {'transcript'|'frame'} kind
- * @property {number} timestampSec
+ * @property {number|null} timestampSec - `null` for an untimed frame, which sorts last
  * @property {string} [transcriptText]
  * @property {SelectedFrame} [frame]
  */
