@@ -1,6 +1,6 @@
 ---
 description: "Configure the songwriting plugin for this repository: inventory or scaffold the project-level prompt-template overrides under songwriting/templates/pat-pattison/, and confirm where craft artifacts land. Use when: 'set up songwriting', 'configure songwriting', 'songwriting setup', 'customize a songwriting template', 'override the co-write prompt', or a craft skill reports a bundled prompt to tune. Actions: check (read-only inventory, default) | apply (scaffold or remove overrides). Re-runnable and safe."
-argument-hint: "check | apply [scaffold <name>...] [remove <name>...]"
+argument-hint: "[check|apply] [scaffold <name>...] [remove <name>...]"
 user-invocable: true
 disable-model-invocation: true
 ---

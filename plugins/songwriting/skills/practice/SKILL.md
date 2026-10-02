@@ -1,11 +1,11 @@
 ---
 description: "Build a songwriting practice habit with Pat Pattison's curriculum, the daily object-writing/craft routine and numbered exercises drawn from all four books (Essential Guide to Lyric Form and Structure structural exercises, Songwriting Without Boundaries 56-day curriculum, Essential Guide to Rhyming worksheets). Use when: 'daily practice plan', 'build a writing habit', 'give me a 90-second writing prompt', 'run me a numbered exercise', 'exercise 4.6', 'daily craft prompt'. For a one-off object-writing prompt use /songwriting:object-writing."
-argument-hint: "[action] [args]"
+argument-hint: "[daily|exercise] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[action] [args]`. e.g., /songwriting:practice, /songwriting:practice exercise 4.6 Full actions in body
+**Arguments.** `[daily|exercise] [args]`. e.g., /songwriting:practice, /songwriting:practice exercise 4.6 Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 

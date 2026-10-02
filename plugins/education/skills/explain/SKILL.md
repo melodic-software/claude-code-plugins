@@ -1,6 +1,6 @@
 ---
 description: "One-shot plain-language explainer. Drops any concept, code, error, architecture, or the previous assistant response to genuinely plain words (concrete analogy, zero jargon), then layers altitude up only on request (high-school, then peer level). Use when: 'I don't understand this', 'I don't get it', 'what does this actually do', 'what does this mean', 'explain simply', 'rephrase that'. Empty argument targets the previous assistant response (anaphora), so 'I don't get it' needs no topic named. This changes ALTITUDE, in PROSE. Trades precision for plain words; when the ask is instead to reorganize a dense message faithfully without losing precision, that is a STRUCTURE change, adhd:clarify (if installed), not an altitude drop. When the ask is for a picture (a diagram, a visual explainer, ELI5), that is a MEDIUM change, education:eli5. Sibling to education:teach. Hand off there for multi-session coaching; this is a single-shot check, not ongoing tutoring."
-argument-hint: "[thing to explain] (empty = the previous assistant response)"
+argument-hint: "[thing to explain]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

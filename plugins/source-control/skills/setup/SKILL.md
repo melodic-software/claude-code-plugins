@@ -1,11 +1,11 @@
 ---
 description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-overlay layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
-argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
+argument-hint: "[check|apply] [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `check | apply [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
+**Arguments.** `[check|apply] [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: [check|apply] [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
 
 ## Purpose
 

@@ -1,6 +1,6 @@
 ---
 description: "Deprecated: this skill moved to /attribution:setup when the provenance plugin was renamed to attribution. Tells you to install the attribution plugin and re-run setup there; writes no config itself. Use when '/provenance:setup' or 'set up provenance' is typed out of habit."
-argument-hint: "check"
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
 ---

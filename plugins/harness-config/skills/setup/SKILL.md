@@ -1,6 +1,6 @@
 ---
 description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record audit-pass reads at .claude/audit-pass.md, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash

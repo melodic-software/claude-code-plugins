@@ -1,12 +1,12 @@
 ---
 description: "Watch a single public video from YouTube or X (Twitter): transcript, links, and repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or a youtube.com, youtu.be, x.com, or twitter.com URL for one public video. Auth-walled courses go to /knowledge:course-digest."
-argument-hint: "watch <url> | watch <n> | queue <url> | queue list | transcript <url> | resume <slug>"
+argument-hint: "<watch [<url>|<n>]|queue <url>...|queue list|transcript <url>|resume <slug>>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 ---
 
-**Arguments.** `watch <url> | watch <n> | queue <url> | queue list | transcript <url> | resume <slug>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>
+**Arguments.** `<watch [<url>|<n>]|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>
 
 ## Pre-computed context
 
@@ -65,6 +65,7 @@ conflicts explicitly; never silently adopt a video's shortcut over team rules.
 
 | Action | Behavior |
 | --- | --- |
+| (empty) | Name the actions below and ask which to run. |
 | `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key. |
 | `queue list` | Show `QUEUE.md` table + active `claims/*.json` stubs. |
 | `transcript <url>` | Captions only. No video download. Runs acquisition + transcript pipeline. |
