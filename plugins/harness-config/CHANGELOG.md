@@ -5,6 +5,16 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.3.2] - 2026-10-02
+
+### Changed
+
+- **`audit-instructions` no longer calls `/doctor prompt-audit`'s write posture undocumented.** The
+  upstream memory page now documents it. The `doctor` Boundary section states our decision (offer
+  it, leave applying its edits to the person, never chain into it) and that it needs the bundled
+  `claude-api` skill on; `reference/native-doctor.md` records the pointer, as-of date and recheck
+  trigger.
+
 ## [1.3.0] - 2026-10-02
 
 ### Added
