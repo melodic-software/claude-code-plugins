@@ -1021,6 +1021,24 @@ function sinks(req) {
     // so can one reached through an alias of Object or Reflect, or a
     // computed read on them.
     const holder = parents.get(node);
+    // Code built from a string runs unseen: global `eval` other than a
+    // direct call (a direct one already makes the module a sink), and the
+    // global `Function` called or constructed or read other than for a
+    // member, `typeof` or `instanceof`.
+    if (node.type === "Identifier" && (node.name === "eval" || node.name === "Function")) {
+      const ref = entry.refs.get(node.start);
+      if (ref && !ref.resolved && ref.identifier === node) {
+        const typeOf = holder?.type === "UnaryExpression" && holder.operator === "typeof";
+        if (node.name === "eval" && !typeOf && !(holder?.type === "CallExpression" && holder.callee === node)) {
+          hit("indirect-eval", null, node);
+        }
+        const inert =
+          typeOf ||
+          (holder?.type === "BinaryExpression" && holder.operator === "instanceof" && holder.right === node) ||
+          (holder?.type === "MemberExpression" && holder.object === node && memberName(holder) !== "constructor");
+        if (node.name === "Function" && !inert) hit("function-constructor", null, node);
+      }
+    }
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {

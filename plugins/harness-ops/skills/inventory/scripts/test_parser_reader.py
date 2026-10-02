@@ -643,6 +643,14 @@ class TestFlowQuery(unittest.TestCase):
             ("var dp=Object.defineProperty;", ["definer-escape"]),
             ("var R=Reflect;", ["definer-escape"]),
             ('function e(){eval("")}', ["eval"]),
+            ("(0,eval)(s);", ["indirect-eval"]),
+            ("var e=eval;", ["indirect-eval"]),
+            ("Function(s)();", ["function-constructor"]),
+            ("new Function(s);", ["function-constructor"]),
+            (
+                "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
+                [],
+            ),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),

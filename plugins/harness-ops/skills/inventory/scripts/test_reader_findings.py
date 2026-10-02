@@ -328,6 +328,11 @@ class TestOpenFindings(unittest.TestCase):
             + '}}new X;pY.includes("x")',
             "var X=class extends function(){return Array.prototype}{constructor(){"
             "super();this.includes=" + patch + '}};new X;pY.includes("x")',
+            # Code built from a string, which no rule sees into.
+            "(0,eval)('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
+            'pY.includes("x")',
+            "Function('Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
+            'pY.includes("x")',
             # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch
