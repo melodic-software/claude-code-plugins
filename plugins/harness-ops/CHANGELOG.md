@@ -13,7 +13,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   found, and a new one is written. The environment variables are `HARNESS_OPS_LANES_CONFIG`,
   `HARNESS_OPS_CHANGELOG_LEDGER`, `HARNESS_OPS_CHANGELOG_CAP_RELEASES` and
   `HARNESS_OPS_CHANGELOG_CAP_ITEMS`; the `CLAUDE_OPS_*` names are not read. The shared shell
-  helpers are `harness_ops::*`.
+  helpers are `harness_ops::*`. The restart consumer's Windows scheduled task is
+  `HarnessOps Lane Restart Consumer`; delete a task registered under the old `ClaudeOps` name
+  and register it again from `restart-consumer.sh --print-schedule`.
+- **`morning-brief` reads only lane comments that open with the
+  `<!-- harness-ops:lane-telemetry marker=... -->` sentinel,** so a comment left under an older
+  sentinel is not reported as a second, stale row for its lane.
 - **BREAKING: `probe-observability-state.sh --otel-store` recognizes only the `harness-ops@`
   plugin key.** A prune task whose launcher still names `claude-ops@` reports `stale path`;
   rerun the provisioning apply (melodic-software/provisioning#670).

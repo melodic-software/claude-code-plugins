@@ -193,7 +193,7 @@ declare -a TARGET_LANES=()
 CONSUMER_MARKER="harness-ops:restart-consumer"
 CONSUMER_LANE="restart-consumer"
 SENTINEL_PREFIX="<!-- harness-ops:lane-telemetry marker="
-TASK_NAME="ClaudeOps Lane Restart Consumer"
+TASK_NAME="HarnessOps Lane Restart Consumer"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }

@@ -373,7 +373,7 @@ assert_not_contains "--lane drops the others" "$OUT" "| work |"
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --interval-minutes 20 2>&1)"
 RC=$?
 assert_eq "print-schedule exits 0" "0" "$RC"
-assert_contains "print-schedule emits a schtasks create" "$OUT" "schtasks /Create /TN \"ClaudeOps Lane Restart Consumer\""
+assert_contains "print-schedule emits a schtasks create" "$OUT" "schtasks /Create /TN \"HarnessOps Lane Restart Consumer\""
 assert_contains "print-schedule honors --interval-minutes" "$OUT" "/SC MINUTE /MO 20"
 assert_contains "print-schedule avoids elevation and stored passwords" "$OUT" "/IT /RL LIMITED"
 assert_contains "print-schedule emits the removal command" "$OUT" "schtasks /Delete"

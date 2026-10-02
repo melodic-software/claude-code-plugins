@@ -91,8 +91,8 @@ Git Bash, whose MSYS path conversion rewrites `/`-style options (`schtasks
 `/TR` paths are Windows-form (`cygpath -w`), since cmd.exe cannot use the
 MSYS-form paths Git Bash resolves.
 
-**Verify:** from cmd.exe, `schtasks /Query /TN "ClaudeOps Lane Restart
-Consumer"`, then `schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and
+**Verify:** from cmd.exe, `schtasks /Query /TN "HarnessOps Lane Restart
+Consumer"`, then `schtasks /Run /TN "HarnessOps Lane Restart Consumer"` and
 confirm a fresh `last-cycle:` on the consumer's **telemetry comment**. That one
 signal, and not a local-file alternative, is the whole check: `last-cycle:` is
 written only by `upsert_own_telemetry`, which returns early unless the action is
