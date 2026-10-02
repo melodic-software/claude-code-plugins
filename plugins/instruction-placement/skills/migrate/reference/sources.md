@@ -24,7 +24,9 @@ Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) �
 [Canary recipe](#the-canary-recipe) · [Shim removal cost](#what-shim-removal-costs) ·
 [Measuring the cutover](#what-the-loss-means-for-measuring-the-cutover) ·
 [Hook gap recheck](#page-recheck-of-the-hook-gap) ·
-[Built-in agents-md plugin](#the-built-in-agents-md-plugin)
+[Built-in agents-md plugin](#the-built-in-agents-md-plugin) ·
+[Frontmatter hooks](#frontmatter-hooks-and-instructionsloaded) ·
+[Nested path blockers](#blockers-between-the-root-and-a-nested-agentsmd)
 
 ## The remote flag, and how its code default is read
 
@@ -431,3 +433,42 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   under `disableAllHooks` or `allowManagedHooksOnly`, or stops listing `cc-plugin-agents-md` as
   one; a changelog entry names `AGENTS.md`, `instructionFiles`, `projectInstructions` or the
   `agents-md` plugin; or the README's "Setting the option" paragraph on the old key changes.
+
+## Frontmatter hooks and `InstructionsLoaded`
+
+The record behind condition F's frontmatter scan in [`shim-droppable.md`](shim-droppable.md).
+
+Condition F treats any skill, command-file or subagent frontmatter that names
+`InstructionsLoaded` as a hook that may depend on the shim, and scans every location the pointers
+below give for those components, plus each `--add-dir` directory the operator names, scanned
+whole. Anything the pointers leave unsaid (whether such a hook fires in a given session, or inside
+a subagent) keeps the shim. Read the mechanics live at the pointers; this record holds only that
+decision.
+
+- **Pointer**: <https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents>,
+  <https://code.claude.com/docs/en/hooks#hook-locations>,
+  <https://code.claude.com/docs/en/sub-agents#hooks-in-subagent-frontmatter>,
+  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>,
+  <https://code.claude.com/docs/en/skills#where-skills-live>,
+  <https://code.claude.com/docs/en/skills#frontmatter-reference> and
+  <https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration>.
+  All four pages fetched by the rung-1 route on 2026-10-02, each slug in `llms.txt`.
+- **As of**: 2026-10-02
+- **Recheck trigger**: any of these sections changes which components can declare hooks, which
+  events they accept, when those hooks are active, where skills, command files or subagents load
+  from, or what `--add-dir` loads.
+
+## Blockers between the root and a nested `AGENTS.md`
+
+The record behind condition A's nested path walk in [`shim-droppable.md`](shim-droppable.md).
+
+Condition A treats a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in any directory
+between the repository root and a nested `AGENTS.md` (for example `svc/CLAUDE.local.md` above
+`svc/deep/AGENTS.md`) as a blocker for that nested file. The walk is the one `scripts/lib/discover.sh`
+`ip_entry_points_on_path` already runs for the reachability verdict and the wiring gate.
+
+- **Pointer**: <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>, fetched by
+  the rung-1 route on 2026-10-02, slug in `llms.txt`.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section states which directories' files stop a subdirectory's
+  `AGENTS.md` from loading.
