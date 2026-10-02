@@ -17,8 +17,9 @@ geometry, source frames or the clip into it. Read
 band is set, which statistics separate the woodcut style from a filtered near miss and from other
 styles, and what the check still cannot separate.
 
-Requirements: the plugin README's (run the scripts the way it says; `/animation:setup` checks
-them) and a rotoscope work directory (`d/dNNN.json` traces and
+Requirements: the plugin README's (run each script as `python3
+${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`;
+`/animation:setup` checks the requirements) and a rotoscope work directory (`d/dNNN.json` traces and
 `src/dNNN.png` drawings). The scripts are `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/learn.py`,
 `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/controls.py` and the shared
 `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
