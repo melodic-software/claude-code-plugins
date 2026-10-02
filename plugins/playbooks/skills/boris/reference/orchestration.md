@@ -115,4 +115,4 @@ Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking
 - **"Less prompts and steers"**: lean into context minimalism (88) and delegation over guidance (65): give it the goal, not the micro-steps.
 - **Longer sessions + higher trust**: the autonomy stack (auto mode 42/68, `/goal` 77, nested subagents 91, workflows 80–86) pays off more on a base model that self-verifies better.
 - **Cost**: reach for Fable where the quality jump pays for itself. For current model economics, see [compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-02; recheck on a new model release or a change to that section's default recommendation).
-- **Effort**: for the effort levels Fable supports, see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+- **Effort**: for the effort levels Fable supports, see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes).

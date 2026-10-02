@@ -373,12 +373,10 @@ phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
 current alias, so a `sonnet` worker-lane root no longer makes every
 implementer `sonnet`, and `/work-items:work`'s branch-owned fix
-re-dispatches ride the same agent surface. A per-invocation `model` outranks
-that frontmatter, and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides both. For
-the full resolution order and its exceptions, see
+re-dispatches ride the same agent surface. How that frontmatter ranks against
+a per-invocation `model` and operator overrides is set by
 [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
-**As of:** 2026-10-02. **Recheck trigger:** that section changes the order or
-what `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides.
+**As of:** 2026-10-02. **Recheck trigger:** that section changes the order.
 
 Two consequences of that order:
 
