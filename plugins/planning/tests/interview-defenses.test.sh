@@ -42,7 +42,7 @@
 #   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
 #      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
 #      BESIDE a pinned line rather than to it.
-#      Digests cover eighteen sections (two of them audit-answers Step 1 and Step 4), the
+#      Digests cover nineteen sections (two of them audit-answers Step 1 and Step 4), the
 #      whole YAML frontmatter, the eight cases that speak to these rules, the case roster, the
 #      four fixtures, and context/assumption-sweep.md. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
@@ -449,6 +449,24 @@ declares_both_fixtures B "$CASE_B"
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "881ecec0f5c8cf8e18d16edc7a3d5a72463c48ddc483f5736814b18506d2a6b3"
+
+# The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
+# the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
+# reattach-slice.test.sh holds it there). It is a twin of the full rules in Step 1.5, the
+# Action Router and Step 3, so it is digested and each line is pinned once inside it: an
+# unpinned twin could be inverted while the originals stand.
+pin_section "SKILL.md Gates section is unchanged (the early twin of the three gates)" \
+  "$SKILL" \
+  "## Gates" \
+  "## Action Router" \
+  "4f5ffb070ea46ed9297523d92e104885d09f4d041c10289091e221b33fc5d31d"
+for gate_line in \
+  "**The user's decisions are never synthesized.**" \
+  "**A gap during \`lock\` synthesis halts the run.**" \
+  "**The register gate runs before the contract locks.**"; do
+  pin_once "Gates names: $gate_line" "$SKILL" "$gate_line"
+  within "Gates holds: $gate_line" "$SKILL" "$gate_line" "## Gates" "## Action Router"
+done
 
 # The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
 # question to its recommendation — the auto-guard applies inside rounds too"), and the
