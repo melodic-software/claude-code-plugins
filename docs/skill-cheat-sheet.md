@@ -119,6 +119,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
 | [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail. Report, gate, or persist |
+| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |

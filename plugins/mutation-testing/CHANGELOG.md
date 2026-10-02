@@ -3,6 +3,19 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-01
+
+### Added
+
+- **`audit --record-mutants <file>` and `--replay-mutants <file>`.** With `--exercised`, a run
+  records the mutants it applied and their states; a replay applies exactly those mutants again
+  after the tests changed, with no mapping and no regeneration, and gates on lost kills: the report
+  carries `Gate: pass` or `Gate: block` and one `newly-surviving <path>:<line_start> <operator>`
+  line per blocking mutant. Both runs use the manual protocol with `test-command`. A record is
+  written only after restoration is verified, and only outside tracked space. The format is private
+  to this plugin (`audit/context/mutant-record.md`).
+- `scripts/compare-records.sh <before> <after>`, the replay's compare step, with its test.
+
 ## [0.5.0] - 2026-10-01
 
 ### Added

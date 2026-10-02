@@ -155,3 +155,10 @@ plugins/testing/skills/audit/evals/judge-calibration/sweep/*
 plugins/harness-ops/lib/plugin_cache_versions.py
 plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
 plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
+
+# The cleanup skill's eval fixture: a small repository (production modules,
+# a config, a judge findings file) that the cleanup evals copy and run the
+# skill over. The lane covering it is the skill-quality gate:
+# scripts/check-orphaned-fixtures.sh --check and check-evals-quality.sh, as for
+# the *.txt fixtures above. Its unittest files are still selected as suites.
+plugins/testing/skills/cleanup/evals/fixtures/*

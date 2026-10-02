@@ -3,12 +3,26 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1] - 2026-10-01
+## [0.18.1] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.18.0] - 2026-10-01
+
+### Added
+
+- **`/testing:cleanup <folder>`.** Cleans up low-value tests in one folder: reads the scanner's
+  findings, the branch's test-judge findings when present, and the tests the user names as flaky.
+  A fresh-context classifier on `opus` picks quarantine, rewrite, delete, merge or keep per test.
+  Rewrites are the default; each deletion or merge needs a positive no-contract statement and the
+  user's yes. Named flaky tests are skipped with a dated `test-change: quarantined` reason. The
+  mutation gate records the tests' kills before any edit and replays them after
+  (`/mutation-testing:audit --record-mutants` and `--replay-mutants`); a lost kill blocks the
+  batch and lists the candidate changes. Nothing is committed until the user approves the batch.
+- `audit` and `test-value` name `/testing:cleanup` as a successor.
 
 ## [0.17.0] - 2026-10-01
 
