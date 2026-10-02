@@ -39,9 +39,9 @@ Official contracts:
    failure: the server runs and each tool call returns the configure instruction, so absent tools
    point to a different cause. A first launch that cannot install the server's npm dependencies
    (no `npm` on `PATH`, no network, a failed `npm ci`) is such a cause: the server exits, and its
-   stderr names the cause and the one shell line that repairs it. Direct the user to `/mcp` for
-   the server's status, and to a session started with `claude --debug` to read that stderr in
-   the debug log; do not read the log for them.
+   stderr names the cause and the one shell line that repairs it. To tell the user where to read
+   that stderr, read the two sections below at run time and give the user the route they state;
+   do not read the user's logs for them.
    - **Pointer**: for where a plugin MCP server's startup error is recorded, see
      <https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects>
      and <https://code.claude.com/docs/en/debug-your-config#check-mcp-servers>.

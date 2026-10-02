@@ -125,25 +125,34 @@ function removeStalePartials(target: string): void {
   }
 }
 
-// Builds `target` through `build(partial)`, then renames it into place. A failed rename is
-// fine when a concurrent launch won it and its copy satisfies `ready`.
-function buildAtomically(
+// Builds `target` through `build(partial)`, then renames it into place. Any failure, of the
+// build or the rename, is fine when a concurrent launch's copy already satisfies `ready`.
+export function buildAtomically(
   target: string,
   ready: (dir: string) => boolean,
   build: (partial: string) => void,
   command?: string,
 ): void {
-  removeStalePartials(target);
   const partial = `${target}.partial-${process.pid}`;
-  rmSync(partial, { recursive: true, force: true });
+  const discard = () => {
+    try {
+      rmSync(partial, { recursive: true, force: true });
+    } catch {
+      // Nothing to discard, or a path the OS cannot handle; the failure is reported below.
+    }
+  };
   try {
+    removeStalePartials(target);
+    discard();
     mkdirSync(partial, { recursive: true });
     build(partial);
     renameSync(partial, target);
   } catch (error) {
-    rmSync(partial, { recursive: true, force: true });
+    discard();
+    // A concurrent launch that finished a good copy wins, whatever made this one fail.
+    if (ready(target)) return;
     if (error instanceof LaunchBroken) throw error;
-    if (!ready(target)) throw new LaunchBroken(`cannot create ${target}: ${error}`, command);
+    throw new LaunchBroken(`cannot create ${target}: ${error}`, command);
   }
 }
 

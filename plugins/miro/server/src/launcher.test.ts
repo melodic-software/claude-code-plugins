@@ -7,16 +7,18 @@ import {
   utimesSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   appDir,
+  buildAtomically,
   ensureDependencies,
   ensureSource,
   installCommand,
   installDir,
+  LaunchBroken,
 } from "./launcher.ts";
 import { LAUNCH, SERVER_DIR, seedInstall, tempDataDir } from "./test-support/install.ts";
 
@@ -60,6 +62,42 @@ describe("first launch that cannot install", () => {
     const run = launch({ PATH: process.env["PATH"] ?? "" });
     expect(run.status).toBe(1);
     expect(run.stderr).toContain("CLAUDE_PLUGIN_DATA is not set");
+  });
+
+  it("delivers a diagnostic longer than a pipe buffer whole, then exits 1", () => {
+    // A data path too long to create makes the diagnostic repeat it several times.
+    const longData = join(dataDir(), "a/".repeat(20_000));
+    const run = launch({ PATH: process.env["PATH"] ?? "", CLAUDE_PLUGIN_DATA: longData });
+    expect(run.status).toBe(1);
+    expect(run.stderr.length).toBeGreaterThan(65_536);
+    expect(run.stderr.startsWith("miro MCP server cannot start: cannot create ")).toBe(true);
+    expect(run.stderr.endsWith("--no-audit --no-fund\n")).toBe(true);
+  });
+});
+
+describe("a launch racing another", () => {
+  const ok = (dir: string) => existsSync(join(dir, "ok"));
+
+  it("accepts the other launch's finished copy when its own build fails", () => {
+    const target = join(dataDir(), "target");
+    expect(() =>
+      buildAtomically(target, ok, () => {
+        mkdirSync(target);
+        writeFileSync(join(target, "ok"), "");
+        throw new LaunchBroken("npm ci failed (exit 1)", "repair");
+      }),
+    ).not.toThrow();
+    expect(readdirSync(dirname(target))).toEqual(["target"]);
+  });
+
+  it("reports its own failure when no finished copy exists", () => {
+    const target = join(dataDir(), "target");
+    expect(() =>
+      buildAtomically(target, ok, () => {
+        throw new LaunchBroken("npm ci failed (exit 1)", "repair");
+      }),
+    ).toThrow("npm ci failed (exit 1)");
+    expect(readdirSync(dirname(target))).toEqual([]);
   });
 });
 
