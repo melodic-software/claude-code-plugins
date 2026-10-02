@@ -72,9 +72,9 @@ ORDER BY session_id = getvariable('b'), model, effort;
 
 WITH ids(ord, session_id) AS (VALUES (1, getvariable('a')), (2, getvariable('b'))),
 metric AS (
-  SELECT session_id, count(*) AS n,
-    COALESCE(sum(value) FILTER (WHERE metric_name = 'claude_code.cost.usage'), 0) AS usd
+  SELECT session_id, count(*) AS n, COALESCE(sum(value), 0) AS usd
   FROM points
+  WHERE metric_name = 'claude_code.cost.usage'
   GROUP BY session_id
 ),
 events AS (

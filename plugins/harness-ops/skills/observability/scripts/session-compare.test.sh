@@ -95,6 +95,8 @@ if command -v duckdb >/dev/null 2>&1; then
       "$(point s-b m-y - output '"asInt":"3"')" \
       "$(point s-b m-y - cacheCreation '"asInt":"30"')"
     metric "$TOKENS" 1 "$(point s-c m-x low input '"asInt":"1"')" "$(point s-z m-z high input '"asInt":"9999"')"
+    # s-t: token points but no cost point.
+    metric "$TOKENS" 1 "$(point s-t m-x high input '"asInt":"4"')"
     metric "$COST" 1 \
       "$(point s-a m-x high - '"asDouble":0.75')" \
       "$(point s-a m-x medium - '"asDouble":0.25')" \
@@ -108,6 +110,7 @@ if command -v duckdb >/dev/null 2>&1; then
     api_request s-b '{"key":"cost_usd","value":{"stringValue":"0.5"}}'
     api_request s-c '{"key":"cost_usd","value":{"doubleValue":0.3}}'
     api_request s-z '{"key":"cost_usd","value":{"doubleValue":9}}'
+    api_request s-t '{"key":"cost_usd","value":{"doubleValue":0.2}}'
   } >"$main/cc-logs.json"
   before="$(cat "$main"/* | cksum)"
 
@@ -138,6 +141,10 @@ if command -v duckdb >/dev/null 2>&1; then
   assert_eq "a session absent from the store exits 2" 2 "$rc"
   assert_contains "the absent session is named" "$out" "s-missing"
   assert_contains "the absence points at the cold tier" "$out" "cold tier"
+
+  run "$main" s-a s-t
+  assert_eq "a session with token points but no cost point exits 2" 2 "$rc"
+  assert_not_contains "no cost point is not reported as events exceeding the metric" "$out" "events exceed metric"
 
   cumulative="$TMP/cumulative"
   mkdir -p "$cumulative"

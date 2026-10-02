@@ -1376,9 +1376,10 @@ kind of work, and never below `medium` for work that changes code or verifies a 
 [effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `implementer`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`; `songwriting` `object-writer`. Four pin `effort: medium`: `planning`
+`plugin-quality` `auditor`; `songwriting` `object-writer`. Five pin `effort: medium`: `planning`
 `plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`,
-because it checks one phase against acceptance criteria fixed before it runs; and `review`
+because it checks one phase against acceptance criteria fixed before it runs; `implementation`
+`scoped-implementer`, because a plan routes only well-scoped work to it; and `review`
 `ecosystem-specialist` and `discovery` `explorer`, because their work is clearly scoped tool use,
 running a repository's declared commands and reading and indexing a scope. No pin goes below
 `medium`, because a low-effort executor stops detecting that it is stuck. A frontmatter pin is what
