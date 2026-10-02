@@ -75,7 +75,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | /loop | Schedule recurring session tasks; recurring jobs expire after 7 days |
 | Code Review | Agent-powered PR reviews that catch real bugs |
 | /btw | Ask questions mid-task without breaking flow |
-| /effort | Sets the effort level and the Ultracode toggle; see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
+| /effort | Sets the effort level and the Ultracode toggle; see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes) |
 | Remote Control | Spawn new sessions from mobile |
 | Voice Mode | Talk to Claude Code on Desktop |
 | Setup Scripts | Automate cloud environment setup |

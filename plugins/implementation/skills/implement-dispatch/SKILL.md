@@ -119,10 +119,9 @@ Because the orchestrator stays on the default branch, **every source-touching op
    - **Pointer**: for the subagent model resolution order, see
      <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for what the `sonnet` alias
      resolves to per provider, see <https://code.claude.com/docs/en/model-config#model-aliases>;
-     for the provider variables, see <https://code.claude.com/docs/en/env-vars#variables>. The
-     resolution-order section also covers `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which overrides both
-     the frontmatter and a per-call `model`; when it is set, report it in the run summary: it is an
-     operator choice, not a reason to refuse dispatch.
+     for the provider variables, see <https://code.claude.com/docs/en/env-vars#variables>. When an
+     operator override from the resolution-order section is set, report it in the run summary: it
+     is an operator choice, not a reason to refuse dispatch.
    - **As of**: 2026-10-02
    - **Recheck trigger**: a release note touches subagent model selection, the model-aliases
      provider table changes, or the env-vars page adds a provider variable.
@@ -215,5 +214,5 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Shared worktrees follow the one-writer rule.** See Gates and Concurrency
 - **Two well-formed fences can overlap unseen.** See Dispatch cadence item 1.1
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary. Classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
-- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer`, or as `implementation:scoped-implementer` for a plan-routed `sonnet` phase, and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` on `implementer` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); the one downward route is spawning `scoped-implementer` with `model: sonnet` passed explicitly (see Dispatch cadence step 2). We treat `CLAUDE_CODE_SUBAGENT_MODEL` as ranking below both the per-invocation parameter and the frontmatter (record in Dispatch cadence step 2), so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` does override the binding and every per-call `model`; report it when it is set rather than refusing to dispatch
+- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer`, or as `implementation:scoped-implementer` for a plan-routed `sonnet` phase, and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` on `implementer` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); the one downward route is spawning `scoped-implementer` with `model: sonnet` passed explicitly (see Dispatch cadence step 2). We treat `CLAUDE_CODE_SUBAGENT_MODEL` as ranking below both the per-invocation parameter and the frontmatter (record in Dispatch cadence step 2), so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out. An operator override from that resolution-order section can still win over the binding; report it when it is set rather than refusing to dispatch
 - **An omitted `--wave-cap` with the operator option unset keeps the internal 3–5. Never coerce an absent value into a number.** See Arguments
