@@ -183,19 +183,19 @@ The launched agent is a NEW session, not a fork of this one
   explicit `--effort` so the work does not silently run at the default. At launch, read
   model-config's
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
-  table (columns Level and When to use it), pick the row whose "When to use it" text fits the
-  resumed task, and pass that row's Level cell as `--effort "<level>"` in step 2's command,
-  before the prompt argument. A task that changes code or verifies it is never given a level
-  below medium, and a row the table marks as a setting rather than a level is not a candidate.
-  The value is one Level cell of lowercase letters only, never free text, for the same reason
-  the topic slug is sanitized. The launch report names the level and quotes the matched "When to
-  use it" text. When the page cannot be read, say so, pass no `--effort`, and state that the
+  table, pick the level whose described use fits the resumed task, and pass that level as
+  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
+  or verifies it is never given a level below medium; skip any row the table says is not an
+  effort level. The value is one level name of lowercase letters only, never free text, for the
+  same reason the topic slug is sanitized. The launch report names the level and quotes the
+  matched use. When the page cannot be read, say so, pass no `--effort`, and state that the
   session will start at its default level.
 
-  Claim: the table lists one row per level under the columns Level and When to use it, and
-  `--effort` sets the level for one session at launch. Basis: the page linked above. As of:
-  2026-10-02. Recheck: the section is renamed or moved, its columns change, or the `--effort`
-  flag changes.
+  - **Pointer**: for choosing a level, see the table linked above; for the `--effort` flag, see
+    [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: either section is renamed or moved, the table's columns change, or the
+    `--effort` flag changes.
 - **Directory settings ARE read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
@@ -227,9 +227,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
   flagging), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
-- [ ] For resumed verify or unattended work, `--effort` passed with the Level of the model-config
-  table row whose "When to use it" text fits the task, the report naming the level and quoting
-  that text; page unreadable → said so, no `--effort`, and the report states the session starts
+- [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
+  whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 

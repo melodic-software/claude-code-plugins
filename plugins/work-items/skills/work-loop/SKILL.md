@@ -108,7 +108,7 @@ telemetry comment; they are not re-derived from prose in the launch prompt.
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
 is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
-`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing (claim: the Bash tool sees the level in effect as `CLAUDE_EFFORT`; basis: the `effort` input row of the [hooks reference](https://code.claude.com/docs/en/hooks); as of 2026-10-02; recheck when that row stops naming the variable).
+`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of: 2026-10-02. Recheck trigger: that row stops naming the variable.
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,

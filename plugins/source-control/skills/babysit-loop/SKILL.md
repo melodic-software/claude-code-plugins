@@ -319,9 +319,9 @@ partition depends on; it and the `instance:` cycle-report line are the reference
 
 `effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start
 run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints
-nothing (claim: the Bash tool sees the level in effect as `CLAUDE_EFFORT`; basis: the `effort`
-input row of the [hooks reference](https://code.claude.com/docs/en/hooks); as of 2026-10-02;
-recheck when that row stops naming the variable).
+nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of
+[Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of:
+2026-10-02. Recheck trigger: that row stops naming the variable.
 
 `latched_account` is the fingerprint of the account that tripped the pause, recorded with
 `paused_until` at pause entry (never the address; this comment is public). It is `null` or absent

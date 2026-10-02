@@ -99,13 +99,12 @@ the row is written, so a stumble can later be compared with the effort level of 
 happened in. Write `unset` when the value is empty or still reads as the dollar-brace placeholder
 instead of a level name: the substitution did not run, or no level was available. Record what
 rendered, never a guessed level; the value changes nothing else about the experiment.
-**Claim:** skills receive the current effort level through the `CLAUDE_EFFORT` string
-substitution, and the docs do not say what renders when no level is available, so an empty value
-and the unreplaced placeholder are both handled as `unset`. **Basis:** the skills page
-"Available string substitutions" table
-(<https://code.claude.com/docs/en/skills#available-string-substitutions>), fetched 2026-10-02.
-**As of:** 2026-10-02. **Recheck:** that table states what renders when no effort level is
-available, or drops the substitution.
+
+- **Pointer**: for the `CLAUDE_EFFORT` substitution, see
+  <https://code.claude.com/docs/en/skills#available-string-substitutions>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that table states what renders when no effort level is available, or drops
+  the substitution.
 
 `status` reads `manifest.json` and `stumbles.md` and prints:
 

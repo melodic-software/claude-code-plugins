@@ -58,10 +58,9 @@ const TIER2_AGENTS = [
 const TIER2_SLICES = OWNERLESS_SLICES.map(s => ({ label: 'slice:' + s, slice: s }))
 
 // A leaf with a named agent passes no effort, so its definition's effort pin applies. Every
-// agent() call without a named agent passes an explicit level, chosen against model-config's
-// "Choose an effort level" table (basis below the script).
-const SLICE_EFFORT = 'high'      // slices render review verdicts: the `high` row, verification matters
-const EXTRACT_EFFORT = 'medium'  // clear-scope mechanical extraction that must keep every finding: the `medium` row, never lower
+// agent() call without a named agent passes an explicit level (pointer below the script).
+const SLICE_EFFORT = 'high'      // slices render review verdicts
+const EXTRACT_EFFORT = 'medium'  // mechanical extraction that must keep every finding; never lower
 
 // SKILL.md "Dispatch contract": every finding-producing leaf prompt carries this clause verbatim.
 const COVERAGE_CLAUSE =
@@ -156,9 +155,11 @@ return {
 
 **Null reconciliation:** the reduce returns `nulls` (every leaf that produced no record, regardless of cause), `ran` (the full expected roster) and `effort` (per leaf, the level the script passed, or `null` for a named agent). Render a `## Surfaces` line in the form `Ran: [<label>@<level>, ...]. Returned no result: [...]`, with NO silent caps. Every null is named.
 
-**Leaf levels:** render each `ran` entry as `<label>@<level>`, main-thread, after the reduce returns. A slice takes its level from the returned `effort`. A named agent (`effort` is `null`) takes the `effort:` key from its definition's frontmatter: Read `<plugin-root>/agents/<name>.md`, where `<name>` is the `agentType` without its `review:` prefix; a definition with no `effort:` key ran at the session's level, rendered `<label>@session`. The rendered level is the level requested, not proven: frontmatter effort does not override the `CLAUDE_CODE_EFFORT_LEVEL` environment variable. Check it with `printenv CLAUDE_CODE_EFFORT_LEVEL`; when it is set, end the `## Surfaces` line with one notice that the variable may override the shown levels.
+**Leaf levels:** render each `ran` entry as `<label>@<level>`, main-thread, after the reduce returns. A slice takes its level from the returned `effort`. A named agent (`effort` is `null`) takes the `effort:` key from its definition's frontmatter: Read `<plugin-root>/agents/<name>.md`, where `<name>` is the `agentType` without its `review:` prefix; a definition with no `effort:` key ran at the session's level, rendered `<label>@session`. The rendered level is the level requested, not proven: we treat a set `CLAUDE_CODE_EFFORT_LEVEL` environment variable as able to override it. Check it with `printenv CLAUDE_CODE_EFFORT_LEVEL`; when it is set, end the `## Surfaces` line with one notice that the variable may override the shown levels.
 
-Basis: model-config's [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) table, whose rows the two constants follow, and [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level), which states that frontmatter effort overrides the session level but not the environment variable; the Workflow `agent()` `effort` option is in the bundled workflow-authoring reference, and the Agent tool's parameters carry no effort. Verified 2026-10-02; recheck when either model-config section changes, or when a Claude Code release note changes the Workflow `agent()` options or adds an effort parameter to the Agent tool.
+- **Pointer**: for choosing the two constants' levels, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level); for how frontmatter effort ranks against the session level and the environment variable, see [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level); for the Workflow `agent()` `effort` option, see the bundled workflow-authoring reference. That the Agent tool takes no effort parameter is our reading of its tool schema.
+- **As of**: 2026-10-02
+- **Recheck trigger**: either model-config section changes, or a Claude Code release note changes the Workflow `agent()` options or adds an effort parameter to the Agent tool.
 
 **Agent-type namespacing:** the `agentType` values above use the marketplace-installed form (`review:<agent>`). When running via `--plugin-dir` or in a context where the plain names resolve, substitute the unqualified names at dispatch.
 

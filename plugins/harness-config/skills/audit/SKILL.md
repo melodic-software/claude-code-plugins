@@ -266,10 +266,12 @@ bash scripts/check-effort-pins.sh --print-baseline > reference/effort-table.base
 
 The script never rewrites the baseline itself.
 
-Claim: the effort levels, per-model defaults and level guidance the check reads sit in
-model-config's "Adjust effort level" section and its "Choose an effort level" table. Basis:
-<https://code.claude.com/docs/en/model-config#choose-an-effort-level>. As of: 2026-10-02. Recheck:
-the check reports `table status=unparsed`, or that section or table is renamed or moved.
+- **Pointer**: for the levels, per-model defaults and level guidance the check reads, see
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-10-02
+- **Recheck trigger**: the check reports `table status=unparsed`, or either section is renamed or
+  moved.
 
 ### 3.1 Official docs check
 

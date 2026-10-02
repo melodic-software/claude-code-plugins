@@ -5,10 +5,10 @@ skill for a stage, invoke it; otherwise execute the stage inline per its definit
 
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
-advice, pick the row whose "When to use it" text fits that kind of work, and name both the level
-and the matched text. A stage that changes code or verifies it is never advised below medium. A
-row the table marks as a setting rather than a level is not a candidate. When the page cannot be
-read, say so and advise no level. The advice is the human's to act on; this skill never sets
+advice, pick the level whose described use fits that kind of work, and name both the level and
+the matched use. A stage that changes code or verifies it is never advised below medium; skip any
+row the table says is not an effort level. When the page cannot be read, say so and advise no
+level. The advice is the human's to act on; this skill never sets
 effort.
 
 - **Pointer**: for choosing an effort level, see
@@ -74,8 +74,7 @@ Structured execution with incremental validation and commit checkpoints.
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
 - At phase boundaries on long work, write a save-point by invoking `/session-flow:handoff` via the Skill tool so a fresh session can resume
-- **Effort:** code-changing work within the scope the plan fixed, or fixing a bug in an existing
-  codebase when that is the change
+- **Effort:** code-changing work within the scope the plan fixed
 
 ## 5. Test
 
@@ -84,7 +83,8 @@ failures to root cause.
 
 - Never retry a failing test blindly. Reproduce, diagnose, fix, retest
 - Test the change's observable behavior, not its implementation detail
-- **Effort:** writing tests and diagnosing failures to root cause, where edge cases are likely
+- **Effort:** writing tests and diagnosing failures to root cause, where a missed case lets a
+  regression through
 
 ## 6. Review
 
@@ -96,7 +96,7 @@ and review criteria, or delegate to a fresh-context reviewer.
 - For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
-- **Effort:** judging a diff for defects, where verification matters and edge cases are likely
+- **Effort:** judging a diff for defects, where a missed defect ships
 
 ## 7. Verify outcome
 
@@ -107,14 +107,15 @@ Prove the change achieved its intent, with evidence.
   not just the compiler
 - **Never claim improvement without before/after measurements.** Baselines first, measure deltas,
   report with data
-- **Effort:** proving the outcome with evidence, which is verification work
+- **Effort:** proving the outcome with evidence before the work is called done
 
 ## 8. Retrospective
 
 Session analysis, learning codification, and trend tracking: the self-improvement loop. Invoke the
 sibling `retro` skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure).
 
-- **Effort:** reviewing the session's own record, with the human reading each finding
+- **Effort:** reviewing the session's own record, every finding going to the human to accept or
+  reject
 
 ## PR lifecycle (after step 7)
 

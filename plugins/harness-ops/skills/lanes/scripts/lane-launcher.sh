@@ -107,7 +107,7 @@
 #               ULTRACODE_MIN_VERSION; a lane below it is skipped, not launched.
 #
 # CLAUDE_CODE_EFFORT_LEVEL in the launcher's environment, which every lane
-# inherits, takes precedence over --effort and over agent and skill effort pins,
+# inherits, may override lane --effort values and agent and skill effort pins,
 # so start/restart print one WARNING per run naming its value.
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
@@ -1024,12 +1024,13 @@ _status_one() {
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
 }
 
-# The variable outranks every lane's --effort and every agent pin
-# (https://code.claude.com/docs/en/env-vars, CLAUDE_CODE_EFFORT_LEVEL row; as of
-# 2026-10-02, recheck when that row's precedence changes), so a set value is said once.
+# We treat a set variable as able to override every lane's --effort and every agent
+# pin, so a set value is said once. Pointer: for its precedence, see the
+# CLAUDE_CODE_EFFORT_LEVEL row at https://code.claude.com/docs/en/env-vars#variables.
+# As of: 2026-10-02. Recheck trigger: that row's precedence changes.
 warn_effort_env_override() {
   [[ -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]] || return 0
-  warn "CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set and every lane inherits it; it overrides lane --effort values and agent effort pins, so those may not hold"
+  warn "CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set and every lane inherits it; it may override lane --effort values and agent effort pins, so those may not hold"
 }
 
 # scope suffix for the header line, e.g. " (work babysit)" when lanes are named.

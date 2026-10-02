@@ -471,11 +471,11 @@ assert_contains "no-effort lane: restart refuses it" "$out" "lane 'work': no eff
 assert_not_contains "no-effort lane: restart leaves the running session up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
 # ============================================================================
-# CLAUDE_CODE_EFFORT_LEVEL outranks every lane's --effort: one warning per run
+# CLAUDE_CODE_EFFORT_LEVEL may override every lane's --effort: one warning per run
 # ============================================================================
 out="$(CLAUDE_CODE_EFFORT_LEVEL=low run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 assert_eq "CLAUDE_CODE_EFFORT_LEVEL: start warns once across three lanes" 1 "$(grep -c 'CLAUDE_CODE_EFFORT_LEVEL=low is set' <<<"$out")"
-assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the warning says lane levels and agent pins may not hold" "$out" "overrides lane --effort values and agent effort pins"
+assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the warning says lane levels and agent pins may not hold" "$out" "may override lane --effort values and agent effort pins"
 assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the lanes still launch" "$out" "claude --bg -n decide --permission-mode auto --effort high"
 out="$(CLAUDE_CODE_EFFORT_LEVEL=low run_launcher restart --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run --no-pull --no-update 2>&1)"
 assert_eq "CLAUDE_CODE_EFFORT_LEVEL: restart warns once" 1 "$(grep -c 'CLAUDE_CODE_EFFORT_LEVEL=low is set' <<<"$out")"
