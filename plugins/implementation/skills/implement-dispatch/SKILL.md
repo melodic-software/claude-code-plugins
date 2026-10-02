@@ -89,21 +89,41 @@ Because the orchestrator stays on the default branch, **every source-touching op
    8. **When the worker edits in a dedicated worktree** (an out-of-tree sibling or any checkout other than the session's default): that worktree's absolute path, plus the anchoring rule in the Gotchas bullet "A worker's worktree cwd does not persist across tool calls". The interactive default is a pre-existing worktree path the brief supplies.
    9. **When provisioning is worker-side** (the autonomous work-lane; see Commit authority): materializing that isolated worktree is the worker's **first step**. The orchestrator cannot itself invoke `/source-control:worktree create`, whose `EnterWorktree` terminal would transition the orchestrator's session. The worker invokes `/source-control:worktree` via the Skill tool for its non-entering creation seam when installed, or a plain `git worktree add` otherwise, and works in it under the item 8 anchoring, never entering it. Provisioning happens **once per item, on the first dispatched phase**: the worktree persists across the item's phases, so every **later** phase of the same item is handed that same worktree path and works in it. Never re-provision the already-checked-out item branch; both `git worktree add -b <name>` and attaching the branch fail while it is checked out in the persisted worktree. The first phase's brief also instructs the worker to bring the branch current with the default branch, commit, and push before returning, then **return the worktree's absolute path plus the branch name** so the orchestrator can open the PR against the pushed branch. A worker that cannot provision an isolated worktree STOPs and reports rather than editing the default checkout.
    10. **The three CI-hygiene clauses, front-loaded**: the Gotchas bullets on issue-number comments, new shebang files and early push, the last two under `worker`.
-2. **Dispatch** the worker as this plugin's `implementer` agent (subagent type
-   `implementation:implementer`). That definition's `model` frontmatter is the structural
-   capability-tier binding, the strong tier's current alias, so an unqualified dispatch lands on
-   the intended tier regardless of the orchestrator's own model; never rely on root inheritance,
-   and never dispatch source-editing work through a generic subagent type. This holds for a
-   no-commit plan too. Pass a per-invocation
-   `model` only to route a phase **upward**: a security-surface work class, or plan-declared
-   frontier routing, dispatches at the frontier tier's current alias, and a run that cannot
-   resolve that alias STOPs (autonomously: escalates) rather than dispatching lower, and a session
-   whose own model resolves above the binding may pass that model. Never pass a `model` that
-   undercuts the frontmatter binding for source-editing work. (Model resolution order: the
-   per-invocation `model` parameter, then the definition's `model` frontmatter, then
-   `CLAUDE_CODE_SUBAGENT_MODEL` when set to a model alias or id, then the main conversation's model,
-   per <https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified 2026-09-11. Recheck when
-   a release note touches subagent model selection.)
+2. **Dispatch** each worker by its phase's routing row, the `Model` column. Never rely on root
+   inheritance, and never dispatch source-editing work through a generic subagent type. This holds
+   for a no-commit plan too.
+   - **No row, no `Model` value, `opus`, or any value not listed here**: this plugin's `implementer` agent (subagent type
+     `implementation:implementer`). Its `model` frontmatter is the structural capability-tier
+     binding, the strong tier's current alias, so an unqualified dispatch lands on the intended
+     tier regardless of the orchestrator's own model.
+   - **`sonnet`**: first read the provider with
+     `printenv | grep -E '^(CLAUDE_CODE_USE_(BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)|ANTHROPIC_DEFAULT_SONNET_MODEL)='`.
+     When a `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`,
+     `CLAUDE_CODE_USE_ANTHROPIC_AWS` or `CLAUDE_CODE_USE_MANTLE` value is non-empty and
+     `ANTHROPIC_DEFAULT_SONNET_MODEL` is unset or empty, we do not trust the unpinned `sonnet`
+     alias on that provider, so dispatch `implementation:implementer` instead. Otherwise dispatch
+     `implementation:scoped-implementer` with an explicit per-invocation `model: sonnet`, because
+     we treat the per-invocation `model` as outranking frontmatter, so a caller's standing
+     per-spawn model (a "pass `model: opus` on every spawn" rule) must not be left to apply.
+     Downward routing happens only this way, by spawning `scoped-implementer`.
+   - **`frontier`, or a security-surface work class whatever the row says**:
+     `implementation:implementer` at the frontier tier's current alias, per the next rule.
+
+   Pass `implementation:implementer` a per-invocation `model` only to route a phase **upward**: a
+   security-surface work class, or plan-declared frontier routing, dispatches at the frontier
+   tier's current alias, and a run that cannot resolve that alias STOPs (autonomously: escalates)
+   rather than dispatching lower, and a session whose own model resolves above the binding may
+   pass that model. Never pass a `model` that undercuts the frontmatter binding for source-editing
+   work.
+
+   - **Pointer**: for the subagent model resolution order, see
+     <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for what the `sonnet` alias
+     resolves to per provider, see <https://code.claude.com/docs/en/model-config#model-aliases>;
+     for the provider variables, see <https://code.claude.com/docs/en/env-vars#variables>.
+   - **As of**: 2026-10-01
+   - **Recheck trigger**: a release note touches subagent model selection, the model-aliases
+     provider table changes, or the env-vars page adds a provider variable.
+
    Dispatch a wave, up to the cap's worker rows from the current phase, and keep working while it
    runs: verify returns from the same phase as they arrive, compose the next brief, and run the
    build/test gate on accepted returns, except under commit authority `orchestrator` in a shared worktree, where the gate runs after the wave settles (see Concurrency). Rows in a shared worktree dispatch one per wave unless commit authority is `orchestrator` (see Gates). Intervene when
@@ -168,7 +188,7 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 | Condition | Action |
 |-----------|--------|
 | Phase is inline-routed (main-window), interactive mode | Hand back by invoking `/implementation:implement` via the Skill tool (classic cadence) |
-| Phase is inline-routed or routing table absent, autonomous mode | Synthesize a worker row and dispatch, the orchestrator never does volume edits |
+| Phase is inline-routed or routing table absent, autonomous mode | Synthesize a worker row with no `Model` value (so `implementation:implementer`) and dispatch, the orchestrator never does volume edits |
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (when the `toolchain` plugin is installed; else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it. See Phase boundaries) |
@@ -192,5 +212,5 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Shared worktrees follow the one-writer rule.** See Gates and Concurrency
 - **Two well-formed fences can overlap unseen.** See Dispatch cadence item 1.1
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary. Classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
-- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer` and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` routes only upward (frontier-alias for security-surface work, or the session's own higher tier). `CLAUDE_CODE_SUBAGENT_MODEL` ranks below both the per-invocation parameter and the frontmatter, so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
+- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer`, or as `implementation:scoped-implementer` for a plan-routed `sonnet` phase, and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` on `implementer` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); the one downward route is spawning `scoped-implementer` with `model: sonnet` passed explicitly (see Dispatch cadence step 2). We treat `CLAUDE_CODE_SUBAGENT_MODEL` as ranking below both the per-invocation parameter and the frontmatter (record in Dispatch cadence step 2), so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
 - **An omitted `--wave-cap` with the operator option unset keeps the internal 3–5. Never coerce an absent value into a number.** See Arguments

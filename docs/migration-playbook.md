@@ -482,7 +482,7 @@ against the plugin you actually invoked. Then:
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
 
-- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`),
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/`,
   bundled and cache-isolated, never reaching outside the plugin directory.
 - Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
   `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
@@ -930,9 +930,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread, and is prohibited by default per the component stance table in
    [plugin-philosophy.md](plugin-philosophy.md); an exception requires the documented justification
-   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
-   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
-   is reviewed like any hook script.
+   the stance demands, reviewed here. A top-level `bin/` is not accepted (the component stance table and
+   `scripts/check-plugin-manifest-presence.sh` carry the reason); executables live under
+   `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
@@ -1410,7 +1410,7 @@ authority.
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
 | `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
 | Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
-| `bin/` under org-managed distribution | deliberate divergence: keep `plugins/source-control/bin`; do not distribute this catalog through organization sync | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". `plugins/source-control/bin` is a top-level `bin/` shipped by this fleet. It stays because the `babysit-prs` skill invokes its wrappers by their bundled `${CLAUDE_PLUGIN_ROOT}/bin/` paths (`plugins/source-control/skills/babysit-prs/reference/safety.md`), so moving them to `scripts/` changes every invocation site. Distributed through organization sync, this catalog would lose `source-control` and sync the rest. |
+| `bin/` under org-managed distribution | adopt as constraint: no plugin ships a top-level `bin/` | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". The `source-control` wrappers live under `plugins/source-control/scripts/` and `babysit-prs` invokes them by their `${CLAUDE_PLUGIN_ROOT}/scripts/` paths, so no divergence remains, and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds a `bin/`. |
 | Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. This is a decision, not a permanent ban: revisit it if a specific plugin gets outside demand. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
 
 - **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.
