@@ -20,8 +20,9 @@
 
   const KEY = /^[a-z0-9-]{1,32}$/;
   const ROW_ID = /^[a-z0-9-]{1,128}$/;
-  // Data never pre-fills a form control, so a payload holds only what the reader entered.
-  const CONTROLS = new Set(["INPUT", "TEXTAREA", "SELECT", "OPTION"]);
+  // Data never pre-fills a form control, so a payload holds only what the reader entered,
+  // and never becomes CSS, metadata, or code.
+  const UNBOUND = new Set(["input", "textarea", "select", "option", "html", "head", "title", "meta", "style", "script"]);
   const rowsByKey = new Map();
 
   const readData = () => {
@@ -56,7 +57,7 @@
 
   const bindText = (root, scope, eachRoot) => {
     for (const el of scoped(root, "[data-rv-text]", eachRoot)) {
-      if (CONTROLS.has(el.tagName)) {
+      if (UNBOUND.has(el.localName)) {
         continue;
       }
       const text =
@@ -68,6 +69,9 @@
       }
     }
     for (const el of scoped(root, "[data-rv-count]", eachRoot)) {
+      if (UNBOUND.has(el.localName)) {
+        continue;
+      }
       const list = own(scope, el.getAttribute("data-rv-count"));
       el.textContent = Array.isArray(list) ? String(list.length) : "0";
     }
@@ -77,7 +81,7 @@
     for (const container of scoped(root, "[data-rv-each]", eachRoot)) {
       const key = container.getAttribute("data-rv-each");
       const proto = container.firstElementChild;
-      if (container === root || !proto || !KEY.test(key)) {
+      if (container === root || !proto || !KEY.test(key) || UNBOUND.has(container.localName)) {
         continue;
       }
       container.removeChild(proto);

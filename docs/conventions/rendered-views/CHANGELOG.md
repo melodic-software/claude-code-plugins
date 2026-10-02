@@ -20,6 +20,10 @@ versioned; this log records each change to it.
   the marker string for each profile and falls back to the report profile for any
   other. A record outside the repository keeps K0 or K1 only with a
   `content-class` provenance line, and a K0 or K1 page inlines its fonts and scripts.
+- **Rule 5 refuses bindings outside page text.** No `data-rv-*` binding on `html`,
+  `head`, `title`, `meta`, `style`, or `script`, and no content binding on a form
+  control, so data cannot become CSS inside the artifact host, where the page's policy
+  is not applied.
 
 ## Tiers and content classes, 2026-10-02
 

@@ -75,6 +75,9 @@ const DATA_RV = new Set([
 ]);
 const INPUT_TYPES = new Set(["checkbox", "radio", "search", "range", "text"]);
 const FORM_CONTROLS = new Set(["input", "textarea", "select", "option"]);
+// Elements whose text is CSS, metadata, or code: data bound into them would stop being page text.
+const UNBINDABLE = new Set(["html", "head", "title", "meta", "style", "script"]);
+const CONTENT_BINDINGS = new Set(["data-rv-text", "data-rv-count", "data-rv-each"]);
 
 export class ViewBuildError extends Error {
   /** @param {string[]} failures */
@@ -355,7 +358,10 @@ function checkAttribute(tag, attr, failures) {
     if (value !== "" && !KEY.test(value)) {
       failures.push(`opaque:${name}`);
     }
-    if (name === "data-rv-text" && FORM_CONTROLS.has(tag)) {
+    if (UNBINDABLE.has(tag)) {
+      failures.push(`binding-on:${tag}`);
+    }
+    if (CONTENT_BINDINGS.has(name) && FORM_CONTROLS.has(tag)) {
       failures.push("prefill");
     }
     return;

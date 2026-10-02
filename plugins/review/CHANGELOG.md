@@ -12,6 +12,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   report or interactive profile, and `lib/view-runtime.js` is the client runtime it inlines and pins
   by hash. Both are generated from the repository's `lib/` by `scripts/sync-shared-copies.sh`, ready
   for the pull-request digest to build on.
+- **Bindings stay in page text.** The interactive validator refuses any `data-rv-*` binding on
+  `html`, `head`, `title`, `meta`, `style`, or `script`, and any content binding (`data-rv-text`,
+  `data-rv-count`, `data-rv-each`) on a form control; the runtime skips the same elements.
 
 ## [0.35.0] - 2026-10-02
 

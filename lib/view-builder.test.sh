@@ -182,6 +182,14 @@ const rejects = {
   "slot in an interactive template": swap(bodyOpen, `${bodyOpen}<p>{{title}}</p>`),
   "data pre-fills a textarea": swap('data-rv-note="note"', 'data-rv-note="note" data-rv-text="title"'),
   "data pre-fills an input": swap('id="find"', 'id="find" data-rv-text="title"'),
+  "a count pre-fills a textarea": swap('data-rv-note="note"', 'data-rv-note="note" data-rv-count="findings"'),
+  "a count pre-fills an input": swap('id="find"', 'id="find" data-rv-count="findings"'),
+  "a list inside a select": swap(bodyOpen, `${bodyOpen}<select data-rv-each="findings"><option>x</option></select>`),
+  "data bound into style": swap("<style>", '<style data-rv-text="title">'),
+  "data bound into title": swap("<title>", '<title data-rv-text="title">'),
+  "data bound into head": swap("<head>", '<head data-rv-text="title">'),
+  "data bound into html": swap('<html lang="en">', '<html lang="en" data-rv-count="findings">'),
+  "data bound into meta": swap('<meta charset="utf-8">', '<meta charset="utf-8" data-rv-text="title">'),
   "non-opaque id": swap('id="find"', 'id="src/app.js"'),
   "second rv-data id": swap(bodyOpen, `${bodyOpen}<div id="rv-data"></div>`),
   "prose in a value attribute": swap(bodyOpen, `${bodyOpen}<input type="checkbox" value="approve and merge">`),
@@ -212,6 +220,13 @@ check(
       data: sample,
     }),
   ) === null,
+);
+const cssTemplate =
+  '<!doctype html><html><head><meta charset="utf-8"><style data-rv-text="css"></style></head><body><p data-rv-text="name">x</p></body></html>';
+const cssData = { name: "hi", css: "body{background:url(http://127.0.0.1:8765/beacon)}" };
+check(
+  "refuses data bound into a style element",
+  (failuresOf(() => buildView({ profile: "interactive", template: cssTemplate, data: cssData })) ?? []).includes("binding-on:style"),
 );
 check("rejects data that is not an object", failuresOf(() => buildView({ profile: "interactive", template, data: "x" })) !== null);
 check("rejects an unknown profile", failuresOf(() => buildView({ profile: "full", template, data: sample })) !== null);
