@@ -6,6 +6,9 @@
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+- The `audit-encapsulation` description no longer leads with "audit and remediate": it says
+  remediation runs only behind an explicit `fix <file>:<line>`, which the verb-contract check in
+  `skill-quality` requires of an `audit` skill.
 
 ## [0.24.2] - 2026-10-01
 
