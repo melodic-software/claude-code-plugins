@@ -44,6 +44,7 @@ and its content is not already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
+| `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**, plugins/*/types/**` | Before writing or changing a mod (a hooks module named by `modules` in `hooks.json`), load the built-in `plugin-authoring` skill and the upstream mods docs |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |
