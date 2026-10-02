@@ -1470,9 +1470,10 @@ jobs:
       # criterion items, unresolvable files fixtures; WARN tier stays advisory
       # and never fails the step). Whole-repo and static, so it runs on every
       # event like the schema step above.
-      # Each eval set is linted on its own, so a diff lints the sets it changed;
-      # the whole corpus when the lint itself, this workflow or a fixture tree
-      # changed, or when there is no diff base.
+      # Each eval set is linted on its own, and its `files` entries resolve
+      # under its skill directory (evals/ or the skill root), so a diff lints
+      # the set of every skill directory it touched; the whole corpus when the
+      # lint itself or this workflow changed, or when there is no diff base.
       - name: Lint every eval set for quality
         id: evals_quality
         continue-on-error: true
@@ -1481,19 +1482,17 @@ jobs:
         run: |
           sets=(plugins/*/skills/*/evals/evals.json)
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            'plugins/*/skills/*/evals/*' 'plugins/skill-quality/scripts/check-evals-quality*' \
+            'plugins/*/skills/*' 'plugins/skill-quality/scripts/check-evals-quality*' \
             .github/workflows/ci.yml); then
             if [ -z "$changed" ]; then
-              echo "::notice::No eval set changed since $DIFF_BASE; the scheduled run lints every set."
-              exit 0
+              sets=()
+            elif ! grep -qvE '^plugins/[^/]+/skills/[^/]+/' <<<"$changed"; then
+              mapfile -t sets < <(sed -nE 's#^(plugins/[^/]+/skills/[^/]+)/.*#\1/evals/evals.json#p' <<<"$changed" |
+                sort -u | while read -r f; do [ -f "$f" ] && echo "$f"; done)
             fi
-            # Only when every change is an eval set that still exists; a deleted
-            # set, a fixture, the lint or this workflow keeps the whole corpus.
-            if ! grep -qvE '^plugins/[^/]+/skills/[^/]+/evals/evals\.json$' <<<"$changed"; then
-              mapfile -t candidate <<<"$changed"
-              present=()
-              for f in "${candidate[@]}"; do [ -f "$f" ] && present+=("$f"); done
-              [ "${#present[@]}" -eq "${#candidate[@]}" ] && sets=("${present[@]}")
+            if [ "${#sets[@]}" -eq 0 ]; then
+              echo "::notice::No skill directory with an eval set changed since $DIFF_BASE; the scheduled run lints every set."
+              exit 0
             fi
           fi
           bash plugins/skill-quality/scripts/check-evals-quality.sh "${sets[@]}"

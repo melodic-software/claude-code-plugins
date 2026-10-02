@@ -90,7 +90,8 @@ diff-scoped step diffs against it:
 
 Whole-tree gates whose verdict depends only on their own inputs are scoped the
 same way on a diff: markdownlint lints the changed markdown (its download is
-cached), the eval-quality lint reads the changed eval sets, `claude plugin
+cached), the eval-quality lint reads the eval set of every skill directory the
+diff touched (a set's `files` entries resolve anywhere in it), `claude plugin
 validate` runs for the touched plugins, the manifest and workflow schemas run
 when their filter group matched, and the skill-count, eval-coverage and
 fixture-isolation scans skip when none of their inputs changed. Each falls back
