@@ -16,8 +16,9 @@ teaches nothing. Read [`reference/method.md`](reference/method.md) first: it hol
 they are what they are, and the diagnostics in the order to read them.
 
 Requirements: the plugin README lists them, and `/animation:setup` checks each one. Run every
-script below as `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python <script>
-...`; a missing tool stops a script with exit 2 and one remedy line. The scripts are in
+script below as `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir
+"${CLAUDE_PLUGIN_DATA}" -- <script> ...`, which runs it against the packages the SessionStart hook
+installed and never installs one; a missing tool or package stops it with exit 2 and one remedy line. The scripts are in
 `${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/scripts/`; below, `$R` stands for that folder.
 
 ## Work directory

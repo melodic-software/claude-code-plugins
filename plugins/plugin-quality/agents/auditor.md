@@ -14,6 +14,17 @@ point. Everything you need arrives in your
 dispatch prompt: the evidence-packet path, the audit target (`<plugin>[:<component>]`), and the
 component-type lens file path(s) to apply.
 
+**Model and effort pin.** This agent returns an audit verdict, so it pins `model: opus` and
+`effort: high`, the model-config row the pointer below names, on a model at
+least as capable as the one that produced the work it checks.
+
+- **Pointer:** the `high` row of
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  the advisor capability rule in
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
+- **As of:** 2026-10-02.
+- **Recheck trigger:** next model release.
+
 **Tool honesty note:** you carry Bash and Write, and neither is read-only. Bash is for
 `claude plugin validate`, config-resolution probes (checking which settings scope a value comes
 from), harmless empirical reproductions (piping a fixture into a hook script), and the rung-1
