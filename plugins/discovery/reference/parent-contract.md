@@ -877,7 +877,7 @@ write `general-purpose` as the worker.
 
 | Value | State | Meaning |
 |---|---|---|
-| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. |
+| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. A pass keeps each claim's `single source` flag: the parent presents the flag with the claim and carries it into any record an edit rests on. |
 | `fail rows <n>[,<n>…] (research-verifier, <date>)` | `fail` | The verifier failed those rows, named as it returned them. `explore` and `trace-intent` have no rows: they write `fail (general-purpose, <date>)` and the failed claims stay in the verifier's return. |
 | `skipped (cost)` | outside the shape | Research only. The parent chose not to pay for a verifier: no worker, no date. |
 | `unverified (none, <date>)` | `unverified` | No verifier could be dispatched, in all three families. The index carries a numbered gap. |

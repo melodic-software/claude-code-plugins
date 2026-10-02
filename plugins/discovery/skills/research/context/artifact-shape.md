@@ -66,7 +66,8 @@ section: <stable kebab-case id, matches the index anchor>
 abstract: <one line, mirrored verbatim into the index>
 claims:
   - claim: "<one-line claim>"
-    confidence: HIGH          # HIGH | MEDIUM | LOW
+    confidence: HIGH          # HIGH | HIGH (single source) | MEDIUM | LOW
+    single_source: "<why only one publisher exists>"   # only at HIGH (single source); omit otherwise
     tiers: [0, 1]             # source tiers backing this claim
     applies_to: "<product> <version range>"   # the claim's target, or version-independent
     sources:                  # what makes gate criterion 4 gradeable off the artifact
@@ -84,8 +85,15 @@ produced_by: <phase id>
 ---
 ```
 
-The vocabulary is reused, never reinvented: `HIGH | MEDIUM | LOW` and `Tier 0..3` are the research
-skill's own, defined in `discipline.md`.
+The vocabulary is reused, never reinvented: `HIGH | HIGH (single source) | MEDIUM | LOW` and
+`Tier 0..3` are the research skill's own, defined in `discipline.md`.
+
+**`single_source:` is the flag's reason, and criterion 4 grades it.** A claim at
+`HIGH (single source)` carries it; no other claim does. It states why only one publisher of the
+claim's content exists, so a verifier that never saw the run can judge that reason instead of
+counting corroborators the claim cannot have. A claim at that level without the field fails
+criterion 4. A repost of the primary is recorded under the primary's `pool`, so it never reads as a
+second source. Definition and limits: `discipline.md`'s "Single-source first-party content claims".
 
 **`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥2
 INDEPENDENT corroborators, not two cites of one upstream pool", be graded **by a verifier that never

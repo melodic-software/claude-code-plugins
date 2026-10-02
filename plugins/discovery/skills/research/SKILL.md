@@ -72,10 +72,10 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 1 | Every claim row has ≥1 Tier 0/1 source whose URL/command was captured THIS turn | run | Phase 2. Fetch the primary directly |
 | 2 | No claim row's sources are ALL Tier-2 secondary | run | Phase 2. Get a primary |
 | 3 | Every Phase 2/3 query traces to a numbered gap/conflict in a written analysis block | run | re-run the phase chained to the list |
-| 4 | Every claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool; a `historical` source never counts) | **verifier** | Phase 2. Widen sources |
+| 4 | Every claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists; a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
 | 5 | The Phase 2 falsification query ran and is recorded | run | Phase 2. Run it |
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim. Read the confirmed-latest release and the verdict off the fetch log's changelog entry, an absent verdict or an `invalidated` one FAILs, and `unresolved` passes only as an enumerated Gap, never under an accepted claim. Windows, and what a major bump invalidates: the discipline file's "Recency gate" | run | Phase 2. Fetch changelog |
-| 7 | Every accepted claim is HIGH confidence; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up. Iterate to HIGH or list as a Gap |
+| 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up. Iterate to HIGH or list as a Gap |
 | 8 | Project fit checked against the consuming project's own conventions and stated direction | **parent** | revisit before presenting |
 | 9 | For every ACCEPTED claim taken from any publisher's own artifacts, vendor, OSS maintainer, standards body alike, the fetch log ACCOUNTS FOR every artifact-ladder rung above the one the claim came from, each carrying one of the outcome values and none left unaccounted. Rungs, outcome vocabulary, and what earns nonexistence rather than `unresolved`: the discipline file's "Primary-source-first protocol". A rung that exists, is reachable, and carries the claim IS where the claim comes from | run | Phase 2. Walk the ladder from rung 1, fetching and searching each reachable rung and recording its outcome |
 | 10 | Every reported absence names both the sources checked and the sources left unchecked. No bare "unsourced" / "not found" | run | revisit before presenting |
@@ -99,7 +99,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 2. **Queries scale to open questions: the floor is a starting point, not a target.** Phase 1 opens with ≥3 queries to seed the evidence base; Phase 2 and Phase 3 each run **one query per unresolved gap/conflict** surfaced by the prior phase's written analysis (≥3, no upper cap). Every floor below is a minimum; a run that stops at the floor while numbered gaps remain has not finished the phase
 3. **3 distinct tool types minimum per phase**. One search engine plus one synthesis tool does not meet it; mix in direct fetches, doc-MCP servers, `gh api`, or documentation agents your environment provides
 4. **4+ distinct tool types across the topic**. Phases cannot share the same 3 tools end-to-end. Cross-phase tool diversity is the consensus-driving mechanism
-5. **Source-tier ratio per claim**. Every accepted claim has ≥1 Tier 0/1 (primary source captured this turn) PLUS ≥2 independent corroborators that cover the claim's target version (a `historical` source is recorded, never counted), however authoritative the primary is, because a canonical doc can be stale. Three synthesis-tool citations of three blogs = 1 Tier 2 source, NOT 3. Track diversity per claim
+5. **Source-tier ratio per claim**. Every accepted claim has ≥1 Tier 0/1 (primary source captured this turn) PLUS ≥2 independent corroborators that cover the claim's target version (a `historical` source is recorded, never counted), however authoritative the primary is, because a canonical doc can be stale. Three synthesis-tool citations of three blogs = 1 Tier 2 source, NOT 3. Track diversity per claim. The one exception: the discipline file's "Single-source first-party content claims"
 6. **Recency gate, first-party docs lag releases**, one query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. A major version bump invalidates prior docs, first-party included; treat any doc-vs-changelog lag as a conflict to resolve, not a closed answer. The 30/14/90-day staleness windows: the discipline file's "Recency gate"
 7. **One falsification query in Phase 2**. Phase 2 includes exactly one query that attempts to falsify the leading hypothesis from Phase 1; without it Phase 2 confirms Phase 1 by default
 8. **Broad-topic auto-detect → doubled minimums**, when the topic involves 2+ vendors / 2+ tools / 3+ proper-noun products / comparison ("X vs Y") / migration ("X replaces Y") → 6+ queries per phase, 12+ total, 5+ tool types, 4+ Tier 0/1 sources per claim
@@ -120,13 +120,6 @@ Dated record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
 
-**`breadth=` narrows, never widens.** A `breadth=low` or `breadth=medium` token in `$ARGUMENTS`
-selects that row when it is below caller effort; source breadth is the lower of the two, and
-nothing here widens the researcher's `maxTurns: 40`. A dispatched run writes the resolved row to `Source breadth:` and the matching word
-to `Budget:` (parent contract, "`Budget:` vocabulary"). Without the token, lowering session effort
-before invoking is the other lever. Use `low` for a question about one named artifact, folder, or
-version.
-
 | Effort | Source breadth |
 |---|---|
 | `low` | Phase 0 if bounded, Phase 1 at existing floors and under the cap below, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
@@ -135,6 +128,13 @@ version.
 
 The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
 file's "Effort, source breadth".
+
+**`breadth=` narrows, never widens.** A `breadth=low` or `breadth=medium` token in `$ARGUMENTS`
+selects that row when it is below caller effort; source breadth is the lower of the two, and
+nothing here widens the researcher's `maxTurns: 40`. A dispatched run writes the resolved row to `Source breadth:` and the matching word
+to `Budget:` (parent contract, "`Budget:` vocabulary"). Without the token, lowering session effort
+before invoking is the other lever. Use `low` for a question about one named artifact, folder, or
+version.
 
 **Phase 1 at `low` is capped at 6 web queries and fetches combined**, above the 3-query floor and
 below the doubled minimums. For a single named artifact or folder, read it directly first (`Read`,
@@ -233,10 +233,10 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 Present research findings as, and if invoked standalone present them directly, while inside a larger workflow they feed the subsequent planning step:
 
 1. **Summary**. 2-3 sentence answer to the research question, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none
-2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`. A source whose `standing:` is `historical` carries the label historical in its Sources cell
+2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`. A source whose `standing:` is `historical` carries the label historical in its Sources cell, and a flagged claim's Confidence cell reads `HIGH (single source)`
 3. **Fetch log**, the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch PER CLAIM: `Claim | URL or command | artifact-ladder rung | tool used | outcome`, and each accepted claim carries the entry for the rung it came from AND one for every rung above it. **The outcome vocabulary is a parsed schema, not free text**. Five values, three of which look interchangeable and are not, plus the composite changelog entry criterion 6 grades. Write it to the spec in `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md` ("The fetch log")
 4. **Conflicts**. Disagreements between sources (flagged explicitly; primary wins over blog consensus)
-5. **Gaps**. Claims not at ≥1 primary + 2 independent corroborators, OR LOW confidence (flagged for follow-up). A gap asserting absence names the sources checked AND the sources left unchecked, never a bare "not found"
+5. **Gaps**. Claims not at ≥1 primary + 2 independent corroborators (or a holding `single source` flag), OR LOW confidence (flagged for follow-up). A gap asserting absence names the sources checked AND the sources left unchecked, never a bare "not found"
 6. **Recency status**. Primary-source age per tool/library claim
 7. **Project fit**. How findings align with the consuming project's conventions and stated direction
 8. **Outcome gate result**. Pass, or which criterion failed and what was re-run, plus effort and any skipped phases

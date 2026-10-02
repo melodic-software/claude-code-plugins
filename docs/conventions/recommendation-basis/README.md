@@ -77,6 +77,12 @@ visible `Basis:` label; the third is not presented:
 Example: `Basis: verified, .github/workflows/ci.yml:42 and https://docs.github.com/... (fetched
 this session)`, or `Basis: judgment`.
 
+**A claim accepted with a `single source` flag keeps it.** `/discovery:research` accepts a
+first-party content claim that can have only one publisher, flagged `single source`, when the claim
+states why no second publisher exists. A recommendation resting on that claim is still verified
+and may ground a code edit, but its label carries the flag,
+`Basis: verified (single source), <url>`, and so does the record written beside the edit.
+
 ## Re-emitting a changed recommendation
 
 When evidence changes a recommendation the user still has pending, restate it as **old → new →

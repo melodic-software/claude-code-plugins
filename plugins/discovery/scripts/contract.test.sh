@@ -1042,6 +1042,68 @@ for agent in explorer researcher intent-tracer research-verifier; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# 19. A first-party content claim with one possible publisher passes flagged
+#
+# A claim about what a named Anthropic page, file or changelog says has no
+# second publisher to find. It passes rows 4 and 7 at `HIGH (single source)`
+# when it states why only one publisher exists; a repost is never a second
+# source, and a behavior claim still needs two corroborators. The flag travels
+# with the claim into the answer and into any record an edit rests on.
+# ---------------------------------------------------------------------------
+single_heading='## Single-source first-party content claims'
+assert_present 'gate row 4 has a single source branch that states why only one publisher exists' \
+  'skills/research/SKILL.md' '^\| 4 \|.*flagged `single source`.*why only one publisher exists'
+assert_present 'gate row 4 says a repost is not a second source' \
+  'skills/research/SKILL.md' '^\| 4 \|.*a repost is not a second source'
+assert_present 'gate row 4 keeps behavior claims at two corroborators' \
+  'skills/research/SKILL.md' '^\| 4 \|.*a behavior claim'
+assert_present 'gate row 7 accepts HIGH (single source)' \
+  'skills/research/SKILL.md' '^\| 7 \|.*`HIGH \(single source\)`'
+assert_present 'discipline 5 points at the single-source exception' \
+  'skills/research/SKILL.md' "^5\. .*\"Single-source first-party content claims\""
+assert_present 'discipline.md carries the single-source section' \
+  'skills/research/context/discipline.md' "^$single_heading$"
+assert_present 'discipline.md defines the HIGH (single source) level' \
+  'skills/research/context/discipline.md' '^- \*\*HIGH \(single source\)\*\*'
+assert_present 'discipline.md lets a flagged claim ground a code edit with the flag carried' \
+  'skills/research/context/discipline.md' 'may ground a code edit'
+assert_present 'discipline.md keeps behavior claims at two corroborators' \
+  'skills/research/context/discipline.md' '^\*\*A behavior claim is not a content claim\.\*\*'
+assert_present 'the corroboration rule points at the exception' \
+  'skills/research/context/discipline.md' '^\*\*Authoritative is not a waiver for corroboration\.\*\*.*Single-source first-party content claims'
+assert_present 'the sidecar header carries the single_source reason' \
+  'skills/research/context/artifact-shape.md' '^ {4}single_source: '
+assert_present 'the sidecar confidence vocabulary lists HIGH (single source)' \
+  'skills/research/context/artifact-shape.md' 'confidence: HIGH +# HIGH \| HIGH \(single source\) \| MEDIUM \| LOW'
+assert_present 'the verifier grades the stated single_source reason' \
+  'agents/research-verifier.md' '`single_source:` reason'
+assert_present 'the researcher records the reason in the header' \
+  'agents/researcher.md' '`single_source:`'
+assert_present 'a research pass keeps the single source flag' \
+  'reference/parent-contract.md' '^\| `pass \(research-verifier, <date>\)` \|.*`single source` flag'
+assert_present 'gotchas name the repost trap' \
+  'skills/research/context/gotchas.md' '^- \*\*Counting a repost as the second source\.\*\*'
+assert_present 'research-deep keeps the flag through the synthesis' \
+  'skills/research-deep/SKILL.md' 'keeps its `single source` flag'
+for name in single-source-content-claim-passes-flagged behavior-claim-from-one-page-is-a-gap; do
+  assert_present "research evals grade $name" 'skills/research/evals/evals.json' "\"name\": \"$name\""
+done
+single_owners="$(surface | xargs grep -lE -- "^$single_heading$" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$single_owners" -eq 1 ]]; then
+  pass 'the single-source definition has exactly one owner'
+else
+  fail "the single-source definition has exactly one owner — $single_owners files carry the heading"
+fi
+recbasis="$PLUGIN_ROOT/../../docs/conventions/recommendation-basis/README.md"
+if [[ ! -f "$recbasis" ]]; then
+  pass 'recommendation-basis carry-forward not checked outside the monorepo'
+elif grep -qE 'Basis: verified \(single source\)' "$recbasis"; then
+  pass 'recommendation-basis carries the single source flag into the Basis label'
+else
+  fail 'recommendation-basis carries the single source flag into the Basis label'
+fi
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
