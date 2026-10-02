@@ -117,12 +117,13 @@ selected). `compare` prints treatment minus baseline for both rates on both
 splits so a rewrite cannot hide a validation drop behind a train gain.
 
 Each trigger-rate delta also carries `trigger_rate_delta_interval`, a 95%
-normal-approximation interval over the baseline and treatment `n_positive` for that split,
-clamped to [-1, 1] and null when either rate falls outside [0, 1], and
-`trigger_rate_within_noise`, true when that interval contains 0; stderr repeats it
-as one INFO line per split. With about 4 to 6 positives per split, only a large
-delta clears noise. When both rates are 0 or 1 the interval has zero width, so
-read the probe count before trusting it.
+paired normal-approximation interval over the per-probe hit changes of the positive
+probes, matched by id between the two reports and clamped to [-1, 1]. It is null when
+fewer than 2 probes pair or the positive probe ids differ between the reports.
+`trigger_rate_within_noise` is true when that interval contains 0; stderr repeats it
+as one INFO line per split. With about 4 to 6 positives per split, only a consistent
+shift clears noise. When no probe changes, or every probe changes the same way, the
+interval has zero width, so read the probe count before trusting it.
 
 `emit-plugin-eval` writes `runs: 3` per case, the CLI's default; `--runs N`
 changes it.

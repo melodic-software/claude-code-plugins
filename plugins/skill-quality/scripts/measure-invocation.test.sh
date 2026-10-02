@@ -327,8 +327,9 @@ else
   fail "emit-plugin-eval --runs 0 should exit 2 (rc=$rc): $out"
 fi
 
-# compare carries a normal-approximation interval on each trigger-rate delta
-# and says "within noise" when the interval contains 0.
+# compare carries a paired normal-approximation interval on each trigger-rate
+# delta, from per-probe outcomes matched by id, and says "within noise" when
+# the interval contains 0.
 cmp_out="$(run compare "$TMP/score.json" "$TMP/score.json" 2>"$TMP/cmp.err")"
 if jq -e '.skills[0].validation.trigger_rate_within_noise == true
     and (.skills[0].validation.trigger_rate_delta_interval | length == 2)' <<<"$cmp_out" >/dev/null &&
@@ -337,27 +338,43 @@ if jq -e '.skills[0].validation.trigger_rate_within_noise == true
 else
   fail "self-compare should report an interval and within noise: $cmp_out $(cat "$TMP/cmp.err")"
 fi
-jq '.skills[0].splits.validation |= (.n_positive = 100 | .trigger_rate = 0.2)' "$TMP/score.json" >"$TMP/big-base.json"
-jq '.skills[0].splits.validation |= (.n_positive = 100 | .trigger_rate = 0.8)' "$TMP/score.json" >"$TMP/big-treat.json"
-cmp_out="$(run compare "$TMP/big-base.json" "$TMP/big-treat.json" 2>"$TMP/cmp.err")"
+# Rewrites the validation cases of the fixture report into $2 positive probes
+# named with prefix $3, of which the first $4 are hits. Output file: $1.
+paired_report() {
+  jq --argjson n "$2" --arg prefix "$3" --argjson hits "$4" \
+    '.skills[0].cases |= (map(select(.split != "validation"))
+      + [range(0; $n) | {id: ($prefix + tostring), split: "validation", expect_trigger: true,
+          predicted: (. < $hits), correct: (. < $hits)}])' "$TMP/score.json" >"$1"
+}
+paired_report "$TMP/pair-base.json" 100 p 0
+paired_report "$TMP/pair-treat.json" 100 p 10
+cmp_out="$(run compare "$TMP/pair-base.json" "$TMP/pair-treat.json" 2>"$TMP/cmp.err")"
 if jq -e '.skills[0].validation.trigger_rate_within_noise == false
     and .skills[0].validation.trigger_rate_delta_interval[0] > 0' <<<"$cmp_out" >/dev/null &&
   ! grep -q 'validation trigger_rate delta .* within noise' "$TMP/cmp.err"; then
-  pass "compare does not call a large delta over 100 probes within noise"
+  pass "compare does not call 10 of 100 probes flipping miss to hit within noise"
 else
-  fail "a 0.2 -> 0.8 delta over 100 probes should clear noise: $cmp_out $(cat "$TMP/cmp.err")"
+  fail "10 of 100 positive probes flipping miss to hit should clear noise: $cmp_out $(cat "$TMP/cmp.err")"
 fi
-jq '.skills[0].splits.validation |= (.n_positive = 4 | .trigger_rate = 0.25)' "$TMP/score.json" >"$TMP/small-base.json"
-jq '.skills[0].splits.validation |= (.n_positive = 4 | .trigger_rate = 1)' "$TMP/score.json" >"$TMP/small-treat.json"
-jq '.skills[0].splits.validation.trigger_rate = 1.25' "$TMP/score.json" >"$TMP/bad-treat.json"
-cmp_small="$(run compare "$TMP/small-base.json" "$TMP/small-treat.json" 2>/dev/null)"
-cmp_bad="$(run compare "$TMP/score.json" "$TMP/bad-treat.json" 2>/dev/null)"
-if jq -e '.skills[0].validation.trigger_rate_delta_interval[1] == 1' <<<"$cmp_small" >/dev/null &&
-  jq -e '.skills[0].validation.trigger_rate_delta_interval == null
-    and .skills[0].validation.trigger_rate_within_noise == null' <<<"$cmp_bad" >/dev/null; then
-  pass "compare clamps the interval to 1 and reports no interval for a rate above 1"
+paired_report "$TMP/other-treat.json" 100 q 10
+cmp_out="$(run compare "$TMP/pair-base.json" "$TMP/other-treat.json" 2>/dev/null)"
+if jq -e '.skills[0].validation.trigger_rate_delta_interval == null
+    and .skills[0].validation.trigger_rate_within_noise == null' <<<"$cmp_out" >/dev/null; then
+  pass "compare reports no interval when the probe ids differ between reports"
 else
-  fail "interval should clamp at 1 and be null for an out-of-range rate: $cmp_small $cmp_bad"
+  fail "differing probe ids should give a null interval: $cmp_out"
+fi
+paired_report "$TMP/tiny-base.json" 4 p 0
+paired_report "$TMP/tiny-treat.json" 4 p 3
+paired_report "$TMP/one-base.json" 1 p 0
+paired_report "$TMP/one-treat.json" 1 p 1
+cmp_tiny="$(run compare "$TMP/tiny-base.json" "$TMP/tiny-treat.json" 2>/dev/null)"
+cmp_one="$(run compare "$TMP/one-base.json" "$TMP/one-treat.json" 2>/dev/null)"
+if jq -e '.skills[0].validation.trigger_rate_delta_interval[1] == 1' <<<"$cmp_tiny" >/dev/null &&
+  jq -e '.skills[0].validation.trigger_rate_delta_interval == null' <<<"$cmp_one" >/dev/null; then
+  pass "compare clamps the interval to 1 and reports no interval for a single probe"
+else
+  fail "interval should clamp at 1 and be null for one probe: $cmp_tiny $cmp_one"
 fi
 
 # validate warns when a should-trigger probe copies 4+ consecutive words of

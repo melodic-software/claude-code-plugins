@@ -20,9 +20,10 @@
 #
 # validate WARNs when a should-trigger probe shares N or more consecutive
 # words (default 4) with the target listing. emit-plugin-eval writes N runs
-# per case (default 3, the CLI's own default). compare adds a 95%
-# normal-approximation interval on each trigger-rate delta and an INFO line
-# that says "within noise" when the interval contains 0.
+# per case (default 3, the CLI's own default). compare adds a 95% paired
+# normal-approximation interval on each trigger-rate delta, from per-probe
+# outcomes matched by id, and an INFO line that says "within noise" when the
+# interval contains 0.
 #
 # Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
 #   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
@@ -459,12 +460,23 @@ cmd_compare() {
   report="$(jq -n --slurpfile b "$base" --slurpfile t "$treat" '
     def delta($t; $b): if $t == null or $b == null then null else $t - $b end;
     def r3: . * 1000 | round / 1000;
-    # 95% normal-approximation interval on the difference of two trigger rates.
-    def interval($t; $b; $nt; $nb):
-      if $t == null or $b == null or ($nt // 0) == 0 or ($nb // 0) == 0
-        or $t < 0 or $t > 1 or $b < 0 or $b > 1 then null
-      else (($t * (1 - $t) / $nt) + ($b * (1 - $b) / $nb) | sqrt * 1.96) as $h
-        | [([$t - $b - $h, -1] | max | r3), ([$t - $b + $h, 1] | min | r3)] end;
+    # 95% paired normal-approximation interval on the trigger-rate delta: both
+    # reports score the same positive probes, so the per-probe deltas
+    # (treatment hit - baseline hit, hit = predicted) are the sample. Null when
+    # fewer than 2 probes pair or the positive probe ids differ between reports.
+    def interval($bs; $ts; $s):
+      def pos($r): [$r.cases[]? | select(.split == $s and .expect_trigger == true)];
+      def hit: if .predicted == true then 1 else 0 end;
+      pos($bs) as $bc | pos($ts) as $tc
+      | ($bc | map(.id) | sort) as $bi
+      | if $bi != ($tc | map(.id) | sort) or ($bi | length) < 2 or ($bi | unique | length) != ($bi | length)
+        then null
+        else ($bc | map({key: .id, value: hit}) | from_entries) as $bh
+          | [$tc[] | hit - $bh[.id]] as $d
+          | ($d | length) as $n
+          | ($d | add / $n) as $m
+          | ((($d | map(. - $m | . * .) | add) / ($n - 1)) | sqrt * 1.96 / ($n | sqrt)) as $h
+          | [([$m - $h, -1] | max | r3), ([$m + $h, 1] | min | r3)] end;
     def noise($i): if $i == null then null else ($i[0] <= 0 and $i[1] >= 0) end;
     ($b[0].skills) as $bs | ($t[0].skills) as $ts |
     {
@@ -475,7 +487,7 @@ cmd_compare() {
         ($bs[] | select(.skill == $t.skill)) as $bb |
         def split($s):
           $bb.splits[$s] as $x | $t.splits[$s] as $y
-          | interval($y.trigger_rate; $x.trigger_rate; $y.n_positive; $x.n_positive) as $i
+          | interval($bb; $t; $s) as $i
           | {
               trigger_rate_baseline: $x.trigger_rate,
               trigger_rate_treatment: $y.trigger_rate,
