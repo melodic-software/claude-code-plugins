@@ -12,6 +12,7 @@ answer.
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them. `all` is the map a workflow reads from `args.roles`. |
 | `/multi-agent:audit-defaults` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. Never edits a file. |
+| `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
 
@@ -22,8 +23,13 @@ answer.
 3. The script merges `args.roles` over its own built-in fallbacks. A generic
    `agent()` call takes the `fanout` variant when its stage runs more than one
    agent and the `single` variant otherwise; it omits `opts.model` when the
-   model is `inherit` and always passes `opts.effort`. A named agent
-   (`agentType`) keeps the model and effort pinned in its own definition.
+   model is `inherit` and always passes `opts.effort`.
+
+The map governs generic `agent()` calls and Agent dispatches that name no
+agent type. A named agent, such as `implementation:implementer`,
+`implementation:scoped-implementer` or `implementation:phase-verifier`, owns
+its tier through its own frontmatter and its dispatcher's rules, and the
+fan-out guard does not reach it.
 
 When `/multi-agent:route` is not in the session's skill listing, the caller
 omits `args.roles`, the script's fallbacks apply, and the caller says once
@@ -49,7 +55,8 @@ One surface, layered user-global (`~/.claude/multi-agent.yaml`), team (a
 ```` ```yaml config ```` block in `docs/conventions/multi-agent.md`, else
 `.claude/multi-agent.yaml`) and a gitignored overlay
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
-key. Keys, values and layering: [`reference/config.md`](reference/config.md).
+key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
+[`reference/config.md`](reference/config.md).
 
 ## Requirements
 

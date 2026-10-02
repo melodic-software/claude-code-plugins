@@ -10,7 +10,12 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 - **Skills.** `assess` (workflow, subagent or single context for a task, with a Workflow
   availability check), `route` (the resolved role map for a workflow's `args.roles`) and
   `audit-defaults` (rechecks each bundled default against its upstream pointer and proposes
-  changes, never applies them).
+  changes, never applies them) and `setup` (`check` prints the resolved map and the overlay's
+  gitignore state; `apply` previews a user, team or local layer change as a diff, writes it on
+  an explicit yes, and shows the map before and after).
+- **Scope.** The role map governs generic `agent()` calls and Agent dispatches with no agent
+  type. A named agent, such as `implementation:scoped-implementer`, keeps the tier in its own
+  definition.
 - **Role map.** `reference/defaults.yaml` with `orchestrator`, `worker`, `verifier` and
   `retrieval`, each with its pointer, as-of date and recheck trigger, layered through
   user-global, team and overlay files by `scripts/resolve-roles.sh`.

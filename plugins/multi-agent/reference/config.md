@@ -21,7 +21,8 @@ repository that is neither `$HOME` nor an ancestor of it
 resolver names both. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, scalars,
-comments. No lists.
+comments. No lists. `/multi-agent:setup apply` writes a layer after a preview
+and an explicit yes.
 
 ## Keys
 

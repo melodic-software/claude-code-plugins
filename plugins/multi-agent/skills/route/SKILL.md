@@ -59,9 +59,12 @@ A caller launching a workflow passes the JSON's `roles` object as
 
 ## What this skill does NOT do
 
-- Write any configuration layer. Edit `.claude/multi-agent.local.yaml` (or the
-  team block) by hand; [`config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
-  shows the form.
+- Write any configuration layer. That is `/multi-agent:setup apply`.
+- Route a named agent. An agent dispatched by its own type, such as
+  `implementation:implementer`, `implementation:scoped-implementer` or
+  `implementation:phase-verifier`, owns its tier through its own frontmatter
+  and its dispatcher's rules. The map governs generic `agent()` calls and
+  Agent dispatches without a named type.
 - Choose between a workflow and subagents. That is `/multi-agent:assess`.
 - Check the defaults against upstream. That is `/multi-agent:audit-defaults`.
 
@@ -76,7 +79,11 @@ A caller launching a workflow passes the JSON's `roles` object as
   id does not.
 - `fanout` and `single` differ only under a frontier or unknown session. Under
   an Opus session both say `inherit`, and `opus` would name the same model.
-- A named agent (`agentType`) keeps the model and effort in its own
-  definition. The map applies to generic `agent()` calls only.
+- A named agent (`agentType`, or an Agent dispatch by subagent type) keeps the
+  model and effort in its own definition, so the fan-out guard does not reach
+  it. A named agent pinned below the frontier, such as `scoped-implementer` at
+  `sonnet`, stays off a frontier session model without the guard; one whose
+  dispatcher may raise it to the session tier is that dispatcher's rule to
+  keep.
 - Team and overlay layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.
