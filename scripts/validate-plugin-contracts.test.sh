@@ -1668,15 +1668,13 @@ long="$(printf 'a%.0s' {1..501})"
 write_manifest longfix ''
 printf '{"name": "longfix", "version": "0.1.0", "description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
 write_manifest okfix ''
-mkdir -p "$TMP/plugins/okfix/bin"
 out="$(run_fixture)"
 if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultEnabled' &&
   grep -qE '^- .*longfix.*description is 501 characters' <<<"$out" &&
-  grep -qE '^warning: plugins.okfix.bin: claude.ai and Cowork do not install' <<<"$out" &&
   ! grep -qE 'okfix..claude-plugin' <<<"$out"; then
-  ok "\$schema, defaultEnabled, a description over 500 fail, and a top-level bin/ warns"
+  ok "\$schema, defaultEnabled, a description over 500 fail, and a conforming manifest passes"
 else
-  fail "claude.ai manifest limits should fail or warn as stated: $out"
+  fail "claude.ai manifest limits should fail as stated: $out"
 fi
 
 # write_skill <relative-path> <content>

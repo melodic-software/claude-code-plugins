@@ -1368,8 +1368,7 @@ if (existsSync(marketplacePath)) {
 
 // claude.ai marketplace sync limits. plugin.json: description at most 500
 // characters; `$schema` and `defaultEnabled` are stripped with a warning (the
-// marketplace entry carries defaultEnabled). A top-level bin/ stops claude.ai
-// and Cowork from installing the plugin. Skills follow the Agent Skills spec
+// marketplace entry carries defaultEnabled). Skills follow the Agent Skills spec
 // (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview):
 // claude.ai reads every file named SKILL.md in any case, at any depth, as a
 // skill, so each must open with frontmatter whose description is 1-1024
@@ -1386,10 +1385,6 @@ for (const path of pluginFiles) {
   const length = [...(manifest.description ?? "")].length;
   if (length > PLUGIN_DESCRIPTION_MAX) {
     fail(path, `description is ${length} characters, over claude.ai's ${PLUGIN_DESCRIPTION_MAX}`);
-  }
-  const bin = join(path, "..", "..", "bin");
-  if (existsSync(bin) && statSync(bin).isDirectory()) {
-    warnings.push(`${relative(root, bin)}: claude.ai and Cowork do not install a plugin with a top-level bin/`);
   }
 }
 
