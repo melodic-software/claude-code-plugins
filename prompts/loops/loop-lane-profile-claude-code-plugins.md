@@ -338,7 +338,7 @@ the partition and the evidence predicate is met.
 > remedy in the cycle report and stop there. Posture and process corrections
 > that touch no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
 > skill requires would silently run at orchestrator strength unless you say
 > otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for

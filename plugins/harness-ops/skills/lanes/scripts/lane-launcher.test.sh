@@ -46,7 +46,7 @@ cat >"$REPO/.work/lanes/lanes.json" <<'JSON'
   "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
-    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium",
+    { "name": "babysit", "prompt": "babysit.md", "model": "opus",   "effort": "medium",
       "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": { "lane_stop_gate_enabled": true } } } } },
     { "name": "decide",  "prompt": "decide.md" }
   ]
@@ -308,7 +308,7 @@ out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGEN
 assert_contains "start skips running lane" "$out" "skip work — already running"
 assert_contains "start launches babysit" "$out" "claude --bg -n babysit"
 assert_contains "start launches babysit in auto mode" "$out" "claude --bg -n babysit --permission-mode auto"
-assert_contains "start mirrors babysit model" "$out" "--model sonnet"
+assert_contains "start mirrors babysit model" "$out" "-n babysit --permission-mode auto --model opus"
 assert_contains "start mirrors babysit effort" "$out" "--effort medium"
 assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
 assert_not_contains "start hides prompt body" "$out" "You are the babysit lane"
@@ -403,7 +403,7 @@ assert_contains "start really pulls the repo" "$log" "git -C $REPO pull --ff-onl
 assert_contains "start really updates the marketplace" "$log" "plugin marketplace update"
 assert_contains "start really launches work with model+effort" "$log" "--bg -n work --permission-mode auto --model opus --effort high"
 assert_contains "start seeds the prompt-file body as the trailing arg" "$log" "--effort high You are the work lane."
-assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --model sonnet --effort medium"
+assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --model opus --effort medium"
 
 # ============================================================================
 # unknown lane rejected
