@@ -28,12 +28,12 @@ three. A root that cannot be resolved here is unknown, and fails every condition
 
 | # | Holds when | Read it from |
 |---|---|---|
-| A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory holding a nested `AGENTS.md` keeps a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` of its own | The ancestor walk below, run from each directory contributors start sessions in; a Glob for the three names at every level inside the repository, tracked or not; and the operator for the other machines, whose ancestors (a `~/work/CLAUDE.md`) and uncommitted `CLAUDE.local.md` files this machine cannot see |
+| A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory on the path from the repository root to a nested `AGENTS.md`, that directory included, holds a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` | The ancestor walk below, run from each directory contributors start sessions in; the nested path walk below, over every `AGENTS.md` inside the repository, tracked or not; and the operator for the other machines, whose ancestors (a `~/work/CLAUDE.md`) and uncommitted `CLAUDE.local.md` files this machine cannot see |
 | B | **Project instructions** on this machine reads `AGENTS.md` with no `CLAUDE.md`: `claude-md-or-agents-md` (the default) or `claude-md-and-agents-md` | `pluginConfigs["agents-md@builtin"].options.instructionFiles` in `<config>/settings.json`, managed settings and any `--settings` file; absent everywhere is the default. Project and local settings are ignored for it, so never read them as the answer. `claude-md` or `managed-only` fails |
 | C | The loader is present and not disabled on this machine | `/harness-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope (`<config>` user settings, managed, project, local, `--settings`) for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken`, or the entry missing is unknown. With `disableAllHooks` or `allowManagedHooksOnly` set `true` in any scope, C holds only on v2.1.287 or later, the build on which built-in mods are verified to keep running under both; an older or unknown version is unknown |
 | D | Every user, machine and organization the repository serves reads `AGENTS.md` directly | Ask the operator, with the list below. Any yes, and any "don't know", fails |
 | E | Nothing reachable through the `@` import graph of any `AGENTS.md`, root or nested, lies outside the working directory | The import-graph walk below, from every `AGENTS.md` and from each session start directory. Any `EXTERNAL`, `UNRESOLVED` or `DEPTH` row fails |
-| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `<config>/settings.json` and `<config>/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `<plugins>`; and the plugins loaded per session or outside an install: ask the operator whether contributors use `--plugin-dir`, `--plugin-url` or `CLAUDE_CODE_PLUGIN_DIRS`, and grep each directory or archive they name, plus every `<config>/skills/*/` that holds a `.claude-plugin/plugin.json`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
+| F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `<config>/settings.json` and `<config>/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `<plugins>`; the `hooks:` frontmatter of every skill, command and agent file in the repository, under `<config>`, under `<plugins>` and in the managed settings directory, by the frontmatter scan below; and the plugins loaded per session or outside an install: ask the operator whether contributors use `--plugin-dir`, `--plugin-url` or `CLAUDE_CODE_PLUGIN_DIRS`, and grep each directory or archive they name, plus every `<config>/skills/*/` that holds a `.claude-plugin/plugin.json`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
 
 B and C read this machine only. The setting is per user and no repository can ship it, so D is
 where the operator answers for every other machine.
@@ -63,6 +63,37 @@ one exemption, and only while `<config>` resolves to `$HOME/.claude`. With `CLAU
 pointing elsewhere, the page does not say whether that file still counts, so the row fails A. An
 `UNREADABLE` row is unknown, and fails A.
 
+## The nested path walk for condition A
+
+A nested `AGENTS.md` is read only where no blocker sits between it and the repository root, so
+check every directory on that path, not only the one holding the file. The memory page names the
+subdirectory's own three files as the blocker and says nothing about the directories between, so a
+file there is unknown, and fails A. The walk is this plugin's own `ip_entry_points_on_path` in
+`<plugin-root>/scripts/lib/discover.sh`, which emits the three names in a directory and in every
+directory above it up to the root; the readability check is added here because that function skips
+an unreadable directory silently:
+
+```bash
+. <plugin-root>/scripts/lib/discover.sh
+root=$(cd <repo> && pwd -P)
+find "$root" -name AGENTS.md -not -path '*/.git/*' -print 2>/dev/null || printf 'UNREADABLE\tfind %s\n' "$root"
+# then, for each nested AGENTS.md found (the root one is the ancestor walk's):
+rel=<its directory, relative to $root>
+d=$rel
+while :; do
+  { [ -r "$root/$d" ] && [ -x "$root/$d" ]; } || printf 'UNREADABLE\t%s\n' "$root/$d"
+  [ "$d" = . ] && break
+  d=$(dirname "$d")
+done
+ip_entry_points_on_path "$root" "$rel" | sed 's/^/FOUND\t/'
+```
+
+Every `FOUND` row that is not a shim `remove-shims` would remove fails A, and so does every
+`UNREADABLE` row, the `find` one included: a directory `find` cannot enter may hold an `AGENTS.md`
+nobody checked. Worked example: with `svc/deep/AGENTS.md` and a `svc/CLAUDE.local.md`, the walk for
+`svc/deep` prints `FOUND <root>/svc/CLAUDE.local.md`. That file is no shim, so A fails and every
+shim stays, the root's included.
+
 ## The import-graph walk for condition E
 
 The walk reuses this plugin's own import model in `<plugin-root>/scripts/lib/discover.sh`, the
@@ -91,6 +122,41 @@ for a in <every AGENTS.md>; do e_walk "$(ip_realpath "$a")" 0; done
 `EXTERNAL` is a reachable target outside the start directory, which loads only where external
 imports were already approved. `UNRESOLVED` is a target that is not a file. `DEPTH` is an import
 past the fourth hop, which the loader drops, so the chain is not what it reads. Each fails E.
+
+## The frontmatter scan for condition F
+
+Skills, legacy command files and subagents declare hooks in their `hooks:` frontmatter, in the same
+format as settings, and the subagents page says all hook events are supported there. A skill's
+hooks register when it is invoked and run for the rest of the session; a subagent's run while it
+runs, or for the whole session under `--agent`. Either can observe an `InstructionsLoaded` event
+the shim produces, so each counts as a hook source whenever it might run. The quotes are in
+[`sources.md`](sources.md), "Frontmatter hooks and `InstructionsLoaded`".
+
+```bash
+fm_scan() { # <dir>...: frontmatter naming InstructionsLoaded, and every dir not fully read
+  local d f
+  for d; do
+    [ -e "$d" ] || continue
+    find "$d" -type f \( -path '*/skills/*/SKILL.md' -o -path '*/commands/*.md' \
+      -o -path '*/agents/*.md' \) -not -path '*/.git/*' -print 2>/dev/null ||
+      printf 'UNREADABLE\t%s\n' "$d"
+  done | while IFS= read -r f; do
+    case $f in UNREADABLE*) printf '%s\n' "$f"; continue ;; esac
+    [ -r "$f" ] || { printf 'UNREADABLE\t%s\n' "$f"; continue; }
+    awk 'NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next }
+      /^---[[:space:]]*$/ { exit }
+      /InstructionsLoaded/ { print "HIT\t" FILENAME; exit }' "$f"
+  done
+}
+fm_scan <repo> <config>/skills <config>/commands <config>/agents <plugins> \
+  <managed-settings-dir>/.claude/skills <each --plugin-dir and CLAUDE_CODE_PLUGIN_DIRS entry>
+```
+
+Scanning the whole repository covers the root `.claude/` and every nested `.claude/skills/` and
+`.claude/agents/`. A `HIT` the operator has not accepted fails F. An `UNREADABLE` row, a root that
+cannot be resolved, or a source that is not on disk here (skills synced from a claude.ai account,
+subagents passed as `--agents` JSON or deployed through managed settings, a `--plugin-url`
+archive, and every other machine) is unknown until the operator answers for it, and fails F.
 
 ## What D asks the operator
 
@@ -134,8 +200,8 @@ What the memory page states, and the verdict that follows:
 
 - `claude-md-or-agents-md`: a subdirectory's `AGENTS.md` loads "when Claude opens a file there
   with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its own".
-  Nested shims leave with the root only when condition A holds for every such subdirectory;
-  a subdirectory with its own `.claude/CLAUDE.md` or `CLAUDE.local.md` keeps its shim, and since
+  Nested shims leave with the root only when condition A holds for every such subdirectory and
+  every directory between it and the root; a blocker anywhere on that path keeps its shim, and since
   `remove-shims` takes root and nested together, the repository keeps all of them.
 - `claude-md-and-agents-md`: "each directory's `CLAUDE.md` files first and its `AGENTS.md` after
   them"; the page does not say when a subdirectory's file loads. A repository with nested

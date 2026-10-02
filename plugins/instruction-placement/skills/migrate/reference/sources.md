@@ -24,7 +24,9 @@ Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) �
 [Canary recipe](#the-canary-recipe) · [Shim removal cost](#what-shim-removal-costs) ·
 [Measuring the cutover](#what-the-loss-means-for-measuring-the-cutover) ·
 [Hook gap recheck](#page-recheck-of-the-hook-gap) ·
-[Built-in agents-md plugin](#the-built-in-agents-md-plugin)
+[Built-in agents-md plugin](#the-built-in-agents-md-plugin) ·
+[Frontmatter hooks](#frontmatter-hooks-and-instructionsloaded) ·
+[Nested path blockers](#blockers-between-the-root-and-a-nested-agentsmd)
 
 ## The remote flag, and how its code default is read
 
@@ -432,3 +434,56 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   under `disableAllHooks` or `allowManagedHooksOnly`, or stops listing `cc-plugin-agents-md` as
   one; a changelog entry names `AGENTS.md`, `instructionFiles`, `projectInstructions` or the
   `agents-md` plugin; or the README's "Setting the option" paragraph on the old key changes.
+
+## Frontmatter hooks and `InstructionsLoaded`
+
+The record behind condition F's frontmatter scan in [`shim-droppable.md`](shim-droppable.md).
+
+- **Claim**: skills and subagents can register an `InstructionsLoaded` hook in their `hooks:`
+  frontmatter. hooks.md, "Hooks in skills and agents": "hooks can be defined directly in skills
+  and subagents using frontmatter, in the same configuration format as settings-based hooks"; its
+  "Hook locations" table lists "Skill frontmatter" with scope "The rest of the session once the
+  skill is invoked" and "Subagent frontmatter" with scope "While that subagent is running". The
+  subagents page, "Hooks in subagent frontmatter": "All hook events are supported", and the hooks
+  "fire when the agent is spawned as a subagent through the Agent tool or an @-mention, and when
+  the agent runs as the main session via `--agent` or the `agent` setting". The skills page's
+  frontmatter table: `hooks` are "Hooks that Claude Code registers when the skill is invoked and
+  keeps running for the rest of the session", and a command file in `.claude/commands/` "supports
+  the same frontmatter except `name` and `paths`". No page lists an event a frontmatter hook may
+  not declare, and none says whether `InstructionsLoaded` fires inside a subagent, so condition F
+  counts every frontmatter declaration as a dependent. Skill locations are enterprise (the
+  managed settings directory's `.claude/skills/`), personal (`~/.claude/skills/`), project and
+  nested `.claude/skills/`, `--add-dir`, plugin `skills/`, and a claude.ai account; subagent
+  locations are managed settings, `--agents`, every `.claude/agents/` from the working directory
+  up to the repository root, `~/.claude/agents/`, and plugin `agents/`.
+- **Basis**: [hooks](https://code.claude.com/docs/en/hooks) (248,114 bytes, first heading "Hooks
+  reference"; "Hook locations" line 251, "Hooks in skills and agents" line 666);
+  [sub-agents](https://code.claude.com/docs/en/sub-agents) (107,802 bytes, first heading "Create
+  custom subagents"; "Choose the subagent scope" line 158, "Hooks in subagent frontmatter" line
+  735, the supported-events sentence line 747); [skills](https://code.claude.com/docs/en/skills)
+  (103,142 bytes, first heading "Extend Claude with skills"; the locations table lines 142-150,
+  the command-file rule line 157, the `hooks` field line 393). All three fetched 2026-10-02 by
+  the rung-1 route, each slug in `llms.txt`.
+- **As of**: 2026-10-02.
+- **Recheck trigger**: any of the three pages restricts which events frontmatter hooks accept,
+  changes when skill or subagent hooks are registered, adds or removes a skill or subagent
+  location, or states whether `InstructionsLoaded` fires inside a subagent.
+
+## Blockers between the root and a nested `AGENTS.md`
+
+The record behind condition A's nested path walk in [`shim-droppable.md`](shim-droppable.md).
+
+- **Claim**: the memory page says a subdirectory's `AGENTS.md` loads "when Claude opens a file
+  there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its
+  own", and that the files which "Count, so Claude reads them instead of `AGENTS.md`" are "a
+  `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
+  directory above it". It does not say whether one of the three in a directory between the root
+  and that subdirectory, such as `svc/CLAUDE.local.md` above `svc/deep/AGENTS.md`, stops the
+  nested load, so the skill treats it as a blocker. The walk is the one
+  `scripts/lib/discover.sh` `ip_entry_points_on_path` already runs for the reachability verdict
+  and the wiring gate.
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-02 by the rung-1
+  route (50,554 bytes), lines 367 and 373.
+- **As of**: 2026-10-02.
+- **Recheck trigger**: the memory page states which directories' files stop a subdirectory's
+  `AGENTS.md` from loading.
