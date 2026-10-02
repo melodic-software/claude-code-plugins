@@ -120,9 +120,13 @@ Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
 `architecture:improve`, `education:quiz-me`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`harness-ops:observability`, `planning:interview` (and planning's other rendered views),
-`overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
+`planning:interview` (and planning's other rendered views),
+`overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
+
+Emitters on the escape-helper gate (the third bullet of the security baseline), each building
+its page with a checked-in builder: `knowledge:video-digest`, `harness-ops:observability`,
+`event-storming:simulation`. They left the grandfathered list when they moved onto it.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
