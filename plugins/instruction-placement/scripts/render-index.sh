@@ -48,8 +48,8 @@
 #     or a release note names AGENTS.md or instruction-file loading.
 #
 # So a target nothing blocks gets the third verdict NATIVE rather than a pass or
-# a failure: availability (version, provider, telemetry and hook settings, the
-# first session after an upgrade) is not observable from a repository, and
+# a failure: availability (version, whether the built-in agents-md plugin is
+# enabled, the first session after an upgrade) is not observable from a repository, and
 # neither is a CLAUDE.md above the repository root.
 #
 # `wiring` asks the same question one level down. The index lists every nested

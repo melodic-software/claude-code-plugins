@@ -241,6 +241,21 @@ assert_exit "case 8b: exit 0" 0 "$rc"
 assert_eq "case 8b: mcp is an array value" '["mcp"]' \
   "$(json_field "$out" '.levers[0].value | tojson')"
 
+# Mod-plane keys ride in their own list, never among the levers: none of them
+# switches a settings hook off. The guard options are read from the one id
+# Claude Code reads them under, and the managed scope is read too.
+m="$(make_machine modplane)"
+printf '%s\n' '{"prependPlugins":["acme-guard@acme","sec-default@builtin"]}' >"$m/user/settings.json"
+printf '%s\n' '{"pluginConfigs":{"cc-plugin-sec-default@builtin":{"options":{"allowManagedModsOnly":true}},"sec-default@builtin":{"options":{"allowModsToOverrideDenyRules":true}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"disableSideloadFlags":true}' >"$m/managed.json"
+rc=0
+out=$(HOOK_COVERAGE_MANAGED_JSON="$m/managed.json" run "$m" --json 2>&1) || rc=$?
+assert_exit "case 8c: exit 0" 0 "$rc"
+assert_eq "case 8c: no mod-plane key lands among the levers" "0" "$(json_field "$out" '.levers | length')"
+assert_eq "case 8c: every mod-plane key is listed with its scope" \
+  "managed:disableSideloadFlags:true project:allowManagedModsOnly:true user:prependPlugins:[\"acme-guard@acme\",\"sec-default@builtin\"]" \
+  "$(json_field "$out" '[.mod_plane[] | "\(.scope):\(.key):\(.value|tojson)"] | sort | join(" ")')"
+
 # --- Case 9: --json emits parseable JSON with the inventory verdict ----------
 # A downstream engine reads this document, so every hook entry field the hook
 # schema allows (timeout, type, if, shell, args) rides along, each plugin row

@@ -317,6 +317,21 @@ assert_eq "case 4: severity stays error" "error" "$(jq -r '.findings[] | select(
 assert_contains "case 4: lever named in the detail" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "lever is set"
 assert_contains "case 4: lever row reports it set" "$(jq -r '.rows[] | select(.claim=="lever-set:disableAllHooks") | .detail' <<<"$out")" "project=true"
 
+# --- Case 4m: mod-plane keys are reported, and a copy in an unread scope is named
+m="$(make_machine modplane)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {pluginConfigs:{"cc-plugin-sec-default@builtin":{options:{allowManagedModsOnly:true}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"prependPlugins":["acme-guard@acme","sec-default@builtin"]}' >"$m/user/settings.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_contains "case 4m: a user-scope prependPlugins is reported with its scope rule" \
+  "$(jq -r '.rows[] | select(.claim=="mod-key-set:prependPlugins:user") | .detail' <<<"$out")" "no managed settings"
+assert_eq "case 4m: a project-scope guard option is an info finding" "info" \
+  "$(jq -r '.findings[] | select(.identity.claim=="mod-key-unread-scope:allowManagedModsOnly:project") | .severity' <<<"$out")"
+assert_eq "case 4m: an unset key gets an unset row" "ok" \
+  "$(jq -r '.rows[] | select(.claim=="mod-key-unset:disableSideloadFlags") | .status' <<<"$out")"
+assert_eq "case 4m: the mod-plane keys never feed the lever rows" "0" \
+  "$(jq -r '[.rows[] | select(.claim | startswith("lever-set:"))] | length' <<<"$out")"
+
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
 write_surface_lock() {

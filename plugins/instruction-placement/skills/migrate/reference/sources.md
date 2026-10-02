@@ -318,7 +318,10 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   files only") and `managed-only` ("Only your organization's managed `CLAUDE.md` and auto memory
   at launch ... every `AGENTS.md` [is] left out"). Disabling the plugin in `/plugin` is one of the
   sessions where "Claude reads `CLAUDE.md` files only". The plugin loads files; nothing upstream
-  says it moves content or writes a shim.
+  says it moves content or writes a shim. The option's first key, `projectInstructions` (`claude`,
+  `agents-fallback`, `both`, `none`), is still honored while `instructionFiles` reads as its
+  default, so an operator's mode can come from either key; like `instructionFiles`, it is a user,
+  `--settings` or managed value a repository cannot rely on.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 (49,677 bytes;
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "Choose which
   instruction files load" ("Add it under the built-in `agents-md` plugin's ID in `pluginConfigs`",
@@ -328,7 +331,11 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   reads "Added AGENTS.md support: in a project with no CLAUDE.md, Claude Code reads AGENTS.md
   instead; change it under \"Project instructions\" in `/config`", and the 2.1.281 entry reads
   "Changed AGENTS.md support to also work on Amazon Bedrock, Google Vertex AI, Microsoft Foundry,
-  LLM gateways, and sessions with telemetry disabled".
+  LLM gateways, and sessions with telemetry disabled". The `projectInstructions` key and its value
+  mapping are in the plugin's
+  [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md),
+  "Setting the option" (commit `2282079d6ac8`, read 2026-10-01); the memory page does not
+  mention it.
 - **Read at run time, not recorded here**: that the binary registers the plugin as
   `cc-plugin-agents-md` with alias `agents-md`, whether the loader requires it in this session
   type, its availability gate and the gate's default, and whether it declares any skill, agent or
@@ -337,5 +344,6 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `agents`, `commands`) on the build in hand.
 - **As of**: 2026-10-01, Claude Code 2.1.287.
 - **Recheck trigger**: the memory page changes the "Choose which instruction files load" table or
-  the "When AGENTS.md support is unavailable" list, or a changelog entry names `AGENTS.md`,
-  `instructionFiles` or the `agents-md` plugin.
+  the "When AGENTS.md support is unavailable" list, a changelog entry names `AGENTS.md`,
+  `instructionFiles`, `projectInstructions` or the `agents-md` plugin, or the README's "Setting
+  the option" paragraph on the old key changes.

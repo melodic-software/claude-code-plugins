@@ -90,13 +90,11 @@ though the default mode would call it displaced. That option is a user, `--setti
 setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
 answers the wrong question whichever way the override runs.
 **The mode is the second question, not the only one, and either can rule the file out.** Availability
-comes first and is not a mode question: a session on a CLI below v2.1.277, one that does not fetch
-feature flags, the first session after an upgrade, or one where `disableAllHooks`,
-`allowManagedHooksOnly` or a disabled built-in `agents-md` plugin applies, reads no `AGENTS.md`
-under ANY mode, and inventorying one would let Phase C propose posture additions to a surface
-nothing loads. Two of the mode's four values, `claude-md` and `managed-only`, rule it out the same
-way. Exclude on a condition known to rule it out. Several of those conditions are readable, two of
-them from the very settings this skill inventories, so resolve before falling back.
+comes first and is not a mode question: a session where support is unavailable, for a reason that
+record lists, reads no `AGENTS.md` under ANY mode, and inventorying one would let Phase C propose
+posture additions to a surface nothing loads. No hooks setting is among those reasons. Two of the
+mode's four values, `claude-md` and `managed-only`, rule it out the same way. Exclude on a condition
+known to rule it out. Most of those conditions are readable, so resolve before falling back.
 **Where a condition stays unresolved, inventory the file but carry the doubt into the finding.**
 Inventorying is not free here the way it is in a pure comparison set: this skill's Phase C judges
 every inventoried component and emits a `MISSING` posture for it, so silently including a surface
