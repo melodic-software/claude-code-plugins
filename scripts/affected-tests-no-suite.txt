@@ -146,3 +146,10 @@ plugins/testing/skills/audit/evals/judge-calibration/cases/*
 # sweep table. The lane covering the code that reads them is the testing
 # plugin's shell lane: metrics.test.sh tests --table and --rerun on stub sweeps.
 plugins/testing/skills/audit/evals/judge-calibration/sweep/*
+
+# The cleanup skill's eval fixture: a small repository (production modules,
+# a config, a judge findings file) that the cleanup evals copy and run the
+# skill over. The lane covering it is the skill-quality gate:
+# scripts/check-orphaned-fixtures.sh --check and check-evals-quality.sh, as for
+# the *.txt fixtures above. Its unittest files are still selected as suites.
+plugins/testing/skills/cleanup/evals/fixtures/*

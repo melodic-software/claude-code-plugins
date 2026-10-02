@@ -1,6 +1,6 @@
 ---
 description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [<test-path>]` (mutate what the changed tests call), `--full`, `--paths <globs>`, `--max <n>`, `--no-suppress`, `--persist-findings`."
-argument-hint: "[scope] [--exercised [<test-path>] | --full | --paths <globs>] [--max <n>] [--persist-findings]"
+argument-hint: "[scope] [--exercised [<path>] | --full] [--max <n>] [--record-mutants <f>] [--replay-mutants <f>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -48,6 +48,10 @@ Arguments: `$ARGUMENTS`
   suppressed. Read-only inspection of the suppression policy; it never edits the record.
 - **`--persist-findings`**: after reporting, also write the survivors as a findings file the
   `review:fanout` `fix` action consumes ([Phase 6](#phase-6-persist-opt-in)). Off by default.
+- **`--record-mutants <file>`**: with `--exercised`, write the mutants this run applied and their
+  states to a record outside tracked space ([Record and replay](#record-and-replay)).
+- **`--replay-mutants <file>`**: with `--exercised <test-path>` and `--record-mutants <after>`,
+  apply exactly the recorded mutants and gate on lost kills ([Record and replay](#record-and-replay)).
 
 ### Effort, the mutant cap of last resort
 
@@ -103,8 +107,7 @@ calls from the test body count, not callees of callees, so a call through depend
 interface, HTTP or a test helper maps nothing. The scope report lists the mapped functions. Zero
 functions ends the run as `no mapping: scope empty`, a result, never a clean run. The mapped-line
 set is the scope `--exercised` resolves to, so a mode that takes `--paths` can take `--exercised`
-or `--exercised <test-path>` instead and inherit these limits; the planned recording run,
-`--record-mutants` (#5604), is the consumer it is defined for.
+or `--exercised <test-path>` instead and inherit these limits; `--record-mutants` records over it.
 
 **Runner and regime.** Use the configured tool's own test restriction only where
 [`context/tool-test-restriction.md`](context/tool-test-restriction.md) reads `yes` in its
@@ -143,6 +146,18 @@ that copies the production formula kills the same mutants as one that states a l
 run does not clear a restated or copied expected value. That check belongs to the `testing`
 plugin's task-end judge rule `testing/judge/rule-restated-expectation`.
 
+## Record and replay
+
+`--record-mutants <file>` writes the mutants an exercised run applied, with their states.
+`--replay-mutants <before> --record-mutants <after>` applies exactly those mutants again after the
+tests changed, writes their new states, and compares the two records with
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/compare-records.sh" <before> <after>`: every mutant detected
+before must still be detected. The report carries one `Gate: pass` or `Gate: block` line and one
+`newly-surviving <path>:<line_start> <operator>` line per blocking mutant. Both runs use the manual
+protocol with `test-command`, and a red baseline stops either one and names the failing tests.
+Read [`context/mutant-record.md`](context/mutant-record.md) before either run: it owns the record
+format, the refusals, and the replay's Phase 0.
+
 ## The contract this skill holds
 
 Three properties, stated first because everything below depends on them:
@@ -158,7 +173,8 @@ Three properties, stated first because everything below depends on them:
    (the marketplace's `docs/plugin-philosophy.md` verb table). Its writes, the findings file and
    the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
    that root, are each **proven outside tracked space before that write is made**, never in tracked
-   source and never in a file another producer owns.
+   source and never in a file another producer owns. `--record-mutants` is a second such override,
+   on the same terms: its record is written outside tracked space, after restoration is verified.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -459,7 +475,8 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 
 - Write or modify tests, or leave any mutation in the tree.
 - Persist anything on bare invocation. The findings file is written only under `--persist-findings`,
-  and only into a memory tier proven to sit outside tracked space.
+  and only into a memory tier proven to sit outside tracked space; a mutant record only under
+  `--record-mutants`, outside tracked space too.
 - Apply its own findings, or read the consumer's consumption ledger. It writes one file and stops;
   what happens to that file belongs to the `fix` action.
 - Write suppressions without the user accepting them.
