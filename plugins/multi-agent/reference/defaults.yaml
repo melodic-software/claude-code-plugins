@@ -1,0 +1,61 @@
+# Bundled role map: the bottom layer of the multi-agent cascade.
+# Keys and layering: reference/config.md. A consumer layer overrides per key.
+#
+# model: an alias (opus, sonnet, haiku, fable, best) or `inherit`. `inherit`
+#   means a workflow omits opts.model on a generic agent() call, so the agent
+#   runs on the session's model.
+# effort: low | medium | high | xhigh | max. Always passed explicitly.
+# pointer*, as_of, recheck: where the default's basis lives, read by
+#   /multi-agent:audit-defaults. The resolver never emits them.
+schema: 1
+
+# Session model aliases treated as frontier by the fan-out guard.
+frontier: fable,best
+
+# The fan-out guard: a stage that runs more than one agent never runs them on a
+# frontier model. Under a frontier session, or when the caller does not name
+# the session model, every role's fan-out variant names fanout.model where it
+# would otherwise inherit (or name) a frontier model. Single-agent stages keep
+# the role's own model. Turning frontier_guard off is an explicit opt-in to
+# frontier fan-outs.
+fanout:
+  frontier_guard: true
+  model: opus
+  pointer: https://code.claude.com/docs/en/workflows#cost
+  pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
+  as_of: 2026-10-02
+  recheck: a new model row on the cost page, or a workflows Cost section change to how a stage's model is chosen
+
+roles:
+  orchestrator:
+    model: inherit
+    effort: high
+    pointer: https://code.claude.com/docs/en/workflows#cost
+    pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
+    as_of: 2026-10-02
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section
+  worker:
+    model: inherit
+    effort: medium
+    workloads:
+      research:
+        effort: low
+    pointer: https://code.claude.com/docs/en/workflows#cost
+    pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
+    pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
+    as_of: 2026-10-02
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or a new model row on the cost page
+  verifier:
+    model: inherit
+    effort: high
+    pointer: https://code.claude.com/docs/en/workflows#cost
+    pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
+    as_of: 2026-10-02
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section
+  retrieval:
+    model: sonnet
+    effort: low
+    pointer: https://code.claude.com/docs/en/workflows#cost
+    pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
+    as_of: 2026-10-02
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or a model-config change to the sonnet alias

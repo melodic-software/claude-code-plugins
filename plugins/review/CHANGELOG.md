@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-10-02
+
+### Added
+
+- **`/review:fanout-sweep` workflow** (`workflows/fanout-sweep.js`): the run-everything leaf
+  fan-out as a saved workflow that takes `diffBase`, `slices`, `roles` and `maxConcurrent` through
+  `args` instead of text substitution. A missing or non-ref `diffBase` returns an error and
+  dispatches nothing. Slice agents take the verifier role's fan-out variant and the extractor the
+  retrieval role's single variant, from `/multi-agent:route` when the caller passes them, else
+  from built-in fallbacks (`opus` at `high` for slices, `sonnet` at `low` for extraction). Agents
+  run in waves of `maxConcurrent`, and a thrown dispatch is retried once. The `run-everything`
+  mode still uses its inline script until it is switched to this workflow.
+
 ## [0.34.9] - 2026-10-02
 
 ### Changed
