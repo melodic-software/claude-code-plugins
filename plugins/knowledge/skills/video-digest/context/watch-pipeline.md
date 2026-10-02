@@ -307,12 +307,16 @@ Rendered tables show an estimated time as `~5m, estimated`. Scene detection writ
 `frame-times.json` in the frames directory; `recover-watch-bootstrap.js` reloads them from there,
 and a frames directory without that file recovers its scene and interval frames untimed.
 
-Claim: ffmpeg's `showinfo` filter prints each frame's `pts_time`, and ffmpeg removes the input's
-start offset from timestamps unless `-copyts` is set, so those times are used as is. Basis:
-<https://ffmpeg.org/ffmpeg-filters.html#showinfo> and the `-copyts` entry under
-<https://ffmpeg.org/ffmpeg.html#Advanced-options>, checked against ffmpeg 8.0.1 with a stream
-starting at 12.8 s. As of 2026-10-02. Recheck when the ffmpeg floor under Prerequisites in
-`SKILL.md` changes or either entry changes how timestamps are reported.
+We take each frame's time from ffmpeg's per-frame report and use it unchanged, with no start-offset
+correction. A probe on ffmpeg 8.0.1 found the reported times already relative to the stream start
+(a stream starting at 12.8 s gave the same cut times as one starting at 0).
+
+- **Pointer**: for per-frame timing, see <https://ffmpeg.org/ffmpeg-filters.html#showinfo>; for
+  start-offset handling, see the `-copyts` entry at
+  <https://ffmpeg.org/ffmpeg.html#Advanced-options>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: the ffmpeg floor under Prerequisites in `SKILL.md` changes, or a release note
+  for either entry mentions timestamps.
 
 Standalone pipeline (when video + VTT already acquired):
 

@@ -63,8 +63,11 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 - Name the dominant problem; offer one focused revision. Do not list every issue.
 - Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip. A
   writer may skip any box, but a skip names a reason; silent skips are not OK.
-- Unlike the audit boxes above, the rubric's passes are **not** skippable. They are the AI's
-  self-check, not choice points offered to the writer. Rewrites and variation sets are line
+- Unlike the audit boxes above, the rubric's passes are **not** skippable. They are the writer's
+  standing rule for every candidate, not choice points offered to him. Run the countable passes as
+  commands, per the rubric row of `/songwriting:co-write`'s hard gate (syllables from
+  `datamuse.sh syllables`, repeats from a word-frequency count), and let that gate's skeptic row
+  test the judgment passes from a fresh context. Rewrites and variation sets are line
   emission: cycle [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in
   full on every candidate, pass 1 clean, and DROP any candidate a pass flagged rather than
   presenting it flagged. Two rejected executions in one slot ends generation for that slot. Hand

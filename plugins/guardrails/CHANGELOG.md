@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.7] - 2026-10-02
+
+### Changed
+
+- **The README's hook-behavior notes state our decisions and point at the hooks page.** The guard
+  timeout tail, the plugin-bundled GitHub server matcher, the decision not to set `async: true` on
+  the three advisory verify guards, and the `node` and `jq` prerequisites are each a decision with
+  a pointer to the anchored hooks section, an as-of date and a recheck trigger, and none of the
+  page's wording is stored. No guard behavior changes.
+
 ## [0.46.6] - 2026-10-02
 
 ### Fixed

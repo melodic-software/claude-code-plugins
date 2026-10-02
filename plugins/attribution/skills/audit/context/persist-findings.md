@@ -291,7 +291,7 @@ and never carry a row forward from a previous run.
   is repaired by re-deriving the record against its live basis; a trigger-less stamp is
   repaired by writing the observable event that obliges re-derivation; a restated fact is
   report-only, so its row names the two dispositions (a pointer at the point of use, or a
-  four-part record when the surface must work offline) and never a fix invocation, because `fix`
+  stamped record when the surface must work offline) and never a fix invocation, because `fix`
   and `sweep` never reach the class.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row, never chosen per finding, then mapped
   to the consuming project's severity vocabulary when it defines one.

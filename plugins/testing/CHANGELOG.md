@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4] - 2026-10-02
+
+### Changed
+
+- **`write` no longer asks for a self-check before writing tests.** It states the interface it
+  assumes in one line and proceeds.
+
 ## [0.18.3] - 2026-10-02
 
 ### Changed

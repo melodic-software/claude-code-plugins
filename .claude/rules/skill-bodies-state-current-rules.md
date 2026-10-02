@@ -1,5 +1,5 @@
 ---
-description: "Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body"
+description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as pointer, as-of date and recheck trigger, and name their successor in a `## Next` section; read before editing any skill body"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -7,12 +7,13 @@ paths:
 
 # Skill bodies state current rules
 
-A pointer to an external upstream source (an official doc page, an upstream issue) is required
-when a skill or agent body restates a volatile specific it cannot defer to at read time, recorded
-as the four-part verification record the
-[upstream-drift convention](../../docs/conventions/upstream-drift/README.md) defines: claim,
-basis, as-of date, recheck trigger. A dated verification with a trigger is the correct form; an
-undated claim is the defect.
+A skill or agent body that depends on a volatile upstream specific (an official doc page, an
+upstream issue) never restates it, quoted or paraphrased. It states our decision in our own words
+and records where to read the specific live, in the links-only record the
+[upstream-drift convention](../../docs/conventions/upstream-drift/README.md#required-parts)
+defines: pointer to the exact section, as-of date, recheck trigger. A body that needs the specific
+at run time fetches it from the pointer. Restated upstream text is the defect, and so is a pointer
+with no as-of date or no trigger.
 
 ## Successor sections
 

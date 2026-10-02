@@ -128,8 +128,8 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 **Peel 1 defers all new mechanical enforcement.** Recorded with event triggers rather than dates:
 
-- **Basis**: `enforceability-tiers.md` routing rule (worth-mechanizing defaults to "not yet" until
-  the contract exists); peel 1 publishes the contract only per
+- **Pointer**: for the routing rule we apply (mechanize nothing until the contract exists), see
+  `enforceability-tiers.md`; peel 1 publishes the contract only per
   [#532](https://github.com/melodic-software/claude-code-plugins/issues/532) decision brief Option A.
 - **Recheck trigger (CI meta-check)**: peel 2+ lands a designed meta-check, **or** a second
   advisory-lane instance with annotations-only findings reaches `main` after this doc (the #510
