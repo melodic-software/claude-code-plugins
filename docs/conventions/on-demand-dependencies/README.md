@@ -1,6 +1,6 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 1.1.0
+Version: 2.1.0
 Last updated: 2026-10-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
@@ -76,9 +76,10 @@ install base in this order and record which rule chose it:
 ## Rule 3: fail closed with the exact command [SPEC]
 
 When `npm` is missing, the network is down, `npm ci` fails, or the installed set does not load, the
-component reports itself **broken** and prints one shell line that repairs it: remove the install
+component reports itself **broken** and prints one command line that repairs it: remove the install
 directory, recreate it, copy the two manifests in, and run `npm ci --prefix` on it with the flags
-above. When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
+above. The line is POSIX shell, except on Windows, where it is Windows PowerShell 5.1 (no `&&`,
+single quotes doubled, `npm.cmd` named because the default execution policy blocks `npm.ps1`). When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
 the report says to install Node.js and rerun instead of printing that line. It never falls back to a different implementation that could return a different
 value, and never reports a partial result as complete.
 
@@ -151,7 +152,8 @@ skills and scripts.
 No interpreter at the floor, no pip, no network, a hash mismatch, or a set that does not import:
 the hook emits a notice on both channels (`systemMessage` and `additionalContext`, per
 [hook-observability](../hook-observability/README.md)) with the reason and one repair line, which
-is the installer run in the foreground with the same interpreter and data directory. The hook exits
+is the installer run in the foreground with the same interpreter and data directory (POSIX shell,
+or Windows PowerShell 5.1 on Windows, as in Rule 3). The hook exits
 0, so a failed install never blocks the session, and it leaves no partial directory. A launcher run
 with no installed set prints the same line and exits 2. Neither falls back to another interpreter's
 packages, installs on its own, or reports a partial result as complete.
