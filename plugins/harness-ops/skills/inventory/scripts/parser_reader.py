@@ -366,6 +366,21 @@ class ParserReader:
         res = self._send("exports", src, lo, hi)
         return None if res.get("unreadable") or "error" in res else res["names"]
 
+    def export_binding(
+        self, src: str, lo: int, hi: int, name: str
+    ) -> tuple[str | None, str | None] | None:
+        """How the module `src[lo:hi]` exports `name`: (local, from), `from`
+        being the path of a re-export and None for a local binding, `local`
+        None when it names no binding. None when the module does not parse
+        or does not list the name."""
+        res = self._send("exports", src, lo, hi)
+        if res.get("unreadable") or "error" in res:
+            return None
+        found = res["bindings"].get(name)
+        if found is None:
+            return None
+        return found[0], found[1]
+
     def keys_used(
         self, src: str, name: str, spans: list[tuple[int, int]] | None = None
     ) -> bool:

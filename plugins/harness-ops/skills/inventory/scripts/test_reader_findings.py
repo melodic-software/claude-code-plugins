@@ -435,6 +435,30 @@ class TestOpenFindings(unittest.TestCase):
         # A `g` with no `export` of its own stays partial too.
         self.assert_across_modules(True, caller, "function g(a,b){}")
 
+    def test_an_imported_callee_binds_the_exports_own_local(self) -> None:
+        """#5891 review (claude[bot]): the exporter fallback bound the name
+        to any same-named local. A re-export (`export{g}from"/d.js"`) is
+        followed to its own source, and an aliased export (`export{h as g}`)
+        binds its local `h`, never a same-named `g` beside it."""
+        caller = 'import{pY}from"/a.js";import{g}from"/c.js";g("x",pY);'
+        harmless = "function g(a,b){return b.includes(a)}"
+        for chunk_c, chunk_d, changed in (
+            (
+                harmless + 'export{g as k};export{g}from"/d.js";',
+                'function g(a,b){b.push("B")}export{g};',
+                True,
+            ),
+            (
+                harmless + 'export{g as k};export{g}from"/d.js";',
+                harmless + "export{g};",
+                False,
+            ),
+            (harmless + 'function h(a,b){b.push("B")}export{h as g};', "", True),
+            ('function g(a,b){b.push("B")}function h(a,b){}export{h as g};', "", False),
+        ):
+            with self.subTest(chunk_c=chunk_c, chunk_d=chunk_d):
+                self.assert_across_modules(changed, caller, chunk_c, chunk_d)
+
     def test_an_imported_callee_resolves_by_its_from_path_not_its_name(self) -> None:
         """#5891 review (Codex): the array module imports `g` from chunk
         /c.js, which pushes `B`, while an unrelated chunk /d.js exports a

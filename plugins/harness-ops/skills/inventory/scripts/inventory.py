@@ -2286,23 +2286,27 @@ def _module_spans(src: str) -> list[tuple[int, int]]:
     ]
 
 
-def _exporter_of(src: str, name: str, source: str | None) -> tuple[int, str] | None:
-    """The module an import of `name` from `source` reaches, and its local
-    name there: the module whose path in Bun's module table is `source`,
-    when it exports `name`. None for an external or unknown source, a
-    bundle without a module table, and a module that does not export the
-    name. A module re-exporting `name` from elsewhere is returned with the
-    name itself, which the `param` start then cannot resolve, so it stays
-    partial."""
+def _exporter_of(
+    src: str, name: str, source: str | None, depth: int = 0
+) -> tuple[int, str] | None:
+    """The module an import of `name` from `source` reaches, and the local
+    binding that export names there: the module whose path in Bun's module
+    table is `source`, read by the parser's `exports` op. A re-export
+    (`export{g}from"..."`) is followed to its own source the same way. None
+    for an external or unknown source, a bundle without a module table, a
+    module that does not export the name or exports no binding under it,
+    and a chain of more than 8 re-exports."""
     assert _PARSER is not None
     lo = _PARSER.module_start(src, source) if source else None
-    if lo is None:
+    if lo is None or depth > 8:
         return None
-    for home, local in _export_index(src).get(name, []):
-        if home == lo:
-            return home, local
-    names = _PARSER.exports(src, *_chunk_span(src, lo))
-    return (lo, name) if names is not None and name in names else None
+    found = _PARSER.export_binding(src, *_chunk_span(src, lo), name)
+    if found is None or found[0] is None:
+        return None
+    local, via = found
+    if via is not None:
+        return _exporter_of(src, local, via, depth + 1)
+    return lo, local
 
 
 @functools.lru_cache(maxsize=256)

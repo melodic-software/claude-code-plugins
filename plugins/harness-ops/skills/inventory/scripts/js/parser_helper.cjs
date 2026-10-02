@@ -1061,25 +1061,38 @@ function sinks(req) {
 }
 
 // {"op":"exports","module":key,"source"?:...}
-//   -> {"names":[every name the module exports]}; a module that does not
-//      parse answers {"error":...}.
+//   -> {"names":[every name the module exports], "bindings":{name:[local, from]},
+//       "star":bool}; a module that does not parse answers {"error":...}.
 function exportsOf(req) {
   if (typeof req.module !== "string") return { ok: false, error: "exports needs a string `module`" };
   const entry = moduleFor(req);
   if (entry === null) return { ok: true, need_source: true };
   if (entry.error) return { ok: true, error: entry.error };
   const names = [];
+  // Each exported name's [local, source]: the module-scope name it exports
+  // (null for a default expression or a namespace re-export) and, for a
+  // re-export, the `from` path it re-exports from (null for a local one).
+  const bindings = {};
+  const add = (name, local, source) => {
+    names.push(name);
+    bindings[name] = [local, source];
+  };
+  let star = false;
   for (const node of entry.ast.body) {
-    if (node.type === "ExportDefaultDeclaration") names.push("default");
+    if (node.type === "ExportAllDeclaration") star = true;
+    if (node.type === "ExportDefaultDeclaration") add("default", node.declaration.id?.name ?? null, null);
     if (node.type !== "ExportNamedDeclaration") continue;
-    for (const spec of node.specifiers) names.push(spec.exported.name ?? spec.exported.value);
+    const source = node.source?.value ?? null;
+    for (const spec of node.specifiers) {
+      add(spec.exported.name ?? spec.exported.value, spec.local.name ?? spec.local.value, source);
+    }
     const decl = node.declaration;
-    if (decl?.id) names.push(decl.id.name);
+    if (decl?.id) add(decl.id.name, decl.id.name, null);
     for (const d of decl?.declarations ?? []) {
-      for (const v of entry.manager.getDeclaredVariables(d)) names.push(v.name);
+      for (const v of entry.manager.getDeclaredVariables(d)) add(v.name, v.name, null);
     }
   }
-  return { ok: true, names };
+  return { ok: true, names, bindings, star };
 }
 
 // Every name a module reads by name as a property, whatever object it
