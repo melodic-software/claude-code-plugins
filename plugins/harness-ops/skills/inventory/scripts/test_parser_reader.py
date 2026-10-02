@@ -142,8 +142,25 @@ class TestFailClosed(unittest.TestCase):
         with mock.patch.object(pr.shutil, "which", return_value=None):
             with self.assertRaises(pr.ReaderBroken) as ctx:
                 pr.ParserReader(self.target)
-        self.assertIn("node is not on PATH", ctx.exception.reason)
-        self.assertEqual(ctx.exception.command, pr.install_command(self.target))
+        self.assertIn("node is not on PATH: install Node.js", ctx.exception.reason)
+        self.assertIsNone(ctx.exception.command)
+
+    def test_stale_partial_installs_are_removed_and_fresh_ones_kept(self) -> None:
+        self.target.parent.mkdir(parents=True)
+        stale = self.target.with_name(f"{self.target.name}.partial-111")
+        fresh = self.target.with_name(f"{self.target.name}.partial-222")
+        other = self.target.with_name("other.partial-333")
+        for d in (stale, fresh, other):
+            (d / "node_modules").mkdir(parents=True)
+        old = os.stat(stale).st_mtime - pr.STALE_PARTIAL_SECONDS - 60
+        os.utime(stale, (old, old))
+        os.utime(other, (old, old))
+        with mock.patch.object(pr.shutil, "which", return_value=None):
+            with self.assertRaises(pr.ReaderBroken):
+                pr.ensure_installed(self.target)
+        self.assertFalse(stale.exists())
+        self.assertTrue(fresh.exists())
+        self.assertTrue(other.exists())
 
     @unittest.skipUnless(shutil.which("node"), "node is not on PATH")
     def test_a_helper_that_cannot_load_its_packages_is_broken(self) -> None:
@@ -250,7 +267,7 @@ class TestInventoryReaderFlag(unittest.TestCase):
 
     def test_a_broken_parser_reader_fails_closed_with_the_command(self) -> None:
         broken = pr.ReaderBroken(
-            "node is not on PATH (install Node.js)", "npm ci --prefix /t"
+            "npm ci failed (exit 1): offline", "npm ci --prefix /t"
         )
         with mock.patch.object(pr, "open_reader", side_effect=broken):
             code, out = self._run("--binary-only", "--reader", "parser")
@@ -263,7 +280,7 @@ class TestInventoryReaderFlag(unittest.TestCase):
             code, out = self._run("--self-check", "--reader", "parser")
         self.assertEqual(code, 1)
         self.assertIn(
-            "BROKEN: parser reader broken: node is not on PATH (install Node.js); "
+            "BROKEN: parser reader broken: npm ci failed (exit 1): offline; "
             "run: npm ci --prefix /t",
             out,
         )

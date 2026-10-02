@@ -21,10 +21,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   run copies both into `<base>/inventory-parser/<lockfile hash>/` and runs
   `npm ci --ignore-scripts`; the base is `--deps-dir`, else a harness-ops `$CLAUDE_PLUGIN_DATA`,
   else the checkout's `.work/harness-ops` when run from a marketplace checkout, else
-  `~/.claude/plugins/data/harness-ops-melodic-software`. Missing node or npm, a failed install,
-  or a helper that does not load leaves the binary source unavailable with
-  `parser reader broken: <reason>; run: <command>`, and `--self-check` exits 1; nothing falls back
-  to the regex reader. `python3 parser_reader.py --install` performs the install alone.
+  `~/.claude/plugins/data/harness-ops-melodic-software`. Missing npm, a failed install, or a
+  helper that does not load leaves the binary source unavailable with
+  `parser reader broken: <reason>; run: <command>`; missing node says to install Node.js and
+  rerun. Either way `--self-check` exits 1 and nothing falls back to the regex reader. Install
+  directories a killed install left half-built are removed once they are older than twice the
+  `npm ci` timeout. `python3 parser_reader.py --install` performs the install alone.
   The rule is written up repo wide as `docs/conventions/on-demand-dependencies/`.
 
 ### Fixed

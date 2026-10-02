@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,7 @@ COMPONENT = "inventory-parser"
 PLUGIN_DATA_ID = "harness-ops-melodic-software"
 NPM_CI_ARGS = ("ci", "--ignore-scripts", "--no-audit", "--no-fund")
 NPM_TIMEOUT_SECONDS = 600
+STALE_PARTIAL_SECONDS = 2 * NPM_TIMEOUT_SECONDS
 
 
 class ReaderBroken(Exception):
@@ -125,6 +127,21 @@ def installed(target: Path) -> bool:
     )
 
 
+def remove_stale_partials(target: Path) -> None:
+    """Delete `<target>.partial-*` siblings a killed install left behind.
+
+    Only directories untouched for longer than STALE_PARTIAL_SECONDS go: no
+    live `npm ci` runs that long, so a concurrent install's directory stays.
+    """
+    cutoff = time.time() - STALE_PARTIAL_SECONDS
+    for partial in target.parent.glob(f"{target.name}.partial-*"):
+        try:
+            if partial.stat().st_mtime < cutoff:
+                shutil.rmtree(partial, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def ensure_installed(target: Path) -> bool:
     """Install into `target` unless already there; True when this call installed.
 
@@ -134,6 +151,7 @@ def ensure_installed(target: Path) -> bool:
     """
     if installed(target):
         return False
+    remove_stale_partials(target)
     command = install_command(target)
     npm = shutil.which("npm")
     if npm is None:
@@ -185,7 +203,8 @@ class ParserReader:
         node = shutil.which("node")
         if node is None:
             raise ReaderBroken(
-                "node is not on PATH (install Node.js)", install_command(target)
+                "node is not on PATH: install Node.js, then rerun (the parser "
+                f"packages need no reinstall; they are in {target})"
             )
         env = dict(os.environ, NODE_PATH=str(target / "node_modules"))
         self._stderr = tempfile.TemporaryFile(mode="w+", encoding="utf-8")

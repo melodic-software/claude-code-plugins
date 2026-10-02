@@ -61,8 +61,9 @@ On the first run that needs the packages, the component copies `package.json` an
 rely on reading it from its environment when Claude runs it through the Bash tool. Resolve the
 install base in this order and record which rule chose it:
 
-1. An explicit flag (the inventory's `--deps-dir`), which a skill body fills from
-   `${CLAUDE_PLUGIN_DATA}` because that reference is substituted inline in skill content.
+1. An explicit flag (the inventory's `--deps-dir`). A skill body may pass
+   `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, since that reference is substituted inline in skill
+   content; the inventory's `SKILL.md` does not pass it yet (#5640 P4 wires it in).
 2. `$CLAUDE_PLUGIN_DATA` from the environment, accepted only when its last path segment names the
    plugin: a skill subprocess has been observed holding another plugin's value (recorded in
    `plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py`,
@@ -73,10 +74,11 @@ install base in this order and record which rule chose it:
 
 ## Rule 3: fail closed with the exact command [SPEC]
 
-When `node` or `npm` is missing, the network is down, `npm ci` fails, or the installed set does not
-load, the component reports itself **broken** and prints one shell line that repairs it: remove
-the install directory, recreate it, copy the two manifests in, and run `npm ci --prefix` on it with
-the flags above. It never falls back to a different implementation that could return a different
+When `npm` is missing, the network is down, `npm ci` fails, or the installed set does not load, the
+component reports itself **broken** and prints one shell line that repairs it: remove the install
+directory, recreate it, copy the two manifests in, and run `npm ci --prefix` on it with the flags
+above. When only `node` is missing, the packages are fine and reinstalling them repairs nothing, so
+the report says to install Node.js and rerun instead of printing that line. It never falls back to a different implementation that could return a different
 value, and never reports a partial result as complete.
 
 ## Rule 4: no committed third-party bundles [SPEC]
