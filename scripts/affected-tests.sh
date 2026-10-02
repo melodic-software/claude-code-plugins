@@ -47,9 +47,23 @@
 # hand. CI's Linux lanes are the gate that decides.
 #
 # DIRECTION: over-selection is safe, under-selection is not. Every rule below is
-# deliberately generous — a basename match counts even when it lands in a
-# comment — because a suite that runs needlessly costs seconds, while a suite
-# that should have run and did not is the regression this tool exists to stop.
+# deliberately generous, because a suite that runs needlessly costs seconds,
+# while a suite that should have run and did not is the regression this tool
+# exists to stop. The one narrowing is COMMENTS below: a whole-line comment in a
+# non-suite file no longer makes that file a dependent.
+#
+# COMMENTS. In a NON-suite file, a line that is only a comment (`#` in shell,
+# Python and PowerShell; `//`, `/*` or a `*` block-comment continuation in Node)
+# creates no R4 dependent. A `# shellcheck source=` directive and a JSDoc type
+# import (`@import`, `import('...')`) are read by tools, not people, and still
+# count, as does a trailing comment on a code line. Suites match on every
+# line, so R3 is unchanged. Hub files cite the scripts they sit beside in prose:
+# lib/hook-utils.sh and its 20 plugin copies name run-guards.sh only in
+# comments, so a change to run-guards.sh made every copy a "dependent" and pulled
+# in every suite naming hook-utils.sh — 278 to 328 of ~450 suites on 19% of
+# sampled pull requests, most of the corpus for a change to one plugin. The cost
+# of the narrowing is bounded: every push to main runs the full corpus, so a
+# dependency that existed only as a comment surfaces on main.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
@@ -90,7 +104,8 @@
 #                    and the same set lang_family() names; all three move
 #                    together or a path is classified into a family nothing ever
 #                    greps) that
-#                    NAMES the file the same way is a dependent; R2/R3 are
+#                    NAMES the file the same way, on a line that is not only a
+#                    comment (see COMMENTS above), is a dependent; R2/R3 are
 #                    then applied to IT, transitively. This is what carries a lib
 #                    change out to the hooks that source it.
 #   R5 shared-lib    a file that is the `src` of a scripts/sync-*.sh selects
@@ -154,7 +169,7 @@
 # [A-Za-z0-9_.-]. `/` is deliberately OUTSIDE that class, so a path-qualified
 # mention names the file — `source "$dir/hook-utils.sh"`, `"./gadget.js"`,
 # `. (Join-Path $PSScriptRoot 'Get-Thing.ps1')` — and so does a bare mention in
-# prose or a comment. A leading or trailing run of `.` is sentence punctuation
+# prose or, in a suite, a comment. A leading or trailing run of `.` is sentence punctuation
 # rather than part of a name, so a comment ending "... is covered by
 # <stem>.test.sh." names that suite too — which is how most of this repo's
 # comments cite the suite covering them.
@@ -259,7 +274,8 @@
 # its own, apart from its source, no longer reaches the other copies' suites; R5
 # fans out from the source, and the sync lane gates a copy that drifts from it.
 #
-# Three things stay deliberately generous, all in the over-selecting direction:
+# Three things stay deliberately generous, all in the over-selecting direction
+# (the comment rule above is the one deliberate narrowing):
 #   - a token match on the SAME basename in ANOTHER directory counts for any
 #     basename a frontier file carries outside a skill directory. There it is a
 #     basename rule and has to stay one: R5's entire fan-out is copies that share
@@ -267,7 +283,8 @@
 #     plugins/*/hooks/hook-utils.sh), so a suite naming its own plugin's copy is
 #     naming the shared source. Requiring the whole repo-relative path would cut
 #     that, which is under-selection.
-#   - a mention in a comment counts, exactly as it did before.
+#   - a mention in a suite's comment counts, as does a trailing comment on a
+#     code line in any file.
 #   - a basename the token rule cannot express — one carrying a character
 #     outside [A-Za-z0-9_.-], which no tracked path in this repo does today —
 #     falls back to the old substring test rather than to no coverage at all. A
@@ -279,9 +296,10 @@
 # instead — `git grep -o -E`, one bounded pattern per basename — took over two
 # minutes for that same level, which is not a usable per-level cost. So git grep
 # still finds the candidate LINES with the substring test, and one awk pass over
-# those lines (~0.06s) splits each into path tokens and keeps only the pairs
-# whose token IS one of the basenames asked about and that SKILL OWNERSHIP lets
-# stand. Both stages fail loud; see the call site in select_for.
+# those lines (~0.06s) drops the lines COMMENTS excludes, splits each remaining
+# line into path tokens and keeps only the pairs whose token IS one of the
+# basenames asked about and that SKILL OWNERSHIP lets stand.
+# Both stages fail loud; see the call site in select_for.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -723,6 +741,19 @@ token_hits() {
       if ((path SUBSEP name) in seen) return
       if (owned(path, name, text)) emit(path, name)
     }
+    # comment_only: is this a whole-line comment in a NON-suite file? Such a line
+    # makes no R4 dependent; see COMMENTS in the header. Suites keep every line
+    # (R3), and a shellcheck source directive or a JSDoc type import declares a
+    # real edge. The suite test mirrors is_suite_path.
+    function comment_only(path, text,   b) {
+      b = path
+      sub(/.*\//, "", b)
+      if (path ~ /\.(test\.(sh|js|mjs)|Tests\.ps1)$/ || b ~ /^test_.*\.py$/) return 0
+      if (path ~ /\.(js|mjs|cjs)$/)
+        return text ~ /^[ \t]*(\/\/|\/\*|\*([ \t\/]|$))/ && text !~ /@import|import\(/
+      if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
+      return text ~ /^[ \t]*#/
+    }
     {
       i = index($0, ":")
       # No separator means no path: git grep says "Binary file X matches" that
@@ -730,6 +761,7 @@ token_hits() {
       if (i == 0) next
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
+      if (comment_only(path, text)) next
       n = split(text, tok, /[^A-Za-z0-9_.-]+/)
       for (j = 1; j <= n; j++) {
         t = tok[j]

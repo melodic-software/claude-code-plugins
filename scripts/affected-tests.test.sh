@@ -1032,8 +1032,10 @@ fi
 # NOT do is keep walking from there and drag in that file's own dependents.
 mkdir -p "$repo/eco/hop"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
-# A .ps1 that merely MENTIONS the js basename — not a real dependency.
-printf "# mentions origin.js in a comment only\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
+# A .ps1 that merely MENTIONS the js basename in a string — not a real
+# dependency, but a code line, so the walk still crosses into it. A comment-only
+# mention would not, and the case would pass without testing the crossing rule.
+printf "\$null = 'origin.js'\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
 # A shell file that depends on the .ps1, with its own suite. Reaching this suite
 # would require a SECOND cross-language hop, which the rule forbids.
 printf 'echo "runs Far.ps1"\n' >"$repo/eco/hop/far-runner.sh"
@@ -1114,8 +1116,9 @@ printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
 printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 
 # Names the shell source FIRST, the JS copy SECOND — so the cross-family hit is
-# the one a last-write-wins bug would keep.
-printf 'source "lib/mixed.sh"\n# also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
+# the one a last-write-wins bug would keep. The second mention is a `:` no-op
+# rather than a comment, because a comment-only line makes no dependent at all.
+printf 'source "lib/mixed.sh"\n: also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
 # A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
 # would block. Its suite is the assertion.
 printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
@@ -1271,6 +1274,60 @@ if [[ "$RC" -eq 0 ]] &&
   ok "co-located selection is untouched by the boundary rule"
 else
   fail "co-located suite lost or unrelated suite still borrowed (rc=$RC): $OUT"
+fi
+rm -rf "$repo3"
+
+# --- a comment-only mention in a NON-suite file makes no dependent -----------
+# Hub files cite neighboring scripts in prose, and counting those as R4 edges
+# fanned one plugin's change out to most of the corpus. A suite's comment still
+# names the file (R3), and so does every code line, a trailing comment on one,
+# a shellcheck source directive and a JSDoc type import.
+mk_repo repo3
+mkdir -p "$repo3/eco/cmt"
+printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
+suite_body hub-target >"$repo3/eco/cmt/hub-target.test.sh"
+# Each dependent below has a suite of its own that does not name hub-target.sh,
+# so that suite comes back only through an R4 edge.
+mk_cmt_dependent() { # <stem> <ext> <body>
+  printf '%b' "$3" >"$repo3/eco/cmt/$1.$2"
+  suite_body "$1" >"$repo3/eco/cmt/$1.test.$2"
+}
+mk_cmt_dependent sh-comment sh '#!/usr/bin/env bash\n# see hub-target.sh\n  # also hub-target.sh\necho hub\n'
+mk_cmt_dependent js-comment js '// see hub-target.sh\n/* hub-target.sh */\n/**\n * hub-target.sh\n */\nexport const x = 1;\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
+mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
+mk_cmt_dependent js-code js 'const target = "hub-target.sh";\n'
+mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
+printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
+git_test_config "$repo3" add eco >/dev/null
+git_test_config "$repo3" commit -qm comments >/dev/null
+
+run_sel "$repo3" eco/cmt/hub-target.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/hub-target.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-comment.test.sh &&
+  ! has_line "$OUT" eco/cmt/js-comment.test.js; then
+  ok "a comment-only mention in a non-suite file no longer selects"
+else
+  fail "comment-only mention still made a dependent (rc=$RC): $OUT"
+fi
+
+if has_line "$OUT" eco/cmt/sh-code.test.sh &&
+  has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  has_line "$OUT" eco/cmt/sh-directive.test.sh &&
+  has_line "$OUT" eco/cmt/js-code.test.js &&
+  has_line "$OUT" eco/cmt/js-typeimport.test.js; then
+  ok "a code mention, a trailing comment, a shellcheck directive and a JSDoc import still select"
+else
+  fail "a non-comment mention lost its dependent (rc=$RC): $OUT"
+fi
+
+if has_line "$OUT" eco/cmt/hub-prose.test.sh; then
+  ok "a suite's comment mention still selects it"
+else
+  fail "a suite naming the file in a comment was dropped (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
 
