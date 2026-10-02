@@ -157,6 +157,33 @@
         "States in one line why the artifact argument was not honored",
         "Does not publish an Artifact or write a local HTML file"
       ]
+    },
+    {
+      "id": 13,
+      "name": "default-auto-defers-to-user-global-cascade",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no medium argument was given; the userConfig medium option was never set, so the plugin default `auto` is what Claude Code substitutes.)",
+      "expected_output": "Treats the substituted `auto` as unset, so the configured-preference rung defers. Resolves the rendered-views cascade, reads the user-global layer ~/.claude/rendered-views.md, takes medium: file, and delivers a self-contained local HTML file rather than deciding by content or publishing an Artifact. Names the user-global layer as the source. Does not report `auto` as an explicit choice that ends resolution.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats a userConfig medium of `auto` as unset and continues to the cascade rung",
+        "Reads the user-global layer and honors medium: file (writes a local HTML page; does not publish an Artifact)",
+        "Reports the user-global layer as the source of the value",
+        "Does not skip the cascade and decide the medium by content alone"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "explicit-user-config-overrides-cascade",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; no medium argument was given; the userConfig medium option is set to `terminal`.)",
+      "expected_output": "The explicitly set userConfig medium `terminal` wins over the cascade value `file`: resolution stops at the configured-preference rung, so the diagram is delivered inline in the terminal (a mermaid source fence or text rendering) and no local HTML file is written. It does not read the cascade to override the configured value, and says the terminal choice came from the configured preference.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Honors the explicitly set userConfig medium `terminal` over the cascade's `file`",
+        "Delivers inline in the terminal and writes no local HTML file and no Artifact",
+        "Reports the configured preference, not the cascade layer, as the source of the choice"
+      ]
     }
   ]
 }
