@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.1] - 2026-10-02
+
+### Changed
+
+- **The Anthropic docs queue records two more claude.dev posts as correlate-only digest targets:**
+  "Using Claude Code: Spending your effort" and "Lessons from building Claude Code: Prompt caching
+  is everything", each with the docs page that serves as its pointer.
+
 ## [0.15.0] - 2026-10-02
 
 ### Changed
