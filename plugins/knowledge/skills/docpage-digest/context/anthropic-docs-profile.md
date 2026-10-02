@@ -318,8 +318,9 @@ spawn through a subagent definition whose `model` frontmatter carries the full I
 not available, pass the alias, record in the checklist both the alias passed and the model the
 subagent reports, and mark the match unenforced.
 
-- **Pointer**: for which values a subagent's model accepts and how an alias resolves at spawn,
-  see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+- **Pointer**: the probe, recorded in the Verification section of
+  [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767); for how a family
+  alias resolves once passed, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: the Agent tool's `model` parameter accepts a full model ID, or that
   section changes how a family alias resolves for a subagent.
