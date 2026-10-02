@@ -317,6 +317,24 @@ class BuildTest(Base):
             grader, "---\ntype: llm\n---\n\nPASS if the answer names Paris.\n"
         )
 
+    def test_a_case_yaml_grader_name_that_is_not_one_path_segment_is_skipped(self):
+        case = self.dir / "capital-yaml"
+        case.mkdir()
+        names = ["a/../../../CLAUDE", "..", "a\\b", "names-paris"]
+        (case / "case.yaml").write_text(
+            'schema_version: "1.1"\nname: capital-yaml\ngraders:\n'
+            + "".join(
+                '  - name: "%s"\n    type: llm\n    criteria: "PASS."\n'
+                % name.replace("\\", "\\\\")
+                for name in names
+            )
+        )
+        notes = []
+        found = calibrate.llm_graders(case, validate_cases, notes, "capital-yaml")
+        self.assertEqual([name for name, _, _ in found], ["names-paris"])
+        self.assertEqual(len(notes), 3)
+        self.assertTrue(all("one path segment" in note for note in notes))
+
     def test_this_plugins_own_suite_builds_and_validates(self):
         proc, out = self.build(PLUGIN_SUITE)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)

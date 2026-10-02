@@ -15,9 +15,11 @@
 - **`design` routes by repository kind and has every input approved.** A Claude API app is told
   to type `/claude-api build-eval`; a skill or plugin repository continues here and runs through
   `plugin-eval`. Candidate cases render for approval through a new `scripts/render-review.py`,
-  Markdown by default and escaped HTML as the option. Raw transcripts stay out of cases in a public
-  repository or one of unknown visibility. Graders are checked against a handful of cases before
-  their scores are trusted.
+  Markdown by default and escaped HTML as the option. A Markdown table cell escapes link and image
+  syntax, so case text cannot load a remote image or hide a link behind other text; a bare URL
+  still shows as itself. Raw transcripts stay out of cases in a public repository or one of
+  unknown visibility. Graders are checked against a handful of cases before their scores are
+  trusted.
 - **`methodology` points at the bundled hillclimb guides.** A new `reference/hillclimb.md` links
   each step at a pinned commit and states only this plugin's facts; a new
   `reference/local-decisions.md` holds this plugin's defaults and source conflicts. The skill
@@ -34,7 +36,9 @@
   labelled sample, whose agent replies with the sample word for word, and scores the judge's
   verdicts against the labels: agreement, false positives and negatives, split votes, runs whose
   reply was not the sample (whitespace and bold markers aside), and samples never judged. A grader under 90% agreement prints a
-  `FAIL grader` line and the script exits 1. `## Calibrating a judge` gives the commands.
+  `FAIL grader` line and the script exits 1. A `case.yaml` grader name that is not one path
+  segment is skipped with a note, so a suite cannot write outside `--out`. `## Calibrating a
+  judge` gives the commands.
 - **`plugin-eval` checks a run is valid before its score counts.** A new
   `scripts/run-validity.py` reads `aggregate-result.json` and the kept traces and prints VALID or
   INVALID: an incomplete or empty run, skipped paid graders, an errored run, a row count that

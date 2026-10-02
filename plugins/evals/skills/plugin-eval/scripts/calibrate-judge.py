@@ -68,6 +68,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import sys
 import unicodedata
 
@@ -79,6 +80,7 @@ LABELS = (("pass", "PASS"), ("fail", "FAIL"))  # samples/<grader>.json key, verd
 HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATOR = os.path.join(HERE, "..", "..", "validate", "scripts", "validate-cases.py")
 
+SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 SKIP_DIRS = frozenset(["results", "mocks", "graders", "samples", "__pycache__"])
 REPLY_FOCUSES = (None, "last_message")  # the judge reads the final reply
 TRACE_FOCUS = "trace"
@@ -204,12 +206,19 @@ def llm_graders(case_dir, validator, notes, case):
         data = validator.parse_yaml(read_text(yaml_path))
         for entry in data.get("graders") or []:
             if isinstance(entry, dict) and entry.get("type") == "llm":
+                name = str(entry.get("name"))
+                if not SAFE_NAME.fullmatch(name) or name in (".", ".."):
+                    notes.append(
+                        "skip %s/case.yaml grader %r: a grader name must be one path "
+                        "segment of letters, digits, '.', '_' or '-'" % (case, name)
+                    )
+                    continue
                 lines = ["---", "type: llm"]
                 for key in ("focus", "weight", "arm"):
                     if isinstance(entry.get(key), (str, int, float)):
                         lines.append("%s: %s" % (key, entry[key]))
                 body = "\n".join(lines + ["---", "", str(entry.get("criteria", ""))])
-                found.append((str(entry.get("name")), entry.get("focus"), body + "\n"))
+                found.append((name, entry.get("focus"), body + "\n"))
     grader_dir = os.path.join(case_dir, "graders")
     for filename in sorted(os.listdir(grader_dir)) if os.path.isdir(grader_dir) else []:
         if not filename.endswith(".md"):

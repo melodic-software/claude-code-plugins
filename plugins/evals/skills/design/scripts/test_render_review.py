@@ -113,6 +113,14 @@ class Markdown(unittest.TestCase):
         self.assertIn(r"x \| y z", row)
         self.assertEqual(unescaped_pipes(row), unescaped_pipes(header))
 
+    def test_link_and_image_syntax_in_cells_is_inert(self):
+        cases = [{"id": 1, "name": "![](https://x.example/p.png) [ok](https://y.example) a\\|b"}]
+        code, text, _ = run(cases, "markdown")
+        self.assertEqual(code, 0)
+        _, _, row = table_rows(text)
+        self.assertIn(r"!\[\](https://x.example/p.png) \[ok\](https://y.example)", row)
+        self.assertIn(r"a\\\|b", row)
+
     def test_one_fenced_block_per_case_longer_than_any_backtick_run(self):
         tricky = "before\n`````\n<script>x</script>\nafter"
         cases = [{"id": 1, "prompt": tricky}, {"id": 2, "input": "plain"}]
