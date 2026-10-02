@@ -3,6 +3,13 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-10-02
+
+### Fixed
+
+- The `use` `argument-hint` uses Claude Code's official bracket notation: it drops the prose after
+  the grammar, which the skill body now carries.
+
 ## [0.2.0] - 2026-09-23
 
 ### Changed

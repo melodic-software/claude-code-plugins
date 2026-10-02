@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.16] - 2026-10-02
+
+### Fixed
+
+- The `course-digest` `argument-hint` uses Claude Code's official bracket notation: it lists the
+  actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `video-digest` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+
 ## [0.14.15] - 2026-10-01
 
 ### Changed

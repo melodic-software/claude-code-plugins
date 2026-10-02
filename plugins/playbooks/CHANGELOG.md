@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.16.3] - 2026-10-02
+
+### Fixed
+
+- The `fable-5`, `repo-sweep`, and `update` argument hints use Claude Code's official bracket
+  notation: each keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.16.2] - 2026-10-01
 
 ### Changed

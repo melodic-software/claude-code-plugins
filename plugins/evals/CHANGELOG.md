@@ -1,5 +1,15 @@
 # Changelog: evals
 
+## [0.3.12] - 2026-10-02
+
+### Fixed
+
+- The `design` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|` and drops the prose after the grammar, which the skill body
+  now carries.
+- The `plugin-eval` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+
 ## [0.3.11] - 2026-10-01
 
 ### Changed
