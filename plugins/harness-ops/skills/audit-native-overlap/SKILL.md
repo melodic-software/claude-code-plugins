@@ -50,7 +50,7 @@ Detection has exactly two inputs, and they are not interchangeable.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" \
-  --binary-only --out ./claude-inventory.json
+  --deps-dir "${CLAUDE_PLUGIN_DATA}" --binary-only --out ./claude-inventory.json
 ```
 
 The consumer asserts `schema == 1` and presence-checks every key it reads. `builtin_commands`,

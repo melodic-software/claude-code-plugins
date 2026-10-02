@@ -57,11 +57,13 @@ unchanged and bind every member.
    same kind of limit. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number
    of read-only tools and subagents that can execute in parallel", documented
    default 10) caps how many run at once. It does not cap how many you
-   dispatch. The hard one is `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (documented
-   default 20): past it, "spawning another with the Agent tool fails with
-   `Concurrent subagent limit reached`, and the error tells Claude not to
-   retry." Every Agent-tool subagent counts against it, forks included, shared
-   with everything else the session is running. No per-session total applies:
+   dispatch. The hard one is the session's concurrent subagent limit, which
+   fails a spawn past it and is shared with everything else the session is
+   running. For its default, what counts against it, and which sessions are
+   exempt, read
+   [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+   live rather than from this file (as of 2026-10-02; recheck when that section
+   changes the default, what takes a slot, or the exemptions). No per-session total applies:
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` is a documented no-op, so the
    concurrency and depth limits are the only ones to plan around.
 
@@ -72,8 +74,7 @@ unchanged and bind every member.
    ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route))
    on 2026-08-10. The env-vars rows read: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`
    "Maximum number of read-only tools and subagents that can execute in
-   parallel (default: 10)"; `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` "default:
-   20"; `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` "Removed in v2.1.224 and now a
+   parallel (default: 10)"; `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` "Removed in v2.1.224 and now a
    no-op"; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` "the `run_in_background`
    parameter on Bash and subagent tools"; `CLAUDE_CODE_FORK_SUBAGENT`
    "overriding any server-side rollout". Upstream publishes no per-page content

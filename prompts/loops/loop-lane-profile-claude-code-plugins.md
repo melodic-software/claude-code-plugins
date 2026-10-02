@@ -199,17 +199,16 @@ machines; neither on the attended box.
 > one that undercuts the binding. A phase the plan routes `sonnet` as
 > well-scoped goes to `scoped-implementer` with an explicit `model: sonnet`
 > instead; unrouted or complex phases stay on `implementer`. Pass an explicit per-invocation `model`
-> only for the exceptions the agent frontmatter does not carry: `fable` for conflict
-> resolution and any security-surface work class, unconditionally; `opus`
-> for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never set
-> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
-> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
-> unset it puts every subagent on your own model. Leave
-> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
-> or override names a model
-> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
-> 2026-09-27).
+> only for the exceptions the agent frontmatter does not carry: the frontier
+> tier (`best`) for conflict resolution and any security-surface work class,
+> unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
+> ride the implementer surface. Those aliases follow the loop-lane
+> convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
+> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
+> bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
+> 2026-10-02; recheck when that section changes the order).
 > Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
 > <https://code.claude.com/docs/en/env-vars> and
 > <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
@@ -345,13 +344,15 @@ the partition and the evidence predicate is met.
 > remedy in the cycle report and stop there. Posture and process corrections
 > that touch no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
 > skill requires would silently run at orchestrator strength unless you say
-> otherwise. Pass an explicit per-invocation `model`: `fable` for conflict
-> resolution and every security-surface work class, unconditionally; `opus`
-> for CI fixes, review-comment work, and any judgment call; `haiku` only for
-> mechanical log pulls. Never leave it to inherit. One explicit exception to
+> otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for
+> conflict resolution and every security-surface work class, unconditionally;
+> the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
+> fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
+> loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
+> `haiku` dispatch. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias. Blocker resolution under that path never runs at the review-work

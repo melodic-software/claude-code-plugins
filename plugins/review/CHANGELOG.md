@@ -3,13 +3,70 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.10] - 2026-10-02
+## [0.35.1] - 2026-10-02
 
 ### Changed
 
 - **`/review:quality-gate`'s architecture follow-up places a small unrelated pattern fix by
   source-control's D4.6 scope test:** in this change only when it is in a file the change already
   touches, otherwise its own small PR with no tracker item.
+
+## [0.35.0] - 2026-10-02
+
+### Added
+
+- **`/review:fanout-sweep` workflow** (`workflows/fanout-sweep.js`): the run-everything leaf
+  fan-out as a saved workflow that takes `diffBase`, `slices`, `roles` and `maxConcurrent` through
+  `args` instead of text substitution. A missing or non-ref `diffBase` returns an error and
+  dispatches nothing. Slice agents take the verifier role's fan-out variant and the extractor the
+  retrieval role's single variant, from `/multi-agent:route` when the caller passes them, else
+  from built-in fallbacks (`opus` at `high` for slices, `sonnet` at `low` for extraction). Agents
+  run in waves of `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than
+  a cap or budget error is retried once.
+
+### Changed
+
+- **`fanout` run-everything mode launches the saved `review:fanout-sweep` workflow** instead of an
+  inline script. It passes the diff base, slices and wave cap through `args`, and the role map from
+  `/multi-agent:route` when that skill resolves; without it, the workflow's fallbacks apply and the
+  mode says once that enabling multi-agent makes routing configurable. When the reviewed change
+  touches the multi-agent team layer, the mode omits the role map too. `fanout` grants
+  `Workflow(review:fanout-sweep)` only, so no other workflow or inline script is pre-approved.
+
+## [0.34.13] - 2026-10-02
+
+### Changed
+
+- The synced escape helper (`lib/html-escape.mjs`) accepts `details` and `summary` elements, for
+  the education plugin's collapsed quiz answer key. The explainer page is unchanged.
+
+## [0.34.12] - 2026-10-02
+
+### Changed
+
+- **`code-reviewer`, `ci-log-auditor` and `doc-drift-detector` pin `model: opus`, up from
+  `sonnet`.** A judgment verdict is never on a weaker model than the work it checks. All five
+  verdict agents keep `effort: high` and carry a pin record pointing at the model-config `high` row
+  and the advisor capability rule, as of 2026-10-02, rechecked at the next model release.
+  `ecosystem-specialist` stays `sonnet` at `medium`: its build, test and lint commands are the
+  objective failure signal.
+
+## [0.34.11] - 2026-10-02
+
+### Fixed
+
+- `fanout` run-everything mode decides Workflow availability from the toolset alone and
+  points at the workflows page for the disable switches and resume rules. The main-thread
+  fallback no longer claims to lose concurrency, and the nesting-depth note carries an as-of date.
+
+## [0.34.10] - 2026-10-02
+
+### Changed
+
+- **Shared `html-escape.mjs` synced ([#5836](https://github.com/melodic-software/claude-code-plugins/issues/5836)); no change to this plugin's lib.**
+  `lib/html-escape.mjs` is now generated from the repository's `lib/html-escape.mjs` by
+  `scripts/sync-shared-copies.sh` and opens with a header saying so; edit the canonical, not this
+  copy.
 
 ## [0.34.9] - 2026-10-02
 
