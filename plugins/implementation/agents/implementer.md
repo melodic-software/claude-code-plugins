@@ -91,7 +91,8 @@ table marks `sonnet` goes to `implementation:scoped-implementer`, a separate age
 binding, never to this agent with a weaker `model`. A dispatching orchestrator passes a
 per-invocation `model` here only to route a phase **upward**, to the frontier tier's current alias
 for security-surface work classes, or to the session's own model when it resolves above this
-binding. It never hands source-editing work to a weaker model than this binding.
+binding and this is the only worker in flight. A concurrent wave under a frontier session runs at
+this binding (see `/implementation:implement-dispatch` Dispatch cadence step 2). It never hands source-editing work to a weaker model than this binding.
 
 `effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
 orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase

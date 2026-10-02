@@ -123,7 +123,9 @@ Because the orchestrator stays on the default branch, **every source-touching op
    only on a single, sequential dispatch: one security-surface or frontier-routed implementer at a
    time with its one verifier, and a single final verification. A phase that needs the frontier
    tier runs alone, as a wave of one; a security-surface row leaves its wave and runs alone rather
-   than dropping to `opus`, and it never raises the rest of the wave. This follows rule 2 of the
+   than dropping to `opus`, and it never raises the rest of the wave. Alone means no other
+   frontier-tier agent is in flight: frontier dispatches run one at a time, and the wave's `opus`
+   rows may run beside one. This follows rule 2 of the
    marketplace's `docs/plugin-philosophy.md` "Model tiers": a fan-out of independent items
    delegates to a cheaper worker model than the coordinator. For generic (unnamed-agent) dispatch
    routing and a configurable fan-out guard, invoke `/multi-agent:route` when that skill resolves

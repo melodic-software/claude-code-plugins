@@ -46,7 +46,9 @@ Frontmatter binds a floor-shaped default; it cannot follow a phase routed upward
 orchestrator ran a phase's implementer above this binding (the frontier tier for security-surface
 work, or a session model above it), it passes this verifier a per-invocation `model` at or above
 that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
-upward only.
+upward only. In a concurrent wave under a frontier session every implementer runs at `opus`, so
+this binding already meets the rule there (see `/implementation:implement-dispatch` Dispatch
+cadence step 2).
 
 `effort` is bound alongside the model, and for the same reason: it otherwise inherits the session's
 level, so an orchestrator that lowered effort for its own bookkeeping would silently lower it for

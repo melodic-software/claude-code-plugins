@@ -7,9 +7,10 @@ All notable changes to the `verification` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`confirm`'s report template has a `Verifier model` line.** It records the model passed to the
-  fresh-context verifier, or that the verifier was not matched to the producing model because that
-  model is unknown, which the skill already required the report to say.
+- **`confirm`'s report templates have a `Verifier model` line.** The outcome, fix and refactor
+  templates each record the model passed to the fresh-context verifier, or that the verifier was
+  not matched to the producing model because that model is unknown, which the skill already
+  required the report to say.
 
 ## [0.7.1] - 2026-10-02
 
