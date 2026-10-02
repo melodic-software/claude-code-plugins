@@ -140,7 +140,9 @@ skills and scripts.
   timeout is removed.
 - **Readiness is a load probe:** the component names the top-level modules to import (the
   distribution and import names differ, `opencv-python-headless` and `cv2`) and imports them with
-  the install on `PYTHONPATH`. A directory that is present but no longer loads is rebuilt.
+  the install as the only third-party path (`PYTHONPATH` set to it, `-S` so no ambient
+  `site-packages`), so an ambient copy never passes for the locked set. The launcher runs scripts
+  the same way. A directory that is present but no longer loads is rebuilt.
 - **Floor:** the component states its Python floor and the hook looks for an interpreter at or
   above it, so a host with an older Python gets Rule P4's notice, not a failed install.
 

@@ -58,13 +58,14 @@ def env_dir(data, requirements):
 
 
 def _env(packages):
-    path = os.environ.get('PYTHONPATH')
-    return {**os.environ, 'PYTHONPATH': os.pathsep.join([str(packages)] + ([path] if path else []))}
+    """The installed set is the only third-party path: with `-S` (no site-packages) and no inherited PYTHONPATH,
+    an ambient numpy or cv2 can neither satisfy the probe nor stand in for the locked set at run time."""
+    return {**os.environ, 'PYTHONPATH': str(packages)}
 
 
 def loads(packages, probe):
     """Readiness is a load probe: the packages must import, not merely be present."""
-    r = subprocess.run([sys.executable, '-c', 'import ' + ', '.join(probe)],
+    r = subprocess.run([sys.executable, '-S', '-c', 'import ' + ', '.join(probe)],
                        env=_env(packages), capture_output=True, text=True)
     return r.returncode == 0
 
@@ -135,11 +136,26 @@ def run(data, script_args, requirements=REQUIREMENTS):
                          'Start a new Claude Code session, whose SessionStart hook installs them, or run: '
                          f'{repair_line(data)}\n')
         return 2
-    return subprocess.run([sys.executable, *script_args], env=_env(target)).returncode
+    return subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
+
+
+def floor_interpreter():
+    """The interpreter the SessionStart hook installed under: the first of python3, python at the floor. A launcher
+    started by an older `python3` hands over to it, so both resolve the same <interpreter tag> directory."""
+    for name in ('python3', 'python'):
+        found = shutil.which(name)
+        if not found or (Path(found).stat().st_size == 0 and 'windowsapps' in found.lower()):
+            continue
+        floor = f'import sys; raise SystemExit(sys.version_info < {MIN_PYTHON})'
+        if subprocess.run([found, '-c', floor], capture_output=True).returncode == 0:
+            return found
+    return None
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if sys.version_info < MIN_PYTHON and (other := floor_interpreter()):
+        return subprocess.run([other, str(Path(__file__).resolve()), *argv]).returncode
     rest = argv[argv.index('--') + 1:] if '--' in argv else []
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('action', choices=('install', 'run'))

@@ -8,6 +8,7 @@ import base64
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -116,6 +117,17 @@ class OnDemandInstall(unittest.TestCase):
         r = self.pydeps('install', '--data-dir', str(self.data))
         self.assertEqual((r.returncode, r.stdout.strip()), (0, 'installed'), r.stderr)
 
+    def test_ambient_packages_do_not_satisfy_the_probe(self):
+        self.pydeps('install', '--data-dir', str(self.data))
+        (installed,) = (self.data / 'python').glob('*')
+        shutil.rmtree(installed / 'cv2')
+        ambient =self.tmp / 'ambient'
+        for name in ('numpy', 'cv2'):
+            (ambient / name).mkdir(parents=True)
+            (ambient / name / '__init__.py').write_text('', encoding='utf-8')
+        r = self.pydeps('install', '--data-dir', str(self.data), env={**self.env, 'PYTHONPATH': str(ambient)})
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, 'installed'), r.stderr)
+
     def test_run_never_installs(self):
         script = self.tmp / 'use.py'
         script.write_text('print("ran")\n', encoding='utf-8')
@@ -148,6 +160,23 @@ class DataDir(unittest.TestCase):
             finally:
                 for k, v in old.items():
                     os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+@unittest.skipUnless(os.name == 'posix', 'fake interpreters are shell scripts')
+class Launcher(unittest.TestCase):
+    def test_an_older_python3_hands_over_to_the_interpreter_the_hook_chose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
+            fake.mkdir()
+            (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
+            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -c ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
+            for f in fake.iterdir():
+                f.chmod(0o755)
+            code = 'import sys, pydeps; pydeps.MIN_PYTHON = (99, 0); sys.exit(pydeps.main(["run", "--", "x.py"]))'
+            env = {**os.environ, 'PATH': f'{fake}{os.pathsep}/usr/bin{os.pathsep}/bin'}
+            r = subprocess.run([sys.executable, '-c', code], cwd=HERE, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(log.read_text(encoding='utf-8').split(), [str(SCRIPT), 'run', '--', 'x.py'])
 
 
 class NoRuntimeFetch(unittest.TestCase):

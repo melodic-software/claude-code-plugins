@@ -12,7 +12,9 @@ All notable changes to the `animation` plugin are documented here. Format follow
   reports a failed install as a notice carrying the repair line. `scripts/pydeps.py` is the installer
   and the launcher; `test_pydeps.py` and `hooks/install-python-deps.test.sh` cover the first
   install, the no-op rerun and a failed install
-  ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)).
+  ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)). The probe and the
+  launcher see only the installed set (no ambient `site-packages`), and a launcher started by an
+  older `python3` hands over to the interpreter the hook installed under.
 
 ### Changed
 
