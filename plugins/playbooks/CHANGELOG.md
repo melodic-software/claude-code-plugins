@@ -51,6 +51,7 @@ only after that version increases.
   enforce are tabled with the layer that owns each.
 - The `opus-5-5` chapter runs every review pass at `medium` effort or above, per the effort floor.
   Its fallback section names no Claude Code control and points at the fallback sections for them.
+  The `opus-5` chapter's first review pass also runs at `medium` or above, per the same floor.
   The `opus-5-5` and `fable-5-1` effort guidance point at model-config's "Choose an effort level",
   with the Spending your effort post as a correlate. The `sonnet-5-5` chapter's CLAUDE.md link
   follows the docs site's new heading id, and `opus-5-5`'s scope-boldness trigger fires when a

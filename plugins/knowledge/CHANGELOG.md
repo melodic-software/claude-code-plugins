@@ -20,7 +20,8 @@ only after that version increases.
 - **`docpage-digest` gains a claude.dev blog extractor and a pin-manifest script**, each with a
   fixture-driven test suite. The extractor emits table separator rows, drops code-widget and
   video-control labels, and never opens a code fence with a blank line; a paragraph inside a
-  list item keeps its bullet, and one inside a table cell stays in the cell. The pin manifest's
+  list item keeps its bullet, one inside a table cell stays in the cell, and a table inside a list
+item stays indented under it. The pin manifest's
   `--check` reports a deleted file as `BLOCKED: missing`, even when its whole category is gone.
 - **`docpage-digest` pipeline fixes.** The work root resolves against the session's worktree (the
   `library_dir` description says so); the platform docs corpus is searched before a claim is

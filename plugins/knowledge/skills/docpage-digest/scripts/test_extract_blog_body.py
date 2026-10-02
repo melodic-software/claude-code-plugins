@@ -59,6 +59,13 @@ class TestExtractBlogBody(unittest.TestCase):
         self.assertIn("  Skip watering after rain.", self.lines[first + 1 :])
         self.assertIn("- Log every reading.", self.lines)
 
+    def test_table_inside_a_list_item_stays_in_the_item(self):
+        first = self.lines.index("1. Record the reading.")
+        self.assertEqual(
+            [line for line in self.lines[first + 1 :] if line][:4],
+            ["   | Hour | Reading |", "   |---|---|", "   | 9am | 22% |", "2. Repeat hourly."],
+        )
+
     def test_no_widget_or_video_label_text(self):
         for label in WIDGET_LABELS:
             with self.subTest(label=label):

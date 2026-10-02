@@ -106,7 +106,7 @@ class BodyExtractor(HTMLParser):
             self.href = a.get("href")
             self.buf.append("[")
         if tag == "table":
-            self.flush()
+            self.flush_item()
             self.table = []
         if tag == "tr":
             self.cells = []
@@ -157,7 +157,16 @@ class BodyExtractor(HTMLParser):
             self.cells = None
         if tag == "table" and self.table is not None:
             if self.table:
-                self.blocks.append("\n".join(self.table))
+                if self.lists:
+                    # A table inside a list item stays in the item: the first row takes the
+                    # item's pending prefix, every later row its continuation indent.
+                    entry = self.lists[-1]
+                    indent = " " * len(entry[2])
+                    rows = [entry[2] + self.table[0], *(indent + row for row in self.table[1:])]
+                    entry[2] = indent
+                else:
+                    rows = self.table
+                self.blocks.append("\n".join(rows))
             self.table = None
         if tag in HEADINGS:
             self.flush("#" * int(tag[1]) + " ")

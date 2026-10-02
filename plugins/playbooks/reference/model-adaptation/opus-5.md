@@ -95,12 +95,15 @@ stays on the live page. `[CC: direct]`
 ## Review findings
 
 Report everything; filtering and ranking are a separate pass. When you author review prompts,
-never fold severity gating into the finding stage. `[CC: prompt-authoring]` A fast, low-effort
-review pass is a legitimate first pass. `[CC: direct]`
+never fold severity gating into the finding stage. `[CC: prompt-authoring]` A fast first review
+pass is legitimate, run at `medium` effort or above per this repository's effort floor.
+`[CC: direct]`
 
 - **Pointer**: for code review, see
-  [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements).
-- **As of**: 2026-08-08
+  [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements);
+  for the effort floor, see
+  [Effort floor](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-floor).
+- **As of**: 2026-08-08 for the guide; 2026-10-02 for the effort floor
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Delegation

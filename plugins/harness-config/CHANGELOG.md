@@ -15,7 +15,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   interactive session without a condition.
 - **`audit-prompting-postures` P12, P13 and P14** and an `ideating` purpose: no self-started steps
   after the run's end at `xhigh` or `max`, a runnable check behind a done claim, and ideas first on
-  an open-ended request, each stated as a check over the component's own text.
+  an open-ended request, each stated as a check over the component's own text. P12 alone carries
+  the Sonnet 5.5 model condition; the catalog no longer says every row citing that subpage is
+  model-neutral.
 - **The `audit` checklist flags a code-changing or verifying component pinned below `medium`**,
   the marketplace effort floor.
 

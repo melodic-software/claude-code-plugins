@@ -66,10 +66,8 @@ carries the Sonnet 5.5 condition.
 
 A row that names the "Sonnet 5.5 subpage" means
 <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>.
-It is fetched lazily, like the other subpages. The behaviors its cited headings address (a stop
-rule that names when to ask, scope held to the request, a real check before "done") are
-model-neutral, so proposals citing it carry no model condition. Verified 2026-10-01 against the
-subpage's raw `.md` (27,412 bytes); recheck when a cited heading disappears.
+It is fetched lazily, like the other subpages. Which of its rows carry a model condition is stated
+above: only P12.
 
 ## Purpose classification vocabulary
 
