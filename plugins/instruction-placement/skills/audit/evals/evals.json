@@ -84,11 +84,12 @@
     {
       "id": 7,
       "name": "content-in-claude-md-gets-migrate-advisory",
-      "prompt": "/instruction-placement:audit — this is our root CLAUDE.md and there is no AGENTS.md. Should we just delete the CLAUDE.md and use AGENTS.md instead?",
+      "prompt": "/instruction-placement:audit — this is our root CLAUDE.md, we also track a copy of it as .claude/CLAUDE.md, and there is no AGENTS.md. Should we just delete the CLAUDE.md and use AGENTS.md instead?",
       "files": ["evals/fixtures/content-in-claude.md"],
-      "expected_output": "Reports a content-home advisory for the root CLAUDE.md, since it holds project instructions rather than the single line `@AGENTS.md`, and points to `/instruction-placement:migrate plan` for the move. It says the CLAUDE.md stays as the one-line `@AGENTS.md` shim and that migrate's `cutover-check` decides when shims can come out, so it does not recommend deleting the file. It notes that the Claude-specific hooks section belongs in `.claude/rules/<topic>.md` with a `paths:` glob per migrate's routing. The advisory carries no finding_id or status, and the audit still runs its demote lane over the file's sections.",
+      "expected_output": "Reports a content-home advisory for the root CLAUDE.md, since it holds project instructions rather than the single line `@AGENTS.md`, and points to `/instruction-placement:migrate plan` for the move. The .claude/CLAUDE.md gets no advisory, since migrate's plan emits no DIR row for it. It says the CLAUDE.md stays as the one-line `@AGENTS.md` shim and that migrate's `cutover-check` decides when shims can come out, so it does not recommend deleting the file. It notes that the Claude-specific hooks section belongs in `.claude/rules/<topic>.md` with a `paths:` glob per migrate's routing. The advisory carries no finding_id or status, and the audit still runs its demote lane over the file's sections.",
       "expectations": [
-        "Reports a content-home advisory for the CLAUDE.md that names `/instruction-placement:migrate plan`",
+        "Reports a content-home advisory for the root CLAUDE.md that names `/instruction-placement:migrate plan`",
+        "Gives the .claude/CLAUDE.md no content-home advisory, because migrate's plan emits no DIR row for it",
         "Does not recommend deleting the CLAUDE.md or removing a shim, and says the `@AGENTS.md` shim stays",
         "Names migrate's `cutover-check` as what decides shim removal",
         "Routes the Claude-specific hooks section to `.claude/rules/` with a `paths:` glob",

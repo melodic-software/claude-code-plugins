@@ -8,7 +8,8 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 ### Added
 
 - **`/instruction-placement:audit` reports a content-home advisory.** For each tracked `CLAUDE.md`
-  or `.claude/CLAUDE.md` whose content is anything other than `@AGENTS.md`, it points to
+  that migrate's plan covers (never `.claude/CLAUDE.md`, which the plan skips) whose content is
+  anything other than `@AGENTS.md`, it points to
   `/instruction-placement:migrate plan`, keeps the `CLAUDE.md` as the `@AGENTS.md` shim, leaves
   shim removal to migrate's `cutover-check`, and routes Claude-specific text to `.claude/rules/`
   with a `paths:` glob. The advisory has no `finding_id` or status and lands in a new advisory

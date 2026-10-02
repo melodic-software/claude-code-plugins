@@ -163,9 +163,11 @@ what is swept, and the detector's coverage numbers keep counting every file it r
 ## The content-home advisory
 
 The two lanes judge sections. One question is about a whole file: whether a `CLAUDE.md` should be
-the content home at all. For each `FILE` record of a tracked `CLAUDE.md` or `.claude/CLAUDE.md`,
-root or nested, whose content is anything other than the single line `@AGENTS.md`, report one
-advisory:
+the content home at all. For each `FILE` record of a tracked file named `CLAUDE.md` in a directory
+migrate's plan covers (outside the trees `IP_EXCLUDED_TREES` in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/discover.sh` names,
+`.claude/` among them), whose content is anything other than the single line `@AGENTS.md`, report
+one advisory. `.claude/CLAUDE.md` never gets one: `plan-migration.sh` emits no `DIR` row for it,
+and a shim there would import `../AGENTS.md`.
 
 > `<path>` holds project instructions that could live in `AGENTS.md`, where other coding agents
 > read them too. Plan the move with `/instruction-placement:migrate plan`. Keep the `CLAUDE.md` as

@@ -2153,11 +2153,18 @@ No check id, no severity, no Finding ID, no diff. Where the memory layer's conte
 model-era question, so this is a routing note in the report's Routing subsection, never a row in the
 findings table, and never relayed by `--persist-findings`.
 
-- **Fires** under scope `all` or `claude-md`, once per tracked project `CLAUDE.md` or
-  `.claude/CLAUDE.md`, root or nested, whose content is anything other than the single line
-  `@AGENTS.md`. Phase A's records already hold the file. `CLAUDE.local.md` and the user-scope
-  `CLAUDE.md` never fire: neither is a shared project file with an `AGENTS.md` counterpart. An
-  upstream-owned or synced file routes to its owner per the Scope boundary instead.
+- **Fires** under scope `all` or `claude-md`, once per tracked project file named `CLAUDE.md`,
+  root or nested, outside any `.claude/`, `node_modules/`, `vendor/` or `.git/` tree, whose content
+  is anything other than the single line `@AGENTS.md`. Those are the files migrate's plan covers.
+  Phase A's records already hold the file. `.claude/CLAUDE.md` never fires: migrate does not plan
+  it, and a shim there would import `../AGENTS.md`, not `@AGENTS.md`. `CLAUDE.local.md` and the
+  user-scope `CLAUDE.md` never fire either: neither is a shared project file with an `AGENTS.md`
+  counterpart. An upstream-owned or synced file routes to its owner per the Scope boundary instead.
+  **Claim:** migrate's plan skips every path under those four trees. **Basis:**
+  `instruction_dirs()` in `skills/migrate/scripts/plan-migration.sh` and `IP_EXCLUDED_TREES` in
+  `scripts/lib/discover.sh`, both in the `instruction-placement` plugin. **As of:** 2026-10-01,
+  instruction-placement 0.17.0. **Recheck:** when that plugin's CHANGELOG says migrate plans a new
+  location.
 - **Says**, per file:
 
   > `<path>` holds project instructions that could live in `AGENTS.md`, where other coding agents

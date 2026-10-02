@@ -174,8 +174,8 @@ Nothing in this section is actionable by `realign`. It has no code path that can
 
 ## Advisory section
 
-The audit's content-home advisories, one line per `CLAUDE.md` whose content is anything other than
-`@AGENTS.md`, each carrying its path and the advisory text the audit skill defines. Like the
+The audit's content-home advisories, one line per `CLAUDE.md` the audit skill's firing condition
+selects, each carrying its path and the advisory text that skill defines. Like the
 held-back section, nothing here is actionable by `realign`: an advisory has no `finding_id`, no
 `Status`, and no suppression entry. A re-run rewrites the section from the current sweep.
 
