@@ -3,12 +3,122 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.11] - 2026-10-01
+## [0.18.4] - 2026-10-01
 
 ### Fixed
 
 - `render-index.sh` no longer indexes rules or nested instruction files inside an `evals/fixtures/` tree. Those trees imitate a consuming repository as test input, and their rows were reaching this repository's always-loaded `AGENTS.md` index.
 - `glob-tools.sh rules` (the `/instruction-placement:check` glob gate) no longer checks rules inside an `evals/fixtures/` tree, so a fixture rule whose globs name the fixture's files no longer fails the gate as a zero match. The exclusion lives in the shared discovery layer (`lib/discover.sh`), so the index, the glob gate, `detect.sh` and the wiring gate apply one filter.
+
+## [0.18.3] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` prints the shim-cost record by its new labels.** The price of removal is the
+  decision paragraph directly above the record's `Pointer` line plus the pointer itself, stopping
+  before the as-of line, in place of the old claim-to-basis span. A new test fixture pins that
+  output.
+- **The `migrate` sources and verification references, the `check` and `setup` skills, the README
+  and `verified-mechanics.md` hold decisions plus pointers.** Each record states our decision in our
+  words and points at the exact documentation section, an as-of date and a recheck trigger, with
+  no upstream text. `cutover-check.sh` names the same pointer-record shape in its comments and
+  usage.
+- `migrate`'s prose-shim gotcha states the plan's action in our words and points at the memory
+  page's workaround section.
+
+## [0.18.2] - 2026-10-02
+
+### Changed
+
+- **`remove-shims.sh` names the shim-doctrine floor by the current plugin id, `harness-memory`,
+  only.**
+
+## [0.18.1] - 2026-10-02
+
+### Fixed
+
+- The `realign` shim recipe and `render-index.sh` no longer list hooks settings among the reasons
+  `AGENTS.md` is unread, and date the provider and telemetry gap to versions before 2.1.281.
+- `migrate`'s record of the built-in `agents-md` plugin notes the legacy `projectInstructions`
+  key, which still sets the mode while `instructionFiles` is at its default.
+
+## [0.18.0] - 2026-10-02
+
+### Added
+
+- **`/instruction-placement:migrate` decides shim removal against the built-in `AGENTS.md`
+  loader.** A new step before `remove-shims`, detailed in `reference/shim-droppable.md`,
+  recommends dropping the `@AGENTS.md` shim only when six conditions hold: no `CLAUDE.md`,
+  `.claude/CLAUDE.md` or `CLAUDE.local.md` takes precedence at or above the working directory or in
+  a nested `AGENTS.md` directory; this machine's **Project instructions** mode reads `AGENTS.md`
+  without a `CLAUDE.md`; the built-in `agents-md` plugin is present and not disabled, read at run
+  time from `/harness-ops:inventory` and settings; the operator confirms no other user, organization,
+  session type or surface (Agent SDK, cloud, `claude-code-action`) needs the shim; no `AGENTS.md`
+  imports a file outside the working directory; and no hook depends on `InstructionsLoaded` for
+  the load. Unknown counts as failed and keeps the shim. Nested shims stay under every mode where
+  the memory page does not say when a subdirectory's `AGENTS.md` loads. Nothing is removed
+  automatically; the dated quotes are in `reference/sources.md`. Precedence is checked by walking
+  every ancestor directory to the filesystem root, and the `InstructionsLoaded` check covers user,
+  managed, `--settings` and installed-plugin hooks, not only the repository's, plus plugins loaded
+  with `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or from `~/.claude/skills/`. The
+  external-import check walks the whole `@` import graph to the four-hop limit with the plugin's
+  own `discover.sh` model, and a closing operator question catches any loading path not listed.
+  User settings and plugins are read under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` and
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR` rather than a fixed `~/.claude`, and the operator is asked whether
+  contributors set either, a question that also covers condition A's user `CLAUDE.md`. Under
+  `disableAllHooks` or `allowManagedHooksOnly`, the loader counts as present only on v2.1.287 or
+  later, where built-in mods are verified to keep running.
+
+### Fixed
+
+- **An unimported nested `AGENTS.md` is no longer said to load under
+  `claude-md-and-agents-md`.** The memory page does not say when a subdirectory's `AGENTS.md`
+  loads under that value, so `UNWIRED` stays a finding there; the migrate skill body and the
+  `render-index.sh` comment now say so.
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- The `migrate` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **`/instruction-placement:audit` reports a content-home advisory.** For each tracked `CLAUDE.md`
+  that migrate's plan covers (never `.claude/CLAUDE.md`, which the plan skips) whose content is
+  anything other than `@AGENTS.md`, it points to
+  `/instruction-placement:migrate plan`, keeps the `CLAUDE.md` as the `@AGENTS.md` shim, leaves
+  shim removal to migrate's `cutover-check`, and routes Claude-specific text to `.claude/rules/`
+  with a `paths:` glob. The advisory has no `finding_id` or status and lands in a new advisory
+  section of the findings artifact, which `realign` does not act on. `## Next` names the migrate
+  skill beside `realign`.
+
+## [0.16.12] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.16.11] - 2026-10-01
+
+### Added
+
+- **`/instruction-placement:migrate` names the built-in `cc-plugin-agents-md` plugin it works
+  beside.** A `## Boundary` section separates the plugin, which loads `AGENTS.md` as project
+  instructions, from this skill, which moves content into `AGENTS.md` and decides about the shim.
+  The dated record is in `reference/sources.md`.
+
+## [0.16.10] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.16.9] - 2026-10-01
 

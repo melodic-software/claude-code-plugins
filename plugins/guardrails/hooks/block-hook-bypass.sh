@@ -559,13 +559,6 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # the identical Write stayed blocked, which is the same content-guard bypass this
 # plugin's MCP lane exists to close.
 #
-# The tension is real and is NOT resolved here: docs/conventions/topic-docs/
-# states as normative that raw output — explicitly including credentials — stays
-# in the memory tier, which reads as an argument for exempting it from secret
-# scanning too. Making the two guards symmetric that way is a widening of a
-# default-on security guard, and ADR 0003 wants firing evidence before one of
-# those moves. Filed rather than decided.
-#
 # The consequence is that `printf '*' >> .work/.gitignore` still blocks because the
 # memory tier is not exempt; write that file with Write, which the content guards
 # scan.

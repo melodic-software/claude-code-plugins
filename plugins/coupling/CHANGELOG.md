@@ -3,6 +3,19 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3] - 2026-10-02
+
+### Fixed
+
+- The `reduce` `argument-hint` uses Claude Code's official bracket notation: it keeps alternatives
+  inside brackets with an unspaced `|`.
+
+## [0.3.2] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
 ## [0.3.1] - 2026-09-28
 
 ### Changed

@@ -5,8 +5,8 @@ Record for
 
 ## Decision
 
-The profile is built as the `claude-ops` `machine-profile` skill:
-[machine-profile-design](../specs/machine-profile-design.md), placed by
+The profile is built as the `harness-ops` `machine-profile` skill:
+[machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md), placed by
 [ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md). Two options for it are
 declined:
 
@@ -21,7 +21,7 @@ declined:
 
 - Every setup skill is model-hidden, so the profile cannot drive them directly.
 - Changing the setup contract or the invocation-mode class is a fleet change across every `setup`
-  skill, not a `claude-ops` slice.
+  skill, not a `harness-ops` slice.
 - Per-plugin setup owns prerequisite logic and versions with the plugin; the profile reads host
   facts and does not absorb that logic.
 

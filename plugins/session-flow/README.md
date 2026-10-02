@@ -216,8 +216,8 @@ adds a 2-3 line subjective-state note (the one signal disk cannot hold), then de
 to a fresh subagent that runs `retro`'s parser, selectively reads the flagged transcript spans, and
 classifies each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill
 change / new-skill candidate / tracker issue). Findings append to a cumulative running ledger, one
-stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default via
-`reference/topic-docs.md`). It captures and routes only: codification stays with `retro codify`,
+stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default).
+It captures and routes only: codification stays with `retro codify`,
 tracker filing is offered not automatic, the session is never scored, and it is non-terminating
 (unlike `handoff`, it does not `/clear`). Composes with `/loop` for periodic checkpoints.
 
@@ -243,8 +243,7 @@ boundary, and the deferred native Observer-Agents alternative are documented in
 A read-only orientation briefing: *where do we stand, what are we doing, and why.* Unlike the
 built-in `/recap` (which summarizes the conversation only and auto-fires on an idle terminal),
 `orient` also reads the durable, off-thread state a conversation does not hold: handoff
-save-points, the workflow checklist, running-retro ledgers (resolved through
-`reference/topic-docs.md`), plus git state, open PRs, and open work-items, and synthesizes a
+save-points, the workflow checklist, running-retro ledgers, plus git state, open PRs, and open work-items, and synthesizes a
 goal/why, where-we-stand, decisions-made, and direction briefing. A skill cannot invoke the built-in
 `/recap`, so it synthesizes the conversation summary inline and adds the durable layer on top. It is
 strictly read-only: it writes nothing and routes rather than acts. Freshness verification to
@@ -315,7 +314,7 @@ complete remainder by bare name with an explicit count, so nothing is off-screen
 Its contract is two rules: **never omit a candidate's name**, and **never invent one**. A skill the
 evidence says already ran is ranked normally and annotated `(ran this session)`, the model's judgment
 reaches rank and annotations, never presence. Candidates resolve from the full installed catalog
-(`/claude-ops:inventory` when installed, else a project-supplied catalog, else the in-context listing
+(`/harness-ops:inventory` when installed, else a project-supplied catalog, else the in-context listing
 *with its truncation disclosed*), because that listing omits every manual-only skill and drops
 descriptions starting with the least-invoked ones, the very skills worth surfacing. Durable state is
 the primary signal; it builds no probe of its own and routes to `orient` for that.
@@ -371,11 +370,9 @@ The skills adapt to the consuming repo rather than imposing structure:
 - **Stage skills**. `workflow` routes to the repo's own stage skills when they exist; every stage
   degrades gracefully to inline execution.
 - **Artifact location**. `handoff` and `workflow` honor a repo-documented convention for
-  save-points/work journals (the `.claude/topic-docs.yaml` concern file, or the repo's `CLAUDE.md`
-  / rules); the defaults are `.work/handoffs/` for handoff save-points and
-  `.work/<slug>/workflow-checklist.md` for the per-topic workflow checklist, memory tier per the
-  marketplace topic-docs convention, self-ignoring and never committed
-  (`reference/topic-docs.md`).
+  save-points/work journals (the repo's `CLAUDE.md` / rules); the defaults are `.work/handoffs/`
+  for handoff save-points and `.work/<slug>/workflow-checklist.md` for the per-topic workflow
+  checklist, memory tier, self-ignoring and never committed.
 - **Quality gates and conventions**. Build/test/lint commands, review criteria, and codification
   targets all come from the consuming repo's own instruction files.
 

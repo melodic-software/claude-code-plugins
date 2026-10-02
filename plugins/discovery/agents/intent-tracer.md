@@ -46,8 +46,8 @@ load-time machinery, no user turn, no unresolved target.
   arrive in this prompt is a missing target, not an empty one. What is and is not documented about
   that path:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-- **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent
-  against the consuming repo's topic-docs binding).
+- **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent per
+  the lifecycle artifact protocol).
 - **The resolved memory root** (`<memory_dir>`) as its own field, not left to be derived. When the
   slice path is nested, as a sub-slice for a collision, you cannot tell from the path alone which
   ancestor is the configured root, and the root is where the self-ignoring `.gitignore` guard
@@ -144,12 +144,12 @@ in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/
 ("Credentials stay unread, stated once"). Read it there rather than a restatement here.
 
 **Your write destinations are the plugin's single write boundary, stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("The write boundary, stated once"): the artifact files inside the memory-slice path named in your
 dispatch prompt, `scratch-`-prefixed working files inside that same slice, and the memory root's
 self-ignoring `.gitignore` guard when it is absent.** Read that table rather than a restatement of
 it; three restatements is how it drifted. You delete any scratch you created before you return. You
-do not modify repository source, do not write the contract tier, and do not write artifacts outside
+do not modify repository source, and do not write artifacts outside
 the slice.
 
 **That boundary is held by instruction and by nothing else. Honor it deliberately.** No frontmatter
@@ -368,8 +368,8 @@ truncated run, and calling it one routes the parent to discard work that is comp
   make about your own run is still not evidence.
 
   Rationale for the mode, and the boundary it sits on:
-  [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
-  ("The contract's by-value boundary is the checkout, not the process").
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+  ("Persistence by value").
 
 **`verification: pending` is non-negotiable.** The parent dispatches the verifier as your sibling.
 

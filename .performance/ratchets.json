@@ -8,8 +8,8 @@
       "goal": "The Bash PreToolUse guard row spends at most this many external processes judging a git commit with no convention cache (plugins/guardrails/hooks/hooks.json, block-convention-violation.sh)."
     },
     {
-      "name": "claude-ops-stop-hook-failure-audit-growth",
-      "command": "bash scripts/hook-census.sh claude-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
+      "name": "harness-ops-stop-hook-failure-audit-growth",
+      "command": "bash scripts/hook-census.sh harness-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",
       "ceiling": 0,
       "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408). Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, strace 6.8; the ratchet step prints the current versions."
@@ -22,29 +22,29 @@
       "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422). Measured on ubuntu-24.04 with bash 5.2.21, python3 3.14.7, strace 6.8; the ratchet step prints the current versions."
     },
     {
-      "name": "claude-ops-stop-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh claude-ops Stop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "name": "harness-ops-stop-session-event-log-spawns",
+      "command": "bash scripts/hook-census.sh harness-ops Stop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the Stop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
     },
     {
-      "name": "claude-ops-posttoolbatch-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh claude-ops PostToolBatch session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "name": "harness-ops-posttoolbatch-session-event-log-spawns",
+      "command": "bash scripts/hook-census.sh harness-ops PostToolBatch session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the PostToolBatch row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
     },
     {
-      "name": "claude-ops-subagentstop-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh claude-ops SubagentStop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"SubagentStop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "name": "harness-ops-subagentstop-session-event-log-spawns",
+      "command": "bash scripts/hook-census.sh harness-ops SubagentStop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"SubagentStop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the SubagentStop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
     },
     {
-      "name": "claude-ops-userpromptsubmit-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh claude-ops UserPromptSubmit session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "name": "harness-ops-userpromptsubmit-session-event-log-spawns",
+      "command": "bash scripts/hook-census.sh harness-ops UserPromptSubmit session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the UserPromptSubmit row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."

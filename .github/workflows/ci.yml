@@ -305,7 +305,7 @@ jobs:
   # report an honest evaluated-and-not-applicable success. ShellCheck, exec-bit,
   # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
   # whole repository, and a shell/shebang/hook file added under an otherwise
-  # docs-only prefix like docs/topics/ is real input they must still catch, as
+  # docs-only prefix is real input they must still catch, as
   # is a docs-only diff that reintroduces an em dash on a purged surface.
   #
   # The job NEVER skips — only steps are gated. A skipped required lane's
@@ -406,8 +406,8 @@ jobs:
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
       # `run_shell`, and `run_shell` carries the docs-only term: a pull request
-      # whose only change is a shell script under a docs-only prefix such as
-      # `docs/topics/` resolves docs-only, and the gate would skip ShellCheck on
+      # whose only change is a shell script under a docs-only prefix
+      # resolves docs-only, and the gate would skip ShellCheck on
       # the very file it should read while the aggregator override recorded that
       # skip as success. So the step always runs and lets the composite decide.
       - name: Select the changed shell scripts
@@ -542,10 +542,10 @@ jobs:
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
             :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
-            :(exclude)plugins/claude-config/skills/audit-permission-state/reference/criteria.md
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/reference/criteria.md
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
             :(exclude)plugins/source-control/scripts/worktree-create.test.sh
 
       - name: Check index-level EOL drift
@@ -865,7 +865,7 @@ jobs:
       # failed launch is a NON-BLOCKING error, so a PreToolUse guard wired this
       # way silently enforces nothing. This class has shipped three times in
       # disk-hygiene alone (#1006 fixed it, #1504 reintroduced it, #2570 fixed
-      # it again) while the claude-config audit checklist carried it as an
+      # it again) while the harness-config audit checklist carried it as an
       # `error` row the whole time — a checklist a human reads is not a gate.
       # Self-test first so a broken detector cannot mask a regression.
       - name: Test the hook-exec-form gate
@@ -1244,35 +1244,6 @@ jobs:
           fi
           scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
-      # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
-      # docs/conventions/topic-docs/README.md — committed on a task branch
-      # only, pruned before merge. The convention specified this required check
-      # but it was never wired, so 17 slices reached main (#1417). The gate keys
-      # on where a path LANDS, so the prune commit itself and a
-      # history-preserving graduation out of docs/topics/ both pass. The
-      # pre-existing 17 are grandfathered by slug in
-      # scripts/contract-slice-baseline.txt with a stale guard, and burn down
-      # under #1419. The self-test runs first so a broken gate cannot mask a
-      # regression.
-      - name: Test the contract-slice prune gate
-        if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-contract-slice-prune.test.sh
-      - name: Verify no baseline entry outlives its slice
-        id: contract_slice_check
-        continue-on-error: true
-        run: scripts/check-contract-slice-prune.sh --check
-      - name: Verify the change set prunes its contract slice
-        id: contract_slice_diff
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
-
       # The review-disposition-and-resolution contract is canonical in ONE file
       # and restated across half a dozen others; nothing checked that the
       # copies agreed. #1633 shipped seven such defects across five review
@@ -1599,8 +1570,6 @@ jobs:
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            contract-slice-prune=${{ steps.contract_slice_check.outcome }}
-            contract-slice-diff=${{ steps.contract_slice_diff.outcome }}
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
@@ -1716,6 +1685,7 @@ jobs:
             plugins/ai-briefing/skills/generate/output/build/package-lock.json
             plugins/knowledge/skills/video-digest/extraction/package-lock.json
             plugins/knowledge/skills/course-digest/extraction/package-lock.json
+            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         if: needs.changes.outputs.run_tests == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -1770,7 +1740,12 @@ jobs:
             --requirement .github/requirements-ci-animation.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      # The claude-ops observability suites (prune-otel-store, hook-latency) query
+          # The inventory's parser packages, installed the way a first
+          # --reader=parser run installs them (npm ci from the committed
+          # lockfile, here into the checkout's .work/), so test_fixture_parse.py
+          # and test_parser_reader.py run instead of skipping.
+          python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
+      # The harness-ops observability suites (prune-otel-store, hook-latency) query
       # fixture stores with the DuckDB CLI and skip those cases without it.
       - name: Install DuckDB CLI
         if: needs.changes.outputs.run_tests == 'true'
@@ -1835,6 +1810,8 @@ jobs:
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
           # The animation suites fail on a missing numpy or opencv here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
+          # The inventory parser suites fail on a missing acorn here instead of skipping green.
+          INVENTORY_REQUIRE_ACORN: '1'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
@@ -1991,6 +1968,13 @@ jobs:
         run: |
           [ "$LEG" = 1 ] || exit 0
           bash scripts/validate-plugin-contracts.test.sh
+      # validate-plugins.sh calls test-plugin-mods.sh, whose skip paths (no
+      # mod, no claude, a CLI older than mods) are what keep it green here.
+      - name: Run mod-test runner tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 1 ] || exit 0
+          bash scripts/test-plugin-mods.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.changes.outputs.run_tests == 'true'
         # validate-plugins.sh runs scripts/validate-plugin-contracts.mjs, whose
@@ -2089,7 +2073,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/managed-scope.test.sh
+          bash plugins/harness-config/lib/managed-scope.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2111,7 +2095,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/state-key.test.sh
+          bash plugins/harness-config/lib/state-key.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2133,7 +2117,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-ops/lib/spawn_noise.test.sh
+          bash plugins/harness-ops/lib/spawn_noise.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2155,7 +2139,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/check-retirements.test.sh
+          bash plugins/harness-config/lib/check-retirements.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2274,7 +2258,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/resolve-convention-home.test.sh
+          bash plugins/harness-config/lib/resolve-convention-home.test.sh
       - name: Run the plugin-quality pilot consumer-repo sim
         if: needs.changes.outputs.run_tests == 'true'
         run: |

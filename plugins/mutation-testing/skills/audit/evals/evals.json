@@ -52,7 +52,7 @@
     {
       "id": 9,
       "prompt": "Run mutation testing on my changes and leave the findings somewhere the fix pass can pick them up.",
-      "expected_output": "Recognizes this as the --persist-findings path and runs Phase 6 after reporting. Reads the detector-findings producer contract at its raw-URL citation before the first write rather than inventing the destination. Resolves the findings location by running the whole rung order, not only the documented default, and runs the self-ignore guard on the RESOLVED memory root -- where a checkout governs that root -- without ever editing the consumer's root .gitignore, and does not run it at all where no checkout governs the destination -- where a RESOLVED ROOT has no governing checkout it writes nothing at all, neither the guard's `.gitignore` nor the findings file, reporting the resolved destination instead; the contract's `${CLAUDE_PLUGIN_DATA}` fallback is the one destination still written there, being outside every checkout by construction. Otherwise writes exactly one file named `<UTC-basic-timestamp>-mutation-survivors.md`, and when that path already exists writes `-2`, then `-3`, taking the smallest free integer >= 2 rather than overwriting. Sets frontmatter `branch:` to `git branch --show-current` verbatim rather than the directory slug. Emits `Location` as a repo-relative `file:line` for the mutated line, `Surface(s)` as `mutation-testing:audit`, and escapes literal pipes in the `Finding` and `Action` cells because mutation fragments carry them. Names the covering test file inside `Action` and states that the remediation site is NOT the row's `Location` -- a mutation finding's fix lands in the test, not at the mutated node, and a consumer that fences each fix to `Location` would otherwise have to guess the target or breach its own fence. Does not restate the findings-file table anywhere.",
+      "expected_output": "Recognizes this as the --persist-findings path and runs Phase 6 after reporting. Reads the detector-findings producer contract at its raw-URL citation before the first write rather than inventing the destination. Composes the findings location from the memory root (`<memory_dir>/reviews/<branch-slug>/`), not a hardcoded path, and runs the self-ignore guard on the RESOLVED memory root -- where a checkout governs that root -- without ever editing the consumer's root .gitignore, and does not run it at all where no checkout governs the destination -- where a RESOLVED ROOT has no governing checkout it writes nothing at all, neither the guard's `.gitignore` nor the findings file, reporting the resolved destination instead. Otherwise writes exactly one file named `<UTC-basic-timestamp>-mutation-survivors.md`, and when that path already exists writes `-2`, then `-3`, taking the smallest free integer >= 2 rather than overwriting. Sets frontmatter `branch:` to `git branch --show-current` verbatim rather than the directory slug. Emits `Location` as a repo-relative `file:line` for the mutated line, `Surface(s)` as `mutation-testing:audit`, and escapes literal pipes in the `Finding` and `Action` cells because mutation fragments carry them. Names the covering test file inside `Action` and states that the remediation site is NOT the row's `Location` -- a mutation finding's fix lands in the test, not at the mutated node, and a consumer that fences each fix to `Location` would otherwise have to guess the target or breach its own fence. Does not restate the findings-file table anywhere.",
       "files": []
     },
     {
@@ -76,7 +76,7 @@
     {
       "id": 13,
       "prompt": "Our memory_dir points at a shared directory outside this worktree. Will --persist-findings write there?",
-      "expected_output": "Yes, once EACH write the phase makes -- the findings file, and the self-ignore guard's `.gitignore` where a governing checkout was found -- is proven outside tracked space before THAT write is made (per-write, not both up front, since on a fresh root the guard's file is what makes the findings file's probe pass). Where NO governing checkout is found, the guard does not run at all and the findings file is the only write: there is no repository to keep it out of, and the guard's create-when-absent rule could otherwise land on a `.gitignore` absent from disk but tracked in an undiscovered checkout, modifying committed content with the tracked-file check never having run. Makes the resolved root physical first via `pwd -P` from its nearest existing ancestor, so a symlinked ancestor cannot hide a checkout. Then resolves the governing checkout from TWO signals that must BOTH come back empty before the permissive branch: a walk of that physical path's ancestors for a `.git` entry using `test -e` (not `-d`, since a worktree's `.git` is a file), AND `git rev-parse --show-toplevel` run under the AMBIENT environment. Neither alone: rev-parse cannot distinguish no-repository from a missing directory, a dangling gitdir, or a discovery limit such as GIT_CEILING_DIRECTORIES -- all exit 128 -- while the walk cannot see a working tree designated by GIT_WORK_TREE or GIT_DIR. Names `core.worktree` as a topology defeating both signals, and says that where BOTH signals come back empty the run writes NOTHING at a resolved root -- not the guard's `.gitignore`, not the findings file -- reporting the resolved destination and stopping. Gives the reason the findings file is withheld too: its destination may be an index-tracked DELETION in the checkout the detection missed, where writing modifies a tracked file rather than creating an untracked one, so 'it lands untracked' is not universally true. Names the ONE exception: the contract's `${CLAUDE_PLUGIN_DATA}` fallback for a rootless directory is written normally, since it sits outside every checkout by construction and cannot be a tracked deletion -- the rule discriminates between destinations rather than stopping every write. Treats a bare repository reaching that branch as a conservative refusal indistinguishable from `core.worktree`, never as a case to write through. With a governing checkout T: rejects a root-equivalent memory_dir judged against T; proves the guard's write BEFORE the guard makes it via `git -C T ls-files -- <resolved root>`, requiring exit 0 AND empty output -- a fatal ls-files prints nothing to stdout and exits 128, so reading output alone lets a failure pass for a clean root; only then runs the guard and `git -C T check-ignore -q -- <intended file path>`, writing only on exit 0. Reports exit 1 ('the destination is tracked space') distinctly from any other exit ('the probe did not evaluate this path'), refusing on both. Anchors the probes to a governing checkout, never the invoking worktree, because check-ignore against an outside path is fatal with exit 128 -- a worktree-anchored probe would refuse every write in a layout the fanout fix action supports explicitly -- and notes that `git -C` alone is not an anchor, since GIT_DIR and GIT_WORK_TREE override it. Not a path-prefix comparison, which would need BOTH paths canonicalized where realpath and readlink's canonicalizing flag are GNU-only.",
+      "expected_output": "Yes, once EACH write the phase makes -- the findings file, and the self-ignore guard's `.gitignore` where a governing checkout was found -- is proven outside tracked space before THAT write is made (per-write, not both up front, since on a fresh root the guard's file is what makes the findings file's probe pass). Where NO governing checkout is found, the guard does not run at all and the findings file is the only write: there is no repository to keep it out of, and the guard's create-when-absent rule could otherwise land on a `.gitignore` absent from disk but tracked in an undiscovered checkout, modifying committed content with the tracked-file check never having run. Makes the resolved root physical first via `pwd -P` from its nearest existing ancestor, so a symlinked ancestor cannot hide a checkout. Then resolves the governing checkout from TWO signals that must BOTH come back empty before the permissive branch: a walk of that physical path's ancestors for a `.git` entry using `test -e` (not `-d`, since a worktree's `.git` is a file), AND `git rev-parse --show-toplevel` run under the AMBIENT environment. Neither alone: rev-parse cannot distinguish no-repository from a missing directory, a dangling gitdir, or a discovery limit such as GIT_CEILING_DIRECTORIES -- all exit 128 -- while the walk cannot see a working tree designated by GIT_WORK_TREE or GIT_DIR. Names `core.worktree` as a topology defeating both signals, and says that where BOTH signals come back empty the run writes NOTHING at a resolved root -- not the guard's `.gitignore`, not the findings file -- reporting the resolved destination and stopping. Gives the reason the findings file is withheld too: its destination may be an index-tracked DELETION in the checkout the detection missed, where writing modifies a tracked file rather than creating an untracked one, so 'it lands untracked' is not universally true. Treats a bare repository reaching that branch as a conservative refusal indistinguishable from `core.worktree`, never as a case to write through. With a governing checkout T: rejects a root-equivalent memory_dir judged against T; proves the guard's write BEFORE the guard makes it via `git -C T ls-files -- <resolved root>`, requiring exit 0 AND empty output -- a fatal ls-files prints nothing to stdout and exits 128, so reading output alone lets a failure pass for a clean root; only then runs the guard and `git -C T check-ignore -q -- <intended file path>`, writing only on exit 0. Reports exit 1 ('the destination is tracked space') distinctly from any other exit ('the probe did not evaluate this path'), refusing on both. Anchors the probes to a governing checkout, never the invoking worktree, because check-ignore against an outside path is fatal with exit 128 -- a worktree-anchored probe would refuse every write in a layout the fanout fix action supports explicitly -- and notes that `git -C` alone is not an anchor, since GIT_DIR and GIT_WORK_TREE override it. Not a path-prefix comparison, which would need BOTH paths canonicalized where realpath and readlink's canonicalizing flag are GNU-only.",
       "files": []
     },
     {
@@ -84,6 +84,113 @@
       "prompt": "Our tool rewrites the source file in place, one mutant at a time, and has no reporter API. Will this run?",
       "expected_output": "No -- Phase 0 REFUSES rather than running with a weaker gate. Identifies the regime as in-tree per mutant, the one regime where pile-on is real: a failed revert leaves the next mutant landing on unrestored source and every later verdict describing a tree nobody wrote. That regime's gate is a comparison after every revert, and with no per-mutant observability and no interrupt safety the gate cannot be run at all -- a check that cannot run is not a check, so the skill stops instead of reporting an outcome it cannot vouch for. Does not silently downgrade to an end-of-run comparison, which would leave the pile-on undetectable while the run reads as normal. Resolves the regime from the project's own config rather than from the tool's reputation, and states the resolved regime in the scope report. Contrast it draws correctly: a tool that writes mutants out of tree, or rewrites the working file whole once, is gated by an end-of-run comparison and runs fine -- the refusal is specific to per-mutant in-tree writing without observability, not to in-tree writing as such.",
       "files": []
+    },
+    {
+      "id": "no_assertion",
+      "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/no_assertion/test_app.py, which calls price_with_tax(150) and asserts nothing.",
+      "expected_output": "Recognizes the test file by invoking /testing:audit --file on it through the Skill tool and reading its `adapter:` line. Maps the test to price_with_tax, lines 7-10 of app.py, and lists that function in the scope report. Runs under the manual protocol with `python -m unittest {tests}`, the path quoted as its own argument, after one green baseline of that test alone. Generates one mutant per mapped line (comparison inversion on line 7, statement removal on lines 8-10); all four survive. Each productive survivor gets cause `no-assertion`, quoting the test's line range and the absence of any assertion. The report carries `Scope: exercised, changed tests as one set`, coverage and gap as `unknown`, a Survivors table with a Cause column, and the blind-spot line naming testing/judge/rule-restated-expectation.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "boundary",
+      "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/boundary/test_app.py, which asserts price_with_tax(50) == 60.0.",
+      "expected_output": "Maps the test to price_with_tax and runs each mutant against that test alone under the manual protocol. The statement removal on line 8, the discount line, survives and is classed productive with cause `input-gap`: the assertion is an independent literal, quoted with its input 50, and no input is above the threshold of 100, so the discount line never runs; an unreached mutated line is `input-gap`, not `no-assertion`, because an assertion reaches the value. The line 7 comparison inversion (`>` to `<=`) applies the discount at 50 and is killed, as are the removals on lines 9 and 10. The report carries the exercised scope line, coverage and gap as `unknown`, and the blind-spot line naming testing/judge/rule-restated-expectation.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "calls_sut",
+      "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/calls_sut/test_app.py, which asserts price_with_tax(150) equals a value it got by calling price_with_tax(150).",
+      "expected_output": "All four mutants on lines 7-10 survive, because both sides of the assertion run the mutated code. Each productive survivor gets cause `unclassified`, quoting the assertion line whose expected side calls the mutated function, and names testing/judge/rule-restated-expectation as the owner of that check. None is labeled `input-gap`: the test has an assertion, but its expected value comes from the code under test, so the fix is the oracle, not another input. The report's blind-spot line states that a clean run would not clear a restated or copied expected value either.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/calls_sut/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/calls_sut/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "uncommitted",
+      "prompt": "I just wrote scenarios/no_assertion/test_app.py and have not committed it. Run /mutation-testing:audit --exercised.",
+      "expected_output": "Builds the changed files from the committed range plus the working tree, listing untracked files individually (`git status --porcelain --untracked-files=all`), so the uncommitted test is in the set rather than missed by `git diff <diff-target>...HEAD`. Does not ask the user to commit the test first: the dirty-target stop applies only to the mapped production files about to be mutated, and app.py is clean. Proceeds as for the committed case: four survivors, each with cause `no-assertion`, and the exercised scope line in the report.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/no_assertion/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "testing_missing",
+      "prompt": "Run /mutation-testing:audit --exercised on a branch that adds scenarios/boundary/test_app.py. The testing plugin is not installed in this session.",
+      "expected_output": "Refuses the exercised scope with a message naming the `testing` plugin: it is what recognizes which changed files are tests. Does not guess test files from their names, does not fall back to the diff scope silently, and mutates nothing.",
+      "files": [
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py"
+      ]
+    },
+    {
+      "id": "exercised_path",
+      "prompt": "Run /mutation-testing:audit --exercised scenarios/boundary on the fixture, with no test changed on this branch.",
+      "expected_output": "Takes scenarios/boundary as the test path, not as a scope path, because it comes right after the flag. Starts the mapping from the tests under that folder instead of the changed tests, so the empty diff does not end the run. Maps scenarios/boundary/test_app.py to price_with_tax, runs one baseline of that test, and reports the line 8 survivor (the discount line no input reaches) with cause `input-gap`. The scope line reads `Scope: exercised, tests under scenarios/boundary as one set`. The effort cap applies unless `--max` is passed.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "record_replay_lost_kill",
+      "prompt": "Run /mutation-testing:audit --exercised scenarios/boundary --record-mutants .work/before.tsv on the fixture. Then delete the assertEqual line from scenarios/boundary/test_app.py, leaving the test calling price_with_tax(50) with no assertion, and run /mutation-testing:audit --exercised scenarios/boundary --replay-mutants .work/before.tsv --record-mutants .work/after.tsv.",
+      "expected_output": "The recording run uses the manual protocol with test-command, writes .work/before.tsv after restoration is verified (first line the HEAD sha, one row per mutant for app.py lines 7-10), and reports `Record: .work/before.tsv, 4 mutants, K0 3`. The replay applies exactly those four rows, with no mapping and no regeneration, writes .work/after.tsv, and runs compare-records.sh. The report shows `K0 3  K1 0`, `Gate: block`, and one newly-surviving line each for app.py:7 comparison-inversion, app.py:9 statement-removal and app.py:10 statement-removal. Line 8 survived both runs and is not newly surviving. app.py is byte-identical at the end.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/__init__.py",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py",
+        "evals/fixtures/exercised-scope/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "record_needs_exercised",
+      "prompt": "Run /mutation-testing:audit --paths app.py --record-mutants .work/before.tsv on the fixture.",
+      "expected_output": "Refuses before generating any mutant, naming `--record-mutants` and `--paths`: a record is defined over the exercised scope's mapped-line set, so it runs only with `--exercised`. Writes no record and mutates nothing.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md"
+      ]
+    },
+    {
+      "id": "replay_production_changed",
+      "prompt": "A record .work/before.tsv was taken over scenarios/boundary at the previous commit. Since then app.py line 9 was changed to multiply by 1.25. Run /mutation-testing:audit --exercised scenarios/boundary --replay-mutants .work/before.tsv --record-mutants .work/after.tsv.",
+      "expected_output": "Refuses in Phase 0 before applying any mutant: app.py differs from the recorded sha (`git diff --quiet <sha> -- app.py` fails) and the recorded original text of line 9 no longer matches. Names the changed path. Writes no after record and reports no Gate line, because a replay over different production code compares different mutants.",
+      "files": [
+        "evals/fixtures/exercised-scope/app.py",
+        "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
+        "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py"
+      ]
     }
   ]
 }

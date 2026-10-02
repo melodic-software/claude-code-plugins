@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
-argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
+argument-hint: "[terminal|file|artifact]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -107,7 +107,9 @@ catalog spoke.
 There are three delivery tiers, in ascending richness: **inline terminal → local
 HTML file → published Artifact**. Selection layers, first hit wins:
 
-1. **Explicit argument**. A `terminal` / `file` / `artifact` argument forces the tier.
+1. **Explicit argument**. A `terminal` / `file` / `artifact` argument forces the tier. With
+   no argument, the rungs below decide. The argument picks only the medium; name a form in the
+   request itself.
 2. **Configured preference**. `${user_config.medium}`. Claude Code text-substitutes
    the configured value into this line; if it still shows the literal
    `${user_config.medium}` token or is empty, the option is unset and the next
@@ -166,7 +168,7 @@ create a private run directory and echo it in the same call,
 `d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"`, then write the
 page to `<echoed dir>/visualize.html`. Echo it because shell state does not
 survive between Bash calls: the directory name is random, so an unechoed path is
-unrecoverable in the call that writes the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository).
+unrecoverable in the call that writes the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
 That is why the page takes a fixed name inside the generated directory rather
 than a `visualize-XXXXXX.html` template, which macOS cannot create at all. On Windows,
 a user-scoped temp under

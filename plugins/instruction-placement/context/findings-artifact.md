@@ -31,28 +31,47 @@ imply an auto-apply disposition that does not exist.
 
 ## Where it lives
 
-In the repository's memory tier, resolved through the plugin's topic-docs binding
-([`../reference/topic-docs.md`](../reference/topic-docs.md)), never committed to the consuming
-repository. Default:
+In the repository's memory tier, never committed to the consuming repository. `<memory_dir>` is
+`.work/` unless the project's instructions declare another root. The home is:
 
 ```text
 <memory_dir>/instruction-placement/<branch-slug>/findings.md
 ```
 
-**Resolve the home; never hardcode the default's shape.** The binding owns the rung order, the
-constant slug, the branch axis, and the guards. It is also where the plugin's `baselines/` slot
-lives, and the shared lifecycle artifact protocol names that slot
-([`../reference/artifact-protocol.md`](../reference/artifact-protocol.md)), and this plugin's
-baseline is its use of it.
+The spine baseline sits beside it, in the `baselines/` slot the shared lifecycle artifact protocol
+names ([`../reference/artifact-protocol.md`](../reference/artifact-protocol.md)), at
+`<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md`. The slug
+`instruction-placement` is constant, because this plugin audits a repository's instruction layer, not
+a topic; the branch axis is the segment below it. `<branch-slug>` is the branch name lowercased, with
+`/` and every other non-`[a-z0-9._-]` character replaced by `-`.
 
-Two properties the contract fixes:
+**Compose the home exactly so.** A skill that writes anywhere else writes where the other side never
+looks, and `realign`'s failure mode for that is a missing-artifact stop indistinguishable from "the
+audit was never run".
 
 - **What proves an artifact belongs to a branch is its own `branch:` frontmatter**, never the
-  directory it sits in. The slug mapping is lossy and two branch names can slug to one directory. A
-  consumer that finds a mismatch reports it and refuses rather than proceeding.
-- **One stable filename per home, rewritten in place.** A re-audit merges into the existing file
-  rather than depositing a timestamped sibling; the run timestamp lives in frontmatter where a
-  reader and a diff can both find it.
+  directory it sits in. The slug mapping is lossy (`feature/foo` and `feature-foo` collide). A
+  consumer that finds a mismatch reports it and refuses rather than proceeding. The baseline carries
+  the same field and `delta` refuses a spine from another branch rather than reporting the
+  difference between two branches as movement.
+- **One stable filename per home, rewritten in place.** A re-audit merges into the existing file by
+  stable finding id rather than depositing a timestamped sibling; the run timestamp lives in
+  frontmatter where a reader and a diff can both find it. `spine-baseline.md` is one stable filename
+  for the same reason, overwritten by the next capture. A `spine-baseline.md` in a home is not
+  stray: deleting one leaves the delta lane with no comparison input and the next run reports a
+  first run.
+- **No branch identity, no home.** The branch is the `- Branch:` line of each skill's pre-compute
+  block, which runs `git rev-parse --abbrev-ref HEAD`. On a detached checkout that command answers
+  the literal string `HEAD`, which is the same string for every ref, so it is not a branch
+  identity: treat `HEAD` or an empty branch as none. `audit` persists no artifact, `delta`
+  captures no baseline, and `realign` refuses rather than comparing. A detached run is still
+  useful: suppressions live on the tracked surface, whose path has no branch in it, so a scheduled
+  detached run still suppresses what the operator already dismissed.
+- **Scaffolding.** At the session's first memory-tier write, verify the memory root contains a
+  `.gitignore` with `*`, creating it (announced) when absent, and create the slice directory, its
+  `INDEX.md` listing the artifact families (findings, baselines) and the branch homes, the branch
+  home, and its `baselines/` directory. Never edit the consumer's root `.gitignore`.
+- A run outside any checkout has nothing to sweep and stops before any write.
 
 The findings artifact is **branch-scoped and checkout-local by design**. Its line ranges are only
 true for the branch it was derived on, and a removed worktree or deleted memory root loses it. That
@@ -153,6 +172,13 @@ auditable: an operator can see that the sweep considered the content and deliber
 Nothing in this section is actionable by `realign`. It has no code path that can apply one, and
 `accepted` is not a status a held-back record can take.
 
+## Advisory section
+
+The audit's content-home advisories, one line per `CLAUDE.md` the audit skill's firing condition
+selects, each carrying its path and the advisory text that skill defines. Like the
+held-back section, nothing here is actionable by `realign`: an advisory has no `finding_id`, no
+`Status`, and no suppression entry. A re-run rewrites the section from the current sweep.
+
 ## Re-run merge semantics
 
 A second `audit` on the same key merges rather than replacing:
@@ -242,9 +268,8 @@ to be persisted somewhere the next run can find it. The findings artifact cannot
 merges into it in place, so after the sweep there is nothing left to diff against. A separately
 persisted baseline is therefore mandatory.
 
-It lives in the `baselines/` slot the lifecycle artifact protocol names, **branch-keyed**, at the
-location the topic-docs binding resolves. Default
-`<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md`.
+It lives in the `baselines/` slot the lifecycle artifact protocol names, **branch-keyed**, at
+`<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md` ("Where it lives").
 
 ```yaml
 ---
@@ -284,7 +309,7 @@ Four rules bind the capture:
 
 - **The spine is a snapshot, never a second record of a finding.** Nothing in it is actionable,
   `realign` has no code path that reads it, and **no operator decision is stored here.** A decline
-  recorded in a file the topic-docs contract marks invisible outside its own checkout is a decline
+  recorded in a memory-tier file, which is invisible outside the checkout that wrote it, is a decline
   the next worktree never sees; that is why judgments live on the tracked surface instead.
 - **`branch:` is a gate, not provenance.** A baseline whose `branch:` does not match the resolved
   branch identity is not this branch's spine. The comparison is refused, both names are reported,

@@ -60,7 +60,7 @@
 #      region; an unterminated or nested region; an invalid pointer path; a
 #      pointer whose target directory is missing
 #
-# Shared source: this file is the canonical copy (claude-config) and is synced
+# Shared source: this file is the canonical copy (harness-config) and is synced
 # byte-identical into the plugins that carry it by
 # scripts/sync-resolve-convention-home.sh, registered in
 # scripts/cross-plugin-source-registry.txt. Bash 3.2-compatible on purpose: no

@@ -6,7 +6,7 @@ worth checking again.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `plan` is a built-in command described as "Enable plan mode or view the current session plan", argument `[open\|<description>]`, no alias | The `/claude-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.plan`) | 2026-09-29 | A release renames or removes `plan`, or changes its description or argument |
+| `plan` is a built-in command described as "Enable plan mode or view the current session plan", argument `[open\|<description>]`, no alias | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.plan`) | 2026-09-29 | A release renames or removes `plan`, or changes its description or argument |
 | It is user-invocable and not model-invocable, and it is not gated behind a setting | Same extraction: `user_invocable: true`, `model_invocable: false`, `gated: false` | 2026-09-29 | A release changes its invocability or adds a gate |
 | `/plan [description]` enters plan mode directly from the prompt; a description starts plan mode on that task | The `/plan [description]` row on <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes, including documenting the `open` argument the binary declares |
 

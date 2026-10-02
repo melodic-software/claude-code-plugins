@@ -26,28 +26,30 @@ with each plugin's own docs.
 
 ## Verified upstream behavior (version-pinned)
 
-Each row carries its own verified version and date in the **Verified** column. Facts 1-8 were
-verified on **Claude Code 2.1.218**: doc-stated facts re-fetched from the live official docs on
-2026-07-24, behavioral facts proven by a controlled fresh-session probe (isolated
-`claude -p --plugin-dir` runs with positive controls) on 2026-07-23. Facts 9-12 were measured on
-**Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture `CLAUDE_CONFIG_DIR`, `HOME` and
-`USERPROFILE` under a scratch directory, positive control of an empty plugin list before any write).
-Existing state is not evidence of its own correctness: **recheck these facts** (triggers at the end
-of this doc) before extending the matrix or relying on a row in new work.
+Each row carries its own Claude Code version and date in the **As of** column. A doc-stated row
+records what we rely on, in our words, and points at the section that states it; a probed row
+records what our own probe observed. Rows 1-8 date from **Claude Code 2.1.218**: doc-stated rows
+re-read from the live official docs on 2026-07-24, behavioral rows proven by a controlled
+fresh-session probe (isolated `claude -p --plugin-dir` runs with positive controls) on 2026-07-23.
+Rows 9-12 were measured on **Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture
+`CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` under a scratch directory, positive control of an
+empty plugin list before any write). Existing state is not evidence of its own correctness:
+**recheck these facts** (triggers at the end of this doc) before extending the matrix or relying on
+a row in new work.
 
-| # | Fact | Basis | Verified |
+| # | What we rely on | Pointer | As of |
 |---|---|---|---|
-| 1 | Plugin `hooks.json` hooks receive `${user_config.KEY}` in **exec form only**, substituted into `command` and each `args` element as a plain string; a shell-form command referencing it fails with an error instead of running (since 2.1.207) | doc-stated ([hooks](https://code.claude.com/docs/en/hooks)) | 2.1.218, 2026-07-24 |
-| 2 | Configured values are exported to hook processes as `CLAUDE_PLUGIN_OPTION_<KEY>` (key uppercased) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)); scope narrowed by fact 4 | 2.1.218, 2026-07-24 |
-| 3 | The declared `default` field ("Value used when the user provides nothing") is in the schema but **implemented for neither argv substitution nor env export**. An unset-but-defaulted `${user_config.*}` argv token **silently drops the entire hook entry**. It is not passed literally and not empty-substituted; the same unset key exports **no** env var | proven (probe T1); upstream [#46477](https://github.com/anthropics/claude-code/issues/46477) closed not-planned, [#39455](https://github.com/anthropics/claude-code/issues/39455) open, [#39827](https://github.com/anthropics/claude-code/issues/39827) closed not-planned; undocumented | 2.1.218, 2026-07-23 |
+| 1 | `${user_config.KEY}` reaches a plugin `hooks.json` hook only in **exec form**, as a plain string in `command` and each `args` element; we never write it in a shell-form command | doc-stated ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)) | 2.1.218, 2026-07-24 |
+| 2 | A hook process reads a configured value from `CLAUDE_PLUGIN_OPTION_<KEY>` (key uppercased) | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)); scope narrowed by fact 4 | 2.1.218, 2026-07-24 |
+| 3 | The declared `default` field is in the schema but **implemented for neither argv substitution nor env export**. An unset-but-defaulted `${user_config.*}` argv token **silently drops the entire hook entry**. It is not passed literally and not empty-substituted; the same unset key exports **no** env var | proven (probe T1); upstream [#46477](https://github.com/anthropics/claude-code/issues/46477) closed not-planned, [#39455](https://github.com/anthropics/claude-code/issues/39455) open, [#39827](https://github.com/anthropics/claude-code/issues/39827) closed not-planned; undocumented | 2.1.218, 2026-07-23 |
 | 4 | Tamper split on the env channel: for a **configured** key, harness injection overwrites a repo `.claude/settings.json` `env` block (injection wins); for an **unconfigured** key nothing is injected and the repo's `env` block freely populates `CLAUDE_PLUGIN_OPTION_<KEY>`. Env carries no provenance, so a hook cannot tell the two apart | proven (probe T2/T2b); undocumented | 2.1.218, 2026-07-23 |
-| 5 | `pluginConfigs` is written to user settings and read back from **user settings, the `--settings` flag, and managed settings only**; entries in a project's `.claude/settings.json` / `.claude/settings.local.json` are ignored (since 2.1.207) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 5 | We treat `pluginConfigs` as living in **user settings, the `--settings` flag, and managed settings only**, and an entry in a project's `.claude/settings.json` / `.claude/settings.local.json` as ignored | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
 | 6 | Skill- and agent-frontmatter hooks receive **neither** the argv substitution nor `CLAUDE_PLUGIN_OPTION_*` | evidence-strong (probe + field repro); CC docs silent | 2.1.218, 2026-07-23 |
-| 7 | Skill/agent **body** `${user_config.KEY}` substitutes into model-visible content, non-sensitive values only | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
-| 8 | Sensitive values are stored in the OS keychain (or `~/.claude/.credentials.json`), never in `settings.json` | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 7 | We use skill/agent **body** `${user_config.KEY}` only as model-visible content, and only for non-sensitive values | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 8 | We never expect a sensitive value in `settings.json`, so no settings reader can see one | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
 | 9 | `claude plugin install --config` writes `pluginConfigs` to **user settings whatever `-s` says**; `-s project` / `-s local` governs only the install record and the `enabledPlugins` entry in that scope's settings file. Exit 0, no warning about the scope. A consequence of fact 5, so no setup recipe may document `-s project --config` as a per-repo value | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27) | 2.1.283, 2026-09-27 |
-| 10 | `--config` validates at write time but **never fails the command**: a wrong-type boolean and an undeclared key are rejected with a warning and exit 0; a prose-enumerated string and a non-existent `directory` path are stored without a warning. A declared `options` fixed list is enforced (a value outside it is rejected with a warning, exit 0); a plugin declaring `options` cannot load on Claude Code before v2.1.271. So an in-consumer fallback is mandatory for any key without `options`, and a headless caller reads the CLI output, not the exit code | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27); `options` doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), "Limit a field to fixed options", fetched 2026-09-27) and probed | 2.1.283, 2026-09-27 |
-| 11 | There is **no CLI path to unset a key**: `claude plugin --help` lists `details`, `disable`, `enable`, `eval`, `help`, `init`, `install`, `list`, `marketplace`, `prune`, `tag`, `uninstall`, `update`, `validate` (no `config` or `configure`), and `--config KEY=` with an empty value is rejected ("Omit the flag to leave ... unset"). A key using the declare-no-default idiom (for example work-items `work_dispatch_concurrency_cap`) cannot be cleared from the CLI once set: clearing it means hand-editing user settings or uninstalling, which drops every option | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27) | 2.1.283, 2026-09-27 |
+| 10 | `--config` validates at write time but **never fails the command**: a wrong-type boolean and an undeclared key are rejected with a warning and exit 0; a prose-enumerated string and a non-existent `directory` path are stored without a warning. A declared `options` fixed list is enforced (a value outside it is rejected with a warning, exit 0); a plugin declaring `options` needs Claude Code v2.1.271 or later. So an in-consumer fallback is mandatory for any key without `options`, and a headless caller reads the CLI output, not the exit code | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27); `options` doc-stated ([Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options), read 2026-09-27) and probed | 2.1.283, 2026-09-27 |
+| 11 | There is **no CLI path to unset a key**: `claude plugin --help` lists `details`, `disable`, `enable`, `eval`, `help`, `init`, `install`, `list`, `marketplace`, `prune`, `tag`, `uninstall`, `update`, `validate` (no `config` or `configure`), and `--config KEY=` with an empty value is rejected with a message to omit the flag instead. A key using the declare-no-default idiom (for example work-items `work_dispatch_concurrency_cap`) cannot be cleared from the CLI once set: clearing it means hand-editing user settings or uninstalling, which drops every option | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27) | 2.1.283, 2026-09-27 |
 | 12 | Rerunning `install --config` on a plugin already installed at the same scope is a pure config write: the install record is byte-identical and only the named option keys change. Measured for a `string` option at `user` and `project` scope and for `boolean` and `directory` options at `local` scope | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27); the reconfigure guidance built on it is owned by [plugin-reconfiguration's verified-version record](../plugin-reconfiguration/README.md#verified-version-record) | 2.1.283, 2026-09-27 |
 
 ## The channels
@@ -85,7 +87,7 @@ this list and the matrix; it does not fork a private convention.
   block can neither mint a valid id nor clobber a configured one (fact 4: injection wins for
   configured keys). Shipped exemplar: the
   autonomy lane-stop gate's arm helper, `plugins/autonomy/hooks/lane-stop-gate-arm.sh`, armed by the
-  claude-ops lane launcher (see autonomy's `[0.12.0]`
+  harness-ops lane launcher (see autonomy's `[0.12.0]`
   [CHANGELOG entry](../../../plugins/autonomy/CHANGELOG.md) for the trust analysis and residuals).
 
 ## The matrix
@@ -139,8 +141,9 @@ unproven. A ratified D adoption (after the Open-gaps probe) is recorded in
 ## Open gaps
 
 - **G-required (channel D's premise).** That `required:true` forces a prompt and so removes the
-  unset case is inferred from the schema (`required`: "validation fails when the field is empty")
-  and upstream discussion, not doc-stated and not yet probed: the verification probe declared
+  unset case is inferred from the schema's `required` field (see
+  [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) and
+  upstream discussion, not doc-stated and not yet probed: the verification probe declared
   optional keys only. Cheap to settle. Add a `required:true` key to the probe plugin and rerun the
   unset-key test. Until then D stays in the matrix as unproven and the CI gate has no allowlist
   entries.
@@ -153,15 +156,15 @@ Conformance is tracked as it exists on `main`, per the
 | Surface | Channel | Status |
 |---|---|---|
 | disk-hygiene kill switch (`disk_hygiene_enabled`), both guard surfaces | F (shared reader `lib/killswitch_config.py`) | conforms (0.9.0, #1242; closed #1019) |
-| autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the claude-ops lane launcher) | conforms (0.12.0, #1784) |
-| claude-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
+| autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the harness-ops lane launcher) | conforms (0.12.0, #1784) |
+| harness-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the
 authority it points to.
 
 ## Recheck triggers
 
-Stamp-and-trigger discipline: [upstream-drift](../upstream-drift/README.md). Recheck the facts
+Record shape and trigger discipline: [upstream-drift](../upstream-drift/README.md). Recheck the facts
 table (and re-derive the decision rule) when any of these fires:
 
 - A Claude Code CHANGELOG entry touches `userConfig` substitution, the `default` field, or

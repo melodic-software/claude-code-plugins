@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.0] - 2026-10-01
+## [0.60.0] - 2026-10-01
 
 ### Added
 
@@ -12,6 +12,65 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Changed
 
 - `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
+
+## [0.59.4] - 2026-10-02
+
+### Changed
+
+- **The interview's model-versus-effort guidance is stated as the skill's own decision.**
+  `context/session-config.md` keeps the recommendation rules in our words and points at the
+  model-config effort section and the choosing-a-model section, with the Claude blog post as a
+  correlate. The model-versus-effort heuristic is credited to the post as a correlate, with no
+  wording kept, and its record says no docs page states it, with the trigger "a docs page starts
+  covering it".
+
+## [0.59.3] - 2026-10-02
+
+### Fixed
+
+- `design-handoff` no longer declares an `argument-hint`: it takes no arguments, and its body
+  now says so.
+- The `audit-answers` and `devils-advocate` argument hints use Claude Code's official bracket
+  notation: each drops the prose after the grammar, which the skill body now carries.
+- The `design` and `interview` argument hints use Claude Code's official bracket notation: each
+  lists the actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [0.59.2] - 2026-10-01
+
+### Changed
+
+- **The interview hub restates its three gates in an early `## Gates` block.** The auto-guard, the `lock` STOP-on-gap and the register gate sat past the part of SKILL.md a compaction re-attaches, so a compacted session lost them. The block sits before the Action Router; the full rules stay in Step 1.5, the Action Router and Step 3. `interview-defenses.test.sh` digests the block and pins each line once inside it, and `reattach-slice.test.sh` now asserts the block stays in the re-attach slice ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
+## [0.59.1] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.59.0] - 2026-10-01
+
+### Added
+
+- **The interview re-grounds open recommendations before they are shown.** On resume and before a queued round, each open recommendation is checked for a `Basis:` read this session or a constraint row and for an artifact the constraint ledger now excludes; a consequential one that fails gets research first or is shown marked "not yet researched". A new `confirmed` constraint row re-checks every open recommendation's `Checked against:` line, and a changed one is revised (old, new, why) before the next round. Eval case 27 grades it ([#5712](https://github.com/melodic-software/claude-code-plugins/issues/5712)).
+- **A question that rests on text the user has not read opens with a `Source:` block**: the exact text as a quote, a link to its section, and why it makes this a question. The Brief carries the link, not the quote.
+
+### Changed
+
+- **The question shape states that the alternatives exclude the recommendation** ([#5715](https://github.com/melodic-software/claude-code-plugins/issues/5715)).
+- **A resumed interview resolves the surface through `${CLAUDE_PLUGIN_ROOT}` again and runs `round.sh --dir <data dir> doctor --ledger <ledger>` before the first resumed round** (SKILL.md Step 1, loop.md Step 1 and the handoff line). SKILL.md Step 5's resume line now passes `--dir` too, which `round.py` requires.
+- **The page writes the register's `open` rows with `round.sh --dir <data dir> sync-ledger`** instead of by hand, and a forced wrap-up reports each item its `Skipped before wrap-up:` text lists.
+- **The register gate's text names `brief=unconfirmed`**, and a Brief edited after a Confirm needs a new `restate` and a fresh Confirm (SKILL.md Steps 3 and 4, loop.md).
+- **The page-surface contract names the page's option labels** (`Rec`, `(a)`, `(b)`) instead of numbered alternatives.
+- `interview-defenses.test.sh` re-pins the ten digests these edits move.
+
+## [0.58.5] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.58.4] - 2026-10-01
 

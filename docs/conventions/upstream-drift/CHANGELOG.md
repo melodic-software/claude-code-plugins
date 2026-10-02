@@ -4,6 +4,21 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [2.0.0] - 2026-10-01
+
+Major under this contract's own rule: the required parts change.
+
+A conforming record now stores no upstream text, quoted or paraphrased. Its parts are our decision
+in our own words, a pointer to the exact upstream section, an as-of date and a recheck trigger. The
+restated claim and its basis are gone. A probed behavior points at the probe and may state what it
+observed; a source conflict is recorded only as "pages X and Y disagree on topic T"; and one named
+exception, "Old-patterns mapping tables", admits an old-to-current name table inside a skill's
+"Old patterns" section where the skill-authoring guidance recommends one. The fetch
+route's "No verbatim quote, no claim" rule becomes "No read, no verdict": the matched span stays in
+the run's working data, never in the record. The worked instances no longer quote upstream pages.
+The Adopters rows are restated for the new shape, and records still in the 1.x shape are tracked in
+[#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684).
+
 ## [1.7.0] - 2026-09-30
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or
@@ -24,7 +39,7 @@ verdict does not change and its trigger has NOT fired.
 The context-engineering-integration corpus pass (signed off 2026-09-01; its decision contract is
 contract tier and was pruned before merge, surviving as the `<details>` paste in its pull request,
 with the durable evidence in
-[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md))
+[`docs/specs/context-engineering-corpus-knowledge.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/context-engineering-corpus-knowledge.md))
 found the live
 anthropic.com/research/building-effective-agents page silently revised after publication: the
 page still says "Published Dec 19, 2024" while its body now names models and products that

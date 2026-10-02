@@ -59,7 +59,7 @@ ${CLAUDE_PLUGIN_DATA}/<component>/<state-key>/<filename>
 ```
 
 **`<state-key>` = `<repo-identity>/<worktree-discriminator>`.** The scheme originated in the
-`claude-config:audit-pass` skill and is specified in full **here**: this doc is the definition every
+`harness-config:audit-pass` skill and is specified in full **here**: this doc is the definition every
 adopter derives from, that skill included.
 
 - **`repo-identity`**: the **first configured remote** URL (not necessarily one named `origin`)
@@ -107,7 +107,7 @@ root**:
 The line states the hazard correctly and then picks a colliding key. Two same-named checkouts share
 one slug directory, whether a fork, a same-named worktree, or `~/work/api` and `~/oss/api`, and the
 duplicate scan cross-matches between them. It escapes *overwrite* only because its filenames are
-timestamped. `plugins/claude-config/skills/unhobble/SKILL.md` names the same insufficiency in
+timestamped. `plugins/harness-config/skills/unhobble/SKILL.md` names the same insufficiency in
 prose: "`${CLAUDE_PLUGIN_DATA}` is machine-global, so two checkouts sharing a basename…".
 
 **This is recorded here as the worked example, not filed as a `bugs` defect.** A basename is
@@ -131,7 +131,7 @@ its roots are passed in explicitly by the caller rather than keyed, for a reason
 that a subprocess can inherit another plugin's `CLAUDE_PLUGIN_DATA` value. Cited here for retention shape
 only.
 
-**A rolling latest is a legitimate choice, and it must be a stated one.** `claude-memory:audit` keeps
+**A rolling latest is a legitimate choice, and it must be a stated one.** `harness-memory:audit` keeps
 `last-audit.md` deliberately: the report is a working artifact, not a series. Say so where the path is
 defined, so a reader can tell a decision from an oversight.
 
@@ -164,25 +164,22 @@ holds every project's artifact under the same deletable root.
 
 | Writer | State |
 |---|---|
-| `claude-config:audit-pass` | Keyed since it shipped (`runs/<state-key>/<run-id>/`); this scheme's origin |
-| `claude-config:audit-prompting-postures` | Keyed (#2250) |
-| `claude-config:audit-instructions` | Keyed, plus rule 3 on the delta computation |
-| `claude-memory:audit` | Keyed on write **and** on both read paths (`report`, `fix`), plus rule 3 |
+| `harness-config:audit-pass` | Keyed since it shipped (`runs/<state-key>/<run-id>/`); this scheme's origin |
+| `harness-config:audit-prompting-postures` | Keyed (#2250) |
+| `harness-config:audit-instructions` | Keyed, plus rule 3 on the delta computation |
+| `harness-memory:audit` | Keyed on write **and** on both read paths (`report`, `fix`), plus rule 3 |
 | `bugs:write` / `bugs:setup` | Keyed by project-root **basename**, rule 1c's worked example; not migrated |
 | `bugs:scan` | Same key, same tree, one timestamped file per run. It reuses `write`'s Step 4 path precedence rather than resolving its own, so it inherits rule 1c's basename collision unmigrated instead of introducing a second scheme (and, like `write`, lands outside this tree entirely when the operator configures `output_dir`). Its reports carry a cursor metadata block the next bare run reads back to pick a lane: a read-back artifact under rule 2, and a rule 3 surface, since the newest report at the derived key is the cursor's only authority and a colliding key would rotate lanes off another checkout's history. Absent at the key is the documented zero state: rotation falls through to the date-derived lane floor, never to an unkeyed path |
-| `claude-config:unhobble` | Different solution, same problem: keys by `<experiment-id>` whose basename is *a label*, and records the canonical checkout identity (absolute worktree path, and the origin URL when one exists) **in the manifest**, verifying it before every later phase. Verification instead of a keyed path; acceptable because the artifact is never *served*: a mismatch aborts and names the conflicting path |
-| `docs/conventions/topic-docs/` non-repo fallback | Keyed by **topic slug**, not project (`${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/`, the non-interactive branch when no project root resolves), an instance of the gap, recorded here rather than silently declared conformant |
+| `harness-config:unhobble` | Different solution, same problem: keys by `<experiment-id>` whose basename is *a label*, and records the canonical checkout identity (absolute worktree path, and the origin URL when one exists) **in the manifest**, verifying it before every later phase. Verification instead of a keyed path; acceptable because the artifact is never *served*: a mismatch aborts and names the conflicting path |
 | `machine-health:audit` | Not keyed: roots are passed in by the caller, deliberately, per that skill's own inherited-variable hazard. Cited above for retention shape only |
-| `claude-ops:observability --write` | Keyed (#3576), `reports/<state-key>/claude-observability-<date>.md`, resolved by running `skills/observability/scripts/report-path.sh` rather than composing a path (rule 1a). One file per project per date is the stated retention shape: the report is a working artifact, and its source, the hook event log inside the checkout, is why the key's worktree split is the behavior it wants. Rule 3 on the leftovers: the script names any unkeyed `reports/claude-observability-<date>.md` on stderr and reads none of them |
-| `claude-ops:known-issues check-all` | Keyed (#3576), `check-all-output/<state-key>/`, obtained by running `scripts/check-all.sh --print-output-dir`. A read-back artifact under rule 2 and a rule 3 surface: the registry is project-relative whenever the `registry_dir` option is set, and the pre-fix unkeyed directory was reproduced serving one project the other's registry rows. Both this writer and the one above fail closed when the key cannot be derived, rather than falling back to the unkeyed path |
+| `harness-ops:observability --write` | Keyed (#3576), `reports/<state-key>/claude-observability-<date>.md`, resolved by running `skills/observability/scripts/report-path.sh` rather than composing a path (rule 1a). One file per project per date is the stated retention shape: the report is a working artifact, and its source, the hook event log inside the checkout, is why the key's worktree split is the behavior it wants. Rule 3 on the leftovers: the script names any unkeyed `reports/claude-observability-<date>.md` on stderr and reads none of them |
+| `harness-ops:known-issues check-all` | Keyed (#3576), `check-all-output/<state-key>/`, obtained by running `scripts/check-all.sh --print-output-dir`. A read-back artifact under rule 2 and a rule 3 surface: the registry is project-relative whenever the `registry_dir` option is set, and the pre-fix unkeyed directory was reproduced serving one project the other's registry rows. Both this writer and the one above fail closed when the key cannot be derived, rather than falling back to the unkeyed path |
 | `code-metrics` (all `audit-*` skills) | Keyed by `lib/state-key.sh`, `reports/<state-key>/<skill>-<stamp>.json`, one timestamped file per run with the newest 20 per skill kept per key. Fails closed when the key cannot be derived: no document is kept and the cap line says to re-run with `--json`. Never read back, so Rule 3 is limited to naming unkeyed leftovers on stderr. `CODE_METRICS_REPORT_DIR` is the explicit override |
 
 ## Related
 
 - `docs/migration-playbook.md` seam 4: what may live under `${CLAUDE_PLUGIN_DATA}` at all. This
   convention governs naming beneath that.
-- `docs/conventions/topic-docs/`: tier placement, including the `${CLAUDE_PLUGIN_DATA}` machine-state
-  tier.
 - #1568: the `${CLAUDE_*}` substitution-scope question. Rule 1a stands on the plugins reference's own
   substitution table for skill and agent *content*, and deliberately does not depend on the
   unsettled question of whether that extends to bundled spoke files loaded on demand; a component

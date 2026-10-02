@@ -124,7 +124,7 @@ config overrides. Stop the live observer to re-arm with new settings.
 - **Durable ledger, the primary channel.** Redacted findings append to this session's `running-retro` ledger
   (`<memory_dir>/running-retros/`), matched by `session_id` frontmatter, read by a later in-session
   checkpoint. No new plumbing beyond the existing ledger-on-disk model. Before its first ledger write
-  the observer runs the topic-docs self-ignore guard on the memory root (ensures
+  the observer runs the self-ignore guard on the memory root (ensures
   `<memory_dir>/.gitignore` contains `*`; refuses a repo-root memory root; never the consumer's root
   `.gitignore`). On a `source=resume` re-arm the observer resumes from the prior run's persisted byte
   offset, so an already-analyzed span is not re-analyzed into a duplicate ledger entry.
@@ -157,13 +157,11 @@ config overrides. Stop the live observer to re-arm with new settings.
   mtime-idle ships regardless, because it is crash-safe where `SessionEnd` is not.
 - **`retro` parser in the analysis run.** Deferred while the analysis is Read-only over untrusted
   data. **Trigger:** a sandbox that can run the parser safely over untrusted transcript content.
-- **Headless prose-inferred memory root.** The SessionStart hook resolves `memory_dir` mechanically
-  (the `.claude/topic-docs.yaml` concern file, then the `.work` default); it cannot do retro's rung-2
+- **Headless prose-inferred memory root.** The SessionStart hook always uses the `.work` default; it cannot do retro's rung-2
   inference of a `memory_dir` documented only in `CLAUDE.md`/rules prose (that needs an in-session
   agent). A hook-armed observer would then write under `.work` while in-session checkpoints look under
   the prose-documented root. The manual `arm` entry resolves it in-session and is unaffected.
-  **Trigger:** a mechanical concern-file declaration of `memory_dir` (recommended), or a safe headless
-  inference path.
+  **Trigger:** a safe headless inference path.
 - **Headless cross-session continuity.** The opt-in SessionStart hook arms the observer without the
   `previous_running_retro` / `previous_session_id` continuity pointers, because a detached process
   cannot safely apply retro's Phase 1.0 continuity gate (blindly linking the newest handoff could
@@ -176,4 +174,4 @@ config overrides. Stop the live observer to re-arm with new settings.
   retained observations file into its analysis (weigh against the redaction boundary, since the observations
   are unredacted, so any promotion to the ledger must pass the same two-hop redaction).
 - **Cost telemetry.** The `-p` run's JSON carries `total_cost_usd`; recording per-run observer spend
-  is `claude-ops:observability` territory.
+  is `harness-ops:observability` territory.

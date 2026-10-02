@@ -1,14 +1,15 @@
 ---
 description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /toolchain:check and /toolchain:lint, STOPs if broken), then outcome verification. Does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use when: 'verify changes', 'prove this works', 'did we build the right thing', 'is this done', 'check my work', 'did the fix actually work'; for quick mechanical-only checks use /toolchain:check, for measurable-improvement claims use /verification:measure."
 user-invocable: true
-argument-hint: "[mode] [ecosystem]"
+argument-hint: "[outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]"
 disable-model-invocation: false
+effort: high
 metadata:
   workflow-stage: verify
   summary: Prove the change achieved its intended outcome with evidence
 ---
 
-**Arguments.** `[mode] [ecosystem]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
+**Arguments.** `[outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
 
 ## Repository context. Gather first
 
@@ -89,13 +90,22 @@ These categories decide when a change escalates beyond the per-ecosystem mechani
 
 The gate. Runs before any outcome criterion. **If it fails, STOP**. Report the failures; outcome confirmation is meaningless on code that doesn't build or pass tests.
 
-Stage 1 delegates by invoking the `toolchain` plugin's `/toolchain:check` and `/toolchain:lint` via the Skill tool when that plugin is installed; when it is absent, run the project's own ecosystem-native build / test / lint commands (from its `CLAUDE.md` / rules) directly, the gate and its STOP-on-fail semantics are unchanged, only the executor differs.
+Stage 1 delegates by invoking the `toolchain` plugin's `/toolchain:check` and `/toolchain:lint` via the Skill tool when that plugin is installed; when it is absent, run the project's own ecosystem-native build / test / lint commands (from its `CLAUDE.md` / rules) directly, the gate and its STOP-on-fail semantics are unchanged, only the executor differs. On that direct path, apply `/toolchain:check`'s counting rules yourself:
+
+- A syntax-only command, or one that failed to start, is not a pass.
+- When declared dependencies are missing, install them only from the lockfile with install scripts disabled, and only with `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local` or `dotnet restore --locked-mode`, within the permission mode and never with `sudo`; any other package manager installs nothing and is a missing-dependency environment skip. The uv command builds nothing at install time: `--no-build` refuses third-party source builds and `--no-install-local` leaves out the project and its local packages, so a dependency with no wheel fails the install, which is also that skip (pointers: <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build>, <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>; as of 2026-10-02; recheck trigger: either entry changes what it builds or installs). Never install a tool. If `git status --porcelain` or a hash of `git diff HEAD --binary` differs after the install, stop and report the changed paths.
+- Name every skip with its reason. A missing tool (including an installed tool too old for the check, `skip (unsupported: ...)`) or missing dependencies is an environment skip; a consumer opt-out or a not-applicable command is not.
 
 1. **Build + test + lint per ecosystem**, when changed files span multiple ecosystems or the mechanical pass spans more than a handful of commands, dispatch a subagent with the changed-file paths and `/toolchain:check`'s command tables, and verify its summary against the actual command output; otherwise invoke `/toolchain:check` via the Skill tool. `/toolchain:check` remains SSOT for ecosystem detection, CLI commands, and gotchas. Pass through the ecosystem filter from `$ARGUMENTS` if given; else `/toolchain:check` auto-detects from changed files.
 2. **Architecture tests**, when changed files match the `arch-test-triggers` globs above and the project has an architecture-test suite, ensure it is included in the test step.
 3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip`, never `FAIL`). Do **not** inline that bash here. `/toolchain:lint` is the SSOT.
 
-**Gate result:** if `/toolchain:check` or `/toolchain:lint cross-cutting` reports any FAIL, stop and surface the failing command's key error lines. Fix mechanical failures before outcome verification proceeds. If everything passes (or `skip`s), proceed to Stage 2.
+**Gate result**, decided in this order:
+
+1. Any FAIL from `/toolchain:check` or `/toolchain:lint cross-cutting`: stop and surface the failing command's key error lines. Fix mechanical failures before outcome verification proceeds.
+2. A `STOPPED` run (a dependency install changed the tree): stop and report the changed paths.
+3. No check ran because every one hit an environment skip (tool missing or too old, dependencies missing): stop. The verdict is `NOT VERIFIED`, listing each skip with its reason; Stage 2 does not run on a change nothing has exercised.
+4. Otherwise proceed to Stage 2. Opt-in-unmet skips and not-applicable cells never hold the gate. An environment skip that remains (an `INCOMPLETE` run) carries into the verdict: the change can be `NOT VERIFIED` or `NEEDS WORK`, never `CONFIRMED`, until the skipped check runs. An ecosystem reported as `no real check ran (syntax only)` is not an environment skip and does not hold the verdict by itself, but the report names it and never counts it as a mechanical pass.
 
 ## Stage 2. Outcome verification (the core)
 
@@ -106,25 +116,28 @@ Read the criterion context file for the dispatched mode, then run the flow below
 3. **Implementation inventory**. Changed files, new capabilities, behavior changes, config/infra changes.
 4. **Intent match**. Every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements. Error handling, edge cases, tests). Name the out-of-diff couplings: the existing behavior this change leans on, unchanged code whose contract the diff now depends on. A named coupling is checkable; an implied one is where regressions hide. The report carries them as their own table (see [context/outcome.md](context/outcome.md)).
 5. **Evidence collection**. Stage-1 results, E2E results, test names + assertions proving the claimed behavior. For UI changes: the UI evidence artifacts per [context/outcome.md](context/outcome.md) (pre/action/post snapshot, console, network, behavior assertion. "screenshot looks fine" is NOT an assertion). When the plan states a measurable goal: the `/verification:measure` comparison table.
-6. **Report + verdict**. Emit the outcome report (intent-match table, mechanical results, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable) and a `CONFIRMED` / `NEEDS WORK` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md).
+6. **Report + verdict**. Emit the outcome report (intent-match table, mechanical results with every skip named and its reason, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable) and a `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md). The report also states the effort level this run used: `${CLAUDE_EFFORT}`. The skill pins `effort: high`, a verdict lane's level, and no higher; an environment variable or an effort cap can still put the run at another level, which is why the report states it (pointer: the `effort` field in <https://code.claude.com/docs/en/skills#frontmatter-reference> and the `CLAUDE_EFFORT` row in <https://code.claude.com/docs/en/skills#available-string-substitutions>; as of 2026-10-02; recheck trigger: either row is renamed or removed, or the field stops overriding the session level).
 
 **Independence of the verdict.** This skill usually runs in the context that produced the changes, and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor verifier above as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
-When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit. Record `verified_at_sha`) to the topic's contract slice at `<contract_dir>/<slug>/verification/` (default `docs/topics/`; the memory slice under `contract_tier: local`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Under `contract_tier: branch` the manifest is committed on the task branch; under `local` it stays in the self-ignored memory slice (the PR-description paste is its publication surface). Either way it meets the contract's redaction bar: distilled assertions only. No raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
+When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit. Record `verified_at_sha`) to the topic's memory slice at `<memory_dir>/<slug>/verification/` (default `.work/`), placed per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). The manifest is never committed; paste it into the pull request body or the linked issue, its publication surface. It carries distilled assertions only, because the paste is shared. No raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
 
 ## Delegation: live-app run + observe
 
 For "run the live app and watch it behave," beyond automated `/testing:run-e2e`, `/verification:confirm` delegates rather than reimplementing app-launch:
 
 - **Primary: invoke `/testing:run-e2e` via the Skill tool** (when the `testing` plugin is installed), the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off. Screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
-- **Supplementary: Claude Code's bundled `/run`**, when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145). Its sibling `/verify` covers the same ground and shares that `≥2.1.145` availability floor, but Claude cannot invoke it by default, and whether it can is a per-client runtime gate rather than a version cutoff, so two clients on one version can differ. Suggest the user run it rather than delegating to it: the suggestion holds across the whole availability window and either invocability state, and a delegated call is refused at the tool layer, not merely discouraged. Availability floor and invocability are separate axes; both were verified 2026-08-10 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and against the shipped 2.1.223–2.1.226 clients. Recheck trigger: a Claude Code release whose changelog names `/run`, `/verify`, `/run-skill-generator`, or bundled-skill invocability.
+- **Supplementary: Claude Code's bundled `/run`**, when a quick interactive run is enough and the orchestrated harness is overkill, and the client has it. For its sibling `/verify`, suggest that the person run it rather than delegating to it: the suggestion works whichever invocability state the client is in, and a delegated call can be refused at the tool layer. Our records for both live in [reference/native-verify.md](reference/native-verify.md).
+  - **Pointer**: for the bundled `/run` and `/verify` skills, see <https://code.claude.com/docs/en/skills#run-and-verify-your-app>.
+  - **As of**: 2026-08-10
+  - **Recheck trigger**: a Claude Code release whose changelog names `/run`, `/verify`, `/run-skill-generator`, or bundled-skill invocability.
 - **Graceful fallback**, if `/run` cannot infer the project's launch (or the CC version lacks it), fall back to invoking `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check. Surface the gap.
 
 ## Edge cases
 
 - **No git changes but user runs `/verification:confirm all`**: run Stage 1 across all ecosystems anyway (useful after a rebase or pull), then outcome verification if intent is in scope.
 - **Changed file outside any known ecosystem**: Stage 1 skips it with a note; Stage 2 still assesses intent match.
-- **Missing tools**: `/toolchain:check` / `/toolchain:lint` report `skip` with install hint, not failure. Except the core toolchain the project's own code requires.
+- **Missing tools or dependencies**: `/toolchain:check` / `/toolchain:lint` report a named environment skip with the install hint, not a failure. It is never reported as done: it holds the verdict below `CONFIRMED` (Gate result, step 4), or stops the run when nothing else ran (step 3).
 - **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation. A comprehension layer (an `education:quiz-me` report, when that plugin is installed) may precede this gate and inform it; the merge gate itself lives here, one mechanism per concern.
 
 ## Skill chaining
@@ -143,10 +156,9 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 Both answer "does this change actually work", so a request to verify a change can reach for
 either.
 
-- **`/verify` (bundled skill)**: builds and runs the project's app and drives the affected flow end
-  to end, observing behavior rather than relying on tests or type checks. When the repository has no
-  project verify skill yet, it bootstraps one, which writes files into the repository. Reserved for
-  the person to run; the model does not invoke it.
+- **`/verify` (bundled skill)**: the person's tool for driving the running app through the changed
+  flow. We never invoke it from this skill, and we treat a first run as one that may write a project
+  verify skill into the repository.
 - **This skill (marketplace plugin).** The mechanical prerequisite, then outcome verification
   against the plan or intent by change type: the intent-match table, out-of-diff couplings, the
   evidence table, and an independent verdict.
@@ -161,8 +173,9 @@ output instead of asking. Its result is added evidence; it replaces neither Stag
 triggers it on its own behalf.
 
 **Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it;
-this section states what to do when it resolves, never that it is present. The four-part records
-live in [reference/native-verify.md](reference/native-verify.md).
+this section states what to do when it resolves, never that it is present. The records, each a
+pointer with an as-of date and a recheck trigger, live in
+[reference/native-verify.md](reference/native-verify.md).
 
 ## What this skill does NOT do
 

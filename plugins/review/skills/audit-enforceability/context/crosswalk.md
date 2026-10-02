@@ -12,7 +12,7 @@ cheapest rung whose check can actually assert it, never on a rung that merely co
 | `dotnet-invariant` (a project-specific API or usage invariant in C# expressible over syntax or the semantic model: a banned API, a required attribute, a misuse pattern) | `custom-analyzer` | Microsoft Learn, "Tutorial: Write your first analyzer and code fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>) |
 | `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `semgrep-rule` | the `semgrep-rule-creator` plugin when installed; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
 | `structure` (dependency direction, layering, namespace-to-layer naming, forbidden references) | `architecture-test` | ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET; dependency-cruiser (<https://github.com/sverweij/dependency-cruiser>) for JS/TS |
-| `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `hook` | the `claude-config` plugin's automation-gaps audit when installed; otherwise record the candidate and stop |
+| `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `hook` | the `harness-config` plugin's automation-gaps audit when installed; otherwise record the candidate and stop |
 | `design-judgment` (readability, correctness reasoning, prose quality) and `unclassified` | `llm-only` | none; the finding stays a review-time judgment |
 
 The `custom-analyzer` rung is .NET-only. The same invariant in any other ecosystem is
@@ -66,10 +66,10 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `ai-slop/audit/rule-model-era-phrases` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | as above |
 | `ai-slop/audit/rule-ai-vocabulary` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | a density threshold is still a computed rule, not a judgment |
 | `ai-slop/audit/rule-copulative-avoidance` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | as above |
-| `claude-config/audit-instructions/rule-coercive-emphasis` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | the producing scanner fires this rule from a pattern over instruction text |
-| `claude-config/audit-instructions/rule-blanket-tool-default` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
-| `claude-config/audit-instructions/rule-description-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
-| `claude-config/audit-instructions/rule-sibling-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
+| `harness-config/audit-instructions/rule-coercive-emphasis` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `harness-config:audit-instructions` detector | the producing scanner fires this rule from a pattern over instruction text |
+| `harness-config/audit-instructions/rule-blanket-tool-default` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `harness-config:audit-instructions` detector | as above |
+| `harness-config/audit-instructions/rule-description-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `harness-config:audit-instructions` detector | as above |
+| `harness-config/audit-instructions/rule-sibling-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `harness-config:audit-instructions` detector | as above |
 | `docs-hygiene/audit-noise/rule-negation-without-positive` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `docs-hygiene:audit-noise` detector | the shape is matched by the producing scanner, so the rung is a configuration decision about that scanner |
 | `attribution/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
 | `attribution/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | expiry is a date comparison the producing script performs |
@@ -86,7 +86,7 @@ class instead of falling through to prose.
 | `mutation-testing/audit/` | `design-judgment` | `llm-only` | none | every rule in this family reports a surviving mutant, whose remedy is a test whose assertion is judgment |
 | `testing/audit/` | `dotnet-invariant` | `custom-analyzer` | Microsoft Learn analyzer tutorial (see the class table) | the family's rules are properties of a test's oracle; the family default takes the semantic-model rung, and an individual rule a pack already covers is listed above |
 | `ai-slop/audit/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | the producing detector is the deterministic check for the whole family |
-| `claude-config/audit-instructions/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
+| `harness-config/audit-instructions/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `harness-config:audit-instructions` detector | as above |
 | `docs-hygiene/audit-noise/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `docs-hygiene:audit-noise` detector | as above |
 | `attribution/audit/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | as above |
 

@@ -1,6 +1,6 @@
 ---
 description: "Arm the current session for an orchestration-heavy task with seven standing imperatives (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions); optionally export them as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
-argument-hint: "[<task>] | handoff [compact] | worker [compact]"
+argument-hint: "[<task>|handoff [compact]|worker [compact]]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -21,7 +21,7 @@ the session and therefore inherit none of its context: a spawned subagent/teamma
 you will `/clear` into, or a non-Claude-Code tool. Export is model- and tool-agnostic by
 construction. Nothing in the pasted text depends on a specific model, env var, or repo file.
 
-Sources and quotes behind each imperative: `context/sources.md`; observed failure modes:
+Pointers behind each imperative: `context/sources.md`; observed failure modes:
 `context/gotchas.md`. Read gotchas before authoring a nested tree or trusting a worker's return.
 
 ## Actions
@@ -37,18 +37,17 @@ Sources and quotes behind each imperative: `context/sources.md`; observed failur
 At each decision boundary in this task, evaluate these and ACT on a match without waiting to be
 told:
 
-1. DELEGATE / FAN OUT. Start with one agent (a single agent goes further than you expect);
-   delegate only when work would flood context, fans across genuinely independent paths, or needs a
-   tool-restricted specialist. Decompose by what CONTEXT each piece needs, not by head-count or
-   work-type. Sequential or shared-context steps stay in one agent. Coding parallelizes less than
-   research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
-   cost context too), so spend it on value + parallelism, not convenience. That range is this
-   plugin's own operating figure and it is the floor, not the ceiling: Anthropic's multi-agent
-   research write-up measures agents at roughly 4× a chat interaction's tokens and multi-agent
-   systems at roughly 15×, with token usage alone explaining most of the performance variance it
-   regressed ([multi-agent research
-   system](https://www.anthropic.com/engineering/multi-agent-research-system), fetched
-   2026-09-01). Size the spend against the higher figure when the fan-out is research-shaped.
+1. DELEGATE / FAN OUT. Start with one agent; delegate only when work would flood context, fans
+   across genuinely independent paths, or needs a tool-restricted specialist. Decompose by what
+   CONTEXT each piece needs, not by head-count or work-type. Sequential or shared-context steps stay
+   in one agent, and one feature is never split across agents. Our operating figure for a fan-out
+   is 3–10× one agent's tokens (returns cost context too), and it is a floor: budget a
+   research-shaped fan-out above it. Spend it on value + parallelism, not convenience. Pointer: for
+   multi-agent token cost, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>; no
+   docs page covers research fan-out sizing as of 2026-10-01 (correlate with
+   <https://www.anthropic.com/engineering/multi-agent-research-system>). As of: 2026-10-01.
+   Recheck trigger: that section moves or starts stating its own multiplier, or a docs page starts
+   covering fan-out sizing.
    "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
    `context-guard` plugin installed, resolve this session's zone word per its reader contract
    before a fan-out decision
@@ -57,11 +56,12 @@ told:
    that guess is the failure the seam replaces. A degraded or `unknown` zone shifts the balance
    toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
    keep sequential, shared-context work inline.
-2. SPEC EVERY SPAWN. Give each worker an objective, the REASON it is being asked (the larger task
-   it feeds, who the output is for, what it enables), what done looks like and when to stop and
-   ask, an output format, the tools/sources to use, explicit task boundaries, and a deliberately
-   chosen model tier. Vague delegation makes workers
-   duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
+2. SPEC EVERY SPAWN. Every brief states why the work is wanted, what done looks like, when to
+   stop and ask, and a deliberately chosen model tier, on top of the brief elements the
+   multi-agent post lists. Pointer: [Give the reason, not only the request](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request);
+   correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
+   brief elements, which no docs page covers as of 2026-10-01. Recheck trigger: a docs page
+   starts covering brief contents. Absent a consumer-level subagent-model override,
    an unspecified model silently inherits the parent session's, often its most expensive, model.
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
@@ -72,11 +72,12 @@ told:
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
    judge this artifact, its blind spots are uncorrelated with yours, with the fresh-context
    same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
-   (ledger, checklist, status log) is not the work and stays at self-check, however many of them a
+   (ledger, checklist, status log) is not the work and gets no verifier, however many of them a
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
-4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
-   Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
-   Watch running workers and intervene the moment one drifts or is missing context. A worker that
+4. RUN WORKERS WELL. Dispatch without blocking, and keep a worker across subtasks where the
+   runtime allows; watch each worker and step in when it drifts. Pointer:
+   [Parallel subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents).
+   As of: 2026-10-01. Recheck trigger: that section changes its dispatch or reuse guidance. A worker that
    must wait on an external result polls it in the foreground with a bounded loop, or returns what
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
@@ -128,15 +129,18 @@ lead session; the docs do not state whether a fork of the lead can drive one) an
 (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`, if that value reads as a literal
 placeholder, this body was read directly rather than skill-loaded, so the substitution never ran:
 resolve the session's effort yourself before using it. Feed the value
-into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
-the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
-what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
-`xhigh`, so it cannot reveal script-held orchestration.) Where a `SendMessage` tool resolves in
-this session, imperative 4's worker reuse and mid-flight intervention run through it, addressed by
-the worker's agent ID: a completed worker auto-resumes on message with no new `Agent` call, one
-the user stopped themselves returns a refusal instead, and re-invoking the dispatch tool to fake a
-continuation spawns a second independent worker rather than resuming the first. Verbatim quotes,
-version floors, and the empirical probe: `context/sources.md`, "SendMessage worker continuation".
+into imperative 7's tier calibration: we treat it as the effort every spawn runs at unless its
+agent definition sets its own, so its gap from what a subtask needs IS the over-provisioning
+imperative 7 exists to stop. Never read ultracode from this value. Pointer: for the subagent
+`effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>; for
+how ultracode relates to effort, see
+<https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-01. Recheck
+trigger: either section moves or changes how a subagent's effort or ultracode is set. Where a
+`SendMessage` tool resolves in this session, run imperative 4's worker reuse and mid-flight
+intervention through it, addressed by the worker's agent ID. Never re-invoke the dispatch tool to
+continue a worker: that starts a second, independent worker. Read a refused message as a worker
+the user stopped. Pointers, as-of date and the empirical probe: `context/sources.md`, "SendMessage
+worker continuation".
 Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
@@ -149,13 +153,19 @@ a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
 rationalizable either way. Not thresholds to enforce, the judgment still runs on context
-boundaries, not head-count, but the platform's own numbers anchor it: the workflow size guideline
-aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
-as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-10;
-recheck when that page changes any of those size figures or the threshold its large-workflow warning
-fires at). So
-fewer than 5 is small, 5–14 medium, and anything tripping that warning is a size to justify out
-loud, and an order-of-magnitude disagreement with this anchor is one to name, not skip.
+boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
+than 5 agents is small, 5 to 9 medium, 10 or more large, and a run large enough to trip the
+platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
+disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
+guideline in force for this session: the platform's default differs by plan, and the guideline
+the session sets is the one Claude receives, whatever this anchor says.
+
+- **Pointer**: for the workflow size guideline and its defaults, see
+  <https://code.claude.com/docs/en/workflows#set-a-size-guideline>; for the large-workflow
+  warning, see <https://code.claude.com/docs/en/workflows#cost>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that page changes a size-guideline agent count, a default guideline, or the
+  threshold its large-workflow warning fires at.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
@@ -176,11 +186,16 @@ verdict rather than its reasoning.
 an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
 lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
 can act without re-reading the work. A return that narrates cannot be summarized after the fact,
-it has already been paid for. A useful magnitude for "compressed": a sub-agent may explore across
-tens of thousands of tokens and still return roughly 1,000 to 2,000 ([Effective context engineering
-for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents),
-2025-09-29, fetched 2026-09-01; recheck when a fetch of that post no longer carries that range).
-Treat it as the shape a return should aim for, never a budget to spend up to.
+it has already been paid for. Our magnitude for "compressed": a worker that explored across tens
+of thousands of tokens still aims to return roughly 1,000 to 2,000. Treat it as the shape a return
+should aim for, never a budget to spend up to.
+
+- **Pointer**: for a subagent returning a summary in place of its verbose output, see
+  <https://code.claude.com/docs/en/sub-agents#isolate-high-volume-operations>
+  (correlate with <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents>).
+  No docs page states a return size as of the as-of date.
+- **As of**: 2026-09-01
+- **Recheck trigger**: a docs page starts stating a subagent return size, or that section moves.
 
 **Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
 stays alive keeps costing the tier above, notifications, status, re-acknowledgement, for zero
@@ -200,18 +215,24 @@ detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform's nesting default is
 configurable and has changed more than once within weeks, so any number written here is stale by
-the time it is read. Two caps govern Agent-tool subagents, each separately overridable
+the time it is read. Agent-tool subagents carry a depth cap and a concurrency cap
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); workflow agents
-and agent-team teammates follow their own limits, and the workflow runtime's concurrency limit is
-CPU-dependent with no env-var override, so "read the current values" includes the
-[workflows](https://code.claude.com/docs/en/workflows) page whenever the run will use the Workflow
-tool (both pages as of 2026-08-15; recheck on any changelog entry touching subagent limits, or
-when `context/sources.md` is re-verified). Read the current values rather than assuming them, and
-design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
-not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork
-([sub-agents](https://code.claude.com/docs/en/sub-agents)); whether a below-limit fork can parent
-non-fork children is implied but not stated, so do not treat a fork as a forbidden intermediate
-tier on that sentence alone. The version history behind the caps lives in `context/sources.md`.
+and agent-team teammates carry their own, and workflow concurrency has its own override, so "read
+the current values" includes the workflows page whenever the run will use the Workflow tool. Read the current values rather than assuming
+them, and design the tree so it degrades to a shallower one instead of failing. Never design a
+tree that needs a fork to spawn a fork: that is a shape constraint, not a tunable. Whether a
+below-limit fork can parent non-fork children is unconfirmed, so do not treat a fork as a
+forbidden intermediate tier either. The version history behind the caps lives in
+`context/sources.md`.
+
+- **Pointer**: for the depth cap, see
+  <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>; for the
+  concurrency cap, see <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>; for
+  workflow limits, see <https://code.claude.com/docs/en/workflows#behavior-and-limits>; for forks,
+  see <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
+- **As of**: 2026-08-15; 2026-10-01 for the workflow concurrency override.
+- **Recheck trigger**: a changelog entry touches subagent limits, or `context/sources.md` is
+  re-verified.
 
 **Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose
 docs track it, and the docs page and the changelog can lag each other by a release, so a tree
@@ -219,7 +240,7 @@ authored from either alone can be wrong in both directions. The cheap check is b
 worker of the SAME definition you plan to use as the intermediate tier attempt a trivial nested
 spawn and report the outcome. The gate is definition-specific, so another agent type proves
 nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
-names depth; a permission refusal (classified pre-launch) does not. Quotes: `context/sources.md`.
+names depth; a permission refusal (classified pre-launch) does not. Pointers: `context/sources.md`.
 
 ## Export modes (handoff / worker). Paste-ready brief
 

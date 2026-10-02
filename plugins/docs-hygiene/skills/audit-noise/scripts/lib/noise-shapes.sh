@@ -14,66 +14,29 @@ audit_noise_trim_excerpt() {
   _audit_noise_excerpt_out="$line"
 }
 
-# Resolve configured convention roots once per process and export them.
-# Calling this inside a command substitution sets AUDIT_NOISE_CONTRACT_ROOT
-# only in the subshell, silently exempting a configured contract root's bare
-# reviews/handoffs/running-retros child against the lib's stated intent.
-audit_noise_resolve_convention_roots() {
-  if [[ -n "${AUDIT_NOISE_ROOTS_RESOLVED:-}" ]]; then
-    return 0
-  fi
-  local pattern='\.work|docs/topics' key val yaml lib_dir
-  yaml="${AUDIT_NOISE_REPO_ROOT:-.}/.claude/topic-docs.yaml"
-  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # Default contract root matches the built-in pattern default.
-  AUDIT_NOISE_CONTRACT_ROOT="${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}"
-  if [[ -f "$yaml" ]]; then
-    for key in memory_dir contract_dir; do
-      val=$("$lib_dir/parse-concern-value.sh" "$yaml" "$key")
-      if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
-        AUDIT_NOISE_CONTRACT_ROOT="$val"
-      fi
-      if [[ -n "$val" && "$val" != '.' && "$val" != '.work' && "$val" != 'docs/topics' ]]; then
-        pattern+="|$(printf '%s' "$val" | sed "s/[.[\\*^\$()+?{|]/\\\\&/g")"
-      fi
-    done
-  fi
-  AUDIT_NOISE_ROOTS_PATTERN="$pattern"
-  AUDIT_NOISE_ROOTS_RESOLVED=1
-  export AUDIT_NOISE_ROOTS_PATTERN AUDIT_NOISE_CONTRACT_ROOT AUDIT_NOISE_ROOTS_RESOLVED
-}
-
 # Per-match ghost-ref scan: exemptions apply to each matched path, never to
 # the whole line, so a convention token cannot mask a concrete ghost ref
 # sharing its line. Angle-bracket slot variables (root followed by '<') are
 # schema placeholders and never match the candidate pattern; the reserved
-# concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/,
-# <memory_dir>/running-retros/, <memory_dir>/overengineering/,
-# <memory_dir>/enforceability/,
-# <memory_dir>/exports/, <memory_dir>/lanes/, <memory_dir>/docs-hygiene/ — reserved
-# first-level names under the memory root per docs/conventions/topic-docs/)
-# are exempt only in bare form — a
-# concrete child under them flags. Configured non-default roots from the
-# concern file scan alongside the defaults. The bare-root exemption is for
-# memory roots only — never for the contract root (default or configured).
+# concern-scoped roots (.work/handoffs/, .work/reviews/, .work/running-retros/,
+# .work/overengineering/, .work/enforceability/, .work/exports/, .work/lanes/,
+# .work/docs-hygiene/: reserved first-level names under the memory root) are
+# exempt only in bare form; a concrete child under them flags.
 audit_noise_line_has_ghost_ref() {
-  local rest="$1" path root seg after
-  audit_noise_resolve_convention_roots
+  local rest="$1" path seg after
   # Retired locations: stale even in placeholder form.
   [[ "$rest" == *'.claude/notes/'* ||
     "$rest" == *'.claude/handoffs/'* ||
     "$rest" == *'.claude/review/'* ]] && return 0
-  while [[ "$rest" =~ ($AUDIT_NOISE_ROOTS_PATTERN)/([a-z0-9][a-z0-9_-]*)/ ]]; do
+  while [[ "$rest" =~ \.work/([a-z0-9][a-z0-9_-]*)/ ]]; do
     path="${BASH_REMATCH[0]}"
-    root="${BASH_REMATCH[1]}"
-    seg="${BASH_REMATCH[2]}"
+    seg="${BASH_REMATCH[1]}"
     after="${rest#*"$path"}"
     # Bare-root exemption: nothing concrete after the trailing slash. A
     # sentence-ending period (`.work/running-retros/.`) starts with `.` but is
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
-    if [[ "$root" != 'docs/topics' && "$root" != "$AUDIT_NOISE_CONTRACT_ROOT" ]] &&
-      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'enforceability' || "$seg" == 'exports' || "$seg" == 'lanes' || "$seg" == 'docs-hygiene' ]] &&
+    if [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'enforceability' || "$seg" == 'exports' || "$seg" == 'lanes' || "$seg" == 'docs-hygiene' ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue
@@ -154,7 +117,7 @@ audit_noise_follower_is_document_locator() {
 # are spelled as literal ALTERNATIVES rather than a bracket class: `’` (U+2019)
 # is multibyte, and a bracket class over it breaks under a C locale, where the
 # regex is byte-based. Same reasoning, and same spelling, as the I6_ERE in
-# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh.
+# plugins/harness-config/skills/audit-instructions/scripts/instruction-scan.sh.
 audit_noise_line_has_conversational_antecedent() {
   local line="$1" rest follower
   [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0

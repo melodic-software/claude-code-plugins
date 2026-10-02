@@ -3,6 +3,64 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4] - 2026-10-02
+
+### Changed
+
+- **`write` no longer asks for a self-check before writing tests.** It states the interface it
+  assumes in one line and proceeds.
+
+## [0.18.3] - 2026-10-02
+
+### Changed
+
+- **The judge-calibration u16 case moves to `cases/u16/plugins/harness-ops/`, and the u31
+  fixtures carry the `harness-ops:lane-telemetry` sentinel.** The `source` column keeps its
+  commit-pinned `path@sha`, which resolves only under the path at that commit.
+
+## [0.18.2] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [0.18.1] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.18.0] - 2026-10-01
+
+### Added
+
+- **`/testing:cleanup <folder>`.** Cleans up low-value tests in one folder: reads the scanner's
+  findings, the branch's test-judge findings when present, and the tests the user names as flaky.
+  A fresh-context classifier on `opus` picks quarantine, rewrite, delete, merge or keep per test.
+  Rewrites are the default; each deletion or merge needs a positive no-contract statement and the
+  user's yes. Named flaky tests are skipped with a dated `test-change: quarantined` reason. The
+  mutation gate records the tests' kills before any edit and replays them after
+  (`/mutation-testing:audit --record-mutants` and `--replay-mutants`); a lost kill blocks the
+  batch and lists the candidate changes. Nothing is committed until the user approves the batch.
+- `audit` and `test-value` name `/testing:cleanup` as a successor.
+
+## [0.17.0] - 2026-10-01
+
+### Added
+
+- **audit:** `[--file <path>]` in the argument hint, forwarded to the script's `--file` mode, so
+  another skill can ask through the Skill tool which adapter claims a file.
+  `/mutation-testing:audit --exercised` uses it to recognize changed test files.
+
+## [0.16.3] - 2026-10-01
+
+### Changed
+
+- **The test judge ignores `memory_dir` in `.claude/topic-docs.yaml`.** `judge-lib.sh` always writes the findings file under `<repo>/.work/reviews/<branch-slug>/`, so a consumer that set `memory_dir` there no longer gets findings in that root. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
+- **The judge calibration record moved beside its labels.** `calibration.md` now lives in `skills/audit/evals/judge-calibration/`, and `metrics.sh --check` reads its `holdout-only:` lines from there instead of `docs/specs/tautological-tests-judge/calibration.md`.
+
 ## [0.16.2] - 2026-10-01
 
 ### Fixed

@@ -1,0 +1,78 @@
+{
+  "skill_name": "observability",
+  "evals": [
+    {
+      "id": 1,
+      "name": "week-scope-report-read-only",
+      "prompt": "How am I doing on token burn this week?",
+      "expected_output": "A read-only week-scope telemetry report (the default scope) assembled from the available sources (ccusage, hook-event log, OTEL store). It does not modify code and does not write to memory; any file output is confined to a report under the reports directory only when --write is passed.",
+      "files": [],
+      "expectations": [
+        "The response produces a week-scoped report (the default scope) covering token/cost signals",
+        "The response does not modify code or write to auto-memory",
+        "No file is written unless `--write` was requested, and any such file is a report under the reports directory"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "clean-requires-confirmation",
+      "prompt": "The OTEL store is getting pretty large — is there a safe way to trim it down?",
+      "expected_output": "Because this is a casual cleanup request rather than an explicit destructive order (the user did not pass --dry-run or clearly order the prune), the skill shows the --dry-run preview (what would be pruned) and requires explicit user confirmation before actually pruning. It does not delete store or JSONL data in this turn.",
+      "files": [],
+      "expectations": [
+        "The response shows a `--dry-run` preview of what would be pruned before deleting anything",
+        "The response requires explicit user confirmation before running the destructive prune",
+        "No telemetry data is actually deleted in this turn"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "product-bug-routes-to-known-issues",
+      "prompt": "Is the Stop hook a known broken Claude Code bug right now? Any workarounds?",
+      "expected_output": "This is a Claude product-bug / GitHub-issue question, not a local-telemetry read. The skill routes the user to /harness-ops:known-issues instead of answering from the OTEL/telemetry store.",
+      "files": [],
+      "expectations": [
+        "The response identifies the request as a Claude product-bug question rather than a local telemetry read",
+        "The response routes to `/harness-ops:known-issues` instead of querying the telemetry store"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unknown-scope-not-guessed",
+      "prompt": "/harness-ops:observability lastweek",
+      "expected_output": "The scope token 'lastweek' is not a valid scope. The skill reports the unknown scope and lists the valid options (session, day, week, month, since:YYYY-MM-DD, all, clean) rather than silently guessing a nearby scope.",
+      "files": [],
+      "expectations": [
+        "The response reports that `lastweek` is not a recognized scope",
+        "The response lists the valid scopes/actions rather than silently substituting a guessed scope"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "empty-store-degrades-gracefully",
+      "prompt": "Give me a cost and hook-latency breakdown for this session.",
+      "expected_output": "A read-only session-scope breakdown. If a data source (e.g. OTEL store or hook-event log) is empty or absent, the skill degrades gracefully — reporting the empty source as normal-on-first-run rather than erroring or fabricating numbers.",
+      "files": [],
+      "expectations": [
+        "The response produces a session-scoped read-only breakdown without modifying state",
+        "If a data source is empty or absent, the response notes it as expected/first-run rather than erroring out",
+        "The response does not fabricate metric values for a source that has no data"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "two-session-compare",
+      "prompt": "/harness-ops:observability compare 3f2a9c1e-opus 7b4d0e2f-sonnet  (the same task, run once on each model)",
+      "expected_output": "Runs the compare action read-only: tokens by type with cache writes as their own type, split by model and effort, plus a cost reconciliation of each session's api_request totals against claude_code.cost.usage, with the metric as the total of record and anthropics/claude-code#98193 named when events fall short. The context line links the monitoring-usage docs first and the post's 'Measure it yourself' section as a correlate, with no task count. When the store is absent, a session is missing, or a metric is not delta, it reports that it cannot evaluate instead of inventing numbers.",
+      "files": [],
+      "expectations": [
+        "The response runs or describes the compare action rather than a scope report",
+        "Cache creation tokens are reported as their own type, not folded into input",
+        "Token rows are split by model and by effort",
+        "api_request cost is reconciled against claude_code.cost.usage, with the metric as the total of record and #98193 named for a shortfall",
+        "The response links the monitoring-usage docs, links the post section only as a correlate, and states no task count",
+        "No telemetry store or file is written or modified"
+      ]
+    }
+  ]
+}

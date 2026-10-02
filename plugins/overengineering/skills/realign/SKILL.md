@@ -82,9 +82,9 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    steps `audit` uses (strip a leading `refs/heads/`, then `git check-ref-format --branch`,
    refuse `.` / `..` segments); name where it came from. **Otherwise stop**. See "An unresolved
    branch identity is its own refusal" below. With an identity in hand,
-   resolve the home by running the whole rung order in
-   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
-   wrote, and that failure is indistinguishable from the audit never having run.
+   compose the home per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` "Where it lives". A path
+   composed any other way reads where the audit never wrote, and that failure is indistinguishable
+   from the audit never having run.
 2. **No artifact → stop.** Report, visibly, that no findings artifact exists at the resolved home,
    name the two skills that produce one, `overengineering:audit` for a walk of the enforcement
    surface and `overengineering:justify` for a single artifact the operator points at, so an

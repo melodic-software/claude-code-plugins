@@ -3,6 +3,37 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.4] - 2026-10-02
+
+### Changed
+
+- **The script comment records in `check-skill.sh` are links-only.** The description cap, the
+  description maximum, the `name` limits and reserved words, the table-of-contents threshold and the
+  `name` default each state this checker's own setting, followed by a pointer to the exact upstream
+  section, an as-of date and a recheck trigger, with no quoted upstream text. The table-of-contents
+  record notes that the skill-creator and the platform best-practices page disagree on the
+  threshold. Comments only: no check, threshold or exit code changes.
+
+## [0.25.3] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
+## [0.25.2] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.25.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.25.0] - 2026-09-30
 
 ### Added

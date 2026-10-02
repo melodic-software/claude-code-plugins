@@ -28,9 +28,10 @@ staleness value, and the default zone bands. Inlined copies in consumers must st
 **byte-identical** to the values printed here; a consumer lane carries a drift check that
 grep-matches its inlined values against this file.
 
-**Recheck trigger for every dated stamp in this file:** re-read the cited page and re-date the
-stamp when any of these change. The statusline stdin schema, meaning the `context_window` field
-names, the `used_percentage` formula, and the top-level `version` field. The auto-compact trigger,
+**Recheck trigger for every dated record in this file:** re-read the record's pointer, re-derive
+the decision, and re-date the record when any of these change. The statusline stdin schema,
+meaning the `context_window` field names, the `used_percentage` formula, and the top-level
+`version` field. The auto-compact trigger,
 meaning whether a default threshold is published as a number, and which models and environments
 compact before the model's context limit. The four surfaces in the tunable table below
 (`autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`,
@@ -82,16 +83,16 @@ concurrent sessions each own the file named by their `session_id`.
   "session_id": "abc123",
   "cli_version": "2.1.218",
   "context_window": {
-    "total_input_tokens": 15500,
-    "total_output_tokens": 1200,
+    "total_input_tokens": 42000,
+    "total_output_tokens": 3100,
     "context_window_size": 200000,
-    "used_percentage": 8,
-    "remaining_percentage": 92,
+    "used_percentage": 21,
+    "remaining_percentage": 79,
     "current_usage": {
-      "input_tokens": 8500,
-      "output_tokens": 1200,
-      "cache_creation_input_tokens": 5000,
-      "cache_read_input_tokens": 2000
+      "input_tokens": 6000,
+      "output_tokens": 3100,
+      "cache_creation_input_tokens": 9000,
+      "cache_read_input_tokens": 27000
     }
   }
 }
@@ -106,12 +107,14 @@ concurrent sessions each own the file named by their `session_id`.
 - `cli_version`: the statusline payload's top-level `version` (the Claude Code version), copied
   only when it is a string; absent otherwise, never guessed. It gates the token shape (see "Version
   floor"), so an absent one is not a defect. It just leaves the percentage shape standing alone.
-- `context_window`: copied **verbatim** from the statusline stdin schema
-  (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10), so upstream field additions
+- `context_window`: copied **verbatim** from the statusline payload, so upstream field additions
   flow through without a plugin change. The key is absent when the session's statusline payload
-  carried none. Null states are upstream-documented and normal: `used_percentage` /
-  `remaining_percentage` may be `null` early in a session; `current_usage` is `null` before the
-  first API call **and again immediately after `/compact`** until the next response repopulates it.
+  carried none. A null `used_percentage`, `remaining_percentage`, or `current_usage` is a normal
+  state, not a defect; the capability table below says what each one does to the zone, and a null
+  `current_usage` after `/compact` is why that row resolves `unknown`. Pointer: for the field set
+  and when each field is null, see <https://code.claude.com/docs/en/statusline#available-data>.
+  As of: 2026-08-10. Recheck trigger: a release note or that section changes the `context_window`
+  fields or the states in which they are null.
 - Treat all values as **untrusted data**: parse with a JSON parser; validate any value against its
   documented format before handing it to a lenient parser (the bundled resolver format-gates
   `captured_at` to strict ISO-8601 before date parsing, and requires the embedded `session_id` to
@@ -154,16 +157,20 @@ always means "take the conservative route".
 The contract carries two zone shapes because the two underlying measures answer different
 questions. Never equate them without normalizing:
 
-- **Percentage shape**: `context_window.used_percentage` against the percentage bands. Upstream
-  computes it from **input tokens only** (`input_tokens + cache_creation_input_tokens +
-  cache_read_input_tokens`, no output, per the statusline doc, verified 2026-07-26). It answers
-  *distance to compaction*, because compaction thresholds key off the same accounting.
+- **Percentage shape**: `context_window.used_percentage` against the percentage bands. We rely on
+  it counting the input side only, and read it as *distance to compaction*, because compaction
+  thresholds key off the same accounting. Pointer: for how the percentage is computed, see
+  <https://code.claude.com/docs/en/statusline#context-window-fields>. As of: 2026-07-26. Recheck
+  trigger: that section changes the `used_percentage` formula.
 - **Token shape**: **occupancy**, defined as `total_input_tokens + total_output_tokens`, against
   the window-class token bands. Occupancy counts both directions because both occupy the window,
-  and the degradation evidence (Chroma context-rot report) tracks **absolute tokens in context,
-  not window fraction**. It answers *distance to quality loss*. That is also why the token bands
-  are absolute numbers selected by window class rather than percentages: 50% of a 1M window is a
-  materially different cognitive state than 50% of a 200k window.
+  and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
+  answers *distance to quality loss*. That is also why the token bands are absolute numbers
+  selected by window class rather than percentages: 50% of a 1M window is a materially different
+  cognitive state than 50% of a 200k window. Pointer: for the degradation evidence, see the Chroma
+  context-rot report, <https://research.trychroma.com/context-rot>. As of: 2026-10-01. Recheck
+  trigger: Chroma revises or withdraws the report, or a newer study finds degradation tracking
+  window fraction.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row, so the token
@@ -181,19 +188,20 @@ misfire the token bands badly. Cumulative semantics are **not observable from th
 cumulative 170k in a 200k window is a perfectly plausible current occupancy, sits inside the
 window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, which the tee copies from the
-statusline payload's top-level `version` field (the Claude Code version, statusline doc, verified
-2026-08-10). **The token shape is computable only when `cli_version` is present, purely numeric
-dotted, and ≥ 2.1.132**; absent, malformed, or older leaves the percentage shape to stand alone.
+statusline payload's top-level `version` field, the Claude Code version (Pointer:
+<https://code.claude.com/docs/en/statusline#available-data>. As of: 2026-08-10. Recheck trigger:
+that section renames or drops the `version` field). **The token shape is computable only when
+`cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
+leaves the percentage shape to stand alone.
 
-> **Sourcing status of the 2.1.132 floor.** Claim: `total_input_tokens` / `total_output_tokens`
-> mean current occupancy only from Claude Code 2.1.132. Basis: no current upstream source. The
-> statusline page (`https://code.claude.com/docs/en/statusline.md`, complete raw page, re-checked
-> 2026-08-10) states only the present-tense semantics this floor depends on: "Token counts
-> currently in the context window, from the most recent API response" and "**Combined totals**
-> (`total_input_tokens`, `total_output_tokens`): tokens currently in the context window". The
-> floor is therefore a retained claim, a conservative lower bound kept deliberately: dropping it
-> can only *widen* which payloads the token shape trusts, and the failure it guards is silent.
-> Recheck trigger: re-source it before any change that relaxes it.
+> **Source of the 2.1.132 floor.** We do not trust `total_input_tokens` /
+> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release whose
+> changelog entry names the statusline token-count fix.
+>
+> - **Pointer**: [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132); for the
+>   fields' present meaning, <https://code.claude.com/docs/en/statusline#context-window-fields>.
+> - **As of**: 2026-10-01
+> - **Recheck trigger**: any change that relaxes the floor, or the changelog entry moves or is reworded.
 
 **Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
 also marks the token shape not-computable**. That is corrupt or forged data, and it catches what
@@ -201,11 +209,11 @@ a version field cannot (there is no writer authentication, so `cli_version` is u
 every other snapshot value). The bundled resolver implements both gates.
 
 **Band provenance:** all shipped band numbers are **declared judgment defaults with named
-anchors**, not benchmark-derived constants. The 1M row's anchor is a named-staff informal range
-(self-hedged "highly task-dependent"); the 200k row is declared judgment near practitioner
-folklore values, but deliberately below them. Both rows carry equally low confidence; `zones.json` is the correction path, and the numeric agreement of
-the 200k row's percentage translation with the shipped 50/75 percentage defaults is coincidence,
-not validation.
+anchors**, not benchmark-derived constants. The 1M row's anchor is an informal range a named staff
+member gave and hedged as task-dependent; the 200k row is declared judgment near practitioner
+folklore values, but deliberately below them. Both rows carry equally low confidence;
+`zones.json` is the correction path, and the numeric agreement of the 200k row's percentage
+translation with the shipped 50/75 percentage defaults is coincidence, not validation.
 
 ## Zone-crossing hooks (first shipped consumer)
 
@@ -224,7 +232,7 @@ The plugin itself ships hooks over the interface this contract defines, the firs
   fallback / `/compact`) and the presence-gated pointer to `session-flow:workflow`'s router.
   **Neither the menu nor the router pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under the instruction-audit catalog's I23 (`claude-config`, `reference/criteria.md`),
+  live finding under the instruction-audit catalog's I23 (`harness-config`, `reference/criteria.md`),
   whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
   the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
@@ -313,31 +321,37 @@ with a declared margin: if compaction triggers at 90% or above, the dumb band le
 points or more. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
-Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
-`/context` output due to when each is calculated", so the value is as-of the last API response, not
-the next request; and with `autoCompactEnabled: false` no compaction ever fires (the session
-hard-stops at the window instead), which makes the dumb band the *only* tripwire, so it matters
-strictly more, never less.
+Two adjacent decisions. We read the statusline percentage as of the last API response, not the
+next request, so it can trail `/context`. With auto-compact turned off, the dumb band is the
+*only* tripwire, so it matters strictly more, never less.
+
+- **Pointer**: for how the statusline percentage relates to `/context`, see
+  <https://code.claude.com/docs/en/statusline#troubleshooting>; for turning auto-compact off, see
+  <https://code.claude.com/docs/en/settings-reference#autocompactenabled>.
+- **As of**: 2026-09-28
+- **Recheck trigger**: a release note or either section changes when the percentage is computed or
+  what turning auto-compact off does.
 
 ### The trigger has no documented threshold, but it is operator-tunable
 
 No *default* threshold is published as a number (above), yet the point at which auto-compact fires
-is a configured value the operator can read and set. **Four** surfaces govern it. Verified
-2026-08-17 against two independent pools, the official
-[settings reference](https://code.claude.com/docs/en/settings) and the shipped binary's own schema
-strings (v2.1.233), then re-verified 2026-08-19 against the live settings,
-[env-vars](https://code.claude.com/docs/en/env-vars), and
-[model-config](https://code.claude.com/docs/en/model-config) pages:
+is a configured value the operator can read and set. **Four** surfaces govern it. Each row states
+what this plugin relies on; the pointer holds the units, ranges, forms, and precedence.
 
-| Surface | Kind | What it does |
-|---|---|---|
-| `autoCompactWindow` | `settings.json` key | How full the window gets before auto-compact fires, **in tokens, `100000` to `1000000`** (binary schema: `.int().min(1e5).max(1e6).optional()`). **No numeric default**: unset means a window tuned for the model, deliberately not published as a number. Written by the `/autocompact` command; the `--autocompact` flag sets it for one launch and, unlike the command, is not preempted by a higher-priority settings scope. |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Same units and range; **highest precedence**: it overrides the command, the flag, and the setting while set. **Accepts a plain integer only**: the command and flag take `500k` / `1M` / a bare `500` meaning thousands, but the variable reads `500k` as `500` and clamps to the 100K minimum. |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Sets the **percentage (1–100) of the auto-compact window** at which compaction triggers. **Can only lower the threshold**: values above the default percentage are ignored. Applies only in sessions that compact *before* the model's context limit, and to subagents as well as the main conversation. |
-| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key (default `true`, shown in `/config` as **Auto-compact**) / environment variable | Turns auto-compact off entirely. (`DISABLE_COMPACT`, which disables *all* compaction including `/compact`, comes from the 2026-08-17 binary-strings pool; it is not listed on the env-vars page as of 2026-08-19, so treat it as unconfirmed by docs.) |
+| Surface | Kind | What this plugin relies on | Pointer |
+|---|---|---|---|
+| `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. Unset gives no number we can read, so we never assume one. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. We treated `DISABLE_COMPACT` as unconfirmed by docs: it came from our 2026-08-17 probe of the shipped binary's strings (v2.1.233) and was absent from the env-vars page on 2026-08-19. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 
-Claude Code caps the window at the model's actual context window, so a configured value above it
-does not extend anything.
+We read a configured window above the model's context window as the model's window: it extends
+nothing.
+
+- **Pointer**: per row above.
+- **As of**: 2026-08-19
+- **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
+  precedence, or the set of surfaces itself.
 
 **Normalize before comparing: the trigger is not in occupancy.** The two zone shapes answer
 different questions and must never be equated (see "Occupancy and combination rule"), and the
@@ -347,10 +361,12 @@ is input-token-based and answers *distance to compaction*, while the token bands
 A configured window is a fill threshold, so compare it against the percentage shape and let the
 occupancy bands move independently.
 
-One consequence matters enough to state on its own, and it is the docs' own warning
-(env-vars, verified 2026-08-19): **`used_percentage` always measures against the model's full
-context window**, so once the auto-compact window is lowered, *the percentage no longer indicates
-when compaction will run*. A consumer reading only the percentage will not see the trigger coming.
+One consequence matters enough to state on its own: we read `used_percentage` as a share of the
+whole window the model offers, so after the auto-compact window is lowered, **we never read the
+percentage as a forecast of when compaction will run**. A consumer reading only the percentage
+will not see the trigger coming. Pointer: for the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row, see
+<https://code.claude.com/docs/en/env-vars#variables>. As of: 2026-08-19. Recheck trigger: that row
+changes what the percentage is measured against.
 
 **Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
@@ -373,25 +389,28 @@ is instrumentation, not prohibition: observable zones, then advisory injection, 
 blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
 all of it (as-of 2026-08-17).
 
-**On folklore numbers.** The vendored Boris playbook, §64, attributing the compromise to Thariq,
-is a widely-cited practitioner anchor. It reports context rot setting in around 300–400k tokens on
-1M-context models and suggests `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000`. Recorded here as a **named
-anchor, never an adopted number**, and it comes with its own amendment: that calibration is
-Opus 4.7-era, and the Opus 5 prompting guide (verified 2026-08-08) states the 1M window's
-instruction following, tool calling, and reasoning "stay consistent throughout the window", which
-removes the degradation premise for that specific figure. A lowered window remains a legitimate
-cost and compaction-timing choice on its own terms.
+**On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
+widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
+calibration predates the 1M-window models these sessions run on, and we do not treat its
+context-degradation premise as holding on them. A lowered window remains a legitimate cost and
+compaction-timing choice on its own terms.
+
+- **Pointer**: for the practitioner figure, see `/playbooks:boris` §64 ("Lower Your Auto-Compact
+  Threshold"); for the current models' context windows, see
+  [Latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the session models' context window changes, or §64's figure changes.
 
 ## Prompt-cache miss cause
 
 The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
 `plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
 payload and prints the cause names. The tee snapshot still copies `context_window` and does not
-copy `prompt_cache`; pass the live payload to the script. Claim: `last_miss_cause.causes` holds
-names such as `tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, and
-`likely_server_side`, and the object is null when no cause was identified. Basis:
-<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck: that
-section renames the object or its cause names.
+copy `prompt_cache`; pass the live payload to the script. The script prints whatever cause names
+`last_miss_cause.causes` carries, with no fixed list of its own, and prints `null` when the object
+is null. Pointer: for the object and its cause names, see
+<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck trigger:
+that section renames the object or its cause names.
 
 ## Zones (machine-scope tuning, optional)
 
@@ -440,8 +459,9 @@ bash "<plugin-root>/scripts/context-zone.sh" <session_id>   # prints one zone wo
 ## Session-id discovery (how a consumer learns its own id)
 
 A skill learns its session id via the **`${CLAUDE_SESSION_ID}` substitution** in skill markdown
-content (<https://code.claude.com/docs/en/skills>, substitution table, verified 2026-08-10). The
-skill body interpolates it into the snapshot path directly.
+content. The skill body interpolates it into the snapshot path directly. Pointer:
+<https://code.claude.com/docs/en/skills#available-string-substitutions>. As of: 2026-08-10.
+Recheck trigger: that table renames or drops `${CLAUDE_SESSION_ID}`.
 
 **Fallback:** when the substitution is unavailable (older Claude Code, non-skill context, or the
 literal string `${CLAUDE_SESSION_ID}` survives unexpanded), the consumer must not guess a session
@@ -465,9 +485,8 @@ written into the session's own user settings was never invoked.
 
 This is not a degraded install and not a missing dependency. It is the absence of the only
 documented surface that **delivers per-session context-window occupancy to a local writer**: as of
-**2026-08-21**, hook stdin carries no context, token, usage, or window field on any event, except
-`PostToolUse` on the `Agent` tool, whose `tool_response` carries `totalTokens` and a `usage`
-breakdown for the *subagent's* final API request and nothing about the main session's window. Two
+**2026-08-21**, our channel inventory found no hook event whose stdin reports the main session's
+window; the one token-bearing hook payload describes a *subagent's* request. Two
 other channels do carry live occupancy for the running session, the OpenTelemetry
 `claude_code.api_request` log event and the session transcript, and neither can be turned into a
 snapshot; `reference/cloud-headless-capture.md` records why in full. That file is the writer-side
@@ -485,8 +504,8 @@ take the conservative route. What changes is how a consumer *reports* it:
   `claude_code.api_request` event carries live per-session token counts but no window size and no
   local sink, so a zone from it needs a fabricated denominator; the session transcript reachable
   through the documented `transcript_path` hook field carries the right numbers behind an entry
-  format its own docs call internal and version-unstable, where a field can keep its name and stop
-  meaning full-context occupancy with nothing to detect it; and the OpenTelemetry token metric is
+  format we do not treat as a stable interface, where a field can keep its name and stop meaning
+  full-context occupancy with nothing to detect it; and the OpenTelemetry token metric is
   a cumulative counter, not occupancy. A wrong zone is strictly worse than `unknown`: `unknown`
   routes to the conservative path, while a misread occupancy can read `smart` on a nearly full
   window.
@@ -504,11 +523,10 @@ and managed settings, where `statusLine` is also a valid key.
 - **No `statusLine` in any scope** is structural, and offering statusline wiring as the remediation
   is wrong in an environment that runs no statusline.
 - **A `statusLine` configured but the status line disabled** is also structural, and the
-  remediation is policy or trust rather than wiring. Claude Code turns the status line off entirely
-  when managed settings set `disableAllHooks` or the folder is not trusted, and narrows the source
-  to managed settings when `allowManagedHooksOnly` is set. Under narrowing it runs a managed value
-  if one is deployed and otherwise skips yours *without warning*. This state looks exactly like a
-  broken install unless it is checked first. The dated record for both settings keys is
+  remediation is policy or trust rather than wiring. Check `disableAllHooks`,
+  `allowManagedHooksOnly`, and folder trust before anything else: either key, or an untrusted
+  folder, can disable or narrow the status line with no warning, so this state looks exactly like
+  a broken install unless it is checked first. The dated record for both settings keys is
   `cloud-headless-capture.md`, branch 3 of "Distinguishing structural absence from breakage".
 - **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
   (cloud, headless `claude -p`, other terminal-less) is also structural: the command exists, is

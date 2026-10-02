@@ -1,5 +1,52 @@
 # Changelog: docs-hygiene plugin
 
+## [0.24.5] - 2026-10-02
+
+### Changed
+
+- **`audit-progressive-disclosure` holds its thresholds as our settings with pointer records.**
+  `context/tier-model.md` states each number and rule in our words, with a pointer, an as-of date
+  and a recheck trigger, and `SKILL.md` lists its sources by topic only. The missing-TOC check
+  records that two Anthropic sources disagree on the threshold (100 versus 300 lines), so a file
+  between the two gets awareness only and neither number is presented as the single official rule.
+- **`write-for-humans` records its four fallback layers in the links-only shape.** The layers in
+  `reference/sources.md` are this plugin's selections from published standards, each with our
+  decision, a pointer, an as-of date and a recheck trigger.
+- **`write-for-humans` runs checks instead of a self-check.** After writing it runs the project's
+  prose linter and `/ai-slop:audit`, or reports that the AI-tell check did not run.
+- **`write-for-agents` names which surfaces are system prompt**: a subagent body, an output style,
+  and the launch flags that replace or append to the system prompt. Everything else reaches the
+  model as conversation content.
+- **`rename-references` sets a binary done criterion** for its stale-path pass: zero orphans and
+  zero stale-but-functional rows, or each remaining row named.
+
+## [0.24.4] - 2026-10-02
+
+### Fixed
+
+- The `audit-derivability` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+- The `rename-references` `argument-hint` uses Claude Code's official bracket notation: it lists the
+  actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
+## [0.24.3] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+- The `audit-encapsulation` description no longer leads with "audit and remediate": it says
+  remediation runs only behind an explicit `fix <file>:<line>`, which the verb-contract check in
+  `skill-quality` requires of an `audit` skill.
+
+## [0.24.2] - 2026-10-01
+
+### Changed
+
+- **`audit-noise` ghost-ref detection no longer reads `.claude/topic-docs.yaml`.** The detector ignores its `memory_dir` and `contract_dir` roots and no longer flags `docs/topics/<slug>/` paths, because the topic-docs convention no longer exists. It still flags concrete `.work/<slug>/` children and the retired `.claude/notes/`, `.claude/handoffs/` and `.claude/review/` locations.
+
 ## [0.24.1] - 2026-10-01
 
 ### Changed

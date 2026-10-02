@@ -1,0 +1,166 @@
+# Purge Workflow (destructive, confirm-gated)
+
+Delete the auto-memory files for the current repo. This is irreversible. Never delete before
+the confirmation gate in Step 3.
+
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory. The
+stateless SKILL.md renders its absolute path; put it in place of the placeholder before running a
+command.
+
+For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set.
+In Step 1, the candidates are EVERY per-project store from
+`bash "<skill-dir>/scripts/enumerate-all-projects.sh"` (plus any
+`autoMemoryDirectory` overrides found in the scopes readable from here), not just the current
+project's. Step 2 captures ONE combined manifest across all candidate dirs (the loop already
+takes a list). Step 3 raises ONE combined gate that states the machine-wide total file count
+AND lists every directory with its per-dir count. A machine-wide delete must never ride on a
+single-project-sounding confirmation. The backup offer applies to the whole manifest (each
+source dir gets its own sibling `.bak-<UTC>/`, same timestamp). Steps 4–5 are unchanged.
+
+State this known limit in the combined gate: a project that relocated its store via
+`autoMemoryDirectory` in its own repo's `.claude/settings(.local).json` is NOT discoverable
+from enumeration (only that repo's settings scopes know), so its store is absent from the
+manifest and survives `purge all`. Say so in the gate ("relocated per-repo stores are not
+included") and offer to additionally check any repos the user names.
+
+## Step 1: Resolve EVERY candidate directory
+
+We treat `autoMemoryDirectory` as able to relocate the store from **any** settings scope (user,
+project, local, policy, `--settings`); [official-guidance.md](../reference/official-guidance.md),
+"Storage location", holds the pointer. Miss that and you purge the wrong place. So:
+
+1. Read `autoMemoryDirectory` from every present settings scope: managed, local, project, and
+   user. The snapshot in SKILL.md lists which files exist; Read each. Expand `~/` to `$HOME`.
+2. Resolve the default via the snapshot / `scope-report.sh` (slug-derived
+   `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/<project>/memory/`, and the config root honors
+   `CLAUDE_CONFIG_DIR`, so a config root relocated by it is the *expected* tree, not a flag).
+3. Build the candidate set = the highest-precedence `autoMemoryDirectory` override if any set,
+   plus the default. Include the default even when an override exists (older writes may remain
+   there). De-duplicate.
+
+## Step 2: Capture the exact manifest (and flag relocations)
+
+Enumerate the files ONCE into an explicit list, and delete exactly that captured list in Step 4.
+Never re-glob at deletion time (a re-glob reopens a time-of-check/time-of-use gap and can
+delete files created between the manifest and the delete). Capture regular files only (`-type f`
+skips symlinks, so a symlinked `*.md` is never followed):
+
+```bash
+config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"   # honors a relocated config root
+manifest=$(mktemp)
+for dir in <resolved absolute candidate dirs from Step 1>; do
+  [[ -d "$dir" ]] || continue
+  case "$dir" in
+  "$config_root/projects/"*) : ;; # expected default (or CLAUDE_CONFIG_DIR-relocated) tree
+  *) echo "UNEXPECTED RELOCATION: $dir is outside $config_root/projects/ (from autoMemoryDirectory)" ;;
+  esac
+  find "$dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null
+done | sort -u >"$manifest"
+```
+
+Present to the user:
+
+- Each directory and the **resolved absolute path** of every file in `$manifest` (with count).
+- **Explicitly flag any `UNEXPECTED RELOCATION` line**: a candidate dir outside the config root's
+  `projects/` tree came from an `autoMemoryDirectory` override that a project/local settings file
+  can set. Confirm the user intends to delete from that absolute path before proceeding, since
+  it could point at an unrelated directory.
+- That this deletes auto-memory notes only, **not** CLAUDE.md, rules, transcripts, or history.
+  If the intent is the full per-project wipe, point to `claude project purge` instead, and state
+  its scope to the user (what it deletes and what it leaves alone) from the record in
+  [reference/official-guidance.md](../reference/official-guidance.md), "Out of scope for this
+  skill", rather than from memory. Read the deletion plan and flags at
+  [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
+- If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
+
+## Step 3: Confirmation gate (with backup offer)
+
+Ask for explicit confirmation, quoting the concrete manifest (and any `UNEXPECTED RELOCATION`
+paths), and offer an opt-in backup in the same question, e.g.:
+
+> This will permanently delete N auto-memory file(s): `<abs path>/MEMORY.md`,
+> `<abs path>/debugging.md`, … This cannot be undone. I can first copy these exact files to
+> `<memory_dir>.bak-<UTC-timestamp>/` as a snapshot. If the backup fails, the deletion is
+> cancelled too (you can re-confirm a plain delete afterwards). Type "yes" to delete, or
+> "yes, with backup" to snapshot first.
+
+Proceed only on an unambiguous yes. On anything else, abort and change nothing. Never infer
+consent from the original request; the gate is a separate, explicit step.
+
+**A bundled or earlier multi-option answer does NOT satisfy this gate.** Consent that rode
+along in an upstream flow is materially weaker than this gate's bar: a `/planning:interview` round
+where "purge" was one bullet of a bundled answer, a numbered menu selection (`"1"`) whose option
+happened to include the purge, or a "go stateless and purge" given before the manifest existed. The gate must restate the concrete, now-known scope (file count, directories)
+and receive a fresh confirmation that references that scope specifically.
+
+## Step 4: Optional backup, then delete the captured manifest
+
+**Backup first when the user opted in** ("yes, with backup"). Copy exactly the files
+captured in `$manifest`, the same no-re-glob discipline as the delete; never copy a directory
+recursively. Each source directory gets its own sibling snapshot `<dir>.bak-<UTC>/`:
+
+```bash
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+total=$(grep -c . "$manifest")
+copied=0
+declare -A made=()
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  # Re-check the entry is still a regular non-symlink file: a symlink swapped in after
+  # the Step 2 capture must not be dereferenced into the backup (cp would follow it).
+  [[ -f "$file" && ! -L "$file" ]] || { echo "BACKUP FAILED (no longer a regular file): $file" >&2; break; }
+  dest="$(dirname -- "$file").bak-$ts"
+  # Create each snapshot dir exactly once, and refuse a pre-existing destination
+  # (concurrent same-second purge, or a planted symlink that would redirect the
+  # backup): plain mkdir — never -p — fails on anything already there.
+  if [[ -z "${made[$dest]:-}" ]]; then
+    [[ -e "$dest" || -L "$dest" ]] && { echo "BACKUP FAILED (destination already exists): $dest" >&2; break; }
+    mkdir -- "$dest" || { echo "BACKUP FAILED (mkdir): $dest" >&2; break; }
+    made[$dest]=1
+  fi
+  cp -- "$file" "$dest/" || { echo "BACKUP FAILED (cp): $file" >&2; break; }
+  copied=$((copied + 1))
+done <"$manifest"
+if [[ "$copied" -ne "$total" ]]; then
+  echo "Backup incomplete ($copied/$total) — ABORTING: delete nothing." >&2
+  exit 1
+fi
+```
+
+Proceed to the delete ONLY when `copied == total`. On any shortfall (full disk,
+permissions), abort the purge, report the partial snapshot's path, and change nothing. The
+user can re-confirm a plain no-backup delete afterwards if they still want it.
+`cp -- "$file"` on a manifest entry copies a regular file only (the Step 2 capture was
+`-type f`); the backup lives beside the memory dir, outside it, so it is never re-matched
+by a future purge's `-maxdepth 1` enumeration of the memory dir itself.
+
+After confirmation (and the backup, when requested), delete exactly the paths captured in
+`$manifest` in Step 2. Do not re-enumerate, do not `find ... -delete`, do not `rm -rf`
+any directory:
+
+```bash
+while IFS= read -r file; do
+  [[ -n "$file" ]] && rm -- "$file"
+done <"$manifest"
+rm -f "$manifest"
+```
+
+`rm -- "$file"` on a symlink removes the link, not its target; combined with the `-type f`
+capture in Step 2, nothing outside the enumerated regular files is touched. Remove a
+now-empty memory directory only if the user explicitly asked to remove the folder itself;
+otherwise leaving the empty directory is harmless.
+
+## Step 5: Report and offer follow-through
+
+- Confirm what was deleted (files, directories).
+- If a backup was taken, report its absolute path(s) (`<dir>.bak-<UTC>/`) and note the
+  snapshot is the user's to keep or delete, since the skill never auto-prunes it.
+- Purge removes existing notes but does **not** stop new ones. If the user wants to stay
+  stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
+  re-accumulate memory.
+- If the intent was wiping everything Claude holds for this repo, point to
+  `claude project purge` (Step 2's pointer). Its scope is the full per-project one recorded in
+  [reference/official-guidance.md](../reference/official-guidance.md), not auto memory alone.
+- If the user wants to be stateless everywhere, summarize the Claude Desktop / claude.ai
+  account store steps in [desktop.md](desktop.md). That store is server-side and cannot be
+  deleted from here.

@@ -1,6 +1,6 @@
 ---
 description: "Backlog CRUD through the bound tracker: stats, list, add, start, done, due, recheck, search, audit (default: stats). Use when the user wants to add, claim, or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check what is due on the recurring schedule; or audit stale claims and labels. New bug reports go to /bugs:write first. Picking and executing the next item is /work-items:work; raw intake is /work-items:triage."
-argument-hint: "<action> [args]"
+argument-hint: "[stats|list|add|start|done|due|recheck|search|audit|help] [args]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,12 +10,12 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `<action> [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, and audit.
+Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|help] [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, audit, and help.
 
 ## Shared tracker context
 
 The seam, operation routing, label taxonomy, canonical-role remapping, recurring schedule, and
-topic-docs binding that every work-items skill relies on live in
+memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Two invariants bear on the
 actions below in particular:
@@ -56,11 +56,9 @@ marker sweep is `/work-items:scan-todos`.
 For the multi-step actions (`add`, `start`, `done`, `recheck`), instruct the agent to copy the
 matching action section of
 [`${CLAUDE_PLUGIN_ROOT}/templates/checklist.md`](${CLAUDE_PLUGIN_ROOT}/templates/checklist.md) into
-`<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write under this
-plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)):
-derive `<slug>` per its slug spec and, on the session's first memory-tier write, verify the resolved
-memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
+`<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write
+([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Memory-tier writes" owns the slug and the self-ignore guard).
 Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`) don't
 need a checklist.
 

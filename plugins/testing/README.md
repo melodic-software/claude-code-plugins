@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, diagnose failures to root cause, and catch tests that cannot fail. Eight
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Nine
 skills, one concern: proving behavior with tests.
 
 | Skill | What it does |
@@ -12,6 +12,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
+| `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
@@ -71,8 +72,7 @@ changed: where did its expected value come from? It answers FLAG (the value rest
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), writes a review-findings file (under `.work/reviews/<branch>/`, or the `memory_dir` that
-`.claude/topic-docs.yaml` names), and shows the counts. In an interactive session it also asks
+one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an interactive session it also asks
 Claude once to show you each verdict and proposed diff and wait; unattended sessions get the
 counts and the file only. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
@@ -156,7 +156,7 @@ paths. The user-global and `.claude/testing.local.yaml` layers do not change.
 
 `~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
 moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
-[latency probes](../../docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
+[latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 
 ### Test files written through Bash
@@ -171,7 +171,7 @@ payload of a Bash call:
   variable `CLAUDE_CODE_BASH_EDIT_DIFF=1`. Without one of these the field was absent in every mode
   probed (`default`, `acceptEdits`, `auto` and `bypassPermissions`), and the hook finds nothing to
   scan. The probe rows are in
-  [probes.md](../../docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
+  [probes.md](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
 - **Scope.** A created test file reports every test block. A modified file reports only the blocks
   its hunks touch, the same as an Edit. A file the repository ignores is skipped.
 - **Limits.** The payload carries hunks for the first five changed files only, so a modified test

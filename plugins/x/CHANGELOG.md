@@ -5,6 +5,13 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-10-02
+
+### Fixed
+
+- The `read` `argument-hint` uses Claude Code's official bracket notation: it drops the prose after
+  the grammar, which the skill body now carries.
+
 ## [0.2.6] - 2026-09-21
 
 ### Changed

@@ -34,8 +34,8 @@ weight, and both properties are already in scope):
 - <https://code.claude.com/docs/en/data-usage>
   The harness lane
 - <https://code.claude.com/docs/en/zero-data-retention>
-  The harness lane's enterprise posture: ZDR is scoped to qualified accounts on Claude for
-  Enterprise, which is the commitment a consuming setup needs stated rather than inferred
+  The harness lane's enterprise posture: which accounts ZDR covers is the commitment a consuming
+  setup needs stated rather than inferred
 
 Agent SDK (one page; SDK docs are canonically harness docs, but queuing the rest of that doc set
 is a separate scope decision nobody has taken):
@@ -49,28 +49,13 @@ Models:
   where a release-notes corpus would grow monotonically and age entry by entry
 - <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
   The launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
-  from the harness model-config doc's "Work with Fable 5"
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5>
-  Enqueued on custody grounds, not on a fleet-lane trigger that has not fired: the `playbooks`
-  Opus 5 model-adaptation chapter cites this page as sole authority for three shipped claims.
-  Those are thinking on by default, the 400 returned when thinking is disabled above effort `high`,
-  and the live effort-level enumeration that establishes the upstream Opus 5 prompting guide's own
-  ladder statement as truncated. The models `overview` page carries none of them, so "the overview covers
-  it canonically" is false for exactly the facts already cited. A custody fact about this one page,
-  not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
-  stays deferred
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5-5>
+  from the harness model-config doc's
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable)
+- <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
   The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
-  sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both URLs follow the Opus 5 and Sonnet 5 page
-  patterns and are unverified until fetched; one page per run
-- <https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5>
-  and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
-  The release notes and prompting guide for Sonnet 5.5, the current Sonnet, and the first-party
-  sources for the `playbooks` Sonnet 5.5 model-adaptation chapter. Both fetched 2026-10-01 (HTTP
-  200); the models `overview` page does not carry the guide's behavior claims. Recheck "current
-  Sonnet" when the models `overview` page lists a later Sonnet or a Sonnet release note appears.
-  One page per run
+  sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both resolved to their titled
+  pages on 2026-10-01; one page per run
 
 Claude Code companion docs (digest in this order):
 
@@ -78,57 +63,61 @@ Claude Code companion docs (digest in this order):
 - <https://code.claude.com/docs/en/memory>
 - <https://code.claude.com/docs/en/how-claude-code-works>
 
-Blog posts:
+Blog posts (each a digest target, never a pointer: a slice built on one points at the docs page
+named with it and keeps the post as a correlate):
 
-- <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
+- <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/> (not a pointer; correlate only)
   The vendor usage guide for Opus 5.5, the current Opus. The `playbooks` Opus 5.5
   model-adaptation chapter and this repository's instruction surfaces apply it without a custody
   record, applicability tags, or an attestation pass; its model-behavior claims are
-  vendor-reported
-- <https://claude.com/blog/the-advisor-strategy>
-  The harness advisor doc cites this post as its own "why"; digest it alongside
-  <https://code.claude.com/docs/en/advisor> and
+  vendor-reported. Docs pointer:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
+- <https://claude.com/blog/the-advisor-strategy> (not a pointer; correlate only)
+  The harness advisor doc links this post for its rationale; digest it alongside the docs
+  pointers <https://code.claude.com/docs/en/advisor> and
   <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool> so one slice covers
   the concept's three surfaces
-- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
+- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns> (correlate only)
   The designated deep-dive for prompting the Claude 5 generation, already being read by local
-  work without a custody record, applicability tags, or an attestation pass
-- <https://claude.com/blog/getting-started-with-loops>
+  work without a custody record, applicability tags, or an attestation pass. Docs pointer:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://claude.com/blog/getting-started-with-loops> (not a pointer; correlate only)
   Linked from the claude.ai performance post
-  (<https://claude.dev/blog/how-we-made-claude-ai-faster>); by its title, the loop mechanism the
-  `performance` plugin's measure, change, and verify cycle and the `playbooks` orchestration
-  chapter's narrow threads assume. Subject unverified until fetched
-- <https://claude.com/blog/code-review>
+  (<https://claude.dev/blog/how-we-made-claude-ai-faster>, correlate only); by its title, the loop
+  mechanism the `performance` plugin's measure, change, and verify cycle and the `playbooks`
+  orchestration chapter's narrow threads assume. Subject unverified until fetched. Docs pointer:
+  <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop>
+- <https://claude.com/blog/code-review> (not a pointer; correlate only)
   The automated-review gate the claude.ai performance post names as a safety mechanism set up
   before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
-  record against it. Unverified until fetched
-- <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic>
+  record against it. Unverified until fetched. Docs pointer:
+  <https://code.claude.com/docs/en/code-review>
+- <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic> (correlate only)
   The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
   which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
-  technique. Unverified until fetched
+  technique. Unverified until fetched. No docs page covers test-impact analysis as of 2026-10-01;
+  recheck trigger: a docs page starts covering it
 
 Engineering posts:
 
-- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
+- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents> (correlate only)
   The cited best-practices source for custom agent evaluations, and methodology input to the
-  deferred re-pin checklist and the eval-set gap
+  deferred re-pin checklist and the eval-set gap. Docs pointer:
+  <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
 
 Deferred with trigger (not queued):
 
-- <https://platform.claude.com/docs/en/build-with-claude/task-budgets>: api-only (the page
-  states task budgets are not supported on Claude Code or Cowork; verified 2026-07-27); enqueue
-  when harness support lands
+- <https://platform.claude.com/docs/en/build-with-claude/task-budgets>: tagged api-only on a
+  2026-07-27 check of the page's harness-support statement; enqueue when harness support lands
 - <https://code.claude.com/docs/en/context-window>: read against the 2026-07-31 harness snapshot
-  rather than left untested: it documents behavior as the limit approaches (Claude Code compacts
-  automatically) but never the `model_context_window_exceeded` stop reason, so it does not move the
-  claim it was checked for; enqueue if the page starts documenting that stop reason's handling
+  rather than left untested: it never named the `model_context_window_exceeded` stop reason, so it
+  does not move the claim it was checked for; enqueue if the page starts documenting that stop
+  reason's handling
 - <https://platform.claude.com/docs/en/build-with-claude/fallback-credit>: the two API-side claims
   it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
   when an artifact actually depends on fallback-credit behavior
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>: release notes for a
-  model the models `overview` page already covers canonically; enqueue when Sonnet 5 enters or
-  materially changes a fleet lane
-- <https://claude.com/blog/complete-guide-to-building-skills-for-claude>: a vendor-voice
-  restatement of a schema whose first-party canons are already reachable, so digesting it adds
-  attestation cost and no authority; enqueue for the first artifact that needs schema detail no
-  first-party canon states
+- <https://claude.com/blog/complete-guide-to-building-skills-for-claude> (correlate only): a
+  vendor-voice restatement of a schema whose first-party canons are already reachable (docs
+  pointer: <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>), so
+  digesting it adds attestation cost and no authority; enqueue for the first artifact that needs
+  schema detail no first-party canon states

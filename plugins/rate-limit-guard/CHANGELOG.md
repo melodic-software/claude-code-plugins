@@ -3,6 +3,21 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`. The `setup` body now states
+  that no argument runs the check.
+
+## [0.10.2] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.10.1] - 2026-10-01
 
 ### Changed

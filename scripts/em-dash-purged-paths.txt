@@ -92,20 +92,12 @@ docs/conventions/seam-phrasing/*.md
 docs/conventions/shell-test-helpers/*.md
 docs/conventions/standards/*.md
 docs/conventions/standards/examples/*.md
-docs/conventions/topic-docs/*.md
-docs/conventions/topic-docs/examples/*.md
 docs/conventions/tracker-reference-form/*.md
 docs/conventions/untrusted-content/*.md
 docs/conventions/upstream-drift/*.md
 docs/conventions/windows-path-emit/*.md
 # The out-of-scope records were purged whole.
 docs/out-of-scope/*.md
-# The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
-# markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
-# corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting
-# those would desync the record from what it measured.
-docs/specs/*.md
-docs/specs/*/*.md
 # The Claude Code mods evidence trail behind ADR 0035, purged in #4288: the
 # reading-order README, the cited source index, the go-no-go runbook, the
 # experiments, and the dated research snapshot. First-party prose under
@@ -159,25 +151,25 @@ plugins/bugs/CHANGELOG.md
 plugins/bugs/reference/*.md
 plugins/bugs/skills/*/SKILL.md
 plugins/bugs/skills/*/context/*.md
-# The claude-config plugin was purged whole. The glob stops short of the
+# The harness-config plugin was purged whole. The glob stops short of the
 # audit-instructions eval fixtures, which carry the tells those evals test.
-plugins/claude-config/*.md
-plugins/claude-config/skills/*/SKILL.md
-plugins/claude-config/skills/*/context/*.md
-plugins/claude-config/skills/*/reference/*.md
-plugins/claude-config/skills/*/templates/*.md
-# The claude-memory plugin was purged whole, its audit eval fixture included.
-plugins/claude-memory/*.md
-plugins/claude-memory/skills/*/SKILL.md
-plugins/claude-memory/skills/*/context/*.md
-plugins/claude-memory/skills/*/reference/*.md
-plugins/claude-memory/skills/audit/evals/fixtures/*.md
-# The claude-ops plugin was purged whole, its changelog eval fixtures included.
-plugins/claude-ops/*.md
-plugins/claude-ops/skills/*/SKILL.md
-plugins/claude-ops/skills/*/context/*.md
-plugins/claude-ops/skills/*/reference/*.md
-plugins/claude-ops/skills/changelog/evals/fixtures/*.md
+plugins/harness-config/*.md
+plugins/harness-config/skills/*/SKILL.md
+plugins/harness-config/skills/*/context/*.md
+plugins/harness-config/skills/*/reference/*.md
+plugins/harness-config/skills/*/templates/*.md
+# The harness-memory plugin was purged whole, its audit eval fixture included.
+plugins/harness-memory/*.md
+plugins/harness-memory/skills/*/SKILL.md
+plugins/harness-memory/skills/*/context/*.md
+plugins/harness-memory/skills/*/reference/*.md
+plugins/harness-memory/skills/audit/evals/fixtures/*.md
+# The harness-ops plugin was purged whole, its changelog eval fixtures included.
+plugins/harness-ops/*.md
+plugins/harness-ops/skills/*/SKILL.md
+plugins/harness-ops/skills/*/context/*.md
+plugins/harness-ops/skills/*/reference/*.md
+plugins/harness-ops/skills/changelog/evals/fixtures/*.md
 plugins/code-metrics/CHANGELOG.md
 plugins/code-metrics/README.md
 plugins/code-metrics/reference/*.md
@@ -219,7 +211,6 @@ plugins/context7/skills/*/SKILL.md
 plugins/context7/skills/lookup/context/*.md
 plugins/coupling/README.md
 plugins/coupling/CHANGELOG.md
-plugins/coupling/reference/topic-docs.md
 plugins/coupling/skills/*/SKILL.md
 plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
@@ -490,7 +481,6 @@ plugins/typos-format/CHANGELOG.md
 plugins/typos-format/skills/*/SKILL.md
 plugins/verification/README.md
 plugins/verification/CHANGELOG.md
-plugins/verification/reference/topic-docs.md
 plugins/verification/skills/*/SKILL.md
 plugins/verification/skills/*/context/*.md
 plugins/visualization/README.md

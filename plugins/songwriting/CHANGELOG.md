@@ -3,6 +3,24 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.40] - 2026-10-02
+
+### Changed
+
+- **`co-write` and `diagnose` replace the model's self-check with runnable passes.** Countable
+  rubric passes run as commands (`datamuse.sh` syllable counts, word-frequency counts), and the
+  skeptic row tests the judgment passes from a fresh context.
+
+## [1.4.39] - 2026-10-02
+
+### Fixed
+
+- The `co-write`, `diagnose`, `metaphor`, `meter-prosody`, `object-writing`, `practice`, `rhyme`,
+  `song-form`, `suno`, and `workflow` argument hints use Claude Code's official bracket notation:
+  each lists the actions the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [1.4.38] - 2026-09-29
 
 ### Fixed

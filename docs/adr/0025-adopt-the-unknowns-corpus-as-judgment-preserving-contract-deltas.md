@@ -49,8 +49,8 @@ anti-premature-codification warning treated as a binding constraint:
   to that effort, and each is decided build or decline at check-design time: a
   genericness check owned by `skill-quality:check`; a widening of the I29 duplication
   check (I29-a and I29-b, the repetition-myth lens) owned by
-  `claude-config:audit-instructions`; and a `/doctor` cross-reference (prerequisite
-  contract, absence classification, coverage disclosure) owned by `claude-memory`.
+  `harness-config:audit-instructions`; and a `/doctor` cross-reference (prerequisite
+  contract, absence classification, coverage disclosure) owned by `harness-memory`.
 
 ## Consequences
 

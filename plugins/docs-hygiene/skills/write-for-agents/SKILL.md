@@ -42,6 +42,24 @@ not transfer. A bottom-line-first opening, headings written to be skimmed, bulle
 scanning, and bounded bold all serve a person moving down a page fast, and an agent reading a rule
 needs the rule stated where it applies, not staged for a skim.
 
+## Know which surfaces are system prompt
+
+Three vehicles shape the system prompt: a subagent definition's body, an output style, and the
+launch flags that replace or append to the system prompt (`--system-prompt`, `--append-system-prompt`, and their `-file`
+forms). CLAUDE.md files, rules, and skill bodies reach the model as conversation content in the
+user turn. Write those as instructions read in the conversation: state the rule, its scope, and
+its reason. A rule that must hold at system-prompt level goes in a subagent body, an output style,
+or a launch flag.
+
+- **Pointer**: for how CLAUDE.md content is delivered, see
+  <https://code.claude.com/docs/en/memory#troubleshoot-memory-issues>; for a subagent body, see
+  <https://code.claude.com/docs/en/sub-agents#write-subagent-files>; for output styles, see
+  <https://code.claude.com/docs/en/output-styles#how-output-styles-work>; for the flags, see
+  <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>; for skill content, see
+  <https://code.claude.com/docs/en/skills#skill-content-lifecycle>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: one of those sections changes how its content reaches the model.
+
 ## Write pointers that cover their branches
 
 A pointer is a routing instruction; the reader decides whether to follow it from the pointer
@@ -54,7 +72,7 @@ text alone, without opening the target.
 - A pointer that exists only because changes must be mirrored across distant folders can mask a
   cohesion problem. Before adding it, consider restructuring so the things that change together
   live together, a pointer papering over low cohesion outlives the reorganization that would
-  have removed it. (Audit-side remediation home: `claude-memory:audit`'s C5 fix guidance, if
+  have removed it. (Audit-side remediation home: `harness-memory:audit`'s C5 fix guidance, if
   that plugin is installed.)
 
 The full pointer-quality criteria are owned by the sibling audit skill. Invoke
@@ -118,7 +136,7 @@ negative: name the specific styles to leave out ("no cream background, no pill-s
 since "avoid a generic look" swaps one default for another.
 
 Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
-so follow `/claude-config:audit-instructions` criterion I8-f for the model the text will run on:
+so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on:
 it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
 a lower effort level first, "Answer directly." second. A line telling the model to think less or
 not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce

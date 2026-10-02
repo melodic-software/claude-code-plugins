@@ -1,10 +1,42 @@
 # Changelog: discovery plugin
 
-## [0.25.23] - 2026-10-01
+## [0.25.26] - 2026-10-01
 
 ### Changed
 
 - **Research outcome-gate row 7 now says a MEDIUM or LOW claim listed in the Gaps section is not an accepted claim.** An artifact whose every claim is so labelled and listed passes the row; the follow-up is "Iterate to HIGH or list as a Gap". `agents/research-verifier.md` states the same rule, and discipline 11 and Phase 4 in `skills/research/context/phases.md` end at HIGH confidence or a listed Gap. `scripts/contract.test.sh` asserts the row wording. Four redundant phrases earlier in `skills/research/SKILL.md` are shortened so the effort-ceiling sentence stays inside the first 20000 bytes.
+
+## [0.25.25] - 2026-10-02
+
+### Changed
+
+- **`explorer` pins `effort: medium`**, the marketplace effort floor for code-changing or verifying
+  work, and gains a finish-then-stop paragraph: the run ends with the persisted EXPLORE.md set and
+  the bounded return payload.
+- **`reference/parent-contract.md` states the new pin** and converts its harness-facts, credential
+  and permission-grant records to the links-only shape: our decision, a pointer to the exact
+  section, an as-of date and a recheck trigger.
+
+## [0.25.24] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action.
+
+## [0.25.23] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.25.22] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+- **The non-interactive no-project-root fallback for `/discovery:research` moved from `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` to `${CLAUDE_PLUGIN_DATA}/artifacts/<slug>/`.** Research output already written under the old directory is no longer found and needs moving by hand.
 
 ## [0.25.21] - 2026-10-01
 

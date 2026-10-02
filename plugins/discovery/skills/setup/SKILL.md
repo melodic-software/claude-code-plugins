@@ -1,68 +1,30 @@
 ---
-description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml, and print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
-argument-hint: "check | apply [<key>=<value> ...]"
+description: "Verify the discovery plugin's runtime prerequisites for this session and print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', or a discovery skill reports a missing capability. Action: check (read-only, default). Re-runnable. Safe to invoke again."
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s read of the concern file ran at load time, from the session's working directory (the
-repository root unless the session has changed directory). Read it here instead of re-reading the
-file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
-file exists but is empty:
-
-!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
-
-When the session's working directory is not the repository root, or the value reads
-`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
-root directly instead.
 
 ## Purpose
 
-Settle the **topic-docs** seam for the consuming repo, the marketplace-wide convention for where
-plugin-generated documents land. The discovery plugin writes memory-tier artifacts (`EXPLORE.md`,
-`RESEARCH.md`, one `<slug>/` slice per topic) to `<memory_dir>/<slug>/`, never committed. The
-consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its shape is
-the convention's `topic-docs.schema.json`: every key optional, absent keys mean the documented defaults
-(`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). This
-plugin's binding, how the discovery skills consume what this skill persists, and the pointer to the
-published convention that owns the schema, lives in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+Report whether this session can run the discovery plugin's dispatch design, and print the permission
+rules that stop the acceptance-gate scripts prompting on every run. Artifact placement needs no
+configuration: the plugin's artifact protocol
+([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md))
+fixes where `EXPLORE.md`, `RESEARCH.md` and `INTENT.md` land, in the memory slice
+`<memory_dir>/<slug>/`, never committed.
 
-Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
-re-running reads the current state and offers an update rather than overwriting blind.
-
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then persists.
-`apply` is non-interactive when complete `<key>=<value>` arguments are supplied
-(`memory_dir=`, `contract_dir=`, `contract_tier=`, `vault_backend=`). Automation and headless use
-pass the full set and are never prompted. With incomplete arguments, `apply` interviews one question
-at a time, recommendation first.
+This is a check-only setup. Everything it reports lives in the harness or in the operator's own
+`~/.claude/settings.json`, which this skill never writes, so there is nothing for an `apply` to
+write. Idempotent: re-running reads the current state again.
 
 ## `check` (read-only)
 
-Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do not write anything.
+Report a PASS/INFO table. Do not write anything. No row is ever a FAIL or a blocker.
 
-1. **Current state.** From the pre-computed concern file: if `.claude/topic-docs.yaml` exists,
-   report its effective values (absent keys =
-   defaults). If it does not exist, INFO: the plugin runs on the documented defaults; `apply` persists
-   an explicit concern only if the consumer wants different values.
-2. **Inferred convention.** Look for a working-docs convention declared in the repo's own `CLAUDE.md`,
-   `AGENTS.md`, or `.claude/rules`, or an existing conforming layout (`.work/` with a self-ignore,
-   `docs/topics/`). Surface it as INFO. Prose is an inference source; the concern file is the runtime
-   authority.
-3. **Committed-tier guard.** Only when the effective `contract_tier` is `branch` (local mode has no
-   committed tier to guard): run `git check-ignore -v` on a representative file path inside the
-   contract root (e.g. `<contract_dir>/probe/PLAN.md`, a bare directory misses `**` patterns). FAIL
-   if a consumer ignore rule matches, an uncommittable "committed" tier, and surface the exact rule
-   and source line. Resolving the rule is the consumer's edit.
-4. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
-   enabled. Git remains the storage layer because GitBook offers no concurrency-safe,
-   lossless write path, so it is deferred and non-writable; durable writes target `docs`.
-5. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
+1. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
    default, and that posture degrades rather than breaks on a session that cannot support all of it.
-   Report these as PASS/INFO rows. **Never FAIL, and never a blocker**:
+   Report these as PASS/INFO rows:
    - **Harness version against the 2.1.219 floor** (`claude --version`). Below it, several behaviors
      the dispatch design relies on are false rather than merely absent: background became the default
      subagent execution mode in **2.1.198**, and below **2.1.218** a `context: fork` skill always
@@ -98,7 +60,7 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      `/subtask` as of **2.1.212**. Verified 2026-09-06 against Claude Code 2.1.263, the subagents
      documentation page and the environment-variables page as fetched that day; recheck when either
      page states a different default or a release note names fork mode.
-6. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
+2. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
    as no rules; read only, never write) and compare it with these six rules for this install root:
 
@@ -122,56 +84,15 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
    ("Operator setup").
 
-## `apply` (idempotent)
-
-Run `check`, then persist the chosen values. Re-running with the current values changes nothing and
-reports "already configured".
-
-1. **Resolve the values.** With complete `<key>=<value>` arguments, use them directly (non-interactive).
-   Otherwise interview one question at a time, recommendation first: present the inferred or documented
-   defaults (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
-   `vault_backend: docs`, RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
-   solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
-   consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
-   existing file carries, a re-run never drops one; do not invent options beyond the schema. `gitbook`
-   is reserved but not enabled as a `vault_backend` value (check step 4 states why). When offering or
-   preserving it, report that it is deferred and non-writable, never configure or test a GitBook API,
-   MCP, or Git Sync writer, and offer to replace the key with `docs` only if the user chooses that
-   change.
-2. **Guard, then persist.** Re-run the committed-tier guard from `check` for the chosen tier; if a
-   consumer ignore rule matches, STOP and surface the exact rule and source line rather than
-   configuring an uncommittable "committed" tier. Only then write the chosen values to the tracked
-   `.claude/topic-docs.yaml` (create or update; omit keys the user leaves at their defaults, but always
-   write at least one explicit key, a comment-only YAML document parses as null and fails the contract
-   schema's `type: object`). Verify-or-create the memory root's self-ignoring `.gitignore` (announce the
-   creation). **Never edit the consumer's root `.gitignore`.**
-3. **Verify.** Re-read `.claude/topic-docs.yaml` and report its effective values, never claim
-   persisted on the write alone. Then run the tracked-file pair on it: `git check-ignore -v`
-   reports no match (a match is FAIL with the pattern) AND `git ls-files --error-unmatch` exits 0
-   (non-zero right after a fresh write means "written but untracked: commit it to share with the
-   team", never success).
-
 ## Output
 
-A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line summary of what was
-written and how to re-run this setup to reconfigure. Note in the summary that the concern file governs
-where every discovery skill that writes a memory-tier artifact (`/discovery:explore`,
-`/discovery:research`, `/discovery:research-deep`, `/discovery:trace-intent`) and the agents they
-dispatch land handoff artifacts.
+The PASS/INFO table and, when the gate allow rules are stale or absent, the six resolved rules as
+JSON strings ready to paste.
 
 ## Gotchas
 
-- **A comment-only YAML document parses as `null`** and fails the contract schema's `type: object`.
-  When every chosen value is a default, still write at least one explicit key.
-- **`git check-ignore` on a bare directory misses `**` patterns.** Probe a representative *file* path
-  inside the contract root, or an uncommittable "committed" tier passes the guard.
-- **Prose is an inference source, never the runtime authority.** A working-docs convention described
-  in `CLAUDE.md` is reported as INFO; only `.claude/topic-docs.yaml` governs where artifacts land.
-- **`apply` re-runs must preserve keys this invocation does not set.** Dropping an unmentioned key
-  silently reconfigures a consumer that had chosen it deliberately.
 - **Env vars are read at session start.** A capability the check reports as missing stays missing for
   the rest of this session even after it is set, the recommendation takes effect next session.
-- **Never edit the consumer's root `.gitignore`.** The memory root gets its own self-ignoring guard.
 - **The gate allow rules stop matching after a plugin update.** They name this version's cache
   directory, so the gates prompt again until the operator pastes the rules `check` prints; `check`
   reports them "stale".
@@ -180,8 +101,7 @@ dispatch land handoff artifacts.
 
 - Run an exploration, research, or intent-tracing pass. Those are the plugin's discovery skills
   (`/discovery:explore`, `/discovery:research`, `/discovery:research-deep`, `/discovery:trace-intent`).
-- Write machine-local state. Configuration lives in the consumer's tracked concern file, never in the
-  plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
-  state only).
+- Write machine-local state. The plugin directory and the plugin data directory
+  (`${CLAUDE_PLUGIN_DATA}`, for caches and generated state only) stay untouched.
 - Write Claude Code user settings or `pluginConfigs`. `check` reads `~/.claude/settings.json` and
   prints the gate allow rules; the operator applies them.

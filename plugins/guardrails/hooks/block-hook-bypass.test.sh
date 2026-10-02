@@ -1949,8 +1949,7 @@ PROJ_ENV=CLAUDE_PROJECT_DIR
 # tier is not in its allowlist), so exempting Bash redirects there would let
 # `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
 # Write stayed blocked — the content-guard bypass this plugin's MCP lane exists
-# to close. The tension with docs/conventions/topic-docs/, which states raw
-# output including credentials belongs in the tier, is filed, not decided here.
+# to close.
 #
 # The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`.
 # It still blocks because the memory tier is not exempt; write that file with
@@ -2041,7 +2040,7 @@ run "default: relative memory-tier write blocks with no payload cwd" \
 # itself, so nothing here needs to exist.
 PD_HOME=/srv/pdhome
 run_cwd "plugin data: report write under HOME/.claude/plugins/data (allowed)" \
-  "cat > $PD_HOME/.claude/plugins/data/claude-memory/audit/last-audit.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+  "cat > $PD_HOME/.claude/plugins/data/harness-memory/audit/last-audit.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
 run_cwd "plugin data: echo redirect into a keyed report dir (allowed)" \
   "echo hello > $PD_HOME/.claude/plugins/data/x/y/report.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
 # Component-boundary containment: a sibling sharing the name prefix, the

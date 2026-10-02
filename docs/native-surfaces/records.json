@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/native-surfaces.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /claude-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
+  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/native-surfaces.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /harness-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
   "rows": [
     {
       "native": {
@@ -25,7 +25,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -62,7 +62,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -100,7 +100,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -136,7 +136,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `security-review` read in the plugin_backed lane)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `security-review` read in the plugin_backed lane)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -174,7 +174,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -199,7 +199,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "audit-install-state",
         "kind": "skill"
       },
@@ -216,7 +216,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -241,7 +241,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "audit-performance",
         "kind": "skill"
       },
@@ -257,7 +257,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -282,7 +282,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "audit-skill-visibility",
         "kind": "skill"
       },
@@ -301,7 +301,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -326,7 +326,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "audit-skill-visibility",
         "kind": "skill"
       },
@@ -366,7 +366,7 @@
         "markers": []
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "morning-brief",
         "kind": "skill"
       },
@@ -539,7 +539,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -581,7 +581,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -644,7 +644,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-instructions",
         "kind": "skill"
       },
@@ -655,7 +655,7 @@
         "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
         "platform docs claude-api-skill page (fetched 2026-09-09): 'The skill comes bundled with Claude Code and is also available in the open-source Anthropic skills repository'",
         "hillclimb and build-eval are bundled-only: absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the skill's docs page",
-        "executed composition precedent: docs/specs/prompt-audit-skills-2026-09.md (fleet-wide prompt-audit run, 805 findings applied) + ADR-0028 (repeats per model change; findings are edits, not criteria)",
+        "executed composition precedent: ADR-0028 (fleet-wide prompt-audit run, 805 findings applied; repeats per model change; findings are edits, not criteria)",
         "verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10"
       ],
       "observation": {
@@ -905,7 +905,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -947,7 +947,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -985,7 +985,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1028,7 +1028,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1054,7 +1054,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "draft-auto-mode-rules",
         "kind": "skill"
       },
@@ -1072,7 +1072,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1094,7 +1094,7 @@
         "markers": []
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-state",
         "kind": "skill"
       },
@@ -1110,7 +1110,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1135,7 +1135,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-instructions",
         "kind": "skill"
       },
@@ -1154,7 +1154,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1195,7 +1195,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1237,7 +1237,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1278,7 +1278,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1302,7 +1302,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "observability",
         "kind": "skill"
       },
@@ -1319,7 +1319,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1360,7 +1360,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1403,7 +1403,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1444,7 +1444,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1487,7 +1487,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1530,7 +1530,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1574,7 +1574,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1616,7 +1616,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1640,7 +1640,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-state",
         "kind": "skill"
       },
@@ -1658,7 +1658,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1700,7 +1700,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1741,7 +1741,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1763,7 +1763,7 @@
         "markers": []
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit",
         "kind": "skill"
       },
@@ -1779,7 +1779,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1821,7 +1821,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1862,7 +1862,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1888,7 +1888,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-memory",
+        "plugin": "harness-memory",
         "skill": "stateless",
         "kind": "skill"
       },
@@ -1906,7 +1906,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1948,7 +1948,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -1991,7 +1991,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2034,7 +2034,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2074,7 +2074,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2112,7 +2112,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2154,7 +2154,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2178,7 +2178,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-memory",
+        "plugin": "harness-memory",
         "skill": "stateless",
         "kind": "skill"
       },
@@ -2195,7 +2195,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2219,7 +2219,7 @@
         ]
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-grants",
         "kind": "skill"
       },
@@ -2237,7 +2237,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2274,7 +2274,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2315,7 +2315,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2356,7 +2356,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2397,7 +2397,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2439,7 +2439,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2480,7 +2480,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2522,7 +2522,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2563,7 +2563,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2603,7 +2603,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2643,7 +2643,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2684,7 +2684,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -2722,7 +2722,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
         "date": "2026-10-01"
       },
       "recheck": {
@@ -2761,7 +2761,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors)",
         "date": "2026-10-01"
       },
       "recheck": {
@@ -2802,11 +2802,91 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors), with a targeted string search of the same binary for the tool prompt",
+        "detail": "extracted from binary v2.1.285 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors), with a targeted string search of the same binary for the tool prompt",
         "date": "2026-10-01"
       },
       "recheck": {
         "trigger": "a Claude Code release renames or removes the built-in `ProposeGoal` tool, changes its `ask_user` approval default, its condition limit, or its session restrictions, or the tools reference starts documenting it",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "run-e2e",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Deferred: both verify a running web app in a real browser and return screenshot evidence, so the overlap is real, but the native side is the `claude-test` skill of the built-in `cc-plugin-claude-test` plugin, whose availability gate tests the flag `tengu_mellow_hollerith` with a code default of false. A surface off by default in most sessions is not a basis for a routing line. Re-rule as complementary with integration route when the flag defaults on. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`claude-test` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane, plugin `cc-plugin-claude-test`, version 0.4.15)",
+        "markers: gated; gate flag `tengu_mellow_hollerith`, default false; the loader requires the plugin only outside the local-agent entrypoint",
+        "native description: Check that the web app in this repo still works, with Claude Test — plain-language specs in .claude-test/specs/ run in the background in a fenced headless browser against the local dev server, and a PASS / FAIL summary comes back with screenshots. On a first run it proposes a starter set of specs for the person to approve. Use when the user asks (\"test my app\", \"did I break anything?\", \"run claude test\").",
+        "invocation mode (2026-10-01, Claude Code 2.1.287): user-invocable (`userInvocable:!0`); model invocability not read for built-in plugin skills",
+        "detect: origin discovered, score 0.3777 from shared tokens test, app, run, screenshot, serv, start, work, check"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.287 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `claude-test` read in the builtin_plugins lane)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "an extraction reads the `tengu_mellow_hollerith` gate default as true, drops the gate from `cc-plugin-claude-test`, or stops reporting the `claude-test` skill in the builtin_plugins lane",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "cc-plugin-agents-md",
+        "class": "plugin-backed-builtin",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "instruction-placement",
+        "skill": "migrate",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "Different jobs on the same file. The built-in `cc-plugin-agents-md` plugin is how Claude Code loads AGENTS.md as project instructions where no CLAUDE.md exists (the memory page's built-in `agents-md` plugin, `agents-md@builtin`; its gate default is extraction evidence below, not a documented fact); instruction-placement:migrate moves a repository's instruction content into AGENTS.md and keeps a one-line CLAUDE.md shim while the shim is what makes it load. The plugin is the loading mechanism the migration's shim decisions are judged against, not a replacement for the migration. Route: nothing invokes a plugin, so the migration reads the plugin's state (enabled in /plugin, the instructionFiles option) rather than calling it. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`cc-plugin-agents-md` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane), aliases: agents-md",
+        "markers: gated; gate flag `tengu_agents_md_mod`, default true; loaded unconditionally; default_enabled true (absent-default); declares userConfig",
+        "native description: AGENTS.md as project instructions: by default loaded where the project has no CLAUDE.md; by its instructionFiles option, loaded beside CLAUDE.md, left out, or with the project instructions dropped",
+        "our description: Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load",
+        "hand-seeded pair (canonical-pairs.json); not discovered by detect at the default threshold"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.287 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `cc-plugin-agents-md` read in the builtin_plugins lane)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "an extraction stops reporting `cc-plugin-agents-md` in the builtin_plugins lane, reads its `tengu_agents_md_mod` gate default as false, or the plugin gains a skill or command; or the memory page changes which sessions read AGENTS.md directly",
         "verified": "2026-10-01"
       },
       "baked": {
@@ -2847,12 +2927,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
-      "as_of": "2.1.285",
+      "reason": "Name overlap only: bash-format:check is a read-only check that shfmt, shellcheck and node resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
+      "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
-        "component": "3f55bc9bc552095ce98645fab43fdec4"
+        "component": "dd6798c14d26edab70e9c138812da51e"
       }
     },
     {
@@ -3028,11 +3108,11 @@
         "kind": "skill"
       },
       "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
-      "as_of": "2.1.285",
+      "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "7e8a83657f5c47a86bcd429dbf18e53e",
-        "component": "f108c4244ee4f411177cd9f8cc0b9b9e"
+        "component": "3ea7d63b3f8a7f725c0afbc70c615504"
       }
     },
     {
@@ -3099,12 +3179,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
       "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "e782dd30b656e3a5d75d4859b5a42e64",
-        "component": "e054cb9a1335bc26748207ee81eddd70"
+        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {
@@ -3149,7 +3229,7 @@
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "morning-brief",
         "kind": "skill"
       },
@@ -3163,11 +3243,29 @@
     },
     {
       "native": {
+        "name": "TaskUpdate",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "update",
+        "kind": "skill"
+      },
+      "reason": "The TaskUpdate tool updates a task-list entry; ours drift-checks and syncs the playbooks plugin's vendored packs. Shared word only, surfaced by a change in scoring weights, not by the built-in plugin lane. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "364768a9ac903e97827256aa22eeccb4",
+        "component": "fcd86b079d31c37cf759c9241c5a4b42"
+      }
+    },
+    {
+      "native": {
         "name": "TestingPermission",
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-grants",
         "kind": "skill"
       },
@@ -3185,7 +3283,7 @@
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-state",
         "kind": "skill"
       },
@@ -3433,6 +3531,24 @@
     },
     {
       "native": {
+        "name": "author",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's author agent drafts Claude Test spec files; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "5c35dc06f75249f6ba137207807f7218",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
+      }
+    },
+    {
+      "native": {
         "name": "autofix-pr",
         "class": "builtin-command"
       },
@@ -3509,7 +3625,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "morning-brief",
         "kind": "skill"
       },
@@ -3541,6 +3657,96 @@
     },
     {
       "native": {
+        "name": "cc-plugin-agents-md",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "docs-hygiene",
+        "skill": "write-for-agents",
+        "kind": "skill"
+      },
+      "reason": "The built-in agents-md plugin loads AGENTS.md as project instructions; ours writes agent-consumed markdown. Loader versus writer, shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "81af9030e8b33a36482dab4b10897c58",
+        "component": "e86f6506f34e1755f133f801bf57677e"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "pressure-test",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "b1d0ebecb379ca7a6eb4cf82d701620d"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours configures the testing plugin's can't-fail checks for a repository. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "8b8cd21dbd7f983ba478292d0305d6e6"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "test-value",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "ce076b3ced24d3c7b11594070f416336"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-plugin-authoring",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in plugin-authoring plugin teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "d5566e916298814900be7be1c6a09cf7",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
+      }
+    },
+    {
+      "native": {
         "name": "claude-code-docs",
         "class": "bundled-skill"
       },
@@ -3555,6 +3761,60 @@
       "fingerprint": {
         "native": "f7ef76c12bd711469c24b071765b15af",
         "component": "9a5e3c9aa794d112f1b47e88d8909060"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "pressure-test",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "2167546b6a0f6c522af542dc86243406",
+        "component": "b1d0ebecb379ca7a6eb4cf82d701620d"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "test-value",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "2167546b6a0f6c522af542dc86243406",
+        "component": "ce076b3ced24d3c7b11594070f416336"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test-draft",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "harness-config",
+        "skill": "draft-auto-mode-rules",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test-draft skill drafts Claude Test spec files in the background; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "01d7f8fef8bb3949d2a00784ebe2a6c2",
+        "component": "58045bbba7b06761bb21db2066ffe557"
       }
     },
     {
@@ -3599,7 +3859,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit",
         "kind": "skill"
       },
@@ -3617,7 +3877,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-grants",
         "kind": "skill"
       },
@@ -3635,7 +3895,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "audit-permission-state",
         "kind": "skill"
       },
@@ -3653,7 +3913,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-config",
+        "plugin": "harness-config",
         "skill": "draft-auto-mode-rules",
         "kind": "skill"
       },
@@ -3819,12 +4079,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
       "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "47f26aa289e2c8339a42d3523417d50f",
-        "component": "e054cb9a1335bc26748207ee81eddd70"
+        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {
@@ -3919,6 +4179,60 @@
     },
     {
       "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explore",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours explores a codebase before a change and persists EXPLORE.md. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "68e55334818c0d1145a6a041d230cf1f"
+      }
+    },
+    {
+      "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explorer",
+        "kind": "agent"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours runs the /discovery:explore workflow in a fresh context. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "89bdb13c2f43b4f0627f333b702b633f"
+      }
+    },
+    {
+      "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours builds throwaway UI variations. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "d090abd0eecc9421aaa6d7c4ed6ae681"
+      }
+    },
+    {
+      "native": {
         "name": "goal",
         "class": "builtin-command"
       },
@@ -3941,7 +4255,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-ops",
+        "plugin": "harness-ops",
         "skill": "audit-install-state",
         "kind": "skill"
       },
@@ -4053,12 +4367,12 @@
         "skill": "audit",
         "kind": "skill"
       },
-      "reason": "/mcp manages server connections and OAuth; ours audits MCP tool definition quality in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "reason": "/mcp manages server connections and OAuth; ours audits MCP tool definition quality and server instructions size in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. Re-ruled 2026-10-01 under the standing re-dismiss rule.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "a294bd3d8c51ce7b3065be5b79fff4c8",
-        "component": "d18a6582e390a51341b0bf04b4ad1961"
+        "component": "4fcbf376dce5f65d13ff513007a029c7"
       }
     },
     {
@@ -4071,12 +4385,12 @@
         "skill": "audit-posture",
         "kind": "skill"
       },
-      "reason": "/mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "reason": "/mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. Re-ruled 2026-10-01 under the standing re-dismiss rule.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "a294bd3d8c51ce7b3065be5b79fff4c8",
-        "component": "8b1e3a05a10b8c9ed115bf84e3599108"
+        "component": "f765a6bc479dc72ab37c8aec871e9e6d"
       }
     },
     {
@@ -4085,11 +4399,11 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "claude-memory",
+        "plugin": "harness-memory",
         "skill": "audit",
         "kind": "skill"
       },
-      "reason": "/memory opens CLAUDE.md files for editing; ours audits the instruction layer against a checklist. The auto-memory toggle overlap is recorded against claude-memory:stateless. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "/memory opens CLAUDE.md files for editing; ours audits the instruction layer against a checklist. The auto-memory toggle overlap is recorded against harness-memory:stateless. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {
@@ -4103,7 +4417,7 @@
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "claude-memory",
+        "plugin": "harness-memory",
         "skill": "audit",
         "kind": "skill"
       },
@@ -4167,6 +4481,24 @@
       "fingerprint": {
         "native": "c126b9516502cdbe25b1aeb60ca54d66",
         "component": "0d0c9124d766430cdac185203828a762"
+      }
+    },
+    {
+      "native": {
+        "name": "plugin-authoring",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in plugin-authoring skill teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "54a82e5d65daadf6c4aef3abe7a511a1",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
       }
     },
     {
@@ -4279,6 +4611,24 @@
     },
     {
       "native": {
+        "name": "runner",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "running-retro",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's runner agent drives the app under test in a fenced browser; ours files mid-session retro findings. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "c3f5ec155af5477a49450ba7994d06fe",
+        "component": "8bbefc8bfd79d9dc7e245705b9458e5b"
+      }
+    },
+    {
+      "native": {
         "name": "security-review",
         "class": "plugin-backed-builtin"
       },
@@ -4383,6 +4733,24 @@
       "fingerprint": {
         "native": "25d8aa91d54324b8ce8c1ddc7fe6aa4a",
         "component": "8176aa634ea3b1db3606ed42db2373d6"
+      }
+    },
+    {
+      "native": {
+        "name": "verify",
+        "class": "bundled-skill"
+      },
+      "component": {
+        "plugin": "verification",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The bundled verify skill exercises a code change end to end before committing; verification:setup reports where the verification plugin's artifacts land. Both are user-only, so no routing exists. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "25d8aa91d54324b8ce8c1ddc7fe6aa4a",
+        "component": "ebb5d18629ff6ed648968f6524f953f0"
       }
     },
     {

@@ -1,6 +1,6 @@
 ---
 description: "Verify the knowledge artifact-root configuration and extraction prerequisites, or provision the video-pipeline dependencies. Use when: 'set up knowledge', 'configure knowledge', 'is knowledge ready', or 'where do knowledge artifacts land'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-deps (provision the extraction node deps + Chromium)."
-argument-hint: "check | apply [install-deps]"
+argument-hint: "[check|apply] [install-deps]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -33,8 +33,8 @@ config, or install anything.
 1. **`library_dir` vs repository convention.** Read the rendered `${user_config.library_dir}`
    value (default `.` = repository root). Inspect the consumer's `CLAUDE.md`, `AGENTS.md`,
    `.claude/rules`, and existing artifact directories for a declared knowledge/artifact
-   convention, the team source of truth. Do not infer `library_dir` from `.claude/topic-docs.yaml`
-   or its `memory_dir`: topic-docs governs lifecycle working documents, while `library_dir` owns the
+   convention, the team source of truth. Do not infer `library_dir` from the lifecycle
+   `memory_dir`: the memory root holds lifecycle working documents, while `library_dir` owns the
    knowledge corpus. Mapping both to `.work` would nest the video-digest pipeline's own
    `.work/<watch-epic>/...` layout as `.work/.work/...`. PASS when the personal value matches the
    convention (or the portable `.` default with no distinct convention). FAIL on a mismatch

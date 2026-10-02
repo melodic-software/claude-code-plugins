@@ -13,7 +13,7 @@ model-invoked and forked. Fork does not change listing eligibility.
 Provenance: 2026-08-31 fleet skills audit
 ([#3545](https://github.com/melodic-software/claude-code-plugins/issues/3545)); operator decision
 2026-09-27 to run a blocking-fork pilot and to record the anti-candidate classes here. The pilot
-is `mcp-tools:audit` alone; `claude-config:audit-permission-state` was struck from it (see Pilot).
+is `mcp-tools:audit` alone; `harness-config:audit-permission-state` was struck from it (see Pilot).
 
 ## Official semantics
 
@@ -71,7 +71,7 @@ that expects the result in the same turn.
 A backgrounded fork is allowed only after a skill-specific confirmation that an async report is
 the intended UX.
 
-**A skill another skill invokes via the Skill tool must block.** `claude-config:audit-pass` chains
+**A skill another skill invokes via the Skill tool must block.** `harness-config:audit-pass` chains
 lanes through the Skill tool and keeps one human gate for the whole pass. A backgrounded target
 would return before the lane's report exists, so result timing and that one-gate flow would
 diverge. Blocking (`background: false`) keeps the caller's wait. The harness also waits without
@@ -90,13 +90,13 @@ Evaluate the pilot on (a) whether the returned report is complete without parent
 whether a user who types `/mcp-tools:audit` still sees the scorecard before the turn ends. Do not
 flip further skills until both hold.
 
-**Deferred: `claude-config:audit-permission-state`.** It is otherwise a good candidate (read-only,
+**Deferred: `harness-config:audit-permission-state`.** It is otherwise a good candidate (read-only,
 argument-scoped, no human gate, a long reader over every settings scope), but `audit-pass`
 Skill-tool-invokes it as a lane. It stays inline until a recorded composition run shows that a
 blocking fork keeps `audit-pass`'s result timing and its single human gate.
 
-Next-tier candidates, only after that evaluation: `claude-config:audit-permission-grants`,
-`claude-ops:inventory`, `claude-ops:audit-install-state`, `skill-quality:check`,
+Next-tier candidates, only after that evaluation: `harness-config:audit-permission-grants`,
+`harness-ops:inventory`, `harness-ops:audit-install-state`, `skill-quality:check`,
 `code-tidying:audit-dead-code`, `docs-hygiene:audit-progressive-disclosure`, `testing:audit`.
 Each still has to clear the four tests above. One that `audit-pass` or another orchestrator
 Skill-tool-invokes waits, like `audit-permission-state`, for a recorded composition run first.
@@ -108,10 +108,10 @@ correctness argument, not a preference. Recorded so a later sweep cannot flip th
 with the pilot.
 
 1. **Current-session measuring.** The fork is a different session, so the reading would be of the
-   wrong thing. Examples: `context-budget:audit`, `claude-ops:audit-performance`,
-   `claude-ops:audit-skill-visibility`.
+   wrong thing. Examples: `context-budget:audit`, `harness-ops:audit-performance`,
+   `harness-ops:audit-skill-visibility`.
 2. **Mid-flow confirmation or interview.** A fork has no user interaction during the run.
-   Examples: `docs-hygiene:audit-encapsulation` (confirmation), `claude-memory:audit` on its `fix`
+   Examples: `docs-hygiene:audit-encapsulation` (confirmation), `harness-memory:audit` on its `fix`
    path, `ai-briefing:generate` (collection gate), every `session-flow:*` skill,
    `planning:interview`, `planning:plan`, `planning:prd`, and the `discipline:*` conversation-bound
    correctors.

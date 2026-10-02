@@ -1,6 +1,6 @@
 ---
 description: "Route one spec container's multi-session effort: say where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, and route the next step to the skill that owns it. Use when the user says 'ship' about a spec or container, asks where a container stands or what is next in it, wants to drive or resume the effort, or wants to close it out. Routes only: the next item is /work-items:work, re-slicing is /work-items:decompose."
-argument-hint: "[#<container-id> | <topic-slug>]"
+argument-hint: "[#<container-id>|<topic-slug>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,11 +10,11 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker.
+Arguments: `$ARGUMENTS`. `[#<container-id>|<topic-slug>]`. Empty = discover the container from the current topic, then from the tracker.
 
 ## Shared tracker context
 
-The seam, operation routing, label taxonomy, canonical-role remapping, and topic-docs binding that
+The seam, operation routing, label taxonomy, canonical-role remapping, and memory-tier write rule that
 every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation.
@@ -46,8 +46,7 @@ From `$ARGUMENTS`:
   number per the adapter's "Resolve item ID" first). Verify it carries the binding-resolved
   container label (`config.container_label`, default `work-map`. Warn loudly when defaulting); a
   non-container item with a native parent routes to that parent with a note.
-- `<topic-slug>` or empty. Read the topic's PLAN.md (tier-selected per
-  [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+- `<topic-slug>` or empty. Read the topic's PLAN.md (`<memory_dir>/<slug>/PLAN.md`)
   for the `**Spec container:** <qualified-id>` line under `## Brief`. Fallback discovery: query the
   bound adapter for **open** items carrying the resolved container label (body citing the slug when
   one is known). One hit → use it; several → list them and ask which journey to drive; none →

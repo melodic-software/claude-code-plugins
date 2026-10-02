@@ -5,6 +5,8 @@
 # per-plugin pass catches a bad plugins/<name>/.claude-plugin/plugin.json; the
 # --strict repo-root pass validates the catalog manifest itself, where a bad
 # marketplace.json entry surfaces (it is not caught by per-plugin validation).
+# A plugin that ships a mod also gets `claude plugin test` (scripts/test-plugin-mods.sh),
+# which skips when the CLI predates mods.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
@@ -26,7 +28,7 @@ node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs -
 # under a WindowsApps path component is the Store's App Execution Alias stub,
 # and executing it opens the Microsoft Store or hangs instead of running an
 # interpreter.
-OVERLAP="plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py"
+OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
 OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
 if [[ -z "$OVERLAP_FLOOR" ]]; then
   echo "error: could not parse MIN_PYTHON from $OVERLAP" >&2
@@ -111,6 +113,8 @@ done
 
 echo "=== validate --strict (catalog manifest) ==="
 render_validate . --strict || failed=1
+
+bash scripts/test-plugin-mods.sh || failed=1
 
 if [[ $failed -ne 0 ]]; then
   echo "Plugin validation failed." >&2

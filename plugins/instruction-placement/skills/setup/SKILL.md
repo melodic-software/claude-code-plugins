@@ -1,6 +1,6 @@
 ---
 description: "Verify instruction-placement's prerequisites and resolve its effective configuration for this repository. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only verification, default) | apply (point at each remediation; writes nothing on its own). Re-runnable and safe."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
@@ -23,14 +23,16 @@ carrying both with no import between them gets a perfectly generated, perfectly 
 never enters context, with every other gate green. Verifying that before a first audit is this
 skill's job; `/instruction-placement:check` asks the same question again on every gate run.
 
-- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
-  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it;
-  reading it directly depends on a CLI version floor and on the session, both in
-  `skills/migrate/reference/sources.md`, "The minimum CLI version".
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md" and "When AGENTS.md
-  support is unavailable"; canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: that section changes which file names count for the check, or a release note
+This skill treats the root `AGENTS.md` as shadowed wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or
+`CLAUDE.local.md` sits in the working directory or above it, and treats direct `AGENTS.md` reading
+as dependent on the CLI floor and session recorded in `skills/migrate/reference/sources.md`, "The
+minimum CLI version". Canary runs on Claude Code 2.1.278 observed the shadowing.
+
+- **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **As of**: 2026-09-29
+- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
   names `AGENTS.md` or instruction-file loading.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, `node` launches

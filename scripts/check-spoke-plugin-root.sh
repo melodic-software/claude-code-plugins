@@ -17,7 +17,7 @@
 # a ${CLAUDE_PLUGIN_ROOT}/skills/... path in it reaches the model verbatim and
 # resolves against nothing. SKILL.md is expanded by the harness, so it renders
 # <skill-dir> from ${CLAUDE_SKILL_DIR} and its spokes cite <skill-dir>/scripts/...
-# (plugins/claude-memory is the working pattern).
+# (plugins/harness-memory is the working pattern).
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one finding per offending file on stderr, the clean-run statement

@@ -7,7 +7,7 @@
 #                                                  carrying plugin's manifest version did not
 #   scripts/sync-state-key.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
-# Canonical copy: plugins/claude-config/lib/state-key.sh (see
+# Canonical copy: plugins/harness-config/lib/state-key.sh (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
 # The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
@@ -20,8 +20,8 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-state-key.sh"
-src="plugins/claude-config/lib/state-key.sh"
-copies=(plugins/claude-memory/lib/state-key.sh plugins/claude-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/code-metrics/lib/state-key.sh)
+src="plugins/harness-config/lib/state-key.sh"
+copies=(plugins/harness-memory/lib/state-key.sh plugins/harness-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/code-metrics/lib/state-key.sh)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"

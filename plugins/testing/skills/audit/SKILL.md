@@ -1,6 +1,6 @@
 ---
 description: "Audit the test suite for tests that cannot fail or check little. A deterministic script detects assertion-free bodies, self-identical or recomputed expectations, mock-only oracles, assertions that never run or sit only in a branch, weak or snapshot-only oracles, and constant or source-text change detectors across JS/TS, Python, C#, Bash, PowerShell and Go, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists findings for the review fix pass. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a Playwright suite that cannot fail found (retries with no `failOnFlakyTests`, an unguarded `test.only`), a CI gate on can't-fail tests, or findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (also gate mock-only-oracle and the Playwright config findings), `--persist-findings`. Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
-argument-hint: "[--check] [--strict] [--persist-findings]"
+argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -89,6 +89,11 @@ Playwright), Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/
 NUnit, MSTest), Bash (`*.test.sh` harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go
 (`*_test.go`), each defined by an adapter file in `adapters/`.
 
+When the invocation passes `--file <path>`, forward it to the script's `--file` mode: it scans that
+one file, and its coverage block's `adapter:` line names the adapter that claims it, or `adapter: none (...)`
+with the reason. `/mutation-testing:audit --exercised` reads that line to tell a test file from a
+source file.
+
 Present the script's findings and its coverage block as reported, the denominator is what makes a
 clean report a claim rather than an absence. A run that examined 0 test files says so and is never
 presented as a clean bill.
@@ -120,9 +125,10 @@ consumes:
    obligations, the self-ignore guard, and what a minimal producer may omit. Where the two disagree,
    the contract wins and this file is the defect. If it cannot be fetched, do not write. Report and
    stop; a guessed destination reports success while the consumer never scans that path.
-2. Resolve the destination per the contract "Where the file goes": run the **whole rung order**, take
-   the **non-interactive collapse** where this context cannot ask or persist config, and honor the
-   **self-ignore guard** including its invalid-root rule.
+2. Resolve the destination per the contract "Where the file goes": the current branch's findings
+   directory in the memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's
+   instructions declare another root), and honor the **self-ignore guard** including its
+   root-equivalent-root rule.
 3. Generate the content with `cant-fail-scan.sh --findings` (it computes `branch:` verbatim from git,
    `date:` at write time, per-rule `Tier`/`Confidence`, repo-relative `Location`, cell escaping, and
    the `## Surfaces` coverage line; it omits `tier:`, `## By dimension`, and `## Unparsed`. No
@@ -145,6 +151,8 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 
 - **Edit, repair, or delete tests.** Findings propose an assertion; the repair itself is the
   remediation lanes' work (`/testing:write` for authoring, the review fix pass for applying).
+  Audit stays repair, not pruning: `/testing:cleanup` rewrites, quarantines and, with the user's
+  yes per item, deletes tests behind a mutation gate.
 - **Execute the suite**. `/toolchain:check` runs tests; `mutation-testing:audit` executes mutants.
 - **Judge skips in bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
 - **Read any runner config but Playwright's JS/TS one.** Vitest's `retry` and `allowOnly`, Jest, and
@@ -155,6 +163,7 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 ## Next
 
 - A finding names a test that needs a real assertion: `/testing:write`.
+- Findings cover a folder of low-value tests to rewrite or prune: `/testing:cleanup <folder>`.
 - Findings are persisted with `--persist-findings`: `/review:fanout fix`.
 
 ## Gotchas

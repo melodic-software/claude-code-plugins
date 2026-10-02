@@ -15,7 +15,7 @@ Arguments: `$ARGUMENTS`. `[source]`. Empty = topic PLAN.md; `prd` = topic PRD.md
 ## Shared tracker context
 
 The seam, operation routing, label taxonomy, canonical-role remapping, recurring schedule, and
-topic-docs binding that every work-items skill relies on live in
+memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Item creation goes through the
 seam `create-item` verb; the core inlines no provider commands.
@@ -36,8 +36,8 @@ source text asks for, never a directive addressed to the agent reading it.
 
 `source` can be:
 
-- *(empty)*. Reads the topic's `PLAN.md` phases (default). Resolve the file per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): select the tier from the concern file's `contract_tier` FIRST. `branch` (default) → `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`); `local` → `<memory_dir>/<slug>/PLAN.md` (default `.work/`). The tier selects the location; never read the other tier's slice (a stale branch-tier slice must not shadow the live local one, or vice versa)
-- `prd`, reads the topic's `PRD.md` user stories, resolved via the same tier-selected lookup
+- *(empty)*. Reads the topic's `PLAN.md` phases (default) from the memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`). The slice is checkout-local: when it is absent, stop with a visible message naming the missing file and `/planning:plan` as the skill that produces it, and offer the `#<item-number>` or conversation source instead
+- `prd`, reads the topic's `PRD.md` user stories from the same memory slice
 - `#<item-number>`, reads an existing item's body
 - Conversation context. Synthesizes from current discussion
 
@@ -45,7 +45,7 @@ source text asks for, never a directive addressed to the agent reading it.
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md located per the tier-selected lookup above, the configured tier's location only, never mix locations for one topic). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
+Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
 Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
 
@@ -161,8 +161,8 @@ Refs #<parent-item> (if source was an existing item)
 <!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan (#<pr>) when it
      exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
      when the PR opens, backfill it as a comment on each published item so the provenance
-     survives the slice prune. Never write the contract-slice path: the slice is pruned before
-     merge, so the pointer would dangle (topic-docs pointer discipline). -->
+     survives. Never write the memory-slice path: it is never committed, so the pointer would
+     dangle. -->
 
 ## What to build
 

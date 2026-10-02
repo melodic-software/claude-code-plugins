@@ -1,6 +1,6 @@
 ---
 description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite. This skill does the rest: preflight (version floor, sandbox backend, target type), static validation with no model call, a printed cost estimate under the configured ceiling, the run itself, and the with-versus-without delta read correctly. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost'. Not for designing success criteria (use /evals:design), not for the skill-creator evals.json format (use /skill-quality:check validate-evals when the skill-quality plugin is installed), and not for CLAUDE.md or rules, which every run strips."
-argument-hint: "[preflight | validate | run | read <json> | ci | init] [target]"
+argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -116,8 +116,8 @@ is "this plugin versus no plugin".
 A skill or agent that is not yet wrapped is not a target: report the wrap route, print it, and stop.
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
 
-For a `rules` target, invoke `/claude-config:unhobble` through the Skill tool when the
-`claude-config` plugin is installed: it owns measuring standing instructions by stripping them and
+For a `rules` target, invoke `/harness-config:unhobble` through the Skill tool when the
+`harness-config` plugin is installed: it owns measuring standing instructions by stripping them and
 watching what the model stumbles over. When that plugin is absent, say so and describe the
 experiment in one sentence (strip the instructions on a branch, log observed stumbles, restore only
 what repeated evidence earns) so the user can run it by hand.
@@ -283,7 +283,7 @@ is what tells a reader which one happened and whether the arms were comparable a
 ## Next
 
 - Validator FAIL, or a case file that failed to load: `/evals:validate <eval-dir>`.
-- Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/claude-config:unhobble`.
+- Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/harness-config:unhobble`.
 - Suite ran and the delta is read, and a case needs sharper criteria: `/evals:design <target>`.
 
 ## Gotchas
@@ -327,5 +327,5 @@ is what tells a reader which one happened and whether the arms were comparable a
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
-| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](../../../../docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
 | A usage or rate limit mid-suite is not marked partial; a run a Claude Code session started keeps its report local and says `kept local`, while a terminal run publishes unless `--no-publish` is passed; `init` needs a terminal and `init --bare <name>` runs nothing | <https://code.claude.com/docs/en/plugin-evals>, its troubleshooting entry for a usage or rate limit, its HTML-report section, and its "Write a case manually" and CI sections, verified 2026-09-13 | Recheck trigger: a release note touches report publishing, `init`, or limit handling, or one of these sections no longer reads this way. Then re-read the page, re-derive this row, and refresh this record with the outcome |

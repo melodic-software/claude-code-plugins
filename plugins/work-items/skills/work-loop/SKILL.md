@@ -16,7 +16,7 @@ Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] 
 ## Shared tracker context
 
 The seam, operation routing, label taxonomy, canonical-role remapping, recurring schedule, and
-topic-docs binding that every work-items skill relies on live in
+memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Coordination goes through the
 seam; provider mechanics route through the bound adapter's operations reference; the core inlines no
@@ -74,7 +74,7 @@ them back from telemetry.
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: work-loop` (exact match), created through
 the seam `create-item` verb when absent (announce the creation). Maintain exactly ONE status
-comment on it **per lane instance**, sentinel-identified and edited in place (the `claude-ops`
+comment on it **per lane instance**, sentinel-identified and edited in place (the `harness-ops`
 lane-telemetry contract; one writer identity owns a marker). The upsert itself, lane-instance
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
 POST/PATCH, and the creation-race reconcile, runs as `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`. Its
@@ -292,7 +292,7 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
-   `/claude-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
+   `/harness-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
    and skips the move when the session already sits in a linked worktree, so the Write lands in
    place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane

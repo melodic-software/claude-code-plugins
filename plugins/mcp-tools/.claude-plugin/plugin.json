@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mcp-tools",
-  "version": "0.5.5",
+  "version": "0.5.7",
   "description": "Two MCP audits. audit scores the tool definitions of a server you build against MCP-specification, Anthropic tool-design, and Claude-Code client criteria in a per-tool PASS/WARN/FAIL scorecard (Python, TypeScript, .NET). audit-posture inventories the MCP servers your Claude Code configuration runs and flags supply-chain risks such as floating package versions, without running any server.",
   "author": {
     "name": "Melodic Software",

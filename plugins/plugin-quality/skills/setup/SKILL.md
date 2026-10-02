@@ -1,6 +1,6 @@
 ---
 description: "Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the ACTING account, the context-guard snapshot seam, the convention-home binding and effective config with provenance, retired-convention leftovers, and the effective sink; apply converges the pointer-line region and the plugin-quality topic doc at the consumer's convention home. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, after changing the convention home or topic doc, or to migrate the retired .claude/plugin-quality.md. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
-argument-hint: "check | apply [home=<dir>] [sink=<gh-issues|markdown-dir|local-fallback>] [markdown_dir=<path>]"
+argument-hint: "[check|apply] [home=<dir>] [sink=<gh-issues|markdown-dir|local-fallback>] [markdown_dir=<path>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -13,6 +13,8 @@ consuming marketplace's config-cascade expression doctrine.
 `check` inspects and reports PASS/FAIL/WARN/INFO with one remediation line per finding; `apply`
 converges exactly TWO consumer artifacts, the marked pointer-line region in the root instruction
 file and the topic doc `<home>/plugin-quality/README.md`, and nothing else.
+
+Action routing: no argument or `check` runs the check.
 
 The key reference is `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (keys, topic-doc location,
 resolution order, retired layers, sink ladder, item schema). Read it first; this skill reports

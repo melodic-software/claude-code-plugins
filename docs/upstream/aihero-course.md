@@ -72,18 +72,16 @@ update signal.
 
 **Re-fetch basis for course-lesson claims (deliberate, maintainer-decided):** the lesson pastes
 are NOT durably committed — course pages are account-gated, and the maintainer authorized
-committing the verbatim texts only on the contract branch's topic slice, pruned before any
-merge to this public default branch. A future re-fetch therefore compares against the live
+committing the verbatim texts only on a working branch, never on the public default
+branch. A future re-fetch therefore compares against the live
 course (account required) or, as the durable proxy, the companion skills repo pinned per the
 SSOT — the same regime the sibling
-[aihero-shipping-course.md](aihero-shipping-course.md) records. Where a row's basis names a
-lesson file under `docs/topics/pocock-course-lanes/lessons/`, that citation is provenance (what
-the lane graded, with its as-of date), not a promise the file exists on this branch.
+[aihero-shipping-course.md](aihero-shipping-course.md) records.
 
 ## Lane 1: handoff (issue #2899, decided 2026-08-17)
 
 Basis for all lane 1 rows: the course handoff lesson as captured in the lane contract
-(`docs/topics/pocock-course-lanes/PLAN.md`, 2026-08-17) plus upstream
+(2026-08-17) plus upstream
 `skills/productivity/handoff/SKILL.md` read live at `068b6e0` (2026-08-17). Our side read live
 the same day: `plugins/session-flow/skills/handoff/SKILL.md`,
 `plugins/session-flow/reference/save-point.md`, `plugins/session-flow/reference/structure.md`
@@ -146,8 +144,7 @@ context-guard reader-contract drift are filed as their own items. Filed:
 
 ## Lane 3: compaction doctrine (issue #2901, decided 2026-08-17)
 
-Basis: the merged Compaction and Auto-Compaction lessons (source:
-`docs/topics/pocock-course-lanes/lessons/03-compaction-and-auto-compaction.md`), graded against
+Basis: the merged Compaction and Auto-Compaction lessons, graded against
 the verified harness verdicts C1-C6 in the contract's table, the context-guard evidence-degraded
 marker and reader contract, and the handoff skill's fork-beats-compaction doctrine. Register
 Q24-Q29; answers locked under the user's standing acceptance of this session's recommendations
@@ -188,8 +185,7 @@ stance, its figures held as named anchors never adopted numbers.
 
 ## Lane 4: plan mode / asset rush (issue #2902, decided 2026-08-17)
 
-Basis: the "Why Plan Mode Sucks" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/04-why-plan-mode-sucks.md`), graded against
+Basis: the "Why Plan Mode Sucks" lesson, graded against
 `planning:interview` (pre-clarity stance, auto-detect, auto-guard, `lock` STOP-on-gap, the
 general-domain shared-understanding terminal) and `planning:plan` (approval gate, Open Decisions
 before the plan body, devils-advocate dispatch, decision confidence gate), plus verdicts C7-C9.
@@ -236,10 +232,7 @@ are recorded in "Dual provenance" above. Lane-6 parcels are the three term candi
 
 ## Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)
 
-Basis: "The Grill-Execute-Clear Loop" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/05-grill-execute-clear.md`, the verbatim paste the
-maintainer committed to the contract-branch topic slice — pruned when that slice merges, so the
-as-of date is the durable anchor), graded against `planning:interview` and against his CURRENT
+Basis: "The Grill-Execute-Clear Loop" lesson (the as-of date is the durable anchor), graded against `planning:interview` and against his CURRENT
 repo texts read from a live clone at HEAD `068b6e0` (`skills/productivity/grilling/SKILL.md`,
 `grill-me/SKILL.md`) — which match the SSOT-recorded baseline verbatim in substance, confirming
 the 2026-08-17 recheck's cosmetic-only-drift finding. Register Q36-Q37 under the user's
@@ -308,8 +301,7 @@ Lesson key: 1 The Steering Map · 2 Steering With A Pointer · 3 What Are Agent 
 
 ### Lane 7: authoring doctrine (issue #2909, closed 2026-08-17)
 
-Interview-first per contract; register gate clean (12/12); user confirmed. Design contract:
-`docs/specs/write-for-agents-brief.md`. Lessons 1, 2, 4 (authoring half), 7. As-of 2026-08-17.
+Interview-first per contract; register gate clean (12/12); user confirmed. Lessons 1, 2, 4 (authoring half), 7. As-of 2026-08-17.
 
 | Claim / concern (lesson) | Verdict | Detail |
 |---|---|---|
@@ -324,15 +316,14 @@ Interview-first per contract; register gate clean (12/12); user confirmed. Desig
 | Pruning doctrine (L7) | PARITY — no work | Three pruning tests confirmed covered at parity or stronger (SSOT decomposition table: extract-ssot, audit-derivability, audit-instructions/unhobble) |
 | Cross-skill invocation phrasing (upstream `.agents/invocation.md`) | ROUTE | Handed to lane 6; decided there — see the term-adoption and doctrine section below |
 
-Lane 7 closed with Brief locked (`docs/specs/write-for-agents-brief.md`), surface enumeration
-committed (`docs/specs/agent-doc-surfaces.md`), build filed as
+Lane 7 closed with the Brief locked, the surface enumeration
+committed, build filed as
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) and
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), SSOT annotated.
 
 ### Lane 8: invocation mode (issue #2910, closed 2026-08-17)
 
-Interview-first per contract; register gate clean (8/8); user confirmed. Contract:
-`docs/specs/invocation-mode-doctrine-brief.md`. Rubric (the doctrine artifact):
+Interview-first per contract; register gate clean (8/8); user confirmed. Rubric (the doctrine artifact):
 `docs/conventions/invocation-mode/README.md`. Lessons 3, 4 (invocation half), 5. As-of
 2026-08-17.
 
@@ -341,7 +332,7 @@ Interview-first per contract; register gate clean (8/8); user confirmed. Contrac
 | Invocation choice needs a decision rubric (L3, L4) | ADOPT (adapted — inverted default) | Rubric adopted with model-invoked default + three exception classes (side-effect/manual-timing, setup, maintainer-only) — the inverse of upstream's user-invoked default. Home: `docs/conventions/invocation-mode/README.md` + convention-registry row; cross-linked from PLUGIN-PHILOSOPHY (setup contract, Instruction economy); `playbooks:skill-authoring` pointer filed |
 | Upstream's user-invoked default (L4) | REJECT | Solo-operator posture; materially weakened by mattpocock/skills#693 (desktop/web drop user-invoked skills from the listing) and by this marketplace's multi-repo discoverability need |
 | Splitting by invocation (L4) | ADOPT (routed) | The rubric owns the split axis; `docs-hygiene:write-for-agents` (#2962) when-to-split doctrine points at it (lane 7 decision honored) |
-| Router-skill pattern (L4 / MECHANICS) | REJECT (with reason) | Under the model-invoked default the always-present listing IS the router; `disable-model-invocation: true` skills are deliberately model-invisible. Human-side answer: `docs/skill-cheat-sheet.md` + `claude-ops:inventory`. Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted distinct pattern |
+| Router-skill pattern (L4 / MECHANICS) | REJECT (with reason) | Under the model-invoked default the always-present listing IS the router; `disable-model-invocation: true` skills are deliberately model-invisible. Human-side answer: `docs/skill-cheat-sheet.md` + `harness-ops:inventory`. Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted distinct pattern |
 | Explicit `disable-model-invocation` on every skill (L4) | ADOPT | 17 missing-key skills normalized to explicit `false` + new `skill-quality:check` criterion requiring the key — filed implementation follow-on |
 | Setup-skill convention (L3/L4) | PARITY — no work | Already documented: PLUGIN-PHILOSOPHY "Setup is explicit and repeatable" (landed `967db56c`, pre-dating #2910's "documented nowhere" premise) |
 | User vs project scope + cloud caveat (L5) | ADOPT | Remote/cloud sessions never load `~/.claude` user scope — project/marketplace skills are the only steering that reaches them; recorded as the rubric's surface-coverage/cloud-scope evidence axis |
@@ -364,12 +355,12 @@ designs nothing; these rows plus filed items are the record. Lessons 6, 8, 9 + l
 | Claim / concern (lesson) | Verdict | Detail |
 |---|---|---|
 | Navigation sections in CLAUDE.md ("highways") vs audit C5 flagging codebase descriptions (L6) | ADOPT (adapted) | Filed criteria patch: C5 carve-out distinguishing curated navigation pointers to non-obvious, load-bearing docs (KEEP branch) from file-by-file inventories Claude can rebuild (still FLAG). Marked as repo extension if official docs state no navigation posture (provenance rule: `update` must not overwrite) |
-| Stale-pointer risk — "a stale highway is worse than no highway" (L6) | PARITY — no new check | `claude-memory:audit` C7 already FAILs on referenced paths that do not exist; the filed patch adds a one-line C7 note naming stale pointers as the standing cost of navigation sections |
+| Stale-pointer risk — "a stale highway is worse than no highway" (L6) | PARITY — no new check | `harness-memory:audit` C7 already FAILs on referenced paths that do not exist; the filed patch adds a one-line C7 note naming stale pointers as the standing cost of navigation sections |
 | Nested/subdirectory CLAUDE.md as a placement destination (our extension; course omits it) | ADOPT | C3 placement-table row ("subdirectory-specific conventions → nested CLAUDE.md") in the same filed patch; loading-semantics wording gated on harness-claim verification |
 | @-mention as the one-turn-scoped pointer equivalent (L2/L6) | ADOPT | One-line distinction on C3's import row: conversational @-mention is one-turn steering, cheaper than a permanent pointer for one-off needs; `@path` imports in CLAUDE.md load at launch (already priced). Same filed patch |
 | Design-smell caveat: a pointer mirroring changes across distant folders can mask low cohesion (user-raised) | ADOPT | Homed in the criteria patch's remediation guidance (restructure-before-pointer consideration at the audit's fix moment); coordination comment on [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) points the authoring skill at it — no duplicated doctrine |
-| /init-then-prune eval fixture (L8, user-suggested) | ADOPT | Filed against `claude-memory:audit`'s existing eval suite: static bloated-CLAUDE.md fixture (the shape `/init` produces) in the eval's `files`, graded against expected findings (C1/C2/C5); regression gate on audit judgment quality. Static fixture chosen over live `/init` generation (determinism) |
-| Auto-memory territory (L9) | PARITY — no work | `claude-memory:audit` M1–M4 plus the `stateless` skill cover the lesson; `official-guidance.md` carries doc-sourced quotes (updated 2026-08-15). The course's one inaccuracy (cwd- vs repo-keying) is carried by harness verdict row 1 below — parity rows point at it, no duplicate |
+| /init-then-prune eval fixture (L8, user-suggested) | ADOPT | Filed against `harness-memory:audit`'s existing eval suite: static bloated-CLAUDE.md fixture (the shape `/init` produces) in the eval's `files`, graded against expected findings (C1/C2/C5); regression gate on audit judgment quality. Static fixture chosen over live `/init` generation (determinism) |
+| Auto-memory territory (L9) | PARITY — no work | `harness-memory:audit` M1–M4 plus the `stateless` skill cover the lesson; `official-guidance.md` carries doc-sourced quotes (updated 2026-08-15). The course's one inaccuracy (cwd- vs repo-keying) is carried by harness verdict row 1 below — parity rows point at it, no duplicate |
 | `~/.agents/skills` as an equivalent personal-skills path (L1–2/L5 leftover) | REJECT — do-not-repeat | REFUTED (harness verdict row 5, two-pool): the path is OpenCode's agent-compatible convention; docs, shipped binary, and changelog are all silent for Claude Code. Must never enter our docs as a Claude Code path |
 | Remaining L1–2 leftover claims (steering surfaces: `/memory`, MEMORY.md index, `/context` accounting, agentskills.io standard) | ADOPT (verdict-backed, no work) | Covered by harness verdict rows 2–3, 6–7; existing guidance already aligns — rows only, no work items (user-decided, Q8) |
 | Term candidates increment (L6) | ROUTE | "highway / stale highway" handed to lane 6; decided in the term-adoption section below |
@@ -386,7 +377,7 @@ harness-claims verdicts below.
 
 Research run gated clean (artifact + coverage gates exit 0); fresh-context verifier graded
 corroboration; parent cured C3 with a binary-schema probe. Graduated verbatim from
-`docs/topics/pocock-course-lanes/PLAN.md` ("Harness-claims verdicts", branch
+the lane contract's "Harness-claims verdicts" table (branch
 `claude/plan-mode-discussion-55kszx`) so the citable record survives that branch's lifecycle.
 **Caveat carried at graduation:** C8's confirmation rests on this table alone (the memory-tier
 research artifacts are disposable and the verdict was not re-reproduced by the later audit

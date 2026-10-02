@@ -209,7 +209,7 @@ ip_discover_rules() {
 #
 # Every consumer inside this plugin reads these two variables, so the rule
 # cannot drift between the index, the wiring gate and the migration plan.
-# `claude-memory`'s `nested-agents-check.sh` keeps its own copy of the same
+# `harness-memory`'s `nested-agents-check.sh` keeps its own copy of the same
 # lists: a plugin never imports a file from a sibling plugin
 # (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
 # ---------------------------------------------------------------------------

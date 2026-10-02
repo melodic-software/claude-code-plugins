@@ -256,8 +256,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
      `docs/conventions/hook-telemetry/`; first instance:
-     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md); second
-     instance: [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)).
+     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
    - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
      *audience* or *deployment*, meaning a different framing, ranking lens, or branding per team /
      client / context, add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
@@ -317,7 +316,7 @@ a record to its `retirements.yaml` (shipped inside the plugin, never in consumer
 repos). Records are never deleted and identity/detection fields stay frozen; the `status`
 demotion field may flip `active` to `report-only` (and back). The shared deterministic helper
 `lib/check-retirements.sh` (canonical under
-`plugins/claude-config/lib/`, synced byte-identical via `scripts/cross-plugin-source-registry.txt`)
+`plugins/harness-config/lib/`, synced byte-identical via `scripts/cross-plugin-source-registry.txt`)
 evaluates every record against the consumer repo. Detection is one fixed step in setup `check`;
 cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
 the model per the record's `successor` prose. No new setup verb. The owner doc
@@ -503,24 +502,15 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
 
-**The marketplace `renames` map is frozen-historical.** Its twelve entries stay: a consumer whose
-`enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
-entry strands them. But nothing new is added to it. A rename from here on is a clean breaking change
-carried by a version bump and a changelog note, the standing posture locked in
-`docs/topics/shadowed-skill-renames/` (pruned per the topic-docs convention; read it
-in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`). The map therefore records migrations
-already shipped rather than serving as the go-forward mechanism.
-
-Three true renames are missing from the map on purpose: `bash-lint` to `bash-format` and
-`markdown-formatter` to `markdown-format` (commit `ecf02fddc`, #281), and `bug-report` to `bugs`
-(commit `3b2225bcc`, #3232). An install that still names an old id gets
-`Plugin "<name>" not found in marketplace`. `provenance` to `attribution` needs no entry because the `provenance`
-shim plugin still ships. Plugin splits and file moves are not renames.
+**The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
+by a version bump and a changelog note. An install that still names an old id gets
+`Plugin "<name>" not found in marketplace`, and the consumer re-enables the plugin under its new
+name. Plugin splits and file moves are not renames.
 
 A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
 shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
 point at the successor. It keeps an existing install from reporting
-`Plugin "<name>" not found in marketplace` without adding to the frozen map, since upstream has no
+`Plugin "<name>" not found in marketplace`, since upstream has no
 deprecation state of its own
 ([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
 checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
@@ -583,9 +573,9 @@ Consumer guidance to state in that PR body:
   disk.
 - Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
   marketplace no longer publishes.
-- No tombstone and no `renames` entry. The map is frozen-historical (see "Version pinning and update
-  delivery" above), and a retirement has no successor id to point at anyway; if the capability moved
-  into another plugin, say which one in the PR body and in the surviving plugin's changelog.
+- No tombstone and no `renames` entry (see "Version pinning and update delivery" above). If the
+  capability moved into another plugin, say which one in the PR body and in the surviving plugin's
+  changelog.
 
 ## Persistence, configuration & external integration
 
@@ -703,7 +693,7 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | aspire | stdio (`aspire` native) | none | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
-| ccusage | stdio | none | STAY | Live consumer `/claude-ops:claude-observability`; CLI covers the need (rule 1) and claude-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
+| ccusage | stdio | none | STAY | Live consumer `/harness-ops:claude-observability`; CLI covers the need (rule 1) and harness-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
 | chrome-devtools | stdio | none | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
 | context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
 | github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR`, so not repo-agnostic |
@@ -884,7 +874,7 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      hook command gets, and deny by default anything broader than the specific command the skill's own
      scripts invoke. A wildcard interpreter grant (`Bash(python*)`, `Bash(*)`, bare `Bash`) is a deny
      outright: it is arbitrary code execution in a workspace the consumer never trusted.
-     `claude-config:audit-permission-grants` check P1 detects exactly these shapes and is the
+     `harness-config:audit-permission-grants` check P1 detects exactly these shapes and is the
      mechanical half of this criterion.
 2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
    **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
@@ -1419,7 +1409,7 @@ authority.
 | Feature | Position | Rationale |
 |---|---|---|
 | `strict` per entry | adopt default (`true`; omit the field) | No entry in `.claude-plugin/marketplace.json` sets `strict`. Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
-| `renames` | adopt | Already in `.claude-plugin/marketplace.json`. Frozen-historical: existing keys stay so old settings ids keep resolving. The renames `bash-lint`, `markdown-formatter` and `bug-report` are deliberately absent, so an old-name install gets `Plugin "<name>" not found in marketplace`. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
+| `renames` | reject | `.claude-plugin/marketplace.json` carries no `renames` map. A rename is a clean break: an old-name install gets `Plugin "<name>" not found in marketplace` and the consumer re-enables the new name. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
 | `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
 | `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
 | Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
@@ -1447,7 +1437,7 @@ authority.
   `strict` default, relative-path resolution under a `url` marketplace source, command-source
   bulk behavior, the version rung order, the community submission bar, or the top-level `bin/`
   rule; a maintainer revisits the `claude-community` reject (for example, outside demand for one plugin);
-  or the frozen `renames` posture changes.
+  or the `renames` reject changes.
 
 ## Local development loop
 

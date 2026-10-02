@@ -12,10 +12,12 @@
 - [Hedge preservation, and the residual-risk footer](#hedge-preservation-and-the-residual-risk-footer)
 
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
-documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
-`claude.dev/blog`, `anthropic.com/engineering`). Hosts match with or without a leading `www.`;
-the two blog hosts share every blog rule below; live engineering links use `www.anthropic.com`. The pipeline engine in `SKILL.md` stays generic; everything here
-is this publisher's own contract. A second publisher joins as a sibling profile file; engine
+documentation properties: the docs hosts `platform.claude.com` and `code.claude.com`, and the
+correlate-only hosts `claude.com/blog`, `claude.dev/blog` and `anthropic.com/engineering`, which
+the upstream-drift convention never accepts as a pointer. Hosts match with or without a leading
+`www.`; the two blog hosts share every blog rule below except their fetch channels; live
+engineering links use `www.anthropic.com`. The pipeline engine in `SKILL.md` stays generic;
+everything here is this publisher's own contract. A second publisher joins as a sibling profile file; engine
 extraction waits for the third (Rule of Three).
 
 ## Fetch channel
@@ -41,9 +43,9 @@ extraction waits for the third (Rule of Three).
   names a line number, resolve it to the row's key before relying on it. Line numbers into an
   **archived snapshot** this pipeline captured are
   unaffected: that file is immutable, which is exactly what makes its line numbers citable.
-- **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
-  extract. Record the channel used. **Three extraction artifacts reproduce on this channel; record
-  them, never repair them.** `source.*` is immutable, so the fix belongs in whatever reads the
+- **Blog posts (`claude.com/blog/...`, correlate-only):** no raw-markdown channel known; fetch rendered and
+  extract. Record the channel used. **Three extraction artifacts may reproduce on this channel;
+  record each one that does, never repair it.** `source.*` is immutable, so the fix belongs in whatever reads the
   snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
   Read the exact title from the `<title>`/`<h1>` of the `source.html` that (c) keeps. When that
   file is missing, reconstruct the title from the canonical URL slug, which the checklist already
@@ -55,7 +57,28 @@ extraction waits for the third (Rule of Three).
   (inline SVG `<text>`, image alt text, video captions) is dropped by a text extraction, so
   `source.md` is silent wherever a figure carries a claim. Keep the raw HTML as `source.html`
   beside `source.md`, a second immutable original, and recover that text from it; a row quoting
-  such text cites `source.html`.
+  such text cites `source.html`. Of the three, only (c) also binds
+  `claude.dev/blog`, the other correlate-only host.
+- **Blog posts (`claude.dev/blog/...`, correlate-only):** fetch the rendered page as
+  `source.html`, then write `source.md` with
+  `python3 <skill-dir>/scripts/extract_blog_body.py <work-root>/source.html <work-root>/source.md`
+  and name the extractor in the checklist's channel line. The extractor's known artifacts are
+  recorded here and never repaired in `source.md`: it keeps only the article body (the element
+  with `id="body"` up to the related-posts block), so the title, author, date and structured
+  metadata are read from `source.html`; it drops widget chrome (copy buttons, the code-block
+  header, video controls) and moves the code header's language label into the fence info string;
+  it adds a `|---|` separator row under each table's first row; it drops the newline that
+  directly follows `<pre>`; it collapses whitespace outside code; and it writes captions as
+  `[CAPTION]` lines and media as `[IMG]`, `[VIDEO]`, `[SOURCE]` and `[SVG]` lines. Its markers are
+  this host's markup, so it does not read the other correlate-only host, `claude.com/blog`,
+  whose pages keep the rendered channel above.
+- **Figure data decoded from a framework payload is a derived file (both blog hosts).** When a
+  figure's values sit in a script payload inside `source.html` (for example a `self.__next_f`
+  script) rather than in its text, decode the payload into a file beside the originals, never
+  named `source.*`, and record the decoding command in the checklist. That file is derived, not an
+  original: a row reads from it only the values the payload states and cites `source.html` as its
+  original. Never compute a number from SVG geometry (path coordinates, bar lengths, axis
+  positions); a value the figure shows only as geometry is recorded as not stated.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -85,8 +108,8 @@ archive wrong in a way its own verification cannot catch:
   carries no annotation explaining why a re-publication exists. Record the re-publication as what it
   is; never
   infer a revision, an intent, or a policy movement from the appearance of a new dated heading.
-- **Absence of bold does not prove absence of change.** The page states that updates between
-  versions are bolded, and that convention does not hold: spans of the archive carry differences,
+- **Absence of bold does not prove absence of change.** The archive's own bold-marks-updates
+  convention does not hold, as we observed: spans of the archive carry differences,
   including whole added paragraphs, silent typo fixes, and silent removals, with no bold markup at
   all. Treat an unbolded inter-entry difference as an authoritative delta of
   equal standing to a bolded one, which means the deltas come from diffing entries, never from
@@ -119,6 +142,15 @@ asserts:
   result count**, not a prose summary of what was checked. An attested zero is not a reproducible zero,
   and a row that both performs an absence search and certifies its own result leaves a verifier
   nothing to replay.
+- **One standard absence corpus.** Every `api-only` basis, and every prose statement that no
+  harness page covers something, searches the same set: every page the code.claude.com docs index
+  lists, each fetched through the raw `.md` channel. `SOURCES.md` records the corpus once (index
+  fetch date, page count, and where the fetched pages sit); each row's basis still records its
+  own command and count over that corpus, so every row of every slice rests on the same set. A
+  search over a hand-picked subset is a sample: the row says so, and a sample never certifies
+  absence.
+  Pointer: <https://code.claude.com/docs/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
+  stops serving the full page index.
 - **Every non-zero result names its match site(s).** A recorded count plus a filename histogram is
   still unfalsifiable: a reader who replays the command gets the same number and still cannot tell
   whether anyone read the matching lines. A row whose hit set was **sampled** rather than read in
@@ -147,11 +179,12 @@ asserts:
   fails (3)'s own test, and is disclosed as a near-miss without entering this list.
 - **`tag-exempt (<sub-shape>)`: material the vocabulary does not adjudicate.** One disposition
   for rows carrying no guidance for ANY surface the applicability vocabulary adjudicates, with the
-  sub-shape named at the row. Four sub-shapes: `consumer-surface` (a different product surface,
+  sub-shape named at the row. Five sub-shapes: `consumer-surface` (a different product surface,
   e.g. claude.ai web/mobile), `archive-descriptive` (an archive's own apparatus and entry
   structure), `metadata` (dates, titles, version labels), `navigation-pointer` (links and
-  cross-references). The disposition describes the material's genre and asserts nothing about
-  harness applicability. It is not a positive tag and not a negative claim, so it owes no
+  cross-references), `blog-apparatus` (a blog post's own furniture: lines saying what the post
+  covers, figure controls, slider labels, preset names, related-post cards). The disposition
+  describes the material's genre and asserts nothing about harness applicability. It is not a positive tag and not a negative claim, so it owes no
   live-doc citation and no absence basis, and the near-miss disclosure burden never attaches.
   `api-only` remains reserved for rows that DO assert a harness absence for their own specific
   assertion.
@@ -161,6 +194,11 @@ asserts:
   - **Claude Tag product mechanics are `tag-exempt (consumer-surface)`.** The Slack channel,
     standing instructions, and threads a page describes are that product's surface, not the
     harness's. Guidance the page states beyond those mechanics is tagged on its own terms.
+  - **`blog-apparatus` holds only text that neither directs the reader nor asserts a fact.** A
+    line that tells the reader to do something, or states anything about a model, product or
+    result, takes a vocabulary tag even when it sits in a figure or a summary box. Blog
+    furniture never goes into `metadata` or `navigation-pointer` to avoid a tag. The blog
+    row-class table at the end of this section assigns the common blog rows.
   - **Pointer convention:** a bare "See X" is `navigation-pointer`. A directive pointer, one
     that tells the operator to do something or that asserts a fact about the target, is
     guidance and takes a vocabulary tag, not the exempt disposition.
@@ -202,6 +240,13 @@ asserts:
   inherited basis is anchor-correct and mechanically recoverable from the row (the subsection
   heading the row sits under). Per-row anchors are required only where a file flattened
   multiple anchors into one.
+- **A quote whose clauses differ in applicability is split.** When one source sentence joins
+  clauses that would take different tags (one transfers to the harness, another names an API
+  request parameter, say), the digest writes one claim row per clause. Each row quotes its own
+  clause verbatim, marking the cut with an ellipsis per the `SKILL.md` Phase 3 truncation rule,
+  and carries its own tag and evidence. A row never carries two tags. Where a clause cannot be
+  read without the other, each row quotes the whole sentence and its tag line names the clause
+  the tag covers; that is the only case where a tag covers less than its row's quote.
 - **Row-local reachability: a cited site no recorded command produces has been asserted, not
   disclosed.** A `file.md:NN` in a row's evidence counts as disclosed only when some command
   recorded in that same row produces it; otherwise the row says so explicitly, and an explicit
@@ -214,9 +259,10 @@ asserts:
   section as their row-local basis; the boundary rule still routes claims naming an API surface
   to `mixed`, and third-party APIs (e.g. the GitHub API) count as API surfaces, with no vendor
   exemption.
-- **Vendor-blog attestation:** a `claude.com/blog` page is marketing-adjacent vendor voice, not
-  reference documentation. Any assertion of fact that exists ONLY in the blog (no harness or
-  platform doc states the same assertion) additionally carries
+- **Vendor-blog attestation:** a `claude.com/blog` or `claude.dev/blog` page is a correlate-only
+  source in marketing-adjacent vendor voice, not reference documentation. Any assertion of fact
+  that exists ONLY in the blog (no harness or platform doc states the same assertion) additionally
+  carries
   `vendor-claimed (blog, <fetch date> fetch)` beside its vocabulary tag. That covers behavioral,
   performance, figure/percentage, comparative, frequency, methodological/definitional,
   positioning, or any other class; the list is illustrative, not exhaustive. It is
@@ -224,6 +270,25 @@ asserts:
   live-doc citation for the same assertion, and never deferred to the interview. The marker is an attestation note
   that composes with the tag and, where applicability itself is inferred, with
   `unverified-inference`.
+- **Blog-only is an absence claim over both docs corpora, platform first.** Before a row carries
+  `vendor-claimed` or any text calling an assertion blog-only, the digest searches the platform
+  docs corpus (every `/docs/en/` page the platform docs index lists, raw `.md` channel), then the
+  standard harness corpus above, and the row records both commands and counts under the same
+  rules as an `api-only` basis. A row that searched only the harness corpus has not established
+  blog-only. When a platform page states the same assertion, the row cites that page and drops
+  the marker.
+  Pointer: <https://platform.claude.com/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
+  stops serving the docs page index.
+
+**Blog row classes.** A blog row takes its tag from what it asserts, never from where it sits on
+the page (a figure, a caption, a summary box):
+
+| Row class | Tag |
+|---|---|
+| Benchmark method: how a measurement was set up (task set, configuration, scoring) | The vocabulary tag its content warrants (`cc-applicable` when it transfers to the harness), plus `unverified-inference` when applicability was inferred and `vendor-claimed` when it is blog-only |
+| Benchmark result: a score, rate, comparison or trend | As for benchmark method |
+| The author's own test run: something the author reports running and observing | As for benchmark method |
+| Widget text: the furniture the `blog-apparatus` sub-shape lists, such as slider labels and preset names | `tag-exempt (blog-apparatus)`, only while the text neither directs the reader nor asserts a fact |
 
 ## Digest-agent model matching
 
@@ -236,10 +301,29 @@ behavioral descriptions:
 | Cross-model or harness doc (best practices, effort, guardrails) | Session default (no override) |
 | Non-Claude subject | Session default (no override) |
 
-Pinned-vs-alias semantics are generation-dependent: since the 4.6 generation the dateless ID is
-itself the pinned snapshot, while earlier models pin a dated snapshot and their dateless aliases
-move. Resolve them at spawn time against the live
-[model IDs and versioning page](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions).
+Pinned-vs-alias semantics differ by model generation, so resolve which ID is pinned at spawn time
+against the live page; this profile stores no generation rule.
+
+- **Pointer**: for which model IDs are pinned snapshots, see
+  <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#model-id-format>
+  and <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#dateless-ids-are-pinned-snapshots>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that page changes how a dateless ID or alias resolves, or a new model
+  generation ships.
+
+**Known gap: a plain Agent tool spawn cannot pin a model ID.** Our probe on 2026-10-01: the
+Agent tool's per-call `model` parameter, as this harness exposes it, takes only the family
+aliases. The pinned-ID row above is therefore unenforceable through that parameter. To pin,
+spawn through a subagent definition whose `model` frontmatter carries the full ID. When that is
+not available, pass the alias, record in the checklist both the alias passed and the model the
+subagent reports, and mark the match unenforced.
+
+- **Pointer**: the probe, recorded in the Verification section of
+  [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767); for how a family
+  alias resolves once passed, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: the Agent tool's `model` parameter accepts a full model ID, or that
+  section changes how a family alias resolves for a subagent.
 
 Every model-pinned spawn brief uses the conditional framing contract from `SKILL.md` Phase 3
 ("this brief assumes model X; if you are not X, note the mismatch and continue").
@@ -269,32 +353,33 @@ undecided). The handoff records the candidate target per finding; the interview 
 
 ## Hedge preservation, and the residual-risk footer
 
-A source's own hedge travels with the content it qualifies. An artifact graduated from this
-publisher preserves the hedge as the source states it, neither dropped as throat-clearing nor
-widened past what the source claims. The footer below is the standing instance; the harness
-best-practices material's "starting points, not set in stone" relativization is the second, and both
-graduate under this one convention rather than each inventing its own.
+A source's own hedge stays attached to the content it qualifies. An artifact graduated from this
+publisher carries a pointer to the hedge (exact section, as-of date, recheck trigger) beside the
+content it qualifies. It never carries the hedge's text, quoted or paraphrased, and never drops
+the pointer or widens it to content the hedge does not qualify. The residual-risk footer below is
+the standing instance; the harness best-practices material's hedge on its own recommendations is
+the second, and both graduate under this one convention rather than each inventing its own.
 
 **Wrong-footer trap.** This profile's hallucination-scoped residual-risk footer attaches only to
-artifacts derived from a page that states that hedge. A page carrying its own hedge graduates
-that page's sentence, never this one. Worked instance: server-managed-settings' "not a security
-boundary" sentence travels verbatim; attaching the hallucination footer to that page would be a
-scope transfer the rule above forbids.
+artifacts derived from the page that carries that hedge. A page carrying its own hedge graduates
+a pointer to that page's hedge, never this one. Worked instance: the server-managed-settings page
+carries its own security-boundary caveat; pointing an artifact from that page at the hallucination
+footer would be a scope transfer the rule above forbids.
 
 **Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries
-that page's OWN residual-risk sentence when the page states one, quoted rather than paraphrased.
-A hedge scoped to one page's techniques never transfers to an artifact derived from a different
-page. The standing instance, for artifacts derived from [Reduce
-hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
-(verified 2026-08-03):
+a pointer to that page's own residual-risk sentence when the page states one. A hedge scoped to
+one page's techniques never transfers to an artifact derived from a different page. The standing
+instance is the residual-risk sentence of the Reduce hallucinations page; neither this profile
+nor an artifact stores its text, and a reader follows the pointer.
 
-> Remember, while these techniques significantly reduce hallucinations, they don't eliminate them
-> entirely. Always validate critical information, especially for high-stakes decisions.
+- **Pointer**: for the residual-risk sentence, see
+  <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations#advanced-techniques>.
+- **As of**: 2026-08-03
+- **Recheck trigger**: that section drops, moves, or rewords its residual-risk sentence.
 
-Its scope is the source's own and stays unbroadened. It is about **hallucinations**, not errors,
-regressions, or guardrail failures in general; and it names **no validator**: who or what validates
-critical information is unstated in the source and stays unstated here. Widening the failure mode or
-supplying a mechanism states something the source does not.
+An artifact says nothing about that sentence's scope or mechanism beyond the pointer. Naming the
+failure mode it covers more broadly than the section does, or naming who acts on it, states
+something the source does not, and summarizing it at all is the paraphrase this rule forbids.
 
 The footer attaches at this profile, not per artifact, because the profile is the one file every
 guardrail slice of this publisher flows through. A graduated chapter or template **cites this

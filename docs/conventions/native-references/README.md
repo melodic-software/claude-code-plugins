@@ -21,9 +21,10 @@ This doc owns the phrasing of references **to native surfaces**. It does not own
 - **Whether a reference should exist at all.** That is a verdict, and verdicts live in the
   committed overlap store rendered into [`docs/native-surfaces.md`](../../native-surfaces.md).
   This doc governs the words once a verdict says a reference is warranted.
-- **The stamp discipline on any upstream fact a reference restates.**
-  [`upstream-drift`](../upstream-drift/README.md) owns the four-part record (claim, basis, as-of
-  date, recheck trigger) and the observability bar its triggers must clear.
+- **The record behind any upstream specific a reference depends on.**
+  [`upstream-drift`](../upstream-drift/README.md) owns its shape (our decision, a pointer to the
+  exact upstream section, the as-of date, the recheck trigger) and the observability bar its
+  triggers must clear.
 - **Instruction economy.** [`plugin-philosophy`](../../plugin-philosophy.md) owns the rule that
   every always-loaded description is a per-session tax. This doc keeps the phrase to one clause
   because of that rule; it does not restate it.
@@ -33,21 +34,26 @@ This doc owns the phrasing of references **to native surfaces**. It does not own
 Native availability varies along at least four independent axes, so any static availability
 sentence is wrong somewhere by construction:
 
-| Axis | Mechanism |
+| Axis | Where it is set |
 |---|---|
-| Settings / environment | `disableBundledSkills` and `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` remove bundled skills and workflows; `skillOverrides` maps a name to `on` / `name-only` / `user-invocable-only` / `off`; `DISABLE_DOCTOR_COMMAND` hides `/doctor` specifically |
-| Plan | Some surfaces require a paid or specific plan tier |
-| Platform / provider | Some surfaces are absent on some OSes, and several are unavailable on non-first-party model providers |
-| Host surface | CLI, web/cloud, VS Code, and mobile expose different rosters; terminal-interface commands do not exist in a web session, and a cloud session carries session-provided skills a local CLI does not |
+| Settings / environment | The `disableBundledSkills` setting and its environment twin, `skillOverrides`, and `DISABLE_DOCTOR_COMMAND` |
+| Plan | The account's plan tier |
+| Platform / provider | The operating system and the model provider |
+| Host surface | CLI, web/cloud, VS Code, or mobile |
 
-Claim, basis, and trigger for that table, per [`upstream-drift`](../upstream-drift/README.md):
-the four axes are documented on `https://code.claude.com/docs/en/settings-reference.md`
-(`disableBundledSkills`, `skillOverrides`), `https://code.claude.com/docs/en/env-vars.md`,
-`https://code.claude.com/docs/en/commands.md` ("Not every command appears for every user.
-Availability depends on your platform, plan, and environment."), and
-`https://code.claude.com/docs/en/cloud-environments.md`; verified 2026-08-23; **recheck trigger**:
-a Claude Code release note or docs change adds, removes, or renames a gating axis, or a
-`skillOverrides` state leaves the four-value set.
+We treat every axis as able to remove or hide a native surface, so no component states
+availability.
+
+- **Pointer**: for the switches, see
+  [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills),
+  [skill visibility overrides](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
+  and [environment variables](https://code.claude.com/docs/en/env-vars); for plan and platform
+  gating, see [Commands](https://code.claude.com/docs/en/commands); for what a cloud session
+  carries, see
+  [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions).
+- **As of**: 2026-10-01
+- **Recheck trigger**: a Claude Code release note or docs change adds, removes, or renames a gating
+  axis, or a `skillOverrides` state leaves the four-value set.
 
 The consequence is the rule: **a component never states that a native surface is present, absent,
 enabled, or unavailable.** It states what to do *if the surface resolves in the session*, and the
@@ -92,19 +98,18 @@ write "otherwise this skill", which is noise the shared budget pays for.
 
 ### Budget caveat
 
-Descriptions are subject to two limits, and a baked phrase is the best available routing surface,
-not a guaranteed one:
+Descriptions are subject to two limits, a per-entry length cap and a budget on the whole listing,
+so we treat a baked phrase as the best available routing surface, not a guaranteed one: a phrase
+may be cut short, or its whole description dropped from the listing.
 
-- the combined `description` + `when_to_use` text is truncated at **1,536 characters** in the
-  listing by default (`skillListingMaxDescChars`); and
-- the listing as a whole is capped at a **share of the context window**
-  (`skillListingBudgetFraction`, default 1%). On overflow the listing keeps every skill *name* and
-  drops whole descriptions, starting with the least-invoked skills.
-
-Basis: `https://code.claude.com/docs/en/skills.md` (Frontmatter reference; Troubleshooting →
-"Skill descriptions are cut short") and `https://code.claude.com/docs/en/settings-reference.md`;
-verified 2026-08-23. **Recheck trigger**: a release or docs change moves the 1,536 default, the
-1% default, or the drop-order rule.
+- **Pointer**: for the per-entry cap, the listing budget and what overflow drops, see
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
+  [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
+  and
+  [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction).
+- **As of**: 2026-10-01
+- **Recheck trigger**: a release or docs change moves the per-entry cap default, the budget
+  default, or the drop-order rule.
 
 Two obligations follow. Keep the phrase to one clause, since it spends shared budget every session
 for every consumer. And where a fleet's listing plausibly overflows, the overlap store records a
@@ -132,10 +137,13 @@ Boundary section spends no shared listing budget and changes no routing; the gat
 earns (below) has no reason to hold the section back.
 
 The section carries the conclusion: the surfaces by provenance class, the routing split, and the
-mutation gate. The four-part records behind it (the basis each upstream specific rests on, its
-as-of date, its recheck trigger, the extraction or docs evidence) live in a **reference file inside
-the same skill**, linked from the section with a same-plugin relative path, so the body stays short
-and the detail stays reachable. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
+mutation gate. The records behind it live in a **reference file inside the same skill**, linked
+from the section with a same-plugin relative path, so the body stays short and the detail stays
+reachable. That file holds our decision in our words, a pointer to the exact upstream section, the
+as-of date and the recheck trigger, and no upstream text; a table form uses the header
+`| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*` reference
+files keep the older four-part shape until
+[#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) converts them. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
 and `/review:fanout` each carry one):
 
 ```markdown
@@ -171,8 +179,8 @@ Six properties the section keeps:
    phrase. Cross-plugin pointers are forbidden.
 5. **Presence-gated language throughout**: the body inherits the description's gate; it never
    promotes a surface to available because the body is longer.
-6. **Upstream specifics carry their basis and date**, per
-   [`upstream-drift`](../upstream-drift/README.md).
+6. **Upstream specifics are pointed at, never restated**: each carries a pointer, an as-of date
+   and a recheck trigger, per [`upstream-drift`](../upstream-drift/README.md).
 
 ## Self-containment: shipped plugins never cite the registry
 
@@ -207,25 +215,26 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Surface | What it carries |
 |---|---|
-| `/claude-ops:audit-install-state` | `## Boundary` section for the bundled `doctor` skill (verdict `complementary`); no description phrase |
+| `/harness-ops:audit-install-state` | `## Boundary` section for the bundled `doctor` skill (verdict `complementary`); no description phrase |
 | `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
-| `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; a description phrase for `claude-api`. A second `## Boundary` section for the bundled `doctor` skill's `prompt-audit` (integration `suggest`) |
+| `/harness-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), pointer records in the skill's own reference file; a description phrase for `claude-api`. A second `## Boundary` section for the bundled `doctor` skill's `prompt-audit` (integration `suggest`) |
 | `/evals:methodology` | `## Boundary` section for the bundled `claude-api` skill's `hillclimb` and `build-eval` subcommands (verdict `complementary`); a description phrase routing the model-and-effort sweep to `hillclimb`; detail in the skill's eval-design reference |
 | `/playbooks:fable-5` | `## Boundary` section for the bundled `claude-api` skill as the live-facts and cost-audit surface its chapters defer to (verdict `complementary`); a description phrase for its `route` row; detail in the pack's prompt-caching reference chapter |
-| `/review:code-review`, `/review:security-review` | Description phrase + `## Boundary` section for the bundled `code-review` skill and the plugin-backed built-in `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file |
+| `/review:code-review`, `/review:security-review` | Description phrase + `## Boundary` section for the bundled `code-review` skill and the plugin-backed built-in `security-review` command (verdict `complementary`, CI lane versus session pass); pointer records in each skill's `reference/` file |
 | `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
 | `/testing:run-e2e` | description phrase, `## Boundary` section and `## Native step` for the bundled `run` skill (verdict `complementary`, integration `wrap`; a look versus evidenced verification); detail in the skill's context file |
-| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase for `/skill-doctor`; detail in each skill's `reference/` file |
+| `/harness-ops:audit-performance`, `/harness-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase for `/skill-doctor`; detail in each skill's `reference/` file |
 | `/visualization:visualize` | `## Boundary` section with a suggest sentence for the model-disabled bundled `design` skill (integration `suggest`, verdict `complementary`, user-run canvas versus a chosen form and medium); no description phrase for it; detail in the catalog spoke. The same section covers the built-in `ClaudeDesign` tool (integration `route`, verdict `complementary`, an existing claude.ai/design project versus this skill's own render), with a description phrase and detail in the skill's `context/` file |
 | `/prototype:explore-directions` | `## Boundary` section with a suggest sentence for the model-disabled bundled `design` skill (integration `suggest`, verdict `complementary`, user-run canvas versus throwaway mockup; no description phrase for it), a `## Boundary` section for the built-in `ClaudeDesign` tool (integration `route`, verdict `complementary`, an existing claude.ai/design project versus throwaway variants) with a description phrase, and a `## Boundary` section for the marketplace `playground` plugin; detail in the skill's `reference/` files |
 | `/source-control:commit`, `/source-control:pull-request`, `/source-control:babysit-prs` | `## Boundary` sections for the bundled `commit` and `pr` skills and `/commit-push-pr` (integration `route`, in both `commit` and `pull-request`), and `/autofix-pr` (`suggest`, in both `pull-request` and `babysit-prs`); verdict `complementary`, detail in each skill's `reference/` file; `commit` and `pull-request` carry one description phrase each for their `route` rows |
-| `/claude-config:draft-auto-mode-rules`, `/claude-config:audit-permission-state`, `/claude-config:audit-permission-grants`, `/claude-config:audit` | `## Boundary` sections for `/auto-mode-setup` (`suggest`), the bundled `fewer-permission-prompts` skill (`route`) with `/permissions` (`suggest`, in both permission audits), and the bundled `update-config` skill (`route`); verdict `complementary`; `audit-permission-state` and `audit` carry one description phrase each for their `route` rows |
-| `/bugs:write`, `/github:advise`, `/claude-memory:stateless` | `## Boundary` sections for `/bug`, `/install-github-app`, and `/memory` (integration `suggest`, verdict `complementary`); detail in each skill's `context/` or `reference/` file; no description phrase |
+| `/harness-config:draft-auto-mode-rules`, `/harness-config:audit-permission-state`, `/harness-config:audit-permission-grants`, `/harness-config:audit` | `## Boundary` sections for `/auto-mode-setup` (`suggest`), the bundled `fewer-permission-prompts` skill (`route`) with `/permissions` (`suggest`, in both permission audits), and the bundled `update-config` skill (`route`); verdict `complementary`; `audit-permission-state` and `audit` carry one description phrase each for their `route` rows |
+| `/bugs:write`, `/github:advise`, `/harness-memory:stateless` | `## Boundary` sections for `/bug`, `/install-github-app`, and `/memory` (integration `suggest`, verdict `complementary`); detail in each skill's `context/` or `reference/` file; no description phrase |
 | `/verification:confirm`, `/implementation:implement-dispatch`, `/debugging:debug` | `## Boundary` sections for the model-disabled bundled `verify`, `batch`, and `debug` skills (integration `suggest`, verdict `complementary`); no description phrase |
 | `/discovery:research-deep` | `## Boundary` section for the bundled `deep-research` workflow (integration `suggest`, verdict `complementary`); no description phrase |
-| `/claude-ops:observability`, `/context-budget:audit` | `## Boundary` sections for the bundled `explain-usage` skill (integration `route`, verdict `complementary`); each carries a description phrase for its `route` row; `/context-budget:audit` also carries a `## Boundary` section for `/context` (integration `suggest`, no description phrase) |
+| `/harness-ops:observability`, `/context-budget:audit` | `## Boundary` sections for the bundled `explain-usage` skill (integration `route`, verdict `complementary`); each carries a description phrase for its `route` row; `/context-budget:audit` also carries a `## Boundary` section for `/context` (integration `suggest`, no description phrase) |
 | `/session-flow:orient`, `/session-flow:continue-in-background`, `/session-flow:retro` | `## Boundary` sections for `/recap`, for `/subtask`, `/fork` and `/background`, and for `/insights` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/planning:draft-goal-condition`, `/planning:plan` | `## Boundary` sections for `/goal` and `/plan` (integration `suggest`, verdict `complementary`); no description phrase |
+| `/instruction-placement:migrate` | `## Boundary` section for the plugin-backed built-in `cc-plugin-agents-md` plugin (integration `route`, verdict `complementary`, the loader of `AGENTS.md` versus the migration into it); detail in the skill's `reference/sources.md`; no description phrase |
 | `/discovery:explore`, `/planning:plan`, `/firecrawl:firecrawl` | `## Boundary` sections for the built-in `Explore` and `Plan` agents and the built-in `WebFetch` and `WebSearch` tools (integration `route`, verdict `complementary`); the `discovery:explorer` agent's `Explore` row is registry-only; detail in each skill's `reference/` or `context/` file; no description phrase |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
@@ -253,7 +262,7 @@ at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
 
 A `suggest` row on a `bundled-skill` carrying `model-invocation-disabled` carries no description phrase
 (`baked.description_phrase` false): the body's suggest sentence is the only baked line, and the
-`claude-ops:audit-native-overlap` self-check fails the combination.
+`harness-ops:audit-native-overlap` self-check fails the combination.
 
 A `wrap` or `suggest` row carries an evidence line naming the observed invocation mode. Skill-tool
 reach is per surface; the class rules are a floor.
@@ -301,10 +310,10 @@ A `suggest` row addresses the person, not the model. The sentence shape is:
 If /<name> is available in your session (<basis>), run it for <job>.
 ```
 
-`<basis>` is a same-file four-part verification record per upstream-drift naming the surface's
-own gate. For `/doctor` that gate is `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry,
-because `/doctor` survives `disableBundledSkills`. For every other bundled skill the gate
-includes `disableBundledSkills` as well. Place the sentence at the start of the run when the
+`<basis>` names the surface's own gate and links a same-file upstream-drift record for it (our
+decision, a pointer to the section defining the gate, the as-of date, the recheck trigger). For
+`/doctor` the basis names `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry and not
+`disableBundledSkills`; for every other bundled skill it names `disableBundledSkills` as well. Place the sentence at the start of the run when the
 surface covers everything the skill does, and at the end when coverage is partial. A
 model-disabled bundled skill is suggested as `/<name>` exactly as a built-in command is. The
 wording is "reserved for the person to run", never "cannot be invoked" as an absolute. An
@@ -336,4 +345,5 @@ change; the doc's README-only original state reads as 1.0.
 
 Upstream publishes no convention for deferring to its own surfaces (absence checked 2026-08-23
 against the pages listed above and `https://code.claude.com/docs/llms.txt`), which is why this
-repository owns one.
+repository owns one. Recheck trigger: a Claude Code docs page publishes guidance on how a plugin
+should refer to native surfaces.

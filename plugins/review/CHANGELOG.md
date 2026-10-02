@@ -3,6 +3,43 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.9] - 2026-10-02
+
+### Changed
+
+- **`severity.md` records its decidable tier tests as a decision with a pointer.** The tests restate
+  the existing bars and move no finding between tiers; the record points at the code-review
+  harnesses section of the Sonnet 5 prompting guide, with an as-of date of 2026-10-01 and a recheck
+  trigger.
+- **`ecosystem-specialist` pins `effort: medium`**, the marketplace effort floor for code-changing
+  or verifying work. It and `doc-drift-detector` gain a "When you are done" section naming the
+  artifact that ends the run; work beyond scope goes into the return as a named suggestion.
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: high`**: verification work where edge
+  cases are likely. `ci-log-auditor`'s GitHub API and `gh` pagination notes point at the live docs
+  and the recorded probe instead of restating them.
+
+## [0.34.8] - 2026-10-02
+
+### Fixed
+
+- The `fanout` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
+  the skill accepts.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [0.34.7] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.34.6] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
 ## [0.34.5] - 2026-10-01
 
 ### Fixed

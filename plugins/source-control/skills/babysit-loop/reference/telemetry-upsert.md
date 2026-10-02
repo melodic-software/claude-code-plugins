@@ -5,7 +5,7 @@ comment **for this lane instance**. `SKILL.md`'s "Telemetry and durable loop sta
 comment lives and what goes in it; this file owns how the singleton is maintained and how a creation
 race converges.
 
-The upsert is inlined in this plugin rather than invoked from `claude-ops` because an installed
+The upsert is inlined in this plugin rather than invoked from `harness-ops` because an installed
 plugin cannot invoke a sibling plugin's scripts.
 
 Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane
@@ -35,7 +35,7 @@ esac
   exit 1
 }
 MARKER="source-control:babysit-loop@$INSTANCE"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
+SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
 SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow
@@ -81,8 +81,8 @@ sentinel into the file; do not rely on anything downstream to add it.
 **Body gate, write check, and read-back (encoded above).** Three checks, because they catch
 different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
 that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
-below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes
-skill, `/claude-ops:lanes` ("Never pass a body as an `@path` string"). The floor is measured on
+below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `harness-ops` lanes
+skill, `/harness-ops:lanes` ("Never pass a body as an `@path` string"). The floor is measured on
 everything below line 1, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte whether that
 line ends in LF or CRLF. The **write's own exit status** is checked next: a PATCH that fails leaves
 the previous cycle's body in place, which a read-back running regardless would happily accept. The

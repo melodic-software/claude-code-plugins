@@ -3,6 +3,28 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.24] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+- The `update` `argument-hint` uses Claude Code's official bracket notation: it drops the prose
+  after the grammar, which the skill body now carries.
+
+## [0.5.23] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.5.22] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.5.21] - 2026-09-30
 
 ### Changed

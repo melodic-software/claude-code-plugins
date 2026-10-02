@@ -1,112 +1,38 @@
 ---
-description: "Verify or configure where verification artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land', or a verification skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
-argument-hint: "check | apply [<key>=<value> ...]"
+description: "Report where verification artifacts land in this repository. check (read-only) names the memory root the verification skills resolve and whether the project's own instructions declare a different one; nothing is configured or written. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land'. Action: check (read-only, default). Re-runnable. Safe to invoke again."
+argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s read of the concern file ran at load time, from the session's working directory (the
-repository root unless the session has changed directory). Read it here instead of re-reading the
-file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
-file exists but is empty:
-
-!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
-
-When the session's working directory is not the repository root, or the value reads
-`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
-root directly instead.
 
 ## Purpose
 
-Settle the **topic-docs** seam for the consuming repo, the marketplace-wide convention for where
-plugin-generated documents land. The verification plugin writes contract-tier verification manifests
-(distilled, `verified_at_sha`-keyed) and memory-tier baselines and raw captures (machine-bound, never
-committed); how each artifact resolves its tier is owned by
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). The
-consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its shape is
-the convention's `topic-docs.schema.json`. Every key optional, absent keys mean the documented defaults
-(`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). The
-binding above carries the pointer to the published convention that owns the schema.
+The verification plugin has nothing to configure. Placement is fixed by the plugin's lifecycle artifact
+protocol
+([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)):
+`/verification:confirm` writes its evidence manifest and `/verification:measure` its baselines and
+raw captures into the memory slice `<memory_dir>/<slug>/`, never committed. `<memory_dir>` is `.work/`
+unless the project's own instructions declare another root.
 
-This skill offers the shared consumer-side concern file, independent of whether the sibling lifecycle
-plugins `discovery` and `planning` are installed today; each of those offers the same file from its
-own setup, and re-running any of them reads the current state rather than overwriting.
-
-Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
-re-running reads the current state and offers an update rather than overwriting blind.
-
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then persists.
-`apply` is non-interactive when complete `<key>=<value>` arguments are supplied
-(`memory_dir=`, `contract_dir=`, `contract_tier=`, `vault_backend=`). Automation and headless use
-pass the full set and are never prompted. With incomplete arguments, `apply` interviews one question
-at a time, recommendation first.
+This is a check-only setup: the plugin owns no writable consumer artifact, declares no `userConfig`,
+and has no external prerequisite, so there is nothing for an `apply` to write. Idempotent: re-running
+reads the current state again.
 
 ## `check` (read-only)
 
-Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do not write anything.
+Report a PASS/INFO table. Do not write anything.
 
-1. **Current state.** From the pre-computed concern file: if `.claude/topic-docs.yaml` exists,
-   report its effective values (absent keys =
-   defaults). If it does not exist, INFO: the plugin runs on the documented defaults; `apply` persists
-   an explicit concern only if the consumer wants different values.
-2. **Inferred convention.** Look for a working-docs convention declared in the repo's own `CLAUDE.md`,
-   `AGENTS.md`, or `.claude/rules`, or an existing conforming layout (`.work/` with a self-ignore,
-   `docs/topics/`). Surface it as INFO. Prose is an inference source; the concern file is the runtime
-   authority.
-3. **Committed-tier guard.** Only when the effective `contract_tier` is `branch` (local mode has no
-   committed tier to guard): run `git check-ignore -v` on a representative file path inside the
-   contract root (e.g. `<contract_dir>/probe/PLAN.md`, a bare directory misses `**` patterns). FAIL
-   if a consumer ignore rule matches, an uncommittable "committed" tier, and surface the exact rule
-   and source line. Resolving the rule is the consumer's edit.
-4. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
-   enabled. Git remains the storage layer because GitBook offers no concurrency-safe,
-   lossless write path, so it is deferred and non-writable; durable writes target `docs`.
-
-## `apply` (idempotent)
-
-Run `check`, then persist the chosen values. Re-running with the current values changes nothing and
-reports "already configured".
-
-1. **Resolve the values.** With complete `<key>=<value>` arguments, use them directly (non-interactive).
-   Otherwise interview one question at a time, recommendation first: present the inferred or documented
-   defaults (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
-   `vault_backend: docs`, the recommended combination) and let the user accept or edit. `contract_tier: local` is the
-   solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
-   consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
-   existing file carries, a re-run never drops one; do not invent options beyond the schema. `gitbook`
-   is reserved but not enabled as a `vault_backend` value. Git remains the storage layer because
-   GitBook offers no concurrency-safe, lossless write path. When offering or preserving it, report
-   that it is deferred and non-writable. Durable writes still target `docs`. Never configure or
-   test a GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user
-   chooses that change.
-2. **Guard, then persist.** Re-run the committed-tier guard from `check` for the chosen tier; if a
-   consumer ignore rule matches, STOP and surface the exact rule and source line rather than
-   configuring an uncommittable "committed" tier. Only then write the chosen values to the tracked
-   `.claude/topic-docs.yaml` (create or update; omit keys the user leaves at their defaults, but always
-   write at least one explicit key, a comment-only YAML document parses as null and fails the contract
-   schema's `type: object`). Verify-or-create the memory root's self-ignoring `.gitignore` (announce the
-   creation). **Never edit the consumer's root `.gitignore`.**
-3. **Verify.** Re-read `.claude/topic-docs.yaml` and report its effective values, never claim
-   persisted on the write alone. Then run the tracked-file pair on it: `git check-ignore -v`
-   reports no match (a match is FAIL with the pattern) AND `git ls-files --error-unmatch` exits 0
-   (non-zero right after a fresh write means "written but untracked: commit it to share with the
-   team", never success).
-
-## Output
-
-A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line summary of what was
-written and how to re-run this setup to reconfigure. Note in the summary that the concern file governs
-where `/verification:confirm` lands its manifests (contract tier) and where `/verification:measure`
-lands its baselines and raw captures (memory tier).
+1. **Memory root.** Look for a working-docs root declared in the repo's own `CLAUDE.md`, `AGENTS.md`,
+   or `.claude/rules`. Report the declared root, or `.work/` when none is declared, as INFO.
+2. **Ignore state.** Run `git check-ignore -v <memory_dir>/probe/baselines/x` on a representative
+   file path (a bare directory misses `**` patterns). A match is PASS and names the rule. No match is
+   INFO: the memory root's own self-ignoring `.gitignore` is created by the first memory-slice
+   write, announced, so an absent guard before any run is expected.
 
 ## What this skill does NOT do
 
 - Run a verification pass. That is the plugin's verification skills (`/verification:confirm`,
   `/verification:measure`).
-- Write machine-local state. Configuration lives in the consumer's tracked concern file, never in the
-  plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
-  state only).
+- Write any file, edit any ignore file, or write the plugin directory or the plugin data directory
+  (`${CLAUDE_PLUGIN_DATA}` is for caches and generated state only).
 - Write Claude Code user settings or `pluginConfigs`.

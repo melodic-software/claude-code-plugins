@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.6] - 2026-10-02
+
+### Changed
+
+- **`babysit-loop` documents the lane telemetry sentinel as
+  `<!-- harness-ops:lane-telemetry marker=... -->`,** matching the `harness-ops` and
+  `work-items` writers.
+
+## [0.71.5] - 2026-10-02
+
+### Changed
+
+- `commit`'s trailer resolution notes that a mod's `attribution.text` hook can rewrite or blank
+  the harness-injected commit and PR attribution guidance, so its absence says nothing about the
+  project's wishes.
+
+## [0.71.4] - 2026-10-02
+
+### Fixed
+
+- The `babysit-prs` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+- The `pull-request` and `worktree` argument hints use Claude Code's official bracket notation: each
+  lists the actions the skill accepts.
+- The `resolve-conflicts` `argument-hint` uses Claude Code's official bracket notation: it drops the
+  prose after the grammar, which the skill body now carries.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [0.71.3] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.71.2] - 2026-10-01
 
 ### Changed

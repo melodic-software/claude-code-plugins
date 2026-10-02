@@ -7,10 +7,10 @@
 #                                                    carrying plugin's manifest version did not
 #   scripts/sync-spawn-noise.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
-# Canonical copy: plugins/claude-ops/lib/spawn_noise.py (see
+# Canonical copy: plugins/harness-ops/lib/spawn_noise.py (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
-# What the cluster buys: `claude-ops:audit-performance` and `performance` must not
+# What the cluster buys: `harness-ops:audit-performance` and `performance` must not
 # disagree about what counts as an unmeasurable host. Plugins install independently,
 # so neither can import the other at runtime; a byte-identical copy plus this gate is
 # how the bimodal threshold keeps exactly one home. Two plugins quietly holding
@@ -26,7 +26,7 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-spawn-noise.sh"
-src="plugins/claude-ops/lib/spawn_noise.py"
+src="plugins/harness-ops/lib/spawn_noise.py"
 copies=(plugins/performance/lib/spawn_noise.py)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"

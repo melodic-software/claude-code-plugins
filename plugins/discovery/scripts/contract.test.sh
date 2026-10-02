@@ -413,13 +413,13 @@ assert_present 'the research description orders single-topic (this skill) before
 # 10. The write boundary is stated once and pointed at (#2270 F6)
 # ---------------------------------------------------------------------------
 assert_present 'the write boundary names a scratch prefix' \
-  'reference/topic-docs.md' 'scratch-'
+  'reference/parent-contract.md' 'scratch-'
 assert_present 'the write boundary assigns a cleanup owner' \
-  'reference/topic-docs.md' '[Cc]leanup'
+  'reference/parent-contract.md' '[Cc]leanup'
 
 # The agents must POINT at that statement rather than restate it. Asserting a
-# bare link to topic-docs.md would pass vacuously — both agents already linked
-# it for the by-value rationale — so this keys on the restatements being gone.
+# bare link to parent-contract.md would pass vacuously — every agent already links
+# it for other rules — so this keys on the restatements being gone.
 # A non-discriminating assertion is the script-layer form of the self-graded
 # gate these skills refuse everywhere else.
 assert_absent 'no agent restates the write boundary as a closed two-destination list' \
@@ -804,7 +804,7 @@ done
 
 # The rule reaches every agent that holds a shell, not only the three producers:
 # the per-gap workers Phase 2 dispatches and the general-purpose sibling verifier
-# carry the same Bash pool. The sandbox settings live in the claude-config audit
+# carry the same Bash pool. The sandbox settings live in the harness-config audit
 # reference, so the section points there instead of restating them.
 cred_section="$(sed -n '/^## Credentials stay unread, stated once$/,/^## Read each file once/p' \
   "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ' | tr -s ' ')"

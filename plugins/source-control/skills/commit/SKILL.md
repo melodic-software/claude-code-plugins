@@ -287,7 +287,15 @@ Four sources can specify a trailer. Resolve in this order:
    That injected guidance can carry a **hardcoded model name that does not match the running
    session**. Copying it verbatim writes a false provenance claim into durable git history, which is
    precisely the harm this template exists to avoid. Always fill `<model>` from actual session
-   knowledge.
+   knowledge. A mod can rewrite or blank that guidance before you see it: its `attribution.text`
+   hook receives the commit trailer (`kind: commit`) and the PR footer (`kind: pr`) as the engine
+   composed them and returns the text the model reads instead. So absent or unusual injected
+   guidance says nothing about the project's wishes; sources 1 and 2 still decide. (Claim: the
+   event and its kinds. Basis:
+   [mods reference](https://code.claude.com/docs/en/plugins/mods/reference)
+   "Prompts and what Claude reads", `attribution.text` row, fetched 2026-10-01, and the
+   `AttributionTextKind` type in the built-in `plugin-authoring` skill's `claude-code.d.ts` for
+   Claude Code 2.1.287. As of: 2026-10-01. Recheck: the row or the type changes.)
 4. **This skill's default**, above.
 
 **Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's own documentation uses

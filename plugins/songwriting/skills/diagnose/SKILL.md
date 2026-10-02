@@ -1,11 +1,11 @@
 ---
 description: "Review, audit, and rewrite a lyric with Pat Pattison's methods. Demo review at any completion stage, full-draft diagnosis against the five compositional elements and stable/unstable analysis, the pre-lock line/section audit checklist (tools, not gates), labeled variations across six axes, and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
-argument-hint: "[action] [args]"
+argument-hint: "[diagnose|demo|audit|variations|rewrite] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[action] [args]`. e.g., /songwriting:diagnose, /songwriting:diagnose audit "...", /songwriting:diagnose variations "..." Full actions in body
+**Arguments.** `[diagnose|demo|audit|variations|rewrite] [args]`. e.g., /songwriting:diagnose, /songwriting:diagnose audit "...", /songwriting:diagnose variations "..." Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 
@@ -63,8 +63,11 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 - Name the dominant problem; offer one focused revision. Do not list every issue.
 - Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip. A
   writer may skip any box, but a skip names a reason; silent skips are not OK.
-- Unlike the audit boxes above, the rubric's passes are **not** skippable. They are the AI's
-  self-check, not choice points offered to the writer. Rewrites and variation sets are line
+- Unlike the audit boxes above, the rubric's passes are **not** skippable. They are the writer's
+  standing rule for every candidate, not choice points offered to him. Run the countable passes as
+  commands, per the rubric row of `/songwriting:co-write`'s hard gate (syllables from
+  `datamuse.sh syllables`, repeats from a word-frequency count), and let that gate's skeptic row
+  test the judgment passes from a fresh context. Rewrites and variation sets are line
   emission: cycle [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in
   full on every candidate, pass 1 clean, and DROP any candidate a pass flagged rather than
   presenting it flagged. Two rejected executions in one slot ends generation for that slot. Hand

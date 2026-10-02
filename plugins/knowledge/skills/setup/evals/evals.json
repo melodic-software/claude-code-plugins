@@ -9,7 +9,7 @@
       "expectations": [
         "No settings file, pluginConfigs entry, or dependency install is written or run",
         "Missing extraction deps and Chromium are INFO with remediation 'apply install-deps', not FAIL",
-        "library_dir convention is read from CLAUDE.md/AGENTS.md/.claude/rules/artifact dirs, not inferred from .claude/topic-docs.yaml",
+        "library_dir convention is read from CLAUDE.md/AGENTS.md/.claude/rules/artifact dirs, not inferred from the lifecycle memory_dir",
         "Each FAIL row carries exactly one remediation line"
       ]
     },

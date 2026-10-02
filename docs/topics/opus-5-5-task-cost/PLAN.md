@@ -4,7 +4,7 @@
 
 - One `docs/upstream/` record for the claude.dev post "What a task costs on Opus 5.5" (2026-09-25): each adopted row points at the official docs section that states the mechanism, and every post-vs-docs conflict is logged with a recheck trigger.
 - Small repo edits on this branch: pointers in place of restated vendor facts (prompt caching, task cost, effort guidance, `/doctor prompt-audit`), one path-scoped writing rule for cost claims, an audit check that every shipped agent sets `model:`, and the research gate's row 7 amendment.
-- `claude-ops:observability` gains a same-task comparison (tokens by type, split by model and effort), reconciled against the open OTEL undercount bug.
+- `harness-ops:observability` gains a same-task comparison (tokens by type, split by model and effort), reconciled against the open OTEL undercount bug.
 - Planner-scopes / Sonnet-implements (Q20) ships on this branch (Q41, 2026-10-01): a per-phase `Model` column in the plan's routing table and a Sonnet implementer agent at medium effort. Parallel-by-default dispatch (Q35) stays a tracked follow-up.
 - The 12 `audit-instructions` rows that overlap `/doctor prompt-audit` keep their text, and the upstream record lists the overlap (Q42, reconfirmed at plan approval 2026-10-01).
 - Every item in a file another session owns has a confirmed doer: the owner took it, or released it to this branch (Q46, 2026-10-01).
@@ -43,7 +43,7 @@ Decisions (register rows; full text in `.work/opus-5-5-task-cost-interview/inter
 - Q19: the two literal "default high" effort lines become pointers to model-config; sent to Building With Claude Sonnet 5.5.
 - Q20: follow the docs' split (Sonnet 5.5 for well-scoped coding, Opus for complex work); planning and implementation skills change so the planner scopes and Sonnet implements; the post's "code edits on Opus" is logged as a conflict (timing and pin: Q41).
 - Q21: no loop cadence change; the record logs the subscription TTL facts and the `--bg` / routine TTL gap.
-- Q22: extend `claude-ops:observability` with a two-session comparison, tokens by type (cache writes reported as their own type) split by model and effort; no new plugin or skill.
+- Q22: extend `harness-ops:observability` with a two-session comparison, tokens by type (cache writes reported as their own type) split by model and effort; no new plugin or skill.
 - Q24: no new routing rule; an audit check flags any shipped agent definition with no `model:`.
 - Q25: on the next edit of a model-routing surface, link the docs' opusplan section and agent-team cost sentence, no restated figure.
 - Q26: a closing report is not proof of done; already covered; the record notes the guide's continuation cap as not stated in the repo.
@@ -68,7 +68,7 @@ Derived from the accepted commitments at wrap-up; the interview did not ask the 
 - A path-scoped rule file for cost claims exists and its `paths:` globs resolve (`/instruction-placement:check` passes).
 - An audit check reports 0 findings for shipped agents missing `model:` across `plugins/*/agents/*.md`.
 - Research outcome-gate row 7 passes an artifact whose every claim is MEDIUM and listed as a gap, and the Sonnet 5.5 research re-grades under it.
-- `claude-ops:observability` produces a two-session comparison with tokens by type split by model and effort, reconciles cost totals as in Q7, and its tests pass.
+- `harness-ops:observability` produces a two-session comparison with tokens by type split by model and effort, reconciles cost totals as in Q7, and its tests pass.
 - A work item exists for the Q35 parallel default, filed as a sub-issue of this branch's parent issue and linked from the record.
 - A plan whose routing table assigns `sonnet` to a phase makes implement-dispatch spawn `implementation:scoped-implementer` (`model: sonnet`, `effort: medium`); an unrouted phase spawns `implementation:implementer` (`opus`); an eval case covers both.
 - The upstream record lists the 12 `audit-instructions` rows that overlap `/doctor prompt-audit` with the complementary verdict, no criteria row changes for Q42, and the pre-scan tests still pass.
@@ -218,20 +218,20 @@ Model: sonnet, dispatched through `scoped-implementer`. This is the first real u
 |---|---|---|
 | `plugins/playbooks/reference/prompt-caching.md` (after :117) | One line: the Claude Code prompt-caching page and costs#why-usage-climbs-in-a-long-session, with check date and recheck trigger | Q15, Q36, Q44 |
 | `plugins/planning/skills/draft-goal-condition/SKILL.md` Gotchas (:135-140) | One bullet linking costs#why-usage-climbs-in-a-long-session | Q36 |
-| `plugins/claude-config/skills/audit-instructions/SKILL.md` claude-api Routing paragraph (:100-106) | Reword in place, no added line: `/doctor prompt-audit` for Claude Code configuration, `/claude-api prompt-audit` for application-code prompts | Q8 |
-| `plugins/claude-config/skills/audit-pass/SKILL.md:282-289` | Reword in place, no added line: name `/doctor prompt-audit` with the commands link | Q8 |
-| `plugins/claude-config/skills/audit-pass/reference/doctor-handoff.md` (after :15) | One sentence naming `/doctor prompt-audit`, report-first, handed off the same way | Q8 |
-| `plugins/claude-config/skills/audit-instructions/reference/bundled-claude-api.md` :13, :16 | Qualify :13 to the `/claude-api` door; add a `/doctor prompt-audit` row; re-stamp :16, whose trigger fired at 2.1.283 | Q8 |
+| `plugins/harness-config/skills/audit-instructions/SKILL.md` claude-api Routing paragraph (:100-106) | Reword in place, no added line: `/doctor prompt-audit` for Claude Code configuration, `/claude-api prompt-audit` for application-code prompts | Q8 |
+| `plugins/harness-config/skills/audit-pass/SKILL.md:282-289` | Reword in place, no added line: name `/doctor prompt-audit` with the commands link | Q8 |
+| `plugins/harness-config/skills/audit-pass/reference/doctor-handoff.md` (after :15) | One sentence naming `/doctor prompt-audit`, report-first, handed off the same way | Q8 |
+| `plugins/harness-config/skills/audit-instructions/reference/bundled-claude-api.md` :13, :16 | Qualify :13 to the `/claude-api` door; add a `/doctor prompt-audit` row; re-stamp :16, whose trigger fired at 2.1.283 | Q8 |
 | `docs/specs/prompt-audit-skills-2026-09.md` Follow-ups (:628) | One line: `/doctor prompt-audit` covers Claude Code configuration; a rerun over `plugins/*/skills/` still uses `/claude-api prompt-audit`. ADR-0028 unchanged | Q48 |
 | `.claude/rules/cost-claims.md` (new) | Path-scoped rule: cost claims point at costs (Track your costs, `/usage`) and pricing, never at prices or per-task figures; `docs/upstream/` records may list vendor figures labelled vendor-reported. `paths:` `plugins/*/skills/**`, `plugins/*/agents/**`, `plugins/*/reference/**`, `docs/**/*.md`, `prompts/**` | Q28 |
-| `plugins/instruction-placement/scripts/render-index.sh` + `render-index.test.sh` | Q45 (2026-10-01): fix the generator in this PR. Red first: a test fixture tree with a `.claude/rules/` file under an `evals/fixtures/` path must not appear in `render` output. Then exclude eval-fixture trees (the two leaking files sit under `plugins/claude-ops/skills/changelog/evals/fixtures/consumer-repo/`, from 681789d59) | Q45 |
+| `plugins/instruction-placement/scripts/render-index.sh` + `render-index.test.sh` | Q45 (2026-10-01): fix the generator in this PR. Red first: a test fixture tree with a `.claude/rules/` file under an `evals/fixtures/` path must not appear in `render` output. Then exclude eval-fixture trees (the two leaking files sit under `plugins/harness-ops/skills/changelog/evals/fixtures/consumer-repo/`, from 681789d59) | Q45 |
 | `AGENTS.md` generated rules table | Regenerate: `bash plugins/instruction-placement/scripts/render-index.sh write --file AGENTS.md`, which adds the cost-claims row and no fixture rows | Q28 |
 
-Version bumps and CHANGELOG entries for playbooks, planning, claude-config and instruction-placement.
+Version bumps and CHANGELOG entries for playbooks, planning, harness-config and instruction-placement.
 
 **Sanity Check:**
-- `git grep -c 'doctor prompt-audit' -- plugins/claude-config/skills/audit-pass plugins/claude-config/skills/audit-instructions/reference/bundled-claude-api.md docs/specs/prompt-audit-skills-2026-09.md` is ≥1 in each of the four targets: audit-pass `SKILL.md` or `doctor-handoff.md`, `bundled-claude-api.md`, and the spec. These are files that have no hit on `63cc66ad2`.
-- `wc -l < plugins/claude-config/skills/audit-instructions/SKILL.md` and `wc -l < plugins/claude-config/skills/audit-pass/SKILL.md` each print ≤499.
+- `git grep -c 'doctor prompt-audit' -- plugins/harness-config/skills/audit-pass plugins/harness-config/skills/audit-instructions/reference/bundled-claude-api.md docs/specs/prompt-audit-skills-2026-09.md` is ≥1 in each of the four targets: audit-pass `SKILL.md` or `doctor-handoff.md`, `bundled-claude-api.md`, and the spec. These are files that have no hit on `63cc66ad2`.
+- `wc -l < plugins/harness-config/skills/audit-instructions/SKILL.md` and `wc -l < plugins/harness-config/skills/audit-pass/SKILL.md` each print ≤499.
 - `grep -c 'costs#why-usage-climbs-in-a-long-session'` prints 1 for each of `plugins/playbooks/reference/prompt-caching.md` and `plugins/planning/skills/draft-goal-condition/SKILL.md`.
 - `bash plugins/instruction-placement/scripts/render-index.test.sh` exits 0, including the new fixture-exclusion case.
 - `bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md --root .` prints `IN-SYNC`; `grep -c 'cost-claims.md' AGENTS.md` prints 1; `grep -c 'evals/fixtures' AGENTS.md` prints 0.
@@ -267,7 +267,7 @@ Model: sonnet, through `scoped-implementer`.
 
 Model: opus (new SQL and reconciliation logic). Runs in parallel with Phase 5. Design in `design/design-resolution.md`.
 
-1. Red first: `plugins/claude-ops/skills/observability/scripts/session-compare.test.sh`, in the `hook-latency.test.sh` pattern. Cases:
+1. Red first: `plugins/harness-ops/skills/observability/scripts/session-compare.test.sh`, in the `hook-latency.test.sh` pattern. Cases:
    - usage errors: one id, identical ids, an id containing `'`;
    - missing store;
    - `cacheCreation` as its own type;
@@ -280,12 +280,12 @@ Model: opus (new SQL and reconciliation logic). Runs in parallel with Phase 5. D
    - the context line (Q40): monitoring-usage docs link first, the post's "Measure it yourself" section as a correlate, no task count.
 2. `otel/session-compare.sql` reads `effort` and `aggregationTemporality` from raw attributes; `cc-otel.sql` is unchanged. `scripts/session-compare.sh` guards ids with `^[A-Za-z0-9._-]+$` and exits 0 rendered, 2 cannot evaluate.
 3. `SKILL.md`: argument-hint, action table row, dispatch block, error list, description trigger, and a Claim / Basis / As of / Recheck record for the #98193 caveat.
-4. `evals/evals.json` id 6. claude-ops version bump and CHANGELOG entry.
+4. `evals/evals.json` id 6. harness-ops version bump and CHANGELOG entry.
 
 **Sanity Check:**
-- `bash plugins/claude-ops/skills/observability/scripts/session-compare.test.sh` exits 0 with no skips (duckdb 1.5.5 is present on this machine).
-- These suites still exit 0 (OBS = `plugins/claude-ops/skills/observability`): `OBS/claude-observability.test.sh`, `OBS/scripts/hook-latency.test.sh`, `OBS/scripts/probe-observability-state.test.sh`, `OBS/scripts/report-path.test.sh`, `OBS/otel/net-probe.test.sh`, `OBS/otel/prune-otel-store.test.sh` and `OBS/otel/clean.test.sh`.
-- `git diff --quiet origin/main -- plugins/claude-ops/skills/observability/otel/cc-otel.sql` exits 0.
+- `bash plugins/harness-ops/skills/observability/scripts/session-compare.test.sh` exits 0 with no skips (duckdb 1.5.5 is present on this machine).
+- These suites still exit 0 (OBS = `plugins/harness-ops/skills/observability`): `OBS/claude-observability.test.sh`, `OBS/scripts/hook-latency.test.sh`, `OBS/scripts/probe-observability-state.test.sh`, `OBS/scripts/report-path.test.sh`, `OBS/otel/net-probe.test.sh`, `OBS/otel/prune-otel-store.test.sh` and `OBS/otel/clean.test.sh`.
+- `git diff --quiet origin/main -- plugins/harness-ops/skills/observability/otel/cc-otel.sql` exits 0.
 - Changelog parity: the four single-mode calls each exit 0.
 
 ### Phase 6: Thinking-off row and the Q42 outcome [TODO]
@@ -297,12 +297,12 @@ Model: opus. Starts after Gate S1, because `criteria.md` and the I8-c scope are 
 3. Q42, per the approval-gate reply (see Displaced answers):
    - **(recommended) keep:** the overlapping rows keep their text, the record lists the 12 rows and states the complementary verdict (`reference/native-doctor.md` §"Why the verdict is complementary", #5387), and no criteria row changes;
    - **(original answer) point:** the 12 OVERLAP rows (I1, I5, I8, I8-c, I8-e, I9, I10, I20, I25, I26, I28, I31) get pointer wording; scanner ids and patterns stay; the `sonnet-5-5` widening bullets survive as the merged text has them; I8-e, I8-f and I29 adopt Anthropic's guide; I32 stays with a recheck trigger. The bundled guide is first extracted from the installed binary (as `RESEARCH-commands.md` did), falling back to the raw GitHub copy.
-4. claude-config version bump and CHANGELOG entry.
+4. harness-config version bump and CHANGELOG entry.
 
 **Sanity Check:**
-- `git grep -n 'On Fable 5 it has no effect' plugins/claude-config` prints nothing.
-- An awk range from `I17-b` to the next row id shows no changed line inside I17-b in `git diff origin/main -- plugins/claude-config/skills/audit-instructions/reference/criteria.md`.
-- The audit-instructions scanner tests (`instruction-scan`, `emit-findings`, `finding-ids` under `plugins/claude-config/skills/audit-instructions/scripts/`) each exit 0.
+- `git grep -n 'On Fable 5 it has no effect' plugins/harness-config` prints nothing.
+- An awk range from `I17-b` to the next row id shows no changed line inside I17-b in `git diff origin/main -- plugins/harness-config/skills/audit-instructions/reference/criteria.md`.
+- The audit-instructions scanner tests (`instruction-scan`, `emit-findings`, `finding-ids` under `plugins/harness-config/skills/audit-instructions/scripts/`) each exit 0.
 - Under "point" only: `git diff origin/main -- …/criteria.md | grep -c '^+.*doctor prompt-audit'` ≥12.
 - Changelog parity: the four single-mode calls each exit 0.
 
@@ -344,11 +344,11 @@ Created:
 - `.claude/rules/cost-claims.md`
 - `plugins/implementation/agents/scoped-implementer.md`
 - `plugins/implementation/scripts/agent-contract-sync.test.sh`
-- `plugins/claude-ops/skills/observability/otel/session-compare.sql`
-- `plugins/claude-ops/skills/observability/scripts/session-compare.sh`
-- `plugins/claude-ops/skills/observability/scripts/session-compare.test.sh`
+- `plugins/harness-ops/skills/observability/otel/session-compare.sql`
+- `plugins/harness-ops/skills/observability/scripts/session-compare.sh`
+- `plugins/harness-ops/skills/observability/scripts/session-compare.test.sh`
 
-Modified: the files named in the phases, `plugins/implementation/README.md`, `plugins/planning/skills/plan/templates/plan-md-anatomy.md`, and the manifests and CHANGELOGs for playbooks, planning, claude-config, discovery, claude-ops, implementation, work-items and knowledge.
+Modified: the files named in the phases, `plugins/implementation/README.md`, `plugins/planning/skills/plan/templates/plan-md-anatomy.md`, and the manifests and CHANGELOGs for playbooks, planning, harness-config, discovery, harness-ops, implementation, work-items and knowledge.
 
 Deleted: none.
 
@@ -441,7 +441,7 @@ Each row needs its own reply.
 
 | # | Q | What the user said | What the plan now proposes | New external effect | Source |
 |---|---|---|---|---|---|
-| D1 | Q42 | "No exception": replace every audit-instructions row that overlaps `/doctor prompt-audit` with a pointer | Keep the 12 rows. On 2026-09-29, main recorded the two as complementary (#5387, `reference/native-doctor.md`). `doctor` cannot be invoked by the model (`model_invocable: false`), so a pointer row turns a finding the model reports into one only a human can produce. That breaks report-only and unattended runs and the audit-pass relay. The overlap evidence for 10 of the 12 rests on the vendor guide, which is MEDIUM. The record lists the overlap. | Fewer findings from `/claude-config:audit-instructions` if the original answer stands | stress-test #2 |
+| D1 | Q42 | "No exception": replace every audit-instructions row that overlaps `/doctor prompt-audit` with a pointer | Keep the 12 rows. On 2026-09-29, main recorded the two as complementary (#5387, `reference/native-doctor.md`). `doctor` cannot be invoked by the model (`model_invocable: false`), so a pointer row turns a finding the model reports into one only a human can produce. That breaks report-only and unattended runs and the audit-pass relay. The overlap evidence for 10 of the 12 rests on the vendor guide, which is MEDIUM. The record lists the overlap. | Fewer findings from `/harness-config:audit-instructions` if the original answer stands | stress-test #2 |
 | D2 | Q24 | "An audit check flags any shipped agent with no `model:`" | No new check: the existing CI gate already does it | none | research update |
 | D3 | Q8 | Name `/doctor prompt-audit` in the audit-instructions Boundary | Already on main (#5387); only the Routing wording changes | none | re-check |
 | D4 | Q20/Q41 | Sonnet implements; ship here | A second agent, `scoped-implementer` (sonnet, medium), chosen by the effort-pin owner; dispatch also checks the provider at runtime | none beyond the PR | owner ruling, stress-test #5 |

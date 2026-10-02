@@ -35,7 +35,7 @@ repo pinned at `mattpocock/skills@068b6e0` (the same mechanisms, versioned).
 skills repo cross-audited at `main@068b6e0` (post-v1.2.3 unreleased). The two audit reports
 (`upstream-bringover-audit.md`, candidates C1–C23; `seam-scrutiny-findings.md`, findings F1.x /
 F3.x) are graduated to durable storage as comments on container #2933 — the memory-tier copies
-under `.work/` are session-local and uncommitted per the topic-docs contract.
+under `.work/` are session-local and uncommitted.
 
 **Recheck trigger:** a mattpocock/skills release whose changeset names `to-spec`, `to-tickets`,
 `implement`, `tdd`, `code-review`, `triage`, or `wayfinder` — the course's flow skills. Course
@@ -231,13 +231,13 @@ given, and one disposal venue does not exist.
   the grounds that the invocation is already wired at 7 sites. That inverts the claim: wiring is a
   property of text, invocation is runtime behavior, and seven wired sites *plus* rare invocation
   are jointly evidence that wiring is not the lever. Wiring confirmed at 7 sites; the behavioral
-  claim stays unmeasured. Measurement routes to the instrument that exists — `claude-ops`'s
+  claim stays unmeasured. Measurement routes to the instrument that exists — `harness-ops`'s
   `SkillUse` telemetry hook — and **not** to an evals item: `plugins/evals/README.md:24-26` states
   "No command in this plugin executes model-graded evals," so an evals filing would produce JSON
   no runner executes. Stated limit: that hook records no caller attribution, so an implement→tdd
   co-occurrence reading is a proxy, not proof. **Measured, and the premise stays UNVERIFIED — now
-  with an instrument rather than a hand-wave.** `plugins/claude-ops/skills/audit-skill-visibility/
-  scripts/skill-pair-cooccurrence.sh` (`claude-ops` 0.35.0) is the repeatable reading; placement
+  with an instrument rather than a hand-wave.** `plugins/harness-ops/skills/audit-skill-visibility/
+  scripts/skill-pair-cooccurrence.sh` (`harness-ops` 0.35.0) is the repeatable reading; placement
   went to `audit-skill-visibility`, not `observability`, because `observability`'s own
   `context/read-routing.md:32` already assigns interpretation of skill-usage data to
   `audit-skill-visibility` and keeps only the store, the pipeline, and retention. Run against the
@@ -292,13 +292,13 @@ withheld; three of five initial answers revised on evidence).
   `plugins/review/context/severity.md` — in this plugin `axis` means severity/confidence; a review
   perspective is a `lens`. Three incompatible senses were live before that note.
 - **C14 ADOPTED-corrected**: spec-source discovery ladder in `context/spec.md` — `--spec <path|id>`
-  → item refs harvested from branch commits / PR body → the topic's contract slice → ask → skip
+  → item refs harvested from branch commits / PR body → the topic's memory slice → ask → skip
   with a note. Corrections over the course's version: (1) the seam's normalized item object has
   **no `body` field**, so spec text comes from the **provider-mechanic read**; (2) a harvested bare
   `#N` is **validated** (strictly numeric; owner/repo to a repo-name shape) and then **promoted** to
   the qualified `<provider>:<owner>/<repo>#<number>` form, with the read scoped by `--repo` to that
   id's own repository — commit and PR text is attacker-influenceable through a fork PR, and a bare
-  number would read a same-numbered issue in the *current* repo; (3) the contract-slice rung keys
+  number would read a same-numbered issue in the *current* repo; (3) the rung keys
   on the **topic slug**, not the branch slug — the branch axis is deliberately lossy. **Design
   correction found in PR review:** the item is read through a documented public seam or the provider
   mechanic, never by invoking the sibling plugin's seam CLI — `plugin-philosophy.md` forbids
@@ -307,7 +307,7 @@ withheld; three of five initial answers revised on evidence).
   is the operative path, the rung works with no tracker plugin installed, and parent linkage (whose
   authoritative source, `get-item`, is unreachable from here) degrades to best-effort or an explicit
   `--spec`.
-  Recorded limit: the contract slice is pruned before merge, so that rung goes empty post-merge and
+  Recorded limit: the memory slice is checkout-local and never committed, so that rung goes empty in any other checkout and
   recovery is best-effort — which is why the tracker item is the durable spec home.
 - **C15 PARTIAL**: `fanout`'s fail-fast preflight ported into `quality-gate`, which had none. Two
   costs the course's version omits and this port carries: the gate is **mode-scoped** (`criteria`
@@ -364,7 +364,7 @@ condition) belongs to the invocation-reach tracked strand in
 - **C22 ADOPTED**: the fleet audit of the invocation-reach invariant enumerated 57 skills
   carrying `disable-model-invocation: true` and found **zero** explicit "via the Skill tool"
   violations. A follow-up pass reworded operative slash-command instructions aimed at
-  user-invoked-only targets in `repo-fleet-hygiene:audit` and `claude-ops` (`inventory`,
+  user-invoked-only targets in `repo-fleet-hygiene:audit` and `harness-ops` (`inventory`,
   `audit-performance`, `audit-install-state`) to the canonical human-relay form, "tell the user
   to run /X". Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
   target resolution is not cheap under the single skills-root model — so the doctrine lines in

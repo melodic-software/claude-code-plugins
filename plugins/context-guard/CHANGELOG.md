@@ -5,6 +5,37 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] - 2026-10-02
+
+### Changed
+
+- **`reader-contract.md` records its upstream dependencies as decisions plus pointers.** The
+  statusline `context_window` fields, the percentage shape, the version field and the
+  absolute-token degradation basis each state what the contract relies on, with a pointer to the
+  docs section or the Chroma context-rot report, an as-of date and a recheck trigger, and carry
+  none of the source wording. One recheck trigger covers every dated record in the file. No
+  behavior or zone change.
+- The reader contract's folklore-number record no longer rests on the Opus 5 guide. It points at
+  the current models' context windows, with a trigger on those windows or the practitioner figure
+  changing.
+- The 2.1.132 token-field floor now points at the changelog entry that names the fix, instead of
+  saying no upstream source names that version.
+
+## [0.8.5] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`. The `setup` body now states
+  that no argument runs the check.
+
+## [0.8.4] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.8.3] - 2026-10-01
 
 ### Changed

@@ -1,6 +1,6 @@
 ---
 description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom for the user to answer. Verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification. That is verification:confirm (if installed)."
-argument-hint: "[recall <query>] (empty = quiz me on the change just completed)"
+argument-hint: "[recall <query>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -100,8 +100,8 @@ redundant summaries, or boilerplate.
 - **Reference discipline, durable pointers only.** The report is self-contained.
   Restrict any external reference to durable, checkout-independent pointers: PR/issue
   URLs, commit SHAs or permalinks, promoted docs reachable on the default branch. Never
-  link memory-tier paths (`.work/…`) or contract-slice paths (`docs/topics/…`). Both are
-  pruned or checkout-local and will dangle. Distill ephemeral inputs (exploration/research
+  link memory-tier paths (`.work/…`); they are
+  checkout-local and will dangle. Distill ephemeral inputs (exploration/research
   notes, session context) inline instead of linking them.
 
 ## Retention mechanics
@@ -194,7 +194,7 @@ here and in that consumer's own on-ramps, not by mutating a shared stage list.
   later session, the retention use case depends on it.
 - **Don't imply library completeness on `recall`.** Only quizzed work is retained; name
   the boundary and fall back to archaeology for the rest.
-- **Durable pointers only in reports.** A link to `.work/…` or `docs/topics/…` dangles the
+- **Durable pointers only in reports.** A link to `.work/…` dangles the
   moment the checkout is pruned; distill those inputs inline instead.
 
 ## What this skill does NOT do

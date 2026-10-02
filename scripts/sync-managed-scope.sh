@@ -7,7 +7,7 @@
 #                                                      carrying plugin's manifest version did not
 #   scripts/sync-managed-scope.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
-# Canonical copy: plugins/claude-config/lib/managed-scope.sh (see
+# Canonical copy: plugins/harness-config/lib/managed-scope.sh (see
 # scripts/cross-plugin-source-registry.txt).
 #
 # The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
@@ -20,10 +20,10 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-managed-scope.sh"
-src="plugins/claude-config/lib/managed-scope.sh"
+src="plugins/harness-config/lib/managed-scope.sh"
 copies=(
-  plugins/claude-memory/lib/managed-scope.sh
-  plugins/claude-ops/lib/managed-scope.sh
+  plugins/harness-memory/lib/managed-scope.sh
+  plugins/harness-ops/lib/managed-scope.sh
 )
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"

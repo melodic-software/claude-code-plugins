@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked .claude/mutation-testing.md config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill reports missing config or an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -67,7 +67,12 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    FAIL; unlike an inference-speeding config, this one is required.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
-   scopes a run to nothing or to everything.
+   scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
+   word (whitespace or the end of the string on both sides, unquoted) → FAIL: `audit --exercised`
+   replaces that word with the test paths, one argument each. Without it every mutant would run
+   against the whole suite; inside quotes (`"{tests}"`) or a larger word (`--files={tests}`) the
+   paths would merge into one argument or split wrongly. Absent `test-command` → INFO; only the exercised scope
+   under the manual protocol needs it.
 8. **Suppression record**. Report presence and entry count of `.claude/mutation-testing-arid.md`
    across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**
    entry against the full contract in
@@ -131,8 +136,15 @@ unambiguous; ask only where the answer is genuinely the user's.
    experimental operators raise the mutant count and the unproductive rate together. Offer the
    narrowed set only if the user asks for a cheaper run.
 5. **Settle the timeout** from the measured baseline suite time in `check`, not from a guess.
-6. **Settle the mutate paths.** Propose source roots, excluding generated code, vendored
-   directories, and test code itself. Mutating tests measures nothing.
+6. **Settle the mutate paths and the test command.** Propose source roots, excluding generated
+   code, vendored directories, and test code itself. Mutating tests measures nothing. Then propose
+   `test-command` for the detected ecosystem when its runner takes test file paths, with `{tests}`
+   where the paths go: `python -m pytest {tests}`, `python -m unittest {tests}`,
+   `npx vitest run {tests}`, `npx jest --runTestsByPath {tests}`, `vendor/bin/phpunit {tests}`. The
+   audit fills `{tests}` with each path quoted as its own argument. Propose nothing for a runner
+   that only filters by name (`dotnet test --filter`, Maven `-Dtest`, Gradle `--tests`) and say
+   that `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
+   audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
 8. **Create the suppression record empty**, with its header comment and an empty `suppressions:`

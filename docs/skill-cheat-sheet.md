@@ -114,11 +114,12 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
 | [`/evals:plugin-eval`](../plugins/evals/skills/plugin-eval/SKILL.md) | `evals` | Preflight, price, run, and read a plugin eval suite around the CLI |
 | [`/evals:validate`](../plugins/evals/skills/validate/SKILL.md) | `evals` | Static FAIL/WARN check of an eval suite's cases and graders, with no model call |
-| [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged |
+| [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff or with --exercised, restoration verified, survivors triaged |
 | [`/mutation-testing:principles`](../plugins/mutation-testing/skills/principles/SKILL.md) | `mutation-testing` | Answer mutation-testing questions from the primary literature |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
 | [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail. Report, gate, or persist |
+| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |
@@ -182,20 +183,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/autonomy:check`](../plugins/autonomy/skills/check/SKILL.md) | `autonomy` | Report whether node and jq resolve for the autonomy hooks. Never installs. |
 | [`/bash-format:check`](../plugins/bash-format/skills/check/SKILL.md) | `bash-format` | Report whether shfmt, shellcheck and node are installed. Never installs. |
 | [`/biome-format:check`](../plugins/biome-format/skills/check/SKILL.md) | `biome-format` | Report whether biome and node are installed. Never installs. |
-| [`/claude-config:audit`](../plugins/claude-config/skills/audit/SKILL.md) | `claude-config` | Audit settings, hooks, permissions, and MCP config for drift against current official docs |
-| [`/claude-config:audit-automation-gaps`](../plugins/claude-config/skills/audit-automation-gaps/SKILL.md) | `claude-config` | Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding |
-| [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies |
-| [`/claude-config:audit-pass`](../plugins/claude-config/skills/audit-pass/SKILL.md) | `claude-config` | Run one coordinated, resumable audit pass over a repo with a single human gate |
-| [`/claude-config:audit-permission-grants`](../plugins/claude-config/skills/audit-permission-grants/SKILL.md) | `claude-config` | Audit permission grants for portability and auto-mode durability |
-| [`/claude-config:audit-permission-state`](../plugins/claude-config/skills/audit-permission-state/SKILL.md) | `claude-config` | Report the permission rules actually in effect and what auto mode drops |
-| [`/claude-config:audit-prompting-postures`](../plugins/claude-config/skills/audit-prompting-postures/SKILL.md) | `claude-config` | Find posture guidance the prompting guide says a component needs but does not carry |
-| [`/claude-config:draft-auto-mode-rules`](../plugins/claude-config/skills/draft-auto-mode-rules/SKILL.md) | `claude-config` | Interview and draft a paste-ready autoMode block, never writing settings |
-| [`/claude-config:unhobble`](../plugins/claude-config/skills/unhobble/SKILL.md) | `claude-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
-| [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
-| [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
-| [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
-| [`/claude-ops:check`](../plugins/claude-ops/skills/check/SKILL.md) | `claude-ops` | Report whether node and jq resolve for the claude-ops hooks. Never installs. |
-| [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
 | [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
 | [`/code-metrics:audit-duplication`](../plugins/code-metrics/skills/audit-duplication/SKILL.md) | `code-metrics` | Clone groups minus the replication the repo declares, no verdict |
@@ -253,6 +240,20 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
 | [`/go-format:check`](../plugins/go-format/skills/check/SKILL.md) | `go-format` | Report whether goimports and node are installed. Never installs. |
 | [`/guardrails:check`](../plugins/guardrails/skills/check/SKILL.md) | `guardrails` | Report whether node and jq resolve for the guardrails hooks. Never installs. |
+| [`/harness-config:audit`](../plugins/harness-config/skills/audit/SKILL.md) | `harness-config` | Audit settings, hooks, permissions, and MCP config for drift against current official docs |
+| [`/harness-config:audit-automation-gaps`](../plugins/harness-config/skills/audit-automation-gaps/SKILL.md) | `harness-config` | Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding |
+| [`/harness-config:audit-instructions`](../plugins/harness-config/skills/audit-instructions/SKILL.md) | `harness-config` | Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies |
+| [`/harness-config:audit-pass`](../plugins/harness-config/skills/audit-pass/SKILL.md) | `harness-config` | Run one coordinated, resumable audit pass over a repo with a single human gate |
+| [`/harness-config:audit-permission-grants`](../plugins/harness-config/skills/audit-permission-grants/SKILL.md) | `harness-config` | Audit permission grants for portability and auto-mode durability |
+| [`/harness-config:audit-permission-state`](../plugins/harness-config/skills/audit-permission-state/SKILL.md) | `harness-config` | Report the permission rules actually in effect and what auto mode drops |
+| [`/harness-config:audit-prompting-postures`](../plugins/harness-config/skills/audit-prompting-postures/SKILL.md) | `harness-config` | Find posture guidance the prompting guide says a component needs but does not carry |
+| [`/harness-config:draft-auto-mode-rules`](../plugins/harness-config/skills/draft-auto-mode-rules/SKILL.md) | `harness-config` | Interview and draft a paste-ready autoMode block, never writing settings |
+| [`/harness-config:unhobble`](../plugins/harness-config/skills/unhobble/SKILL.md) | `harness-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
+| [`/harness-memory:audit`](../plugins/harness-memory/skills/audit/SKILL.md) | `harness-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
+| [`/harness-memory:stateless`](../plugins/harness-memory/skills/stateless/SKILL.md) | `harness-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
+| [`/harness-ops:changelog`](../plugins/harness-ops/skills/changelog/SKILL.md) | `harness-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
+| [`/harness-ops:check`](../plugins/harness-ops/skills/check/SKILL.md) | `harness-ops` | Report whether node and jq resolve for the harness-ops hooks. Never installs. |
+| [`/harness-ops:known-issues`](../plugins/harness-ops/skills/known-issues/SKILL.md) | `harness-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
@@ -308,17 +309,17 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | Cadence | What it does |
 | --- | --- | --- | --- |
 | [`/bugs:scan`](../plugins/bugs/skills/scan/SKILL.md) | `bugs` | daily | Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only |
-| [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory. What is there, what the product manages, what is stale |
-| [`/claude-ops:audit-native-overlap`](../plugins/claude-ops/skills/audit-native-overlap/SKILL.md) | `claude-ops` | weekly | Map native Claude Code surfaces against this repo's components and record human-gated verdicts |
-| [`/claude-ops:audit-performance`](../plugins/claude-ops/skills/audit-performance/SKILL.md) | `claude-ops` | continuous | Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet, fan-out |
-| [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
-| [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
-| [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
-| [`/claude-ops:machine-profile`](../plugins/claude-ops/skills/machine-profile/SKILL.md) | `claude-ops` | weekly | Discover, store and diff machine facts and per-tree identity domains. Read-only by default. |
-| [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
-| [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
-| [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
-| [`/claude-ops:prerequisites`](../plugins/claude-ops/skills/prerequisites/SKILL.md) | `claude-ops` | weekly | Report external tools the enabled fleet declares missing. Never installs. |
+| [`/harness-ops:audit-install-state`](../plugins/harness-ops/skills/audit-install-state/SKILL.md) | `harness-ops` | weekly | Audit a Claude Code install directory. What is there, what the product manages, what is stale |
+| [`/harness-ops:audit-native-overlap`](../plugins/harness-ops/skills/audit-native-overlap/SKILL.md) | `harness-ops` | weekly | Map native Claude Code surfaces against this repo's components and record human-gated verdicts |
+| [`/harness-ops:audit-performance`](../plugins/harness-ops/skills/audit-performance/SKILL.md) | `harness-ops` | continuous | Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet, fan-out |
+| [`/harness-ops:audit-skill-visibility`](../plugins/harness-ops/skills/audit-skill-visibility/SKILL.md) | `harness-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
+| [`/harness-ops:inventory`](../plugins/harness-ops/skills/inventory/SKILL.md) | `harness-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
+| [`/harness-ops:lanes`](../plugins/harness-ops/skills/lanes/SKILL.md) | `harness-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
+| [`/harness-ops:machine-profile`](../plugins/harness-ops/skills/machine-profile/SKILL.md) | `harness-ops` | weekly | Discover, store and diff machine facts and per-tree identity domains. Read-only by default. |
+| [`/harness-ops:morning-brief`](../plugins/harness-ops/skills/morning-brief/SKILL.md) | `harness-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
+| [`/harness-ops:observability`](../plugins/harness-ops/skills/observability/SKILL.md) | `harness-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
+| [`/harness-ops:plugins`](../plugins/harness-ops/skills/plugins/SKILL.md) | `harness-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
+| [`/harness-ops:prerequisites`](../plugins/harness-ops/skills/prerequisites/SKILL.md) | `harness-ops` | weekly | Report external tools the enabled fleet declares missing. Never installs. |
 | [`/repo-fleet-hygiene:apply`](../plugins/repo-fleet-hygiene/skills/apply/SKILL.md) | `repo-fleet-hygiene` | weekly | Execute a fleet action plan behind one confirmation gate |
 | [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Discover a repository fleet and coordinate read-only evidence handoffs |
 | [`/repo-fleet-hygiene:sync`](../plugins/repo-fleet-hygiene/skills/sync/SKILL.md) | `repo-fleet-hygiene` | weekly | Fast-forward canonical checkouts to the remote default branch |

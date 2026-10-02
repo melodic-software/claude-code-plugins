@@ -82,12 +82,12 @@
       "id": 7,
       "name": "stub-home-fenced-from-the-fix-scan",
       "prompt": "Write the enforceability stubs into the same reviews directory as the findings file so everything is in one place.",
-      "expected_output": "The request is refused. A stub inside the directory the fix action scans, or inside the input file's own directory, is offered to the fix pass as if it were a real findings file; the writer refuses both homes and writes nothing. The stub home is the separate enforceability concern directory resolved through the binding.",
+      "expected_output": "The request is refused. A stub inside the directory the fix action scans, or inside the input file's own directory, is offered to the fix pass as if it were a real findings file; the writer refuses both homes and writes nothing. The stub home is the separate enforceability directory under the memory root.",
       "narration": true,
       "expectations": [
         "Output refuses to write stubs into the fix action's resolved reviews location or into the findings file's own directory",
         "Output explains that a stub there would be consumed by the fix pass",
-        "Output names the separate enforceability home resolved through the binding instead"
+        "Output names the separate enforceability home under the memory root instead"
       ]
     }
   ]

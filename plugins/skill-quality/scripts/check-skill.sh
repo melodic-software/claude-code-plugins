@@ -452,14 +452,14 @@ fi
 
 # Tunables (listing description cap; description field cap; SKILL.md line cap;
 # vendor sync age).
-# DESC_CHAR_CAP restates the harness's documented per-entry listing cap, the
-# default of skillListingMaxDescChars ("truncated at 1,536 characters in the
-# skill listing"). Basis:
-# https://code.claude.com/docs/en/skills#frontmatter-reference and the settings
-# page; verified 2026-08-31. Recheck trigger: either page moving the default
-# re-derives this constant (a script cannot fetch upstream at runtime, so this
-# four-part record is the conforming restatement shape per the marketplace's
-# upstream-drift convention).
+# DESC_CHAR_CAP is this checker's per-entry listing cap, set to the harness
+# default of skillListingMaxDescChars. Pointer: for the listing truncation and
+# its default, see https://code.claude.com/docs/en/skills#frontmatter-reference
+# and https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars.
+# As of: 2026-08-31. Recheck trigger: either page moving the default
+# re-derives this constant (a script cannot fetch upstream at runtime, so the
+# constant is our decision, recorded with pointer, as-of date and trigger per
+# the marketplace's upstream-drift convention).
 DESC_CHAR_CAP=1536
 # Agent Skills spec field maximum for `description` ALONE — a different limit at a
 # different layer from DESC_CHAR_CAP above, which bounds the assembled listing entry
@@ -467,10 +467,10 @@ DESC_CHAR_CAP=1536
 # Enforced by the Skills API at package/upload; NOT enforced locally — measured
 # 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
 # 1248-char description clean. A breach is therefore latent for filesystem/plugin
-# skills and hard for any skill uploaded through the Skills API. Basis: the Agent
-# Skills spec (https://agentskills.io, "Maximum 1024 characters"); verified
-# 2026-08-31. "Maximum 1024" makes 1024 CONFORMING and 1025 the first breach, so
-# the comparison below is `>` and never `>=`.
+# skills and hard for any skill uploaded through the Skills API. This checker
+# treats 1024 as CONFORMING and 1025 as the first breach, so the comparison
+# below is `>` and never `>=`. Pointer: for the field maximum, see
+# https://agentskills.io/specification#description-field. As of: 2026-08-31.
 # Recheck trigger: the spec moving the field maximum re-derives this constant.
 DESC_FIELD_CAP=1024
 # Approach margin: a description this close to the field maximum WARNs even though
@@ -489,16 +489,16 @@ DESC_FIELD_WARN_MARGIN=32
 # listed skill now at or under the cap is a stale row and FAILs. Unset (the
 # default, and every consumer repo) means no downgrades at all.
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
-# Agent Skills spec maximum for `name`: 64 characters, lowercase alphanumerics
-# and hyphens, matching the directory (https://agentskills.io/specification,
-# the "name" field), enforced by the spec's `skills-ref` validator. The two
-# reserved words, "anthropic" and "claude", are NOT in the spec: they are a
-# Skills API upload requirement
-# (https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill,
-# repeated at #limits-and-constraints, and the overview's `name` rules at
-# https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure),
-# which the platform best-practices page restates. Claude Code enforces neither
-# rule, measured on Claude Code 2.1.263: `claude plugin validate` passes an
+# NAME_MAX_LEN is this checker's `name` limit, 64 characters of lowercase
+# alphanumerics and hyphens matching the directory, taken from the Agent Skills
+# spec's `name` field and its `skills-ref` validator. NAME_RESERVED_WORDS is a
+# Skills API upload rule, not a spec rule. Pointer: for the spec field, see
+# https://agentskills.io/specification#name-field; for the upload rule, see
+# https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill,
+# https://platform.claude.com/docs/en/build-with-claude/skills-guide#limits-and-constraints
+# and https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure.
+# As of: 2026-09-10. Claude Code enforces neither rule, measured on Claude Code
+# 2.1.263: `claude plugin validate` passes an
 # 88-codepoint name containing "claude" (2026-09-10), and a `--plugin-dir`
 # load probe (`claude -p`, 2026-09-11) loaded and invoked that same skill and a
 # 608-line SKILL.md; Claude Code also ships bundled skills named `claude-api`
@@ -512,15 +512,14 @@ NAME_MAX_LEN=64
 NAME_RESERVED_WORDS='anthropic claude'
 LINE_HARD_CAP=500
 SYNCED_MAX_AGE_DAYS=180
-# Check 26: a spoke file this long gets a table of contents. Two upstream
-# statements of the threshold: the bundled skill-creator says a TOC for
-# reference files over 300 lines
-# (https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md);
-# the platform best-practices page says over 100
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
-# This check WARNs at the looser 300; the
-# 100-to-300 band is judgment `docs-hygiene:audit-progressive-disclosure` owns
-# (its missing-toc finding). Both verified 2026-09-10. Recheck trigger: either
+# Check 26: a spoke file this long gets a table of contents. This check WARNs
+# at 300 lines, its own setting; the 100-to-300 band is judgment
+# `docs-hygiene:audit-progressive-disclosure` owns (its missing-toc finding).
+# Pointer: the bundled skill-creator
+# (https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
+# and the platform best-practices page
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents)
+# disagree on the threshold. As of: 2026-09-10. Recheck trigger: either
 # source moving its threshold re-derives this constant. The TOC heuristic below
 # mirrors that skill's `has_toc` (three or more `](#` anchor links in the first
 # 40 lines) so the two never disagree on what counts as a TOC.
@@ -624,9 +623,9 @@ if [[ -z "$FRONTMATTER" ]]; then
 else
   grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
 
-  # `name` is optional and defaults to the directory name
-  # (https://code.claude.com/docs/en/skills#frontmatter-reference), so the
-  # checker resolves a skill by its directory either way. A DIVERGENT name is
+  # The checker treats `name` as optional and resolves a skill by its
+  # directory either way (pointer: for the field's default, see
+  # https://code.claude.com/docs/en/skills#frontmatter-reference). A DIVERGENT name is
   # the defect this branch exists for: it silently relocates the invocation the
   # doctrine says the skill has. A matching one is merely redundant — and in a
   # plugin skill, not inert (see the warning below).
@@ -649,9 +648,10 @@ else
   elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
   elif [[ -n "$CUR_NAME" && "$IS_PLUGIN_SKILL" == 1 ]]; then
-    # In a PLUGIN skill a matching `name` is not inert: a declared name also
-    # answers to the bare `/<name>` unless another command owns that token
-    # (https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
+    # In a PLUGIN skill a matching `name` is not inert: this check treats a
+    # declared name as registering a bare `/<name>` alias (pointer: for how a
+    # skill gets its command name, see
+    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
     # and the picker appends that alias in parentheses to any row whose typed
     # prefix matches it — `/plugin:deploy (deploy)` (observed in 2.1.225).
     # Omitting the field leaves the namespaced command identical and drops both.
@@ -661,10 +661,10 @@ else
   fi
 
   # Spec portability limbs on the EFFECTIVE name: the declared field when there
-  # is one, else the directory leaf, which is the name the harness uses when
-  # the field is absent (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # is one, else the directory leaf, which this check takes as the name when
+  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference).
   # Run outside the chain above so an over-long or reserved directory leaf is
-  # caught even with no `name:` line. Basis, and the measurement that Claude
+  # caught even with no `name:` line. Pointer, and the measurement that Claude
   # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
   # shared library helper checks 2b and 22 also use, so the count is the spec's
   # unit on any locale.
@@ -681,17 +681,15 @@ else
     fi
   done
 
-  # Frontmatter `model` is honored for the rest of the current turn. The
-  # defect is an empty or spaced value. The skills page says the field "accepts
-  # the same values as /model, or inherit" and defines no stricter grammar, so
-  # a provider-format id (Bedrock `anthropic.claude-...-v1:0`, an inference
-  # profile ARN, a Vertex `name@date` id) must pass and no character class is
-  # enforced. Auto mode keeping the session model when the named model is
-  # unsupported is runtime behavior, documented on the same page, not a second
-  # finding here.
-  # Claim: model accepts any non-empty token. Basis:
+  # Frontmatter `model`: the defect this check flags is an empty or spaced
+  # value. It accepts any other non-empty token and enforces no character
+  # class, so a provider-format id (Bedrock `anthropic.claude-...-v1:0`, an
+  # inference profile ARN, a Vertex `name@date` id) passes. What happens at run
+  # time when the named model is unsupported is not a finding here.
+  # Pointer: for the values the field accepts, see
   # https://code.claude.com/docs/en/skills#frontmatter-reference, the `model`
-  # row. As of: 2026-09-29. Recheck: that row defines a grammar for the value.
+  # row. As of: 2026-09-29. Recheck trigger: that row defines a grammar for
+  # the value.
   if grep -qE '^model:' <<<"$FRONTMATTER"; then
     RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
@@ -707,10 +705,10 @@ else
   # An unquoted ": " in a plain description scalar, or a colon ending a line, is
   # a YAML mapping indicator, on the header line or any continuation line; a
   # trailing ` #` comment is not part of the value and is stripped first. A
-  # quoted scalar or a block scalar may contain it. Claude Code's skills
-  # reference: when the YAML between the markers does not parse, the skill
-  # still loads with no fields set
-  # (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # quoted scalar or a block scalar may contain it. This check fails it because
+  # an unparsable frontmatter loads the skill with no fields set (pointer: for
+  # frontmatter parse failures, see
+  # https://code.claude.com/docs/en/skills#frontmatter-reference).
   desc_lines="$(awk '
     !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
     seen && /^[^[:space:]]/ { exit }
@@ -728,11 +726,11 @@ else
     ;;
   esac
 
-  # compatibility is optional. The Agent Skills spec says most skills do not
-  # need the field and, when it is present, it is 1-500 characters
-  # (https://agentskills.io/specification). Claude Code accepts it and does not
-  # act on it (https://code.claude.com/docs/en/skills#frontmatter-reference).
-  # Absence is success.
+  # compatibility is optional, and absence is success. When present, this check
+  # holds it to 1-500 characters, the spec's range (pointer:
+  # https://agentskills.io/specification#compatibility-field); for how Claude
+  # Code treats the field, see
+  # https://code.claude.com/docs/en/skills#frontmatter-reference.
   if grep -qE '^compatibility:[[:space:]]*' <<<"$FRONTMATTER"; then
     RAW_COMPAT="$(skill_frontmatter::field compatibility <<<"$FRONTMATTER")"
     CUR_COMPAT="$(skill_frontmatter::strip_quotes "$RAW_COMPAT")"
@@ -782,8 +780,8 @@ fi
 # A baseline row whose skill is no longer over the cap FAILs as stale, so the list
 # is shrink-only and cannot quietly re-license a description that was fixed once.
 #
-# Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
-# a byte count would false-positive on any non-ASCII description under a
+# Counted in CODEPOINTS, not bytes: the spec's maximum is in characters (pointer
+# at DESC_FIELD_CAP above), and a byte count would false-positive on any non-ASCII description under a
 # byte-oriented locale — measured, 600 'é' characters report as 1200 under
 # LC_ALL=C. The count comes from the shared library helper check 22 also uses.
 # DESC_LEN stays a byte count for check 2, whose 1536 listing cap is a separate
@@ -907,14 +905,13 @@ else
 fi
 
 # --- Check 4: SKILL.md < LINE_HARD_CAP lines -------------------------------
-# Counted over the WHOLE file, frontmatter included (`grep -c ''`). The two
-# upstream statements of the 500 differ in scope: the platform best-practices
-# page applies it to the SKILL.md body
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns);
-# the Claude Code skills page's Tip applies it to the file
-# (https://code.claude.com/docs/en/skills#add-supporting-files, "Keep SKILL.md
-# under 500 lines"). Whole-file is the stricter reading, so a skill that passes
-# here satisfies both, and it stays. Both verified 2026-09-10. Neither surface
+# Counted over the WHOLE file, frontmatter included (`grep -c ''`), at this
+# check's own cap of 500. Pointer: the platform best-practices page
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns)
+# and the Claude Code skills page
+# (https://code.claude.com/docs/en/skills#add-supporting-files) disagree on
+# what the 500 covers. As of: 2026-09-10. Whole-file is the stricter reading,
+# so a skill that passes here satisfies both, and it stays. Neither surface
 # enforces the number: a `--plugin-dir` load probe on Claude Code 2.1.263
 # (2026-09-11) loaded and invoked a 608-line SKILL.md. Recheck trigger: either
 # page moving the number or its scope, or a Claude Code release rejecting a
@@ -1035,11 +1032,11 @@ done < <(
   } | sort -u
 )
 
-# A backslash-separated pointer is a defect in its own right, not a miss: Claude
-# Code rejects a plugin component path containing a backslash at load on macOS
-# and Linux (https://code.claude.com/docs/en/plugins-reference, "Path traversal
-# limitations"; verified 2026-09-10; recheck trigger: that section dropping or
-# widening the rule). The resolve loop above never sees such a path (its
+# A backslash-separated pointer is a defect in its own right, not a miss: this
+# check treats a plugin component path containing a backslash as one Claude
+# Code rejects at load on macOS and Linux. Pointer: for plugin path rules, see
+# https://code.claude.com/docs/en/plugins-reference#path-rules. As of:
+# 2026-09-10. Recheck trigger: that section dropping or widening the rule. The resolve loop above never sees such a path (its
 # char-class has no backslash), so without this limb a Windows-authored
 # `scripts\helper.py` skipped the check silently and shipped. The pattern is
 # deliberately tight: a known internal dir token, one or more backslash-led
@@ -1212,10 +1209,10 @@ fi
 # The standing 4-skill warning floor is INTENTIONAL, and no dmi carve-out is
 # wanted here (#2181 left them; re-reviewed and confirmed). `discipline:wait-what`,
 # `firecrawl:update`, `playbooks:update`, and `github:setup` are all
-# `disable-model-invocation: true`, and upstream states outright that for that
-# setting the "Description not in context, full skill loads when you invoke"
-# (skills.md frontmatter-behavior table, verified 2026-08-10) — so trigger
-# phrasing on them can never route anything. Each was re-checked for a STRANDED
+# `disable-model-invocation: true`, and this check treats such a skill's
+# description as absent from the model's context (pointer:
+# https://code.claude.com/docs/en/skills#control-who-invokes-a-skill, as of
+# 2026-08-10), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
 # phrase (one a user would type that no model-invocable skill can receive) and
 # none is stranded: the two `update` skills are maintainer-only with
 # consumer-facing siblings that carry the phrases, `github:setup` is a declared
@@ -1861,8 +1858,9 @@ done
 #
 # The contract is a FIXED POINT: the literal text after `summary:` must be what
 # every reader recovers, whether it reads with a real YAML parser or a regex.
-# Claude Code documents that malformed frontmatter loads a skill with empty
-# metadata, so a value a parser rejects costs the skill its whole frontmatter.
+# This check relies on malformed frontmatter loading a skill with empty metadata
+# (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference), so a
+# value a parser rejects costs the skill its whole frontmatter.
 # Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
 # reader can recover exactly, which is why it is stricter than YAML alone.
 #
@@ -1951,9 +1949,10 @@ else
 fi
 
 # --- Check 24: explicit invocation mode --------------------------------------
-# Every skill states its invocation mode explicitly. The official default for an
-# absent key is already `false` (docs table row, code.claude.com/docs/en/skills),
-# so this is an auditability rule rather than a behavior change: an explicit key
+# Every skill states its invocation mode explicitly. This check takes the default
+# for an absent key as `false` (pointer:
+# https://code.claude.com/docs/en/skills#frontmatter-reference), so this is an
+# auditability rule rather than a behavior change: an explicit key
 # makes the choice reviewable, and a `true` reviewable against the exception
 # classes in the rubric that owns this decision —
 # docs/conventions/invocation-mode/README.md.
@@ -2014,7 +2013,7 @@ fi
 #   - polarity is read from the description LEAD (before "Use when:"), so a
 #     trigger phrase like 'fix the formatting' never advertises mutation;
 #   - override language (--fix, explicit override, never on bare) anywhere in
-#     the listing text is the compliant claude-config:audit [--fix] shape and
+#     the listing text is the compliant harness-config:audit [--fix] shape and
 #     clears a report-only verb;
 #   - "read-only by default" is a default-then-override shape, not a
 #     never-mutates claim;
@@ -2160,7 +2159,7 @@ done < <(
 # heading either (Handoff, Routing, Integration, Skill chaining, each matched
 # as a prefix because the fleet titles them several ways), the absence is a
 # WARN. `contract` is left out of the stage list on purpose: interview, prd,
-# and design route through the contract slice they write, not through a
+# and design route through the artifacts they write, not through a
 # successor section. `anytime`, `operator`, and `session` are not stages.
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'

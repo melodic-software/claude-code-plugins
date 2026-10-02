@@ -32,7 +32,7 @@
 #   --help
 #
 # MARKER. `work-items:<lane>@<instance>`, and the sentinel written as the body's
-# first line is `<!-- claude-ops:lane-telemetry marker=<marker> -->`. The sentinel
+# first line is `<!-- harness-ops:lane-telemetry marker=<marker> -->`. The sentinel
 # is an HTML comment: invisible when rendered, distinct per writer, so sibling
 # instances each own one comment on the SAME issue without colliding.
 #
@@ -92,7 +92,7 @@
 # KNOWN LIMITS. A PATCH that succeeds while storing the previous body still
 # verifies: the read-back asserts that SOME well-formed telemetry is present, not
 # that THIS cycle's write is what is present. Not implemented at all: the 64 KiB
-# cap, body-file containment, and read retries that the `claude-ops` lanes wrapper
+# cap, body-file containment, and read retries that the `harness-ops` lanes wrapper
 # carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
 # why this mechanism lives here rather than deferring to that wrapper.
 
@@ -218,7 +218,7 @@ for bin in gh jq; do
 done
 
 MARKER="work-items:$LANE@$INSTANCE"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"
+SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 
 # --- Pre-write body gate -----------------------------------------------------
 if [[ ! -s "$BODY_FILE" ]]; then

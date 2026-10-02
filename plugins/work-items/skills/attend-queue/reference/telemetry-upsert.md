@@ -4,7 +4,7 @@ The upsert this lane runs to maintain its ONE sentinel-identified status comment
 lane instance**. [`../SKILL.md`](../SKILL.md)'s "Telemetry" section owns that the comment exists and
 when it is written; this file owns the contract of the script that maintains the singleton.
 
-The mechanism lives in this plugin rather than in `claude-ops` because an installed plugin cannot
+The mechanism lives in this plugin rather than in `harness-ops` because an installed plugin cannot
 invoke a sibling plugin's scripts.
 
 Per the convention, this lane too maintains exactly ONE sentinel-identified status comment **per
@@ -35,7 +35,7 @@ bash "<plugin-root>/scripts/lane-telemetry-upsert.sh" \
 ## What the upsert writes
 
 The marker is `work-items:attend-queue@<instance>` and the comment's first line is the sentinel
-`<!-- claude-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
+`<!-- harness-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
 rendered and distinct per writer, so sibling instances each own one comment on the same issue.
 The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
 sentinel is never adopted. Where the lookup finds nothing the script creates the comment; where it
@@ -97,7 +97,7 @@ pass's own summary.
 
 A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that
 *some* well-formed telemetry is present, not that *this* pass's write is what is present. Not
-implemented at all: the 64 KiB cap, body-file containment, and read retries that the `claude-ops`
+implemented at all: the 64 KiB cap, body-file containment, and read retries that the `harness-ops`
 lanes wrapper carries.
 
 Report the instance on its own `instance:` line in the pass report, never appended to `lane:`, the

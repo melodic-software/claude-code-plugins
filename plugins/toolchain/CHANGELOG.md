@@ -3,6 +3,29 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-10-02
+
+### Changed
+
+- **`check` counts only real checks.** A syntax-only command or one that failed to start never
+  counts as a pass; an ecosystem whose only filled cells are syntax-only reports "no real check
+  ran". Every skip is named with its reason and a class, and only an environment skip (a missing
+  tool, one too old for the check, or missing dependencies) blocks a "done" claim. The Overall line
+  can read `INCOMPLETE` or `STOPPED`.
+- **Missing declared dependencies are installed before a skip is reported**, only from the
+  committed lockfile with install scripts disabled, using only `npm ci --ignore-scripts`,
+  `uv sync --frozen --no-build --no-install-local` or `dotnet restore --locked-mode`, within the
+  permission mode and never with `sudo`. Any other package manager installs nothing, and the uv
+  command builds nothing at install time. A missing tool is never installed, and a run whose
+  install changed the tree (status or diff) stops and reports the paths.
+
+## [0.13.19] - 2026-10-02
+
+### Fixed
+
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
 ## [0.13.18] - 2026-09-28
 
 ### Changed

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync or verify the plugin copies of the shared topic-docs concern-value parser.
+# Sync or verify the plugin copies of the shared concern-value parser.
 #
 #   scripts/sync-parse-concern-value.sh                      copy the lib into each consuming plugin
 #   scripts/sync-parse-concern-value.sh --check              fail if any plugin copy differs from the source
@@ -25,7 +25,7 @@ cd "$script_dir/.."
 sync_cluster_script="sync-parse-concern-value.sh"
 src="lib/parse-concern-value.sh"
 copies=(
-  plugins/claude-memory/skills/audit/scripts/parse-concern-value.sh
+  plugins/harness-memory/skills/audit/scripts/parse-concern-value.sh
   plugins/session-flow/skills/retro/scripts/parse-concern-value.sh
   plugins/docs-hygiene/skills/audit-noise/scripts/lib/parse-concern-value.sh
 )

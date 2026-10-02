@@ -52,8 +52,8 @@ over another is style.
 
 | Consumer | How it uses the register |
 |---|---|
-| `claude-config:audit-instructions` | Deletion-class criteria (I1, I4, I5) hold back a candidate matching a protected class and report the hold rather than proposing the cut |
-| `claude-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it. A protected rule is never left deleted on the evidence of "no stumble was observed", and it never enters a deletion watch. A consequential rule outside the register is deletable only when a closed watch has zero attributed rows |
+| `harness-config:audit-instructions` | Deletion-class criteria (I1, I4, I5) hold back a candidate matching a protected class and report the hold rather than proposing the cut |
+| `harness-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it. A protected rule is never left deleted on the evidence of "no stumble was observed", and it never enters a deletion watch. A consequential rule outside the register is deletable only when a closed watch has zero attributed rows |
 | `review:security-review` | The instruction-surface lens reads the register on any diff that deletes, narrows, or softens a standing instruction, and its skip gate may not wave such a diff through as prose-only. This is the review half of a guardrail deletion: the holds above act only inside the two trimming skills, while a deletion by hand or by any other route meets this lens when its pull request is reviewed (#3566) |
 | `review` plugin's `security-reviewer` agent | Behind `/review:quality-gate` security mode and `/review:fanout`. Applies the same lens whenever either dispatches it; `/review:fanout` dispatches it by its tier rule, so a small diff touching no security-sensitive path does not reach it |
 | `instruction-placement:*` | Unchanged. It owns the classes and the relocation verdict; this register is the deletion counterpart and defers to it on class membership |
@@ -74,8 +74,7 @@ changes no behavior, which is the failure mode this table exists to prevent.
 ## Provenance
 
 Adopted 2026-09-01 from the context-engineering corpus integration, decision Q2. That decision
-contract is contract tier and was pruned before merge; it survives as the `<details>` paste in its
-pull request, and the evidence behind it is in
-[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md). The carve-out this register answers is quoted from a vendor-voice source and carries
+survives as the `<details>` paste in its pull request. The carve-out this register answers is
+quoted from a vendor-voice source and carries
 that source's status: the wording is first-party, the definition of "highly important areas" is
 this repo's own and is not claimed to be upstream doctrine.

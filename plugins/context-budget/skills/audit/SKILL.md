@@ -1,6 +1,6 @@
 ---
 description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
-argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
+argument-hint: "[--full-sweep|--tools T1,T2|--ledger|fix]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Measure the startup context payload per item and ledger every lever's real delta
 ---
 
-**Arguments.** `[--full-sweep | --tools T1,T2 | --ledger | fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
+**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
 
 ## Purpose
 
@@ -45,7 +45,7 @@ Two rules govern everything this skill says, per the plugin's
   naming the unused-component check, or when a release note names `/doctor`.
 - Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
-- Settings correctness, permission-rule state → the `claude-config` plugin, if installed.
+- Settings correctness, permission-rule state → the `harness-config` plugin, if installed.
 
 ## Boundary, the bundled `explain-usage` skill
 
@@ -96,7 +96,7 @@ person can run it, never that it is present.
 
 **Verification record, `/context`.** Claim: `/context` is a gated, user-only built-in command
 ("Visualize current context usage as a colored grid", argument hint `[all]`) that the model
-cannot invoke. Basis: the `/claude-ops:inventory` extraction of the installed Claude Code 2.1.285
+cannot invoke. Basis: the `/harness-ops:inventory` extraction of the installed Claude Code 2.1.285
 binary on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true,
 `model_invocable` false); the `/context [all]` row on <https://code.claude.com/docs/en/commands>,
 fetched 2026-09-30. As of 2026-09-30. Recheck when a release renames or removes `/context`,

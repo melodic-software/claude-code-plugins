@@ -1,6 +1,6 @@
 ---
 description: "Justify one named artifact: was there a reason when it was built, and does that reason still hold. Walks one target on the evidence-earned-keep ladder. Read-only; never applies a remedy. Use when: 'justify this', 'does this need to exist', 'why is this here', 'is this still valid', 'earn its keep', 'justify the existence of'. With no target it uses the session or asks. Not for the enforcement surface (sibling audit)."
-argument-hint: "<path | path#heading | kind:identifier>"
+argument-hint: "[path|path#heading|kind:identifier]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Make one artifact you point at justify its own existence, on evidence
 ---
 
-**Arguments.** `<path | path#heading | kind:identifier>`. none: conversation context, then offered git-age discovery, then ask
+**Arguments.** `[path|path#heading|kind:identifier]`. none: conversation context, then offered git-age discovery, then ask
 
 ## Repository context. Gather first
 
@@ -49,15 +49,13 @@ owner the finding names, never here.
 restated. Five things are specific to this lane:
 
 - **The only write that is this lane's own is the findings artifact**, at the memory-tier home
-  resolved through `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. Never the artifact being judged.
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` "Where it lives" defines. Never the artifact being judged.
   Emit the read-only opening line immediately after resolving the home, naming that home as where a
   finding **would** be written rather than asserting one was: this lane may end up filing no row, and
   a line that named the path as written would then be a false statement the operator has no reason to
-  doubt. The two
-  auxiliary writes the governing contract sanctions, the topic-docs self-ignore guard and the
-  concern-file persistence on the resolution rungs, are unaffected and still happen: they belong to
-  the binding this lane runs, not to this lane, and skipping the guard would leave the memory root
-  un-gitignored.
+  doubt. The
+  auxiliary write the governing contract sanctions, the self-ignore guard, is unaffected and still
+  happens: skipping it would leave the memory root un-gitignored.
 - **Always `mode: targeted`**, with `targets` naming what this run examined. A run of this lane never
   writes `mode: walk`, because it never walks.
 - **The frontmatter this lane writes** is `type: overengineering-findings`, `schema: 2`,
@@ -144,8 +142,8 @@ resting on a line number derives a different id as soon as an edit above it move
    (detached HEAD or no checkout). **Read its exit status to decide whether the lookup succeeded,
    then take the identity from stdout**: the status answers only whether there is a branch, and the
    name itself is the output. Never infer an identity from a failed call, and never accept the
-   literal `HEAD` as one. Run the topic-docs binding's whole rung order rather than assuming the
-   default's shape.
+   literal `HEAD` as one. Compose the home per `findings-artifact.md` "Where it lives" rather than assuming a
+   shape.
 2. **Run the shared preflight**, `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`,
    section "Preflight". Its sanctioning-record probe matters here: a repetition a record sanctions
    and a check maintains is never duplication to collapse.
@@ -210,8 +208,8 @@ inline, state what it would have owned, and record the fallback in `Routed-to`.
 | Unreachable or dead code | `code-tidying:audit-dead-code` |
 | Comments, their content or residue | `code-tidying:dissolve-comments`, `code-tidying:audit-comment-residue` |
 | A document derivable from its source, or noise within one | `docs-hygiene:audit-derivability`, `docs-hygiene:audit-noise` |
-| Instruction text and what it does to a model | `claude-config:audit-instructions`, `claude-config:unhobble` |
-| Duplication of a native harness surface | `claude-ops:audit-native-overlap` |
+| Instruction text and what it does to a model | `harness-config:audit-instructions`, `harness-config:unhobble` |
+| Duplication of a native harness surface | `harness-ops:audit-native-overlap` |
 | Ranking candidates across several dimensions | `improvement:find` |
 | The scrutiny posture itself | `discipline:reason-dont-recite`, `discipline:recheck-against-upstream`, `discipline:scrutinize-dont-coast` |
 

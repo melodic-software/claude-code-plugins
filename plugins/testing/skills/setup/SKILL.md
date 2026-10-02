@@ -1,6 +1,6 @@
 ---
 description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes your answers as the config block of docs/conventions/testing.md (or .claude/testing.yaml when that file is in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
-argument-hint: "check | apply"
+argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -131,8 +131,8 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    Project instructions default or which files count. Offer it; do not paste it anywhere.
 4. **hook-entry**: `none`, or a `.claude/settings.json` snippet for each consumer glob no shipped
    hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
-   (probed on Claude Code 2.1.284, 2026-09-29, `docs/specs/tautological-tests/probes.md` in the
-   marketplace repository; recheck when a Claude Code release note says settings hooks receive
+   (probed on Claude Code 2.1.284, 2026-09-29, the rows in
+   <https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md>; recheck when a Claude Code release note says settings hooks receive
    plugin variables), so the entry runs the highest installed version under
    `~/.claude/plugins/cache/<marketplace>/testing` and passes `--enabled`: adding the entry is the
    opt-in. It pins the marketplace `check` runs from; when `check` runs outside the plugin cache the

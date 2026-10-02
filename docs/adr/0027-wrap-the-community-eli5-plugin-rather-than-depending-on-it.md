@@ -45,4 +45,4 @@ the behavior itself in either case. It declares **no `dependencies[]` entry** on
   or plugin id breaks the delegation address silently: the fallback simply always fires.
 - If upstream `eli5` ever ships as an official or bundled surface, this decision's premise changes from
   "wrap a community plugin" to "duplicate something native". The skill records that as a trigger to re-run
-  `/claude-ops:audit-native-overlap` and re-decide the lane. Nothing watches for it automatically.
+  `/harness-ops:audit-native-overlap` and re-decide the lane. Nothing watches for it automatically.

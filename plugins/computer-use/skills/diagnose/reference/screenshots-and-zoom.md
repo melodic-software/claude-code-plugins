@@ -3,42 +3,46 @@
 Why every screenshot arrives smaller than your screen, why that is not tunable, and the one
 mechanism that recovers detail.
 
-**Recheck trigger:** re-verify the quotes and figures below if the `computer-use` CLI page's
-downscaling section starts documenting a setting to change the target size, if the
-`computer-use-tool` platform page changes its "full resolution" zoom wording or its
-implementation-best-practices resolution guidance, or if the linked best-practices blog post
-revises its recommended resolutions or its "single highest impact optimization" claim.
-
 ## Downscaling is automatic and has no setting
 
-Claude Code downscales **every** screenshot before it reaches the model. Official wording
-(verified 2026-08-10, [computer use from the CLI](https://code.claude.com/docs/en/computer-use)):
+We treat the downscale of **every** screenshot as fixed: no setting changes the target size, so
+when a screenshot leaves text or buttons unreadably small, the remedy is larger text in the app,
+never a lower display resolution.
 
-> There is no setting to change the target size. If on-screen text or controls are too small for
-> Claude to read after downscaling, increase their size in the app rather than changing your
-> display resolution.
+- **Pointer**: for the downscale and the absence of a size setting, see
+  [Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically).
+- **As of**: 2026-08-10
+- **Recheck trigger**: that section documents a setting that changes the target size.
 
 ## The target is a pixel budget, not a scale factor
 
-This is the part that surprises people. Two very different displays converge on the same
-megapixel count:
+This is the part that surprises people. We read the target as a fixed pixel count, about 1.2
+megapixels, with the aspect ratio preserved, rather than a fixed scale factor:
 
 | Source display | Delivered image | Megapixels | Linear scale |
 |---|---|---|---|
 | 2560x1440 (Windows, measured 2026-08-10) | 1456x816 | 1.19 | 1.76x |
-| 3456x2234 (upstream's MacBook example) | 1372x887 | 1.22 | 2.52x |
 
-Same budget, different ratios, aspect ratio preserved. The practical consequence: **a smaller
-monitor does not buy a sharper screenshot**. It buys the same ~1.2MP with less on it. That is
-occasionally worth doing for a dense UI, but it is a trade of coverage for density, never a
-quality win.
+The worked example in the downscaling section above, on a larger display, is the second data point
+we compared against. The practical consequence: **a smaller monitor does not buy a sharper
+screenshot**. It buys the same ~1.2MP with less on it. That is occasionally worth doing for a dense
+UI, but it is a trade of coverage for density, never a quality win.
+
+- **Pointer**: the measurement above is our own probe; for the upstream worked example, see
+  [Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically).
+- **As of**: 2026-08-10
+- **Recheck trigger**: a capture on a measured display delivers a pixel count far from 1.2MP, or
+  that section's worked example changes.
 
 ## `zoom` re-captures at full resolution
 
-`zoom` is not a crop of the downscaled image. Upstream calls it "view a specific region of the
-screen **at full resolution**" ([computer use
-tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool), verified
-2026-08-10).
+We treat `zoom` as a fresh capture of the region at full resolution, not a crop of the downscaled
+image.
+
+- **Pointer**: for the `zoom` action, see
+  [Available actions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#available-actions).
+- **As of**: 2026-08-10
+- **Recheck trigger**: the `zoom` row in that table stops describing a full-resolution capture.
 
 Local behavior matches: while capture is failing, `zoom` returns
 `Screenshot capture failed after 3 attempts` rather than a blurry crop. A crop of the
@@ -55,31 +59,39 @@ one. Zoom is read-only inspection.
 ## Order of remedies for "Claude can't read this"
 
 1. **`zoom` the region.** Free, immediate, no environment change.
-2. **Increase the size in the app**: editor font size, browser zoom, app scaling. This is
-   upstream's own recommendation and it survives across screenshots.
-3. **Keyboard instead of mouse** for genuinely tiny targets (tray icons, small checkboxes).
-   Upstream recommends this over trying to click them.
+2. **Increase the size in the app**: editor font size, browser zoom, app scaling. It survives
+   across screenshots.
+3. **Keyboard instead of mouse** for genuinely tiny targets (tray icons, small checkboxes), rather
+   than trying to click them.
 4. **Do not lower display resolution.** Claude Code already downscales; dropping the source
    only removes information earlier.
 
-## Upstream's own resolution guidance, and how it applies here
+- **Pointer**: for the in-app size remedy, see
+  [Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically);
+  for keyboard use on hard targets, see
+  [Optimize model performance with prompting](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#optimize-model-performance-with-prompting).
+- **As of**: 2026-08-10
+- **Recheck trigger**: either section drops or reverses its remedy.
 
-The API-side computer use tool exposes display dimensions the caller chooses, and there the
-guidance is concrete. The platform docs' implementation-best-practices section gives the
-resolutions: 1024x768 or 1280x720 for general desktop work, and nothing above 1920x1080. It names
-"resolution too low" as the cause of consistently poor accuracy
-([computer use tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),
-verified 2026-08-10). The benchmarked blog post adds that pre-downscaling before sending is "the
-single highest impact optimization" and that native unscaled resolution is the primary cause of
-poor accuracy
-([best practices](https://claude.com/blog/best-practices-for-computer-and-browser-use-with-claude),
-verified 2026-08-10).
+## The API-side resolution guidance, and how it applies here
 
-**That knob does not exist on the Claude Code surface.** The harness owns the downscale and
-already does the recommended thing. The guidance is still worth knowing because it explains
-*why* the harness behaves this way, and because it tells you that native unscaled resolution is
-the documented primary cause of poor click accuracy. Do not translate the API advice into a
-display-settings change on a Claude Code machine.
+The API-side computer use tool takes display dimensions the caller chooses, and its docs give
+concrete resolution guidance and name low resolution as a cause of poor accuracy. Read it at the
+pointer; we do not restate it.
+
+**That knob does not exist on the Claude Code surface.** The harness owns the downscale, and we
+read its behavior as already following that guidance. The guidance is still worth knowing because
+it explains *why* the harness downscales and why resolution affects click accuracy. Do not
+translate the API advice into a display-settings change on a Claude Code machine.
+
+- **Pointer**: for the resolution guidance, see
+  [Size screenshots to fit image limits](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#handle-coordinate-scaling-for-higher-resolutions)
+  and
+  [Diagnose click issues](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#diagnose-click-issues)
+  (correlate with [best practices](https://claude.com/blog/best-practices-for-computer-and-browser-use-with-claude)).
+- **As of**: 2026-08-10
+- **Recheck trigger**: either section changes its recommended resolutions, or the Claude Code
+  computer-use page documents a setting to change the target size.
 
 ## `save_to_disk` is not an escape hatch
 

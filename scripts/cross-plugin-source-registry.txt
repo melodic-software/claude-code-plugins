@@ -143,7 +143,7 @@ lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # Dedicated check: scripts/sync-fetch-docs.sh --check (CI: Verify fetch-docs
 # copies match the canonical fetcher). Canonical: lib/fetch-docs.sh. The
-# claude-config and claude-ops plugins each carry a copy because a plugin cache
+# harness-config and harness-ops plugins each carry a copy because a plugin cache
 # cannot see the repo-root canonical.
 scripts/fetch-docs.sh
 
@@ -180,8 +180,8 @@ hooks/exec-bash.mjs
 lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 
 # No dedicated check: the unreferenced plugin-cache-version reader carried by the
-# claude-ops audit-install-state and disk-hygiene deep-inventory engines. This
+# harness-ops audit-install-state and disk-hygiene deep-inventory engines. This
 # script's own --check is the gate. Canonical copy:
-# plugins/claude-ops/lib/plugin_cache_versions.py; copy it into
+# plugins/harness-ops/lib/plugin_cache_versions.py; copy it into
 # plugins/disk-hygiene/lib/ to fix a drift failure.
 lib/plugin_cache_versions.py

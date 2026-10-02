@@ -1,6 +1,6 @@
 ---
 description: "Fan out review across many finding-producing surfaces at once, this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins, then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
-argument-hint: "[mode] [--yes]"
+argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Fan review out across every reviewer surface into one ranked report
 ---
 
-**Arguments.** `[mode] [--yes]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes
+**Arguments.** `[run-everything|fix] [--yes]`. e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes
 
 ## Repository context. Gather first
 
@@ -48,7 +48,7 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 
 - **Review diff base**, when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`). When none of them yields a merge-base (no remote, or a shallow clone sharing no ancestor with it), the base is unresolved: never fall back to `HEAD`. A hardcoded `git diff HEAD` is empty on a clean committed branch, so it would read as nothing to review.
 - **Severity vocabulary**, the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
-- **Findings location**. Resolve through the plugin binding, [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md), which owns the resolution ladder, the `<branch-slug>` and timestamp spec, the non-interactive collapse, and the self-ignore guard. **Resolve the home; never assume its shape**, the ladder's rungs do not all compose a `reviews/<branch-slug>` segment, and the review modes' writer and the `fix` action's reader must land in the same directory or findings go silently unseen. Read the binding rather than working from the default's shape.
+- **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`; the mapping is lossy (`feature/foo` and `feature-foo` collide), so the artifact's own `branch:` frontmatter, never its directory, proves which branch it describes. Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` (`date -u +%Y%m%dT%H%M%SZ`), colon-free and Windows-safe; lexical sort equals chronological sort. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. The review modes' writer and the `fix` action's reader must land in the same directory or findings go silently unseen. The directory is checkout-local: findings that must cross checkouts go through the work-item tracker as tickets that point, never as pasted report bodies. With no git repo there is nothing to review, so stop before any write.
 
 ## Arguments
 
@@ -116,7 +116,7 @@ Run the 5-stage pipeline in [context/findings-normalization.md](context/findings
 
 ## Step 3: Persist findings
 
-Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is the binding's ("Shared inputs"), not restated here. Relativize machine paths BEFORE writing. Findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [`${CLAUDE_PLUGIN_ROOT}/reference/findings-file-shape.md`](../../reference/findings-file-shape.md) "Findings-writer contract" and "Findings-file shape".
+Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is in "Shared inputs". Relativize machine paths BEFORE writing. Findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [`${CLAUDE_PLUGIN_ROOT}/reference/findings-file-shape.md`](../../reference/findings-file-shape.md) "Findings-writer contract" and "Findings-file shape".
 
 ## Orchestrator plugins
 

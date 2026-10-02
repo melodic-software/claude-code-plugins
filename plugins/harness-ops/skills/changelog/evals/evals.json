@@ -1,0 +1,146 @@
+{
+  "skill_name": "changelog",
+  "evals": [
+    {
+      "id": 1,
+      "name": "passive-mention-routes-read-only",
+      "prompt": "Claude Code v2.1.152 just dropped — what changed in it that's relevant to this repo?",
+      "expected_output": "A read-only response: the skill routes to fetch or diff (displays the changelog and/or an impact table) and does NOT start the apply pipeline or edit any repo file. If integration might be wanted, it offers apply as an explicit next step rather than auto-running it.",
+      "files": [],
+      "expectations": [
+        "The response presents changelog content and/or a repo-impact analysis without editing any file",
+        "The response does NOT run the apply pipeline (no interview/plan/implement phases executed) on a passive version mention",
+        "If integration is relevant, the response offers `apply` as an explicit opt-in step rather than starting it automatically"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "explicit-apply-scopes-then-hands-off",
+      "prompt": "Apply the Claude Code v2.1.152 changelog to this repo.",
+      "expected_output": "The apply pipeline presents a decision table (owner surface, action lens, the lens's required sentence, action needed) and waits for the user to confirm scope BEFORE any file is edited. Decisions in scope that fit the session go through the marketplace stage skills; a decision too large for the session is filed through /work-items:track instead of being implemented, and no issue is closed by title match.",
+      "files": [],
+      "expectations": [
+        "The response presents the per-owner-surface decision table, with an action lens and affected files, before any file is edited",
+        "The response waits for the user to confirm scope (all decisions / just corrections / specific rows) before implementing anything",
+        "In-scope decisions that fit the session are carried out through the marketplace stage skills rather than edited ad hoc",
+        "A decision too large for the session is filed through /work-items:track instead of being implemented",
+        "No issue is closed by title match"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "target-version-ahead-of-installed-warns",
+      "prompt": "Apply the v2.1.152 changelog — and if my installed Claude Code is older than that, warn me before applying.",
+      "expected_output": "The apply/diff flow checks the installed Claude Code version (via `claude --version`, which the status script reports as `installed`) and compares it to the target v2.1.152, grounding the comparison in the actual installed version rather than an assumed one. If the installed version is older than the target, it warns that applying newer-version changes may reference features not yet available and suggests updating first (claude update); if the installed version is equal or newer, it proceeds without that warning.",
+      "files": [],
+      "expectations": [
+        "The response checks the installed Claude Code version (e.g. via `claude --version` or the status script's `installed` line) rather than assuming a specific installed version",
+        "If the installed version is older than the target v2.1.152, the response warns and suggests updating (e.g. `claude update`) before applying",
+        "If the installed version is equal to or newer than the target, the response proceeds without emitting the ahead-version warning"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "status-reads-the-read-marker-line",
+      "prompt": "/harness-ops:changelog status\n\nThis repository's Claude Code ledger is the fixture at evals/fixtures/ledger-marker.md, and a local copy of the raw changelog is at evals/fixtures/changelog-sample.md. Use those two files instead of the default ledger path and instead of fetching.",
+      "expected_output": "The status action runs scripts/changelog-status.sh with `--ledger evals/fixtures/ledger-marker.md --changelog evals/fixtures/changelog-sample.md` and relays its lines: last-applied 2.1.260 with source `ledger:` (the marker line `**Last audited upstream state:** changelog through `2.1.260``), latest 2.1.263, the default range 2.1.261..2.1.263 (2 releases, 6 core items, the `[VSCode]` line excluded), and cap within budget. It reads the marker from the ledger line, never from git log, and does not create or propose any tracking file other than the ledger.",
+      "files": [
+        "evals/fixtures/ledger-marker.md",
+        "evals/fixtures/changelog-sample.md"
+      ],
+      "expectations": [
+        "The response reports last-applied 2.1.260 and attributes it to the ledger's marker line, not to git history",
+        "The response reports the default range as 2.1.261..2.1.263 with 2 releases and 6 core items",
+        "The response does NOT run a `git log --grep` over commit bodies to find applied versions",
+        "The response does NOT create or propose a persistent tracking file other than the ledger"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "new-capability-adopted-with-problem-solved",
+      "prompt": "Diff this pasted Claude Code changelog entry against our repo. Our compact-early hook script forces an early /compact by watching token counts, because we have no way to set the autocompact threshold per session:\n\n### v2.1.160\n- **New setting:** `settings.json` gains `autoCompactWindow` (integer) to override the autocompact token threshold per session.",
+      "expected_output": "The diff ingests the pasted changelog entry (pasted text takes priority over a live fetch, so the analysis is deterministic) and emits one decision row on the compact-early hook script with lens adopt (or adopt with defer pending probe, naming its evidence bar: a documentation page states the setting, or a live probe shows it). The row states the problem solved: the hook script token-count workaround for lacking a per-session autocompact threshold. It is not dropped as skip and carries no priority-tier label. Read-only diff analysis; no edits.",
+      "files": [],
+      "expectations": [
+        "The response ingests the pasted changelog entry rather than fetching a live version, keeping the analysis deterministic",
+        "The new setting is classified adopt, or adopt with defer pending probe and its evidence bar (a documentation page states it, or a live probe shows it); it is not treated as skip or no-action",
+        "The row names the problem solved: the compact-early hook workaround for lacking a per-session autocompact threshold, not merely that the repo does not use the setting yet",
+        "The output uses the lens vocabulary and does not assign a numbered priority tier (P-number) to the item",
+        "The diff analysis is read-only: no repo file is edited"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "status-ignores-commit-body-mentions",
+      "prompt": "/harness-ops:changelog status\n\nThis repository has no docs/upstream/claude-code.md and no HARNESS_OPS_CHANGELOG_LEDGER. Its recent git log is reproduced in evals/fixtures/git-log-body-mentions.txt: three commits whose BODIES mention Claude Code v2.1.252, Claude Code v2.1.255, and CC v2.1.250, and no commit whose SUBJECT reads `address Claude Code v<range> changelog`. Use evals/fixtures/changelog-sample.md as the changelog copy instead of fetching.",
+      "expected_output": "The status action reports last-applied none with source none: the ledger is absent and no commit SUBJECT names an applied release. It does NOT report 2.1.252, 2.1.255, or 2.1.250 as applied, because those versions appear only in commit bodies, which are recency stamps on docs rather than applies. It reports the whole fixture feed as the range (2.1.257..2.1.263, 6 releases, 20 core items), cap within budget, and relays the script's recommendation to create the ledger with the marker at 2.1.263 once that range is applied.",
+      "files": [
+        "evals/fixtures/git-log-body-mentions.txt",
+        "evals/fixtures/changelog-sample.md"
+      ],
+      "expectations": [
+        "The response reports last-applied none and source none",
+        "The response does NOT report 2.1.252, 2.1.255, or 2.1.250 as an applied version; body mentions are never read as applies",
+        "The response reports the range 2.1.257..2.1.263 and relays the recommendation to create the ledger with the marker at 2.1.263 after that range is applied",
+        "The response does NOT run a `git log --grep` over commit bodies and does NOT propose a tracking file other than the ledger"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "range-beyond-cap-stops-with-docs-conformance-recommendation",
+      "prompt": "/harness-ops:changelog diff v2.1.257..v2.1.263\n\nFor this run the replay cap is 3 releases (HARNESS_OPS_CHANGELOG_CAP_RELEASES=3). The ledger is evals/fixtures/ledger-marker.md and the changelog copy is evals/fixtures/changelog-sample.md; use them instead of fetching.",
+      "expected_output": "The diff runs the status script with `--range v2.1.257..v2.1.263`, which reports range 2.1.257..2.1.263 (6 releases, 20 core items) and cap exceeded (3 releases / 300 items). The diff STOPS there: no per-item triage table, no explore pass over repo surfaces, no research subagents. It relays the script's recommendation as the output: run a docs-conformance recheck of the components against the current docs, then set the marker in the ledger to 2.1.263 and diff only from there. No file is edited.",
+      "files": [
+        "evals/fixtures/ledger-marker.md",
+        "evals/fixtures/changelog-sample.md"
+      ],
+      "expectations": [
+        "The response reports the range 2.1.257..2.1.263 with 6 releases and states that the cap of 3 releases is exceeded",
+        "The response does NOT emit a per-item triage table and does NOT spawn research subagents over the items",
+        "The response relays the recommendation: a docs-conformance recheck of the components, then a marker set at 2.1.263 and a diff from there",
+        "The diff is read-only: no repo file is edited"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "diff-emits-decisions-grouped-by-owner-surface",
+      "prompt": "/harness-ops:changelog diff v2.1.284\n\nUse evals/fixtures/release-decisions.md as the changelog copy instead of fetching, and evals/fixtures/owner-surfaces.md as the list of this repo's owner surfaces and what each states or does.",
+      "expected_output": "The diff emits decision rows grouped by owner surface, not one row per changelog item. Elicitation-hook item: a correct row on elicitation-hooks/SKILL.md stating the false claim (a decision:block return is ignored) and the true one (it now declines the elicitation). Failed-hook stderr item: a replace row on rerun-failed-hook.sh stating the problem the script solves (recovering stderr the log dropped) so the reader can judge whether the native log now solves it; the run only nominates and never edits or removes the script. The two hooks-kit rows sit together. `/mcp reconnect all`: an adopt row on reconnect-servers.sh stating the problem solved (reconnecting failed servers one at a time). The tab-bar layout fix is skip: no row, counted only in the read summary. No priority-tier column. No file is edited.",
+      "files": [
+        "evals/fixtures/release-decisions.md",
+        "evals/fixtures/owner-surfaces.md"
+      ],
+      "expectations": [
+        "The output is rows grouped by owner surface, with the two hooks-kit rows together, not one row per changelog item",
+        "Each row carries a lens (correct, replace, adopt) and its required sentence: a false-versus-true pair for correct, the problem solved for replace and adopt",
+        "The Elicitation-hook row is correct and states both the false claim in elicitation-hooks/SKILL.md and the true behavior",
+        "There is no row for the tab-bar layout fix; it counts toward the read summary only",
+        "There is no numbered priority-tier (P-number) column or label anywhere in the output",
+        "The diff is read-only: a replace candidate is nominated, never edited or removed, and no repo file is edited"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "surface-discovery-on-both-repo-shapes",
+      "prompt": "Which repo surfaces could a Claude Code changelog item touch? Answer for this marketplace repo and for the consumer fixture at evals/fixtures/consumer-repo.",
+      "expected_output": "The skill runs scripts/discover-surfaces.sh once per root instead of hand-listing surfaces. For this repo the output starts with repo-shape: marketplace and lists the project classes plus the plugin classes (plugins, plugin skills, plugin agents, plugin hook dirs, plugin READMEs) with their counts, and ends with the excluded vendor-tree line. For the fixture it starts with repo-shape: consumer and lists only consumer classes (CLAUDE.md, path-scoped rules, project settings, mcp config, project hooks, project skills, project agents). No plugin class is claimed for the consumer. No file is edited.",
+      "files": [
+        "evals/fixtures/consumer-repo/.claude/agents/demo.md",
+        "evals/fixtures/consumer-repo/.claude/hooks/demo.sh",
+        "evals/fixtures/consumer-repo/.claude/rules/one.md",
+        "evals/fixtures/consumer-repo/.claude/settings.json",
+        "evals/fixtures/consumer-repo/.claude/skills/demo/SKILL.md",
+        "evals/fixtures/consumer-repo/.mcp.json",
+        "evals/fixtures/consumer-repo/CLAUDE.md"
+      ],
+      "expectations": [
+        "The response runs scripts/discover-surfaces.sh for each root rather than listing surfaces from memory or from a hand-written glob list",
+        "For this repo the response reports repo-shape marketplace and lists plugin classes (plugins, plugin skills, plugin agents, plugin hook dirs) with counts taken from the script output",
+        "For the fixture the response reports repo-shape consumer and lists only consumer classes: CLAUDE.md, path-scoped rules, project settings, mcp config, project hooks, project skills, project agents",
+        "Vendored upstream docs under */skills/*/vendor are excluded from the counts and the response says how many vendor trees were skipped",
+        "The response claims no plugin class (plugins, plugin skills, plugin agents, plugin hook dirs) for the consumer fixture",
+        "No repo file is edited"
+      ]
+    }
+  ]
+}

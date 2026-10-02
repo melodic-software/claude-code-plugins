@@ -119,10 +119,13 @@ declarations and does not open a database connection. The dialect is
 refused.
 
 `/architecture:map-deployment` draws a C4 deployment view from tracked Docker
-Compose and Kubernetes manifests, one diagram per environment. `--diff` lists
-declared differences. Every emitted value passes the shared connection
-redactor. The picture is `diagram_dialect.system`. Terraform, Pulumi, Bicep, CloudFormation, Helm, and
-Kustomize are named and then the run stops. `--live` is refused.
+Compose, Kubernetes manifests, Terraform, Bicep, ARM templates, CloudFormation, and
+Pulumi YAML programs, one diagram per environment. `--diff` lists declared
+differences. Every emitted value passes the shared connection redactor. The
+picture is `diagram_dialect.system`. Pulumi projects of any other runtime, Helm
+(including a Terraform `helm_release`), and Kustomize are named and then the run
+stops. Resources a reader parses and does not map are listed, and a read that
+places no container is refused. `--live` is refused.
 
 ## Record a decision
 
@@ -186,13 +189,12 @@ at setup rather than choosing a directory for you.
 
 ## Persistence
 
-The durable candidate list lands in the memory tier of the marketplace
-topic-docs convention: `<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md`,
-default `.work/<topic-slug>/`. That path is never committed (the memory root
-self-ignores), so scan output cannot leak into your git history. Resolution
-honors your repo's `.claude/topic-docs.yaml` or declared working-docs
-convention first (see `reference/topic-docs.md`); the skill reports the path
-either way.
+The durable candidate list lands in the memory tier:
+`<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md`, default
+`.work/<topic-slug>/`. That path is never committed (the memory root
+self-ignores), so scan output cannot leak into your git history. A working-docs
+root your repo declares in `CLAUDE.md` or `.claude/rules` replaces `.work/`; the
+skill reports the path either way.
 
 ## Configuration
 

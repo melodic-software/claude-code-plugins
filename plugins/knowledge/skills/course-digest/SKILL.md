@@ -1,12 +1,12 @@
 ---
 description: "Extract and synthesize online video courses into repo-applicable recommendations. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', or a Dometrain/Pluralsight/Udemy course URL. Single public YouTube videos use /knowledge:video-digest."
-argument-hint: "[action] [url|slug]"
+argument-hint: "[extract|analyze|status|resume|continue] [url|slug]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 ---
 
-**Arguments.** `[action] [url|slug]`. e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status
+**Arguments.** `[extract|analyze|status|resume|continue] [url|slug]`. e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status
 
 ## Pre-computed context
 
@@ -31,7 +31,7 @@ Where this skill says "deeper research," use whatever external-research capabili
 
 For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
 
-This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` seam; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
 
 ## Prerequisites (verify before starting)
 

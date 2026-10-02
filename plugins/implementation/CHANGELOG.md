@@ -21,6 +21,33 @@ All notable changes to the `implementation` plugin are documented here. Format f
   work and `frontier` rows dispatch `implementer` at the frontier alias. A per-invocation `model`
   on `implementer` still routes only upward.
 
+## [0.19.20] - 2026-10-02
+
+### Changed
+
+- **The README's migration note no longer cites the marketplace `renames` map,** which the
+  marketplace no longer carries.
+
+## [0.19.19] - 2026-10-02
+
+### Fixed
+
+- The `implement` `argument-hint` uses Claude Code's official bracket notation: it lists the actions
+  the skill accepts.
+
+## [0.19.18] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.19.17] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
 ## [0.19.16] - 2026-09-30
 
 ### Changed

@@ -1,0 +1,272 @@
+---
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired', 'compare two sessions'; read-only except the explicit clean action."
+user-invocable: true
+disable-model-invocation: false
+argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]"
+shell: bash
+metadata:
+  workflow-stage: operator
+  summary: Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity
+  cadence: weekly
+---
+
+**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS], compare <session-a> <session-b>
+
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Repo slug, `git rev-parse --show-toplevel | sed 's|.*/||'`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git. The dated record for that composition claim is the `source-control` plugin's
+[gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
+
+## Pre-computed context
+
+ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
+Rendered options (empty or unrendered means the manifest default): root `${user_config.session_event_log_dir}`; enabled `${user_config.session_event_log_enabled}`; categories `${user_config.session_event_log_categories}`; keep-sessions `${user_config.session_log_keep_sessions}`; keep-days `${user_config.session_log_keep_days}`; pre-prune-command `${user_config.session_log_pre_prune_command}`
+Hook event log, then the logging pipeline's six rows (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "event count unknown"; bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "pipeline unknown"`
+
+That line's two probes carry no option and print no option tier. The section 2.6 re-run
+(data-sources.md), fed the rendered values above as flags, is the one place the options render:
+run it before reading either probe's output into a report, and pass `--root` when the rendered
+root is not the default.
+OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
+OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
+
+The OTEL store lines are the three hot files (`<name>:<bytes>B` or `absent`), then `cold:<bytes>B (<n> files)`
+or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`, then `prune-task:<state>` for the
+Windows `ClaudeCodeOtelPrune` task. A report states hot size (sum of the three files), cold size and last-prune
+age, and flags `last-prune:never` or an age over about 2 days (`2d` or more): the scheduled prune is not firing.
+It also flags any `prune-task:` state other than `provisioned` or `n/a (not Windows)`. The states are listed
+in [context/operator-setup-retention.md](context/operator-setup-retention.md).
+
+## Purpose
+
+**Single place to read Claude Code observability**, where to read telemetry, how the
+collector/dashboard/store fit together, cross-session trend reports, and what one session did
+(which hooks fired, what was blocked, the event timeline). **CC** shorthand = Claude Code CLI.
+See [context/operator-setup.md](context/operator-setup.md) "Naming". Progressive disclosure
+lives in `context/` (read on demand. Do not recap inline).
+
+**Read-only**, never writes user-visible state except a report file under
+`${CLAUDE_PLUGIN_DATA}/reports/` (when `--write` is passed). Honors
+[context/privacy.md](context/privacy.md). Turning the hook logging pipeline on or off, and
+placing its guard, is `/harness-ops:setup`'s job; this skill reports what is in effect.
+
+**Not `/harness-ops:known-issues`**. That skill tracks Anthropic product bugs and GitHub issues.
+This skill reads **your** captured telemetry and ops signals.
+
+## Context ladder (read on demand)
+
+| File | When |
+|---|---|
+| [context/read-routing.md](context/read-routing.md) | Ad-hoc "which source for this question?" |
+| [context/otel-pipeline.md](context/otel-pipeline.md) | Collector/dashboard down, store empty, service health |
+| [context/otel-queries.md](context/otel-queries.md) | DuckDB SQL, Aspire CLI, views |
+| [context/operator-setup.md](context/operator-setup.md) | Install, env profile, retention scripts |
+| [context/operator-setup-collector-daemon.md](context/operator-setup-collector-daemon.md) | Collector/Aspire service down or unhealthy, lifecycle repair |
+| [context/operator-setup-retention.md](context/operator-setup-retention.md) | Prune mechanics, retention knobs, scheduled prune task |
+| [context/operator-setup-emission-privacy.md](context/operator-setup-emission-privacy.md) | Emission tiers, content-capture keys, privacy toggle |
+| [context/data-sources.md](context/data-sources.md) | JSONL + ccusage jq (batch reports, the per-session report, toggles in effect) |
+| [context/output-format.md](context/output-format.md) | Rendering scope reports and the per-session report |
+| [context/privacy.md](context/privacy.md) | Before any user-visible output |
+
+OTEL query and retention helpers live in `otel/` (private backends) with stable entry points in
+`scripts/`. Machine provisioning owns the Collector configuration and all long-running service
+and dashboard lifecycle.
+
+## Arguments
+
+`$ARGUMENTS`. Scope filter OR action. First token chooses behavior:
+
+### Reporting scopes (default behavior)
+
+| Scope | Window | Use case |
+|---|---|---|
+| `session` | the newest session file (by mtime) under the hook log root | what this session did, before `/clear` |
+| `session:<id>` | one named session file, `sessions/<id>.jsonl` | a session the timeline or another report named |
+| `day` | last 24 hours | end-of-day review |
+| `week` (**default**) | last 7 days | weekly retro complement |
+| `month` | last 30 days | trend evaluation |
+| `since:YYYY-MM-DD` | from explicit date | post-launch evaluation |
+| `all` | no filter | full history |
+
+The two session scopes render the per-session skeleton in
+[context/output-format.md](context/output-format.md); every other scope renders the whole-root
+report. Optional tokens: `--write` (persist the report to a keyed path under
+`${CLAUDE_PLUGIN_DATA}/reports/` instead of stdout) and
+`--hook-root REL` (read a different hook log root for this run; the rendered option above is
+the default).
+
+**`--write` resolves its path by running a command, never by composing one.** In the project
+being reported on:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/report-path.sh" --mkdir
+```
+
+It prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md` and creates
+the parent directory. Write there, and print that path on stdout. `<state-key>` is
+`lib/state-key.sh`'s `<repo-identity>/<worktree-discriminator>`, the scheme
+[`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+rule 1 defines. The key splits worktrees, which is what this report needs: its source is the hook
+event log inside the checkout, so two worktrees of one repository hold two different histories.
+The script names any unkeyed leftover from the older `reports/claude-observability-<date>.md`
+layout on stderr. Repeat that path to the operator as a file they may delete, and never read it or
+compute from it: it carries no project segment, so nothing records which repository produced it.
+
+When the scope is `week` or larger, optionally offer a self-contained HTML dashboard rendering
+the same multi-metric trend report alongside the markdown (session/day stay markdown; markdown
+remains the durable record).
+
+### Maintenance actions
+
+| Action | Args | Effect |
+|---|---|---|
+| `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` `[--hook-root REL]` `[--skill-usage-scope repo\|user\|data-dir]` `[--skill-usage-dir REL]` `[--keep-skill-usage-days N]` (default 365) | Prune the hook log root (the shared file line by line, session files untouched for the window whole, stale `prune-pending/` sets regardless of the logging switch), the retired shared file while it exists, and the OTEL store. See [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh`. Skill-usage pruning is **opt-in**: inert unless `--skill-usage-scope` is passed, and `data-dir` requires an explicit `--skill-usage-dir` rather than trusting `CLAUDE_PLUGIN_DATA` |
+| `latency` | `[--days N \| --since YYYY-MM-DD]` (default `--days 7`) `[--budget EVENT=MS]`... `[--min-fires N]` (20) `[--min-sessions N]` (5, minimum 3) | Read-only. Per lane and hook event from `hook_execution_complete` in the hot OTEL store: p50/p95 against a p95 budget, and a within-session slope that flags latency growing across a session. Fires `clean` has compacted to the cold tier are not included; a window reaching past the oldest hot fire prints a warning. Exit 0 none flagged, 1 flagged, 2 cannot evaluate. Takes about 60 s on a large store: run on demand or from a routine or loop, never a SessionStart hook. See `scripts/hook-latency.sh --help` |
+| `compare` | `<session-a> <session-b>` (two different `session.id` values, `^[A-Za-z0-9._-]+$`) | Read-only. One task run as two sessions, side by side from the hot OTEL store: `claude_code.token.usage` by type (`cacheCreation` its own column) split by model and effort (`none` when the attribute is absent), per-type totals, and each session's `claude_code.cost.usage` reconciled against its `api_request` events with status `match`, `events short` or `events exceed metric`. The metric is the total of record. Costs are Claude Code's estimate: on a subscription they measure work, not a bill. Exit 0 rendered, 2 cannot evaluate: a session with no metric rows (aged to the cold tier, or `OTEL_METRICS_INCLUDE_SESSION_ID` off) or a non-delta metric ("cannot reconcile: cumulative metrics"). See `scripts/session-compare.sh --help` |
+
+`latency` telemetry record:
+
+`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event`, `total_duration_ms`, `num_hooks` and `session.id`. Our probe of the live OTEL store under Claude Code 2.1.281 observed `total_duration_ms` arriving as a `stringValue`, so the script reads it with an `intValue` fallback in case that changes. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
+
+- **Pointer**: for the event and its attributes, see <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>; the string-typed duration is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
+- **As of**: 2026-10-01 for the docs sections; 2026-09-24, Claude Code 2.1.281, for the probe
+- **Recheck trigger**: that section renames the event or an attribute `latency` reads, a release note changes the duration's type, or `latency` exits 2 with no rows on a store that has recent sessions.
+
+`compare` reconciliation record:
+
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record, because an open upstream bug drops `api_request` events for some requests while the metrics stay complete; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193). Events above the metric are not explained by that bug and are flagged, never clamped. Summing data points is valid only for delta temporality, so a non-delta token or cost metric exits 2.
+
+- **Pointer**: for which requests lose their event, see anthropics/claude-code#98193; for the cost and token metrics, the `effort` attribute and the `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` default, see <https://code.claude.com/docs/en/monitoring-usage>. That page does not state which requests skip `api_request`.
+- **As of**: 2026-10-01; #98193 open.
+- **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
+
+Action invocation: `/harness-ops:observability clean [flags]`.
+
+**`clean` requires explicit user confirmation** before running when invoked by the model. Show
+`--dry-run` output first unless user already passed `--dry-run` or explicitly ordered cleanup.
+Routine retention (newest N sessions or the last N days) is the `SessionEnd` hook's job while
+`session_event_log_enabled` is on; `clean` is the operator's explicit sweep.
+
+### Ad-hoc telemetry reads (no special action)
+
+When the user asks to inspect traces, logs, metrics, or hook data outside a scope report:
+
+1. Read [context/read-routing.md](context/read-routing.md). Pick source
+2. Read [context/otel-queries.md](context/otel-queries.md) or [context/data-sources.md](context/data-sources.md). Run queries
+3. Apply [context/privacy.md](context/privacy.md). Redact before responding
+
+## Workflow. Scope reports
+
+### 0. Dispatch. Action vs scope
+
+If the first argument is `clean`, `latency` or `compare`: delegate to `scripts/clean.sh`, `scripts/hook-latency.sh` or `scripts/session-compare.sh` with the remaining arguments and return its exit code.
+
+```bash
+if [[ "${1:-}" == "clean" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/clean.sh" "$@"
+fi
+if [[ "${1:-}" == "latency" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/hook-latency.sh" "$@"
+fi
+if [[ "${1:-}" == "compare" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/session-compare.sh" "$@"
+fi
+SCOPE="${1:-week}"
+case "$SCOPE" in
+  session|day|week|month|all) ;;
+  session:*|since:*) ;;
+  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency|compare <id-a> <id-b>" >&2; exit 1 ;;
+esac
+```
+
+### 1. Gather data sources
+
+Read [context/data-sources.md](context/data-sources.md). Summary:
+
+| Source | Path | What it provides |
+|---|---|---|
+| ccusage | MCP or CLI | Token counts, cost USD, billing blocks |
+| Hook log root | `<session_event_log_dir>/` (`.observability/claude` by default, project-relative): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl` with its rotated `hook-events.jsonl.1`; present only once a producer wrote there | Hook duration, exit codes, what was blocked, the per-session event timeline |
+| Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the pipeline rows of the "Hook event log" line above) | Toggles, retention, guard state, stale prune sets |
+| OTEL store | `$CC_OTEL_STORE/*.json` → DuckDB | Logs, metrics, spans. [context/otel-queries.md](context/otel-queries.md) |
+| Auto-memory | `~/.claude/.../memory/feedback_*.md` | User-correction patterns |
+| Git / GH | `git log`, `gh pr list` | Activity context |
+
+### 2–5. Compute, privacy, render, output
+
+Compute the sections per [context/data-sources.md](context/data-sources.md), redact per
+[context/privacy.md](context/privacy.md), and render per
+[context/output-format.md](context/output-format.md). Every report ends with the "Toggles and
+retention in effect" section, the six probe lines verbatim.
+
+## Cross-references
+
+- `/harness-ops:known-issues`. CC product bugs (not telemetry reads)
+- `/harness-ops:setup`. Turns the hook logging pipeline on, places the guard, migrates the retired shared-file location
+
+## Boundary, the bundled `explain-usage` skill
+
+One native surface also answers "where did my tokens go", and the two get conflated whenever a
+session feels expensive:
+
+- **`explain-usage` (bundled skill)**: we route a plain-language breakdown of the current
+  session's tokens to it.
+  The model and the person can both invoke it where it resolves.
+- **This skill (marketplace plugin).** Reads locally captured telemetry (the OTEL store, the hook
+  event log, ccusage) across sessions: trends, cost, hook latency, which hooks fired, and a
+  per-session timeline.
+
+**Routing.** When the bundled `explain-usage` skill resolves in this session, prefer it for a quick
+plain-language breakdown of this session's tokens. Prefer this skill for cross-session trends,
+cost, hooks, and anything the local telemetry stores hold.
+
+**Mutation gate.** Neither writes to the telemetry stores: `explain-usage` explains, and this skill
+is read-only apart from `--write` reports and the explicit `clean` action. Never chain into one on
+the other's behalf.
+
+**Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
+and host; this section states what to do when it resolves, never that it is present. The records
+behind it live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
+
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Pointer: for where a `${…}` reference resolves, see
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. As of:
+2026-09-30. Recheck trigger: that table adds supporting files to where a `${…}` reference
+resolves.
+
+## Gotchas
+
+- Empty stores are normal on first run. Degrade gracefully
+- **No `${user_config.*}` inside a pre-compute command.** We render `${user_config.*}` values only in plain skill content, never on a shell line: a placeholder left unrendered on a shell line is a bash `bad substitution` that aborts the whole invocation, since one failed pre-compute line aborts every line. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Pointer: for where `${user_config.*}` renders, see <https://code.claude.com/docs/en/plugins-reference#user-configuration>; for the pre-compute substitutions, see <https://code.claude.com/docs/en/skills#inject-dynamic-context>. As of: 2026-09-09, Claude Code 2.1.263. Recheck trigger: either page names `user_config` for pre-compute lines
+- **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` plus its rotated `hook-events.jsonl.1` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
+- **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. We treat `session_id` as present on every hook input, so a row without one comes from a producer that dropped it, never from the harness. Pointer: <https://code.claude.com/docs/en/hooks#common-input-fields>. As of: 2026-09-06, Claude Code 2.1.263. Recheck trigger: the common input fields drop `session_id`
+- **Per-hook duration per session covers producers that emit `data.session_id`** (the nine harness-ops audit hooks). Other hooks appear in the whole-root tables only
+- **Hooks run in parallel**. Row order within one second is write order, not fire order; group by `prompt_id` or `tool_use_id`, not by adjacency
+- **Stop is a per-turn event, not a session boundary**. We treat Stop as firing once per turn, so a session with many turns emits many Stop rows, and `SessionEnd` as the session boundary. Aggregate per session on `SessionEnd`, never on Stop. Pointer: <https://code.claude.com/docs/en/hooks#hook-lifecycle>. As of: 2026-09-06, Claude Code 2.1.263. Recheck trigger: the lifecycle table changes either row, or a release note names Stop or `SessionEnd`
+- **`cc_spans` / `cc_traces`**. Views skip bind until `cc-traces.json` has content
+
+## What this skill does NOT do
+
+- **Does not track GitHub bugs**. Invoke `/harness-ops:known-issues` via the Skill tool
+- **Does not modify code**. Read-only
+- **Does not configure the pipeline**. `/harness-ops:setup` owns the toggles and the guard
+- **Does not replace built-in `/insights`** or your own retrospective workflow
+- **Does not write to memory** unless user explicitly saves

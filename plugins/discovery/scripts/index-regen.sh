@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate the marker-fenced child listing of a work-folder slice's INDEX.md,
-# and grade frontmatter-vs-disk child parity while doing it. This is the shared
-# regen script the topic-docs v3 design threads resolve to (T1-T5 in
-# docs/topics/work-folder-hierarchy/design/design-threads.md): frontmatter is
+# and grade frontmatter-vs-disk child parity while doing it. Frontmatter is
 # the single home for child order and slice status, the generated body between
 # the markers is the only span this script ever rewrites, and only the
 # orchestrating session invokes it.

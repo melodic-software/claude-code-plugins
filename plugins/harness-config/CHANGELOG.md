@@ -1,0 +1,5434 @@
+# Changelog
+
+All notable changes to the `harness-config` plugin are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
+
+## [1.3.1] - 2026-10-01
+
+### Changed
+
+- `audit-instructions` routes application-code prompts to `/claude-api prompt-audit` and Claude Code configuration to `/doctor prompt-audit`. Its `bundled-claude-api.md` reference scopes the `prompt-audit` row to the `/claude-api` door, adds a `/doctor prompt-audit` row, and re-stamps the guides row whose trigger fired at Claude Code 2.1.283.
+- `audit-pass` Phase 4 and its `doctor-handoff.md` reference name `/doctor prompt-audit` as an operator-run handoff, handed off the same way as the `/doctor` checkup.
+
+## [1.3.0] - 2026-10-02
+
+### Added
+
+- **`audit-instructions` rows I36 and I37** (`criteria.md` 1.26.0), both scoped to `sonnet-5-5`:
+  I36 flags an instruction that limits tool or search use as a general policy on a component that
+  has a search or retrieval tool; I37 flags model-visible text added after every tool result in an
+  interactive session without a condition.
+- **`audit-prompting-postures` P12, P13 and P14** and an `ideating` purpose: no self-started steps
+  after the run's end at `xhigh` or `max`, a runnable check behind a done claim, and ideas first on
+  an open-ended request, each stated as a check over the component's own text. P12 alone carries
+  the Sonnet 5.5 model condition; the catalog no longer says every row citing that subpage is
+  model-neutral.
+- **The `audit` checklist flags a code-changing or verifying component pinned below `medium`**,
+  the marketplace effort floor.
+
+### Changed
+
+- **The `audit-instructions` criteria catalog keeps its firing rules in our words and names its
+  sources.** A row's Source line names the page and section that documents its mechanic and quotes
+  nothing; the firing rule above it works without a live fetch. A row that acts on a volatile
+  upstream literal keeps the literal as its own setting and carries the links-only record: the
+  decision, a pointer to the exact section, an as-of date and an observable recheck trigger. The
+  vendor blog posts the catalog cites are marked correlate-only beside their docs pointer.
+- **`audit-instructions` records a source conflict.** The Fable 5 guide and the Opus 5 and Opus 4.8
+  guides disagree on throttling subagent dispatch, so the catalog records the disagreement with the
+  guide sections and keeps its per-target treatment of a throttle.
+- **The `audit-permission-state`, `audit-prompting-postures` and `agents-md-liveness` records use the
+  same shape.** The conditions under which `AGENTS.md` support is unavailable, the four **Project
+  instructions** values and where the setting is honored are stated as what our checks read, each
+  with a pointer to its anchored section of the memory page, an as-of date and a recheck trigger,
+  and none of the page's wording is stored.
+- **`audit-instructions` widens to Sonnet 5.5 and current models.** I10 fires on `sonnet-5-5`; I17
+  and I17-b cover `between_tools` in API code; the model sets of I17, I17-a, I17-c and I25 cover
+  Opus 5.5, Sonnet 5.5 and Fable 5.1; I17's ultracode count is narrowed to the effort that reaches
+  the request, and the row says so. I8-c records a declined `sonnet-5-5` widening and splits
+  `between_tools` ownership with I17; I17-a's Detect and Must-NOT agree; I17-b leaves the cache cost
+  of an effort change to Claude Code, with a pointer; rows that keep tokens of older models are
+  re-justified, and Fable 5 is treated as current.
+- **`audit-prompting-postures` repoints P2, P5, P6 and P8** to the current model subpages (P5 to the
+  one section that still covers its check), with a Sonnet 5.5 pointer block.
+- **The `audit` checklist's records are links-only**, and its exec-form, plugin-manifest,
+  fallback-model, effort-default and managed-settings rows are reduced to firing rules plus
+  pointers.
+- The `AGENTS.md` liveness reference lists three availability conditions with their version
+  floors, re-read against the memory page. audit-permission-state reads which sessions start in
+  auto mode at the permission-modes page instead of keeping a copy of its table. audit-
+  instructions points I25 and its Sources at the Sonnet 5 model page, since the old what's-new URL
+  now redirects, and names the surface pages behind I17-c's promotion gate. Postures P2 and P6
+  state their present-when conditions in our own terms.
+- audit-instructions I14 no longer says only the built-in Explore and Plan agents skip `CLAUDE.md`:
+  a custom agent with `omitClaudeMd: true` does too, so a rule restated for it is not flagged as
+  redundant. The record names the sub-agents page's internal disagreement on that field.
+
+## [1.2.1] - 2026-10-02
+
+### Changed
+
+- **The `audit` findings default to `.work/harness-config-audit/findings.json`.** The
+  `.work/claude-config-audit/` path is not read.
+- **The README drops the migration sections for `claude-config`, `claude-memory`, `claude-ops`
+  and `claude-config-audit`.** The marketplace no longer carries a `renames` map, so an install
+  that names an old id must be re-enabled under the `harness-*` name.
+
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- `audit` reports the mod-plane settings in new `D/mod-plane` rows: `prependPlugins`,
+  `appendPlugins`, `disableSideloadFlags`, and the built-in guard's `allowManagedModsOnly` and
+  `allowModsToOverrideDenyRules`. A copy in a scope Claude Code does not read for that key is an
+  `info` finding, and so is a user-scope `prependPlugins` or `appendPlugins` on a machine with
+  managed settings. `--table` lists every key that is set. They are kept apart from the
+  hook-suppression levers and never narrow a permission baseline.
+- `reference/agents-md-liveness.md` records the legacy `projectInstructions` key, which still sets
+  the mode while `instructionFiles` is at its default, and the documented ways a natively read
+  `AGENTS.md` differs from a `CLAUDE.md`, including that `--add-dir` directories contribute none.
+
+### Fixed
+
+- The `AGENTS.md` availability record listed four conditions, two of them stale: since 2.1.281
+  Bedrock, Vertex AI, Foundry, LLM gateways and telemetry-off sessions read `AGENTS.md`, and
+  `disableAllHooks`/`allowManagedHooksOnly` never stopped the built-in `agents-md` plugin. The
+  record now lists the memory page's three conditions, and `audit-prompting-postures`,
+  `audit-instructions` I14 and its conflict criteria no longer treat a hooks setting as turning
+  `AGENTS.md` off.
+
+## [1.1.1] - 2026-10-02
+
+### Fixed
+
+- The `draft-auto-mode-rules` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|` and drops the prose after the grammar, which the
+  skill body now carries.
+- The `setup` `argument-hint` uses Claude Code's official bracket notation: it leads with its check
+  action and keeps alternatives inside brackets with an unspaced `|`.
+
+## [1.1.0] - 2026-10-01
+
+### Added
+
+- **`audit-instructions` recommends `/instruction-placement:migrate plan` when project instructions
+  still live in `CLAUDE.md`.** `criteria.md` 1.25.0 adds the AGENTS.md content-home advisory: one
+  line in the report's Routing subsection per tracked project `CLAUDE.md` that migrate's plan
+  covers (never `.claude/CLAUDE.md`) whose content is anything other than `@AGENTS.md`. It keeps the `CLAUDE.md` shim, leaves shim removal to migrate's
+  `cutover-check`, routes Claude-specific text to `.claude/rules/` with a `paths:` glob, and sends
+  progressive-disclosure questions to `/docs-hygiene:audit-progressive-disclosure`. Both sibling
+  skills are named only when their plugin is installed. It is not a finding: no Finding ID,
+  severity, or diff. `## Next` names the migrate skill.
+
+## [1.0.0] - 2026-10-01
+
+### Changed
+
+- **BREAKING: the plugin is renamed `claude-config` → `harness-config`.** Claude Code 2.1.287's
+  `claude plugin validate` rejects third-party plugin names starting `claude-`. The marketplace
+  `renames` map rewrites `claude-config@melodic-software` in `enabledPlugins` and `pluginConfigs`
+  (Claude Code 2.1.193 or later); run `/plugin install harness-config@melodic-software` once and use
+  `/harness-config:*` in place of `/claude-config:*`. Saved state under
+  `~/.claude/plugins/data/claude-config-melodic-software/` is not moved: move it to
+  `harness-config-melodic-software/` before uninstalling the old plugin.
+- The description and README state the boundary with `harness-memory`: that plugin owns
+  memory-layer health, `audit-instructions` judges instruction text against the current model.
+
+## [0.55.5] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.55.4] - 2026-10-01
+
+### Changed
+
+- `audit-instructions` criteria I8-c and I10 and `audit-prompting-postures` P2, P5 and P6 cover `sonnet-5-5`.
+
+## [0.55.3] - 2026-09-30
+
+### Fixed
+
+- **`audit`, `audit-instructions`, `audit-pass` and `audit-permission-grants` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. In `audit`, `audit-pass` and `audit-permission-grants`, script paths now read `<skill-dir>/scripts/...` and `<plugin-root>/lib/...`, and each `SKILL.md` gains a `## Spoke paths` section saying which variable each placeholder is. `audit-instructions` is at the `SKILL.md` line cap, so its spokes point at the script paths `SKILL.md` already gives, resolved, instead of adding a section. The `audit-permission-grants` criteria, the `audit` hook-coverage checklist and the `audit` validation categories keep the literal token where it is the subject they detect, so no detection pattern or example changes.
+
+## [0.55.2] - 2026-09-30
+
+### Changed
+
+- `automode-entry-diff.sh --oracle` removes its scratch directory on exit; the suites remove their temporary directories.
+
+## [0.55.1] - 2026-09-30
+
+### Changed
+
+- **`audit`, `audit-instructions` and `audit-permission-state` descriptions fit the 500-character listing budget.** Each keeps its leading native-route phrase, its quoted trigger phrases and its sibling boundary, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.55.0] - 2026-09-30
+
+### Added
+
+- **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
+  `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
+  requested), takes the `fallbackModel` cap and the enum values
+  of string keys from the documented sections (a list with a bullet that is not a literal value, such
+  as the strftime pattern in `timeFormat`'s list, is open and gives no row, so `"%H:%M"` is not
+  flagged), checks nested keys inside objects the reference
+  documents, and quotes the binary's describe string for a key the docs leave undocumented. The
+  string is quoted only when every describe-bearing declaration of the key's name in the binary
+  carries the same one: the binary holds many schemas that reuse names such as `timeout` and
+  `enabled`, so a name declared with different descriptions gets none, and so does a key whose own
+  entry has no describe.
+- **`known-issues` fix versions are compared with the installed Claude Code version** in a new
+  Category J check. `reference/known-issues.md` documents the `Fixed in vX.Y.Z` form the check reads
+  and records why no tracked issue carries one yet, so the check emits no row until one does.
+  `SKILL.md`, the audit checklist and `context/validation-categories.md` describe Category J.
+
+### Changed
+
+- **The audit's Phase 2 prose matches the engine.** Hook event names are engine-decided in `SKILL.md`
+  and `context/validation-categories.md`, and the checklist template sends Phase 2 to the judgment
+  column; the model reads the hooks page only for a row the engine left `not-inspectable`.
+- **The audit checklist's hook Timeouts row states the figures `context/validation-categories.md`
+  states** (5-15s for simple formatters, 30s for slow-startup tools) and says they are this skill's
+  judgment, not a documented limit. It previously gave 5-30s and up to 60s.
+- **A `fallbackModel` array longer than the documented cap before duplicates are removed is no longer
+  a warning.** The row compared the raw length with the declared schema's `maxItems` of 3, which the
+  engine does not read, so that case is now a `skip` row. Only the distinct count past the cap the
+  `fallbackModel` section states is a finding.
+
+### Fixed
+
+- **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
+  a key containing U+0000 stays in one row.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
+  quotation the page no longer carries is restated from the page's wildcard table.
+
+## [0.54.0] - 2026-09-30
+
+### Changed
+
+- **The docs fetcher is canonical in `lib/fetch-docs.sh` and takes `--profile <name>`.** A profile
+  names a publisher's index URL, page path prefix, raw-channel suffix and content types; `anthropic`
+  is the default and the only one defined, so existing callers behave as before.
+  `scripts/fetch-docs.sh` is a byte-identical copy of the canonical file, kept in step by
+  `scripts/sync-fetch-docs.sh` (run in CI). The test seam variables are renamed to
+  `FETCH_DOCS_FIXTURE_DIR`, `FETCH_DOCS_INDEX_URL` and `FETCH_DOCS_CLAUDE_BIN`; `audit-engine.sh`
+  and `check-doc-citations.sh` use the new names.
+
+## [0.53.6] - 2026-09-30
+
+### Changed
+
+- **`audit` / Phase 5:** route approved `settings.json` and `settings.local.json` edits through `update-config` with
+  the `[Self-Modification]` handshake, and document the two auto-mode refusals
+  (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
+  `[Self-Modification]`) with the operator fallback
+  ([#5376](https://github.com/melodic-software/claude-code-plugins/issues/5376)).
+
+## [0.53.5] - 2026-09-29
+
+### Changed
+
+- **`unhobble`: listing description trimmed to 500 characters or fewer.** Quoted triggers are
+  kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.53.4] - 2026-09-29
+
+### Fixed
+
+- **`scripts/fetch-docs.sh`:** a slug resolves only to the top-level docs page
+  (`/docs/en/<slug>.md` or `/docs/<slug>.md`). A nested page with the same basename, such as
+  `plugins/cli-reference.md`, no longer shadows the top-level page, so `--discover` no longer marks
+  the top-level page not-in-index
+  ([#5496](https://github.com/melodic-software/claude-code-plugins/issues/5496)).
+
+## [0.53.3] - 2026-09-29
+
+### Changed
+
+- **`audit-permission-state`, `audit` and `audit-instructions` descriptions open with a
+  presence-gated routing clause for the native skill their Boundary section routes to.**
+  `audit-permission-state` routes reducing permission prompts by writing an allowlist to the bundled
+  `fewer-permission-prompts` skill and keeps showing what is in effect. `audit` routes a settings
+  change the person requested to the bundled `update-config` skill and keeps auditing what is
+  configured. `audit-instructions` routes a model migration, a target-model change, or any pass over
+  application-code prompts to the bundled `claude-api` skill's `prompt-audit`, keeps the standing
+  audit of Claude Code instruction surfaces, and runs both when a sweep wants both. The `suggest`
+  surfaces (`/permissions`, `/auto-mode-setup`, `doctor`) get no phrase.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The six bullets in `audit-instructions`, `audit-permission-grants`,
+  `audit-permission-state`, `audit` and `draft-auto-mode-rules` keep the provenance class, what
+  the surface does and how it is invoked, in the native-references template form.
+
+## [0.53.2] - 2026-09-29
+
+### Added
+
+- **`audit-permission-grants` carries a Boundary section for the built-in command
+  `/permissions`.** The command edits rules interactively; this skill audits grants and writes
+  nothing. The model offers the person-run command when a finding calls for changing a settings
+  rule.
+
+## [0.53.1] - 2026-09-29
+
+### Added
+
+- **`draft-auto-mode-rules` carries a Boundary section for the built-in command
+  `/auto-mode-setup`.** The command drafts and saves `autoMode.environment` entries; this skill
+  interviews for every section and prints only. The model offers the person-run command at the
+  start of the run rather than invoking it.
+- **`audit-permission-state` carries a Boundary section for the bundled skill
+  `fewer-permission-prompts` and the built-in command `/permissions`.** When
+  `fewer-permission-prompts` resolves in the session it is preferred for writing an allowlist, and
+  this skill for seeing what is in effect; the model offers the person-run `/permissions` for
+  interactive editing rather than invoking it.
+- **`audit-instructions` carries a Boundary section for the bundled skill `doctor`.** The model
+  offers the person-run `/doctor prompt-audit` at the end of the run as an addition to this
+  report-only audit, rather than invoking it.
+- **`audit` carries a Boundary section for the bundled skill `update-config`.** When it resolves in
+  the session it is preferred for making a requested settings change, and this skill for auditing
+  configuration.
+
+## [0.53.0] - 2026-09-29
+
+### Added
+
+- **`scripts/fetch-docs.sh`: one shared fetcher for upstream docs pages.** It resolves each page
+  through the docs index, reads it verbatim over HTTPS from the docs origin, and writes a per-run
+  manifest with `url`, `retrieved`, `sha256`, `status`, `content_type`, `bytes`, `lines`, `state`,
+  and `reason` per page, plus `claude_version`. A 404, a non-markdown body, or a truncated body is
+  `unread` and leaves no file. There is no persistent cache
+  ([#4655](https://github.com/melodic-software/claude-code-plugins/issues/4655)).
+
+### Changed
+
+- **`audit` engine:** reads its docs pages through the fetcher and carries the manifest fields in
+  the `docs` coverage record (#4655).
+- **`check-doc-citations.sh`:** reads its pages through the fetcher. A slug the docs index does not
+  list, or any page the fetcher reports unread, prints a visible `SKIP` line instead of grepping a
+  foreign body (#4655).
+
+## [0.52.1] - 2026-09-29
+
+### Changed
+
+- **`audit-instructions` / I15:** record the user-request-conflict axis as a non-member in the
+  Boundary section, with the co-residency reason; `conflict-criteria.md` 1.6.2
+  ([#3565](https://github.com/melodic-software/claude-code-plugins/issues/3565)).
+
+## [0.52.0] - 2026-09-29
+
+### Added
+
+- **`unhobble`: a `decide` argument.** `decide` lists an experiment's open decisions and, when the
+  `discovery` plugin is installed, researches each one and gives the memo to two blind decision
+  agents. Agreement is presented for confirmation and disagreement returns to the operator as a
+  question. It never mutates ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)).
+- **`unhobble`: `status` prints phase, elapsed days, ledger row count, register holds, confounds,
+  and the pull request URL.** The manifest gains `phase`, `branch_deviation`, and an optional
+  `pr_url`. `readd` refuses to run while the phase is `bare` or `observe` and reports the ledger
+  grouped by suspected missing instruction against the two-row gate (#4094).
+
+### Changed
+
+- **`unhobble`: a convention unit's default follows an oracle test.** A gating oracle strips the
+  prose and keeps the gate, an advisory oracle or none keeps the unit, and a register class is kept
+  whatever the test says. A unit under `plugins/<name>/` is recorded as
+  `unstripped-product-surface` and never stripped, and a session pinned to a branch uses it as the
+  experiment branch (#4094).
+- **`unhobble`: silence is no longer a deletion warrant.** An empty ledger licenses deleting an
+  editorial candidate only. A consequential rule the ledger did not defend goes to a Deletion watch
+  or is restored, and only a closed watch makes its removal permanent. The watch counts qualifying
+  sessions as fresh sessions on the experiment branch
+  ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)).
+- **`audit-instructions`: the findings relay follows `criteria.md` surfaces and tiers.** I31 and I33
+  admit any file inside a skill directory (I33 excludes `SKILL.md`), I33 names the nearest ancestor
+  `SKILL.md` as its hub, and I32 is CRITICAL under `plugins/` and IMPORTANT on a user or project
+  surface ([#4116](https://github.com/melodic-software/claude-code-plugins/issues/4116),
+  [#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)).
+- **`audit-instructions`: the subagent-window claim carries a verification record, the read-only
+  contract covers lane reports and run-state writes, and I33 rows count as one dispatch outside the
+  per-lane verifier batches.** `context/execution-and-report.md` is deleted; `SKILL.md`, the
+  finding-identity reference, and `context/persist-findings.md` own what it restated
+  ([#4113](https://github.com/melodic-software/claude-code-plugins/issues/4113),
+  [#4114](https://github.com/melodic-software/claude-code-plugins/issues/4114),
+  [#4115](https://github.com/melodic-software/claude-code-plugins/issues/4115)).
+- **`README.md`** describes the `audit-instructions` flags and the `unhobble` state fields.
+
+### Fixed
+
+- **`audit-instructions`: I21 and the `audit` effort-pin row state the current effort defaults.**
+  The default carve-out named only Opus 4.7 as a non-`high` default; the model-config page's
+  resolution order also has Opus 5.5 and Sonnet 5.5 defaulting to `medium`, so the "`high` is the
+  default" exemption lifts for them too. The stale first-run-hold clause is removed from Source,
+  and Verified and the recheck trigger follow the 2026-09-28 read of both pages.
+- **`unhobble`: the state-write gotcha and its eval no longer restate the `block-hook-bypass`
+  exit code or call a heredoc alone a blocked form.** The skill says why a shell write is wrong and
+  leaves what the hook catches to its README.
+- **`audit-instructions`: `finding-ids.sh` no longer hashes a non-instruction file under `$HOME`.**
+  A row naming `~/.ssh/config` or `~/.claude/.credentials.json` is refused as
+  `surface-not-an-instruction-file`. The user surface stays home-wide for instruction-file shapes
+  (any markdown file, and `settings.json`, `settings.local.json`, `hooks.json` inside a `.claude`
+  tree or the resolved `CLAUDE_CONFIG_DIR`, plus any file beneath a `skills/` directory in those
+  trees) (#4116).
+- **`audit-instructions`: the I15 ledger link in `conflict-criteria.md` no longer points outside the
+  repository.** It names the path in code font
+  ([#3568](https://github.com/melodic-software/claude-code-plugins/issues/3568)).
+- **`audit`: the row for a live `PreToolUse` hook that already blocks a pattern carries the
+  unattended-lane note** like the other ask-rule rows
+  ([#4600](https://github.com/melodic-software/claude-code-plugins/issues/4600)).
+- **`audit-permission-state`: a settings file whose last `permissions` key is a string is no longer
+  rejected as invalid JSON.** `{"permissions":{"defaultMode":"bypassPermissions"}}` is now scanned,
+  so `C2-defaultMode` and `C5-disableType` fire on real files. Both `C2-defaultMode` findings say to
+  remove the value from the named file and state the masking claim only where no higher-ranked
+  settings file or `--permission-mode` sets a mode. The unsourced auto version boundary is removed
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+- **`audit-instructions`: the 200000-token lane-window fallback carries a recheck trigger.** The
+  claim, basis, as-of date and trigger sit beside the fallback in `SKILL.md`.
+- **`audit-instructions`: `emit-findings.sh` finds the I33 hub when run from a repository
+  subdirectory with relative paths.** The hub probe now starts from the repository root instead of
+  the working directory.
+
+In-place changelog corrections:
+
+- 0.51.18: body replaced by a pointer; it repeated the 0.51.16 Fixed entry (released by #5159) and the 0.51.10 Changed entry (released by #5161).
+- 0.51.17: body replaced by a pointer; it repeated the 0.51.15 entry (released by #5156).
+- 0.51.7: states it shipped through #5154 (commit 9c2db71f6), not #5059 (closed unmerged).
+- File header: notes that 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
+
+## [0.51.30] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `audit`, `audit-automation-gaps`, `audit-instructions`, `audit-permission-grants`, `audit-permission-state`, `audit-prompting-postures`, `unhobble` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.51.29] - 2026-09-28
+
+### Changed
+
+- `audit-pass` reference spokes `determinism-tiers.md` and `run-state-and-resumability.md`, and
+  the `audit` spoke `validation-categories.md`, open with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on them.
+
+## [0.51.28] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions`: the I6 pre-scan adopts the measured gate set of
+  `docs-hygiene`'s `rule-negation-without-positive`.** A row is now a sentence that opens with the
+  prohibition (after list, blockquote, checkbox, and emphasis markers) and carries neither a paired
+  positive (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) nor a rationale
+  marker. Soft-wrapped paragraph lines join into one sentence before the split, and frontmatter,
+  fenced code, table rows, headings, and HTML comment lines are never read. A fence, blockquoted
+  or not, closes only on its opener's character at the opener's length or longer with nothing
+  after it. audit-noise's hard-guardrail carve-out (secrets, credentials, production, …) is not
+  adopted: a guardrail "never" still owes I6's fallback rationale (I7), so it stays a candidate. On
+  this repository at `2dfaaa40`, over the 990 `*.md` files under `plugins/*/skills/`,
+  `plugins/*/agents/`, and `.claude/`, plus every `CLAUDE.md` and `AGENTS.md`, the seed falls from
+  6,608 raw rows to 913. New `--i6-counts` prints `I6 raw=<n> surviving=<n>`, which the Phase D
+  cost line now states. `criteria.md` 1.24.0 rewrites the I6 Detect sentence to say the exclusions
+  are structural, not the row's fences, and adds I33's Reporting line (#4115).
+- **`audit-instructions`: I33 is reported one finding per spoke and rolled up per plugin.** Each
+  finding is anchored by an excerpt over the spoke's opener sentence with its heading path as the
+  discriminator, never a whole-surface anchor. The lane brief restates the row's Must NOT flag
+  fences (one-line scope note, hub index table, frontmatter). Phase C judges the class with one
+  class-batched verifier, and Phase D moves I33 rows into a collapsed per-plugin section that keeps
+  each row's `Surface:Line` and fenced diff. The row's tier, authority, Detect, and Remediate are
+  unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
+  (#4115).
+
+## [0.51.27] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: findings carry an identity that survives a re-run.** Every finding adopts
+  `audit-pass`'s `(check, claim, sites)` identity: `check` is
+  `claude-config/audit-instructions/<id>`, each catalog check gains a claim template in the new
+  `reference/finding-identity.md`, anchors are `anchor/v1` excerpt anchors with the heading-path
+  discriminator, and an I15 conflict is one finding with two sites. New `scripts/finding-ids.sh`
+  derives the anchors, `finding_id/v1`, and `group/v1` through `audit-pass`'s
+  `finding-identity.sh`, and its records pass that script's emitter guard. The Phase D table gains
+  a Finding ID column (#4116).
+- **`audit-instructions`: `--persist-findings` emits I30, I31, I32, and I33 from lane findings.**
+  `emit-findings.sh` gains a second intake, `--from-lane`, beside the scanner-fed `--from`. The four
+  rules take new detector-findings crosswalk rows (convention 3.2.0): I30 and I31 at IMPORTANT, I32
+  at CRITICAL, I33 at SUGGESTION, none auto-applicable, I31 and I33 naming their off-site target in
+  `Action`. Lane rows omit `Confidence`. A frontmatter-located I32 row is declined as
+  `reason=frontmatter` and counted, I31 and I33 rows outside a spoke are declined as
+  `reason=outside-rule-surfaces`, and a row on the wrong intake is declined naming the intake it
+  belongs to. Every emitted row carries `finding_id=` in its `Finding` cell, and rank order is tier,
+  then `high` above omitted `Confidence` (#4116).
+
+## [0.51.26] - 2026-09-28
+
+### Changed
+
+- **`unhobble` watch clears a consequential deletion with the re-add grammar** ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)). The re-add gate stays the only evidence grammar: ledger rows, same-cause aggregation, and a commit that cites the rows. `watch` records a per-rule window before removal. A protected class never enters a watch. An editorial cut does not need one. A consequential deletion is applicable only when the watch closes with its qualifying-session count met and zero attributed rows, and the removing commit cites that watch. `audit-instructions` requires that citation before a consequential cut may proceed.
+
+## [0.51.25] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `audit-instructions` routing line and its `bundled-claude-api` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.51.24] - 2026-09-28
+
+### Changed
+
+- **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. A plugin without hooks is classified across every component type; an MCP or LSP server, executable, or monitor makes it non-derivable, and its skills, commands, and agents use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores each key to its prior project value (true, or absent). A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
+
+## [0.51.23] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-grants` criteria (#4583).** P2 cites `docs/plugin-philosophy.md` as the
+  doctrine owner for hardcoded consumer specifics; this skill keeps the permission-grant detector only.
+
+## [0.51.22] - 2026-09-28
+
+### Changed
+
+- **`unhobble` Phase 4 sends the deletions it keeps to a security pass**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The register
+  hold restores protected rules only. Before the experiment branch merges, the pull request
+  now runs `/review:security-review` when the `review` plugin is installed. That skill's
+  instruction-surface lens checks every rule left deleted for a guardrail nothing else
+  enforces. Without the plugin, the pull request body records that the retired rules got no
+  security pass.
+
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **`unhobble` keeps the experiment ledger in the repo** ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)). Phase 1 writes `manifest.json` and `stumbles.md` under `.claude/unhobble/<experiment-id>/` with the Write or Edit tool, and the strip commit carries them. Later ledger updates are committed on the experiment branch. `${CLAUDE_PLUGIN_DATA}` holds only `backups/`. Identity is `origin_url`, `branch`, and `base_commit`; a committed manifest records no absolute host path. A state path under the topic-docs contract dir is refused, because `scripts/check-contract-slice-prune.sh --check-diff` fails a pull request that leaves one there. Evals cover the repo state dir, the identity fields, the contract-dir refusal, and Write or Edit for state writes.
+
+## [0.51.20] - 2026-09-28
+
+### Changed
+
+- **`audit` Category D records the Windows exec-form rule as a four-part verification.** The checklist row quotes the hooks page ("`command` must resolve to a real executable such as a `.exe`"), dated 2026-09-28, and points at `scripts/check-exec-form-windows-probe.sh`. A `.sh` path or bare `bash` is not an exec-form fix. Phase 2 names that checklist row as the record. No scanner change.
+
+## [0.51.19] - 2026-09-28
+
+### Changed
+
+- **Bundled `claude-api` currency, and the `/doctor` handoff for managed-policy diagnosis** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The audit-instructions source line now records a 2026-09-28 read of the skill inside Claude Code 2.1.282: the Fable migration sections remain, the model-migration guide adds an eval-grounding section from the 2.1.260 refresh, and the `prompt-audit` guide still runs Steps 0–7. Changelog 2.1.283 is the next release that names `prompt-audit`. `audit-pass` `doctor-handoff.md` sends policy-load, helper-refresh, and credential-in-use questions to `/status` and `claude doctor` (v2.1.260 and v2.1.261) instead of inventing a local read.
+
+## [0.51.18] - 2026-09-28
+
+No change: repeats the 0.51.16 entry (released by #5159) and the 0.51.10 entry (released by #5161).
+
+## [0.51.17] - 2026-09-28
+
+No change: repeats the 0.51.15 entry (released by #5156).
+
+## [0.51.16] - 2026-09-28
+
+### Fixed
+
+- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
+
+## [0.51.15] - 2026-09-28
+
+### Changed
+
+- **Permission and effort facts from Claude Code 2.1.257 to 2.1.261**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `required-permissions.md` now states that redirect targets are covered by Read and Edit deny
+  rules from 2.1.257, and that the 2.1.259 widening onto Bash arguments was reverted in 2.1.260.
+  Strict sandbox mode does not sandbox `!` shell-mode commands in an interactive session from
+  2.1.260. `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP
+  from 2.1.257. The audit checklist records `bashOutputMaxChars` (clamped 4000 to 128000, not
+  raised by default) and that `taskOutputMaxChars` was removed in 2.1.277. `audit-instructions`
+  I21 drops the "Opus 5 has no hold" sentence for the current model-config page: Opus 5.5 ignores
+  a top-level user `effortLevel`, and that key still applies on Opus 5, Fable 5.1, and earlier
+  models. Each claim cites the page read on 2026-09-28.
+
+## [0.51.10] - 2026-09-28
+
+### Changed
+
+- **Managed-policy diagnosis routes to `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `audit-permission-state` still cannot see server-managed settings, which have no local path. The note now sends the operator to `/status` (Setting sources and the Organization policy line) and to `claude doctor`, which shows the same line, for a policy that did not load, a policy-helper failure, or a credential that is signed in but not in use.
+
+## [0.51.7] - 2026-09-28
+
+Shipped through [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) (commit 9c2db71f6), not #5059, which was closed unmerged.
+
+### Fixed
+
+- **`audit-permission-state` treats project `defaultMode: "bypassPermissions"` as dead**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), Claude Code
+  2.1.257). `C2-defaultMode` already flagged `auto` in project and local settings. From 2.1.257
+  the same files also ignore `bypassPermissions` (the session starts in Manual). `acceptEdits`,
+  `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page. The
+  permission-rule-hygiene convention states the same pair.
+
+## [0.51.6] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` catalog 1.23.0 closes surface-class gaps and keeps one lane-sizing rule** ([#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)). I31 covers `SKILL.md` and every file a skill loads (directory names are examples). I32 adds a user/project arm at `warning`. I30 and I12 gain Must NOT flag lines that route stretched cases to a new Out-of-catalog section, which Phase C refutes and Phase D reports and which never reaches `emit-findings.sh`. The surface partition accounts for I6–I35. Dispatch stays #4114's token-budget partition: no 9-lane cap and no 2,500-line constant. The central pre-scan runs once before dispatch; Phase C batches one verifier per lane that produced proposals.
+
+### Fixed
+
+- **`instruction-scan.sh` greps each family once over all files** (GNU and BSD `--null`), so process count no longer grows with file or hit count.
+
+## [0.51.5] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: parent record for the execution model and the report identity
+  contract (#4113).** New `context/execution-and-report.md` states the two standing contracts
+  the skill body already implements in pieces: token-budgeted plugin-atomic lanes with
+  `--unattended` and `--resume` over per-lane run files, and `(check, claim, sites)` finding
+  identity with I15 as one finding of two sites. Persist admission of I30 to I33 is recorded
+  there as the contract the persist unit satisfies; until those crosswalk rows exist they stay
+  declined `no-severity-crosswalk-row`. Phase D names the identity contract on the findings
+  table. No scanner, emit, or lane-runs change.
+
+## [0.51.4] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15:** point shared-surface *ownership* questions at the rejected-concept
+  ledger entry for #3568 (`docs/out-of-scope/shared-surface-instruction-governance.md`). I15 still
+  detects conflicting pairs only; `conflict-criteria.md` 1.6.1.
+
+## [0.51.3] - 2026-09-28
+
+### Fixed
+
+- **`audit`: unattended-push lane parse accepts CRLF and backticked rungs.** The
+  team-tracked `.claude/source-control.md` reader now strips CR and surrounding
+  backticks/whitespace on the merge value, and the suite pins that shape plus a
+  gawk/mawk PATH shim (#4600).
+
+## [0.51.2] - 2026-09-28
+
+### Fixed
+
+- **The `git push` ask-rule finding no longer tells an autonomous lane to stall itself (#4600).**
+  `audit` recommended adding `Bash(git push *)` and `Bash(git push)` to `permissions.ask` at
+  `warning` even in a repository whose team-tracked `.claude/source-control.md` declares an
+  unattended merge lane, although an ask rule prompts in auto mode and is auto-denied under
+  `dontAsk`. When `babysit_loop_merge` resolves above `human-only` in that file (an explicit
+  `c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane keys that default to the
+  `c2-mechanical` baseline), the push ask rows are now `info` and name the signal. Every push ask
+  row states that the rule blocks unattended lanes. Deny families, force-push included, are
+  unaffected. `required-permissions.md` narrowing 1 names the exemption and the signals that count.
+
+## [0.51.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eight of the nine listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: surface enumerations, check
+  lists, run mechanics, and the long "not for" lists. `check-listing-budget.sh
+  plugins/claude-config/skills` goes from 6,640 to 4,341 characters. No skill is renamed or
+  merged.
+
+## [0.51.0] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: token-budgeted lanes, `--unattended`, and `--resume`.** Phase B no longer
+  fans out one lane per skill. A lane's budget is 0.25 of the lane model's own context window at
+  3.5 bytes per token (Anthropic glossary, verified 2026-09-28), and the line figure is derived per
+  run from measured bytes per line. Plugins pack whole into lanes; only a plugin larger than the
+  budget splits by skill, and the Phase D cost line names each split. `--unattended`, declared by
+  the caller and never inferred, turns the ~20-dispatch confirmation into a cost-line disclosure.
+  Each lane report lands at
+  `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/lanes/<lane-id>.md`, ending
+  in a completion marker that carries the lane's input digest (file list and content hashes,
+  partition digest, catalog and conflict-criteria versions, prompt digest, harness version,
+  resolved target model, scope, `--opinion`, `--no-stopping-condition`). `--resume` picks the
+  latest run under the state key, refuses to attach while its lease is live (naming `heartbeat_at`
+  and `stale_after_s`), and re-runs only lanes that are incomplete or whose digest changed. The
+  lease is `audit-pass`'s `run-state.sh`, invoked with
+  `--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions`. New `scripts/lane-runs.sh`
+  (`partition`, `digest`, `marker`, `plan`, `latest`, `attach`) with a test suite, and three
+  evals (#4114).
+
+### Changed
+
+- **`audit-instructions`: in a marketplace repository, `plugins/**` is the editable set.**
+  `conflict-criteria.md` 1.6.0 rewrites the "Known limit" section: when
+  `.claude-plugin/marketplace.json` is present, Phase A inventories the plugin source as locally
+  owned, the installed cache is read for residency only, and the report names drift between the
+  install record's commit (or version) and HEAD. The Phase A inventory note points at the rule
+  (#4114).
+
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **`audit-instructions`: Phase D names the disposition for a lane whose residency is
+  unresolved.** The Phase B hand-off told such a lane to report "as conditional rather than as
+  findings", but Phase D defined only the findings table with a diff per row, so the result
+  landed as an ordinary actionable finding. The Proposed change column now takes a closed set, a
+  proposal, `no change proposed`, or `RESIDENCY-UNRESOLVED: <condition>`, and the last carries no
+  fenced diff and is not re-judged in Phase C. The Phase B hand-off and the Phase A inventory
+  note use the same name. Under `--persist-findings` such candidates are held out of `--from`
+  and counted by a new `emit-findings.sh --declined-residency <n>` line, separate from the I28
+  carve-out count. New eval and fixture (#4314).
+
+## [0.50.0] - 2026-09-27
+
+### Added
+
+- **The audit engine reports `skillOverrides` entries that can never take effect.** Plugin skills
+  are not affected by `skillOverrides` (skills and settings-reference pages, verified 2026-09-27),
+  so an entry keyed for one is inert. Category G gains two rows:
+  - `G/skill-override-plugin` (`warning`), one per key in the user, project or local settings
+    file whose text before the first `:` names a plugin in the installed registry or in any
+    scope's `enabledPlugins` keys, `false` included. The anchor is the key's JSON pointer, and the
+    detail names the levers that do reach plugin skills. A colon key whose prefix names no known
+    plugin, such as `apps/web:deploy` or `anthropic-skills:pdf`, is a `skip` row, never a finding
+    and never clean. Keys only; no override value reaches a row.
+  - `G/skill-override-home-local` (`info`) when `<user dir>/settings.local.json` holds a non-empty
+    `skillOverrides` object. That file is the project-local file for sessions started in the home
+    directory, so its entries reach no other project. An unreadable or invalid file is
+    `not-inspectable`.
+  The engine's `scopes` block lists that file as `user-local`, so the read is disclosed even when
+  it is none of the audited scopes. A home-rooted run reads the shared settings file once, by file
+  identity. Not detected, by design: an alias key that names no skill at all, since bundled and
+  claude.ai-synced skill names are not enumerable from files and the check would flag working
+  keys such as `doctor`. The exemption quotes in the checklist, validation categories and the
+  audit-pass doctor handoff now match the live settings-reference wording (#4654).
+
+## [0.49.3] - 2026-09-27
+
+### Fixed
+
+- `audit-prompting-postures` Phase D no longer does nothing on a clean run. With no proposed addition
+  to refute, the verifier now checks the verdicts instead: that a component needs a posture it was
+  judged not to need, that a classification is wrong, or that a `PRESENT` citation does not carry
+  the posture. A reversal becomes a row with its corrected verdict. The verifier attestation line is
+  now required on every run, names surface batches in both places it is described, and says which
+  check the verifier ran (`proposals` or `verdicts`). A new eval covers the clean-audit case.
+
+## [0.49.2] - 2026-09-27
+
+### Changed
+
+- `audit`'s env-var checklist row drops its `**MANDATORY**:` prefix. The row still requires reading `code.claude.com/docs/en/env-vars` verbatim and searching it for each env var name, and still says WebSearch alone is insufficient (#4120).
+
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq`, `curl`, `awk`, and `sort` at load time.** The four `command -v` checks run as
+  pre-computed context, so `check` reads their results instead of making four Bash calls. The FAIL
+  rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
+## [0.49.0] - 2026-09-26
+
+### Added
+
+- **The audit engine labels consent receipts.** An undocumented top-level key recorded in
+  `skills/audit/reference/consent-receipts.json` (keyed by `plugin@marketplace` owner, or
+  `claude-code` for keys the CLI writes; first entry `skipWorkflowUsageWarning`, user scope) is an
+  `ok` row under check `A/consent-receipt`, claim `consent-receipt:<key>`, when the file's scope is
+  one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
+  `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
+  stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
+  name, which also withholds any other owner's label for the key). A key is never labeled when the
+  same file also holds a carriage-return variant of it. A missing or invalid record file, including
+  one whose record fields hold a control character or that lists a key under two owners, is one
+  `not-inspectable` row. An existing
+  `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
+  labeled; the row it retired is no longer a finding.
+
+### Changed
+
+- **The audit engine no longer asks for an explicit `true` or `false` on catalog plugins.** The
+  `drift-new` finding (`new-upstream:<name>@<marketplace>`) is gone. For each marketplace whose
+  catalog has plugins with no `enabledPlugins` entry in any readable scope, the engine emits one
+  `ok` inventory row under check `E/drift-new` (claim `drift-new:<marketplace>`) with the count and
+  an example key.
+- **A disabled plugin is a finding only when an enabled plugin depends on it.** The `info` finding
+  on every `false` key (`disabled-plugin:<key>`) is gone. Every `false` key in the user, project and
+  local files is now an `ok` inventory row with the same claim, noting when a `true` at a higher
+  scope shadows it. A `false` that is the merged value (local over project over user) and that an
+  enabled plugin declares as a direct dependency in its `.claude-plugin/plugin.json` is a `warning`
+  finding, `dependency-disabled:<key>`, on the file holding the `false`, naming the dependents.
+  String (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) dependency forms
+  are read; a bare name resolves to the dependent's marketplace. The manifest is optional, so an
+  install path without `plugin.json` declares no dependencies. An enabled plugin whose install path
+  did not resolve, whose `plugin.json` is not valid JSON, or whose `dependencies` is not an array is
+  a `not-inspectable` row, `dependencies-unread:<key>`.
+  Managed-scope `enabledPlugins` is not merged, and version constraints are not checked. Basis: the
+  plugins/install page (disabling a plugin another enabled plugin needs is refused) and the
+  plugins/dependencies page (a dependent is disabled at the next plugin load), both pinned in
+  `reference/doc-citations.tsv`.
+- **Suppression records keyed to the removed findings no longer match anything.** Records for
+  `disabled-plugin:*` and `new-upstream:*` findings can be deleted from `.claude/audit-pass.md`;
+  those rows are inventory now and carry no finding id. The new finding id to suppress, if wanted,
+  is `dependency-disabled:*`.
+- **`fix-plugin-drift.sh --yes` never adds a key.** NEW upstream plugins print as a
+  `NEW (report only)` list, and the AUTO-ADD plan section is gone.
+- **`fix-plugin-drift.sh` holds an orphan-`false` removal that would expose a `true`.** When the
+  user settings file (or, for an audited `settings.local.json`, its sibling `settings.json`) holds
+  `true` for the key, the removal moves to MANUAL REVIEW, on a dry run too. A lower-precedence file
+  that cannot be read, is not valid JSON, or whose `enabledPlugins` is not an object sends every
+  removal to manual review. A plan with a pending removal says that other developers' user scopes
+  and managed settings were not checked.
+- **`check-plugin-drift.sh` exits 1 only when it finds an orphan.** A run that finds
+  only NEW plugins exits 0, and the summary names `fix-plugin-drift.sh` only when an orphan exists.
+  The orphan-`false` label reads `(false, removal candidate)`.
+- **The drift check reports what it did not diff.** Every `check-plugin-drift.sh` run prints a
+  `Not diffed:` line with the count and the keys whose marketplace the audited file does not
+  declare, including when it declares none. The engine reports the same gap for the project and
+  local files as an `E/drift` `skip` row, `drift-coverage:<file>`; a key whose marketplace no scope
+  registers stays under `unknown-marketplace`.
+- **The fix backup has a new name.** `fix-plugin-drift.sh --yes` writes
+  `<settings>.bak.<UTC stamp>.<random>`, with the random part from `mktemp -u`, in place of
+  `<settings>.<UTC stamp>.bak`. Two applies in the same second each get a backup instead of the
+  second being refused. An ignore rule for `.claude/*.bak` needs to become `.claude/*.bak.*`.
+- **`check-doc-citations.sh` accepts a nested page slug** such as `plugins/install`, creating the
+  fetch subdirectory the page lands in.
+
+### Fixed
+
+- **A plugin or marketplace key holding a carriage return is audited and fixed exactly.** Both
+  drift scripts carry keys as JSON from the settings file and the catalog to the findings and on to
+  the edit, with no `jq -R` line input and no `tr -d '\r'` on a key. A marketplace key ending in a
+  carriage return used to be stripped before the lookup and skipped; `fix-plugin-drift.sh` now
+  removes the carriage-return key and leaves a same-named key without it untouched. The engine's
+  category E rows compare keys in jq as well.
+- **No existing path is written through at the backup name.** The apply is refused when anything
+  already exists at the generated name, and the copy is written on one exclusive open (bash
+  noclobber, which opens a missing name with `O_CREAT|O_EXCL`) under `umask 077`, so a file or
+  symlink planted after that check makes the open fail instead of being followed. No byte is
+  written until the open descriptor is a regular file that is the one at the name. The apply is
+  refused unless the backup is a regular non-symlink file equal to the snapshot, and the refusal on
+  a concurrent change removes the backup only when it is still a regular file.
+- **`check-doc-citations.sh` refuses a manifest slug that could leave its page directory.** Every
+  slug must be lower-case segments joined by `/` (`^[a-z0-9_-]+(/[a-z0-9_-]+)*$`); a `..`
+  segment, a leading `/` or any other shape exits 2 naming the row, before any page is read.
+- **The drift test suites pass on Git Bash with a Windows-form `TMPDIR`.**
+  `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
+  when available and export `TMPDIR` under their own guarded temp directory, and both suites point
+  `HOME` and `CLAUDE_CONFIG_DIR` at a fixture user directory.
+- **Only an orphan whose value is exactly `false` is removed.** `check-plugin-drift.sh` records an
+  orphan's value as the settings file holds it instead of folding it to a boolean, so a `null`,
+  string, number or object value no longer reads as `false`. `fix-plugin-drift.sh` holds `true` and
+  every other value for manual review, including a planned removal whose key has since changed to
+  one, and the engine reports such an orphan as a warning, never as removable.
+- **A `source.repo` that is not `owner/name` is never fetched.** `check-plugin-drift.sh` reports a
+  repo outside GitHub's name characters, or with a `.` or `..` part, as SKIP with the reason
+  `invalid source.repo`, and fetches with `curl --globoff` so the URL is never read as a pattern.
+  Messages print control characters in a marketplace key, settings path or backup path as `?`.
+
+## [0.48.2] - 2026-09-25
+
+### Fixed
+
+- **`fix-plugin-drift.sh` no longer reports "No drift detected" when no marketplace was audited.**
+  Findings whose blocks were all skipped, an `--input` of `[]`, and empty findings from the internal
+  check all print "No marketplace was audited, so there is nothing to report." Any block that is
+  not `ok` is listed under `SKIPPED <n> marketplaces not audited:` with its key and reason (or
+  "no reason given"), above the verdict or the plan, so a partly skipped run says what it did not
+  compare. Every displayed entry prints control characters as `?`, so a name or reason from
+  upstream JSON cannot send escape sequences to the terminal; the edit still uses the raw keys. Only
+  the line-ending carriage return a native-Windows jq appends is stripped from each key, so a
+  carriage return inside a plugin name stays part of the key the edit writes or removes.
+- **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not exactly one
+  array of objects (a top-level object, a string, a zero-byte file, `[1]`, or a second document
+  after the first) exit 2, and so does any plan list jq fails to extract, naming the list, where a
+  failure used to render a truncated plan and exit 0.
+- **`fix-plugin-drift.sh` filters additions and removals against the settings file before
+  rendering the plan.** Manual-review orphans and renames are not filtered. An addition whose key
+  already exists (as `false` or `true`) and a removal whose key is absent are
+  dropped; a removal whose key is now `true` moves to MANUAL REVIEW. The count prints as
+  `FILTERED <n> plan entries no longer match the settings file`. A plan that filters away prints
+  "Nothing to apply" on a dry run and on `--yes`, with no backup and no edit, where a no-op
+  `--input` used to rewrite a compactly formatted file and report "Applied". A dry run whose plan
+  holds only manual-review or rename items also prints "Nothing to apply (no pending removal or
+  addition)." instead of asking for `--yes`, and that line replaces the apply-only "(manual review
+  items only)" wording. A settings file with no `enabledPlugins` filters as an empty map. When a removal or
+  addition is pending, a settings file whose `enabledPlugins` is not an object, or that is not
+  valid JSON, exits 2, on a dry run too.
+- **`fix-plugin-drift.sh --yes` refuses a settings file that changed under it.** The filter, the
+  edit, the line-ending measurement and the backup all come from one snapshot of the settings file
+  taken at plan time. After the backup is written and just before the replace, the live file is
+  compared with that snapshot, and a difference exits 2 with the other writer's bytes left in place
+  and the backup this run just wrote removed. The window between that compare and the replace is
+  documented, not closed. Anything already at the backup path (a file, a symlink including a
+  dangling one, a FIFO or a device node) is refused before the backup is opened, because bash
+  noclobber refuses only an existing regular file; the removal on a refused apply deletes only a
+  regular file at the backup path, never a link. The stage-equals-current refusal now
+  compares the stage against the snapshot and is defensive only, since the filter leaves no entry
+  that would not change the file.
+- **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
+  `Marketplaces declared in the audited file: <n>`, including 0, and an `extraKnownMarketplaces`
+  that cannot be read or is not an object (an array used to be audited as marketplaces named by
+  its indices) exits 2.
+- **Two in-place corrections to the released 0.46.12 entry.** Its "Four changes close it" sentence
+  now counts five and names the stage-equals-current refusal it left out, and its claim that a
+  read-only settings file "comes back read-only" is qualified to platforms that honor mode bits,
+  matching the `fix-plugin-drift.sh` header.
+
+## [0.48.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.48.0] - 2026-09-23
+
+### Added
+
+- **The audit engine reads its upstream sources every run.** It fetches the docs index
+  (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
+  links there, and reads each page verbatim. The document's new `docs` object lists the index and
+  every page with its URL or path, byte count, and state (`read`, `unread` with a reason, or
+  `unparsed`), and `--table` prints it.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched. Fetches are
+  HTTPS only, redirects included (at most 5), and a page whose redirect lands outside the docs
+  origin is `unread` with reason `redirected-off-origin`.
+- **The engine records the Claude Code version.** It runs `claude --version` and carries the
+  result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
+  makes them `skip`.
+- **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
+  project, local, and user settings is looked up on `settings-reference`: by its own heading, or,
+  for a `permissions.*` key, by its name in the `permissions` **Type** bullet. A key found neither
+  way is one finding, claim `undocumented-key:<key>`, whose severity says what the installed
+  `claude` binary showed: `info` when the binary carries the name standalone (bounded by
+  characters that cannot continue an identifier), `warning` when it does not, and `info` when the
+  binary could not be searched (missing, or a shim lacking two known key names) or the name is
+  shorter than four characters or not identifier-shaped. A hit shows the name is in the CLI, not
+  that the CLI reads the key. Keys reach their claim exactly as written, with no tab-separated
+  escaping. A key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` and empty key names are exempt.
+- **A `settings-reference` page that does not parse fails closed.** A page that downloaded but has
+  no heading for `permissions` or `enabledPlugins` (a soft 404, a reshaped page) is recorded with
+  state `unparsed`, not `read`, and every key, value, and version row resting on it is
+  `not-inspectable` rather than a run of undocumented-key findings.
+
+### Changed
+
+- **The `effortLevel` rule is now "value not in the documented set".** The accepted values, and
+  the `disableDeepLinkRegistration` value, come from the key's **Type** bullet on the fetched
+  `settings-reference` instead of a list in the engine, so any undocumented value is flagged, not
+  only `max` and `ultracode`. A value is matched as one whole string, so a multi-line value is
+  never accepted on the strength of one documented line. Claims `effortLevel:<value>` and `disableDeepLinkRegistration:<value>`
+  keep their identity. The matching `audit-checklist.md` rows now point at the Type bullet.
+- **`enforceAvailableModels-without-list` is gated on the version the key requires.** On a Claude
+  Code older than the first "Requires Claude Code" version in the key's section, the row is `ok`
+  with the reason.
+- **Env-var documentation rows are `not-inspectable`, not `skip`, when `env-vars` was not read.**
+  The claim `env-page-not-fetched:<key>` is unchanged.
+- **Default runs use the network.** An offline run reports the unfetched pages `unread` and every
+  row resting on them `not-inspectable`.
+
+### Fixed
+
+- **An env key containing `.` is matched literally on the env-vars page.** The check grepped the
+  key as a regex, so `A.B` matched a documented `AXB`.
+
+## [0.47.1] - 2026-09-23
+
+### Fixed
+
+- **The audit engine no longer reports an env value containing a backslash as a
+  `path-separators` finding.** Its rationale, "forward slashes work on every platform", had no
+  upstream basis: the [env-vars page](https://code.claude.com/docs/en/env-vars) documents
+  `CLAUDE_CODE_GIT_BASH_PATH` as Windows-only and ignores it only when the path is missing or the
+  file is not named `bash.exe`, `sh.exe`, `bash`, or `sh`, and the official examples in
+  [setup](https://code.claude.com/docs/en/setup) and
+  [troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install) use backslashes.
+  The matching `audit-checklist.md` row, the `validation-categories.md` bullet, and the SKILL.md
+  mention are removed.
+
+## [0.47.0] - 2026-09-23
+
+### Added
+
+- **`audit-instructions` catalog 1.22.0 covers Claude Opus 5.5.** New row I8-f flags standing
+  "think carefully" / "think step by step" / `ultrathink` steers on an `opus-5-5` target, seeded by
+  a new `I8-f` scanner family; new check I35 flags a settled-answers instruction on a surface
+  whose later steps can revise earlier ones. I10 (reasoning-echo) and I8-c (don't-think) widen to
+  `opus-5-5`, and I26 gains the Opus 5.5 guide as a third source plus an iterate-the-exclusion-list
+  step. The Opus 5.5 prompting guide joins Sources; the alias example now names `opus-5-5`.
+- **`audit-prompting-postures` checks run shape.** P6 now asks long-running components, and the
+  CLAUDE.md or AGENTS.md of a repo used for long runs, for a finish line and named stops (keep
+  going with status in the same message; stop only when blocked on the human or before a
+  destructive or outward action). P9 covers a task file for long runs, P1 asks fan-out components
+  to check each worker's evidence, and new P11 checks that an end-of-run report leads with what
+  the human owes.
+- **`audit-pass` names what waits on the operator** before the inline headline.
+- **`audit-automation-gaps`' review step** lists only change-blocking problems, each with file,
+  line, why, and how to show it fails.
+
+### Fixed
+
+- **`emit-findings.sh` parses scan-row suffixes `a` through `f`**, so an `I8-f` row declines as
+  `no-severity-crosswalk-row` rather than `unparsable-row`.
+- **`audit-prompting-postures`' description fits the 1,024-character Agent Skills limit** again,
+  with every trigger phrase kept.
+
+## [0.46.15] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.46.14]
+
+### Fixed
+
+- **`unhobble`'s strip and restore cover a root `AGENTS.md`, `.claude/AGENTS.md` and
+  `.claude/CLAUDE.md`.** Under the default instruction-files mode a session reads the `AGENTS.md`
+  names as the project instructions only when no `CLAUDE.md` name displaces them, and the strip
+  removes exactly those names, so a repository
+  whose `CLAUDE.md` is a one-line `@AGENTS.md` shim finished the strip with its whole instruction
+  surface still loading while the skill declared the baseline bare.
+- **New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list
+  of root instruction files both steps read**, and takes its root as an explicit argument rather than
+  resolving the working directory.
+- **`strip` refuses the whole strip, naming the offenders, unless every named file is tracked, clean
+  and comparable.** `git rm` refuses an untracked file and a modified one alike, and a refusal
+  landing mid-loop would leave the files ahead of it gone while the rest kept loading. An
+  `assume-unchanged` or `skip-worktree` bit is its own refusal, naming the `git update-index`
+  invocation that clears it: git stops comparing the worktree copy, so `git diff --quiet` reports
+  clean on an edited file and `git rm` then deletes the edit.
+- **An untracked instruction file, the ordinary case for `CLAUDE.local.md`, is not the helper's to
+  strip.** It is routed to the manifest backup path the experiment already uses for settings, which
+  is where its restore lives, so the bare baseline is reached by the path that can restore it.
+- **Both verbs act only on the names they are given, and `--all` is a separate word.** A plan can
+  classify a `CLAUDE.md` behavioral and an `AGENTS.md` `policy`, and phase 4 re-adds only what the
+  stumble ledger defended. A name the caller approved but the tree does not have exits non-zero
+  rather than recording a bare baseline for a file that still loads, and a repeat is acted on once.
+- **A named `restore` resolves every refusal before it checks anything out**: an unknown name, a ref
+  that is not a commit, a name the ref does not have, or an occupied target exits non-zero with
+  nothing restored. Occupancy is any object rather than a regular file, covers an ancestor that is
+  not a directory, and counts an index entry the filesystem cannot see, which
+  `git checkout <ref> -- <path>` would overwrite.
+- **`restore --all` is the abandon path, not the close path.** It checks out a name the ref has over
+  whatever is on disk, and removes from the worktree and the index a name the ref lacks but git
+  tracks. A name blocked by a symlink, a directory or a non-directory ancestor is reported and
+  stepped over with its index entry still dropped, and one untracked and absent from the ref is left
+  in place and named, git being unable to tell a file the experiment wrote from one that predated it.
+- **New `reference/agents-md-liveness.md` records whether a session reads an `AGENTS.md` at all**,
+  availability then the instruction-files mode, as four-part records cited to the official memory
+  page that the edited bodies point at rather than restate. Three of the four documented
+  unavailability conditions are resolvable, two of them from settings this plugin already reads, and
+  two of the mode's four values read no `AGENTS.md` at all, which makes displacement a condition of
+  the default value alone.
+- **The sites that gated an `AGENTS.md` on displacement alone now gate on availability and the
+  effective mode**: `audit-prompting-postures`'s surface set, `audit-instructions`'s Phase A, I14's
+  Detect set, and I15's exclusion clause and co-residency row. The mode is resolved across the user,
+  `--settings` and managed scopes rather than from one scope's copy, and under
+  `claude-md-and-agents-md` both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live. An
+  unresolved condition keeps the surface in the inventory lanes and leaves it alone in the finding
+  lanes, with `audit-prompting-postures` inventorying it and emitting `NOT-APPLICABLE`, the
+  unresolved condition as the failed predicate, because its Phase C judges every inventoried
+  component.
+- **Phase 1 treats both `AGENTS.md` names as strip candidates wherever the strip could make them
+  live**, rather than passing over them because nothing appears to read the file today. A gate known
+  false with no `CLAUDE.md` importing or symlinking the file excludes it, an unresolved gate or a
+  shim keeps it, and classification then decides: one classified `policy` or `convention` is kept and
+  never named to `strip`.
+- **New `instruction-files.test.sh`** covers the shim repository, a lone `AGENTS.md`, a lone
+  `.claude/AGENTS.md` whose directory the restore has to recreate, an untracked file, a tracked file
+  modified in the worktree and then staged, the `assume-unchanged` bit, the occupancy and obstruction
+  cases, a repository with no instruction files, and the usage errors.
+
+### Changed
+
+- The skills that enumerate the instruction layer name a natively read `AGENTS.md` beside `CLAUDE.md`, the way `audit-instructions`'s body has since 0.46.13: the routing glosses in `audit`, `audit-permission-grants` and `audit-permission-state`, the surface set and description of `audit-prompting-postures`, the enforcement-hierarchy and behavioral-rule lines in `audit-automation-gaps`, the `unhobble` description and scope rails, and the README's skill table, `audit-instructions` section and consumer-conventions note. `audit-instructions`'s own description, summary, Phase A counterpart list and routing bullet are in the sweep too: 0.46.13 changed the body's surface enumerations and left the frontmatter, which is what decides whether the skill is offered for an `AGENTS.md` question at all. The consumer-conventions passages, which tell a skill where to read a repository's own policy, were the ones that silently read nothing in a repository that has migrated its instructions out of `CLAUDE.md`. The two `audit-instructions` reference files are finished too: the redundant-read check's Detect set lists the natively read `AGENTS.md` names, which its own must-not-flag paragraph already exempted conditionally, so an auditor reading Detect literally no longer misses a skill body sending an agent to re-read the startup instructions in an AGENTS.md-canonical repository; I3's always-loaded surface list and its survives-compaction remediation name it; and the two memory-doc source glosses match the page they cite.
+
+## [0.46.13]
+
+### Changed
+
+- `audit-instructions`: the I15 routing table, the I15 routing clause and the SKILL.md boundary clause name a natively read `AGENTS.md` and `.claude/AGENTS.md` as members of the `discover-instruction-surfaces` population, which `claude-memory` 0.13.0 emits as `agents-md` rows. A contradiction whose two halves are an `AGENTS.md` and a project `CLAUDE.md` now routes to `claude-memory`'s C6, the same owner a `claude-md`-anchored pair routes to, instead of falling through to I15 on a literal reading of a list that predated the kind. The C6 paraphrase in `reference/conflict-criteria.md` defers to that discovery rather than restating a file list that can drift from it.
+- `audit-instructions`: the memory-layer surface partition names a natively read `AGENTS.md`, so the I1-I5 hygiene checks route it to `claude-memory:audit` instead of grading it here and double-reporting what that skill's C-checks already cover. The SKILL.md partition clause, the `claude-md` scope filter, the `reference/criteria.md` partition row and the eval that grades the routing all name it, so the skill, its criteria and its eval agree. Phase A inventories `./AGENTS.md`, `./.claude/AGENTS.md` and every nested `AGENTS.md` as their own records, on the same on-demand footing as the nested `CLAUDE.md` files beside them, with displacement tested per file along its own path from the working directory or any directory above it down to the directory holding it rather than once at the root, since a surface with no Phase A record is one no later phase can route or grade, and the I15 co-residency table gives it the residency row gate 1 resolves against, with the guaranteed-pairs set naming it so a pair anchored on it in an AGENTS.md-canonical repo does not resolve as merely conditional.
+
+## [0.46.12]
+
+### Fixed
+
+- **`fix-plugin-drift.sh` stops instead of reporting "No drift detected" when its own check dies.**
+  The internal `check-plugin-drift.sh` call ran under `|| true`. A check that exits 2 (a settings
+  file that is missing or not valid JSON, a missing jq) writes no findings document, and `mktemp`
+  had already created the target as a zero-byte file. `jq empty` accepts an empty document, every
+  count came out 0, and the script printed "No drift detected, nothing to do" and exited 0, so a
+  fatal check read as a clean bill of health. The status is now captured: above 1 is fatal, since
+  1 is the check's own "drift detected". An empty document paired with status 1 is fatal too,
+  because it can only mean a truncated write. Status 0 with no document stays a pass, because the
+  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`. That
+  case names itself on stderr, since the check's own explanation goes to the `/dev/null` this
+  script redirects, and on stdout it now reads "No marketplace was audited" rather than borrowing
+  the clean-audit wording for a run that compared nothing.
+- **`fix-plugin-drift.sh --yes` backs the settings file up before it replaces it.** The only file
+  operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
+  no copy of what the script overwrote. A successful apply now copies the file to
+  `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
+  a copy of what it replaced. The backup is created and filled through ONE descriptor, under
+  `set -C` and a 0077 umask: the `O_EXCL` open refuses an existing path and a symlink alike,
+  including a dangling one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and
+  writing through that same descriptor leaves no window in which the predictable backup path could
+  be unlinked and replaced with a symlink between an exclusive create and a later reopen. The
+  umask stops a verbatim
+  copy of a file that can hold tokens and permission rules inheriting a world-readable mode. The
+  umask is a no-op on MSYS, where mode bits are emulated, so the 0600 result holds on Linux and
+  macOS and not on Git Bash. Backups are never pruned, so a project that tracks `.claude/` may
+  want `.claude/*.bak` ignored. The backup path is named in the summary line.
+- **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
+  With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
+  directory is not a repository, so a session started in a home directory resolved the target to
+  `~/.claude/settings.json` and rewrote the live user file as if it were project scope. The apply
+  path now compares the resolved target against the user config dir's own `settings.json`, and
+  against `$HOME/.claude/settings.json` for a relocated `CLAUDE_CONFIG_DIR`, and exits 2 when they
+  are the same file. Only the inferred path is refused: an explicit `CLAUDE_SETTINGS_FILE` is a
+  deliberate target and still applies, now with a warning naming the waived guard, because a
+  settings file's own `env` block can export that variable and the file under audit is the one
+  that drifted. A dry run still reads and reports either way.
+- **`fix-plugin-drift.sh --yes` refuses a settings path that is a symlink.** The replacement is a
+  rename, which replaces the link rather than the file it names, so a linked `settings.json` was
+  destroyed, the real file went unfixed, and the run still printed "Applied". Resolving the link
+  portably needs a `realpath` and `readlink -f` dance this script does not otherwise carry, so the
+  case is refused with a message naming the path instead of being mishandled quietly.
+- **`fix-plugin-drift.sh --yes` preserves the settings file's line endings.** The edit is a jq
+  read-modify-write, and jq emits whatever its build emits: the native Windows build writes CRLF
+  through a text-mode stdout, an MSYS or Linux build writes LF. Either one rewrites every line
+  ending in a file of the other style while reporting a handful of key changes. The emitted
+  document is now normalized to the line-ending style the original file carried, measured with
+  `tr` because Git Bash grep never matches a carriage return, and revalidated as JSON after the
+  conversion. The rule counts bytes rather than pairing them, so a file with mixed endings comes
+  back uniform in whichever style its majority carried. Indentation and the trailing newline still
+  come from jq.
+- **`fix-plugin-drift.sh --yes` never reports an edit it did not make.** Staging the replacement
+  beside the target introduced a way to report one. The stage is seeded with a `cp -p` of the
+  original to carry its mode, and the two line-ending normalization arms wrote into it through
+  unchecked redirects, so a write that never landed left a stage holding the ORIGINAL bytes: valid
+  JSON, a valid object, past every check, renamed over the settings file, and reported as
+  "Applied" with exit 0. Two inputs reached it. A settings file the operator had made read-only,
+  because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
+  during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
+  run, after which `cp -p` recreated the stage from the original and the normalization input was
+  gone. Five changes close it: both normalization arms are checked and fatal; the signal traps
+  clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
+  after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
+  file is applied and comes back read-only on platforms that honor mode bits; the
+  stage-equals-current refusal compares the stage against the current file and stops before the backup when the two
+  match; and the settings file is read back after the replace
+  and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
+  say-so. The remaining command substitutions in the apply path (the clock for the backup name,
+  the line-ending measurement, the plugin-list encoding) are checked too.
+- **`fix-plugin-drift.sh --yes` replaces the settings file with a same-directory rename.** The
+  staging temporary moved out of `$TMPDIR` and beside the target: on a host where `/tmp` is a
+  separate mount the final `mv` degraded to a copy plus an unlink, where an interruption leaves
+  the settings file truncated. The `EXIT` trap now also catches `INT`, `TERM` and `HUP`, because
+  that temporary sits in the operator's own config directory where nothing else sweeps it up, and
+  both post-edit validations moved from `jq empty`, which exits 0 on a zero-byte file, to
+  `jq -e 'type == "object"'`.
+
+## [0.46.11]
+
+### Changed
+
+- `audit-instructions`: the I-check exemption for "read `AGENTS.md`" instructions and I15's `AGENTS.md` exclusion are both conditional now. A repository with no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it loads its `AGENTS.md` at startup like a `CLAUDE.md` (Claude Code 2.1.277 and later, where support is available), so the file is a real instruction surface there and belongs in the comparison set. The import claim carries its dated record.
+
+## [0.46.10]
+
+### Fixed
+
+- **`check-hook-coverage.sh` resolves a plugin whose registry entry also holds a record for another project.** The install-record filter read `($project | startswith(.projectPath + "/"))`, where the input `.` is the string `$project`, so `.projectPath` raised `Cannot index string with string ("projectPath")` and jq abandoned the whole program with rc 5. `or` short-circuits, so it fired only when a record carried a non-empty `projectPath` differing from the current root. The shared helper discards jq's stderr, so the plugin was silently reported UNRESOLVED on a machine where it is installed and the inventory went partial, which withdraws Category B's third baseline narrowing. The clause now binds the value first, as `(.projectPath as $pp | $project | startswith($pp + "/"))`.
+- **`check-hook-coverage.sh`'s `--json` emitter no longer lets MSYS rewrite the values it encodes.** Every node was built by a native `jq -cn` call binding its values as `--arg`. On Git for Windows each call crosses `CreateProcess` and MSYS rewrites any argument whose tail looks like a POSIX path, so a plugin's shipped hook command `"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` arrived as `"${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/x.sh` and the engine reported `hook-path-missing` for a file that exists; the emitted project root was rewritten the same way. The six emitter sites now go through a `jqn()` wrapper that suppresses the conversion inline, which is safe because not one of them passes a file for jq to open.
+- **`audit-engine.sh` assembles its document off the command line.** The nine payloads were bound to one `jq -n` call as `--argjson` values. The whole argv is one Win32 command line, and a single argument past about 32,760 bytes fails with `Argument list too long`, which left the document empty and every later reader printing nothing while the engine still exited 1 and still wrote `--out`, so a real audit produced no output and said nothing about it. The payloads now ride stdin and are slurped by `jq -s`, and the `--out` writer gets the same treatment while staying independent of the document, so it still succeeds when the assembly does not. The document schema, the row set, the exit codes and the findings file (byte for byte) are unchanged.
+
+## [0.46.9]
+
+### Changed
+
+- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged. The library writes through `printf -v`, so it resolves the same scopes on the stock bash 3.2 that macOS ships.
+
+## [0.46.8]
+
+### Changed
+
+- The eight audit-permission-state test suites source one bundled per-skill test helper for their assertions, stub-PATH builder, and summary tail instead of carrying identical copies, with byte-identical output.
+
+## [0.46.7]
+
+### Changed
+
+- The four audit-instructions test suites source one bundled per-plugin test helper instead of carrying identical assertion blocks, with byte-identical output.
+
+## [0.46.6]
+
+### Changed
+
+- Drop the alias offset in conflict-scan, the dead frontmatter tail loop, the unreachable second is_absolute argument and the unused Section heading field in the audit-instructions scanners (behavior unchanged).
+
+## [0.46.5]
+
+### Changed
+
+- audit-permission-state: permission-state.sh emits settings and registry rules of each kind through one helper, permission-merge.sh emits inert rows through one awk function, automode-entry-diff.sh tests rule classes through one helper and folds its predicted-drop branch, automode-block-lint.sh derives each subject once, two scripts drop write-only counters, and the permission-state and managed-conformance suites drop a duplicated fixture invocation and an unused temp dir. Output byte-identical.
+
+## [0.46.4]
+
+### Changed
+
+- audit-automation-gaps inventory.sh dispatches its arguments through one case and drops an unreachable empty-roots arm, audit-pass run-state.sh drops an unreachable no-reason branch, audit-permission-grants permission-rule-check.sh computes its inert-grant remedy once and unifies its match-loop guards, and the inventory and permission-rule suites share their runners. No behavior change.
+
+## [0.46.3]
+
+### Changed
+
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and color tests. No behavior change.
+
+## [0.46.2]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.46.1]
+
+### Added
+
+- **`audit-pass`: `state-digest.sh`, the pinned `state-digest/v1` and `input-digest/v1`.** The state
+  digest is the first comparability input, and it shipped as one sentence with no ordering, no
+  separator, and no statement of which hash over what, so P1 was unfalsifiable across
+  implementations: two runs over one tree could legitimately compute different digests. The
+  derivation is now pinned in `reference/determinism-tiers.md` (deduplicate on the surface token,
+  sort by byte order under `LC_ALL=C`, join `surface 0x1F hash` with `0x1E`, take the full 64-hex
+  `sha256`, with `deleted` and `unreadable` as the two non-hex sentinels and `sha256` of the empty
+  byte string for an empty set) and computed by the script. The per-lane input digest reuses the same
+  construction, with the detection configuration entering as reserved `cfg:` pseudo-surface entries
+  sorted in with the files. Content hashing is uniform `sha256` over raw bytes rather than
+  `git hash-object`, because user-scope and managed-policy surfaces sit outside any worktree.
+- **`audit-pass`: `finding-identity.sh`, `anchor/v1` and `finding_id/v1` as a script, plus the
+  emitter guard.** A pass had emitted a record typed as a finding carrying `"identity": null` and no
+  `finding_id/v1`, which assertion 1.3 already made a hard error and which nothing checked at the
+  append. Every hard error in §1 is now checked where the record is written: null or absent identity,
+  an empty site list, three or more sites, two sites without a pairwise-claim declaration, an `s:`
+  anchor in a two-site finding, free prose in `claim`, and a stored `finding_id/v1` that disagrees
+  with its own constituents. The guard refuses rather than repairs.
+- **`audit-pass`: `assemble.sh`, partial-to-report assembly and the `report.md` rendering.** Assembly
+  decides which rows reach the report and was prose for the run to perform, which put the selection
+  rule every determinism property is stated over into the class of steps a run improvises.
+- **`audit-pass`: a second report artifact, `report.md`, beside `findings.json`.** A run's only
+  output was a large JSON document at a nine-segment key-derived path under the plugin data
+  directory, which a remote session cannot open. The run now prints the rendering's headline inline
+  and offers the file. `report.md` is a rendering and never a source: `--resume` still reads the
+  partial.
+- **`audit-pass`: `--lanes <list>`.** Narrows dispatch, never the inventory. An unknown lane id is
+  refused non-zero naming the accepted set, an unselected lane appears in `skipped` with its reason,
+  and a narrowed run is non-comparable with a full run, reports P1-P3 as not evaluated, and is marked
+  partial-scope in the report header.
+- **`audit-pass`: `--postures`, dispatching `audit-prompting-postures` as an opt-in lane.** That
+  skill's body states that the coordinated pass composes it, and `audit-pass` named it only where it
+  derives its report path and never in its dispatch list, so the composition it claimed had no
+  invocation behind it. Opt-in because it is the additive catalog with the largest fan-out in the
+  pass.
+- **`audit-pass`: `audit-permission-grants` at its `frontmatter` scope as a lane.** A deterministic
+  script over frontmatter the Phase 1 inventory already enumerates, and the first lane to add
+  derived-tier volume, which matters because the determinism gate's P1 is defined over that tier. Its
+  settings-file scope is not dispatched: the permission plane in effect is `audit-permission-state`'s
+  lane here. The in-or-out criterion is now written down: a lane must produce findings over surfaces
+  the Phase 1 inventory already enumerates, keyed to a site the pass can anchor, which is why
+  `audit-automation-gaps` stays routed out.
+- **`audit-pass`: a note tier for cross-catalog overlap notes, and a main-session verification phase
+  after assembly.** An overlap note names both findings and never merges them, carries a `note_id`
+  rather than a `finding_id`, and is excluded from the derived identity set and from P1-P3, because
+  its inputs are judged findings held only to P4's tolerance. The verification phase is justified by
+  scope rather than by inability: only the assembled set exposes cross-catalog and cross-lane
+  relations.
+
+### Changed
+
+- **`audit-pass`: a finding carries one site, and a multi-site return is split per site.** Delegates
+  returned single findings carrying up to twenty-one sites against a contract admitting one, or two
+  for a pairwise conflict. `finding_id` hashes every site, so fixing one of twenty-one renamed the
+  finding, stranded its suppression, and let P2 read a false convergence. Split findings carry a
+  non-identity `group` field derived from `check` and `claim` alone, so it survives fixing any one
+  site. Conflict checks stay pairwise and exempt: a contradiction is retired by fixing either side,
+  so its sides are not independently correctable.
+- **`audit-pass`: `--report-to` takes a DIRECTORY and redirects both artifacts.** It was specified
+  over "the report" singular. A file path names one artifact and would force the flag to invent the
+  other's destination; redirecting only the JSON leaves the operator with exactly the artifact the
+  flag exists to rescue them from. The destination gate is evaluated over both resolved paths inside
+  the directory, and Class 4 self-exclusion covers both.
+- **`audit-pass`: the dispatch substrate is probed, never asserted.** Whether a lane can spawn its own
+  verifier depends on this host's depth budget, which `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` sets.
+  Writing either shape into the body as harness behavior would be the surface-misstates-the-harness
+  defect this plugin's own catalog flags. The run probes once, records `verified` / `inline` /
+  `skipped` per lane, and treats an inconclusive probe as no nesting.
+- **`audit-pass`: the Phase 1 liveness sources no longer require commands a run cannot invoke.**
+  `/context`, `/memory`, `/skills`, `/hooks`, `/permissions`, and `/status` are built-in interactive
+  commands with no model-invocable form, so every one of them resolved to unavailable and the
+  two-source rule was ceremonial while every memory-layer claim was single-sourced anyway. Replaced
+  by the harness-injected instruction block (the loaded text rather than a summary of it), the
+  settings cascade read directly, and `claude mcp list` for MCP server status. `/mcp` is explicitly
+  **not** swept in with the interactive six: its subcommand group is non-interactive. The three
+  genuine coverage losses (per-skill listing-budget drops, custom-agent registration liveness, and
+  the clean-room attribution of behavior to local config versus harness default) are named in
+  `skipped` rather than absorbed.
+- **`audit-pass`: `InstructionsLoaded` is more available than the body claimed.** The
+  events-already-fired reason is true only of `load_reason: session_start`; a wired hook still
+  observes lazy loads (`nested_traversal`, `path_glob_match`, `include`, `compact`) for the rest of
+  the session, inside subagents included. The probe now has three outcomes rather than two.
+- **`audit-pass` moves its Phase 3 lane catalog and its Phase 1 liveness sources into spokes.** `SKILL.md` had grown to 635 lines, past this repository's 500-line hard cap for a skill body, so the two largest blocks of detail now load on demand instead of on every invocation. `reference/lane-catalog.md` carries the per-lane dispatch entries, the statement of what is deliberately left undispatched, and the substrate probe that decides whether a lane can spawn its own verifier; `reference/liveness-sources.md` carries the per-source liveness detail with both of its verification records and the three coverage losses named in `skipped`. Each is a row in the reference index with its own load-when condition, and each is pointed at from the phase it came out of. Every rule moved verbatim: Phase 3 keeps what a lane is, what earns one, the `--lanes` id set, per-lane persistence with the exit-3 fence, and the concurrency cap, and Phase 1 keeps the liveness rule itself, the single-sourced marking, output-style resolution, and shadowed definitions. No check, argument, threshold, or report field changed.
+- **`audit` states the category H documentation gate instead of shouting it.** The step opened with an all-caps `**MANDATORY**`; it now reads "Any category H finding requires a fetch of `code.claude.com/docs/en/model-config` confirming the behavior the finding rests on", above the sentence that already carried the prohibition and its reason. The requirement is unchanged, and no finding category, threshold, or report field moved.
+- **`audit-permission-grants` gives its quoted upstream span a recheck trigger.** The quoted review-before-trusting warning carried a URL and a fetch date but no event that obliges re-deriving it; it now fires on a fetch of that page no longer carrying the warning, which completes the four-part record the upstream-drift convention requires.
+- **`audit-prompting-postures` gives both of its restated upstream behaviors a recheck trigger.** The `disallowed-tools` scoping claim and the quoted `plugin uninstall` data-retention sentence each carried a URL and a fetch date only. Each now names the observable event that obliges re-deriving it. Quoted wording, bases, and dates are unchanged.
+
+### Fixed
+
+- **`audit-instructions`'s split-destination eval stops grading a rationale that is no longer true.** Case 13's expected output and its third expectation rejected a `paths:`-scoped destination for agent-originated content "because path-scoped rules are invisible inside a subagent context". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped rule once it reads a path the glob covers, with the glob matched against the requested path so even a read that finds no file fires it. Both now give the reason that holds: a path-scoped rule is not inherited by a dispatched agent and announces itself nowhere, so it reaches a dispatch only if that dispatch happens to read a covered path, which trades guaranteed presence for a deferral the agent cannot rely on. The graded behavior is unchanged: the `@path` import is still refused, a `paths:`-scoped rule is still rejected, and an agent-reachable deferring destination is still what the case expects.
+- **The criterion that eval grades stops carrying the same superseded reason.** `reference/criteria.md`'s agent-reachable-destination rule stated that path-scoped rules "are invisible there" for a subagent, which left the body and its eval disagreeing once the eval was corrected. It now states the inheritance and announcement halves that hold, and the verdict is unchanged: an agent-reachable destination is still required and a `paths:`-scoped rule is still never one.
+- **`audit-pass` puts the emitter guard ON the append path instead of beside it.** The contract said every persisted record passes the guard, but Phase 3 prescribed a bare `run-state.sh partial append`, which only checks the input is a single-line JSON object, so a delegated lane returning a null identity, three or more sites, or a mismatched `finding_id/v1` was appended permanently and assembled. `finding-identity.sh guarded-append --run-dir <dir> --record <json-line> [--epoch <n>]` now runs `validate-record` and calls `partial append` only if it passes, and it is the form `SKILL.md`, `reference/report-location-and-schema.md`, `reference/run-state-and-resumability.md`, `reference/finding-identity.md`, and `reference/lane-catalog.md` all prescribe. A refusal exits 4 and writes nothing; a FENCED append still reaches the caller as exit 3. `run-state.sh` is unchanged and still owns the partial.
+- **`audit-pass`'s state digest stops reading a failed `git status` as a clean tree.** `state-digest.sh dirty` consumed `git status` through a process substitution with stderr discarded, so in a bare repository or with an unreadable index the loop completed with an EMPTY dirty set and exit 0. The caller then computed baseline and endpoint digests omitting every worktree change, and the comparability gate returned a verdict over input it had not actually read. The output and exit status are now captured and checked before anything parses them, and a non-zero status exits 2 naming the failure.
+- **`audit-pass`'s `anchor/v1` normalization collapses the whole whitespace class.** The transformation collapsed only tab and newline, leaving carriage returns, form feeds, and vertical tabs in place, so `a\r\nb` normalized to `a\r b` where `a\nb` became `a b`. Two checkouts differing only in line-ending handling produced different anchors and therefore different `finding_id`s, and a suppression written from one stopped matching the other.
+- **`audit-pass`'s emitter guard matches the full anchor grammar.** Anchor validation accepted any non-empty string beginning with `e:`, so `e:garbage` passed and had an id derived from it, leaving an invalid unstable identity in an append-only artifact. An anchor must now be exactly `s:` or `e:` plus 12 lowercase hex, a colon, and 8 lowercase hex. The whole-surface form already required exact equality and is unchanged.
+- **`audit-pass`'s report headline carries the per-severity counts the schema requires.** §7 requires one line with counts per tier AND per severity; the renderer emitted tier and auxiliary-section totals only. Since that line is what the run prints inline, the severity distribution was invisible without opening the report and recounting it. The headline now reads `<n> derived, <n> judged (by severity: ...), ...`, ordered blocker, error, warn, info, unspecified, with any severity outside that ladder still counted and sorted in after it.
+- **`audit-pass`'s anchor-grammar tests stop passing with the grammar bug present.** The eleven-case loop built each record with a hardcoded `"finding_id/v1": "0000000000000000"`, which never matches the derived id, so every record was refused by the finding_id consistency check before its anchor was examined. All eleven assertions passed against the pre-fix source, and a regression loosening the pattern to accept uppercase hex or the wrong segment widths would not have been caught. The id is derived per anchor now, leaving the anchor the only thing that can refuse these records: eight of the eleven cases fail against the pre-fix source where none did.
+- **`audit-pass`'s Phase 4 stops contradicting Phase 3 about which command writes a record.** Phase 3 states that `run-state.sh partial append` is never the call a lane makes itself, while Phase 4 still prescribed writing the `open` terminator through it. The guard short-circuits on any record that is not a `finding`, so guarding a terminator costs nothing, and one write command for the whole skill is what keeps Phase 3's rule from reading as advice a coordinator may opt out of.
+- **`audit-pass`'s `guarded-append` no longer takes an appender path as an argument.** The guard runs first, so an override could never smuggle an invalid record past it, but the value is a path the script hands to `bash` and these arguments are composed from lane output. The one caller that needs to redirect the write sets `AUDIT_PASS_APPENDER` in its own environment instead.
+- **`audit-pass`'s `state-digest.sh` removes every temporary file it creates, however it exits.** One `mktemp` was already leaked when a second failed, and a fresh-context verifier then found three more of the same shape: `--config` with no equals sign and `--config` with a token missing the `cfg:` prefix each abandon two live temp files, and a malformed list entry abandons one. Those two `--config` refusals are the realistic case, because the value is composed per lane on the hot path. The fix is a registry and an `EXIT` trap rather than an `rm` before each `die`: a per-site removal is a rule that has to be re-obeyed every time a `die` is added, and it had already been missed four times. The one refusal that runs inside a command substitution, where the trap cannot reach, removes its own file by hand.
+- **`audit-pass`'s `guarded-append` runs the guard before the appender's own precondition.** The appender-readable check ran first, so an invalid record combined with an unreadable appender exited 2 naming the operator's environment instead of 4 naming the record. Nothing was written on either ordering, so only the exit code and the message distinguished them, and both pointed at the wrong fault.
+
+## [0.46.0]
+
+### Added
+
+- **`audit-automation-gaps`**: `scripts/findings-state.sh` persists a run's verdict table, evidence
+  and implementation plans, so `--implement` has something to read in a later session. Keyed per
+  project through the shared `lib/state-key.sh`, so one checkout never reads another's verdicts,
+  and `--plugin-data` is required because `${CLAUDE_PLUGIN_DATA}` is absent from the Bash tool
+  environment.
+- **`audit-automation-gaps`**: a Gotchas surface built from observed failures, a `## Next` section,
+  and presence-gated routing to `overengineering:audit` in both directions.
+- **`audit-automation-gaps`**: eval cases covering the persisted artifact and the revised
+  `Already enforced` gate.
+
+### Changed
+
+- **`audit-automation-gaps`**: `scripts/inventory.sh` counts all seven documented hook locations
+  instead of the project `.claude` tree alone, which had it reporting 3 hook scripts and 0 skills
+  for a repository carrying 93 wired handlers and 271 skills. An unreadable scope now reports
+  `unreadable` rather than zero, conditional scopes are split from the standing set, and enablement
+  inputs are emitted with a pointer instead of a computed verdict.
+- **`audit-automation-gaps`**: a `git log --grep` count is now treated as a ceiling rather than a
+  frequency in both gates that consumed it. A frequency claim requires a sample, reported with its
+  denominator and sample size; a ceiling already under 5 percent still settles YAGNI without one.
+- **`audit-automation-gaps`**: the `Already enforced` gate takes a shift-left carve-out with three
+  falsifiable conjuncts, keeping the hook budget a hard gate, so a consumer documenting a budget
+  with no headroom left keeps the REJECT.
+- **`audit-automation-gaps`**: one batched docs fetch is mandatory for any candidate whose mechanism
+  is a Claude Code surface; conditionality survives only for non-harness facts, and a skip records
+  how the fact was settled.
+- **`audit-automation-gaps`**: the refusal gate and the implementation review both dispatch a
+  fresh-context judge, degrading to an inline review that records itself as same-context.
+- **`audit-automation-gaps`**: the findings store reports state it cannot trust separately from
+  state that is absent. A history file, pointer or payload that exists but is unreadable, an
+  incomplete publish, or a payload that does not parse, all exit 5; nothing stored still exits 4.
+  A missing `jq` is the prerequisite it is, exit 2, rather than a corruption claim about the
+  operator's artifact.
+- **`audit-automation-gaps`**: the audit writes twice, once when verdicts are presented and once
+  after the human selects, so `--implement` acts on what was chosen rather than on every candidate
+  the skill happened to pass.
+- **`audit-automation-gaps`**: `scripts/inventory.sh` exits 2 on a usage error or a project root it
+  cannot enter, where it previously always exited 0. Its only consumer already falls back to
+  `inventory unavailable`, so a nonzero exit degrades rather than injecting wrong numbers.
+
+## [0.45.0]
+
+### Added
+
+- **`audit-permission-grants`**: the detector gains two gate modes. `--check` exits 1 when any
+  error-tier finding fires (P2, P2b, P4) and `--strict` adds the warning tier (P1, P3). Under both,
+  a `NOTHING TO AUDIT` result exits 2 rather than 0, because a scan of nothing must never pass a
+  gate. The default report mode and `--count` are unchanged and still always exit 0, and the skill
+  itself stays report-only: the operative rule still has to land in a user-global settings file a
+  skill cannot write.
+
+### Fixed
+
+- **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
+  criteria section and the severity table already gave it. It was labeled `P2`, so a reader could
+  not tell which of the two documented checks had fired and a search for `P2b` in a report found
+  nothing.
+- **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
+  scopes where that token stays literal. It was offered unconditionally, so a settings rule, an
+  agent or a command was advised to swap one inert rule for another. A `portable_path_remedy()`
+  branches by scope the way `inert_grant_remedy()` already did, and non-skill scopes now get the
+  bare-name-on-PATH form or the `~/` home anchor.
+
+### Changed
+
+- **`audit-permission-grants`**: every emit site carries assertions pinning the remedy it offers for
+  each scope it fires in, negative ones included, so advice that would be inert where it is printed
+  fails a test rather than reaching an operator. The suite grows from 148 checks to 402.
+
+## [0.44.1]
+
+### Fixed
+
+- **`audit-automation-gaps`**: the `Too slow` gate required the hook to block, which `PostToolUse`
+  never does, so a `PostToolUse` candidate cleared it at any latency. The gate now judges each
+  event against its actual cost: a blocked call where the event can block, turn latency on
+  `PostToolUse`.
+- **`audit-automation-gaps`**: the fixed 15-30 second threshold had no upstream basis and was
+  removed from `SKILL.md`, `context/gap-analysis.md` and the first eval's expected output. Timing
+  now resolves the consuming repository's own documented hook budget first and labels any supplied
+  fallback a house rule.
+
+### Added
+
+- **`audit-automation-gaps`**: `context/hook-timing.md`, carrying the budget-resolution ladder, the
+  per-event cost table, the documented levers (matcher, `if`, `async`, `timeout`), and dated
+  upstream-fact records for the 600-second command-hook `timeout` default and the `PostToolUse`
+  no-block behavior.
+
+## [0.44.0]
+
+### Fixed
+
+- `audit-permission-grants` P4 no longer flags `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}` inside a plugin skill's `allowed-tools`. Claude Code substitutes both there, so the check was reporting working grants as inert and emitted 17 error-tier false positives in this marketplace. The substitution has a version floor of v2.1.0.
+- The P4 remedy is now context-sensitive for the plugin-scoped tokens. It previously offered `${CLAUDE_SKILL_DIR}` for every non-plugin-skill scope, which is not substituted in a settings allow rule, an agent, or a command, so the advice swapped one inert rule for another. Settings and other scopes now get the bare-PATH remedy.
+- The P4 recommendation no longer tells a plugin skill to rewrite a plugin-root grant to `${CLAUDE_SKILL_DIR}`. That token cannot name a script shared between a plugin's skills, so following it broke working grants.
+
+### Changed
+
+- P4 is split into two token classes. `%USERPROFILE%` and `$env:USERPROFILE` stay flagged in every scope; the plugin-scoped pair is flagged everywhere except a plugin skill's `allowed-tools`. Plugin-skill context resolves from a `.claude-plugin/plugin.json` at the plugin root, falling back to the marketplace-monorepo layout.
+- The severity guide now lists P4, which is error-tier and was previously absent from the table.
+- The P1 criteria name `Monitor` as the sixth documented auto-mode drop class (upstream v2.1.236) and state that this detector does not scan it, so a clean P1 result is not evidence about a repo's Monitor grants.
+
+## [0.43.2]
+
+### Changed
+
+- **`audit-instructions`: Phase B states the lane report write rule and the unattended dispatch gate.** A lane that persists its report writes it with the Write tool, or to a literal absolute path under the host temp tree only when `CLAUDE_PROJECT_DIR` names a project root outside a temp tree, never through a variable-carried shell redirect or inline Python, because the guardrails `block-hook-bypass` guard blocks the forms it cannot resolve; the paragraph carries a dated verification record against the guard source. When the caller has declared the run unattended in the invocation text, the ~20-dispatch confirmation becomes a Phase D cost-line disclosure of planned and actual dispatch counts; the declaration comes from the caller and is never inferred by the run. The Phase D cost-line definition now lists the dispatch count and whether the confirmation was asked or disclosed, so the Phase B reference has a place in the report that satisfies it.
+
+## [0.43.1]
+
+### Fixed
+
+- **`audit-permission-state`**: the plane lint keyed unreadness by scope, so it kept only the LAST
+  surface record per scope. `managed` emits four (file, drop-in directory, registry, plist), so a
+  skipped registry followed by a not-applicable plist reported `status=read`. Unreadness is now per
+  surface and sticky, and the note names the surface rather than only the scope. This was the same
+  false-clean summary the status token was added to prevent, one level down.
+- **`audit-permission-state`**: `audit.sh` captured the inventory's exit status inside an `if ! cmd`
+  branch, where the negation has already resolved it to 0. A failed inventory, such as a machine
+  without `jq`, printed "failed (exit 0)" and exited successfully, handing automation a completely
+  failed audit as a passing one. The status is captured with `|| rc=$?` instead.
+- **`audit-permission-state`**: the merge counted only the cross-kind losers, so a whole-tool deny or
+  ask that beat a scoped rule printed one `inert` record beside `beaten=0`. All three emission sites
+  now increment the count, so the summary reconciles with the records above it.
+- **`audit-permission-state`**: the `autoMode` block lint derived "customized" from added entries
+  only, so a section holding a strict subset of the built-in list was reported as the unmodified
+  built-in list directly above `C4-defaults` reporting that built-in entries were discarded. Removals
+  count as customization too.
+
+## [0.43.0]
+
+### Added
+
+- **`audit-permission-state`**: `scripts/audit.sh`, one entry point that runs each stage once and
+  fans the inventory out. Bare invocation now runs every read-only stage; flags narrow rather than
+  widen, and the two priced lanes (`--oracle`, `--critique`) stay opt-in. The stage scripts remain
+  independently invocable, which `draft-auto-mode-rules` and `audit-pass` rely on.
+- **`audit-permission-state`**: the local-scope reader resolves all four documented conditions that
+  keep `settings.local.json` beside `settings.json`. The two that were missing, a Windows host and a
+  repository root whose `.git` or `.claude` entry is not owned by the current user, previously left
+  the reader anchored on the repository root against the documented rule, so a live file was reported
+  `absent`.
+- **`audit-permission-state`**: a cloud session is detected through `CLAUDE_CODE_REMOTE` and reported.
+  There the operator's own user and local settings are not read and only server-managed settings
+  arrive, so a user-scope record describes the container rather than the operator.
+- **`audit-permission-state`**: `reference/gotchas.md`, holding the failure modes and the
+  verification status the skill body used to carry inline.
+
+### Fixed
+
+- **`audit-permission-state`**: the plane lint and the entry diff could not say they had been unable
+  to look. Both summaries now carry `status=read|incomplete`, matching the token the managed
+  conformance report already emitted, and name the scopes they could not read. A plane where every
+  scope was unreadable previously summarized byte-for-byte identically to a fully read clean one.
+- **`audit-permission-state`**: `--diff-only` no longer suppresses `CAVEAT` and `NOTE` records. It
+  withholds the per-rule inventory, which is its purpose; withholding the readability records left an
+  all-zero summary as the only thing on screen for a machine nothing was read from.
+- **`audit-permission-state`**: the merge ends in a `merge summary` line, so a machine with no rules
+  states that result instead of emitting two caveats and stopping.
+- **`audit-permission-state`**: the entry diff states its precondition. Auto mode is the starting mode
+  in one of the seven documented run shapes, so sessions under `claude -p`, the Agent SDK, an
+  Enterprise plan and the rest were being handed a diff for a transition they never make. It also
+  states that dropped and suspended rules alike are restored on leaving auto mode.
+
+### Changed
+
+- **`audit-permission-state`**: the Agent SDK caveat names the SDK's `resolveSettings()` helper, which
+  is what the documentation describes, rather than claiming a session class the reader cannot detect.
+- **`audit-permission-state`**: the scope-boundary line narrows to settings-file correctness *outside*
+  the permission plane. The plane's own dead-config, `disableAutoMode` type, and unmatchable-rule
+  checks stay here, where all five scopes are read at once; `claude-config:audit` does not implement
+  them.
+- **`audit-permission-state`**: the `autoMode` block lint says whether each present section is a
+  built-in list or one the operator customized, which is the question a section count leaves open.
+
+## [0.42.5]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.42.4]
+
+### Changed
+
+- **`audit-pass`: the exclusion-set reference describes both registry line shapes.** The
+  sanctioned-replication cluster class is derived from the marketplace's
+  `scripts/cross-plugin-source-registry.txt`, whose plain entries are paths within each plugin and
+  whose cluster lines, `<canonical> -> <member>...`, name a root-relative canonical copy and the
+  plugin paths or globs that carry it; the reference now says how to resolve each shape to its
+  copy set. Wording only; the pass's behavior is unchanged.
+
+## [0.42.3]
+
+### Changed
+
+- **`audit-permission-state`, `draft-auto-mode-rules`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
+## [0.42.2]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, every skill body, and the context, reference, and template
+  files under each skill) are rewritten as a comma, a period, a colon, or a restructured
+  sentence; headings that carried one take the colon form, and every in-file anchor to a renamed
+  heading follows. Reflexive `load-bearing` and `seam` become the concrete word each stood for.
+  One verbatim issue-heading quotation in the `audit-instructions` protected-content fixture
+  keeps its em dash inside an ignore marker, which is what that fixture exists to exercise. No
+  check, criterion, tier, severity, or exit code changed. The purge gate now defends the whole
+  plugin tree.
+- **`audit-pass`:** `reference/retired-conventions-sweep.md` drops the filler phrase `in order to`
+  from its own prose; no rule or step changed. Found by the repo-wide `/ai-slop:audit` run
+  (#3987).
+- **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
+  rewrite was applied inside
+  `[0.40.24]`, `[0.40.23]`, `[0.40.15]`, `[0.40.10]`, `[0.40.2]`, `[0.40.1]`, `[0.40.0]`,
+  `[0.39.3]`, `[0.39.1]`, `[0.39.0]`, `[0.38.8]`, `[0.38.7]`, `[0.38.6]`, `[0.38.4]`,
+  `[0.38.3]`, `[0.38.2]`, `[0.38.1]`, `[0.38.0]`, `[0.37.2]`, `[0.37.1]`, `[0.37.0]`,
+  `[0.36.1]`, `[0.36.0]`, `[0.35.4]`, `[0.35.3]`, `[0.35.0]`, `[0.34.0]`, `[0.33.1]`,
+  `[0.33.0]`, `[0.32.0]`, `[0.31.0]`, `[0.30.0]`, `[0.29.2]`, `[0.29.1]`, `[0.29.0]`,
+  `[0.28.1]`, `[0.28.0]`, `[0.27.5]`, `[0.27.4]`, `[0.27.3]`, `[0.27.2]`, `[0.27.1]`,
+  `[0.27.0]`, `[0.26.0]`, `[0.25.0]`, `[0.24.0]`, `[0.23.0]`, `[0.22.1]`, `[0.22.0]`,
+  `[0.21.9]`, `[0.21.8]`, `[0.21.7]`, `[0.21.6]`, `[0.21.5]`, `[0.21.4]`, `[0.21.3]`,
+  `[0.21.2]`, `[0.21.1]`, `[0.21.0]`, `[0.20.1]`, `[0.20.0]`, `[0.19.0]`, `[0.18.0]`,
+  `[0.17.0]`, `[0.16.0]`, `[0.15.0]`, `[0.14.0]`, `[0.13.0]`, `[0.12.0]`, `[0.11.0]`,
+  `[0.10.0]`, `[0.9.2]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.0]`, and `[0.6.0]`. Wording
+  only; every entry's facts are unchanged.
+
+## [0.42.1]
+
+### Changed
+
+- **The audit-pass skill body names the check-script calling contract** the
+  repository now states in one place: exit 0 clean, 1 findings, 2 environment
+  or usage, with findings on stderr. The skill previously relied on each
+  check script's own header, which four scripts disagreed with.
+
+## [0.42.0]
+
+### Added
+
+- **`audit-instructions`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `/claude-api prompt-audit` subcommand (prefer it for
+  model-migration and application-code prompts; this skill for the standing Claude Code
+  instruction catalog, cross-surface conflicts, and harness-claim staleness; run both when a
+  request spans them), a mutation gate that never chains into a prompt-audit apply, and an
+  availability rule that never assumes the bundled skill resolves. Detail, provenance records,
+  and the recheck triggers live in `reference/bundled-claude-api.md`.
+
+## [0.41.1]
+
+### Fixed
+
+- **`lib/state-key.sh` keys a non-repository directory by its physical path.** The `nonrepo`
+  rung hashed `$PWD` as inherited or as `cd` left it, which keeps the logical spelling a symlink
+  was reached through, so `~/projects-link/notes` and `/data/projects/notes` produced two
+  `nonrepo/<hash>/<hash>` trees for one directory and the read-back auditors reported "no prior
+  artifact" under the other spelling. The script now resolves the working directory physically
+  (`cd -P .`, no fork) before hashing, matching what `git rev-parse --show-toplevel` already did
+  for the repository rungs. A symlinked non-repository directory keyed under the old spelling
+  re-keys on the next run. Regression case 5b covers both `--root` and the no-argument form.
+- **`lib/state-key.sh` no longer lets an exported `CDPATH` redirect `cd` or pollute stdout.** With
+  `CDPATH` exported and a relative `--root`, `cd` resolved the operand against `CDPATH` instead of
+  the caller's directory and echoed the path it chose: the caller got two stdout lines where the
+  contract promises exactly the key, and the key described a directory it never named (the
+  `[[ -d ]]` check above validated the relative path while `cd` went elsewhere). The script now
+  clears `CDPATH` once before any `cd`. Regression case 14 covers both halves.
+
+## [0.41.0]
+
+### Added
+
+- **audit:** `scripts/audit-engine.sh`, a deterministic engine for every check that needs no
+  reasoning: scope discovery, JSON validity, `$schema`, baseline deny and ask patterns against
+  `reference/required-permissions.md`, the three narrowings, hook inventory, plugin drift, skill
+  listing budget from the session debug log, and the env-vars page cross-check. It prints a table
+  or JSON and, with `--out`, writes a findings artifact in the `audit-pass` identity shape
+  (`check`, `claim`, `sites` with `anchor/v1`, `finding_id`), with `anchor` and `finding-id`
+  subcommands so a judged finding gets the same identity the engine would derive. Scopes the
+  engine cannot read are reported as not inspectable, never as clean.
+- **audit:** the engine reads the `.claude/audit-pass.md` suppression record through the
+  config-cascade layers. Only the team layer suppresses; a personal-only entry is reported as not
+  applied and a malformed entry never suppresses. Every table finding carries a paste-ready
+  `suppress:` line.
+- **audit:** `scripts/check-doc-citations.sh` and `reference/doc-citations.tsv`, which verify that
+  every doc span the skill's references quote still appears on the live upstream page. The
+  permissions page had already moved under one quoted span, which this checker now catches.
+- **audit:** the hook-coverage narrowing consumes a plugin's `hooks/coverage.json` manifest, so a
+  live hook that declares a baseline family turns that family's missing pattern into `info`
+  without the model guessing what the hook covers.
+- **audit-pass:** `/claude-config:audit` is a delegated lane. Its rows append unchanged, engine
+  rows carry the `derived` tier and model rows the `judged` tier, and both skills share one
+  suppression record.
+
+### Changed
+
+- **audit:** `check-plugin-drift.sh` resolves a marketplace with a directory source against
+  `<path>/.claude-plugin/marketplace.json` instead of the registry cache, and reports the source in
+  its JSON. `check-hook-coverage.sh` resolves plugins marketplace-directory first, reports a
+  `DIVERGENCE` when the cache copy differs, and widens its `--json` with the project root, hook
+  timeout and type, plugin paths, and the divergence list.
+- **audit:** the SKILL.md phases run the engine first and reserve the model for judgment: Phase 3
+  runs the citation checker, points every settings key at `settings-reference`, and degrades the
+  known-issues check from the API to `/claude-ops:known-issues` to an unverified statement dated
+  from the row's `Last verified` column. Phase 4 reports suppressed and undecided rows and persists
+  the findings artifact. A `## Next` section names the successor skill.
+- **audit:** B.5 rows in the checklist are `info`, the debug-log check reads the existing log
+  before creating one, and `required-permissions.md` quotes the current permissions page wording
+  in place of the retired word-boundary sentence.
+- **audit:** the readability probe in `check-structure.sh` and the engine silences its own
+  stderr before opening the file, so an unreadable scope no longer prints a shell
+  permission-denied line ahead of the report.
+- **audit:** `check-plugin-drift.sh` no longer exits fatally when curl is absent. Directory-sourced
+  marketplaces need no network, so they still audit, and each repo-sourced one is recorded as a
+  fetch failure instead.
+- **audit:** `check-doc-citations.sh` checks the last manifest row even when the file has no
+  trailing newline.
+- **audit:** narrowing 3 corroborates the claim before taking it. A coverage manifest narrows a
+  baseline family only when the hook it names appears in the enumerated inventory on the event and
+  matcher it declares, and an entry that names no such hook is reported instead. When a settings
+  scope does not parse, the inventory reports the suppression-lever state unknown and the engine
+  refuses the narrowing rather than reading unread levers as unset.
+- **audit:** a debug log the engine discovered rather than was given settles the skill-listing row
+  only when the log names the project being audited; otherwise the row is unverified rather than
+  clean. `reference/doc-citations.tsv` pins the upstream sentence that `CLAUDE_CODE_DEBUG_LOGS_DIR`
+  is a file path despite its name, so a change in that contract fails the citation check.
+- **audit:** `check-hook-coverage.sh` encodes a hook's `args` once, so the engine's
+  placeholder-quoting check sees an array and fires for a shell-form hook again. A
+  directory-source catalog that does not parse is reported as unreadable and leaves the inventory
+  partial instead of reading as "plugin absent".
+- **audit:** the engine reads a hook command's first word the way the shell does, so a quoted
+  path with a space resolves whole. A hook command from a personal scope, or one carrying a
+  token-shaped value in any scope, is named by its excerpt hash in every claim and detail, so the
+  suppression stanza an operator pastes never carries the command. A baseline reference that
+  parses to no pattern is reported as unparsed rather than producing no category B rows.
+  Marketplace names are matched as strings, not patterns, and the drift script runs without curl.
+  A hook with no timeout is checked like any other: the inventory read carries a sentinel for an
+  empty field, where a folded tab used to shift the hook's type into the timeout column and skip
+  it.
+
+## [0.40.41]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** a UTF-8 BOM (U+FEFF encoded EF BB BF) immediately before
+  the BEGIN marker is stripped when scanning the marker line. POSIX `[:space:]` does not include
+  BOM, so a Windows-authored root file was reported as carrying no region (exit 1) and consuming
+  skills silently served the default. `trim` strips the BOM once, then surrounding whitespace;
+  a second strip was unreachable because a file-start BOM can only be the first three bytes of
+  line 1. The same fixture now resolves at exit 0 with and without the BOM.
+
+## [0.40.40]
+
+### Added
+
+- **`audit-instructions`, `audit-permission-grants`**: a `## Next` section naming the skill that
+  normally runs after this one, in the mention-only shape the skill-body rule describes.
+
+## [0.40.39]
+
+### Changed
+
+- **audit-instructions:** criteria I30 to I34 state the current rule and its reason. The
+  prompt-audit provenance that named how those rows were added is not loaded with the criteria.
+
+## [0.40.38]
+
+### Changed
+
+- **audit, audit-permission-state, audit-permission-grants, audit-instructions, audit-prompting-postures:** the `pre-v2.1.211` start-directory boundary has one dated owner record under the Scopes table in `audit-permission-state/reference/criteria.md`, with five body sites pointing at it in one clause; the `conflict-scan.sh` figures in `conflict-criteria.md` are re-measured against this repository; the posture catalog names both model subpages, says which one a row means, and says to read the Fable 5.1 sibling when the audited component targets that model (prompt-audit follow-up F6).
+- **audit-instructions:** `restatement-scan.test.sh` resolves its fixture directory to the host's native spelling and folds separators before comparing, so the two I29 rows `restatement-scan.py` prints through `pathlib` match on Windows as well as Linux (prompt-audit follow-up F10).
+
+## [0.40.37]
+
+### Changed
+
+- **audit-instructions:** criteria I30 to I34 (dated stamp without recheck trigger, migration-relative phrasing in spokes, routing to an absent skill, sibling-file meta-commentary, maintainer rationale in model-facing YAML) from the 2026-09 prompt-audit's catalog gaps (follow-up F24).
+
+## [0.40.36]
+
+### Changed
+
+- `lib/state-key.test.sh` case 8 names its Windows-path remote with a `{central}` placeholder.
+  The assertions are that the remote is hashed and that no backslash reaches the key, and both
+  hold on any spelling of the segment. Braces rather than angle brackets because a `<` directly
+  after a backslash is the GNU word-boundary escape `\<`, which the shell-portability gate reads
+  as a GNU-only construct.
+
+### Fixed
+
+- Two in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. The `[0.35.3]` P2-findings
+  bullet drops its macOS home-path fragment and keeps the sentence, which already says the fragment
+  was eight characters; the `[0.31.0]` `audit-pass` bullet writes its example repository root with a
+  `<drive>` placeholder. Neither correction changes what either entry claims.
+
+## [0.40.35]
+
+### Changed
+
+- **audit:** removed the Phase 1.0 before-and-after narration, the observed-false-negative anecdote,
+  and the stale listing-budget measurement; the routing to `skill-quality:check` and the
+  scope-the-run rule now stand on their own.
+- **audit-automation-gaps:** the research step no longer tells the model both to fan out and to
+  prefer the main context; it delegates the fetches and keeps the gate verdicts. The quality
+  principles are stated as principles rather than as lessons from past sessions.
+- **audit-instructions:** the Authority axis is a closed four-value set that admits `HOUSE`;
+  `Model scope` takes a list, and the four `fable-5` rows widen to `fable-5, fable-5-1` with a dated
+  basis and a recheck trigger; issue numbers, ADR pointers, and scope-change narration are gone; the
+  caps-emphasis blocks read at normal volume; the description's trigger list becomes intent
+  categories.
+- **audit-pass:** removed the prior-version defect narration across the skill body and eight
+  reference files; the lease contract drops the retired five-minute window and refresh-interval
+  figures in favor of `stale_after_s` and `skew_grace_s`; the `/doctor` handoff states
+  `skillOverrides` as documented for project and user skills and unverified for bundled ones.
+- **audit-permission-grants:** the scope-filter rationale, the `//` absolute-anchor rule, and the
+  scan-root alias state their current reason without the issue numbers, machine timings, and errata.
+- **audit-permission-state:** the gotchas read as failure modes rather than as a log of earlier
+  revisions; the description's near-synonym triggers become intent categories and route the
+  ignored-allow-rule case to `audit-permission-grants`.
+- **audit-prompting-postures:** dropped the inventory-defect anecdote and the restatement of what the
+  state-key test suite asserts.
+- **draft-auto-mode-rules:** the classifier critique is quoted without the block it was run against,
+  and the absent history input is stated as a fact rather than as a design-decision record.
+- **setup:** the prerequisite list names every script that calls jq, awk, and sort, so a missing tool
+  reports what it actually blocks; the skill roster is complete.
+- **unhobble:** the PLUGIN-PHILOSOPHY hook-classification rubric is cited by URL, so an installed
+  copy can reach it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.40.34]
+
+### Changed
+
+- **`emit-findings.sh` composes its `## Surfaces` zero-result list through `rule_id()`**
+  instead of retyping the four rule-id strings that function already owns. Hand-copied
+  ids are the drift class `conflict-scan.sh`'s own `COORD_ERE` comment records a shipped
+  bug from, so a `split()` loop over the four ids now routes each one through the
+  accessor. Differential runs are byte-identical.
+- **`conflict-scan.sh` drops a guard that could never be false.** The `in` test before
+  `entities[ent] = 1` was redundant twice over: awk's `in` does not autovivify, and the
+  assigned value is always 1, so the guarded assignment is idempotent either way.
+- **`fix-plugin-drift.sh` builds its four action-plan lists through one `findings()`
+  helper.** The auto-remove, manual-orphan, auto-add and rename extractions repeated an
+  identical `select(.status == "ok")` and `sort -u` frame over `$INPUT_JSON`. The file's
+  injection posture is preserved on purpose: the composed suffix is always a static
+  literal from this file, never data, and plugin names stay `--argjson`-bound.
+- **`permission-state.test.sh` loses a guard dominated by the line above it.** After
+  `src="$(command -v "$tool")" || continue`, success already implies a non-empty `src`,
+  so the emptiness test beneath it could not fire. The suite's zero-writes proof is
+  untouched and still ran 12 of 12.
+
+## [0.40.33]
+
+### Changed
+
+- **Permission-state suite fixture repair and cleanups (tidy sweep, second wave).**
+  `permission-plane-lint.test.sh`'s WINREAL fixture was built through a printf format
+  string that corrupted `\a` into a BEL byte and warned on `\U` every run; it is now a
+  quoted heredoc matching intent. printf newline formats normalized, long `env`
+  invocations rewrapped, and a redundant awk paren layer dropped in two lints.
+  `audit-pass/run-state.sh` reads the two heartbeat lease fields into locals like its
+  siblings, and `permission-rule-check.test.sh` renames case-12 fixtures that shadowed
+  case 8's. No behavior or contract changes.
+- **Audit script cleanups from the repo-wide tidy sweep.** `check-hook-coverage.sh`
+  replaces three manual counter loops with the `for i in "${!ARR[@]}"` idiom;
+  `check-plugin-drift.sh` collapses the two-stage pairs_obj jq build into the single
+  `jq -nR` form its sibling calls use, which also silences a spurious stderr
+  diagnostic when a marketplace declares no enabled plugins; `fix-plugin-drift.sh`
+  drops a GNU-only `sed \?` quantifier from `--help` rendering (BSD-sed
+  compatibility, output byte-identical); three test files pick up shfmt case-label
+  normalization. No behavior or contract changes.
+
+## [0.40.32]
+
+### Changed
+
+- **`audit-prompting-postures` skill-listing entry tightened.** It was the marketplace's third
+  largest listing entry. The description now folds the component list into a parenthetical and
+  shortens the posture enumeration while keeping every quoted trigger phrase and the `Not for`
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.40.31]
+
+### Fixed
+
+- **`audit-instructions`: every restatement finding was declined on a Windows checkout under a
+  short-named path.** The I29 rows come from `restatement-scan.py`, a native Windows interpreter,
+  so MSYS converts its argv on the way in and the scanner echoes what it received: backslash
+  separators, and 8.3 short components such as `<drive>:\Users\<SHORT~1>\...`. None of the anchors
+  is spelled that way, the out-of-repo fence fails closed, and the findings stayed in the
+  human-report-only column. `emit-findings.sh` now re-spells such a path through `cygpath -l -m`,
+  which answers the long forward-slash form the anchors use, cached per distinct path.
+
+  The expansion cannot come from the anchor side instead: `cygpath -m -s` also shortens components
+  MSYS left long, so the two spellings do not meet in the middle. The path reaches `cygpath`
+  through a file the script owns rather than through a command line, so no scanner-supplied text is
+  ever interpolated into a shell word. Where `cygpath` is absent, awk normalizes separators alone
+  and the anchors behave exactly as before.
+
+## [0.40.30]
+
+### Changed
+
+- Phase 2d pilot wiring. `lib/resolve-convention-home.sh` gains its sync cluster (`scripts/sync-resolve-convention-home.sh`, first carrier: plugin-quality) and its shared-source header note now cites the cross-plugin source registry instead of the pre-carrier placeholder wording.
+
+## [0.40.29]
+
+### Changed
+
+- **`lib/check-retirements.sh`:** optional `heading` field on `kind: line` restricts detection and `--clean` to the body of matching ATX sections (retired-conventions contract 1.1). A standalone line that matches `match` outside that heading is not a leftover.
+
+## [0.40.28]
+
+### Changed
+
+- New retired-conventions mechanism (customization-consistency Phase 2b): canonical `lib/check-retirements.sh` + tests (manifest-driven detection/cleanup of retired consumer conventions), `lib/resolve-convention-home.sh` + tests (AGENTS.md pointer-line resolver), and an audit-pass fleet-sweep lane over installed plugins' `retirements.yaml`. File and line `--clean` re-resolve the parent with `pwd -P` and refuse a target that lands outside `--root` (the dir branch already did). The contract validator matches the helper's separator, quote-stripping, path grammar, and complete retirement-id eval coverage.
+
+## [0.40.27]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [0.40.26]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside `identity="local/$(hash12 ...)"`, which POSIX XCU 2.6.3 executes in a subshell, so only that substitution died. Under `set -uo pipefail` (no `-e`) the script continued and printed a malformed key (`local//...`) at exit 0. The tool check now sits in the main script body, before any hash assignment. Canonical source for the six-plugin cluster; copies updated via `scripts/sync-state-key.sh`.
+
+## [0.40.25]
+
+### Fixed
+
+- **`audit`: `fix-plugin-drift.sh` no longer crashes on a trailing bare `--input`.** Under
+  `set -u`, a missing option-argument dereferenced `$2` and exited 1 with an unbound-variable
+  error. A missing value now prints `Missing value for --input` to stderr and exits 2, matching
+  the script's other argument-validation errors.
+
+## [0.40.24]
+
+### Changed
+
+- **`unhobble`: Phase 4 no longer leaves a protected rule deleted on silence.** The readd phase
+  ended with "everything the ledger did not defend stays deleted", which is sound for ordinary
+  instructions and wrong for a rail whose absence is unrecoverable: such a rail will not usually
+  announce itself inside one experiment window, so "no stumble was observed" is the weakest
+  evidence available against it. Phase 4 now restores a rule matching a protected class in the
+  marketplace's instruction exception register whether or not the ledger logged against it. The
+  strip itself stays permitted. It is reversible and branch-local, which is why the experiment may
+  run over a protected rail at all. Register holds are recorded separately from the defense tally,
+  so restoring one is not counted as a deletion the ledger defeated.
+- **`audit-instructions`: I1, I4 and I5 gain a hold verdict for protected instruction classes.**
+  All three deletion-class criteria remediated to `delete` with no stated exception, which left the
+  "except in highly important areas" carve-out in the source guidance undefined at the point of
+  use. The audit could cut a security rail on the strength of "the model already does this", the
+  weakest evidence available against a rule whose absence is unrecoverable. Each criterion now
+  names the marketplace's instruction exception register, reports a matching candidate as a hold
+  with its class, and proposes compression in place. I1 carries the additional reason its own bar
+  cannot see the problem: it asks whether removal would change behavior today, and a protected
+  rail's removal changes behavior only on the occasion it was written for. The register is
+  non-exhaustive and tighten-only, so a candidate absent from it is still judged on the criterion's
+  normal terms and never deleted *because* it is absent. I5's hook conversion stays available:
+  converting a protected rule to a deterministic mechanism is a remediation, deleting it is not.
+
+## [0.40.23]
+
+### Changed
+
+- **`audit-pass`: two dated reference surfaces gain observable recheck triggers.** `SKILL.md` and
+  `reference/finding-identity.md` carried verification dates with no stated event obliging
+  re-derivation, the part the upstream-drift convention treats as essential: a
+  stale stamp reads identically to a fresh one, so the date alone confers no authority. `SKILL.md`
+  now names the `output-styles` doc's `keep-coding-instructions` / `force-for-plugin` behavior and
+  the `memory` doc's `@path`-imports-load-at-launch claim; `finding-identity.md` names a SARIF spec
+  revision renumbering the sections it keys to, or GitHub CodeQL changing its fingerprinting method.
+  Additive only: no claim, date or existing sentence changed.
+
+## [0.40.22]
+
+### Changed
+
+- **Stamped restated upstream frontmatter facts across three audit references** (2026-08-31
+  frontmatter-alignment sweep, per the marketplace's upstream-drift convention). `audit-instructions`
+  `reference/criteria.md`: the I3 Source bullet's quoted doc spans now carry their owning URLs, a
+  verified date, and a divergence trigger. `audit` `context/validation-categories.md`: the Category
+  G budget defaults (0.01 fraction, 8,000-char fallback, 1,536 per-entry cap) carry a verified date
+  and a trigger tied to the Phase-3 confirm the paragraph already mandates. `audit`
+  `reference/audit-checklist.md`: the per-entry-cap row now cites the frontmatter reference with a
+  date and re-derivation trigger.
+
+## [0.40.21]
+
+### Changed
+
+- **`audit-permission-grants`: `permission-rule-check.test.sh` renumbers a colliding block of case
+  labels.** The regression block after Case 11 reused labels 8b through 8g that an earlier block
+  already carried, so two different cases shared each label. The later block is now Cases 12
+  through 13b, grouped by the issue each case pins. Comment-only: no assertion, variable, or
+  fixture changed, and the suite passes unchanged at 139 checks.
+
+## [0.40.20]
+
+### Changed
+
+- **Two documentation-accuracy fixes and one dead-guard removal in skill
+  scripts.** `audit-pass/scripts/run-state.sh`'s header usage block regains the
+  `--plugin-data` and `[--epoch <n>]` arguments its own `usage()` already
+  documents (comment-only; verified against the negative-test sed targets);
+  `audit-instructions/scripts/conflict-scan.test.sh` drops a prerequisite guard
+  for `grep`, a tool neither the suite nor the script under test invokes (the
+  awk guard stays; skip-discipline gates re-run clean).
+
+## [0.40.19]
+
+### Changed
+
+- **`lib/managed-scope.sh` emits its two Windows registry policy keys from one
+  `printf`.** The merged call reuses the `'%s\n'` format per argument, so the
+  emitted lines, their order, and the trailing newline are byte-identical; the
+  merge also brings the HKCU line under the existing `portability-ok`
+  annotation block, which previously excused only the adjacent HKLM line, so
+  `scripts/check-shell-portability.sh --paths` now passes this file without an
+  unexcused-construct finding. Behavior-preserving; refutation-verified against
+  every line-by-line consumer.
+
+## [0.40.18]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-permission-state`'s
+  `automode-entry-diff.sh` drops a redundant command-substitution wrapper in the empty-prediction
+  guard (`[[ -z "$(printf '%s' "$predicted_dropped")" ]]` to `[[ -z "$predicted_dropped" ]]`);
+  the wrapper only stripped trailing newlines, and the value's grammar (non-empty rules each
+  followed by one newline) makes that stripping unobservable. Refutation-verified by static
+  reachability trace plus a 12-case empirical matrix; the suite's 63 checks and the
+  no-writes property tests pass.
+
+## [0.40.17]
+
+### Changed
+
+- **`audit-instructions`: the body-scope fence stops citing a line number that says the opposite.**
+  Both `context/persist-findings.md` and `reference/criteria.md` cited
+  `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
+  Line 414 sits inside a comment explaining that a trigger **move** WARNs and never blocks; the
+  `err` is at 462. The citation asserted the reverse of the line it pointed at, and would have
+  rotted again on the next edit to that script. Both now name the trigger-phrase drop check rather
+  than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
+
+- **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
+  upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
+  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them. The
+  verdict is version-dependent and the diff now says so: the category arrived in v2.1.236 and
+  earlier versions leave `Monitor` rules in effect, so classifying one emits a `DIFF-NOTE` naming
+  that bound rather than asserting the verdict unqualified, since the script cannot read the running
+  version. Whole-repo extract-ssot sweep.
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
+## [0.40.16]
+
+### Changed
+
+- **Authoring-doctrine pass over `skills/audit-pass/SKILL.md`.** Fixed pointers and cross-references that did not resolve. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.40.15]
+
+### Fixed
+
+- **Two citations that resolved to the wrong place, or to nothing.** `README.md` addressed
+  `reference/conflict-criteria.md` from the plugin root, which has no `reference/` directory. And in
+  `conflict-criteria.md`, a passage arguing about `claude-memory:audit`'s catalog wrote a bare
+  `reference/criteria.md` that resolves against the citing file's own directory, onto
+  `audit-instructions`' own catalog, a real file with no C6, so a reader checking the claim finds it
+  false rather than finding the path wrong. Both now name their base. Coupling pass, apply lane.
+
+## [0.40.14]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.40.13]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-instructions`'s
+  restatement-scan.py dropped a redundant `nunit and` truthiness test (the preceding length
+  guard already excludes empty units) and its `main()` empty-file-list special case (the
+  general path is byte-identical for an empty list); `audit-permission-state`'s
+  automode-block-lint.test.sh dropped a duplicate `command -v bash` reassignment. All output
+  bytes, exit codes, and assertions unchanged; each change adversarially refutation-verified
+  (20k-case differential fuzz on the scanner).
+
+## [0.40.12]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information
+  comment fragments: branch/merge-session narration in `lib/permission-patterns.sh` and
+  `audit-permission-state`'s `permission-state.sh`. The surviving comments keep the #2382
+  precision rationale and the mutation-coverage rationale; no behavior change.
+
+## [0.40.11]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** `audit-instructions`'s 1,741-line
+  criteria.md gained a Contents section with its per-ID catalog entries and a grep recipe for
+  lookup by ID; `audit-pass`'s run-state-and-resumability.md gained a Contents section. Purely
+  additive. Progressive-disclosure audit, missing-toc treatment.
+
+## [0.40.10]
+
+### Changed
+
+- **`audit-pass` doctor-handoff treats `DISABLE_DOCTOR_COMMAND` as unconfirmed throughout.** A 2026-08-26 re-check (two fetch routes) found the env-vars row absent again, its documented status having now flipped twice, so the item title, the re-check note, and the suppression-channels paragraph all route it through the existing detection-over-prediction posture instead of citing a documented basis. From the repo-wide derivability/point-dont-copy audit, tightened per PR #3387 review.
+
+## [0.40.9]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 2 reference files in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.40.8]
+
+### Changed
+
+- **`audit-pass` reaches `reference/terms.md` and `reference/finding-identity.md` in one hop.** Both
+  were reachable only through `reference/run-contract.md`, and every other leaf opens by assuming
+  `terms.md`, so the file furthest from the hub was the one every other file depended on. A
+  `Reference index. Load on demand` section now links both directly with a read condition per row;
+  `run-contract.md` keeps its own pointers. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.40.7]
+
+### Changed
+
+- **Two reaches into another plugin's skill internals now route through the owning skill.**
+  `audit-pass`'s `reference/run-state-and-resumability.md` cited
+  `plugins/claude-ops/skills/lanes/context/restart-consumer.md` for the lease-staleness precedent,
+  and `audit-instructions`' `reference/criteria.md` cited
+  `plugins/code-tidying/skills/tidy/reference/tidyings.md` as the canonical restraint-clause shape.
+  Both now name `/claude-ops:lanes` and `/code-tidying:tidy`. Plugins install independently, so a
+  path into another plugin's private surface can be genuinely absent at read time (ADR 0018).
+  Docs-hygiene sweep, L4-encapsulation.
+
+## [0.40.6]
+
+### Changed
+
+- **Two README run-ons became a list and a table.** The `audit-pass` run-semantics sentence (80
+  words, 7 clause interrupters) is now a bulleted list, and `unhobble`'s four-phase description is
+  now a four-row table. Every fact survives; the reader no longer backtracks to parse them.
+  Docs-hygiene sweep, L8-write-for-humans.
+- **`audit` phase 1.1 names the table it feeds.** "Before the table below" pointed thirty-five lines
+  and two subsections away, past other tables above and below it. It now names `1.2 Structure
+  inventory`. Docs-hygiene sweep, L7-write-for-agents.
+
+## [0.40.5]
+
+### Changed
+
+- **`audit-instructions` and `audit-pass` split against the progressive-disclosure audit.**
+  `audit-instructions` moved its Phase A surface-discovery procedure to
+  `context/phase-a-inventory.md`, which owns the discovery order, the per-surface record fields
+  Phase B and B2 key off, and the exclusions. `audit-pass` moved its argument reference to
+  `reference/arguments.md`. Both pointers say when to read the spoke, not just that it exists.
+  No content was dropped in either move.
+
+## [0.40.4]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/audit/scripts/check-hook-coverage.sh`, replaced seven 3-line heredocs feeding a
+  variable with the equivalent herestrings (byte-identical output proven by differential runs
+  on crafted and live inputs); removed duplicate `also`/`into`/`than` entries from
+  `skills/audit-instructions/scripts/restatement-scan.py`'s STOPWORDS literal (set unchanged,
+  whole-file AST otherwise identical modulo formatter rewraps); fixed a mid-clause comment
+  wrap in `instruction-scan.sh`; retargeted a dead cleanup `chmod` in
+  `skills/audit-permission-grants/scripts/permission-rule-check.test.sh` to the fixture path
+  that actually exists. Canonical sync sources in `lib/` untouched. Suites green
+  (39/92/18/119/139 checks) plus independent refutation passes.
+
+## [0.40.3]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** Four "in order to describe"
+  constructions in `audit-instructions/reference/criteria.md` tightened to "to
+  describe" (the criteria's own prose; the documented smells are untouched). The
+  purposive "in order to run" in `audit-pass/reference/suppression.md` stays, behind
+  an `ai-slop-ignore` marker, because the short form reads as a list of things the
+  pass must run.
+
+## [0.40.2]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` dropped `--from` lines that missed the intake
+  pattern, without counting them (#3279).** `nrows++` lived inside
+  `/^.+:[0-9]+:I[0-9]+(-[a-c])?$/`, so a well-formed row whose only defect was a suffix
+  outside `[a-c]` (`I28-d`), a prose line, or a blank incremented nothing and reached no
+  decline bucket. The report could not distinguish "this input had 2 rows" from "this
+  input had 5 rows and 3 were unreadable." The writer now counts first and classifies
+  second: every considered line increments `Scan rows read`, and an unmatched line lands
+  in `reason=unparsable-row`. Intake also strips a trailing `\r` before the pattern
+  match, the same strip `descr()` and `source_line()` already do, so a mixed CRLF file
+  no longer silently drops the CR-terminated rows. The scanner-output gate does the same
+  strip, so an all-CRLF file with a matching row is parsed rather than refused as
+  non-scanner input.
+
+## [0.40.1]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` declined every relative scan-row path, dropping
+  the findings its own scanner produces (#3267).** `instruction-scan.sh` echoes the path it
+  was handed, so naming a repo-owned file relatively, the ordinary invocation and the form
+  `SKILL.md` documents, puts a relative path on the row. `relativize_in_repo()` tested that
+  path against three absolute anchors and returned empty when none prefixed it, so the row was
+  counted as `outside-repo-root` and never reached the machine-readable relay. The stated
+  decline reason was the opposite of the truth for those rows, and the run still read as clean:
+  an audit that silently under-reports is indistinguishable from one that found nothing.
+  A path that is not absolute is now resolved against the calling directory, the same
+  directory `fm_end()`, `source_line()` and `quotes_trigger()` already read the file from, so
+  the Location can no longer name a file other than the one the row quotes. It then passes
+  the unchanged fail-closed fence. The `docs-hygiene:audit-noise` sibling joins to the repo
+  root instead, which is right there because its detector emits paths already relative to that
+  root; the two producers now agree on behavior rather than on anchor.
+- **The same fence admitted a traversing Location.** Its anchor tests are lexical, so
+  `<root>/../outside.md` prefix-matched the root while resolving outside it and relativized to
+  `../outside.md`, which the fix pass would then resolve outside the working tree. Admitting
+  relative paths is what makes traversal expressible, so both forms are refused in the same
+  change: any path holding a `..` segment is declined outright and counted, never dropped
+  silently. The segment test covers both `/` and `\` separators. `is_absolute` already
+  treats a backslash as a root/separator, so a slash-only `..` regex would admit
+  `..\outside.md` on Git Bash and emit a traversing Location. The two delimiter
+  spellings are separate regexes, not a bracket class holding both, because the runner
+  awk is mawk. A Location cell now goes through the same pipe-escape as Finding and
+  Action, so a newly admitted relative filename that contains `|` cannot split the row.
+  A symlink inside the repository pointing outside it still resolves past the test,
+  which needs a canonicalizing syscall awk has no portable access to; that residual is
+  recorded in the fence rather than implied. Absoluteness is tested with `substr` rather
+  than a bracket expression holding both delimiters.
+
+## [0.40.0]
+
+### Added
+
+- **`audit-instructions`: I29 restatement detector, wired to the findings relay
+  (#3186).** Body prose that restates the skill's own always-in-context
+  `description` (I29-a) or a sibling H2 section of the same file (I29-b). The
+  finding keys on a section whose content is *wholly* recoverable. A Purpose
+  that echoes the description and then names a failure mode is silent, and a
+  bolded inline "What this is NOT" sub-block is not a section. The remediation
+  is always "cut the body restatement"; no finding proposes editing a
+  `description`, `when_to_use`, or quoted trigger phrase.
+- **`restatement-scan.py`**, plus fixtures for both sub-shapes, partial overlap,
+  inline fencing, and the quoted-trigger fence.
+
+### Changed
+
+- **`--persist-findings` now emits I28 and I29.** The writer concatenates
+  `instruction-scan.sh --body-only` with `restatement-scan.py` onto one
+  `--from` stream. I29 carries `rule-description-restatement` and
+  `rule-sibling-restatement`, both IMPORTANT.
+
+## [0.39.4]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` double-escaped a pipe the source already escaped,
+  and declined every in-repo finding when git and `pwd` spelled the same repo root
+  differently.** Both defects were identified in #3180 and fixed for `docs-hygiene:audit-noise`
+  in #3202; this copy was not reached. A naive `gsub(/\|/, "\\|")` turns `a \| b` into
+  `a \\| b`, which GFM reads as a literal backslash followed by a live delimiter, so the row
+  splits and the fix action misreads it. `esc()` now walks each backslash run and adds a
+  delimiter escape only when the run length is even, so `a\\|b` stays a single cell.
+  Separately, `git rev-parse --show-toplevel` can answer Git's Windows-drive spelling while
+  the caller is at `/tmp/…` (Git Bash). This producer failed CLOSED: a path it could not
+  prove was under the root was counted as `outside-repo-root` and silently missed the
+  relay. Root resolution now prefers the caller's own `pwd` (minus git's `--show-prefix`)
+  and keeps git's two spellings as fallbacks, then applies the same fail-closed fence.
+  Shared code was considered and declined: plugins are portable and there is no existing
+  cross-plugin emit-findings library; the three copies now agree on the same two helpers
+  instead.
+
+## [0.39.3]
+
+### Fixed
+
+- **Every merged scope list carried a leading empty element under mawk.**
+  `permission-merge.sh` and `managed-conformance.sh` both built their scope lists with
+  `arr[k] = (k in arr) ? arr[k] "," v : v`. mawk creates the element named by an assignment target
+  *before* it evaluates the right-hand side, so the membership test is already true on the first
+  contributor and the append branch is taken immediately: a rule present in exactly one scope was
+  reported as `scopes=,project`, and a managed finding as `in scope(s) ,user`. gawk defers the
+  creation and reads the same line correctly, which is what let this survive. The defect is
+  invisible on a gawk box and wrong on every mawk one, and mawk is what the CI runner has. Both
+  sites now guard on a plain counter, which reads as 0 uninitialized under either implementation.
+  Restores 23 failing checks across three suites (`permission-merge` 19/51, `automode-entry-diff`
+  3/63, `managed-conformance` 1/37); all seven `audit-permission-state` suites are green again at
+  347 checks. Found while diagnosing a `plugin-gate` failure that reproduced on a clean `main`.
+
+## [0.39.2]
+
+### Changed
+
+- **De-slop the instruction surfaces (#2891).** Fifth shard of the em-dash purge, after
+  `session-flow` (#3106), `planning` (#3105), `work-items` (#3107) and `source-control` (#3108).
+  Rewrote `README.md` and all ten `SKILL.md` files under `/ai-slop:audit fix` semantics: em dashes
+  become periods, commas, a colon before a list, or a restructured sentence, never parentheses, en
+  dashes, or a spaced hyphen, since each of those is the same interruption wearing a different mark.
+  482 `rule-em-dash` findings cleared to zero, verified with the rule force-enabled (this repo's
+  `.claude/ai-slop.json` disables it corpus-wide, so the check runs against an isolated config).
+  Frontmatter `description` and `argument-hint` values are rewritten too; no quoted auto-invocation
+  trigger phrase contained an em dash, so no trigger changed. Wording only, with no change to any
+  check, phase, gate, lane, or contract. Rebased across 0.39.0 and 0.39.1: the `--persist-findings`
+  flag, the `context/report-keying.md` and `context/persist-findings.md` spokes, and 0.39.1's
+  canonical SSOT wording are all retained, with the em dashes in that newer prose purged in the
+  same style rather than reverted.
+
+## [0.39.1]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.39.0]
+
+### Added
+
+- **`audit-instructions`: I28 findings reach the apply relay, body-scoped (#3120).** The skill is
+  now a conforming `detector-findings` producer, the first in this plugin. `--persist-findings`
+  writes the run's I28 findings as a `type: review-findings` file that `review:fanout`'s `fix`
+  action consumes, via the new `scripts/emit-findings.sh`. Off by default; a bare invocation
+  reports and stops, so the read-only contract is unchanged. The file is a proposal artifact for a
+  relay the human still gates, never an applied edit.
+- **`instruction-scan.sh --body-only`.** Skips YAML frontmatter, so no candidate row can point at a
+  `description`, a `when_to_use`, or a trigger phrase quoted in one. Opt-in: the human-facing audit
+  legitimately reports on frontmatter content, and what must never happen is such a row reaching an
+  apply relay. An unclosed leading `---` fences the whole file (fail-safe); a mid-document `---`
+  opens nothing.
+- **Eval fixtures for the body-scope fence and the protected-content categories:**
+  `frontmatter-emphasis.md`, `quoted-trigger.md`, `protected-content.md` (one line per category the
+  container spec names as never-flag).
+
+### Changed
+
+- **I28 carries two crosswalk rule ids:** `rule-coercive-emphasis` and `rule-blanket-tool-default`,
+  both `IMPORTANT`, argued from `severity.md`'s degradation-with-a-named-trigger limb in the
+  detector-findings severity crosswalk. It is the only check in the catalog that routes to the
+  relay; every other check stays report-only, and the eight non-crosswalk scanner families are
+  counted as declined in `## Surfaces` rather than silently dropped.
+- **I28's remediation is documented as a downgrade, never a deletion.** The directive survives
+  verbatim and only its volume changes; no emitted `Action` may instruct removal. **One byte may
+  legitimately differ.** Dropping a *leading* wrapper promotes the next word to sentence-initial
+  position (`…MUST resolve` → `Resolve`), so verbatim survival is asserted apart from that forced
+  capitalization. The official source's own worked example makes the same change (`use` → `Use`).
+  Found by running the end-to-end proof rather than by inspection: a strict byte-for-byte assertion
+  fails on every leading-wrapper case.
+- **I28's V1 selection scope is recorded as deliberately narrower than its Detect prose.** Whole
+  bolded sentences and general all-caps imperative runs are judged by the model lane but not
+  mechanically selected. Both are too common in ordinary technical prose to select without
+  swamping the relay. The deferral is written down rather than left as a silent gap.
+
+- **`emit-findings.sh` refuses when no branch resolves**, rather than writing a file the relay can
+  never match. `branch:` is required by the consumer (`fix-pass-mode.md` "Step 1" admits a
+  candidate only on an exact branch match), so with no `--branch` and no current branch the script
+  exits 2 and writes nothing. This is the normal state on a detached-HEAD CI checkout of a PR merge
+  ref, and it is now covered by its own test rather than discovered through an unrelated case.
+
+- **Out-of-repo surfaces never reach the relay.** Phase A inventories user-level surfaces under
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, but `Location` is contractually repo-relative and the fix
+  action fences each remediation to it. `emit-findings.sh` declines any row whose path is not under
+  the repo root, counted as `reason=outside-repo-root`; those findings stay in the human report.
+  Without this, a hit in a user `CLAUDE.md` entered the relay with an absolute `Location` and the
+  fix pass could try to mutate a file outside the working tree.
+- **`--declined-carveout <n>`** records how many I28 candidates the model lane dropped for a
+  criteria carve-out before the writer ran, so that exclusion is counted in `## Surfaces` instead of
+  going unrecorded. Dropping the rows silently would have made the section report fewer candidates
+  examined than were actually looked at.
+- **Branch names that are YAML indicators are quoted.** git accepts `@foo`, `!foo`, `#foo`; emitted
+  as plain scalars, `#foo` reads as a comment and the others as indicators, so the consumer, which
+  admits a candidate only on an exact `branch:` match, silently dropped every finding for such a
+  branch. Quoting is conditional, so an ordinary branch name stays a byte-identical plain scalar.
+
+### Fixed
+
+- **The body-scope fence now agrees with the repo's authoritative frontmatter parser (measured).**
+  All three delimiter checks, `instruction-scan.sh`'s `frontmatter_end` and `emit-findings.sh`'s
+  `fm_end` and `descr`, matched `---` by exact equality, which is **stricter** than
+  `skill_frontmatter::extract`'s `^---[[:space:]]*$`, the pattern `check-skill.sh` (the hard-FAIL
+  gate this fence exists to satisfy) actually parses frontmatter with. The mismatch ran the
+  dangerous way: a delimiter carrying a CR or trailing whitespace is real frontmatter to the gate
+  but was invisible to the fence, so the block read as body content and `description` /
+  `when_to_use` rows became emittable. A CRLF fixture emitted a finding pointing at its own
+  `description` line before the fix, and because `descr` shares the detection, the quoted-trigger
+  fence was disabled in the same case. All three now use the authoritative pattern, so the three
+  readers agree rather than the fence being only as strong as the loosest one. Both layers carry
+  regression cases for CRLF, trailing space, trailing tab, and the unclosed-frontmatter variant.
+
+### Security
+
+- **The body-scope fence is recomputed by the writer, not trusted from the caller.**
+  `emit-findings.sh` re-derives the frontmatter boundary over its own input and additionally
+  declines any body row quoting a trigger phrase present in the file's own `description`. A fence
+  living only in the caller is one caller away from being bypassed, and
+  `skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped trigger phrase versus the base
+  ref, so a remediation editing one is an auto-invocation regression, not a debatable suggestion.
+
+## [0.38.9]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.38.8]
+
+### Changed
+
+- **`audit-pass`: the lane dispatch names the Skill tool (#3002).** The "Dispatch, in inventory
+  order" preamble now states once that every skill in the list below is invoked via the Skill
+  tool, and the scope-boundary bullet that dispatches `/claude-config:audit-instructions` says so
+  inline. The out-of-scope route-out bullets are untouched, since they name lanes this pass does not
+  run. Wording only; lane order, presence gates, and fallbacks unchanged.
+
+## [0.38.7]
+
+### Fixed
+
+- **unhobble: the `CLAUDE_CODE_SIMPLE` gotcha was wrong twice; rewritten against the binary.** It
+  called the variable "undocumented and may vanish", when it has its own row in the official env-vars
+  reference plus the CLI equivalent `--bare`, and it attributed prompt-stripping to it, which
+  belongs to the distinct sibling `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` (both registered independently
+  in the v2.1.232 env map; simple mode disables fetches, keychain reads, and `CLAUDE.md`
+  auto-discovery). The out-of-contract boundary is unchanged and now rests on its real basis:
+  both switches ablate product-owned surfaces, not operator-owned instructions. Eval 8 updated to
+  grade the scope-boundary reasoning instead of the retired undocumented-status claim.
+  Evidence: the `context-budget` evidence record (topic slice pruned per topic-docs;
+  retrievable via PR #2932's pre-prune SHA).
+
+## [0.38.6]
+
+### Changed
+
+- **README: the `claude-config-audit` rename entry is described as a historical migration aid.**
+  The marketplace `renames` map is frozen-historical. Its existing entries stay so settings
+  carrying pre-rename plugin ids keep resolving, but no new entries are added and later renames
+  ship as clean breaking changes. The decision is recorded in `docs/MIGRATION-PLAYBOOK.md`;
+  the README previously read as if the map were the go-forward mechanism. Documentation only.
+
+## [0.38.5]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
+## [0.38.4]
+
+### Changed
+
+- **`audit-instructions`: ratify the C6/I15 boundary against C6's widened population (#2705).**
+  `conflict-criteria.md` 1.5.0 no longer routes every `~/.claude/` half to I15. C6 owns
+  instruction-content conflicts whose both anchors are in `discover-instruction-surfaces`
+  (project **and** user root-level CLAUDE.md / rules), **including user↔project**. I15 keeps
+  nested `CLAUDE.md`, auto-memory, settings, and every surface outside that population, plus
+  memory-layer precedence adjudication for the pairs it retains. SKILL.md "What this skill does
+  NOT do", eval 7, and new eval 18 pin the routing; ADR 0004/0005 carry superseding notes so the
+  immutable records stay accurate beside the live table.
+
+## [0.38.3]
+
+### Fixed
+
+- **`audit-pass`: non-git refusal narrative no longer cites a missing state-key rung.** The gate
+  still refuses a non-git target (non-zero, before Phase 0, naming the path and the cost). The
+  justifying list dropped the stale claim that §3 / `lib/state-key.sh` has no no-git fallback, since the
+  shared keyer already has a `nonrepo/` rung, and now argues from the four remaining losses: no
+  HEAD baseline, no Class 3 worktree derivation, unevaluable `git status --porcelain` assertion 2.1,
+  and (decisive) no tracked team layer so suppression can never persist. Eval 30's expected output
+  and "do not invent fallbacks" expectation track the same four-reason framing. (#2729)
+
+## [0.38.2]
+
+### Changed
+
+- **`audit-pass`: the `<state-key>` scheme definition moved out to the repo convention.** The
+  canonical grammar and segment derivations now live in the `plugin-data-report-keying` convention
+  doc (encapsulation audit, Path A promotion, all six `extract-ssot verify` gates passed);
+  `reference/run-state-and-resumability.md` §3 names the convention and keeps only the one-line
+  grammar as a marked intentional duplicate (an installed copy ships without repo-level docs, so no
+  path link crosses the plugin boundary) plus the in-plugin operational pointer, `lib/state-key.sh`.
+  The canonical prose definition lives only in the convention doc; the shared `lib/state-key.sh`
+  header keeps a named operational duplicate so the executable ships self-described.
+- **State-key attributions follow the promotion.** `audit-instructions`, `audit-prompting-postures`,
+  and the shared `lib/state-key.sh` header now name the `plugin-data-report-keying` convention as
+  the scheme's source instead of `audit-pass`'s §3, which no longer specifies it.
+- **`audit-instructions`: `conflict-criteria.md` names the C6 sibling in public terms.** The
+  cross-plugin relative link into `claude-memory:audit`'s private criteria file is gone
+  (encapsulation audit; Path A promotion refused at Rule of Three, since the boundary's other
+  reproductions are immutable ADRs); the check is cited by skill name + check id with the question
+  quoted inline.
+
+## [0.38.1]
+
+### Fixed
+
+Three defects in the `audit-pass` script `scripts/run-state.sh`, all one family: a control that does not
+enforce what its surface claims. They were found by review on #2441 and are shipped separately
+because that PR merged before the fixes were pushed; **0.38.0 carries all three**, so this is the
+version to be on.
+
+- **The partial's filename now takes the *writer's* epoch, not the lease's current one.** `partial
+  append` read `owner_epoch` from the lease at append time, which defeats exactly the isolation §3
+  describes: a stale holder waking after an adopter incremented the epoch would read the adopter's
+  value and append into the **adopter's** file, so two writers interleave under one attempt ordinal,
+  by §3's own account "the one failure the attempt machinery cannot absorb". `partial append --epoch
+  <held>` now names the writer's own file whatever the lease says, and reports `FENCED` on stderr
+  when the two differ so the run aborts on the signal rather than silently corrupting the artifact.
+- **A record is validated rather than sniffed.** The check accepted any string beginning with `{`,
+  so a construction slip such as `{bad json}` was appended permanently to an artifact whose only
+  readers are `--resume` and assembly, costing the run's persisted state rather than one record.
+  Records are now verified as well-formed single-line JSON objects: `jq` decides where it is
+  installed, and where it is not, a scan tracking string context and escape sequences still rejects
+  `{bad json}`, a truncated row, and an unbalanced one. `jq` is deliberately **not** made a hard
+  requirement. Failing the state-persistence path closed on a missing optional tool would cost the
+  artifact the check exists to protect. Both rungs are asserted; the second runs with a `PATH`
+  holding only `bash`.
+- **`lease acquire` pins the write tree.** It created whatever `--run-dir` it was handed and wrote a
+  lease into it, so a wrong or invented run directory, say the target root, was created and
+  written to, against this skill's promise that a bare audit writes nothing into the target and while
+  it keeps Bash specifically for state writes. `acquire` is the only command that *creates* a
+  directory, so it now requires `--plugin-data` and refuses any run directory outside
+  `<plugin-data>/runs/`; every later command operates on a directory `acquire` already validated. A
+  test asserts the refused directory is not created. (#2280, F3, F5)
+
+Review of *those* fixes found four more of the same class, all closed here rather than deferred:
+
+- **The fence is enforced by the exit code, not announced in a string.** `partial append` printed
+  `FENCED … this run must abort` to stderr and returned 0, so the abort depended on the caller
+  noticing a substring in a channel indistinguishable from any other diagnostic, a control reporting
+  a state it never establishes, which is the exact defect the surrounding change exists to remove. A
+  fenced append now exits **3**: the record is still written to the writer's own epoch file, and the
+  run is told in the one channel it cannot miss that it has been superseded. `SKILL.md` Phase 3 says
+  what to do with it.
+- **The no-parser rung announces its own limit.** `{"a" garbage}` balances and opens with a quoted
+  key, and no non-parser rejects it. `python3` is now the second definitive rung after `jq`; where
+  neither exists the structural scan runs and **says on stderr that it checked structurally only**,
+  rather than passing for a validator. A check that claims more than it verifies is the same defect
+  in a new spelling.
+- **Containment is checked on the resolved path, not the string.** A lexical prefix test is not
+  containment while symlinks exist: with `runs/link -> /elsewhere`, `<plugin-data>/runs/link/run`
+  passed the comparison and the write then followed the link out of the tree. Both sides are
+  canonicalized with `pwd -P`, `--run-dir` through its deepest existing ancestor, the only part a
+  symlink can be in. (`readlink -f` is GNU-only and is not used.)
+- **`reference/report-location-and-schema.md` §7 no longer contradicts the append contract.** It
+  still described `partial append` as taking the epoch from the lease and listed only the run
+  directory and the record, so an audit following that page after an adoption would have omitted
+  `--epoch` and reinstated the interleaving. Both surfaces now carry the same command.
+
+And review of *that* round caught the containment fix breaking the one run no fixture represents:
+
+- **`acquire` works on a plugin data directory that does not exist yet.** Canonicalizing with
+  `pwd -P` cannot resolve a directory that is not there, so the new check made `acquire` fail on a
+  plugin's **very first run**, the only run whose data root has never been created. Every test in
+  the file pre-makes that directory, so none of them could see it. The root is now created before it
+  is resolved (creating the plugin's own data root is inside this script's mandate and is not a
+  target write), and a test exercises the fresh-install path specifically. Reproduced before the
+  fix: `--plugin-data cannot be resolved: …/fresh`, `rc=2`.
+- The containment guard's **check-then-act window**, a symlink planted between the resolution and
+  the `mkdir`, is now recorded in the code as a disclosed residual rather than left implied. Closing
+  it needs an atomic create-and-verify no portable shell offers, and an attacker who can plant that
+  link can already write the lease directly. A guard whose limits are unstated reads as one without
+  any.
+
+## [0.38.0]
+
+### Added
+
+- **`audit-pass` ships an executable for the run state it had only ever described.**
+  `skills/audit-pass/scripts/run-state.sh` derives the run directory, writes and classifies the
+  lease, and appends to the epoch-scoped partial. Until now the skill was the only audit skill in
+  this plugin with no `scripts/` directory at all, while `SKILL.md` and ten `reference/*.md` spelled
+  out a lease path, a refresh discipline, a two-sided liveness window, a `released` tombstone,
+  `owner_epoch` fencing and an append-only partial as prose. The gap has a sharper form than "no
+  scripts": `lib/state-key.sh`, whose own header records the keying scheme as *`audit-pass`'s, reused
+  rather than reinvented*, was called by `audit-instructions`, `audit-prompting-postures` and
+  `claude-memory:audit`, every skill except the one that specified it. `paths` now calls it, so the
+  skill runs on its own scheme rather than describing it for others.
+
+  Scope is stated plainly, because the point of the change is that a contract should not read as
+  enforced when nothing enforces it. The script owns path derivation,
+  `lease acquire|heartbeat|release|classify`, and `partial append`. It does **not** own stale-lease
+  adoption (the `owner_epoch` compare-and-set) or §7 assembly; those stay the run's own discipline,
+  and §3 and §7 now say so in as many words instead of leaving a reader to assume mechanism.
+  (#2280, F3, F5)
+- **Three negative tests, not only passing ones.** `run-state.test.sh` mutates a copy of the script
+  to delete exactly one check and asserts the mutated copy reaches the outcome the real one refuses:
+  the two-sided window's *lower* bound (delete it and a future `heartbeat_at` pins a dead run `live`
+  forever, so every `--resume` refuses an abandoned run, assertion 3.9), the `..` rejection in
+  `--run-id`, and the segment-shape check that keeps an absolute id from walking the run directory
+  out of the plugin's namespace. A test that would still pass with the check deleted proves nothing,
+  and both id checks guard the same door `lib/state-key.sh` documents defending on the remote-URL
+  side. (#2280, F3)
+
+  Review of this change caught one more of the same class before it shipped: because §3 now documents
+  `--stale-after` as an operator lever, a value of **0** would have been accepted, and a lease
+  recording a zero window satisfies the staleness test the moment it is written, born abandoned and
+  adoptable by `--resume` out from under the run that just wrote it. It is refused rather than
+  clamped (a clamp hands a caller a window it did not choose and then reports on it), with an
+  assertion. `--skew-grace 0` stays legal: "tolerate no forward clock jump" is a coherent choice and
+  inverts nothing.
+
+### Changed
+
+- **The lease's refresh contract now describes something a skill-driven run can keep.** §3 specified
+  a **60-second** wall-clock heartbeat with a 5-minute staleness threshold derived from it. A skill
+  acts between tool calls and has no timer, so that cadence named a mechanism no run could provide,
+  the same defect as specifying a lease and shipping no writer. Refresh is now boundary-driven
+  (acquire, each lane's persistence point, release), and each lease records the `stale_after_s` and
+  `skew_grace_s` its writer committed to, so `classify` reads the thresholds from the artifact rather
+  than assuming its own, which is what the section's own "two implementations must reach it
+  identically" concern actually needed. The default threshold moves 5 minutes → 30: with
+  boundary-driven refresh a single delegated lane can outlast five minutes, and a threshold shorter
+  than a lane classifies a *running* pass as abandoned, which is the unsafe direction because it lets
+  `--resume` adopt a live run's artifact. (#2280, F5)
+- **The `/doctor` handoff's instruction to the operator is no longer false by construction.** Phase 4
+  marks that lane `open`, closable only by `--resume`; `--resume` reads the partial, not the report;
+  and nothing wrote a partial. The report therefore told the operator to come back with a flag that
+  had no artifact to attach to. The `open` terminator now goes through `partial append` at the moment
+  Phase 4 records the handoff, never deferred to Phase 6 assembly, which is exactly where a run that
+  does not reach Phase 6 loses it. The second link in the same path is closed too: §5's "run
+  manifest" is now stated as the partial's own lane records rather than a separate file, which is
+  what §7 already required ("completion state is derivable from the artifact rather than tracked
+  beside it and able to disagree with it"). Making the partial real while leaving completion state in
+  a file nothing writes would have moved the defect rather than fixed it. (#2280, F12)
+- **Phase 3's cost mitigation now names something that exists.** The passage bounds lane *count*,
+  explicitly declines to bound intra-lane fan-out, and mitigates with "let incremental persistence
+  carry the rest", persistence that was prose, so an intra-lane overrun degraded into nothing
+  resumable. The disclaimer is unchanged and the `partial append` call still bounds nothing; what
+  changed is that an overrun now costs the lanes still running rather than the whole pass.
+  (#2280, F13)
+
+  A note on evidence, since the originating report leans on a runtime observation. What is verifiable
+  from this repository is the **specification-versus-implementation gap**: a fully specified lease,
+  partial and manifest with no executable behind any of them. That is the whole basis for these
+  entries. Whether any particular past run failed to write a lease is not something the tree can
+  confirm, and nothing here asserts it.
+
+## [0.37.2]
+
+### Fixed
+
+- **`permission-rule-check` applies a loadability model instead of a `vendor/` path exclusion
+  (#2406).** Blanket `vendor/` or `node_modules/` exclusions would silently blind an `error`-tier
+  check to live grants under nested `.claude/skills/<name>/SKILL.md` paths, which Claude Code loads
+  the moment it touches a file in that subdirectory. The detector now audits only frontmatter at
+  documented discovery paths (project/nested `.claude/skills/`, plugin `skills/`, and the parallel
+  agents/commands locations) and reports how many candidates it excluded as non-loadable. Installed
+  versus orphaned plugin-cache copies still need an `installed_plugins.json` oracle and remain out of
+  scope.
+- **`fix-plugin-drift.sh` uses the portable `mktemp` form (#1709).** The two `mktemp -t
+  <name>-XXXXXX.json` scratch files move to the positional absolute template with trailing Xs
+  (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`), the one form GNU and BSD accept identically,
+  verified by execution on both (GNU coreutils 9.4 and macOS 26.5). GNU marks `-t` deprecated,
+  BSD `-t` treats the argument as a prefix rather than a template, and BSD substitutes only
+  trailing Xs, so a template carrying a `.json` suffix is created verbatim on macOS with no
+  randomness at all.
+
+## [0.37.1]
+
+### Changed
+
+- **`audit-permission-grants` no longer prescribes an unreachable bare-name-on-PATH fix.** P1
+  remediation and Phase 2 reporting now distinguish platforms where plugin `bin/` is reliably on the
+  Bash tool's PATH from the measured Windows/Git Bash gap recorded in the permission-rule-hygiene
+  convention. Bundled-path grants and operator-setup notes replace the unconditional bare-name
+  prescription where that end state is not yet reachable.
+
+## [0.37.0]
+
+### Changed
+
+- **`audit-permission-grants` reports a denominator, so a clean bill is separable from a scan of
+  nothing.** `No fragile permission grants found.` printed identically whether the run parsed forty
+  `allowed-tools` blocks and found them healthy or parsed none at all, and `SKILL.md` told the
+  operator to take that string at face value. Every run now ends with a coverage block: blocks
+  parsed against candidate files walked, allow rules read per settings scope, plugin manifests seen,
+  and, the half that matters, what was **not** read. A scan whose denominator is zero prints
+  `NOTHING TO AUDIT` and no longer claims health it never established. `--count` keeps the bare
+  integer on stdout and puts the block on stderr, so the machine contract is unchanged while a `0`
+  from an empty tree stops reading like a `0` from a healthy one.
+
+  Two fail-open paths were found while instrumenting this and are folded in, because a denominator
+  that counts only successes is the same defect in a new spelling. A settings file present but not
+  valid JSON was skipped by a silent `|| return 0`, so its rules were never read and the run still
+  printed a clean bill; it is now reported per scope as `NOT VALID JSON — its rules were not read`.
+  And both `find` walks discarded stderr, which this file's own header already argued against ("a
+  swallowed permission error was indistinguishable from a clean bill"); unreadable paths are now
+  captured and counted. The `vendor/` exclusion moved out of the `find` predicate into the loop so
+  the run can say how many files it removed. Same predicate, same result set, but an exclusion
+  whose count is printed cannot suppress silently.
+
+  **The completeness guarantee is now structural rather than per-site.** Review found a third
+  instance of the same shape: `find` needs only directory-traversal permission to report a file as
+  `-type f`, so a frontmatter candidate that exists but cannot be *read* (mode 000, a restrictive
+  ACL, a mount that denies reads) was enumerated, failed inside `awk`, wrote its error to the real
+  stderr, and was counted in **no bucket at all**, while the coverage block promised to disclose
+  exactly that input. Two instances had already been caught the same way (the P3 axis, and this).
+  Asserting the invariant at each `continue` is what allowed three; it is now derived once. Every
+  enumerated candidate lands in exactly one of four buckets: vendor-excluded, unreadable, no
+  `allowed-tools` block, parsed. `reconcile_frontmatter` checks the buckets sum to the
+  enumeration on every run, printing `DENOMINATOR BUG` and naming itself as the defect when they do
+  not. A negative test deletes a bucket increment from a copy of the script and asserts the check
+  fires, so the guarantee cannot rot into a check that can no longer fail. Extraction stderr now
+  joins the walk's rather than escaping to the terminal, and a run that audited nothing *and* failed
+  to open its own inputs says so in a distinct message rather than reporting an empty tree.
+
+  **And the denominator's unit is now one rule across all three axes**, after review found the
+  formula counting "produced a finding" on two axes and "examined successfully" on the third, the
+  fourth spelling of the same defect. A `SKILL.md` carrying no `allowed-tools`, and a
+  `settings.json` that parses with an empty `allow` array, were both examined and found to grant
+  nothing, exactly as a parsed plugin `settings.json` declaring no `permissions` always was; only
+  the last of the three counted. A root of such files printed `NOTHING TO AUDIT` directly above a
+  coverage block reporting the candidate files it had just read, reproduced before the fix, not
+  inferred. The rule is now stated once in the code and printed on every run: **the unit on every
+  axis is an input successfully read and examined, never an input that produced something.**
+  (#2283, A5)
+- **The one lever that scopes the scan is named for operators.** `$PERMISSION_HYGIENE_SCAN_ROOT` is
+  now the sanctioned name and the documented remedy for the exit-2 refusal #2249 added.
+  `$PERMISSION_HYGIENE_FIXTURE_DIR` keeps working as a back-compatible alias, and the new name wins
+  when both are set. The old name told an operator it was a test fixture setting while `SKILL.md` and `--help`
+  were telling them to set it in production; `reference/criteria.md`, which never mentioned it at
+  all, now sanctions it in as many words. (#2283, A11)
+- **Consumer-declared exemptions must disclose themselves, and may widen but never silence.** The
+  audited repo authors those declarations. That is the threat model the skills page names directly
+  ("Review project skills before trusting a repository, since a skill can grant itself broad tool
+  access", fetched 2026-08-12). Combined with the identical clean/empty string, a suppressed
+  report was indistinguishable from a clean one. Three constraints now bind: every declaration read
+  is named in the report with its source; an exemption downgrades and annotates a finding but never
+  deletes one; and a run where every finding is exempted says so instead of printing a clean bill.
+  The report schema grows an `Exempt?` column and a declarations line to hold it. (#2283, A15)
+- **The scope filter says what it is.** `frontmatter|settings|plugins|all` narrows which checks may
+  produce findings, never what the detector scans, which `SKILL.md` already implemented and did not
+  say plainly. The filed remedy (detector flags) is **declined, with its measurement**: since #2249
+  the root is a git toplevel, `$CLAUDE_PROJECT_DIR`, or an explicitly named directory, and the two
+  `find` walks over this repository measure 0.49 s and 0.41 s, so the cost the row was filed
+  against no longer exists, and flags would only add a second place for scope to be defined. The
+  wording adopted is the one both sibling audit skills already use. (#2283, A16)
+- **`audit-prompting-postures`' contract stops disagreeing with itself**, in eight places that were
+  one defect wearing eight hats. (#2281)
+  - P7 blesses a deny-by-default hook or script gate as presence evidence while Phase B inventories
+    instruction *text*, so the one evidence form P7 names was the one form Phase B could not see,
+    on the posture whose false MISSING is most expensive. The inventory now bounds what may produce
+    a finding, not what counts as evidence, and Phase C looks for the gate in all three places the
+    catalog blesses before judging P7: settings rules, hook configuration, and **the script the
+    component delegates the destructive step to**, followed and read. The third was added after
+    review, which found the procedure searching only the first two. A component whose destructive action runs through
+    a script performing the approval check is gated, and nothing in its own text announces it.
+    `destructive-capable` is tightened from "can delete, reset, force-push", which matches every
+    component with a shell, to what the body has the model DO, per the classification section's own
+    opening line. (CC-F3)
+  - Phase A's fetch contract is rewritten once rather than twice, because both rows that touch it
+    change the same contract. The best-practices page is fetched every run and its failure **aborts**.
+    It is the single non-negotiable input, and ten `wording-unverified` postures is a report shaped
+    like an audit that audited nothing. Model subpages are fetched lazily in Phase C per applicable
+    row and fail locally, which is what the observed run already did and the wording forbade.
+    (CC-F5, CC-F10)
+  - The published verdict schema was closed at three tokens while the body mandated two more. It now
+    carries four verdicts including `info`, and names `wording-unverified` / `(unverified)` as
+    markers that ride alongside a verdict rather than replacing one. The fifth column is renamed to
+    "Proposed addition or pointer", which is what it already carried. Phase D's own wording is
+    reconciled with it: it said refuted findings are "dropped **or** demoted to `info`", which
+    contradicts `info` being kept for the record and left the choice uncriteria'd. A refuted finding
+    is now always demoted and kept as a row carrying the refutation, since dropping it would erase the
+    evidence that Phase D ran and disagreed. Caught in review as a residual instance of this issue's
+    own defect class, introduced by its fix. (CC-F5)
+  - The surface set is named in this skill instead of inherited by reference from a sibling that
+    versions independently, the coupling that let `output-styles` become inventoried here and
+    unnameable by this skill's own filter. `output-styles` is now a scope token. (CC-F6)
+  - P8 carries the model condition the skill's own gotcha mandates. The section it points at scopes
+    context awareness to Claude Sonnet 5, Sonnet 4.6, Sonnet 4.5 and Haiku 4.5, re-fetched
+    2026-08-12, a leg the issue explicitly marked unverified. (CC-F7)
+  - `disallowed-tools: Edit, NotebookEdit` narrows the read-only contract's accident surface. **It
+    does not enforce the contract, and the skill now says so.** An earlier draft of this change
+    claimed the contract had become "a property of the tool set"; review caught that as false and it
+    never shipped. `Write` is retained for the mandated persist and `Bash` for the state key, and
+    either can mutate a component Phase B has already read, so the contract remains instruction-held
+    with a narrowed surface. A skill whose subject is auditing assurance must not make a false
+    assurance claim about itself; both this skill and `audit-instructions` carry the honest posture,
+    and both are explicit that an operator must never be told the skill *cannot* edit their files.
+    (CC-F4)
+  - `audit-instructions` routes back: its Scope boundary now names this skill as the additive lane.
+    **The filed mechanism was wrong.** The issue says the token appears nowhere in the sibling, and
+    at HEAD it appears once, in a state-key aside. The grep claim is false; the routing claim holds,
+    because a mention in an aside is not a route-out. Two evals are added: one whose prompt carries
+    no slash invocation, so description-driven selection is exercised for the first time, and one
+    pinning the P7 mechanical-gate rule. (CC-F8)
+  - The state key stops overwrites, not reaping. The uninstall sentence is quoted with
+    `--keep-data`, re-fetched 2026-08-12. **Only the uninstall half of CC-F11 is actioned**: the
+    row's other two observations are recorded, not fixed. `when_to_use` is still unused, and the
+    description grew from 1,290 to **1,305** of its 1,536-char cap to carry `output-styles` for
+    CC-F6, the opposite direction from the row's headroom note, and the trade is deliberate.
+- **`audit-instructions` gets the same `disallowed-tools` declaration**, in the same change rather
+  than after it. It states the identical report-only contract ("never by this skill") and names
+  neither `Edit` nor `Write` anywhere in its body, so declaring it on only one of the pair would
+  have opened a fresh instance of exactly the sibling divergence CC-F6 is about, in the release
+  that fixes CC-F6. `audit-pass` states the contract too and is **not** touched here: PR #2403 owns
+  that file right now. Tracked in #2415.
+
+### Not taken
+
+- **#2283 row A8** (generalize the loadability filter beyond `vendor/`) is declined on its rationale.
+  It reasons from the `vendor/` exclusion's own justification, not loadable so the grant never
+  takes effect, to `node_modules/`, worktrees and marketplace mirrors. That step is false: "Skills
+  also load from nested `.claude/skills/` directories below your working directory. When Claude reads
+  or edits a file in a subdirectory, skills from that subdirectory's `.claude/skills/` become
+  available." (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12.) So
+  `node_modules/<pkg>/.claude/skills/<name>/SKILL.md` is loadable the moment Claude touches a file
+  in that package, and the exclusion would make an `error`-tier check silently blind to a live
+  grant. The disclosure half, every exclusion reporting its own count, ships above instead, and the
+  corrected mechanism is carried into **#2406** along with what a real loadability model would have
+  to distinguish.
+
+## [0.36.2]
+
+### Changed
+
+- **`audit-permission-grants` scan-root override is now `$PERMISSION_HYGIENE_SCAN_ROOT`.**
+  `$PERMISSION_HYGIENE_FIXTURE_DIR` remains accepted as a deprecated alias for tests and
+  existing automation.
+
+## [0.36.1]
+
+### Fixed
+
+- **`audit-permission-grants` flags tilde-user Bash paths and inert substitution tokens.** `Bash(~user/…)`
+  now surfaces as P2. The portable `~/` anchor for Read/Edit stays exempt. A new P4 check catches
+  `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, and `$env:USERPROFILE` grants that never match, with a
+  branched remedy: skill-local files recommend `${CLAUDE_SKILL_DIR}`; other surfaces recommend a bare
+  PATH command instead of plugin `bin/`.
+
+## [0.36.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it, and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`audit-permission-state`**, a new skill reporting which permission rules are actually in effect
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session. There is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction. A user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert, including
+  other denies, which are moot rather than weakened. A whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented.
+  A third pass answers what entering auto mode does to that set, which became urgent when auto mode
+  turned on by default for new sessions. Every effective allow rule is classified as dropped (with the
+  documented reason named: blanket, wildcarded interpreter, package-manager run, or `Agent`) or as
+  carried over, using the same shared pattern vocabulary `audit-permission-grants` check P1 scans
+  with. `autoMode.classifyAllShell` is read too, because when it is on it suspends every Bash and
+  PowerShell allow rule and a diff blind to it can be exactly wrong. It is resolved only from the
+  scopes the classifier actually reads, so a project-scope copy is reported inert rather than obeyed.
+  An opt-in `--oracle` flag corroborates the prediction against the harness's own drop narration by
+  spawning a real `claude -p` session; it never fires without the flag, prints what it will leave
+  behind before spawning anything, and reports an empty capture as unavailable rather than as an
+  empty drop set.
+  A fourth pass lints the permission plane for configuration that is written but never read. Eight
+  checks: an `autoMode` section in a scope the classifier does not read, `defaultMode: "auto"` in
+  project or local settings, `useAutoModeDuringPlan` in shared project settings, `disableAutoMode`
+  typed as a boolean instead of the string `"disable"`, and four rule shapes that cannot match:
+  doubled-backslash Windows paths, parameter-form rules on a tool's primary content field, path rules
+  on a tool whose path rules are never consulted, and `:*` used anywhere but at the end of a pattern.
+  The three dead-config gates stay separate findings because they cover different scope sets and carry
+  different version histories; merging them would let an operator fix one and believe they had fixed
+  all three. The `disableAutoMode` check is the highest-consequence one: a boolean is valid JSON, is
+  accepted, and does nothing, so the operator believes auto mode is locked out when it is not. It
+  is read at both documented key paths in every scope, since it is not managed-only. Several of these
+  also emit a startup warning upstream; the added value is reading every scope at once, before a
+  session, and naming the file. Advisory: it exits 0 whenever it ran, and exit 2 means it could not
+  run at all rather than that it found nothing.
+  A fifth lane reads the `autoMode` classifier block, a different surface again, four
+  natural-language sections rather than permission rules. It reports a customized section that omits
+  `"$defaults"` (which **replaces** the built-in list rather than adding to it, so the finding names
+  how many entries are discarded), the same subject appearing in both `allow` and a deny section, and
+  an entry an earlier `hard_deny` already forecloses. `claude auto-mode critique` is surfaced with
+  `--critique` rather than reimplemented, since it owns the semantic judgment, but it is wrapped in
+  truncation and empty-output detection, because across three consecutive runs on one unchanged config
+  its output was truncated mid-sentence twice and empty once while exiting 0 every time. This lane
+  needs `python3`, because `claude auto-mode config` emits raw control characters inside JSON string
+  values that `jq` rejects outright and no line-oriented filter can repair; absent it, the lane prints
+  a visible skip notice and exits 0 while every other stage still runs. A capture that produced
+  nothing is reported as unavailable with an explicit "this is NOT a clean bill". Exit status is
+  never consulted, since it is 0 even when nothing came back.
+  A sixth lane reports which managed intents are actually enforced and which a developer can loosen.
+  A managed `permissions.deny` is the strongest thing an administrator can write and is reported
+  enforced; a managed `autoMode` section is **additive, not a policy boundary**. A developer cannot
+  remove entries it provides, but a developer-added `allow` can override an organization `soft_deny`,
+  because permissions, hooks, MCP, sandbox-filesystem and sandbox-network each have an exclusivity
+  lock and auto mode has none. The report also surfaces an interaction the precedence table alone does
+  not suggest: managed settings are the highest scope, but evaluation order applies from any scope, so
+  a lower-scope deny beats a managed allow without ever overriding it. It prescribes nothing: every
+  rule string it prints came from a file it read, and it ships no security floor of its own. Every run
+  bounds its own completeness: server-managed settings have no local path, and a managed surface that
+  could not be read is reported as such rather than left silent, since an administrator reading
+  silence as "no policy deployed" is the failure the report exists to prevent. Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective. The error direction is over-reporting allow, never over-reporting blocking.
+- **`draft-auto-mode-rules`**, a second new skill, the authoring counterpart. It interviews you about
+  what should and should not be auto-approved, then prints a paste-ready `autoMode` block to stdout.
+  The entry shape is `claude auto-mode critique`'s own recommendation applied at authoring time rather
+  than reported afterwards: run against a real 66 KB hand-authored block, it found the classifier is
+  "an LLM doing a single pass under a 'default is ALLOW' instruction", so conditions buried in a
+  paragraph are missed at a materially higher rate than conditions in a bullet list. Entries are
+  therefore a label, bulleted COVERED / NOT COVERED, and one line of rationale. The interview pushes
+  back on conditions the classifier cannot evaluate from the command text. The same critique named
+  those the biggest weakness, since the classifier either allows blindly or blocks entirely with no
+  stated disposition. Every emitted section opens with `"$defaults"`, because customizing a section
+  replaces the built-in rule list rather than adding to it. It **writes nothing, in any scope, under
+  any flag**, since editing a consumer's settings file would be making a permission decision on their
+  behalf, which is the one thing this plugin exists not to do.
+- **`lib/permission-patterns.sh`**: the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`**: the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
+
+## [0.35.4]
+
+### Fixed
+
+- **`audit-pass` no longer asks the model to evaluate a placeholder it never sees.** Its default
+  `target` read "`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`". That
+  placeholder is substituted inline in skill content before the file reaches the model, so the literal
+  token is never visible and "when set" is a test about a value that has already been resolved. The
+  default is now stated in prose: the project root Claude Code resolved for this session, else
+  `git rev-parse --show-toplevel`. The prohibition itself is written out so the shape does not come
+  back. **This was a contradiction inside one plugin**: #2250 landed exactly this prohibition in
+  `audit-prompting-postures` while `audit-pass` kept the shape, so two sibling skills disagreed about
+  the same placeholder.
+- **Both instances, not just the filed one.** The report named `SKILL.md:42-43`; the same unevaluable
+  condition also sat in the non-git refusal ("with no explicit `target` and no
+  `${CLAUDE_PROJECT_DIR}`"), where it governs the diagnostic path that refusal exists to produce.
+  Fixing only the cited line would have left the contradiction half-standing while reading as closed.
+- **The `{id}` derivation is stated, so a report cannot be written where the next run will not look.**
+  The skill said `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/` and never said how
+  `{id}` is formed. Now quoted: the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`
+  and `-` replaced by `-`, with the plugins reference's own worked example
+  (`formatter@my-marketplace` → `formatter-my-marketplace`). A wrong derivation is also how `--resume`
+  loses a partial.
+- **`${CLAUDE_PLUGIN_DATA}` is recorded as absent from the Bash tool's environment.** The export is
+  documented for "hook processes and … MCP and LSP server subprocesses"; the Bash tool is none of
+  those, so `echo "$CLAUDE_PLUGIN_DATA"` in a Bash call returns an empty string even though the token
+  substitutes correctly in skill content. Nothing in the skill said so, which invites exactly that
+  shell expansion.
+
+## [0.35.3]
+
+### Fixed
+
+- **`criteria.md` no longer calls `//…` a portable anchor. The detector was right and the
+  document was wrong.** Its P2 "How to check" grouped `${CLAUDE_PROJECT_DIR}/…`, `~/…` and `//…`
+  as forms that "expand or are portable anchors", while the detector flagged `//Users/…` anyway;
+  the two shipped files disagreed, so a maintainer reading `criteria.md` could not predict the
+  detector. **The corrected mechanism is the opposite of the one originally filed:** `//` is the
+  *absolute* anchor, not a portable one. The permissions page's pattern table gives `//path` =
+  "Absolute path from filesystem root" with `Read(//Users/<name>/secrets/**)` resolving to
+  `/Users/<name>/secrets/**`, and the same page says "Use `//Users/<name>/file` for absolute
+  paths." So `//Users/<name>/…` is the canonical *spelling* of a hardcoded user home rather than
+  an exception to one, and it leaks the username exactly as `/Users/<name>/…` does, which is
+  the whole of P2's finding. `~/…` is portable because its home segment is supplied per user;
+  `//…` supplies nothing. The exemption was therefore removed from the document instead of added
+  to the detector: exempting it would have made an `error`-tier username-leak check blind to the
+  documentation's own literal example of the leak.
+- **P2 findings report the full offending rule** rather than an eight-character path fragment
+  an operator could not map back to any particular rule. This is the intent the file
+  already stated for P1 and had never applied to P2.
+- **P2 reads every tool's rules, not five names.** While adding that full-rule capture the tool
+  name was briefly enumerated as `(Read|Edit|Write|Bash|PowerShell)`, which silently stopped
+  flagging a hardcoded machine path in a `WebFetch(...)`, `Glob(...)`, `NotebookEdit(...)`,
+  `mcp__server__tool(...)` or `Agent(...)` rule. `Agent` is most clearly wrong, since this script
+  ships a dedicated `scan_agent()`. It now uses the same open tool-name grammar as
+  `CCPERM_TOOL_TOKEN_ERE`. Narrowing an `error`-tier check's reach is not a reporting-format
+  change; four regression cases pin it.
+- **`Bash(npm view ctx7 version*)` is no longer flagged as a bare package-manager wildcard.** The
+  P1 runner alternative let the required `*` sit arbitrarily far past the manager name, so a
+  fully-pinned subcommand carrying a trailing `*` matched. The `*` must now be preceded by a
+  separator, which keeps `Bash(npm *)`, `Bash(npm:*)`, `Bash(npx *)` and `Bash(pnpm dlx *)`
+  matching and leaves `Bash(npm test)` clean. That pattern moved into
+  `lib/permission-patterns.sh` under #2260, so the fix lands there rather than at the anchors
+  #2282 records.
+- Rows **A7b** (no inert-grant check) and **A12** (`~user` username leak unflagged) are **not**
+  fixed here; both still reproduce at HEAD and are tracked separately.
+
+## [0.35.2]
+
+### Fixed
+
+- **`audit-permission-grants` criteria synced to permission-rule-hygiene 1.2.** Bumped the pinned
+  version stamp, added a convention commit handshake, and disclosed the bare package-manager wildcard
+  extension in P1. (#2284, A14 and A18)
+
+## [0.35.1]
+
+### Fixed
+
+- **Audit skills declare a posture when subagent dispatch is unavailable.** `audit-instructions`,
+  `audit-prompting-postures`, and `audit-pass` now require disclosure, `(unverified)` marking, and
+  per-lane verification attestation when mandated fresh-context dispatch cannot run, so a skipped
+  verify phase is structurally distinguishable from a fully verified report. (#2279)
+
+## [0.35.0]
+
+### Added
+
+- **`lib/state-key.sh`**: the `<repo-identity>/<worktree-discriminator>` derivation, specified in
+  `audit-pass`'s `reference/run-state-and-resumability.md` §3 and until now *copied* as a ~40-line
+  shell block into `audit-prompting-postures`, becomes one executable with a 23-case suite. The third
+  adopter would have been the third copy, so `audit-prompting-postures` is migrated onto it in the
+  same change rather than left as a second implementation of one scheme inside one plugin, the drift
+  the accompanying convention exists to forbid. Its verified properties are still stated there; what
+  is gone is the restated algorithm. It ships byte-identical in `claude-memory` and is registered
+  in `scripts/cross-plugin-source-registry.txt`, so the copies cannot drift silently. The suite pins
+  the properties the prose asserted and nothing checked: an https remote and its scp-style ssh
+  equivalent key identically; a repo whose only remote is `upstream` keys by that remote rather than
+  dropping to the local rung; two worktrees of one repository key apart; and, as the security
+  property, a remote that would become directory components outside the namespace (`../../../etc`,
+  an absolute local path, a Windows path) is hashed instead, with no `..` and no backslash surviving
+  into a key.
+
+### Changed
+
+- **`audit-instructions` no longer computes a token delta against another project's report.** It
+  persisted to a fixed `${CLAUDE_PLUGIN_DATA}/audit-instructions/last-audit.md`, and that directory
+  is keyed to the plugin identifier and nothing else, with no project, checkout, worktree, or session
+  segment, so every run from every project on the machine overwrote the last. The lost artifact was
+  the smaller half. The same Phase D block requires the report header to carry a per-surface token
+  delta "versus the previous catalog version": under collision that prior file exists but belongs to
+  a *different project's* surface set, so the skill computed and printed a number instead of
+  declining. The report path now carries a state key, and the two absent-prior cases are separated:
+  no report at this project's key means the delta is omitted with a reason, while an unkeyed leftover
+  from an earlier version is named to the operator and never used as a baseline. It was the last
+  writer in this plugin on a fixed path; `audit-pass` has keyed since it shipped and #2250 moved
+  `audit-prompting-postures`.
+- **An eval pins the property**, which had none: a second project neither overwrites the first's
+  report nor borrows its delta.
+
+## [0.34.0]
+
+### Added
+
+- **`audit` can now enumerate the hooks an enabled plugin ships.** It read settings-declared hooks
+  only, and three of its own surfaces said so in prose: `context/procedures.md` called the hook
+  question "a question to answer, not a lookup", and `reference/required-permissions.md` carried a
+  "Fail open where no hook inventory was taken" clause that, on most runs, resolved to hedging every
+  Category B finding. That gap mattered in two places: Category D writes rules for
+  `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` placeholders that only ever appear in a
+  plugin-provided hook, and Category B's third baseline narrowing turns on whether such a hook is
+  live. New `scripts/check-hook-coverage.sh` (with `.test.sh`) resolves each enabled plugin through
+  the installed-plugin registry, so no version-directory ordering is inferred, and reads its hook
+  config in all four documented shapes: `hooks/hooks.json`, a `hooks` path, an array of paths, and an
+  inline object in `plugin.json`. It also reports `disableAllHooks`, `allowManagedHooksOnly`, and
+  `strictPluginOnlyCustomization`, because a hook a setting has already switched off is not coverage.
+  The exit code is the contract: `0` complete, `1` partial with the unenumerated sources named, `2`
+  no inventory. The fail-open posture survives, narrowed to what a partial run could not read:
+  "could not look" is still never reportable as "looked and found nothing". Read-only: it never runs
+  a hook, and it never decides whether a hook *covers* a family, which stays Category B's judgment
+  against its three preconditions.
+- **Two positive Category G evals.** The category had no positive case at all. Its only two mentions
+  in `evals.json` were negative assertions inside the scope-filter case. One case now exercises the
+  headless overflow route, the other the lever-matches-the-roster rule.
+
+### Changed
+
+- **Category G is executable now, from either kind of session.** Its only overflow detector was
+  `/doctor`, which needs an interactive TTY, so the whole category yielded nothing in the harness's
+  own headless mode while the documented headless route went unmentioned. It now names `--debug` as
+  the headless route, citing *"When the listing exceeds its budget, Claude Code also writes a warning
+  to the debug log"*, and `/context`'s Skills row as what it actually is: a second *interactive*
+  reading, not a substitute. A run that could measure nothing reports "not measured", never "no
+  overflow".
+- **Category G states the budget it measures against.** The category named the per-entry cap and both
+  scaling settings and gave no budget value and no formula, so "overflowed, and by how much?" was
+  unanswerable by hand. It now carries `skillListingBudgetFraction` default `0.01`,
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET`'s documented 8,000-character fallback,
+  `skillListingMaxDescChars` default `1536`, and the `200,000 × 4 × 0.01 = 8,000` arithmetic that
+  reconciles the first two.
+- **Category G's lever list no longer recommends a lever the operator cannot pull.** The ordered
+  "cheapest first" list put `skillOverrides` second while carrying the caveat that it does not apply
+  to plugin skills, and never named the substitute upstream prescribes, so on a plugin-heavy roster
+  the list degenerated to the entry it labels "last resort". Levers are now split by roster origin,
+  `/plugin` is named for plugin skills, and a roster-composition count is required *before* any lever
+  is recommended. No per-skill `name-only` state is promised for `/plugin`; no page documents one.
+- **Category G has a checklist table, like every other Phase 2 category.** It was the only letter
+  missing from `audit-checklist.md`, whose heading sequence ran A–F, H, I. The table also points at
+  `plugins/skill-quality/scripts/check-listing-budget.sh`, the aggregate measurement this
+  marketplace already ships, as an explicit **in-repo proxy**, with the population difference said
+  out loud: that script walks a repository's skills roots, while Category G asks about the listing a
+  consumer's session assembled. Measured cost is stated too (8 skills in 5.98s on Windows), because a
+  marketplace-wide invocation will not finish inside a default Bash tool timeout.
+- **The `destructive-bash-deny` baseline is reported with its fragility, the way the Read deny table
+  already is.** Eight argument-constraining globs shipped rated `error` when absent with no caveat,
+  in a file that quotes the permissions page's *"Bash permission patterns that try to constrain
+  command arguments are fragile"* warning one section earlier against a different table. The concrete
+  hole is now stated: matching is prefix-anchored, so `Bash(git push --force *)` does not match
+  `git push origin main --force`. The patterns stay in the baseline, since they raise the cost of an
+  accidental force push, but a finding no longer implies they bound a determined one.
+- **The "a `PreToolUse` hook is a speed bump, not a boundary" ranking is scoped to the threat model it
+  was written for.** It is right for secret exfiltration, where an OS-level boundary exists and the
+  hook is strictly worse than it. It was stated unscoped, so it also governed destructive git, where
+  the sandbox's vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for a
+  command's arguments, so it does not separate `git push` from `git push --force` to the same remote.
+  Scoped, not deleted.
+- **The read-it-verbatim guard now covers all of Phase 3, not one checklist row.** It was attached to
+  the Category F env-vars row while Phase 3.1 and Phase 3.4 fetched `settings` and `permissions` with
+  no such instruction, and `settings` is the page on which a summarizing fetch already reported three
+  present keys as absent. The guard now also says explicitly that a truncated read supports no finding
+  in *either* direction.
+
+## [0.33.1]
+
+### Fixed
+
+- **`check-structure.sh` unreadable note no longer overstates a bare Read deny.** The note now
+  matches `context/procedures.md` and `SKILL.md`: a `Read(...)` deny alone cannot make `open()`
+  fail inside this script; sandbox `denyRead`, including a Read deny merged into the sandbox
+  boundary, or filesystem permissions can. (#1607)
+
+## [0.33.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it, and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`audit-permission-state`**, a new skill reporting which permission rules are actually in effect
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session. There is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction. A user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert, including
+  other denies, which are moot rather than weakened. A whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented. Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective. The error direction is over-reporting allow, never over-reporting blocking.
+- **`lib/permission-patterns.sh`**: the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`**: the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
+
+## [0.32.0]
+
+Two behavior changes, hence the minor: `permission-rule-check.sh` refuses an unresolvable scan root
+instead of sweeping the user profile, and `audit-prompting-postures` writes its report to a
+project-keyed path instead of one fixed name.
+
+### Fixed
+
+- **`audit-permission-grants` P2 stated a rule the docs do not contain, and emitted it on rule classes
+  it is false for.** The check's **Why** read "Bash rules match literally with no `~`/`$HOME`/env
+  expansion". Grepping the complete raw markdown of both
+  [permissions](https://code.claude.com/docs/en/permissions) and
+  [skills](https://code.claude.com/docs/en/skills) (fetched with `curl` to a file, 2026-08-11) finds no
+  such sentence on either page. The claim is **unsupported**, not merely over-broad, and two
+  documented behaviors contradict it. Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` in Bash rules in `allowed-tools`, which the skills page presents as *the* way
+  to run a bundled script without a prompt; and a leading assignment of certain known-safe environment
+  variables is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. The skill was telling
+  authors to remove the documented zero-prompt pattern.
+- **And the same sentence was emitted on `Read` and `Edit` findings, where it is false twice over.**
+  Probing the shipped detector confirms P2 fires on a `Read(<home>/notes.md)` or
+  `Edit(<home>/src/**)` rule carrying the Bash-scoped message, but those classes use gitignore
+  pattern syntax and **do** resolve `~/`: the permissions page's own example has
+  `Read(~/Documents/*.pdf)` matching `<home>/Documents/*.pdf`. One message string serves every class,
+  so it now carries only what is true of all of them, the portability break, and names the portable
+  form per class. The mechanism
+  detail moves into `criteria.md` as a per-rule-class table, syncing down from the
+  `permission-rule-hygiene` convention, which already held the corrected doctrine including the
+  `${CLAUDE_PROJECT_DIR}` v2.1.196 substitution floor and the fact that `${CLAUDE_PLUGIN_ROOT}` is not
+  substituted at all. The wrong text was pinned by a passing assertion, so the test moved with it.
+
+### Changed
+
+- **`permission-rule-check.sh` refuses an unresolvable scan root instead of falling through to `$PWD`.**
+  Outside a git repository `$PWD` is whatever directory the session happens to stand in, on a
+  developer machine usually the user profile, and both scans walk the root with `find` with no depth
+  bound and stderr discarded, then exit 0. A timeout or a swallowed permission error was
+  indistinguishable from a clean bill, on a skill that is model-invocable
+  (`disable-model-invocation: false`). The ladder is now fixture dir → git toplevel →
+  `${CLAUDE_PROJECT_DIR}` and nothing after it; an unresolvable root exits **2**, reusing the
+  environment-gap channel the contract already documents for a missing `jq` rather than minting a new
+  code, so the advisory exit-0-for-findings contract is untouched. **`--count` refuses too**, since a `0`
+  printed by a scan that never resolved a root reads exactly like a clean bill. The refusal names what
+  it tried and how to fix it.
+- All five "always exits 0" statements moved together, since a refusal branch contradicts each:
+  `reference/criteria.md`, and the script's header comment, usage block, and `--help` text. `SKILL.md`
+  carried no such claim to update: `grep` finds none there, and its exit-related line documents the jq
+  exit 2.
+- **`audit-prompting-postures` keys its report per project.** It persisted to a single
+  `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md`, and `${CLAUDE_PLUGIN_DATA}` resolves
+  to `~/.claude/plugins/data/{id}/` where `{id}` is the *plugin* identifier, never the project. The
+  skill's only durable deliverable was therefore overwritten by the next run from any other root, the
+  audit artifact destroyed by ordinary use of the skill. The path now carries a `<state-key>`, and the
+  report opens with a three-line header (resolved root, scope filter, UTC timestamp) so a surviving file
+  is self-describing rather than merely un-overwritten.
+
+  **The scheme is `audit-pass`'s, reused rather than reinvented**:
+  `<repo-identity>/<worktree-discriminator>` from its run-state reference. A second scheme for
+  one concern is the drift this batch exists to remove. One rung is added: that ladder has
+  git-with-remote and git-without-remote and no non-repo rung, which `audit-pass` does not need because
+  it refuses non-git targets, while this skill is report-only and audits them.
+
+  **The derivation is written as commands to run, never as a condition over `${CLAUDE_PROJECT_DIR}`.**
+  That placeholder substitutes inline in skill content, so the model never sees the literal token and
+  cannot evaluate "when set". The originally filed fix sketch would have introduced that defect while
+  removing this one.
+
+  **A remote URL is arbitrary text that becomes directory components here, so it is validated before
+  use.** Only the shape the scheme means is accepted: path segments of `[a-z0-9._-]` each starting
+  alphanumeric. Everything else keys by hash instead, still deterministically. Without that check a
+  relative filesystem remote (`git remote add origin ../central.git`) yields the identity `../central`
+  and the report lands *outside* this skill's directory; absolute-local and Windows-path remotes fail
+  the same way. And the remote is read from **the first configured remote**, `git remote | head -1`,
+  not from one named `origin`, because a repo whose only remote is `upstream` has a remote and must not
+  drop to the local rung. Both were found in review against the first draft, which did exactly that.
+
+### Added
+
+- Evals 4 and 5 for `audit-prompting-postures`: two roots must produce two surviving reports keyed by
+  the reused scheme, and a non-repo root must still key and still self-describe.
+
+## [0.31.0]
+
+`audit-pass` changes what it does on two target classes, which is why this is a minor: a target that is
+not a git repository is now refused, and a target at or above `~` now gets the self-exclusion and
+disclosure that only `--report-to` runs used to get. The three fixes are independent. The refusal does
+**not** subsume the containment work, because the class that falsified the containment claim is a *git*
+repository rooted at or above `$HOME`, which a dotfiles repo is.
+
+### Fixed
+
+- **`audit-pass` claimed its report lands "outside any target repository", and that is false by
+  construction.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
+  documented setting relocates it, so the default report path is *inside* any target at or above `~`.
+  The sentence was true for an ordinary repo under `<drive>:/Projects/…` and stated as a universal, while a
+  whole reachable target class falsifies it. It is now stated as what it is: outside a target below `~`,
+  inside one at or above it. The read-only contract's headline property and assertions 2.1 and 2.4
+  both rested on that claim.
+- **And the machinery that exists for exactly that situation was gated on the wrong thing.** Name-based
+  refusal, the pre-write exclusion entry, the operator disclosure, and the digest exclusion were all
+  written under the `--report-to` bullet. The flag is one way a report path ends up inside the target;
+  it was never the definition. The governing condition is now the predicate `report_path ⊆ target_root`,
+  evaluated against the resolved path on every run, with `--report-to` demoted to one instance of it.
+  Class 4 of the exclusion set is stated as that predicate rather than as a two-item list, so a member
+  added later inherits the rule instead of needing someone to remember the list.
+- **The consequence this retires:** a run against a dotfiles repository, or against `~` itself, wrote
+  its report into its own scan set with no exclusion entry and no disclosure, and then reported
+  `indeterminate` on its own determinism gate, every time, purely for doing what it was asked. The
+  digest exclusion in `determinism-tiers.md` is re-keyed on containment for the same reason.
+- **Assertions 2.1–2.4 are re-scoped on containment, and 2.6 is added.** 2.1 ("`git status --porcelain`
+  is empty") was falsified by the same class as 2.4, not just 2.4. 2.6 is the default-path twin of the
+  redirect disclosure: a run against a target at or above `~` with no `--report-to` discloses that its
+  report path is contained and names it, so a contained write is never silent.
+
+### Changed
+
+- **`audit-pass` refuses a target that is not a git repository.** `SKILL.md` called `target` "the git
+  repository to audit" while the gate required only that it "resolve to the active project root", so a
+  non-git directory passed, and the contract then had no branch for it in five places: the state key has
+  a no-remote fallback and no no-git one; the scan baseline is defined as HEAD plus the state digest;
+  Class 3 exclusion derives worktrees from `git worktree list` and, unlike Class 1, is given no fallback;
+  assertion 2.1 is stated over `git status --porcelain`; and suppression is enacted only by the team
+  layer, which is the *tracked* layer, so no suppression is ever enactable on such a target. That last
+  one is a permanent capability loss rather than a missing derivation. An operator could accept a
+  finding there and have the acceptance silently fail to persist, forever.
+
+  **This closes a target class, deliberately.** The alternative was specifying all five branches, which
+  obliges the contract to promise a capability it cannot deliver on that class. The refusal reuses the
+  existing channel rather than minting a new exit code: non-zero, before Phase 0, naming the path and
+  the reason. It states the cost out loud, naming the suppression consequence in particular, so
+  it does not read as an arbitrary restriction.
+
+  **It names the directory even when resolution produced nothing**, which is the case the refusal is
+  most for: on a bare invocation with no `${CLAUDE_PROJECT_DIR}`, the documented default is
+  `git rev-parse --show-toplevel`, and that fails outside a repository, leaving no resolved root to put
+  in the message. The diagnostic falls back to the current directory so the refusal can say what it
+  refused. That fallback is for the message only and never becomes a target.
+
+### Added
+
+- **Eval 30 `non-git-target-is-refused-not-half-specified`**, and evals 1 and 20 rewritten. This is the
+  row that had to land first: eval 1's expectation graded "writes the report under `CLAUDE_PLUGIN_DATA`
+  **rather than** into the scan set", and eval 20's graded the digest exclusion as a `--report-to`
+  property, so the suite passed a defect-exhibiting run and would have failed the corrected one. Eval 1
+  now grades that the containment predicate is *evaluated*, and that where it holds the path is recorded
+  before the write and disclosed; eval 20 grades that the exclusion is keyed on containment and not on
+  the flag. Reading all 29 shipped cases at HEAD found no others carrying the premise.
+
+## [0.30.0]
+
+Two graded outputs move, which is why this is a minor rather than a patch: a baseline deny finding can
+now come back `info` where it previously came back `error`, and adding a baseline deny rule is no longer
+offered as a mechanical `--fix`.
+
+### Changed
+
+- **`audit`: Category B stopped manufacturing an `error` on every repo whose destructive-git
+  enforcement is a hook rather than a deny rule.** The category iterates the baseline patterns and
+  states flatly that each "must appear" in `permissions.deny`; the only two ways out were prose the
+  *consuming repo* writes: a documented exemption in its own rules files, or its own documented hook
+  conventions. Neither is keyed on a hook that is actually installed and enabled, and `grep -rn "hook"`
+  across the whole skill returns no `hooks.json` read, no plugin-hook enumeration, and no coverage
+  concept at all. So a repo that blocks `git push --force` with a `PreToolUse` hook exiting 2, which
+  the permissions reference says stops the call *before* permission rules are evaluated, ahead even of
+  an allow rule, was told its security floor was missing. "Narrowing the baseline" now carries a third
+  narrowing: a family already blocked by a **live** `PreToolUse` hook is `info`, not `error`, whether
+  the hook came from the repo or from a plugin.
+- **The narrowing is fenced by three preconditions, because a careless downgrade is worse than the
+  false positive it replaces.** The hook must be *live*: `disableAllHooks`, `allowManagedHooksOnly`,
+  or `strictPluginOnlyCustomization` can have switched it off already, and a hook a setting has
+  disabled blocks nothing, so under any of those the finding stands unnarrowed. The hook must be on the
+  tool surface the pattern defends: `sensitive-file-deny` is a `Read`-pattern family, so a hook
+  matching only `Bash` leaves the `Read`/`Grep`/`Glob` path open and retires nothing. And it must block
+  *that* family: coverage of `git push --force` says nothing about `git clean -fd`, nor a long flag
+  about its short spelling. Narrow per family, pattern by pattern.
+- **Every downgrade names its own residual.** Hook coverage is contingent in ways a deny rule is not,
+  and an `info` that hides that is worse than the `error` it replaced, so the off-ramp obliges the
+  report to say what ends the coverage: disabling or uninstalling the providing plugin, any per-guard
+  opt-out the hook exposes, and later suppression by `disableAllHooks` / `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` even where none is set today.
+- **`audit`: adding a baseline deny rule is judgment-required, not an auto-fix.** The Phase 5 matrix
+  graded it `Auto-fixable: Yes (from checklist)` / `Requires judgment: No`, the column that tells a
+  user not to think about it, next to a prompt whose offered reply `'all'` applies the lot in one
+  keystroke. It also contradicted this skill's own baseline reference, which says adding a deny for a
+  family a project hook escalates to an *ask* suppresses that prompt and must be audited against the
+  project's hook conventions. The judgment is now written out: is the family already covered, and would
+  the addition suppress a gate the project built deliberately. *Moving* a deny rule from local to
+  project stays mechanical, since that is bug #8961 placement, not a policy change, and `SKILL.md`'s prose
+  restatement of the matrix splits the two the same way instead of asserting the opposite.
+- Scope stated honestly: the applied change was *more* deny rules, which is fail-closed, and a
+  confirmation gate already existed and was already pinned by eval #2, so this was never "unattended
+  auto-apply". The graded harm is unwanted config growth against a stated simplification goal, plus the
+  loss of a human approve/reject decision where a hook returned `ask`. A hook that blocks by `exit 2`
+  short-circuits before permission rules and suppresses nothing.
+
+### Fixed
+
+- **The narrowings were unreachable from where the check runs.** Category B's directive delegates by
+  *pattern*, "iterate the patterns in required-permissions.md", and the checklist likewise says
+  "assert presence per sub-category". Neither named the off-ramp sections, so they were prose elsewhere
+  in a file the category cites only for its tables, and a new off-ramp added there alone would have
+  inherited the same weak wiring. Category B and the checklist's B.1–B.3 severity table now both point
+  at "Narrowing the baseline" and say the tabled severities are the *unnarrowed* rating.
+- **The skill assumed absence where it simply could not see.** It has no enumeration path over a
+  plugin's `hooks/hooks.json` and reads the settings-declared layer only, so on most runs it does not
+  know what is installed. A missing baseline pattern with no hook inventory behind it is now stated
+  conditionally ("if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void")
+  and says which inventory would settle it, rather than asserting the gap. Fail open, not fail silent.
+
+### Added
+
+- **Category D now reads the hook-suppression levers**, because the new narrowing depends on a reading
+  nothing was taking. `disableAllHooks` in the settings-declared layer and `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` in the managed layer each switch hooks off, and Category D checked
+  script paths, readability, timeouts, matchers, and events without ever asking whether the hooks it
+  inventoried could run at all. It reports each lever as set or unset with the hooks it disables, at
+  `info`, because a repo may set any of them deliberately and the reading is state rather than a
+  defect. Category B may not take its third narrowing on a reading that was never made: an unread lever
+  leaves the narrowing **unavailable**, not assumed clear.
+- **And the dependency is sequenced, since Category B runs before Category D.** A–I is presentation
+  order, not a dependency ban: Category B pulls the lever reading forward before taking the narrowing,
+  or defers the downgrade and revises the severity once Category D has run. On a scope-filtered run that
+  never reaches Category D, and `/audit permissions` is exactly this, the narrowing is unavailable unless
+  the operator supplies the state. Stated in both Category B and "Narrowing the baseline", so a reader
+  arriving at either one gets it.
+- Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
+  hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
+  not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
+  Eval #9 `no-hook-inventory-states-the-finding-conditionally` grades the fail-open half, and eval #10
+  `suppressed-hook-does-not-narrow-the-baseline` grades the negative case the liveness precondition
+  exists for: a declared hook under `disableAllHooks: true` narrows nothing, and the finding holds at
+  `error`.
+
+## [0.29.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/audit/scripts/check-structure.sh`: managed-settings paths, and the legacy
+    `C:\ProgramData\ClaudeCode\managed-settings.json` location being unsupported since v2.1.75
+    (settings reference).
+  - `skills/audit-pass/reference/doctor-handoff.md`: `/doctor` proposing fixes it applies only
+    after confirmation (debug-your-config reference).
+  - `skills/audit-pass/SKILL.md`: `@path` imports not reducing context because imported files
+    load at launch (memory reference).
+
+## [0.29.1]
+
+### Fixed
+
+- **`audit`: the MANDATORY env-var check told auditors to do the exact thing that fabricates
+  findings.** Category F required fetching `code.claude.com/docs/en/env-vars` and searching it for
+  each name, calling that page "the authoritative source", with no word about how to read it. The
+  page carries 315 variable rows and truncates through a summarizing fetch, which then reports the
+  rows past the cutoff as absent; `env-vars` produced that false negative on three independent
+  fetches (#2182). An auditor following this row as written could flag a perfectly valid variable as
+  unrecognized and never know. The row now routes through the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route):
+  `curl` to a file, grep the file. It states that a truncated read supports no finding at all.
+- **`audit`: and the inverse error the same row invited.** "Authoritative source" plus "do not flag
+  as unrecognized without checking this page" reads as *absent here means not a real variable*.
+  It does not: `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`, and
+  `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` are each cited as real in this repo and each absent
+  from a full verbatim read of the page on 2026-08-10. The row now caps the strongest available
+  verdict at "not documented on `env-vars`" and names the sibling pages to check first.
+- **`audit-instructions`: the effort-audit reading list promised a release the page does not state.**
+  It sent auditors to `env-vars` for `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` "with the models **and
+  release** it reaches"; the row states the models, "Has no effect on Fable 5, Sonnet 5, or Opus
+  4.7 and later", and no release at all (verbatim read, 2026-08-10). Sending a reader to look for
+  something that is not there invites them to invent it. The clause is corrected, and the entry
+  routes through the fetch route for the same truncation reason as Category F above.
+- **`audit-pass`: `DISABLE_DOCTOR_COMMAND` is documented, and the handoff said it was not.**
+  `reference/doctor-handoff.md` carried it as a design-phase channel "not documented on the current
+  official pages … does not appear in the environment variables list (checked 2026-07-24)". A live
+  verbatim read on 2026-08-10 found it, and found it describing this skill precisely: "Set to `1` to
+  hide the `/doctor` setup checkup skill and its `/checkup` alias … Doesn't affect the `claude
+  doctor` terminal command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen
+  command", which independently corroborates the v2.1.205 cutover the same section already states.
+  It moves up into the verified list with the scope the row actually draws (session skill, not the
+  terminal command). The pass still **detects** rather than predicts: a documented suppression lever
+  says an operator could have set it, never that they did. The `skillOverrides` half is untouched and
+  still says so. This run re-derived the `env-vars` basis only, and the recheck trigger now names
+  the settings fetch that would retire the stale half.
+
+## [0.29.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command, which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
+
+## [0.28.1]
+
+### Fixed
+
+- **`unhobble`: the classification contract can now represent a hybrid hook entry.** The phase-1
+  contract allowed only `policy` | `behavioral` | `convention` per hook entry and reserved
+  splitting for instruction files, while phase 2 removed a behavioral entry's wiring whole, so a
+  hook carrying both a policy gate and behavioral prose could only be over-stripped or
+  over-kept, contradicting the marketplace rubric's trim-not-delete rule for hybrids
+  (PLUGIN-PHILOSOPHY "Classifying a hook"; flagged by review on the rubric PR #2033). Phase 1 adds
+  the `hybrid` class (delegating the rubric itself to the philosophy doc), phase 2 strips a
+  hybrid's behavioral surface via the hook's own kill switch or config where one exists and
+  otherwise records `unstripped-hybrid-hook` with the observe-phase confound noted, and the
+  manifest enum carries the new class.
+
+## [0.28.0]
+
+### Added
+
+- **`audit`: Category I, deep-link registration** (issue #2072). `disableDeepLinkRegistration` had
+  no coverage, leaving two findings undetectable. The settings page documents exactly one value that
+  produces the effect, the string `"disable"`, so a key that is **present** and set to something
+  the author meant as a flag (boolean `true`) leaves the documented prevention simply never invoked,
+  and nothing exempts the machine from the default first-prompt handler registration (warning; an
+  absent key is a consumer accepting the default on purpose and never fires). Separately, the
+  deep-links page states that enforcing this "across an organization so users cannot re-enable it"
+  requires managed settings, so no scope this skill reads by value can satisfy such a requirement.
+  Where one is declared and the key nonetheless sits with `"disable"` in a readable scope, that
+  visible attempt is reported as a placement that cannot enforce it (warning). The claim stops at
+  the placement: server-managed delivery, MDM plist, and registry policy are managed sources with no
+  file on the path this skill resolves, so nothing about the managed layer is decidable here and a
+  bypass is exactly what cannot be proven, which is why this row sits a tier below its
+  `enforceAvailableModels` sibling rather than mirroring its `error`. The row routes the
+  administrator to `/status`, which names the active managed source. Like two of
+  Category H's rows, the value check also has an authoring-time path: the declared settings schema
+  types the key `"type": "string", "enum": ["disable"]`, so a schema-aware editor flags a boolean
+  before the file is ever loaded. The row says why it stays anyway. The section states its own
+  reach: `check-structure.sh` does not report this key, so a `settings.local.json` or
+  managed-settings occurrence is recorded as not inspectable rather than absent, and handler
+  presence on the machine is workstation state the section explicitly does not audit.
+
+  The section takes the letter **I**, not the G the issue named: G is live as the table-less
+  procedural "skill-listing budget" category.
+
+### Fixed
+
+- **Four category enumerations had fallen behind the checklist.** `README.md` advertised "seven
+  categories" and `evals/evals.json` eval 5 "a full seven-category audit", while
+  `validation-categories.md`'s own header and eval 1's expectations both stopped at G, every one
+  already stale when Category H landed, and two behind after this one.
+
+## [0.27.5]
+
+### Fixed
+
+- **`audit`: Category E's incompatible-marketplace check rested on a false premise** (issue #1989
+  row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
+  by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
+  incompatible", a shape the [Strict mode
+  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
+  raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
+  `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files
+  repo-wide, so the old rule fired an `error` on a conforming marketplace. The row now tests
+  `strict` rather than `plugin.json` presence: it flags only a plugin with NEITHER a per-plugin
+  `plugin.json` NOR a `strict: false` entry declaring its components, the residual case where
+  nothing defines what loads, and records the same page's inverse failure, a `strict: false`
+  entry paired with a component-declaring `plugin.json`. Severity stays `error`; both the check
+  label and its verify cell were rewritten, since the label carried the false premise too.
+
+## [0.27.4]
+
+### Fixed
+
+- **`audit-instructions`: two internally-inconsistent claims in the criteria preamble** (criteria
+  1.21.0 → 1.21.1; issue #1989 row 248). The per-row-trigger rationale justified stamps as naming
+  "only the events the Sources set would *miss*". But a value change on a Sources page IS a change
+  to that page, so the catalog trigger already fires and nothing is missed. The paragraph now states
+  what a per-row trigger actually buys: **specificity about what to re-read**, the literal the row
+  restates and the event that would move it, so a re-verification pass goes straight to that value
+  instead of re-reading the page to find what mattered. The recheck-trigger paragraph's "Every check
+  cites one of those pages" was falsified by the three checks whose Source line reads `none`: I16,
+  I19, I22 (the Stopping condition rule is sourceless too, but is not a check). It is now scoped
+  to checks that cite a source, with the exception stated on the two-way split the file now
+  makes: a sourceless row grounded in a categorical absence has nothing of its own to go stale,
+  while one that calibrates against page content (the Stopping condition) is staled by the pages it
+  calibrates against, which the catalog-wide trigger already covers. No source was invented
+  for any sourceless row, and the catalog-trigger-wins precedence and whole-catalog firing rule are
+  unchanged.
+
+## [0.27.3]
+
+### Fixed
+
+- **`audit-instructions`: the hook-event blockability partition in `conflict-criteria.md` was
+  closed** (conflict-criteria 1.3.0 → 1.4.0; issue #1989 row 244). The exit-2 bullet enumerated six
+  "blockable" and five "non-blockable" events as an exhaustive split, while the hooks page's
+  "Exit code 2 behavior per event" table documents far more, including five events this repository's
+  own hooks already register (`ConfigChange` and `PostToolBatch` block; `StopFailure`,
+  `PermissionDenied`, and `InstructionsLoaded` have their exit code ignored), every one of them
+  ungradeable under the old text. The bullet now defers to that table as the sole authority and
+  restates none of its rows: resolve the handler's event, read its row, and pair on the row's own
+  `Can block?` cell, taking the paired content from what the row states is prevented rather than
+  assuming a tool call or a prompt, and recording an event with no row (or an unreachable table) as
+  `blockability-unresolved` instead of inferring it. The `SubagentStop` subagent-scoping rule and
+  the `PostToolUse`/`PreToolUse` worked pair are kept as examples. The file's recheck trigger no
+  longer fires on a row added to the upstream table, and `evals/evals.json` eval 16 now tests the
+  lookup procedure rather than the memorized split.
+
+## [0.27.2]
+
+### Fixed
+
+- **`conflict-scan.sh`: the coordinated-directive boundary honored only a subset of the mandate
+  tokens, so the most common phrasing silently dropped real conflicts.** `COORD_ERE` carried a
+  hand-copied token list that had fallen behind `MANDATE_ERE`: `use`, `present`, and `ask` were in
+  the classifier and absent from the coordinator. ``Never use `Bash` and use `Read` `` therefore
+  found no boundary, `Read` inherited the leading `never`, and its pair with ``Never use `Read` ``
+  went unreported, while ``Always use `Read` `` produced a false conflict from the same misreading.
+  `always` masked the gap throughout, being present in both lists. The coordinator is now COMPOSED
+  from the two classifier alternations rather than restated, so the divergence that caused this is
+  unrepresentable; two regression cases cover the bare-`use` and `present` forms.
+
+- **`audit-instructions`: the skill hardcoded `~/.claude` in the very paths its own rule forbids
+  hardcoding.** Phase A resolves the user root as `${CLAUDE_CONFIG_DIR:-~/.claude}` and says never to
+  hardcode it, yet the auto-memory entrypoint, the scope-filter list, and the memory-layer surface
+  list all named `~/.claude` literally. `CLAUDE_CONFIG_DIR` relocates the whole tree including
+  `projects/`, so a hardcoded default read a store the session no longer writes. Every operative path
+  now resolves against that root; quoted upstream text and the `${CLAUDE_CONFIG_DIR:-~/.claude}` form
+  itself are unchanged.
+
+- **`audit-instructions`: I3 named a `skills:` preload as a valid deferral destination, which defers
+  nothing.** The check rejects `@path` imports because they load unconditionally, then offered a
+  preload. But the full content of each skill named in an agent's `skills:` field is injected into
+  every dispatch, exactly the load profile the check exists to avoid, as the skill's own co-residency
+  table states. I3 now permits only conditional runtime invocation, and says to report that no safe
+  deferral is available rather than proposing a preload.
+
+- **`audit-instructions`: Phase A never inventoried a subagent's own memory, so a criterion it
+  declares in scope could not fire.** The co-residency table graded an agent-definition-versus-its-own
+  `memory` contradiction as real, but no inventory step reached that `MEMORY.md`. Phase A now
+  enumerates it per scope (`user` under the resolved user root, `project`, `local`), and the
+  co-residency table carries its own row.
+
+- **`audit-instructions`: the liveness gate resolved a closed five-input list that omitted hook
+  enablement.** A hook that cannot fire carries no live instruction text, so a pass comparing against
+  it grades a dead surface. The gate now resolves `disableAllHooks` **per settings scope**, together
+  with `allowManagedHooksOnly` and its force-enabled-plugin exemption. A user, project, or local
+  disable cannot reach managed hooks, so managed hook text stays live and must not be dropped with
+  the rest.
+
+- **`audit-instructions`: a nested project memory pair was routed to a check that never discovers the
+  file.** The skill routed any project-scope pair to `claude-memory`'s C6, which discovers with
+  `find . -maxdepth 1`, so a `src/api/CLAUDE.md` pair was graded by neither pass. The boundary is now
+  **root-level** project, matching the routing table the criteria reference already owned. Scoped
+  narrowly: `.claude/rules/**` still routes to C6, whose rules discovery is recursive.
+
+- **`conflict-scan.sh`: `and` coordinating an opposite directive was not a window boundary.** "Always
+  use `Read` and never use `Bash`" against "Never use `Read`" yielded zero candidates, because the
+  first entity's window swallowed the second directive's `never` and took its polarity; the same line
+  with `but never` yielded one. A **bare** `and` cannot be the boundary: "never use `Bash` and
+  `Grep`" is one directive over two objects, and cutting there strips the token governing the second.
+  The boundary therefore requires a polarity token after the coordinator, and is consumed
+  asymmetrically: a leading window resumes after the coordinator alone so that token still classifies
+  its entity. Three cases cover the fix and the false negative it must not introduce.
+
+- **`audit-instructions`: I14's startup set omitted `./.claude/CLAUDE.md`.** A project keeping its
+  memory there loads it at launch exactly as `./CLAUDE.md` would, so naming only the bare path let the
+  redundant read of the active file escape the check. Both supported root locations are now in the
+  set, matching what Phase A already inventories.
+
+- **`audit-instructions`: I14 exempted supporting documents unconditionally, ignoring startup
+  imports.** `@path` imports are expanded into context at launch, recursively, so a startup file
+  carrying `@AGENTS.md` or `@docs/CONTRIBUTING.md` makes that document resident and an instruction to
+  go read it is the redundant retrieval the check exists to find. The exemption now applies only to
+  what no active startup import reaches, resolved the way I15 already resolves imports.
+
+- **`setup` and the README: `awk` and `sort` were scoped to one skill and are used by three.**
+  `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
+  (`sort`) call them with no prerequisite check, so `audit` and `audit-permission-grants` fail
+  mid-run on a bare `command not found` rather than on a named prerequisite. Only
+  `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
+  requirements section names `awk` and `sort` alongside `jq` and `curl`.
+
+## [0.27.1]
+
+### Changed
+
+- **`audit-instructions`: listing description tightened (1,197 → 948 chars).** Trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the audit's scope and report-only contract are unchanged in the body.
+
+## [0.27.0]
+
+### Added
+
+- **New skill `audit-prompting-postures`, the additive lane of prompting-guide alignment.** The
+  existing `audit-instructions` catalog detects instruction text that is present and wrong; nothing
+  detected posture guidance that is absent and needed. The new skill classifies each locally-owned
+  component by purpose (orchestrating, code-changing, long-running, destructive-capable, …) and
+  judges ten guide-prescribed postures (`reference/postures.md`: delegation criteria/caps,
+  minimal-scope, anti-test-gaming, investigate-before-answering, progress-claim grounding,
+  autonomy/checkpoint, destructive-action confirmation, context-budget reassurance, multi-window
+  state, parallel-call steering) against applicability predicates, defaulting to NOT-APPLICABLE.
+  Report-only; proposal wording comes from a live fetch of the guide, never from the catalog
+  (pointer-not-copy).
+- **`audit-instructions`: catalog row I28, over-aggressive trigger emphasis and blanket tool
+  defaults** (criteria 1.20.0 → 1.21.0). Detects forced-compliance emphasis ("CRITICAL: You MUST
+  use…") and blanket tool defaults ("If in doubt, use [tool]"). Unscoped, sourced to the
+  best-practices page's Tool-usage, Overthinking, and Migration sections, fenced for
+  destructive-gate emphasis and stated hard preconditions. `instruction-scan.sh` now seeds it
+  (`I28-a` case-sensitive emphasis, `I28-b` blanket defaults) and also seeds the existing I25
+  sampling-parameter row (`temperature`/`top_p`/`top_k` prescriptions).
+
+### Changed
+
+- **`audit-instructions`: I8 base (over-prescriptive scaffolding) is now unscoped** (criteria
+  1.20.0 → 1.21.0) via the model-agnostic best-practices statement ("Prefer general instructions
+  over prescriptive steps…"); the delegation-throttle worked instance keeps its own `fable-5`
+  scope because the Opus 5 and Opus 4.8 guides recommend the opposite shape (caps) on their
+  targets. **I21** gains a sentence separating calibration staleness (its subject) from level
+  adequacy (the Opus 4.8 guide's `xhigh` recommendation for coding and agentic lanes, which is
+  the surface's sizing decision).
+- **`setup` and `audit-pass` prose carry their reasoning.** `setup`'s read-only instruction is
+  stated as what the check does rather than as a bare prohibition, and its repo-root anchoring rule
+  now says why a CWD-relative read is wrong (it resolves a different or missing file depending
+  on the invoking subdirectory or worktree). Five passages in `audit-pass`'s run contract that
+  narrated the authoring session's own history are restated as present-tense rejected-alternative
+  rationale, keeping the anti-relitigation content.
+- **`audit`'s Phase 4 report table carries a worked example row**, so a model generating the report
+  has a concrete shape to match rather than a bare header.
+- **`audit-pass`: the 892-line run contract is split per topic.** `reference/run-contract.md` is
+  now a routing index over five topic files that follow the contract's own section structure:
+  `terms.md`, `finding-identity.md` (§1), `report-location-and-schema.md` (§2, §7),
+  `run-state-and-resumability.md` (§3, §5), `suppression.md` (§4), `determinism-tiers.md` (§6).
+  A lane needing one mechanic loads that file, not the whole contract. Content moved verbatim,
+  the §-numbering travels with it, inbound links repointed to the owning files, and the one
+  remaining authoring-history clause is restated in present tense.
+
+### Fixed
+
+- **`audit` now actually covers machine-scope managed settings, closing the false coverage claim
+  its checklist made.** Phase 1's `check-structure.sh` resolves the OS-specific managed-settings
+  path (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows
+  `%ProgramFiles%\ClaudeCode\`; the pre-v2.1.75 ProgramData location deliberately unprobed) and
+  reports the file and its `managed-settings.d/` drop-in directory structure-only, the same
+  no-secrets posture as `settings.local.json`, with the Config Files table naming the layer as
+  report-only routing that `--fix` never edits. The checklist's "+ managed settings" tick is
+  restored, now truthful. Paths verified against the live settings doc 2026-08-08.
+- **`audit-automation-gaps`' checklist replaced two unmeasurable thresholds with the real gate.**
+  "cost > 2× expected benefit" and "false-positive risk > 30% on representative sample" appeared
+  only in the template; neither cost, benefit, nor a representative sample is defined or measured
+  anywhere in the skill. The three anti-noise ticks fold into one that points at SKILL.md §2.3's
+  eight named gates, each of which states the evidence it requires.
+
+## [0.26.0]
+
+### Added
+
+- **`audit-instructions`: I23 gains a pre-scan pattern, and the calibration it was waiting on is
+  now recorded** (catalog 1.20.0). The row shipped unseeded because the threshold and
+  window-position phrasings vary far more than the fixed shapes I8-b matches, and because a
+  continuation skill can barely be model-invocable without naming a context trigger somewhere, so
+  a loose pattern would have fired on every consumer's handoff skill. **What the seeding actually
+  waited on was a policy, not a regex.** It is now stated: three signals license a surface to route
+  into a handoff, a fork, or a new session: the user's own report, an instrument that measures the
+  window, and visible decay in the model's own output. A self-estimated budget is none of the
+  three. Under that rule the population the blast-radius argument feared resolves into true
+  positives rather than noise.
+
+  Two supporting clauses ship with it. **Residency is a severity input, not an admission test:** a
+  trigger in a `description` is resident whenever the skill listing admits it, which is the default
+  since `disable-model-invocation: true` also suppresses the description from context
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), while a body-borne trigger costs
+  context only on load or at subagent startup under preloading. Both are findings, the resident one
+  merely costlier to leave. And **remediation moves the trigger rather than withdrawing the skill:**
+  flipping continuation skills to `disable-model-invocation: true` was considered and refused, since
+  it forfeits every model-side invocation the skill has to remove one clause.
+
+- **`instruction-scan.sh` emits `I23` candidate rows.** The pattern marks budget phrasing alone and
+  never the stop/summarize/hand-off verb it licenses, because the trigger and the action routinely
+  sit in different sentences; counter-steer text, documents about the pattern, and operator-facing
+  budgets therefore match too, on the same advisory over-production contract the I8 families carry.
+  It is deliberately not anchored to the bare term "context window", ordinary vocabulary in any
+  surface discussing sessions, and matching it would return the corpus instead of a candidate set.
+  Measured over the marketplace's 193 skills the pattern yields 20 rows in 10 files.
+
+## [0.25.0]
+
+### Added
+
+- **`audit-instructions`: new catalog row I27, effort lowered to shorten the response** (criteria
+  1.18.0 → 1.19.0; issue #1996 decision b). Detects instruction text premising response brevity on
+  a lower effort level, a misconception both the Opus 5 prompting guide and the effort page's
+  Opus 5 section refute ("lowering effort can reduce thinking volume without reliably shortening
+  the visible response"). `Model scope: opus-5` (both statements are model-qualified; promotion
+  gate unmet, with the unscope trigger recorded on the row). Seeded by a new `instruction-scan.sh`
+  I27 family (an effort-lowering directive and a brevity token required on one line; regression cases
+  added) with cost/latency-ground, length-instruction-only, audience-test, and config-value
+  fences; both statements verified against the live pages 2026-08-08 (guide raw-`.md`
+  byte-identical to the 2026-07-25 corpus capture).
+
+### Changed
+
+- **`audit-instructions`: family-alias abort now suggests the normalized token** (issue #1996
+  decision e). The fail-loud abort on a version-ambiguous `--target-model`/settings value (e.g. a
+  bare `opus` pin) still refuses to guess, and now ALSO names the normalized version token the
+  alias currently resolves to per the live model-config docs as a suggested `--target-model`
+  value the user confirms, turning the dead-end abort into a one-confirmation retry without
+  weakening the never-guess contract.
+
+### Fixed
+
+- **`audit-instructions`: stale check-range in `evals/evals.json`.** The memory-layer eval still
+  said "I6-I16" (predating I17–I22) and credited `--opinion` gating to I16 alone; now "I6-I27"
+  with the current `OPINION`-gated set (I16, I19, I22).
+
+## [0.24.0]
+
+### Added
+
+- **`audit-instructions`: four checks from the Sonnet 5 and Opus 4.8 prompting guides**
+  (catalog 1.18.0). Every behavioral claim was verified 2026-08-08 against the raw-`.md` channel of
+  its source page, with byte sizes and MD5 stamps recorded per row:
+  - **I24: instruction relying on silent generalization** (unscoped; gate met by the two guides'
+    "More literal instruction following" sections, whose Detect sentences are stated
+    verbatim-identically). Flags text demonstrating one instance where a whole class is meant: a
+    worked example standing in for a rule, an undecidable "etc." tail, a single item named inside
+    an iterating procedure, an unstated per-item iteration. It proposes explicit scope
+    statements. Additive, so the stopping condition does not bind it.
+  - **I25: sampling parameter prescribed where the model rejects it** (unscoped; range as Detect
+    condition: Opus 4.7 or later, Sonnet 5, Fable 5, and Mythos 5, where the Fable/Mythos arm carries
+    over from Opus 5 per the migration guide). Prescribing non-default
+    `temperature`/`top_p`/`top_k`, whether for variety steering or `temperature = 0` determinism, publishes a
+    400. Fences: model-gated claims, SDK/config expressions (config-mechanics discriminator),
+    non-sampling senses of "temperature", meta discussion.
+  - **I26: generic negative steering on open-ended design briefs** (unscoped; both guides'
+    "Design and frontend defaults" sections converge). Generic negatives shift the model to a
+    different fixed palette; remediation is a concrete spec or the propose-N-directions step, on
+    Sonnet 5 the documented variety mechanism now that `temperature` is not accepted. Concrete
+    enumerable negatives (the guides' own anti-slop snippet shape) stay sanctioned.
+  - **I17-d: tool reliance with thinking disabled and no explicit tool nudge** (Model scope:
+    `sonnet-5`; the coupling, "With thinking disabled, the model is less likely to reach for tools
+    or consider searching", is stated only there; the Opus 4.8 guide states an uncoupled,
+    different default, recorded as the scope negative).
+
+### Changed
+
+- **`audit-instructions`: I8-e (forced interim-status cadence) unscoped because its own recheck
+  trigger fired.** The row shipped `sonnet-5`-scoped with the trigger "any second model guide stating the
+  claim"; the Opus 4.8 guide's "User-facing progress updates" section now states the claim
+  near-verbatim, so the promotion gate is met and the row fires for every target model. I8-d cedes
+  the cadence shape to I8-e fleet-wide (one finding per line) and keeps the remaining short-turn
+  shapes; the Fable 5 verified negative was re-verified 2026-08-08 and is retained as a reading that
+  no longer determines scope.
+- **`audit-instructions`: I8-b corroboration extended.** The Opus 4.8 guide states the same three
+  trigger phrases, coverage prompt, and concrete-bar remediation; recorded alongside the existing
+  Opus 5 + Sonnet 5 citations (gate was already met). "don't nitpick" appears nowhere in the
+  Opus 5 guide, re-verified 2026-08-08 against that guide's raw `.md`.
+- **`audit-instructions`: Sources list** gains the Opus 4.8 prompting guide and What's new in
+  Claude Sonnet 5; the migration-guide entry now also names the sampling-parameter ranges it
+  carries. Both SKILL.md catalog ranges updated to I26.
+
+## [0.23.0]
+
+### Added
+
+- **I23: context-budget directive to stop, summarize, or hand off** (criteria 1.16.0 → 1.17.0).
+  Tier `behavioral`, `Model scope: fable-5` with the promotion gate unmet, carrying the four-part
+  stamp plus a **verified negative**: both sibling guides were fetched as raw markdown and searched,
+  and neither states the claim.
+  - Detects instruction text telling the model to watch its own remaining context and stop,
+    summarize, hand off, or trim its work on that basis, and injected hook output surfacing a
+    remaining-context count where the surface could avoid it. The guide names the count as the usual
+    trigger, so the disclosure and the directive are one subject; the row tracks the guide's "where
+    possible" hedge rather than reading it as an absolute.
+  - The discriminator is who decides, on what evidence: a directive tells the model to judge its own
+    window, a mechanism resolves the window from an instrumented signal and acts itself. **A hook
+    that injects an exit menu stays in scope** however well instrumented its trigger, because the
+    measurement decides only when to ask and the model still decides whether to stop. The injection
+    manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
+    fixes the line.
+  - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
+    falling back to its own judgment when no instrument is available), a routing condition that
+    sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
+    document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
+    than audience: it instructs the opposite of Detect, so it never satisfies Detect at all.
+  - No pre-scan pattern is seeded, and the row says why in its own terms rather than borrowing
+    I8-e's: an unfenced true positive is attested, so this row waits on calibration of the threshold
+    and window-position phrasings, not on an instance. The blast radius is the reason that
+    calibration is owed first: a continuation skill can barely be model-invocable without naming a
+    context trigger somewhere, and one such trigger lives in a `description`, which is resident
+    whenever the listing admits it.
+- **A section covering `effort:` and `model:` frontmatter on skills and agents** in
+  `skills/audit/reference/audit-checklist.md`, category H. This closes a gap between two skills
+  this plugin ships: I21 in the instruction-audit catalog explicitly hands frontmatter pins to
+  `claude-config:audit`, and that skill's category H read only `settings.json` keys, so a component
+  pinning an effort level was reached by neither, each pointing at the other. The rows report a
+  missing re-derivation rather than a preferred level, exempt a pin at the resolved model's own
+  default, and carry a dated stamp for the claim that a definition's `effort` overrides the session
+  level.
+
+### Changed
+
+- **The catalog states an admission rule.** A row's observable must be **anchored to** text that is
+  present: a check detects a passage a surface contains, what it says or an attribute it lacks
+  while saying it, and an obligation anchored to no passage at all is refused on shape rather than
+  weighed on its source. Integrating one model guide raised that question at four separate sections
+  and answered it four times by hand; the rule now settles it once, and requires an audit declining a
+  row on this ground to name where the guidance routed instead, doctrine or a mechanism, so "no
+  row" never reads as "not covered".
+  - **The line is the anchor, not the polarity of the sentence.** I6 (a prohibition carrying no
+    rationale marker) and I7 (a request stating no motivation) are both worded as absences and both
+    admissible, because each names a line a reader can point at. A rule tested on polarity would have
+    refused two shipped rows, which is what an adversarial pass on this change caught before merge.
+- **I8's base row now cites the general principle, not only the migration framing.** Both of its
+  sources sat in sections about migrating older material, which pointed an auditor at what looks
+  like leftover prior-model scaffolding and past freshly authored over-enumeration, the same defect
+  with no legacy provenance to recognize it by. The row now also cites "Strong instruction
+  following", where the principle is stated on its own, and says plainly that age is not an element
+  of the check.
+- **I8-a records the second-guide corroboration for its independence carve-out.** Read without it,
+  the Opus 5 guide ("remove verification instructions") and the Fable 5 guide ("make
+  self-verification explicit", "separate, fresh-context verifier subagents tend to outperform
+  self-critique") look contradictory, and a reader had to resolve that alone. They are not: the
+  anti-pattern is the instructed *self*-check, and the architected independent verifier is what the
+  Fable 5 guide is asking for. The scope annotation does not move: the gate wants a second guide
+  stating this row's *detection* claim, and the Fable 5 guide states no such thing.
+- **New `unhobble` skill, the empirical bare-baseline experiment.** Reversibly strips a project's
+  standing instruction surfaces (CLAUDE.md, rules, behavioral hooks, skills, enabled plugins) on a
+  dedicated experiment branch, has the operator work normally against the bare model while logging
+  observed stumbles to a ledger, then re-adds only instructions with repeated same-cause evidence,
+  each restore citing its ledger rows. Policy-classified hooks and managed settings are never
+  stripped; every mutation is human-gated; state persists under `${CLAUDE_PLUGIN_DATA}/unhobble/`
+  for resume. The canonical trigger is a frontier model release. Operationalizes the
+  delete-and-re-add doctrine from official best-practices ("Would removing this cause Claude to
+  make mistakes? If not, cut it") and Anthropic's own 80% system-prompt reduction for the
+  Opus 5 / Fable 5 generation; `audit-instructions` remains the static text-vs-doctrine
+  counterpart and receives routed rewrite judgments. Tracked-file stripping is delete-with-net
+  (`git rm` on the experiment branch) rather than in-place disable, a deliberate choice: git is
+  the restore mechanism, and a renamed-but-present file could still be read.
+
+## [0.22.1]
+
+### Fixed
+
+- **`audit-instructions`: three precision fixes from a conformance audit of the catalog against
+  its own sources** (criteria 1.16.0 → 1.16.1). `instruction-scan.sh`'s header comments still
+  described all three I8 pattern families as "Opus-5-scoped catalog rows", stale since I8-b's
+  promotion to unscoped; the comments now state the split (I8-a/I8-c scoped, I8-b unscoped).
+  I8-a's Detect line truncated the guide's trigger phrase ("include a final verification step"
+  → the guide's "include a final verification step for any non-trivial task"). I8-b's opening
+  claimed the Sonnet 5 guide states the same claim "about the same three trigger phrases" while
+  its own Source paragraph concedes "don't nitpick" appears nowhere in the Opus 5 guide; the
+  annotation now matches its Source (two shared phrases, third's provenance in the Source line).
+- **`audit-instructions`: the normalized version token's grammar is now stated.** SKILL.md's
+  resolution ladder said to normalize alias → version "against the live model-config docs" but
+  never defined the token shape those docs do not publish; the ladder now names the local
+  grammar (lowercase family-hyphen-version, e.g. `opus-5`) so a consumer resolving a full model
+  name or alias lands on the exact string the catalog's `Model scope` annotations match against.
+
+## [0.22.0]
+
+### Changed
+
+- **`audit`: Category D no longer prescribes shell form with "no `args`" for hook commands.** The
+  row rested on a rationale the [hooks reference](https://code.claude.com/docs/en/hooks)
+  contradicts, that the `"command":"bash"` + `args` variant "backslash-mangles
+  `${CLAUDE_PROJECT_DIR}` on native Windows". In exec form "path placeholders
+  like `${CLAUDE_PLUGIN_ROOT}` are substituted into `command` and into each `args` element as plain
+  strings", and "No shell tokenization happens on any platform." Mangling requires a shell, and exec
+  form has none. The real Windows defect behind the observation is narrower and is now its own row:
+  exec form "requires `command` to resolve to a real executable such as a `.exe`", so `"command":
+  "bash"` finds the WSL relay `System32\bash.exe` and the launch fails, the failure this repo hit
+  in #1006, where a fail-open guard enforced nothing. That is a defect in naming `bash` as the
+  executable, not in exec form, and the fix is a real binary plus the script path in `args`.
+
+  Category D now follows the page's own guidance, "Prefer exec form for any hook that references a
+  path placeholder. In shell form, wrap each placeholder in double quotes", and flags only the
+  unquoted placeholder, never shell form itself. Quoted shell form stays a correct spelling, which
+  it must: the page endorses omitting `args` for pipes, `&&`, redirects, and `.cmd`/`.bat` shims,
+  and this repository's own hooks use it. The replacement warns without swinging into the
+  mirror-image false positive the old row produced. The executable-resolution row is scoped to
+  Windows-targeting repos, since `bash` and `sh` are ordinary executables elsewhere, and it names
+  `"shell": "bash"` alongside the `node`-plus-`args` pattern as a documented fix.
+
+  **A PowerShell bare-`$CLAUDE_PROJECT_DIR` row was drafted and then dropped**, because it could not
+  clear this repository's own fresh-docs bar. It carried a quote attributed to the hooks page that
+  is not on that page. Re-fetched 2026-08-08 and searched: the page's only placeholder-quoting
+  guidance is the generic "In shell form, wrap each placeholder in double quotes", and it says
+  nothing about PowerShell resolving an undefined variable. The underlying claim also depends on
+  whether the harness substitutes the *bare* `$NAME` spelling before PowerShell ever parses it,
+  which the page does not document either. An audit checklist that emits findings a consumer cannot
+  trace to a documented rule is the exact defect 0.21.9 removed and this release corrects; a row
+  resting on an unverifiable premise is worse than no row. The generic quoting row already covers
+  the safe advice.
+
+### Added
+
+- **`audit`: a Category D row asserting hook `timeout` is expressed in SECONDS.** The hooks
+  reference states: "Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`;
+  30 for `prompt`; 60 for `agent`." A consumer run found three hooks configured in milliseconds.
+
+  The row flags a **recognizably millisecond-scale** value, a round thousands multiple such as
+  `30000` or `120000`, which read as seconds are 8 and 33 hours, and deliberately does NOT flag
+  merely-large ones. The page documents defaults, not a maximum, so a long-running hook may
+  legitimately exceed 600, and a rule keyed on `> 600` would manufacture findings against correct
+  configuration. Where the value is large but not millisecond-shaped, the checklist asks for
+  corroboration from the hook's expected runtime before anything is reported. The likely source of
+  the confusion is the Bash/PowerShell tools' own `tool_input.timeout`, whose example value on this
+  page is `120000`; the page does not state that field's unit in prose, so the checklist does not
+  claim it does.
+
+## [0.21.9]
+
+### Removed
+
+- **`audit`: the Category B `:*` check, which rested on a false premise and could never report
+  clean.** [Configure permissions](https://code.claude.com/docs/en/permissions) states that "The
+  `:*` suffix is an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same
+  commands as `Bash(ls *)`". It is not deprecated. Across the 127 pages listed in `llms.txt`, no
+  line carries both the deprecation word-stem and `:*`, and the changelog maintains `:*` in its
+  current voice,
+  hardening `Bash(find:*)` and `Bash(rm:*)` and fixing `Bash(cmd:*)` and `Bash(git log:*)` matching.
+  The label traces to issue
+  [#23869](https://github.com/anthropics/claude-code/issues/23869), whose reporter used the word; it
+  was closed as not planned.
+
+  The check was also inoperable: its verification shipped `grep ':*'`, which in basic regex means
+  zero or more colons and so matches every line. Escaping does not rescue it: `grep -F ':*'` matches
+  `WebFetch(domain:*)`, and the permissions doc documents `Agent(isolation:*)`, `WebFetch(domain:*)`
+  and `WebFetch(domain:*.example.com)` as legitimate syntax, so a correctly escaped check would trade
+  a never-clean result for false positives on documented rules. The only accurate replacement has
+  no instance in this repo: flagging a `:*` that is not at pattern end, which the page shows never
+  matches. The known-issues row keeps its citation and drops its tracked action. Generic
+  "deprecated syntax" wording elsewhere stands: the settings doc documents real deprecations.
+
+- **`audit-permission-grants`: the routing eval that asserted the removed check.** Its scope-boundary
+  eval routed a `:*` check to the sibling skill, so after the removal prose and eval disagreed and
+  the grader could reward a response repeating the false label. It now exercises the same routing
+  boundary through a check that still exists.
+
+### Fixed
+
+- **`audit`: settings, hooks, MCP and permission syntax do not all live on the settings page.** The
+  skill attributed four upstream invariants to that one page and one audit phase. The page defers
+  hook format and complete permission-rule syntax to their own pages, and the skill's own checklist
+  already routes hook events elsewhere. Each is now resolved against its own official page when a
+  check needs it.
+
+- **`audit`: hook matchers are not simply "valid regex".** [Hooks
+  reference](https://code.claude.com/docs/en/hooks) makes the evaluation path depend on the matcher's
+  characters: letters, digits, `_`, `-`, spaces, `,` and `|` give an exact-string list; anything
+  else gives an unanchored JavaScript regex, so `Edit.*` also matches `NotebookEdit`. The check
+  now examines the intended path and anchoring rather than syntactic validity.
+
+- **`audit-automation-gaps`: hook inventory reached one of six hook locations.** It now covers user,
+  project and local settings, managed policy settings, each enabled plugin's `hooks/hooks.json`, and
+  skill or agent frontmatter. An inventory missing five locations can report a gap that is already
+  filled.
+
+- **`audit-automation-gaps`: slowness alone no longer disqualifies a hook.** `async: true` runs a
+  command hook in the background for exactly the long-running case the gate rejected, so the gate now
+  turns on whether the hook must block. Async hooks cannot block tool calls or return decisions, and
+  only `command` hooks support it.
+
+- **`audit-automation-gaps`: the "Not scriptable" gate no longer claims to cover reasoning-only
+  concerns.** `prompt` hooks send a prompt to a model for single-turn evaluation and `agent` hooks
+  spawn a subagent that can use tools to verify conditions. Those mechanize the concerns the gloss
+  assigned to the gate. Agent hooks are experimental and may change.
+
+- **`audit-pass`: built-in output styles do not drop the coding instructions.** The claim was
+  unscoped, but [Output styles](https://code.claude.com/docs/en/output-styles) says "Custom output
+  styles leave out Claude Code's built-in software engineering instructions … unless
+  `keep-coding-instructions` is set to `true`", and the built-in **Default** style "is the existing
+  system prompt", a direct counterexample. `keep-coding-instructions` is frontmatter in an
+  output-style file, and built-in styles have no file, so the exception could not apply to them. The
+  attestation date moves with the re-fetch; the operative `force-for-plugin` claim is unchanged.
+
+## [0.21.8]
+
+### Changed
+
+- **`audit-instructions`: `I6` gains model-delta corroboration and `I15` reasoning-cost
+  corroboration from Anthropic's context-engineering blog** (criteria 1.16.0). Both rows rested on
+  live-doc sources alone; [The new rules of context engineering for Claude 5 generation
+  models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
+  (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
+  citation is added rather than a new row minted. The digest's conflicting-directive question
+  resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
+  `I6` as already-covered doctrine.
+
+  `I6`: the blog's retired system-prompt line is a worked instance of the row's Detect shape:
+
+  <!-- ai-slop-ignore-start: verbatim retired system-prompt line quoted from Anthropic's context-engineering blog -->
+  > In code: default to writing no comments. Never write multi-paragraph docstrings or multi-line comment blocks — one short line max.
+  <!-- ai-slop-ignore-end -->
+
+  Its stated obsolescence ("newer models have better judgment and can handle these decisions well
+  without explicit rules") is the model-delta ground, and its replacement, "Write code that reads
+  like the surrounding code: match its comment density, naming, and idiom", is an instance of the
+  row's positive-reframing remediation, shipped by upstream.
+
+  `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
+  not state: even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
+  about these overlapping and conflicting messages before deciding what to do"), evidenced by
+  "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
+  user requests clash with each other.
+
+  The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
+  other entry, keeping the trigger-set-equals-source-set invariant; it is noted there as a dated
+  post, static once published, so that recheck is expected to find it unchanged. Neither citation
+  carries a per-row verification stamp: the catalog owes one where a row restates a volatile
+  upstream literal such as a level name, a model range, or a type predicate, and both rows quote prose
+  rather than restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary
+  documentation sources carry; primary sources are unchanged. The blog corroborates, it does not
+  define.
+
+## [0.21.7]
+
+### Added
+
+- **`audit`: category H, the model and effort settings no category reached.** The skill advertises
+  settings-file and environment-variable correctness "against current official docs", and categories
+  A–G reach schema, permissions, MCP servers, hooks, plugins, environment variables, and the
+  skill-listing budget. None reached the model-configuration keys, so `effortLevel`,
+  `fallbackModel`, `availableModels`, and `enforceAvailableModels` went unaudited in a skill whose
+  stated scope includes them. Phase 2's enumeration, `validation-categories.md`, and a mandatory
+  Phase 3 model-config fetch all move with it, so the category is reachable by the skill's own flow
+  rather than stranded in the checklist.
+
+  The four rows share one shape: each names a value the harness accepts into the file and then does
+  not apply as its author expects. `effortLevel: max` is not the level that persists; a fourth
+  `fallbackModel` entry risks being ignored; a specific model listed beside its own family wildcard
+  narrows the allowlist to that one version; `enforceAvailableModels` without a non-empty
+  `availableModels` does nothing at all.
+
+  Three rows are `warning`. The `enforceAvailableModels` pairing is `error`, because this skill's own
+  severity guide rates an enforcement bypass that way and that is what the finding is: an
+  administrator who set the key believes the Default option is constrained when it is not. That row
+  fires only on `enforceAvailableModels: true` with the list unset or empty. An explicit `false` is
+  someone disabling enforcement deliberately, so the check gates on the value rather than the key's
+  presence.
+
+  **`check-structure.sh` now reports the four keys by value for `settings.local.json`.** Category H
+  can read `settings.json` and `~/.claude/settings.json` directly, but the safe-read rule routes the
+  local file through this helper, and the helper emitted only environment, permission, and plugin
+  counts, so a key living only in `settings.local.json` was invisible and its defect silently
+  missed. Counts could not have closed that: the allowlist wildcard rule turns on which family each
+  entry names, and the fallback cap turns on entry order. The four values are configuration
+  identifiers, not credentials: level names, model names, a boolean. Emitting them therefore leaves the
+  secret guard untouched, and a test asserts env values and env key names still never appear.
+  `unset` and `(empty list)` are reported distinctly because they are different findings. Existing
+  output lines are unchanged; the new lines are appended, and the script's own suite covers the
+  addition (10 checks before, 24 after).
+
+  **How loudly each surfaces differs, and the rows say so individually.** An earlier draft claimed a
+  blanket runtime silence; that is false for the allowlist row, where a narrowed alias shows a
+  substitution notice naming both models. Two rows also have an authoring-time path: the declared
+  schema constrains `effortLevel` by `enum` and `fallbackModel` by `maxItems`, so a schema-aware
+  editor catches them first. They stay because the schema is advisory and the harness reads a file
+  that violates it. Where the two authorities disagree they are reported separately: `maxItems` caps
+  RAW array length while the page caps the chain after deduplication, so a four-entry chain holding
+  one duplicate fails the schema and satisfies the harness.
+
+  Rows were admitted on one test: the key must appear in a file this skill actually opens. That
+  excluded the managed-source placement rule for the `availableModels` pair, which no local file can
+  decide, and it is carried as guidance in the verify column instead of a verdict. `modelOverrides`
+  key validation is excluded for a different reason and stated as a closing note: deciding whether a
+  key is a real model ID means resolving it against Models overview, and that page's own restatement
+  deferral governs new consumers of the facts it owns.
+
+  **The frontmatter-`effort` lint stays deferred and untouched.** That separate item would lint the
+  `effort` frontmatter field in this repository's own agents and skills; it has no host, and the
+  value list it would need is deliberately not restated in this repo. Category H is a different item
+  on three counts: a different key (`effortLevel`, not `effort`), a different file (a consumer's
+  settings, not this repo's component frontmatter), and a host that already exists. Its deferral
+  permits exactly this: a new item with a chosen host, rather than the deferral being lifted.
+
+  The rows do restate the session-only effort semantics rather than citing this repo's philosophy
+  doc, deliberately: this checklist ships into consumer repositories where that doc is not present,
+  so a citation would resolve to nothing and the row would lose its detection. Note the rows also
+  quote the upstream page verbatim where categories A–F restate their sources inline instead. That
+  is a deliberate departure, since these findings turn on exact wording a reader will want to check
+  against the page, and the Phase 3.3 fetch is what keeps the quotes honest as the page moves.
+
+  Verified 2026-08-04 against <https://code.claude.com/docs/en/model-config>, fetched as raw
+  markdown (82,975 B), and against the declared settings schema at
+  <https://json.schemastore.org/claude-code-settings.json>. Recheck trigger: the `effortLevel`
+  accepted-value set changing, the three-model fallback-chain cap changing, the wildcard-disabling
+  rule for a specific family entry changing, or the schema's `enum`/`maxItems` constraints diverging
+  further from the page.
+
+### Fixed
+
+- **`audit-instructions`: `I17`'s `effortLevel: max` carve-out justified itself with a false claim**
+  (criteria 1.15.0). It read that the settings schema "accepts `low`, `medium`, `high`, `xhigh`
+  only, so that string is unreachable there". The schema is advisory JSON Schema: the value is
+  writable, the file merely fails validation, and the harness reads it anyway, which is precisely
+  why the new `audit` category H checks for it. Left as written, one plugin asserted both that the
+  value cannot appear in a settings file and that a sibling category hunts it there. The carve-out
+  itself is unchanged and still correct, since an instruction-text catalog should not hunt the literal,
+  but it now rests on the editor-catches-it-at-authoring-time reason rather than an impossibility
+  that does not hold, and points at the category that does own the file-level check.
+
+## [0.21.6]
+
+### Changed
+
+- **`audit-instructions`: `I8-c`'s scope is now positively confirmed narrow, and the row states what
+  the leakage costs beyond the turn it appears in** (criteria 1.14.0). The row flags a
+  don't-think / don't-reason directive, and rested on a single source, the Opus 5 guide's "Running
+  with thinking disabled", with `Model scope: opus-5` held only by the fact that no wider statement
+  had been found.
+
+  Troubleshooting thinking states the same claim from the symptom side, "System-prompt rules
+  instructing the model not to think or not to reason increase the tag leakage", and it does so on a
+  **model-agnostic feature page**, the surface where a wider claim would surface if there were one.
+  It names Claude Opus 5 anyway. So the scope stays where it is, but for a better reason: upstream
+  had the chance to widen and declined, which is the reasoning `I10` already applies to a declined
+  widening. The promotion gate remains unmet, deliberately.
+
+- **The consequence clause the row was missing.** The same section states that "A leaked tool call
+  never runs, and in agentic loops the leaked text stays in the conversation history, so later turns
+  are affected as well", and that leakage is "most commonly on tool-heavy workloads such as search".
+  Both now travel with the row: the first because it makes the finding a history-poisoning failure
+  in an autonomous lane rather than one malformed response, and the second because it tells an
+  auditor which surfaces to read first. The `Source` line carries its own verification date and a
+  recheck trigger keyed to the claim gaining a model beyond Opus 5, which is the event that would
+  move the promotion gate.
+
+- **The `Sources` block's parenthetical for that page** covered the per-request 400s and the effort
+  restriction's model range only, so it understated what the catalog now cites the page for; it
+  names the leakage claim as well.
+
+## [0.21.5]
+
+### Added
+
+- **`audit-instructions`: `I18-a`, a leading thinking block treated as required where the model does
+  not require one** (criteria 1.13.0, taking the next minor over PR #1917). I18 covered only what a
+  surface does to thinking blocks it *has*: dropping the `signature`, the `type == "thinking"`
+  filter, editing the latest turn's blocks. The opposite error had no row: believing a block must
+  be there. The Steering
+  thinking page states the relaxation outright, "Assistant turns don't need to start with a
+  thinking block", with three consequences that become the row's three detect shapes: reinsertion
+  when assembling history from mixed sources, rewriting history on resume under a different
+  thinking configuration, and logic that reads an assistant turn's first block as though it were a
+  thinking block.
+
+  **It is a sub-row of I18 rather than a new criterion because the two are one mechanism seen from
+  both ends.** The remediation a reader reaches for once they believe a block is required is to
+  fabricate one, and a hand-built block carries no valid `signature`, which is I18's own shape 1
+  and a rejected request. So this row is the upstream *cause* of an I18 violation; both are reported
+  when a surface states the premise and acts on it. I18 gains a two-sentence lead-in naming the
+  pairing and a `Base row:` label; its detect, fences, source and stamp are unchanged.
+
+  **Reach is I18's, unchanged, for all three shapes**: a path back to the model, whatever the file
+  format. Presence-assuming logic that only ever *reads* is recorded as out of reach rather than
+  excused: the page's caution sits in the request/response frame and says nothing about stored
+  transcripts, whether a harness transcript carries thinking blocks at all is unestablished, and the
+  harm there would be the consumer's own logic rather than a 400, a code-correctness matter this
+  catalog does not audit. The row carries a `Re-scope when` clause for the day that shape is
+  documented. Severity is `warning` against I18's `error` on its own footing: wasted work plus a
+  fabrication risk, not a guaranteed rejected request.
+
+  **The carve-out is upstream's own, and exactly as wide as its source.** Models using a legacy
+  manual thinking budget do enforce that the final assistant turn of a thinking-enabled request
+  begins with one, so text scoped to that mode AND that turn is correct; a legacy-scoped
+  instruction demanding the block on every assistant turn over-requires past its own source and
+  still flags. The finding is the missing gate, never the mention, as in `I17-c`. The row also
+  fences itself against being read as license to drop blocks: the relaxation "is about validation,
+  not about what you should send".
+
+  **Decisive source, with the sibling as corroboration.** The Thinking page carries the same pair
+  compressed into one sentence inside "Thinking with tool use": extended (manual) mode "additionally
+  enforces that the final assistant turn of a thinking-enabled request begins with a thinking block",
+  and "Adaptive mode relaxes this: no assistant turn needs to start with one." Steering thinking is
+  where the relaxation is stated operatively, with the three history-shape consequences the detect
+  shapes are drawn from and the presence caution, so it is cited as decisive and the sibling as
+  corroboration. Separate from both is that page's strip claim, the API "may strip thinking blocks
+  that would create an invalid turn structure", which is server-side degradation of a request rather than a
+  rule about what history a caller may send. The Steering thinking page joins Sources. Local
+  coverage measured 2026-08-04: zero
+  operative instances, on the same footing as I18, with a re-measure clause. The one transcript
+  consumer here, `session-flow`'s retro parser, selects blocks by each item's own `type` rather than
+  by position, so it is correct by construction rather than by this rule.
+
+## [0.21.4]
+
+### Changed
+
+- **`audit-instructions`: `I17` gains a second arm: the models that reject a thinking-disable
+  outright, at every effort level** (criteria 1.11.0 → 1.12.0). The base row detected a *pairing*: a
+  thinking-disable surface together with `xhigh` or `max` effort, on Opus 5 and later. The Thinking
+  page states a second restriction in the paragraph directly after that one, "Claude Fable 5,
+  Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type: "disabled"}`: thinking cannot
+  be turned off on these models", with no effort qualifier at all.
+
+  **The gap was a wrong remediation, not only a missed case, which is why this amends the base row
+  rather than adding a sibling.** Either reading of the old row's range was a defect. Read as
+  covering Fable 5, the row fired and handed out `Remediate`'s "lower the effort to `high` or below,
+  or leave thinking on", advice whose first branch still returns a 400 on that family. Read as
+  excluding it, the unconditional reject went undetected and the row's own `Must NOT flag` fence
+  ("a thinking-disable surface named with no effort level in reach of it") actively excused it. Both
+  are now scoped to the arm that earns them: the fence applies to the Opus 5 arm, and the second
+  arm's remediation has one branch, not two.
+
+  **Only the API form joins the second arm.** On **Fable 5** the harness disable surfaces,
+  `MAX_THINKING_TOKENS=0`, the session toggle, and `alwaysThinkingEnabled`, are silent no-ops rather
+  than errors, which is `I17-a`'s failure and stays there; for **Mythos 5 and Mythos Preview the
+  harness pages state nothing**, so the row claims nothing about their harness surfaces. The
+  scoping matters because model configuration names Fable 5 alone and never discusses Mythos.
+  Asserting the family would be the catalog breaking its own does-not-state standard. The row
+  heading changes from "at an
+  effort level that forbids it" to "where the model forbids it", since an arm with no effort operand
+  no longer fits the old wording. **Local coverage measured, not asserted:** zero operative
+  instances, with all six occurrences of the disable literal being documents *about* the
+  restriction, which is the audience-test fence, not a passed check.
+
+- **`audit-instructions`: `I17-b` extends from effort churn to thinking churn, and its harness
+  carve-out is re-scoped to the half that earns it.** The row detected a mid-session *effort* change
+  prescribed without its cache cost. The Thinking page puts the thinking configuration in the same
+  position as effort, both "are rendered into the prompt itself, so changing any of them starts a
+  new cache prefix", and names switches among `adaptive`, `enabled` and `disabled` and changes to
+  `budget_tokens`.
+
+  **The carve-out is the part that matters.** The old row excused "a Claude Code surface" wholesale,
+  because the harness "asks you to confirm before applying the change". That dialog is documented
+  for effort alone: `code.claude.com/docs/en/prompt-caching` names exactly two settings outside the
+  prompt text that are still part of the cache key: model and effort level. Left unscoped, the
+  extended row would have silently asserted that the harness warns before a thinking toggle, which
+  nothing upstream says. The carve-out now names effort explicitly, and the thinking half is stated
+  for the API and Agent SDK callers the page's claim actually covers rather than reaching for a
+  harness consequence the docs do not carry.
+
+- **`audit-instructions`: the Thinking page's Sources entry names the two properties these arms rest
+  on**: the models that reject a thinking-disable outright, and what a thinking or effort change
+  does to the cache prefix. `I17` base and `I17-b` were re-verified live against their full source
+  sets on 2026-08-04 and carry that stamp; `I17-a` carries a split stamp: only its new
+  session-toggle/`alwaysThinkingEnabled` clause was re-verified 2026-08-04, its original claims
+  keep their 2026-08-02 check; `I17-c` is untouched and keeps its own. `I17-a`'s Detect gains the harness controls its explanation already
+  named: the session thinking toggle or `alwaysThinkingEnabled` presented as turning thinking off on
+  Fable 5 is now flagged (model configuration states they "have no effect there"). Previously the
+  base row routed that failure to `I17-a` while no arm of it actually detected it. `I17-b` also
+  gains a reach clause and a co-firing note. The reach clause: its thinking half covers API and Agent
+  SDK surfaces only, since the harness documents neither a dialog nor a cost for a mid-session
+  thinking toggle. The co-firing note is against `I17-c` and scoped to accepted changes: a rejected
+  request completes no turn and an ignored value changes no configuration, so where `I17-c` condemns
+  the control the cache-cost claim never materializes and `I17-c` fires alone; both fire only when a
+  surface prescribes both an invalid control and, separately, an accepted mid-session change.
+
+## [0.21.3]
+
+### Added
+
+- **`audit-instructions`: `I8-e`, forced interim-status cadence, scoped `sonnet-5`** (criteria 1.10.0
+  → 1.11.0). The Sonnet 5 guide prescribes removing exactly the scaffolding `I8-d` reaches on a
+  Fable 5 target, "If you've added scaffolding to force interim status messages ("After every 3
+  tool calls, summarize progress"), try removing it", on its own ground, that the model already
+  reports well without it.
+
+  **It is scoped, not unscoped, and that was the contested call.** The obvious reading is that a
+  second model guide now converges on `I8-d`'s cadence arm, which would meet the promotion gate and
+  let one row fire fleet-wide. It does not. The gate wants two guides *stating* the claim, and the
+  Fable 5 guide never states it: its "Longer turns by default" section prescribes adjusting client
+  timeouts, streaming, and progress indicators, says nothing about removing instructed status
+  cadence, and elsewhere that guide recommends *adding* a send-to-user progress mechanism. `I8-d`
+  reaches the cadence by inference from a turn-duration premise, a legitimate ground for a scoped
+  row but not a second statement. Two scoped rows therefore cover one instruction shape from the two
+  guides that reach it; exact-match scoping means they never co-fire, and both rows now say so, so a
+  later reader does not "deduplicate" them.
+
+  `I8-d`'s detect and fences are unchanged; it gains one cross-reference bullet naming the
+  relationship.
+
+- **`audit-instructions`: `I17-c`, a fixed thinking budget prescribed where adaptive reasoning
+  ignores or rejects it.** `I17-a` already covers `MAX_THINKING_TOKENS=0` sold as a universal off
+  switch, the claim that thinking can be turned *off*. Nothing covered the adjacent claim that
+  thinking depth can be *set to a number*, whose two arms fail in opposite ways: a nonzero
+  `MAX_THINKING_TOKENS` is silently ignored on adaptive-reasoning models and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` cannot rescue it, while API `thinking: {type: "enabled",
+  budget_tokens: N}` returns a hard 400 across Opus 4.7 and later, Sonnet 5, Fable 5, and Mythos 5.
+  Unscoped, with the model ranges as Detect conditions rather than a `Model scope` annotation, for
+  the reason `I17` base states.
+
+  **The row's central fence is that the finding is the missing gate, never the mention.**
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is *not* a retired variable: it is live on Opus 4.6 and
+  Sonnet 4.6, where it does exactly what it says, and it lost its reach over the adaptive-reasoning
+  models only at Claude Code v2.1.111, so the gate is a release as well as a model set, and text
+  scoped to an earlier release is also correct. The obvious implementation, grep for the variable
+  name and call every hit stale, would flag every accurate piece of documentation about it, so the
+  row carries I12's precondition rule applied to these literals explicitly.
+
+### Changed
+
+- **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
+  pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
+  its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
+  forms against, not on the "phrasings too varied" reason its neighbors carry.
+
+- **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
+  cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
+  rule that the trigger set is the source set, this **widens the catalog-wide recheck trigger**:
+  every row now re-verifies when that page changes. That is the intended consequence of citing it,
+  recorded here rather than left as a side effect of adding a bullet.
+
+## [0.21.2]
+
+### Changed
+
+- **`audit-instructions`: I10's `Model scope: fable-5` is now positively sourced instead of resting
+  on a declined widening** (criteria 1.9.0 → 1.10.0). The row's conclusion does not move: Mythos 5
+  is still not in scope, and still should not be. What moves is the ground under it. Since 0.18.0
+  the row held its narrow scope by reading an omission: the Thinking page names both Claude Fable 5
+  and Claude Mythos 5 for the adjacent raw-chain-of-thought property, then names Fable 5 alone for
+  the refusal, and the row inferred deliberateness from that declined chance to widen. That is an
+  argument from authorial choice, and it is the weakest link in an otherwise well-cited row.
+  Silence is evidence only until someone finds the sentence.
+
+  The sentence exists, on the page that owns Mythos 5: "Claude Fable 5 includes safety classifiers
+  that can decline certain requests. Claude Mythos 5 does not include these classifiers, so this
+  section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03, HTTP 200).
+
+  **The row states it as two steps, each from the page that owns its half**, rather than letting
+  either page settle it alone. The introducing page excludes the whole classifier *set* for
+  Mythos 5, "these classifiers," referring to the set that can decline requests, and Refusals and
+  fallback puts this row's category inside that set, listing `reasoning_extraction` among the
+  categories a refusal reports. Collapsing the two into one citation would rebuild the near-miss
+  scope inheritance the catalog's model-scoping block forbids, only pointing the other way; keeping
+  them separate is what makes it a citation rather than an inference wearing one. Note that Refusals
+  and fallback attributes the classifiers to Claude Fable 5 **and Claude Opus 5** and never mentions
+  Mythos 5. The exclusion is the introducing page's alone to state, which is why both are cited.
+
+  The introducing page joins `## Sources`, so the catalog-wide recheck trigger fires this row if the
+  page changes; which models carry the classifier set is a per-model fact and will move. No narrower
+  per-row trigger is owed, per the stamp rule's own carve-out for claims the Sources set already
+  covers. The 0.18.0 entry below is left as written. It records what shipped then, and the
+  reasoning it describes was correct for the sources available at the time.
+
+## [0.21.1]
+
+### Added
+
+- **`audit-instructions`: row I8-d, short-turn assumptions** (criteria 1.8.0 → 1.9.0). Tier
+  `behavioral`, `Model scope: fable-5`. The promotion gate is unmet and stays unmet: the claim
+  appears in one model guide and on no model-agnostic page, so the row is inert on other targets
+  and reports `skipped-for-target`.
+
+  **Detect** is instruction text resting on the premise that a turn is short: a forced
+  interim-status cadence ("summarize every N tool calls"), a directive to answer quickly, any
+  progress rhythm pinned to a turn rather than to the work. Individual requests now run for
+  minutes at higher effort and autonomous runs for hours, so such a rhythm fires on work that has
+  not reached a reportable boundary and interrupts exactly the long runs the model is used for.
+  Four fences keep it off legitimate text: an output-length instruction is I8 base's subject, not
+  this one's (the axis here is the turn's duration, never the reply's size); a latency or duration
+  requirement the surface genuinely owns, such as an SLA, a downstream timeout, or a human review rhythm, is
+  a constraint it is entitled to state; a document *about* the pattern is exempt on the same
+  audience test I8-b, I17, I18 and I20 already use; and a cadence carrying its own explicit
+  observability or interruptibility rationale is a design the surface is entitled to make, the very
+  guarantee the row's Remediate line protects, and is exempt unless evidence shows it was
+  calibrated to an obsolete turn length rather than to the work.
+
+  The row is **lane-only, not seeded** by `instruction-scan.sh`, and `SKILL.md` now says so
+  alongside the existing I8-c disclosure. A pattern family was considered and declined: the
+  phrasings are too varied for a rule that would earn its false-positive rate, and the one
+  candidate string in this repository resolves to the exempt meta case, so the family would have
+  shipped with a known false positive and no true one.
+
+  The guide pairs this behavior with advice to adjust **client timeouts, streaming, and progress
+  indicators**. That half is harness client configuration rather than instruction content, so the
+  row states plainly that it is out of scope and that no row claims it. The shape that *would*
+  reach this catalog is instruction text prescribing a short client timeout, and none is attested.
+
+### Changed
+
+- **`audit-instructions`: I8's base row gains one named worked instance, the delegation
+  throttle.** A cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
+  each subagent returns, *where the surface's own ground is that subagent handling is unreliable*.
+  Current guidance runs the other way (readier dispatch, asynchronous orchestrator-to-worker
+  communication), so such a throttle is the base row's generic case with a name on it, which is
+  why it lands as recognition material inside I8 rather than as a fourth rule competing with it.
+  The qualifier is the whole fence: **a cap carrying its own non-model rationale is not this
+  instance.** Reviewability of returns, rate limits, cost, and shared mutable state each justify a
+  bound on their own terms, and that justification belongs to the surface making it. The base row's
+  Source gains the guide's "Parallel subagents" sentence as the instance's basis; the row restates
+  no volatile literal and so owes no per-row verification stamp under the catalog's own
+  binds-on-touch rule.
+
+## [0.21.0]
+
+### Added
+
+- **`audit-instructions`: the two agnostic-mechanism rows from the IA-6 / IA-10-A2 ownership split,
+  I21 and I22** (criteria 1.7.0 → 1.8.0). Both source rules were **compounds**: an agnostic
+  mechanism fused to a consumer-state instance naming this fleet's own machines, files, and dates.
+  Routing either wholesale was wrong in both directions: outward it would ship our private state to
+  every consumer, inward it would strand a reusable staleness control. Each was split at the
+  mechanism/instance line; only the mechanism halves are here. The instance halves (a dated vet, a
+  chezmoi-managed fleet pin) are drafted for the consumer repository and deliberately ship nowhere
+  in this plugin.
+
+  - **I21: effort level pinned across a model change with no re-sweep** (`mechanical`,
+    `ANTHROPIC-DOCS`, `warning`, unscoped). The effort scale is calibrated per model, so the same
+    level name does not carry the same underlying value across models, and a level measured against
+    one model then carried to the next is a pin nobody re-measured. The promotion gate is met on the
+    strong form: model configuration states the calibration property **with no model qualifier**, so
+    that page alone carries the row; the effort page's Opus 5 subsection is cited only for the
+    remediation's wording, and its per-model placement does not narrow a property stated generally.
+
+    **The model range is a Detect condition, not a `Model scope` annotation**, on I17's reasoning.
+    It is in Detect because the *consequence* varies: Claude Code applies a model's default effort
+    on first run of Fable 5, Opus 4.8, or Opus 4.7 and holds it, so a carried level there is
+    overridden harmlessly, while **Opus 5 has no such hold** and a stale pin actually reaches the
+    request. One thing is recorded as **unresolved rather than inferred**: the page names `/effort`
+    and `--effort` as *examples* ("such as") of the explicit choice that releases the hold, so
+    whether a settings-file `effortLevel` pin releases it is not stated anywhere read for this row.
+    The row therefore fires on the missing re-derivation regardless of model, and the hold is
+    severity context, never a fence.
+
+    Four fences keep it honest. A prescription of **`high` is exempt only where `high` is the
+    resolved target's default**. It is "Equivalent to not setting the parameter", so on such a model
+    it carries no measured calibration. **The exemption keys to the resolved target, never to the
+    wording**, which is what makes it correct: `high` is the default everywhere **except Opus 4.7,
+    which defaults to `xhigh`**, so when the target is 4.7 the exemption lifts and a broad
+    model-agnostic "always use `high`" naming no model is a finding, indeed the sharper case, since
+    a pin written where `high` was the no-op default becomes a silent step-down the moment it reaches
+    a model whose default sits above it. A resolved target always exists, because the skill body
+    aborts rather than run against an unresolved one, so the fence never guesses. A **per-task**
+    choice
+    (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. **`effort:`
+    frontmatter and `effortLevel` keys route to `claude-config:audit`** on I17's
+    instruction-text-versus-config discriminator. And **schema documentation and its illustrative
+    samples** are fenced **separately** rather than folded into the config fence, because a worked
+    example quoted inside documentation prose is not a key living in a config file and the config
+    fence would not have reached it. The level in a sample demonstrates syntax, not a measured
+    choice. That fence ends where the demonstration does: documenting the field *and then telling the
+    reader which level to put there* is prescribing, and stays in scope.
+
+  - **I22: model-routing doctrine with no baseline named** (`mechanical`, `OPINION`, `info`,
+    default **off**, enabled by `--opinion`). First-party lane assignments derived from a reading of
+    vendor selection pages, written down with neither the baseline they came from nor an event that
+    re-opens them, become a claim about a model generation that has since passed, told in the
+    present tense. Its own contribution beyond "attach a trigger" is the **delta-not-re-run**
+    discipline: the action on a trigger is a targeted delta check against the named baseline, never
+    a re-derivation from scratch. A trigger nobody can afford to run is not a control.
+
+    **The row carries no baseline of its own, by design.** Naming a date or a vet here would hand
+    every consumer a foreign snapshot as their baseline, reproducing in their repos the exact drift
+    the check exists to catch.
+
+    Its third-party fence is stated **narrowly on purpose**: transcribed practice is out of scope
+    only because there is no vet to point at, **not** because a sync stamp makes it fresh. A stamp
+    tracks whether the transcription is current, never whether the transcribed advice still names a
+    live model, so a stale lane recommendation inside a faithfully synced pack stays stale. That
+    residual is the transcribing surface's to carry, and the fence says so rather than implying the
+    sync path has it covered.
+
+    Its non-duplication is stated in the row rather than assumed. **I19** covers a restated
+    *benchmark figure* and asks for the four-part record; it says nothing about lane assignments and
+    nothing about how to act when a trigger fires. **The catalog-wide recheck trigger** does not
+    reach it either: that trigger governs *this catalog's* staleness against its Sources, not an
+    audited surface's staleness against the pages its doctrine was read from. It ships
+    `Source: none` on I19's footing and adds no Sources entry for the same reason.
+
+### Changed
+
+- **`audit-instructions`: the model-configuration and effort Sources entries name what I21 depends
+  on**: the per-model calibration of the effort scale and the first-run default hold, and `high`'s
+  equivalence to omitting the parameter plus the carry-over sweep advice. The catalog's "the trigger
+  set is the source set" invariant makes these parentheticals required: a dependency the entry
+  does not name is a dependency nothing watches.
+
+- **`audit-instructions`: `--opinion` no longer restates which rows it enables.** The flag's
+  description in the skill body carried its own copy of the `OPINION` row set, which is a second
+  place to update on every new `OPINION` row and, when stale, silently narrows the flag below what
+  the catalog actually defines. The set is now read from the catalog at run time, where the
+  enablement policy already lives, and the run's tier-transparency line reports the count it found,
+  removing the drift class rather than correcting one instance of it.
+
+## [0.20.1]
+
+### Fixed
+
+- **`audit-pass`: age alone no longer reclaims an applying run's lock where the platform exposes no
+  process start identity (#1786).** The reclamation rule's second conjunct was a start-identity
+  match, and the "where none exists, **age alone reclaims**" fallback had no liveness conjunct at
+  all. The lease's heartbeat was mentioned one sentence later as prose no reclamation test
+  consulted. A live `--fix` exceeding 30 minutes on such a platform lost its lock to a second
+  applying run, contradicting assertion 3.1's *"exactly one proceeds"* on exactly the platform least
+  able to detect the collision. The lock now records the holder's **run id** (and its start identity
+  where one exists) so reclamation can find the holder's lease, and where no start identity is
+  available the lease is the second conjunct: past 30 minutes a **stale** or `released` lease
+  reclaims and says so, a **live** lease refuses exactly as it would inside the window, naming the
+  run id and `heartbeat_at`. The classification reuses §3's existing two-sided liveness test rather
+  than introducing a second one. This does not reintroduce the unreclaimable lock the age bound
+  guards against: a crashed holder stops refreshing, so its lease goes stale within the liveness
+  threshold, and a missing or unreadable lease is treated as stale, since the absence of a heartbeat is
+  not evidence of life. Same defect class and same remedy shape as `claude-ops`' restart-consumer
+  (#1759/#1760), where a live PID without a boot identity may only defer a reclaim. That deferral
+  needs a hard ceiling only because its holder publishes no lease. A lock written *before* this rule
+  carries no run id and is covered too: reclamation establishes the conjunct the other way round, by
+  enumerating every lease under `runs/<state-key>/`, so upgrading mid-run never hands a live holder's
+  lock away. The order of the two writes is now normative for the same reason: an applying run
+  writes its lease **before** it takes the lock, since a lock whose lease does not yet exist would
+  read as stale and be reclaimed on age alone through the window between them. New assertions 3.12,
+  3.13, and 3.14; new evals 27 and 29.
+- **`audit-pass`: a suppression no longer re-applies silently across an anchor collision (#1786).**
+  §1 guarantees that two identical normalized excerpts under one heading path collide and that *"no
+  suppression carries forward across it"* (assertion 1.10a), but §4's matching table had no
+  collision exception, and a collided site's anchor is by construction **unchanged**, since the
+  occurrence discriminator digests the heading path. A previously-suppressed excerpt that later
+  gained an identical duplicate therefore satisfied the `SAME, UNCHANGED` row exactly and
+  re-suppressed itself with no report. Collision is now tested ahead of the anchor comparison in
+  every row and routes to the existing `OLD CLOSED, NEW OPENED` disposition: entry stale per 4.2,
+  finding unsuppressed, collision named with its occurrence count. That reuses the section's
+  established fail-closed answer to an ambiguous match rather than adding a fifth disposition. New
+  assertion 4.7; new eval 28.
+
+## [0.20.0]
+
+### Added
+
+- **`audit-instructions`: four consumer-facing rows: I17, I18, I19, I20** (criteria 1.6.0 →
+  1.7.0). All four carry knowledge outward rather than inward: they detect defects in repos this
+  fleet does not control, and each is agnostic to user, machine, company and repo.
+
+  - **I17: thinking disabled at an effort level that forbids it**, as a base row plus **I17-a**
+    and **I17-b**, on I8's pattern: three shapes with three different decisive sources are three
+    rows, not one row with three citations, and splitting them lets each carry its own severity.
+    Base row (`error`): pairing a thinking-disable surface with `xhigh` or `max` effort returns a
+    per-request 400, and the pairing is assemblable from configuration literals alone. **No harness
+    documentation describes a pre-request guard**, so the row states the hazard as real and
+    unguarded and deliberately does **not** claim the harness prevents it. It also catches the
+    `ultracode` **setting**, which matches neither literal but "sends `xhigh` to the model" and so
+    produces the identical rejection. Match the effort that reaches the request, not the spelling.
+    The same spelling as a **prompt keyword** is fenced out: it runs one task as a workflow
+    "without changing the session's effort level", so no effort reaches the request. And it tells
+    an auditor **not** to hunt `effortLevel: max`: the settings schema stops at `"xhigh"`, so that
+    literal is unreachable there. I17-a (`warning`) is `MAX_THINKING_TOKENS=0` sold as a universal
+    off switch, which it is not: no effect on Fable 5, parameter merely omitted on third-party
+    providers. I17-b (`info`) is a mid-session effort change prescribed without its cache cost, and
+    it explicitly does **not** fire on Claude Code surfaces, where the harness already asks for
+    confirmation; it is for surfaces instructing an API or Agent SDK caller, where no dialog exists.
+
+    **The model range is carried as a Detect condition, not a `Model scope` annotation.** The
+    catalog's annotation is for rows sourced from a single model's *guide*, matches by exact string
+    equality, and has no range form, so annotating `opus-5` would make the row inert on the next
+    generation while the restriction ("Claude Opus 5 and later models") still holds. The source is
+    a model-agnostic feature page, so the promotion gate is met and the row is unscoped. I20 handles
+    its own model range the same way.
+
+    The settings-file scan is explicitly **not** taken: it belongs to `claude-config:audit`, and an
+    instruction-content catalog that also scanned settings files would claim authority a sibling
+    already holds. The discriminator is whether the content instructs, not which file holds it, so
+    a prompt-type hook's injected text stays in scope even though it lives in a settings file.
+  - **I18: thinking blocks altered on the way back to the model.** Signature preservation, the
+    `block.type == "thinking"` type-filter smell, and within-turn echo integrity. Reach is wider
+    than Messages API client code, covering Agent SDK callers, harness integrations, and tooling that
+    rewrites a stored transcript later replayed or resumed, but the criterion is **a path back to
+    the model**, not the file format read, so read-only transcript analysis stays out. The row
+    ships **no `redacted_thinking` handling clause premised on those blocks being present in local
+    transcripts**, because that premise is unevidenced. The term survives only inside the upstream
+    sentence that is the type filter's entire stated failure mode, which is where the harm lives.
+    Zero instances of all three shapes here, recorded as a dated measurement with its own trigger
+    rather than left to read as a clean audit.
+  - **I19: restated external benchmark figure with no recheck trigger.** `OPINION`-tier and off by
+    default, because no official page states that a restated benchmark figure needs a
+    re-derivation event; the four-part shape it asks for is this monorepo's upstream-drift
+    convention, and in a standalone install the four parts rather than the path are the
+    requirement. Carries one fence the fleet needed: **a verbatim upstream baseline held for drift
+    detection is never flagged**, since stamping it would corrupt the byte comparison it exists to
+    serve. That is a genuine suppression, which is what separates it from plugin-cache content and
+    managed materializations. Those are still flagged, and the finding becomes a routing
+    recommendation to the owning repository.
+  - **I20: prefilled assistant response**, at `error`: following the instruction produces a
+    rejected request, the same consequence class as I17 and I18. Severity tracks consequence, not
+    expected frequency. This is a standing model-delta row whose hit rate here is zero, and it
+    fires in consumer repos that still prefill.
+
+- **`audit-instructions`: per-row verification stamps** (criteria 1.6.0 → 1.7.0). A row restating a
+  volatile upstream *literal* now carries the four-part record: claim, basis, as-of date, and a
+  recheck trigger naming an observable event. A row that only points at its page carries none,
+  because a pointer cannot go stale. The block resolves its own relationship to the catalog-wide
+  Recheck-triggers rule rather than leaving two authorities over one behavior, which is precisely
+  the conflict I15 exists to find: a per-row stamp **supplements** the catalog trigger and never
+  narrows it, a row's own trigger names only what the Sources set would miss, and **the catalog
+  trigger wins** where they disagree. The requirement **binds on touch**, per the upstream-drift
+  convention, so rows predating it are not retroactively non-compliant. Shipping a check that
+  silently encoded a snapshot as permanent truth would reproduce, in consumers' repos, the drift
+  this catalog exists to detect.
+
+- **`audit-instructions`: five pages join `## Sources`**: effort, thinking troubleshooting,
+  settings, environment variables, and prompt caching. As at 0.18.0 and 0.19.0 this is a
+  second-order change, and it is intended: the Recheck-triggers block makes the trigger set the
+  source set, so adding a page widens the staleness trigger for the **entire** catalog, not only
+  for the rows that cite it. A cited page nothing watches would leave those rows depending on an
+  unwatched source.
+
+## [0.19.0]
+
+### Changed
+
+- **`audit-instructions`: I8-b (conservative-reporting detection) is promoted to unscoped**
+  (criteria 1.5.0 → 1.6.0). The row carried `Model scope: opus-5` and fired only when the resolved
+  target model was Opus 5. The **Sonnet 5** prompting guide, "Code review harnesses", states the
+  same claim about the same behavior: a review prompt saying "only report high-severity issues",
+  "be conservative", or "don't nitpick" is followed literally, so the model investigates just as
+  thoroughly and then withholds findings below the stated bar. Two first-party model guides of the
+  same class converging is the promotion gate's **second arm**, so the row is now annotated the way
+  I7 is and fires for every target model. The Sonnet 5 guide joins `## Sources`, as the
+  Recheck-triggers block requires of every cited page. The Detect line's "which **this** model
+  follows literally" is now "which **current models** follow literally". The demonstrative
+  referred to the row's scoped model, and an unscoped row has none.
+
+  **The Recheck-triggers block no longer enumerates the model-specific pages.** It read
+  "Model-specific pages (the Fable 5 and Opus 5 guides) are superseded on each model generation",
+  a closed list the Sonnet 5 addition immediately falsified. It now reads "the per-model prompting
+  guides under Sources", which stays true as guides join. The enumeration also contradicted its own
+  paragraph three lines above, which argues that "naming a subset would leave the harness-behavior
+  rows depending on pages nothing watches."
+
+- **I8-b's Source line now cites the phrase it could not.** The row's Detect names three trigger
+  phrases; **"don't nitpick" appears nowhere in the Opus 5 guide**, which states only the other
+  two. The Sonnet 5 guide names all three verbatim, so it is that phrase's only cited home, and the
+  Source line says so rather than leaving a trigger phrase attributed to a page that does not
+  contain it.
+
+- **I8-b's Remediate line gains the constructive half.** It said only "rephrase to
+  report-everything + a separate filter/rank pass", which does not answer the case where a
+  single-pass self-filter is genuinely wanted. The Sonnet 5 guide covers that case, "be concrete
+  about where the bar is rather than using qualitative terms like `important`", so the line now
+  keeps the filter and asks for an enumerable test in place of a qualitative label.
+
+  **Promoting this row flags nothing new in this repository.** The scanner's I8-b population here
+  is 23 candidate rows across 6 files, every one of them already fenced by the row's own two
+  fences: the restraint-clause shape (`code-tidying`'s tidyings catalog) and the quoted/meta
+  surface (this criteria file, the scanner and its tests, two model-adaptation delta chapters).
+
+## [0.18.0]
+
+### Added
+
+- **`audit-instructions`: I10 gains a second corroborating source and a concretized remediation**
+  (criteria 1.4.0 → 1.5.0). The Thinking page states the same `reasoning_extraction` refusal I10
+  already cited from the Fable 5 guide, from a second, independent page, a feature page rather than
+  a model guide. The row records why that citation does **not** move the promotion gate: the page's
+  own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent raw-chain-of-thought
+  property, then names Fable 5 alone for the refusal, so the narrower scope is deliberate rather
+  than an omission. **`Model scope: fable-5` is unchanged, and `mythos-5` is deliberately not
+  added**, since no source states the refusal for Mythos 5, and inheriting it from a claim about a
+  different property is exactly the near-miss scope inheritance the catalog's model-scoping block
+  forbids.
+
+  **The Remediate line now names the surfaces instead of gesturing at them.** It said "read
+  structured `thinking` blocks or use a send-to-user tool"; the sanctioned reading surfaces are
+  `Ctrl+O` verbose mode and the `showThinkingSummaries: true` setting in Claude Code, and
+  `display: "summarized"` on the API. The two Claude Code surfaces are stated on the model
+  configuration page, **not** on the Thinking page, so both pages join the catalog's `## Sources`
+  list. The Recheck-triggers block makes the trigger set the source set, and a cited page nothing
+  watches would leave the row depending on an unwatched source.
+
+## [0.17.0]
+
+### Fixed
+
+- **`audit-instructions`: the conflict pass excluded command hooks whose output is injected into the
+  session's context (#1726).** `conflict-criteria.md` carried "Command-type hooks are outside this
+  pass entirely", citing the context-window doc's compaction table, whose hooks row reads "Not
+  applicable; hooks run as code, not context". That row is about the hook *mechanism*, since a hook
+  definition is not a context block to be re-injected, and the same page says the opposite about
+  handler *output*: a `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`.
+  That field enters Claude's context." The exclusion therefore dropped one half of every pair whose
+  hook side was live standing instruction text, silently, since a per-surface lane never sees the
+  surface at all.
+
+  **The discriminator is now whether the handler's output reaches this session's context, not
+  whether the handler is `type: "command"`** (criteria 1.1.0 → 1.3.0). Handler stdout on
+  `SessionStart`, `UserPromptSubmit`, and `UserPromptExpansion`, and
+  `hookSpecificOutput.additionalContext` on a main-session event that accepts it, enter the
+  comparison set **as text**; stdout on any other event still does not. `mcp_tool` shares the stdout
+  channel and `http` the JSON one. `prompt` and `agent` handlers keep their existing treatment:
+  they return a decision, so they still enter as the act they gate, never as their prose.
+
+  **Type still decides registrability, and the pass resolves the event×type pair before admitting a
+  surface.** "Not all events support every hook type"; `SessionStart` takes only `command` and
+  `mcp_tool`, so an `http` handler there is not a surface with unreadable text but one that cannot
+  be registered at all. An `http` handler also has no stdout. It returns a response body.
+
+  Four residency bounds ship with the admission, so the widening does not manufacture pairs.
+  `SubagentStart` and `SubagentStop` `additionalContext` is "Context added to **the subagent's**
+  context", so it fails gate 1 against every main-session surface exactly as the active output style
+  does. It pairs against the agent definition it runs under, never against the main conversation's
+  `MEMORY.md` or output style. Injected text is ordinary message history rather than a re-injected
+  surface (a `SessionStart` hook re-injects after compaction only on the `compact` matcher, so a
+  `startup`-only hook's pair is conditional there). Exit-2 stderr reaches Claude but is turn-scoped
+  error feedback, not a standing directive, and it carries a gate only on the events that can
+  actually block. And a hook's own configuration, the command line, arguments, and `matcher`, remains the
+  gate rather than instruction text.
+
+  Phase A's hook inventory splits into the two kinds accordingly, across settings scopes, managed
+  settings, and plugin `hooks/hooks.json`, under unchanged no-secrets handling; where the injected
+  text is not literal in the config (a handler that runs a script) the surface is recorded with its
+  event and `matcher` and marked `text-unresolved` rather than invented. That is a distinct marker,
+  since a bare `unresolved` already names a precedence verdict. Because a hook-injected surface
+  has no file of its own, the Output format now defines its anchor as the settings file, plugin
+  `hooks/hooks.json`, or component frontmatter where the emitting handler is configured, qualified
+  by that handler's event and `matcher`. The `hooks` scope value and the non-memory surface
+  partition widen from "prompt-type hooks" to "hook instruction text", without which the newly
+  admitted surface could be read but never produce a finding, as do the two consumer surfaces that
+  restate the list, the skill's own `description` and the plugin README. Skill and agent frontmatter,
+  a documented hook location Phase A did not inventory at all, is added alongside, **split by
+  ownership rather than filed under one tier.** A frontmatter hook in a user- or project-scope
+  `.claude/skills/**/SKILL.md` or `.claude/agents/*.md` is as editable as the body it rides on, so it
+  joins the **editable** inventory and produces a proposal of its own; only an enabled plugin's
+  *cached* components stay in the read-only tier, whose contract yields no proposal and routes to
+  another owner. Filing every frontmatter hook read-only would have mishandled the locally owned
+  ones, and reading the item as plugin-cache-only would have left them inventoried nowhere. A
+  frontmatter hook anchors at its own component file and frontmatter line, and a subagent's `Stop`
+  hook is registered as `SubagentStop`, so the effective event is resolved before pairing.
+
+  **The exit-2 gate is applied only where exit 2 can actually block.** Treating every exit-2 stderr
+  message as the act it blocks manufactured an unsatisfiable conflict on events that block nothing:
+  a `PostToolUse` linter exiting 2 would have read as a prohibition on the very tool a `CLAUDE.md`
+  requires, though the tool already ran and the hook can neither block nor undo it, as this
+  repository's own `PostToolUse` linter records at `plugins/actionlint/hooks/actionlint-check.sh`.
+  The hooks page's per-event exit-2 table now partitions the treatment: exit 2 blocks on
+  `PreToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `PreCompact`, and `UserPromptExpansion`,
+  where the stderr enters as the act it blocks; on `PostToolUse`, `Notification`, `SubagentStart`,
+  `SessionStart`, and `SessionEnd` nothing is prevented, so the message stays transient feedback and
+  pairs as nothing. `SubagentStop` blocks but is subagent-scoped, so its act pairs inside the
+  subagent rather than against a main-session surface.
+
+  The hooks page is added to Sources and to the recheck triggers in both criteria files (catalog
+  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set); the per-event exit-2 table
+  and the set of supported hook locations join the recheck triggers as newly watched dependencies. Eval 14
+  pins the admission on the case that exposed the gap: a `SessionStart` `type: "command"` handler
+  injecting a standing behavioral block, against an active output style's format contract. Eval 15
+  pins a project-scope frontmatter hook landing in the editable inventory rather than the read-only
+  tier, and eval 16 pins a `PostToolUse` exit-2 handler producing no conflict against a `CLAUDE.md`
+  that requires the tool it ran after.
+
+## [0.16.0]
+
+### Changed
+
+- **`audit-instructions`: `conflict-criteria.md` gains two adjudication cautions on the mechanism
+  escape hatch (criteria 1.0.0 → 1.1.0).** No must-not-flag case was added and `conflict-scan.sh` is
+  unchanged. First: both tool-removal mechanisms, a bare-name `permissions.deny` rule and
+  `disallowed-tools`, work by taking the tool out of Claude's pool, so recommending one against a
+  skill whose text *requires* that tool leaves the mandate unsatisfiable rather than stricter; when
+  the mandating side is a gate, the mechanism must land together with a rewrite of that side, and the
+  pair is what gets recommended, never the rule alone. Second, and deliberately a caution rather than
+  a drop rule: **availability-conditioning does not fail gate 5.** Rephrasing a mandate as "`X` when it
+  is in the pool, otherwise ask inline" narrows how an act is performed, not whether. That is a subset
+  of an always-resident prohibition's scope, not a disjoint condition, so the two still overlap
+  wherever the tool is present and must-not-flag case 12 does not apply. Gate 3 then decides the pair
+  on the rewritten text, testing the branch where the tool *is* present. Without this, a skill could
+  neutralize a live Type A finding by appending a condition or softening a verb. The must-not-flag
+  table gains a non-numbered row pointing at it, so a reader working the table finds it beside case 12.
+  The permissions page is added to Sources and to the recheck triggers, since both cautions now rest
+  on it.
+
+### Fixed
+
+- **`audit-instructions`: Worked Example 1's corpus counts were never reproducible from the method
+  the example states (#1723).** It read "62 lines name the tool and 11 carry a
+  `use_ask_user_question` opt-in gate on the same line, leaving 51 ungated". Measured with the
+  example's own stated method, `plugins/**/*.md` with changelogs excluded, the figures are 69/11/58
+  both at current `main` and at `049a4b9243`, the commit that shipped the doc, so this is a wrong
+  measurement rather than drift; only the gated count, `11`, reproduces. Four plausible alternative
+  denominators were tried and none reaches 62. The hardcoded figures are replaced by the two
+  `git grep` commands that compute them, with `conflict-criteria.md` itself excluded from the pathspec.
+  It names both tokens, including on the command lines, so an unexcluded measurement counts itself
+  and drifts whenever the example is edited.
+
+- **`audit-instructions`: Worked Example 1 no longer records a verdict on its own subject.** #1724
+  changed the mandate side the example quotes. Rather than declare the pair closed, the example now
+  shows the pre-fix state and its gate walkthrough, then states explicitly that **this file does not
+  adjudicate the resulting pair**. The rewrite was authored in the same repository as these criteria,
+  so a verdict here would be the author grading their own text, and the pair's operator-level half is
+  an open question (now cited: #1722). It names two things not to assume while re-running the gates:
+  that the pair dissolved because one side acquired a condition, and that a softened verb settles
+  gate 3. It keeps what the history does establish: **no winner was named**, because the
+  skill-body-versus-memory-surface authority relation the Unresolved table denies still does not
+  exist, and a rewrite on one side is never the operator's decision.
+
+- **`audit-instructions`: `conflict-scan.test.sh` Case 2's comment** no longer describes its fixture as
+  the live worked example; the text it was drawn from is no longer in `repo-hygiene`. Comment only:
+  no fixture, assertion, or scanner behavior changed, and the suite still passes 41/41.
+
+## [0.15.0]
+
+### Added
+
+- **`audit-instructions`: Opus-5 model-delta rows in I8, and model scoping as a catalog axis**
+  (criteria 1.2.0 → 1.3.0), from the dual-verified Opus 5 prompting-guide corpus. I8 gains three
+  Opus-5-scoped rows: I8-a instructed self-check removal (classified by reviewer INDEPENDENCE, so
+  architected fresh-context or cross-vendor review is never a finding, with carve-out lanes for
+  security review, destructive operations, managed-upstream-file changes, and PR merge gates);
+  I8-b conservative-reporting detection, behavioral, with two criteria-owned fences
+  (restraint-clause shape, where the `code-tidying` tidyings "When NOT to apply" text is the canonical
+  non-finding, and quoted/meta surfaces that discuss the pattern rather than instruct with it);
+  I8-c don't-think / don't-reason directives. A new "Model scoping" section defines the semantics:
+  single-model-sourced rows fire only when the run's resolved target model matches by exact
+  equality of the normalized version token (point releases and dated IDs never auto-match a
+  base-version scope), otherwise reported `skipped-for-target`; fleet-wide promotion only via the
+  documented gate. I8's base row and I10 are annotated with their `fable-5` scope (single-model
+  sources; gate unmet), a deliberate coverage narrowing: on any non-`fable-5` target those two
+  now report `skipped-for-target` instead of findings, until the promotion gate is met.
+- **`audit-instructions`: `--target-model <version>` argument.** Default resolution ladder:
+  explicit argument, else the session's effective model (launch overrides included, not the bare
+  settings pin) normalized alias → version against live model-config docs; anything that cannot
+  normalize to a single version, whether a family alias (e.g. `opus` with a context-window suffix), an absent
+  `model` setting, or a custom/gateway deployment ID, aborts the run non-interactively with the exact
+  argument to pass, instead of silently assuming the newest version. The report's
+  tier-transparency line names the resolved target.
+- **`audit-instructions`: report-header cost line**: checks run per surface, model-scoped rows
+  skipped for the target, estimated per-surface token delta versus the prior catalog version, and
+  confirmation that the run adds zero new interactive gates (report-only contract unchanged).
+- **`instruction-scan.sh`: I8 candidate families with per-family ids** (`I8-a` instructed
+  self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason), with regression
+  tests, curly-apostrophe (U+2019) coverage in the contraction patterns (also retrofitted to the
+  pre-existing I6 tokens), and stem forms that catch inflections. Advisory over-production is
+  unchanged and deliberate: restraint clauses, quoted/meta text, idioms, and substring near-misses
+  are emitted as candidates; the fences live in criteria.md and are adjudicated by the model lane.
+
+## [0.14.0]
+
+### Added
+
+- **"Scope of a Read deny" in `audit`'s `reference/required-permissions.md`.** The
+  `sensitive-file-deny` table recommended `Read(./.env)` / `Read(./secrets/**)` /
+  `Read(./.claude/settings.local.json)` with no statement of what a `Read` deny actually reaches, so a
+  reader came away believing the file was protected. The new subsection splits covered from not
+  covered against current official docs: the rule reaches the built-in file tools (Read, Grep, Glob,
+  LSP), `@file` mentions, IDE selection context, Edit on the same path, **and the file commands Claude
+  Code recognizes inside a Bash command such as `cat`, `head`, `tail`, and `sed`**, but *not* an
+  arbitrary subprocess that opens the path itself, which is how a `python -c` or `node -e` one-liner
+  reads a denied file with no deny firing. Remedies are ranked rather than listed: the sandbox
+  (`sandbox.filesystem.denyRead`, `sandbox.credentials.files` with `"mode": "deny"`) is the documented
+  OS-level enforcement path, carrying the platform limit that it does not run on native Windows; a
+  `PreToolUse` hook on `Bash|PowerShell` is explicitly a speed bump, not a boundary, because it
+  inspects the same evadable command string; and where no OS-level boundary exists the durable control
+  is that the secret is not in a file the session's OS principal can read at all. Directory location
+  is explicitly named as *not* a boundary, since a subprocess opens absolute paths and relocation
+  changes nothing about who can read the file. Enumerating shell readers as `Bash(cat *)`
+  deny globs is named as a non-remedy, since upstream documents argument-constraining Bash patterns as
+  fragile. Two facts are flagged unverified rather than asserted: whether PowerShell-tool reads
+  (`Get-Content`, `type`) are covered at all, and the full membership of the recognized-command set,
+  which upstream gives with "such as".
+- **The sandbox's four escape surfaces, tabled alongside the recommendation.** `sandbox.enabled: true`
+  on its own is not a boundary: `allowUnsandboxedCommands` lets a failing command be retried outside
+  it, `failIfUnavailable` defaults to warning and running unsandboxed, `excludedCommands` runs listed
+  commands outside and can always be appended to, and `filesystem.disabled` lifts the `denyRead` and
+  `credentials.files` read protections outright. All four are open at their defaults, so an
+  enabled-but-default sandbox is reported as partial, since recommending it without them would repeat the
+  defect this release fixes.
+- **`check-structure.sh` now separates unreadable from malformed.** A `Read` deny merged into a
+  sandbox boundary, or plain filesystem permissions, makes the script's `open()` fail; it previously
+  surfaced as `Valid JSON: no` and failed the run, i.e. a false malformed-config finding. The script
+  now reports `Present: yes` / `Readable: no` with a `not inspectable` note and exits cleanly, and
+  both `SKILL.md` Phase 1 and `context/procedures.md` say that is a correct result to record rather
+  than a reason to find another reader. Covered by a new test case that announces a skip where the
+  platform does not enforce `chmod 000`.
+- **Eval 7 on the `audit` skill (`read-deny-scope-not-overstated`).** Asks whether present deny
+  patterns mean the secrets are protected; expects the scope split, the ranked remedies, and no
+  `Bash(cat *)` enumeration.
+
+### Changed
+
+- **Category B now reports the secret-file Read denies with their scope.** `SKILL.md`'s "Required
+  permission patterns" section routes the finding write-up through the new subsection, in both
+  directions: a present baseline is not reported as proof the file is unreachable.
+- **`context/procedures.md` no longer implies its own `settings.local.json` recipes escape the
+  baseline deny.** It now states that the safety is in what gets emitted, not what gets opened:
+  `check-structure.sh` reads the file from a subprocess and is safe because it emits counts only,
+  while the supplemental `cat … | jq` recipes are blocked in a project carrying the recommended deny,
+  correctly so. Routing around that block with an interpreter one-liner is prohibited; the audit
+  reports the file as not inspectable under the project's own rule instead.
+- **"Interaction with hook-based gates" now states the ordering in both directions.** "A deny rule
+  fires before any `PreToolUse` hook" was true only of the loosening direction, and the two hook cases
+  are now kept apart. A *returned decision* cannot loosen a rule: deny and ask rules are evaluated
+  regardless of which decision the hook returns. *Exit 2* short-circuits instead: it stops the call
+  before permission rules are evaluated at all, so it blocks past an allow rule and nothing downstream
+  runs, including an otherwise-matching ask rule. The consequence for this baseline, a deny entry
+  suppressing a project hook's ask escalation, is unchanged.
+
+## [0.13.0]
+
+### Added
+
+- **A read-only inventory tier in `audit-instructions` Phase A.** I15 (shipped in 0.12.0) compares
+  a *pair* of surfaces, so it has to read text no proposal may ever touch. Phase A now inventories
+  three such tiers read-only rather than excluding them outright: org-managed policy (the managed
+  `CLAUDE.md`, a `claudeMd` settings value, and managed prompt-type hook text), upstream-owned but
+  live instruction text (skill bodies and agent definitions from an enabled plugin's cache, managed
+  materializations, and `type: "prompt"` handler text in an enabled plugin's `hooks/hooks.json`, where
+  effective `enabledPlugins` gates all three alike, since a disabled plugin's cache stays on disk
+  while none of its components load, and the selected install record, not merely an enabled plugin's
+  presence in the cache, picks which version's directory is read), and every out-of-scope conflict
+  counterpart. A scope argument narrows which side may *produce* a finding, never which surfaces are
+  read, and the `Arguments` section now says so rather than describing the filter as narrowing the
+  inventory. Read-only inventory changes no ownership: those surfaces still propose nothing and still
+  route upstream. Prompt-hook text is extracted from `.claude/settings.local.json` and managed
+  settings as well as project and user `settings.json`, prompt text only, never a command line or
+  secret-bearing value.
+- **A no-change representation in the `audit-instructions` report contract.** A finding whose check
+  forbids proposing an edit, the I15 managed-policy case or anything routed to an owning repository,
+  records `no change proposed` and who owns the resolution instead of a fenced diff, so the per-finding
+  diff requirement no longer contradicts the checks that forbid an edit.
+- **`audit-instructions` check I16: definition-site locality.** An instruction governing one named
+  thing while living somewhere other than that thing's own definition. A different axis from I3:
+  I3 is load *timing*, I16 is *locality*, and an instruction can be correctly deferred and still
+  misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
+  The destination is constrained to a surface Claude loads: where the subject's definition site is an
+  ordinary README or reference file, the proposal colocates the text *and* retains a one-line pointer
+  on a loaded surface, so a locality fix never silently drops the behavior the instruction enforced.
+- **`audit-instructions` stopping condition on I6 and I8.** Neither carried an a-priori bound, so
+  both trimmed without a floor. It withholds a proposal where the instruction guards a
+  high-consequence area (safety gate, irreversible action, security boundary, external contract,
+  genuine ordering) and reports every withholding. `OPINION`-tier but **enabled by default** with an
+  explicit `--no-stopping-condition` opt-out, because it withholds rather than emits. Defaulting a
+  suppressor off would delete the only bound on two trimming checks.
+- **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
+  never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
+  follows its host's enablement and is labeled inline. Every run reports how many `OPINION` checks
+  were available, how many did not run, and the argument that enables them.
+- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
+  replacing the body-prose version line. A contract surface with three parse paths now stamps its
+  version machine-readably.
+
+### Changed
+
+- **`audit-instructions` I3 detection now names its real criterion: loaded more broadly than the
+  content is relevant.** The old wording said "always-loaded surface", but none of the non-memory
+  surfaces this check runs on are literally always loaded: a skill body or agent definition loads in
+  full on every use of its component. The second detect case covers exactly that, and requires
+  establishing the component's breadth first. A skill or agent that exists only for the content's
+  concern loads it precisely when it is relevant and is not a finding.
+- **`audit-instructions` I3 remediation now qualifies its destination and prices the move.** A
+  destination qualifies only if it defers loading, so `@path` imports do not. A split into imports
+  satisfied the check's letter while changing the load profile not at all. A finding must also state
+  that a `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file
+  is read again. A move into a **new** skill is priced too: the body defers, but the listing entry it
+  adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
+  always in context, so "move it to a skill" moves part of the cost into the always-loaded tier
+  rather than out of it. A move into a skill that already exists adds no entry and is not charged.
+  `disable-model-invocation: true` is the only field that keeps a description out of context, and it
+  makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Stated as a
+  cost on the recommendation, never as a budget threshold.
+- **`audit-instructions` I9 remediation names the interface destination.** Where an example block
+  exists to enumerate what a caller may pass, the finding names an argument enumeration, a
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labeled as such in the
+  finding, never fix-applied; the detection is unchanged and stays officially backed.
+- **`Authority` gloss no longer asserts that every row is `ANTHROPIC-DOCS`.** The two
+  `OPINION`-tier rules this release adds are the first that are not; the axis stays a closed
+  three-value set.
+- **I3 remediation refuses a `paths:`-scoped rule for content taken out of an agent definition.**
+  Path-scoped content is invisible inside a subagent context, so that destination removed the
+  instructions from every dispatch instead of deferring them. Agent-originated content now needs an
+  agent-reachable destination: a skill the definition invokes, or text kept where it is.
+
+### Fixed
+
+- **The conflict pass resolves effective liveness before it pairs anything.** It received Phase A's
+  filesystem inventory and treated presence in the tree as liveness, but liveness is a session
+  property: the launch directory decides which ancestor `CLAUDE.md` files are candidates,
+  `claudeMdExcludes` (merged across every settings layer) can kill one that is present, omitting
+  `project` from `--setting-sources` skips project rules entirely, and `--add-dir` with
+  `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` adds live memory files the tree walk never sees.
+  Uncorrected, the pass reported conflicts one side of which was dead and missed live counterparts
+  it never inventoried, silently, and reproducibly only on the machine that produced them. Phase A
+  now resolves those controls and reports them in the tier-transparency line; surfaces whose
+  liveness an out-of-session inventory cannot determine are marked `liveness-unresolved` and their
+  pairs are reported rather than graded.
+- **A prompt hook enters the comparison set as the gate it imposes, never as its prose.** Per
+  [hooks](https://code.claude.com/docs/en/hooks), a `type: "prompt"` handler sends its text to a
+  separate Claude model for single-turn evaluation returning a yes/no decision. It is never
+  injected into the main conversation. Comparing that raw prompt against a `CLAUDE.md`, skill, or
+  output style manufactured conflicts between two models that satisfy their own instructions
+  independently (an evaluator told to return JSON only against a main-session Markdown-output rule).
+  The pass now compares the act the hook blocks, under its event and `matcher`. This also closes the
+  `UNVERIFIED` residency row that told the reader to fetch the hooks page.
+- **Auto memory and a plugin-supplied active output style join the read-only inventory.** Both are
+  resident every session and neither was reachable: auto memory was excluded outright for routing,
+  yet `conflict-criteria.md` assigns every pair involving it to I15 *because* `claude-memory`'s C6
+  does not read `MEMORY.md`, so the pair was audited by neither skill. And the user- and
+  project-scope output-style scans cannot reach the plugin cache, while a plugin style with
+  `force-for-plugin` applies "automatically whenever the plugin is enabled, without requiring users
+  to select it", overriding the user's `outputStyle`
+  ([output-styles](https://code.claude.com/docs/en/output-styles)), so the *active* style could be
+  absent from the corpus entirely. Phase A now inventories the loaded part of `MEMORY.md` at the
+  effective auto-memory location and the one style that resolves active, both read-only, with
+  ownership and routing unchanged.
+- **Auto memory's enabled state is resolved by precedence, not by any one scope.**
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative wherever it is set (`=1` off, `=0` on, even
+  against `autoMemoryEnabled: false`); with it unset, settings precedence (managed > local > project
+  > user) decides, defaulting to on. Reading a lower-scope `false` as decisive would have dropped a
+  `MEMORY.md` that a higher-precedence scope re-enabled. `/claude-memory:stateless` owns the
+  resolver and reports the effective state, including a variable/setting disagreement.
+- **An agent definition no longer pairs against the main conversation's auto memory.** The residency
+  table listed `MEMORY.md` as resident every session and made every agent-definition pair guaranteed,
+  but "the main conversation's auto memory isn't loaded into subagents; the exception is a fork"
+  ([memory](https://code.claude.com/docs/en/memory)), so those two never occupy one context and the
+  pass was reporting conflicts between contexts that do not coexist. The row, the guaranteed-pairs
+  set, and the co-residency prose now carry the exception, while keeping the two pairs that are real:
+  a fork inherits the parent, and a subagent that enables its own `memory` field can contradict the
+  definition it runs under.
+- **The plugin-source known limit no longer contradicts the read-only tier.** It said Phase A "never
+  reaches `plugins/`" and that agent-versus-memory pairs have no second side, which the new tier
+  makes false for every *installed, enabled* plugin: two executable instructions disagreeing about
+  whether the same data is available. The limit is narrowed to what is still true: a marketplace
+  repository's `plugins/**` **authoring** tree is plugin source, not an installed plugin, and nothing
+  there loads into the session being audited, so pairs drawn wholly from it (a skill's stated default
+  against its own plugin README) still have no counterpart and stay with #1421. The
+  tier-transparency line reports that narrower limit only, since reporting installed-plugin surfaces as
+  uncovered would understate the coverage the pass now has.
+- **Auto memory is inventoried only when it is effectively on.** It is on by default, but
+  `autoMemoryEnabled: false` at any settings scope or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` turns it
+  off, and a `MEMORY.md` left on disk from before is then neither loaded nor written. Phase A
+  resolves that state before inventorying the file, the same gate the plugin-cache surfaces already
+  carry, and for the same reason: pairing live instructions against text no session sees is a
+  manufactured finding.
+- **Eval 8 required naming a winner for a pair the precedence table calls unresolved.** It asked the
+  run to "say which side to change" for a skill body against a `CLAUDE.md`, which
+  `conflict-criteria.md` classifies as unresolved because the skills page states no authority
+  relation between the two and "silence is not a winner". The eval now requires an `unresolved`
+  verdict with both anchors quoted and the choice left to the operator, with the mechanism route
+  offered as an option rather than a verdict.
+- **Eval 7 required dropping a real contradiction when `claude-memory` is absent.** It expected the
+  run to report memory-layer contradictions as unchecked and name the sibling skill, but
+  `conflict-criteria.md`'s fallback contract keeps the pair as an I15 finding when that plugin is not
+  installed. The routing exists to avoid two findings for one pair, not to lose the only one; the
+  eval now requires the fallback.
+- **Eval 13 required the wrong reason for refusing an agent-definition import split.** It rewarded
+  saying that an `@path` in an agent definition loads at launch, which the catalog's own I13 says is
+  false: `@` carries no import meaning outside the memory-layer surfaces, so the referenced file
+  would not load at all. The eval now requires that explanation, which is what makes the split a
+  silent removal rather than a failed saving.
+- **`audit-permission-grants` no longer points outside the plugin root.** Both `SKILL.md` and
+  `reference/criteria.md` reached the permission-rule-hygiene convention through a `../` relative
+  link. An installed plugin runs from an isolated cache holding only the plugin's own tree, so the
+  link normalized above the cache root and resolved to nothing. The skill directed a read that
+  cannot succeed in installed form, while resolving fine in a full-repo checkout, which is why it
+  survived. Both now point at the convention's published URL, the form sibling plugins already use
+  for marketplace conventions. Nothing was copied into the plugin: the convention stays the single
+  owner of the principle, the three anti-patterns, and the correct pattern. What a run actually needs
+  was already in-plugin, each check's **Recommend** line, and both files now say so, so a report
+  never depends on fetching anything.
+
+## [0.12.0]
+
+### Added
+
+- **`audit-pass` skill** (`/claude-config:audit-pass`). One coordinated, ordered, resumable pass over
+  a named target repository's instruction surface. It defines no criteria: every check is delegated
+  to the plugin that owns it through a presence-gated namespaced invocation with a documented
+  fallback, and nothing crosses a plugin boundary but that invocation. What it adds is the run
+  semantics: a three-scope inventory (managed policy read-only, user scope routed as
+  recommendations, project scope) taken before any check runs; an exclusion set derived at run time
+  from the target's own shared-source registry, the `vendor/` layout rule, `git worktree list`, and
+  the pass's own artifacts, never transcribed; content-derived finding identity; a constituent-keyed
+  suppression record whose entries resolve through a four-way disposition table in which only an exact
+  match is silent: a one-sided anchor change carries forward as `needs-reconfirmation`, a deeper
+  change closes the old entry and opens the new finding, and every disappeared finding is accounted
+  for as a fix, a successor, or an unexplained disappearance that fails the self-check, which is the
+  detector the convergence property previously lacked; per-lane incremental persistence with resume;
+  and one human gate per run. Liveness is read from two ground-truth sources, `InstructionsLoaded`
+  for the memory layer and `/context` for Skills, Custom Agents, and MCP Tools, because either alone
+  under-covers the surface set silently; `managed-settings.json`'s `claudeMd` key is observed by
+  neither and is reported as a known gap. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
+  to managed policy or a user-scope file. `/doctor` is an operator handoff rather than a dispatch,
+  because it is interactive; when its three-part prerequisite or v2.1.206 version floor is unmet the
+  run names it as the missing capability and states what goes unchecked. Findings report in three
+  tiers: derived (exact equality across runs), judged (a stability tolerance whose violation fails
+  the run's self-check), and delegated (no property). Every run reports in one line how many
+  `OPINION`-tier checks were available, were not run, and the argument that enables them. The
+  determinism gate **measures its own precondition** rather than assuming it: HEAD and a **state
+  digest**, every inventoried surface and every dirty path each paired with the content hash of its
+  current bytes, are captured at the **scan baseline** (Phase 1's inventory frozen, before any lane
+  reads, since the digest spans that inventory and is not computable before it exists) and again at
+  the **audit endpoint**, and a target that
+  moved mid-run reports `indeterminate` rather than `passed`, with the properties marked not
+  evaluated. Three things the naive form gets wrong, all closed here: a *count* holds still while an
+  already-dirty file's contents change, so the digest pairs each path with its content; the digest
+  spans **every inventoried scope**, because a `~/.claude/CLAUDE.md` edit moves what the lanes read
+  while the target's HEAD and dirty set both hold still, and reporting that as a defect would be an
+  accusation where an abstention is correct; and the endpoint is captured **before** Phase 5, so a
+  `--fix` run's own accepted edits fall outside the measured read window instead of marking every
+  successful mutating run `indeterminate`. The pass's own artifacts are excluded from the digest on
+  the same list that excludes them from the scan, so a `--report-to` write does not invalidate the
+  run's own gate. A checkout shared with concurrent sessions is the normal case for the first
+  operator, and an unfalsifiable pass is worse than an honest indeterminate.
+- **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
+  suppression record `audit-pass` reads at `.claude/audit-pass.md`: entries store the finding's
+  constituents, `check`, `claim`, and every `(surface, anchor)` site, under a derived `finding_id`
+  key, with the constituents authoritative and a key that does not hash from its own body reported
+  malformed. Also the required reason and date, per-key merge (never a closed list, which one personal
+  entry would discard whole), the policy-floor precedence inversion where the team layer wins a
+  conflict, and the five obligations on any consuming skill. Layering defers to the config-cascade
+  contract.
+
+### Changed
+
+- **`setup` now covers a consumer-project configuration surface.** `audit-pass`'s tracked suppression
+  record makes the plugin's previous "owns no consumer-project configuration" claim false, so `check`
+  gains per-layer verification of the record (user-global INFO, team must be tracked, overlay must be
+  gitignored) plus malformed-entry reporting, and `apply` gains its one write path.
+
+## [0.11.0]
+
+### Added
+
+- **`audit-instructions` check I15 and Phase B2: cross-surface conflict pass.** Detects two
+  instruction surfaces that both claim authority over one behavior and contradict each other, a unit
+  of judgment the per-surface Phase B lanes are structurally blind to, since each lane sees only one
+  half of a pair. The catalog row owns the definition, comparison set, `@path`/symlink resolution,
+  `AGENTS.md` exclusion, remediation-by-scope and must-not-flag cases; Phase B2 answers it. The pass
+  consumes Phase A's inventory rather than re-enumerating surfaces, and reads surfaces Phase A
+  recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
+  participants, since a contradiction is real whether or not this repo may edit either side.
+- **`reference/conflict-criteria.md`.** The five gates a pair must clear (co-residency, same
+  observable, opposed polarity, no arbitration, non-vacuous trigger overlap), three conflict types
+  and their remediation routes, a residency table covering every surface Phase A inventories, a
+  precedence table separating what the official docs settle from what they leave unresolved, a
+  13-case must-not-flag set, and two worked examples. **Split-brain is not a fourth type**: two files
+  where only one ever loads fails the co-residency gate by construction, so listing it as a conflict
+  type would make it unreachable. It is reported separately as *orphaned instruction drift*, the
+  state a contradiction grows out of, not a contradiction today.
+- **A boundary against `claude-memory:audit`'s C6 consistency check drawn on C6's actual population,
+  not on the name of the layer.** C6 discovers files project-relative (`find . -maxdepth 1` over
+  `CLAUDE.md`/`CLAUDE.local.md`, plus `find .claude/rules`) and its check text names only those
+  files. So only a pair with **both halves in root-level project** `CLAUDE.md` / `CLAUDE.local.md` /
+  `.claude/rules/**` routes to C6. Any pair with a `~/.claude/` side, any pair involving auto-memory
+  `MEMORY.md`, and any pair reaching a **nested** `CLAUDE.md` / `CLAUDE.local.md` stays with this
+  pass. C6 discovers with `find . -maxdepth 1` and never reads the nested files, so routing those
+  out on a layer label would have left them audited by neither skill.
+- **`scripts/conflict-scan.sh` + tests.** Advisory deterministic pre-scan emitting
+  `fileA:lineA|fileB:lineB|entity|flags` candidate pairs, always exit 0, matching the existing
+  `instruction-scan.sh` contract. An entity is a CamelCase identifier anywhere **or a single
+  capitalized word inside backticks**. The second form is what reaches single-word tools (`Bash`,
+  `Read`, `Edit`), and requiring the backticks is what keeps sentence-initial capitalized words out.
+  Neither form is a hardcoded tool list, so a tool the scan has never heard of is still covered.
+  Polarity is read from a window around each mention and **both halves of that window stop at a
+  sentence boundary**, so only a polarity token in the entity's own sentence classifies it:
+  `X must not be used` is a prohibition, a trailing clause past a full stop is not, and a prohibition
+  in the *preceding* sentence no longer overrides the mandate that governs the entity. A boundary is
+  a sentence-ending mark followed by a space, or a contrastive conjunction with or without a
+  preceding comma, so "always use `Read` but never use `Bash`" classifies each entity on its own
+  clause rather than sharing one polarity. The space is required because a bare mark also occurs
+  inside a dotted config path or a version number. `while` still requires its comma, being temporal
+  as often as contrastive. An
+  opt-in gate suppresses a pair only when it reads as a **condition** rather than as the subject, so
+  "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
+  `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this
+  size.
+- **`conflicts` scope argument.** Runs Phase A plus Phase B2 only, so a scheduled hygiene routine can
+  compose the conflict check on its own token budget without paying for the full audit.
+
+### Changed
+
+- `audit-instructions` reports conflicts as **pairs** in their own report subsection: both
+  `path:line` anchors, both claims quoted verbatim, and either a doc-cited precedence winner or an
+  explicit `unresolved`. The skill never picks a winner the official docs do not state.
+
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
+  rather than standing up a second one. Each row carries its must-not-flag cases, and the three new
+  official sources (CLI reference, subagents, skills) join the catalog's source list.
+- **I12: stale or misattributed harness-capability claim.** The subject is the product, not the
+  model, which separates it from I8. Detection needs an official page stating something incompatible
+  with the claim, or a failed reproduction, and each arm is bounded so the check cannot manufacture
+  findings. **Documentation silence is not drift**: pages are rewritten and condensed, and this
+  repository keeps empirical tests for behaviors the docs never specified. **A reproduction must
+  match every stated precondition**: version, OS, setting, account tier, feature flag, launch mode.
+  A failure without them is inconclusive rather than a finding.
+- **I13: prose written on the assumption that an `@path` imported**, on a surface where `@` carries
+  no import meaning. The finding is the false premise, not the citation form: an inert `@path` is
+  still a legible path, so "follow `@reference/rules.md`" works and flagging it would report a
+  working instruction. Remediation rewrites the assertion into an explicit read, because swapping the
+  syntax alone leaves the claim false. No citation form imports anything on these surfaces.
+- **I14: an instruction to read a surface the main conversation already loads at startup.** Bounded
+  to the root `CLAUDE.md`, the user `CLAUDE.md` at the **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`,
+  the root `CLAUDE.local.md`, unconditional project rules and managed policy files. Nested
+  `CLAUDE.md` and `CLAUDE.local.md` files and path-scoped rules load lazily and are exempt, as is any
+  read where **the file is the operation's subject**. The startup copy is a launch-time snapshot, so
+
+### Changed
+
+- **Recheck triggers now watch every page in the catalog's source list**, not the three originally
+  named. Each check cites one of those pages, so a subset left the new harness-behavior rows
+  depending on pages nothing watched.
+- **The surface partition no longer widens a row.** It said the full catalog applies on non-memory
+  surfaces while I13 and I14 declare narrower surface sets, so a lane could emit I14 findings on
+  prompt-type hooks and output styles the criterion excludes. Each row's own declaration bounds it.
+- **The `description` carries the new checks' trigger vocabulary.** It framed the skill purely as
+  finding instructions the model no longer needs, and only the description is available during skill
+  selection, so a request about a stale harness claim, a non-loading `@path`, or a redundant
+  startup-surface read would not have selected the catalog that answers it.
+- **`Authority` gloss restated descriptively.** The axis is a closed three-value set, not a rule
+  that every row is `ANTHROPIC-DOCS`. `TALK` and `OPINION` stay reachable, and the two
+  `OPINION`-tier rules this release adds are the first to use one.
+
+## [0.9.3]
+
+### Added
+
+- **`setup` evals.** The skill shipped none, against the repo's own rule that a skill carrying
+  behavioral warrants demonstrates them. Four cases cover the behaviors its SKILL.md asserts and
+  nothing else: a bare invocation routes to `check` and writes nothing; a missing `curl` FAILs
+  scoped to `check-plugin-drift.sh` alone rather than downgrading the rest of the audit surface;
+  an install request under `apply` yields platform instructions without executing a package
+  manager, and never reports a prerequisite resolved on an install command's exit code; and an
+  audit request under `setup` routes to the audit skills by name instead of being performed.
+
+## [0.9.2]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback, presence-gated per the seam-phrasing convention.
+
+## [0.9.1]
+
+### Added
+
+- **`audit-instructions` eval: `step-list-culled-not-preserved`.** Exercises check I8's
+  step-list nuance: a mechanical numbered procedure is culled to intent plus hard constraints
+  (genuine ordering, safety gates, external contracts kept) rather than preserved verbatim.
+  Absorbed from the superseded `audit-model-fit` suite (its C2 analog), per the follow-up
+  material recorded when 0.9.0 removed that skill.
+
+## [0.9.0]
+
+### Added
+
+- **`audit-instructions` skill** (`/claude-config:audit-instructions`). A read-only audit of the
+  locally-owned Claude Code instruction surfaces: user + project `CLAUDE.md`, `.claude/rules`,
+  skill bodies, agent definitions, prompt-type hooks, and output styles. It looks for instructions
+  current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare
+  prohibitions, reasoning-echo directives, and approach-pinning example blocks. It ships an
+  eleven-check catalog (`reference/criteria.md`) cited to current official prompting doctrine,
+  tiers every finding mechanical vs behavioral, and packages proposed removals/rewrites as
+  human-gated diffs, never auto-applied. An advisory grep-only scanner (`scripts/instruction-scan.sh`) seeds the mechanical
+  tier. It partitions with `claude-memory`'s `audit` skill: on memory-layer surfaces it runs only
+  the model-era checks and routes hygiene findings there; on non-memory surfaces the full catalog
+  applies. Upstream-owned plugin-cache and managed-materialization findings route to the owning
+  repository rather than being edited in place.
+
+### Fixed
+
+- Corrected stale `claude-memory` skill-name references (`health` → its current name `audit`)
+  across the plugin's skills and README: the `audit`, `audit-automation-gaps`, and
+  `audit-permission-grants` route-out notes and the README's instruction-layer and migration
+  sections. The `claude-memory` memory-layer skill was renamed `health` → `audit`; the old
+  `/claude-memory:health` invocation no longer resolves.
+
+### Removed
+
+- **`audit-model-fit` skill superseded by `audit-instructions`.** Both audits answer the same
+  question: locally-owned instruction surfaces vs current model capability. Repo doctrine
+  admits only one skill per question. `audit-instructions` carries the fuller catalog (eleven checks
+  I1–I11 with authority tags and evidence tiers), the `claude-memory` hygiene partition, and the
+  adversarial fresh-context verify pass, so it strictly covers `audit-model-fit`'s four checks and
+  supersedes it. Both were built concurrently from the same underlying issue (#800); `audit-model-fit`
+  (added in 0.8.0 below) is removed here.
+
+## [0.8.1]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.8.0]
+
+### Added
+
+- **`audit-model-fit` skill** (`/claude-config:audit-model-fit`). A fourth audit that sweeps the local
+  Claude Code instruction surfaces: user + project `CLAUDE.md`, skill `SKILL.md` bodies + context
+  files, agent definitions, `.claude/rules/**`, prompt-type hooks and output styles. It looks for
+  deterministic constraints that hobble newer, more capable models, and proposes removals/rewrites.
+  Check catalog: bare prohibitions with no rationale (rewrite to add the *why*, never
+  blanket-delete), over-prescriptive step lists (cull to intent + hard constraints),
+  over-constraining example blocks (trim toward the recommended 3–5, not a blanket ban), and stale
+  model-era workarounds, each measured against "would removing this cause Claude to make
+  mistakes?". A bundled `instruction-surface-scan.sh` enumerates the
+  surfaces and flags the two grep-able smells as candidates; the judgment stays in the skill body.
+  **Report-only and human-gated**: it presents findings plus proposed diffs and never edits any
+  instruction file itself (no `--fix`). Findings inside `melodic-software/standards`-managed
+  materializations route upstream per the sync-manifest rather than being edited in place. Composes with
+  (distinct intents, pointers only) `claude-memory:audit` (instruction-layer *health*, same surfaces),
+  `skill-quality:check` (structure), `docs-hygiene:compress` (token brevity), and the sibling `audit`
+  (config-file correctness). The plugin `description` now reads "Four audit skills".
+
+## [0.7.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.7.0]
+
+### Changed
+
+- **BREAKING: two skills renamed to the `audit-*` naming grammar** (fleet conformance wave, naming
+  grammar): `automation-gaps` → `audit-automation-gaps` (`/claude-config:automation-gaps` →
+  `/claude-config:audit-automation-gaps`) and `permission-hygiene` → `audit-permission-grants`
+  (`/claude-config:permission-hygiene` → `/claude-config:audit-permission-grants`). The old
+  invocations stop resolving; update any saved references. The `audit` skill is unchanged.
+
+## [0.6.0]
+
+### Added
+
+- **`setup` skill on the uniform contract** (`/claude-config:setup`). Closes the doctrine-tracked
+  setup gap: the plugin's audit scripts require external CLIs (`jq` for all three skills, `curl` for
+  the plugin-drift check) but no setup shipped. `check` (default, read-only) probes `jq`/`curl`/the
+  bash shell against the bundled scripts as source of truth and reports PASS/FAIL/INFO. `jq` missing
+  is a plugin-wide FAIL, `curl` missing a scoped FAIL for the drift check only. `apply` gives platform
+  install guidance and re-verifies; it installs no system package and writes nothing. README
+  Requirements now names the bash/Git-Bash shell prerequisite alongside `jq`/`curl`.
+
+## [0.5.0]
+
+### Changed
+
+- Renamed the plugin `claude-config-audit` → `claude-config`. Reinstall as
+  `claude-config@melodic-software` and update any `/claude-config-audit:*` invocations to the
+  `/claude-config:*` namespace.
+- Renamed the `settings-audit` skill → `audit` (`/claude-config:audit`) and the
+  `automation-deep-dive` skill → `automation-gaps` (`/claude-config:automation-gaps`).
+  `permission-hygiene` keeps its name (now `/claude-config:permission-hygiene`).
+
+### Removed
+
+- Extracted the `memory-health` skill into the new standalone `claude-memory` plugin, where it ships as
+  the `health` skill (`/claude-memory:health`). Install `claude-memory@melodic-software` for the
+  instruction/memory-layer audit.
+
+## [0.4.0]
+
+### Added
+
+- "Pre-computed context" blocks in the `automation-deep-dive`, `memory-health`, and `settings-audit`
+  skills: `!`-executed commands inject live repo facts (automation inventory; memory/rules/CLAUDE.md
+  counts and the RD1/M2 script-backed check counts; installed Claude Code version) at skill load, so
+  each audit starts from guaranteed-fresh evidence instead of relying on the model to remember to run
+  the bundled scripts. Every command carries an `|| echo` fallback so skill load never hard-fails.
+  No `allowed-tools` self-grant ships with the blocks: a `Bash(bash <path>*)` grant is the
+  interpreter-led P1 shape this plugin's own `permission-hygiene` criteria flag (auto mode drops it),
+  and `!`-execution does not route through `allowed-tools`.

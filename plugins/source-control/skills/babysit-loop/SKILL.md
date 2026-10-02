@@ -229,7 +229,7 @@ absent, the canonical `needs-human` default applies with a loud notice, plus a m
 escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the writer
-(as the `claude-ops:lane-telemetry` sentinel below does), so babysit escalations surface in the same
+(as the `harness-ops:lane-telemetry` sentinel below does), so babysit escalations surface in the same
 attention view as worker escalations. The same step performs the contract's escalation record write
 shape, suppression, and the seam it feeds are §2's; three things a lane executor must not get
 wrong are restated here.
@@ -291,7 +291,7 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
 `gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
-**per lane instance**, sentinel-identified and edited in place (the `claude-ops` lane-telemetry
+**per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
 contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
 validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
 instance-collision check, is owned by

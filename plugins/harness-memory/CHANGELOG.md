@@ -1,0 +1,1196 @@
+# Changelog
+
+All notable changes to the `harness-memory` plugin are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+## [1.0.2] - 2026-10-02
+
+### Changed
+
+- **The `audit` and `stateless` reference files hold our decision plus a pointer per topic.**
+  `criteria.md` and `official-guidance.md` in both skills no longer restate documentation text.
+  The `audit` load-model table is labeled this audit's working model, with a pointer record to the
+  memory page sections it rests on, and the `update` action refreshes the decision and the pointer
+  together.
+- The `${...}` placeholder rule behind the `stateless` purge and `audit` update spokes is stated as
+  our decision, with a pointer record to where each variable resolves, instead of the page's
+  wording.
+- `stateless` no longer says `disable` takes effect only next session. It says what auto memory
+  already loaded stays in the current context, with pointers to the settings pages that say which
+  edits reach a running session.
+- The audit's subagent-memory note and the stateless reference's directory layout point at the
+  docs sections instead of copying their scope table and file tree.
+
+## [1.0.1] - 2026-10-02
+
+### Fixed
+
+- `audit`'s official-guidance record no longer lists `disableAllHooks` or `allowManagedHooksOnly`
+  among the sessions that cannot read `AGENTS.md`: built-in mods keep running under both.
+
+## [1.0.0] - 2026-10-01
+
+### Changed
+
+- **BREAKING: the plugin is renamed `claude-memory` → `harness-memory`.** Claude Code 2.1.287's
+  `claude plugin validate` rejects third-party plugin names starting `claude-`. The marketplace
+  `renames` map rewrites `claude-memory@melodic-software` in `enabledPlugins` and `pluginConfigs`
+  (Claude Code 2.1.193 or later); run `/plugin install harness-memory@melodic-software` once and use
+  `/harness-memory:*` in place of `/claude-memory:*`. Saved state under
+  `~/.claude/plugins/data/claude-memory-melodic-software/` is not moved: move it to
+  `harness-memory-melodic-software/` before uninstalling the old plugin.
+- The description and README state the boundary with `harness-config`: this plugin owns
+  memory-layer health, `harness-config:audit-instructions` judges instruction text against the
+  current model.
+
+## [0.13.13] - 2026-10-01
+
+### Changed
+
+- **The orphan-rule check ignores `memory_dir` in `.claude/topic-docs.yaml`.** `orphan-rule-check.sh` always excludes `.work/` from its reference search. A consumer that set another `memory_dir` there now has that root searched, so a rule referenced only from it is no longer reported as an orphan. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
+
+## [0.13.12] - 2026-09-30
+
+### Changed
+
+- **The `/memory` Boundary bullet in `stateless` no longer asserts that the command ships with
+  Claude Code.** It keeps the provenance class, what the command does and how it is invoked, in the
+  native-references template form.
+
+## [0.13.11] - 2026-09-29
+
+### Added
+
+- **`stateless` carries a Boundary section for the built-in command `/memory`.** The command
+  toggles auto memory and shows its entries from inside a session; this skill reports the
+  effective state across every scope and disables or purges durably. The model offers the
+  person-run command for a quick interactive toggle.
+
+## [0.13.10] - 2026-09-29
+
+### Fixed
+
+- The `audit` scope-boundary eval (case 2) expects routing to `audit` and `audit-automation-gaps`
+  in the claude-config plugin, the skills `SKILL.md` names, instead of the removed
+  `automation-gaps` route
+  ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
+- `skills/audit/reference/official-guidance.md` no longer says a directly read `AGENTS.md` is
+  absent from `/memory`: the memory page says `/memory` lists it from v2.1.280. The record is
+  re-dated 2026-09-29, and the Bedrock and telemetry-disabled gap is stated as limited to versions
+  before v2.1.281.
+
+### Changed
+
+- **Corrected two released entries in place.** 0.13.7 is now stated as a re-release with no
+  `claude-memory` change (it had repeated the 0.13.6 entry verbatim). 0.13.6 moved from Fixed to
+  Changed and is reworded as a `lib/managed-scope.sh` sync with no behavior change.
+
+### Added
+
+- `scripts/spoke-script-paths.test.sh` gates the `<skill-dir>` spoke-script convention from
+  0.13.5: no literal `${CLAUDE_PLUGIN_ROOT}` in spoke files, every `<skill-dir>/scripts/<name>.sh`
+  reference resolves to a real script, and each `SKILL.md` that has such spokes renders
+  `<skill-dir>` from `${CLAUDE_SKILL_DIR}`
+  ([#4613](https://github.com/melodic-software/claude-code-plugins/issues/4613)).
+
+## [0.13.9] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `audit`, `stateless` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.13.8] - 2026-09-28
+
+### Changed
+
+- The `audit` reference spoke `official-guidance.md` opens with a Contents block of section
+  anchors, so skill-quality check 26 (long spoke files carry a table of contents) passes on it.
+
+## [0.13.7] - 2026-09-28
+
+### Changed
+
+- Re-release with no `claude-memory` change: this version repeats 0.13.6 (see
+  [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027) under 0.13.6). Only
+  `plugin.json` and this changelog changed.
+
+## [0.13.6] - 2026-09-28
+
+### Changed
+
+- **`lib/managed-scope.sh` synced** byte-identical to the claude-config canonical copy
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Adds the unused
+  `mscope::remote_cache_file` helper and comments; no `claude-memory` script calls the helper, so
+  behavior is unchanged. The helper names the server-managed settings cache
+  `~/.claude/remote-settings.json`, read by the Organization policy line in `/status`
+  ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings),
+  [managed settings](https://code.claude.com/docs/en/managed-settings)).
+
+## [0.13.5] - 2026-09-27
+
+### Fixed
+
+- **Script commands in the `context/` and `reference/` files run as written again (#4613).** The
+  `audit` skill's `context/audit.md`, `context/fix.md` and `reference/criteria.md`, and the
+  `stateless` skill's `context/status.md` and `context/purge.md`, wrote each bundled script as
+  `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>.sh`. Claude Code substitutes that token only
+  in a rendered `SKILL.md`; a spoke read later with the Read tool keeps it literal, and the Bash
+  tool's environment has no `CLAUDE_PLUGIN_ROOT`, so each command resolved to
+  `/skills/<skill>/scripts/...` and failed. Discovery, M2, RD1 and N1 then ran only when the model
+  repaired the path by hand. The 16 commands now start from `<skill-dir>`, and each `SKILL.md`
+  renders that directory from `${CLAUDE_SKILL_DIR}` with a dated verification record. No spoke
+  carries the dollar-brace root token any more, so the rule is grep-checkable.
+
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- `audit` routes MCP, agent, and skill coverage to `claude-config`'s `audit-automation-gaps` skill instead of the nonexistent `automation-gaps` (scope paragraph and Scope table). The `claude-md-management` references in "Complementary workflows" and `official-guidance.md` now say the plugin comes from Anthropic's `claude-plugins-official` marketplace, and call `revise-claude-md` a command (#4119).
+
+## [0.13.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.13.2] - 2026-09-23
+
+### Changed
+
+- **`audit` routes more model-era findings out.** Think-carefully steers, vague design steers, and
+  settled-answers lines on analysis surfaces route to `claude-config:audit-instructions`; a
+  long-run file missing a stop rule, finish line, task file, or report shape routes to
+  `claude-config:audit-prompting-postures`.
+
+## [0.13.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.13.0]
+
+### Added
+
+- `discover-instruction-surfaces.sh` emits an `agents-md` project surface for each root `AGENTS.md` that Claude Code reads as the project instructions, so a repository that has dropped its `CLAUDE.md` shim stops inventorying no project surface at all and `/claude-memory:audit` stops reporting nothing to audit. `instruction-load-stats.sh` counts that file's bytes and its `@` imports in the always-loaded set and answers `--lines`/`--bytes` from it by default, and `audit-spine.sh` names it as the project root file. Every C-check applies to it as the project instructions, cited against `AGENTS.md`.
+- Both names the memory page loads at session start are covered: "every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it". The page states no precedence between them, so each file that exists gets its own row and its own bytes; `--lines`/`--bytes` and the spine header answer from the first.
+- The new kind is emitted only where that file is what the session loads. A root `AGENTS.md` that a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` displaces yields no surface row and no bytes, so a repository under a one-line `@AGENTS.md` shim reports exactly what it reported before: the import already carries that content into the `CLAUDE.md` row and its expanded figure, and a second row would count one file twice. The condition is read by one `lib/agents-md.sh` predicate the three scripts share, so their answers cannot disagree.
+  The displacement test walks every ancestor, not just the repository root: a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` above the root suppresses the file exactly as one beside it does, so a check that stopped at the root would report a surface the session never reads. The one `.claude/CLAUDE.md` on that walk which does not count is the user root (`$HOME/.claude`, and a relocated `CLAUDE_CONFIG_DIR`), whose CLAUDE.md keeps loading alongside an `AGENTS.md`; a bare `CLAUDE.md` in that same directory is a different file and counts. Directories are compared by device and inode, because the same one reaches the walk under names that are not equal as strings (a Windows 8.3 short name, a symlinked home, a case difference).
+  The basis is the memory page: "An `AGENTS.md`, and no `CLAUDE.md` or `CLAUDE.local.md` in your working directory or above it | Your `AGENTS.md`", and for the displacing set "Count, so Claude reads them instead of `AGENTS.md`: a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any directory above it", against which a `~/.claude/CLAUDE.md` and `.claude/rules/` files do not count (code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code reads AGENTS.md"; fetched 2026-09-20; recheck when that list changes or the default **Project instructions** value stops being `claude-md-or-agents-md`).
+
+## [0.12.9]
+
+### Changed
+
+- `nested-agents-check.sh` (N1) flags a nested `AGENTS.md` only where a `CLAUDE.md`, `CLAUDE.local.md` or root `.claude/CLAUDE.md` on its own path is read instead of it and none of them imports it. A nested `AGENTS.md` with nothing above it is read directly and is no longer reported as a file that never loads, so a repository with no `CLAUDE.md` at all stops being told to add one.
+- `nested-agents-check.sh` skips the `.codex`, `.cursor` and `.github` trees alongside `.claude`, `node_modules`, `vendor` and `.git`: another tool's `AGENTS.md` is that tool's and must never be given a Claude shim. The check's corpus is `AGENTS.md` files only, so a `CLAUDE.md` in one of those directories was never in scope and is unaffected. The list stays this plugin's own copy, because a plugin never imports a file from a sibling plugin (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
+- The N1 fix route to `/instruction-placement:migrate` is presence-gated with a stated fallback, per `docs/conventions/seam-phrasing/README.md`: where that plugin is absent, removing the root `CLAUDE.md` is named as a repository-wide change outside this fix and left to the operator.
+- Both the blocker walk and the entry-point walk count `.claude/CLAUDE.md` at every level, not only at the repository root. The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any directory above it" (fetched 2026-09-19), so a subdirectory's own `.claude/CLAUDE.md` displaces the `AGENTS.md` beside it, and an import from one wires that file.
+- The N1 finding text, the audit surface table, `context/audit.md`, `context/fix.md` and `reference/criteria.md` name the displacing `CLAUDE.md` as the reason rather than asserting that Claude Code never reads `AGENTS.md`. The fix path routes a repository that wants to drop its shims to `/instruction-placement:migrate` instead of proposing it here.
+- `reference/criteria.md` and `reference/official-guidance.md` keep the quoted Anthropic sentence word for word and label it the superseded basis: its own recheck trigger fired, since the memory page no longer carries it and direct `AGENTS.md` reading shipped in Claude Code 2.1.277.
+
+## [0.12.8]
+
+### Changed
+
+- The ten claude-memory shell suites source one scripts/test-helpers.sh for their counters, asserts, fixture repo and report tail instead of ten inline copies; three suites keep their local assert_contains detail wording. Output and exit codes are byte-identical.
+
+## [0.12.7]
+
+### Changed
+
+- audit-spine, instruction-load-stats and orphan-rule-check decide whether a rule declares paths or a description through one rule-scope library reader. The reader captures the frontmatter before grepping it, so a rule whose body exceeds the pipe buffer is no longer misclassified as always-loaded; every tracked rule is far below that size and the reports are unchanged.
+
+## [0.12.6]
+
+### Changed
+
+- The two stateless memory scripts count topic files through one plugin-level library helper instead of two verbatim null-delimited loops, with identical counts including dotfile and newline-named topics.
+
+## [0.12.5]
+
+### Changed
+
+- audit skill: instruction-load-stats.sh prints uncommented lines directly instead of through an identity awk wrapper and drops a dead root reset after its walk loop, and nested-agents-check.sh returns its wiring test's status directly. No behavior change.
+
+## [0.12.4]
+
+### Changed
+
+- stateless scripts: scope-report.sh prints its scope table through one row helper instead of six inline printf calls, and enumerate-all-projects.sh substitutes the absent-index marker with a parameter default. Output byte-identical.
+
+## [0.12.3]
+
+### Fixed
+
+- **`audit/reference/official-guidance.md` no longer lists subagents among the contexts path-scoped content cannot reach.** The surviving-caveats list read "Path-scoped content is invisible to subagents, teammates, and skill-forked contexts". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, once it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. The subagent half is narrowed to the claim that holds, non-inheritance, and a second bullet states the positive behavior with the four-part verification record the upstream-drift convention requires. The teammate and skill-forked-context halves and the issue 32906 citation, its state, and its 2026-09-06 verification are untouched, because this correction supplies no evidence about them.
+
+## [0.12.2]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the audit skill's criteria and official-guidance references, and its bloated-CLAUDE.md
+  eval fixture) are rewritten as a comma, a period, a colon where a definition or list follows, or
+  a restructured sentence. No criterion, threshold, or eval expectation changed.
+- **Forty-seven quotation attributions render as their own paragraph.** The two
+  `official-guidance.md` references carried `> — <source>` attribution lines inside blockquotes.
+  Rather than rewriting an attribution, each now sits after a blank `>` line, six of them at a list
+  item's continuation indent so the surrounding list does not end.
+- **The bloated-CLAUDE.md eval fixture holds its shape.** Its file length stays at 259 lines so
+  eval 12's "more than 200 visible lines" expectation still fires, and the section names, runbook
+  path, and `pnpm build:proto` gotcha that case pins are untouched.
+- **Reflexive `load-bearing` and `seam` become the concrete thing.** "the topic-docs seam" keeps
+  its name: it is this repository's term for that config surface, used verbatim in
+  `orphan-rule-check.sh` and `lib/parse-concern-value.sh`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.11.0]`, `[0.10.0]`, `[0.9.2]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.1]`, `[0.7.0]`,
+  `[0.6.0]`, `[0.5.9]`, `[0.5.8]`, `[0.5.7]`, `[0.5.6]`, `[0.5.5]`, `[0.5.4]`, `[0.5.3]`,
+  `[0.5.2]`, `[0.5.1]`, `[0.5.0]`, `[0.4.1]`, `[0.4.0]`, `[0.3.5]`, `[0.3.4]`, `[0.3.3]`,
+  `[0.3.1]`, `[0.3.0]`, `[0.2.3]`, `[0.2.1]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's
+  facts are unchanged.
+
+## [0.12.1]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
+
+## [0.12.0]
+
+### Added
+
+- **audit:** `instruction-load-stats.sh` measures the instruction layer as Claude Code loads it,
+  `@path` imports expanded (relative to the importing file, four hops, code spans and fences
+  skipped, external imports listed but not expanded). C1 and the pre-computed header use the
+  expanded line count, and the report's context-cost line is a bytes / 4 estimate over the whole
+  always-loaded set in both scopes (the repository's root files and unscoped rules, and the user
+  scope's `CLAUDE.md` and unscoped rules under `CLAUDE_CONFIG_DIR` or `~/.claude`), labeled as
+  one, in place of a `/context` figure the model cannot obtain.
+- **audit:** `nested-agents-check.sh`, a new deterministic check N1: a tracked `AGENTS.md` below
+  the root that no instruction entry point reaches never loads, and is reported as a FAIL with the
+  one-line sibling shim as the fix. Entry points are the sibling `CLAUDE.md` or `CLAUDE.local.md`
+  (the prescribed layout), any ancestor directory's, and the root `.claude/CLAUDE.md`, each
+  chased through at most four import hops, the loader's own bound.
+- **audit:** `file-provenance.sh` classifies a flagged file as `local` or `synced` (a
+  `SYNC-MANAGED` marker, or a last commit by the standards sync); a synced file keeps its finding
+  and its fix line names the sync's source instead of a local edit the next sync overwrites.
+- **audit:** `audit-spine.sh` runs the whole deterministic spine in one invocation, so the
+  pre-computed header and the report's spine findings come from the same run.
+- **audit:** the shared import parser lives in `scripts/lib/imports.sh`, used by both the size
+  count and the reachability check so the two cannot disagree about what an import is.
+
+### Changed
+
+- **audit:** RD1 fires only for an always-loaded rule with no `description:` frontmatter and no
+  reference. An always-loaded rule is in context every session by construction and the
+  always-loaded rules index deliberately omits unscoped rules, so "unreferenced" alone proved
+  nothing; a rule that states its own purpose is not an orphan.
+
+## [0.11.17]
+
+### Changed
+
+- **audit:** the upstream issue state in the memory guidance reference carries the command that reads it, its verification date and CLI version, and a recheck trigger (prompt-audit follow-up F6).
+
+## [0.11.16]
+
+### Changed
+
+- audit: removed the rename story behind the unattributable-report rule, the provenance aside on
+  the state-key resolver, the past-tense discovery comment, the "now" in R1's pairing note, the
+  supersession narrative and issue-by-issue rebuttal in the path-scoping status (a recheck trigger
+  takes its place), the pre-2.1.211 version branches, and the third-party instruction-count figure;
+  collapsed the per-check and C3 fix step lists into their goal. Eval 10 no longer names a
+  pre-rename layout.
+- stateless: dropped the unsourced `claude project purge` version floor at every site, and the
+  worked purge-gate anti-pattern that restated the rule above it.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.11.15]
+
+### Fixed
+
+- **Two audit suites now drop an ambient `CLAUDE_CONFIG_DIR`.**
+  `memory-index-refs-check.test.sh` and `enumerate-all-projects.test.sh` isolated
+  `$HOME` but not the variable the memory-dir resolver prefers over it, so a value
+  inherited from the caller's environment pointed them at the host's real config
+  root instead of their fixture. With a decoy root exported they fail 7 of 15 and
+  8 of 19 respectively, and can also be made to pass while every assertion is
+  answered by the host rather than the fixture. Both now use `env -u`, matching
+  the fix applied to the sibling `scope-report` suite in 0.11.13.
+
+### Changed
+
+- **Audit and stateless script tidyings from the repo-wide sweep.**
+  `discover-instruction-surfaces.sh` drops a dead emptiness guard on a value that
+  cannot be empty; `resolve-memory-dir.sh` runs `git rev-parse` once instead of
+  twice in its `cygpath` fallback pair, matching the two-step the hub-slug path
+  below it already uses; four history-narration comments become present-tense
+  rationale. 181 checks across six suites, identical before and after.
+
+## [0.11.14]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
+## [0.11.13]
+
+### Changed
+
+- **`stateless/scripts/scope-report.test.sh` isolates ambient `CLAUDE_CONFIG_DIR`.** The suite
+  isolated `HOME` but left an ambient `CLAUDE_CONFIG_DIR` in place for every case except Case 6,
+  so Case 4 could write into a live config tree. Every main-case invocation now runs through
+  `iso_env`, Case 4 aborts if the resolved dir escapes the suite tmpdir, and a new Case 7
+  asserts an exported sentinel config dir is never written. The Case 4b newline-count fixture
+  from 0.11.12 is unchanged.
+
+## [0.11.12]
+
+### Fixed
+
+- **`stateless/scripts/scope-report.sh` topic-file count over-counted a filename with an
+  embedded newline.** The count piped `find` output through `wc -l`, which counts newlines
+  in the stream rather than files, so a single topic filename containing a literal newline
+  was reported twice. It now uses the null-delimited idiom already used by the sibling
+  `enumerate-all-projects.sh` (`find -print0` read with `IFS= read -r -d ''`), so each file
+  counts once regardless of its name.
+
+## [0.11.11]
+
+### Changed
+
+- **`stateless`: `reference/official-guidance.md` gains an observable recheck trigger.** The file
+  carried eleven dated stamps and a "refresh before relying on it" note, which is a usage condition
+  rather than an event someone could notice, so nothing said when its auto-memory claims stop being
+  current. It now names the observable events: the `/memory` command gaining, losing or renaming its
+  auto-memory toggle, `autoMemoryEnabled` or `CLAUDE_CODE_DISABLE_AUTO_MEMORY` changing name,
+  default or semantics, the per-project memory path moving, or any of its five source pages changing
+  that section. Additive only.
+
+## [0.11.10]
+
+### Changed
+
+- **`audit`: stamped the skill-listing facts in `reference/criteria.md`.** The C3 "Why" block
+  quoted the skills page (the 1,536 listing cap, `disable-model-invocation` visibility,
+  `skillOverrides` not reaching plugin skills) with a bare slug citation and no as-of date or
+  recheck trigger. The quotes now cite the frontmatter reference by URL with a verified date
+  (2026-08-31) and a divergence trigger, per the marketplace's upstream-drift convention. Found
+  as an unstamped restatement in the frontmatter-alignment sweep.
+
+## [0.11.9]
+
+### Changed
+
+- **`audit/scripts/memory-dir-stats.test.sh` fixture style normalized.** The
+  one fixture block that embedded literal newlines inside printf quotes (a
+  #2042 leftover) now uses the `\n`-escape form every other fixture in the
+  file uses; the produced fixture bytes are sha256-identical and all 64
+  checks pass.
+
+## [0.11.8]
+
+### Changed
+
+- **Synced `lib/managed-scope.sh` from its claude-config canonical.** The
+  canonical merged its two Windows registry-key `printf` calls into one
+  (byte-identical output); this release carries the same change into the
+  vendored copy via `scripts/sync-managed-scope.sh`.
+
+## [0.11.7]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.11.6]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
+
+## [0.11.5]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** In the audit skill's
+  `discover-instruction-surfaces.sh`, positional-parameter comments dissolved into named
+  locals; the test helper's parameter comment, restated by the line below it, removed.
+  No behavior change; suite green before and after.
+
+## [0.11.4]
+
+### Changed
+
+- **`audit` reaches its cross-skill dependency directly.** The hub gained a direct conditioned
+  pointer to `skills/stateless/context/status.md`, which reference/criteria.md names as the only
+  correct resolution path; the 449-line criteria.md gained a `## Contents` index. Behavior
+  unchanged. Progressive-disclosure audit, deep-nesting and missing-toc treatments.
+
+## [0.11.3]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, claude-memory cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change.
+
+## [0.11.2]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The audit and
+  stateless suite helpers already unset the discovery variables; they now
+  also unset `GIT_CONFIG`, the second leak path that replaces the file
+  `git config` reads and writes. Test-only; no skill behavior change.
+
+## [0.11.1]
+
+### Changed
+
+- **`audit`: the instruction-surface route-out names the Skill tool (#3002).** Findings routed to
+  `/claude-config:audit-instructions` now say the skill is invoked via the Skill tool. Wording
+  only; the presence gate and the in-plugin fallback are unchanged. Follows the invocation-mode
+  rubric's cross-skill phrasing rule, now unconditional after the fleet sweep.
+
+## [0.11.0]
+
+### Added
+
+- **`audit`: /init-then-prune eval fixture (course lane 9, #2989).** New eval case
+  `init-shaped-bloat-graded-with-c5-carve-out` grades the audit against a static bloated
+  CLAUDE.md fixture (`evals/fixtures/init-bloated-claude-md.md`) in the shape `/init`
+  produces: file-by-file codebase inventory, restated standard conventions, copied
+  framework documentation, 200+ visible lines. Expectations pin C1 (line-budget FAIL),
+  C2 (derivable standard-convention lines, grouped by section), and C5 (codebase-description
+  and framework-doc flagging). They also pin the discrimination side: the fixture's curated
+  runbook pointer must be KEEP under C5's navigation-pointer carve-out (#2987), and its
+  non-obvious first-run gotcha must not be flagged. A static fixture was chosen over live
+  `/init` generation for determinism (lane 9 decision, recorded in
+  `docs/upstream/aihero-course.md`, "Lane 9: steering validations").
+
+## [0.10.0]
+
+### Added
+
+- **`audit`: navigation-pointer criteria patches (course lane 9, #2987).** C5 gains the
+  navigation-pointer carve-out: a curated pointer to a non-obvious doc that work depends on
+  (where to look, when) is KEEP, a file-by-file inventory Claude can rebuild stays FLAG. The
+  carve-out is marked as a repo extension (official docs state no navigation posture; the
+  `update` action must not overwrite it). C7 gains the navigation-section note tying its missing-file FAIL to that
+  posture ("a stale highway is worse than no highway"). C3's placement table gains the
+  nested-CLAUDE.md destination row (docs-verified load semantics: on-demand below cwd,
+  ancestors in full at launch, post-compaction pricing already in the table's cost paragraph)
+  and the conversational `@`-mention row (one-turn steering vs launch-loaded `@path` imports).
+  The `fix` workflow gains C5 fix patterns: delete, curate-into-pointer, and
+  restructure-before-pointing (things that change together live together), with the write-side
+  authoring doctrine pointed at `docs-hygiene:write-for-agents`.
+
+## [0.9.3]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
+## [0.9.2]
+
+### Changed
+
+- **C6/I15 boundary ratified against the widened discover-instruction-surfaces population (#2705).**
+  C6 criteria 1.5.4 and the audit SKILL.md / workflow now state explicitly that C6 owns
+  instruction-content conflicts across scopes, **including user↔project**, when both anchors are
+  in `discover-instruction-surfaces`. Nested `CLAUDE.md`, auto-memory, and non-memory surfaces stay
+  with `claude-config:audit-instructions` I15 (precedence / settings / out-of-population pairs).
+  Step 3 now compares every distinct population pair for contradictions (including
+  CLAUDE.md↔CLAUDE.local.md and rule↔rule), not only the prior cross-scope redundancy pass.
+  New eval 11 pins the ownership claim; sibling `conflict-criteria.md` on the config side was the
+  stale half this closes.
+
+## [0.9.1]
+
+### Changed
+
+- **Shared `lib/state-key.sh` re-synced from canonical.** The header now names the
+  `plugin-data-report-keying` convention as the scheme's source (previously `audit-pass`'s §3,
+  which no longer specifies it after the encapsulation-audit promotion). Behavior unchanged.
+
+## [0.9.0]
+
+### Added
+
+- **`lib/state-key.sh`** is the per-project state key for anything written under
+  `${CLAUDE_PLUGIN_DATA}`. Prints `<repo-identity>/<worktree-discriminator>`, the scheme
+  `claude-config:audit-pass` defines and `audit-prompting-postures` already uses, adopted here rather
+  than reinvented. Byte-identical to the `claude-config` copy and registered in
+  `scripts/cross-plugin-source-registry.txt`, so the two cannot drift apart silently. A remote URL
+  becomes directory components in the resulting path, so an identity outside the accepted segment
+  shape is hashed rather than embedded: a relative remote like `../central.git`, an absolute local
+  path, or a Windows path. The suite asserts no `..` and no backslash survives into a key.
+
+### Changed
+
+- **`audit` no longer serves one project's findings as another's.** It wrote its report to a fixed
+  `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`, machine-global, since that directory is keyed to the
+  plugin identifier and nothing else, and then **read it back**: `report` mode served whatever the
+  file held and `fix` mode acted on it. On a machine with two repositories, `report` in project B
+  could present project A's findings as project B's, and `fix` could propose edits derived from
+  another repository's memory layer. A wrong answer served, not merely a lost artifact. That is why
+  an append-only history would not have closed it. All four sites now resolve one path,
+  `audit/<state-key>/last-audit.md`: the write in `context/audit.md`, its restatement in
+  `reference/criteria.md`, and the two reads in `SKILL.md` and `context/fix.md`. The path is derived
+  once in `SKILL.md` and referred to by the spokes rather than restated, and the key comes from
+  running the resolver, never from testing whether a placeholder is set.
+- **A report that cannot be attributed to a project is no longer served or migrated.** The pre-rename
+  `health/` layout and any unkeyed `audit/last-audit.md` carry no project segment, so nothing records
+  which repository produced them, and adopting one into a project's key would invent that attribution.
+  The previous behavior moved `health/` to `audit/` and read it. Both read paths now decline, name the
+  leftover file's path as something the operator may delete, and offer a fresh audit. **This is a
+  behavior change on upgrade**: an operator holding a report under the old layout is told to re-run
+  rather than shown the old one.
+- **`fix` mode states why an unattributable report is unusable input** rather than treating a missing
+  report as the only failure case. It proposes edits to real instruction files, so acting on another
+  repository's findings is the expensive error.
+- **Two evals pin the property**, which had no coverage at all: two repositories neither share nor
+  overwrite one report, and a legacy unkeyed report is neither served nor adopted. The
+  `report-without-prior-audit` case now asserts the per-project derived path rather than "the most
+  recent saved audit".
+
+## [0.8.1]
+
+### Changed
+
+- **`scope-report.sh` now reports every managed-policy surface, not one JSON file.** Its
+  hand-kept per-OS location list had fallen behind the settings doc: it never named the
+  `managed-settings.d/` drop-in directory, and it folded the Windows registry policy keys into a
+  parenthetical inside the file path. The locations now come from `lib/managed-scope.sh`, a
+  shared library that `claude-config` carries a byte-identical copy of, so a location change
+  lands once instead of per plugin. The report gains a `managed.d` row and one `not read` row per
+  non-file surface (the `HKLM`/`HKCU` policy keys on Windows, the managed-preferences domain on
+  macOS). A presence report must not let an absent JSON file read as "no managed policy
+  deployed". The Windows base path also now resolves through `%PROGRAMFILES%` rather than assuming
+  the default location.
+
+## [0.8.0]
+
+The audit now covers two surfaces it never could before, which is why this is a minor.
+
+### Fixed
+
+- **`audit`: the user-global instruction surfaces were audited by nothing at all.** Step 1 discovery was
+  two bare `find` commands rooted at the current directory, `find . -maxdepth 1 -name "CLAUDE.md"` and
+  `find .claude/rules -name "*.md"`, so it could only ever see project scope. Meanwhile
+  `claude-config`'s `audit-instructions` partitions memory-layer hygiene to this skill and names
+  **`~/.claude/rules/`** explicitly in the handoff (`audit-instructions/reference/criteria.md:96`). One
+  skill delegated a user-global surface by name; the receiving skill's discovery could not reach it. So
+  `~/.claude/CLAUDE.md`, which loads in *every* session in *every* project, was checked by neither, and
+  under-coverage reads as a clean report.
+
+  Discovery now resolves `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` for both `CLAUDE.md` and `rules/*.md`,
+  reusing the same config-root resolution the memory-dir resolver already carries rather than
+  re-deriving it.
+
+  *(Recorded because the originating report argued this from a different line,
+  `reference/criteria.md:224`, the C9 carve-out for personal files. Read in context that line **excludes**
+  personal files from C9 as "not repo-scoped", which cuts against the argument rather than for it. The
+  handoff above is the mechanism that settles it, and it needs no interpretation.)*
+
+### Added
+
+- **`scripts/discover-instruction-surfaces.sh` + tests.** Discovery is a script now because the fix has
+  a second half that inline `find` cannot carry: **every file is tagged with the scope it loads from.**
+  Widening discovery without that would have traded under-coverage for a false positive. C9 is
+  project-scoped and its own criteria row says to skip personal files, so an unscoped widening would fire
+  C9 on `~/.claude/CLAUDE.md` and FAIL it for not stating a repo's build and test commands. Step 2 now
+  routes on the emitted scope, and the R-checks apply at both scopes. An always-loaded user rule costs
+  context in every session of every project, so they apply to it at least as strongly as to a project
+  rule. 44 checks in the sibling `*.test.sh` style, including the Git Bash case where the config root is
+  a Windows path with a drive letter.
+- **A third scope value, `both`, for the two dotfiles layouts where one physical file is reachable by
+  each layer.** A naive widening emits such a file twice under two path spellings: a duplicate finding,
+  and a cross-scope comparison of a file against itself. Paths are now canonicalized and compared, and
+  where they coincide the file is emitted once as `both`, which satisfies either `--scope` filter
+  because the file really is reachable by each layer.
+
+  **Each layout collides exactly one surface, which is why the two comparisons are computed
+  independently rather than from one flag.** A repo rooted at `~`, the target shape the sibling
+  `audit-pass` fix calls ordinary, makes `.claude/rules` and `~/.claude/rules` the same **directory**,
+  while its two `CLAUDE.md` files stay distinct. A repo rooted at `~/.claude` itself makes the depth-1
+  `CLAUDE.md` and `~/.claude/CLAUDE.md` the same **file**, while its rules dirs stay distinct: project
+  rules there resolve to `~/.claude/.claude/rules`, not `~/.claude/rules`. Cases pin the asymmetry in
+  both directions.
+- **Path-scoped rules are not assumed loaded.** A user rule carrying `paths:` frontmatter is absent until
+  a matching file is read, so a repo-relative currency or redundancy finding against one is valid only
+  where its `paths:` can match in *this* project. Step 2 and the Step 3 comparison both say to establish
+  co-residency first rather than treating every discovered user rule as live here.
+- **R1 says which `CLAUDE.md` it compares against.** "Does this rule duplicate content already in
+  CLAUDE.md?" was unambiguous while only one could ever be in scope; with two it was not. R1 now pairs
+  within a scope, a user rule against the user `CLAUDE.md`, a project rule against the project one,
+  because R1 is a redundancy the owner of that layer fixes by deleting one of the two, and only a
+  same-scope pair is theirs to fix. Cross-scope overlap is real and belongs to the Step 3 pass, which
+  reports it against the pair and names each side's scope; routing it through R1 as well would report
+  one overlap twice and address it to the wrong person. A `both`-scoped rule is the one case with no
+  same-scope partner. It arises only in the `~`-rooted layout, where the two `CLAUDE.md` files stay
+  distinct, so it compares against each `CLAUDE.md` in scope, attributing every finding to the scope of
+  the one it overlapped.
+- **Step 3 gains a cross-scope consistency pass.** Both layers load together, so a user instruction that
+  contradicts a project one is a live conflict rather than a layering choice, and one the project already
+  states is redundant context on every run. The report names which scope each side came from, because the
+  resolution differs: only one of the two is yours to edit on behalf of the repo.
+
+## [0.7.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/stateless/reference/official-guidance.md`: all seven block quotes from the settings
+    and `.claude` directory references (settings precedence ladder and its managed-tier override
+    bullet, the `env` description, `cleanupPeriodDays`, the not-automatically-cleaned table
+    heading, the `sessions/` sweep exclusion, the `claude project purge` deletion list, its
+    `shell-snapshots/`/`backups/` carve-out, and its confirmation prompt) matched the live pages
+    word for word. The file's own negative, that no settings-precedence exception bullet names
+    `autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory, was re-checked
+    against the complete bullet list and still holds, as does its note that the `v2.1.124+` floor
+    for `claude project purge` has no current upstream source. Every dated citation in the file
+    moved: the seven block quotes, the settings negative, the `env`-block quote (whose stamp wraps
+    across two lines), and the `cli-reference` observation that `claude project purge` now carries
+    no version requirement at all.
+  - `skills/audit/reference/official-guidance.md`: the memory reference re-verification date.
+
+## [0.7.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command, which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
+
+## [0.6.0]
+
+### Fixed
+
+- **A single heavy pseudo-frontmatter line silently blanked the `audit` skill's M1 index-size byte
+  count** (claude-memory 0.5.9 → 0.6.0, criteria 1.5.2 → 1.5.3). `memory-dir-stats.sh` bounded its
+  frontmatter block by grammar and by line count but never by weight, and markdown prose opening
+  `Note:` or `Important:` is a well-formed `key:` mapping entry. A `MEMORY.md` opening with a `---`
+  thematic break, carrying one long paragraph, and reaching any later `---` had that paragraph
+  stripped however much it weighed: a 26,020-byte index reported 5 loaded bytes. M1 is a
+  `[FAIL]`-severity size gate and a low count always passes it, so the shape disarmed the gate's
+  25KB limb outright, the same disarming the line cap already prevented on the 200-line limb. The
+  block is now bounded a third way, by `fmbytecap` bytes of held content, and that index reports
+  its full 26,020 bytes.
+
+  The cap is 1KB. It is calibrated against what real frontmatter weighs, not against the 25KB
+  limit: Claude Code stamps only a `modified` scalar, and even a hand-written block of twenty
+  entries runs to a few hundred bytes, so 1KB clears every real shape by a wide margin and a block
+  under it still strips whole. Like the two bounds it joins, it leaves a residue, since a misparsed
+  block still strips up to the cap before the bound ends it. 1KB of 25KB is the smaller share
+  of M1's two limits, against the line cap's 20 of 200. Both directions stay the ones M1's
+  readings already guess toward: an over-count can only make the gate fire early, while the
+  under-count it replaces stopped it firing at all. criteria.md M1 reading 1 records the bound.
+
+## [0.5.9]
+
+### Fixed
+
+- **Attributed blockquotes in `stateless`'s `reference/official-guidance.md` carried text the
+  cited pages do not say** (claude-memory 0.5.8 → 0.5.9). The settings-page precedence quote
+  substituted a bare `(…)` for item 1's parenthetical, so an ellipsis inside quote marks stood
+  where real page words belong; it now reads `(server-managed, MDM/OS-level policies, or managed
+  settings)`, with the attribution note recording that the three links are flattened to their
+  labels and that each item's nested detail bullets are omitted. Two harder defects surfaced in
+  the same pass. The `"Cannot be overridden by any other level, including command line
+  arguments"` quote truncated mid-sentence, dropping `, apart from the exceptions in the bullets
+  below` and inverting a qualified claim into an absolute one; the full sentence is restored, and
+  new prose carries the conclusion the skill needs as a verified negative, that item 1's exception
+  bullets name auto memory nowhere, instead of an enumeration this file would have to keep in
+  sync. Review narrowed that conclusion to settings scopes only: `CLAUDE_CODE_DISABLE_AUTO_MEMORY`
+  as an OS environment variable sits outside settings precedence and still overrides the effective
+  value even against a managed `autoMemoryEnabled`, as the file's env-var precedence section
+  already states. The `claude project purge` quote asserted `"The command requires Claude Code
+  v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
+  it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
+  labeled a claim with no current upstream source rather than left looking doc-backed. Review
+  extended that reconciliation within the reference file itself: its second, unlabeled `v2.1.124+`
+  mention now defers to the labeled statement instead of restating the floor as doc-backed fact,
+  and the cli-reference negative carries its own citation: the page is in the file's Sources list
+  and documents `claude project purge` with no version requirement (verified 2026-08-08).
+
+  The `env` and `cleanupPeriodDays` quotes were re-checked character-for-character against the
+  live page and are verbatim as they stand, so their wording is untouched. What changed around
+  `cleanupPeriodDays` is the reading: its `"session files and other application data"` sat under
+  prose stating `sessions/` is not age-swept, close enough to read as contradicting it. New prose
+  resolves the phrase against the table it links to, whose rows are transcripts,
+  `shell-snapshots/`, `debug/`, `tasks/`, and `file-history/`. It states that `sessions/` is not a
+  row in it, which is what the quote two paragraphs down already said. Every settings and claude-directory verification stamp
+  in the file moves to 2026-08-08, the date each quote was re-checked.
+
+## [0.5.8]
+
+### Fixed
+
+- **The `audit` workflow told the model to be mechanical on every check, contradicting the skill's
+  own determinism contract.** "Be mechanical, not interpretive" sat unscoped at the end of the
+  generic per-check loop, but only C1/M1/M2/RD1 are the deterministic spine; C2-C9, R1-R4, and
+  M3-M4 are a judgment tier that requires reading and interpreting content by design. The
+  instruction is now scoped to the spine, and the judgment tier is told to apply its fixed criteria
+  consistently rather than to skip the judgment.
+
+### Changed
+
+- **`stateless`' disable workflow says why the scope gate exists**, since applying the wrong scope
+  silently changes memory behavior for the wrong audience (machine-wide vs. this repo), instead of
+  stating the stop as a bare prohibition.
+
+## [0.5.7]
+
+### Fixed
+
+- **A pseudo-frontmatter block of markdown headings silently blanked the `audit` skill's M1
+  index-size count** (claude-memory 0.5.6 → 0.5.7, criteria 1.5.1 → 1.5.2). `memory-dir-stats.sh`
+  admitted `#` lines to its frontmatter grammar, so a `MEMORY.md` opening with a `---` thematic
+  break, carrying up to twenty heading lines, and reaching any later `---` had the whole span
+  stripped as frontmatter: a five-line index reported one loaded line. M1 is a `[FAIL]`-severity
+  size gate that a low count always passes, so the shape disarmed the gate outright. A `#` line is
+  a comment to YAML but a heading to markdown, and headings are loaded content, so the grammar now
+  accepts only blank lines and `key:` mapping entries and that shape counts every line.
+
+  The cost is that a real YAML comment inside frontmatter ends the block, and ending it strips
+  nothing at all: the opening `---`, every entry held so far, and the rest of the block through
+  its close all count. That is an over-count, the direction M1's readings already guess toward,
+  and it takes a hand-edited index to reach, since Claude Code only stamps a `modified` scalar
+  into frontmatter a file already has. Comments join an existing class rather than opening a new
+  one: frontmatter this grammar cannot parse already ended the block before this change, and a
+  block sequence under `tags:` still does. criteria.md M1 reading 1 records both halves.
+
+## [0.5.6]
+
+### Changed
+
+- **`stateless`'s purge scope boundary now points at the official full wipe** (claude-memory
+  0.5.5 → 0.5.6). The skill states that purge is auto-memory-only in the SKILL.md scope
+  statement and table, `context/purge.md`'s pre-gate presentation and follow-through, and
+  `reference/official-guidance.md`'s out-of-scope section. Each of those now names
+  `claude project purge` (Claude Code v2.1.124+). What the command deletes, what it leaves alone,
+  and that it confirms first are quoted verbatim in `reference/official-guidance.md` and nowhere else, so
+  the skill holds one copy of an upstream list instead of one per call site; every other mention
+  points there, and code.claude.com/docs/en/claude-directory stays the source for the deletion
+  plan and flags.
+  Also retires the reference file's now-false "there is no built-in purge command" claim.
+
+### Fixed
+
+- **The `stateless` scope table answered for four entities with one verdict, and was wrong for
+  two of them.** A single `Transcripts / history / sessions / snapshots` row claimed
+  `cleanupPeriodDays` auto-cleans all four. Per code.claude.com/docs/en/claude-directory
+  (verified 2026-08-04) it auto-cleans transcripts and shell snapshots, but not the other two:
+  `history.jsonl` sits among the paths "not covered by automatic cleanup" that "persist
+  indefinitely", and `sessions/` "isn't part of the age-based sweep", being cleared when each
+  session exits. The row also gave one location for all four and said nothing about
+  `claude project purge`, whose scope cuts across it and lands differently on each of the four
+  (quoted in `reference/official-guidance.md`). Now four rows,
+  each carrying its own path, sweep behavior, and purge behavior, so every verdict is true of
+  every subject in its row. The same correction applies to `reference/official-guidance.md`'s
+  out-of-scope section, which stated the sweep for all four as one fact. Also retires two
+  counted re-fetch pointers ("the two source pages", "both pages") that the file family had
+  grown past. They now point at the source list rather than counting it.
+
+- **Three `stateless` reference quotes attributed to the settings doc were paraphrase, not
+  quotation.** `reference/official-guidance.md` presents block quotes as verbatim, but its
+  settings-precedence list, `env` description, and `cleanupPeriodDays` description used wording
+  absent from code.claude.com/docs/en/settings. The precedence list invented every item label
+  ("Local" for "Local project settings", "Project" for "Shared project settings") and the
+  bracketing "(highest priority)" / "lowest priority", the `env` description was a rewrite, and
+  the `cleanupPeriodDays` one stitched invented wording around real fragments with ellipses. The
+  substance was right in all three cases; only the fidelity was wrong, which is
+  the defect that matters in a file whose contract is verbatim quotation. All three now carry the
+  page's own words, verified 2026-08-05, with the precedence list quoted as the structured list it
+  is and its omissions marked. Managed settings' "cannot be overridden" property, previously
+  stitched into the precedence quote, is now quoted from the nested bullet that states it.
+
+- **The instruction-layer row claimed a user scope `CLAUDE.local.md` does not have.** One
+  `CLAUDE.md / CLAUDE.local.md / .claude/rules/` row gave the location as `repo + user`, true
+  of `CLAUDE.md` (`~/.claude/CLAUDE.md`) and of `.claude/rules/` (`~/.claude/rules/`, which
+  code.claude.com/docs/en/memory calls "Personal rules ... apply to every project on your
+  machine") but not of `CLAUDE.local.md`, which that page scopes to "Just you (current
+  project)" with no user-scope equivalent. Split so the location is true of its own subject.
+
+## [0.5.5]
+
+### Fixed
+
+- **Re-align auto-memory and CLAUDE.md reference facts with the live memory doc**
+  (claude-memory 0.5.4 → 0.5.5; criteria 1.5.0 → 1.5.1), verified against
+  code.claude.com/docs/en/memory on 2026-08-04. Two drifted facts in
+  `audit`'s `reference/official-guidance.md` corrected: `@import` recursion depth is 4 hops, not 5;
+  and `autoMemoryDirectory` is read from any settings scope (user, project, local, policy,
+  `--settings`) with project/local values gated behind the workspace trust dialog. The prior claim
+  that project settings are not accepted no longer matches the docs. M1's measurement now mirrors
+  the documented limit check: YAML frontmatter and block-level HTML comments are stripped before
+  the MEMORY.md index loads, so they don't count toward the 200-line/25KB limits (backing quote
+  added to `official-guidance.md`). The deterministic spine follows the same rule:
+  `memory-dir-stats.sh --memory-lines` now measures post-strip content instead of raw `wc -l`, a
+  new `--memory-bytes` mode covers the 25KB limb, and the SKILL.md pre-computed context reports
+  both figures so M1 never disagrees with its own injected stats. Also: the `audit` SKILL.md scope
+  table states the 25KB limb of the MEMORY.md load limit alongside the 200-line one, and a quote
+  attribution names the page's current "Set up a project CLAUDE.md" section (formerly
+  "Project memory"). The strip counts an unterminated block as content rather than swallowing the
+  rest of the file: a leading thematic break or frontmatter clipped mid-file previously reported
+  zero, and since M1 is a `[FAIL]`-severity size gate that zero always passes, the gate could not
+  fire. A fenced block inside a comment no longer toggles fence state, and text sharing a line with
+  a comment's open or close is counted as the loaded content it is. `criteria.md` M1 now records
+  the four readings the strip applies and marks them as this plugin's reading, not doc-derived:
+  the memory doc states the fenced-code carve-out for CLAUDE.md only and is silent on it for
+  MEMORY.md.
+
+## [0.5.4]
+
+### Changed
+
+- **`audit`'s C2 deletion test now runs per line, as the official docs state it** (claude-memory
+  0.5.3 → 0.5.4; criteria 1.4.0 → 1.5.0). The check evaluated whole H1/H2 sections, asking "Would
+  Claude make mistakes without this section?", but the source it quotes tests each line: "For each line,
+  ask: 'Would removing this cause Claude to make mistakes?' If not, cut it." A section-level pass
+  let keep-worthy lines shield surplus neighbors in the same section. Sections remain as the
+  report's grouping unit only: findings are per line, and a section whose every line flags
+  collapses into one section-level finding. `context/fix.md`'s C2 fix pattern follows.
+
+### Added
+
+- **`audit`'s C1 carries the official symptom-first diagnostic for over-long files.** C1's
+  rationale already stated the causal claim (long files reduce adherence); it now also codifies the
+  reverse tell as detect guidance: "If Claude keeps doing something you don't want despite having
+  a rule against it, the file is probably too long and the rule is getting lost". An audit
+  prompted by a rule being ignored cites the tell and reports the length finding even below the
+  WARN threshold. The sourced quote lands in `reference/official-guidance.md` per the determinism
+  contract.
+
+## [0.5.3]
+
+### Added
+
+- **`audit` gains C9, a check that a project CLAUDE.md states the repo's exact build and test
+  commands** (claude-memory 0.5.2 → 0.5.3; criteria 1.3.0 → 1.4.0). It is the only CLAUDE.md check
+  that looks for *missing* content. C4 asks whether an instruction that exists is concrete enough
+  to verify, C5 whether it should have been cut, and neither asks whether the commands are there at
+  all. Official memory guidance lists build and test commands first among what project memory is
+  for, and `/init` populates them by analyzing the codebase, so without the statement they are
+  inferred every session rather than read. Two severities, following C6 and C7's pattern of heading
+  a check at its higher branch: FAIL for a stated command the repo's own manifest does not have,
+  which is C7's wrong-reference class and worse than an absent one (Claude runs it and the check
+  fails for the wrong reason); WARN for a command that is absent or given only as prose naming the
+  tool ("we use pytest" is not a command). Never flags a repo that genuinely has no build or test
+  step. Scoped to project CLAUDE.md, and skipped for CLAUDE.local.md and personal files, which are not
+  repo-scoped.
+
+  **A step 0 keeps the check honest against its own source.** The memory page states both halves of
+  a tension: project memory is for "build and test commands", while the same page's
+  CLAUDE.md-vs-auto-memory table puts "Build commands" in the *auto memory* column. So the check
+  asks first whether the commands are stated on any loaded surface: a nested CLAUDE.md, a
+  path-scoped rule, or auto memory. A yes is a C3 placement question rather than a C9 finding. The
+  requirement is that the commands be reachable, not that they sit in one file. Without this, C9
+  would flag a repo for following the other half of the page it cites.
+
+  Boundary with C7 stated explicitly so a run does not double-report: C7 owns file paths, version
+  pins, and counts; C9 owns whether the command itself runs. Backed by a new "Build and test
+  commands" section in `reference/official-guidance.md` carrying the sourced quotes the skill's own
+  determinism contract requires, and by a new eval covering the wrong-command FAIL, the step-0
+  carve-out, and the no-double-report rule.
+  The applicability ranges in `SKILL.md` and `context/audit.md` move to C9 accordingly.
+
+## [0.5.2]
+
+### Fixed
+
+- **The `audit` skill no longer fails to load when invoked from a worktree-isolated agent.** Two
+  `## Pre-computed context` lines resolved the memory dir inline with `d=$(… resolve-memory-dir.sh);
+  ls "$d"/*.md …`, and the harness composes that block into one shell invocation whose
+  worktree-isolation guard refuses any `$` expansion, so the whole skill was refused rather than
+  merely reporting `0`. Both lines now call a bundled `memory-dir-stats.sh` (`--md-count` /
+  `--memory-lines`) through the harness-substituted `${CLAUDE_PLUGIN_ROOT}`, leaving the pre-compute
+  command free of every expansion the guard rejects; the script still resolves the memory dir via
+  the single-source-of-truth `resolve-memory-dir.sh`, reports `0` on every failure path the old
+  fallback covered, and now also survives BSD `wc` padding. Refs #1687.
+
+## [0.5.1]
+
+### Fixed
+
+- **The shared concern-value parser no longer reads a declared key as absent over YAML key spacing.**
+  `parse-concern-value.sh` anchored on the exact regex `^<key>:`, so `memory_dir : .work` (YAML
+  permits whitespace before the `:`) and a root block mapping written at a uniform indent both
+  resolved to the caller's fallback, substituting a value the repo never chose for one it did.
+  Both shapes now resolve, matched at the document's own base indentation so a same-named key
+  nested under another mapping never answers for the root one, including when the root key is
+  present but deliberately empty. Synced from `lib/parse-concern-value.sh`; version bumped so installed
+  copies receive it.
+
+## [0.5.0]
+
+### Fixed
+
+- **The C3 placement eval no longer rewards moving an unspecified remainder.** Its prompt left the
+  other half of the 300-line `CLAUDE.md` unstated, so removing the running log alone already brought
+  the file under the line budget, and if that remainder were always-on project conventions, C3 says
+  they belong in `CLAUDE.md`. The expectation nevertheless demanded a skill or path-scoped rule for
+  it, rewarding a move that can make required instructions unavailable after compaction. The prompt
+  now says what the remainder is (a Terraform walkthrough relevant only under `infra/`), and the
+  expectation requires the destination to be justified by relevance rather than by the budget.
+- **`reference/official-guidance.md` no longer claims Claude Code loads `AGENTS.md`.** The
+  "Compaction by steering method" table carried a `CLAUDE.md / AGENTS.md` row, but the memory doc's
+  own `AGENTS.md` section states "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" and prescribes an
+  `@AGENTS.md` import or a symlink as the way to make one load
+  (<https://code.claude.com/docs/en/memory>). The row is now `CLAUDE.md` alone, with its nested-file
+  on-demand reload spelled out, and a following note records how an `AGENTS.md` actually reaches
+  context. Left as written, the snapshot contradicted the sibling `claude-config` catalog, which
+  excludes `AGENTS.md` from its comparison set on the doc's authority.
+
+### Changed
+
+- **`audit` check C3 (Content Placement): three gaps closed in one revision.** The routing table
+  answers one question, so these land as one edit rather than three checks that would emit three
+  findings on one misplaced section. (1) **Auto memory becomes a destination.** The plugin audits it
+  as a first-class entity in M1–M4 but never routed content to it, so the destination set predated
+  auto memory; the row states that Claude writes it and that asking Claude to remember something
+  lands there rather than in CLAUDE.md, gated on the destination's effective enabled state, because a
+  disabled auto memory neither loads nor accepts writes, so an ungated recommendation to move
+  accumulated learnings out of CLAUDE.md would delete them from every future session rather than
+  relocate them. The gate reuses the resolver the sibling `stateless` skill already owns instead of
+  reading one scope: `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative wherever set (`1` off, `0` on
+  even against `autoMemoryEnabled: false`), and settings precedence decides `autoMemoryEnabled` only
+  when the variable is unset.
+  (2) **`@path` imports are named as a non-destination.**
+  Imported files load at launch, so a split into imports reorganizes and saves nothing, and the same
+  holds for an import inside a path-scoped rule, where the rule's own body defers and the imported
+  file does not. This is carried as an explicitly provenance-marked empirical extension (first-party repro
+  on Claude Code 2.1.219) so the `update` action cannot overwrite it with doc-sourced text.
+  `reference/official-guidance.md` already recorded the launch-load behavior and no check cited it. (3) **Every move recommendation now prices the destination** against the "Compaction by
+  steering method" table that same reference file ships and no check cited. Path-scoped rules and
+  nested CLAUDE.md return only when a matching file is read again, so a rule that must persist across
+  compaction stays unscoped or in root CLAUDE.md. Pricing extends past compaction to the skill
+  destination the routing table already recommended: a **new** skill defers its body but adds a
+  listing entry that is always in context: `name` plus the combined `description` and
+  `when_to_use`, truncated at 1,536 characters. Part of the cost moves into the always-loaded tier
+  instead of out of it. A move into a skill that already exists adds no entry and is not charged.
+  `disable-model-invocation: true` is the only field that keeps a description out of context, and it
+  makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Catalog
+  version 1.3.0.
+
+## [0.4.1]
+
+### Fixed
+
+- **`audit` reference: the path-scoping status claim was false.** `reference/official-guidance.md`
+  asserted (dated 2026-04-01) that `.claude/rules/` files "load unconditionally at session start
+  regardless of `paths:` frontmatter", citing four open issues. A first-party repro on Claude Code
+  2.1.219 disproved it: a rule scoped `paths: ["**/*.tsx"]` was absent at session start, present
+  after reading a matching `.tsx` file, and absent again after reading a non-matching one. Deferral
+  works in both directions. The cited evidence failed independently too: two of the four issues are
+  closed NOT_PLANNED and never supported the claim (#38487 asks that Write/Edit *also* trigger
+  injection, which presupposes deferral works; #32906 is a docs issue about subagents), and the two
+  still open assert opposite failure modes. The passage now states path scoping as verified working
+  on 2.1.219 as of 2026-07-24, with no version floor claimed since no changelog entry or maintainer
+  comment pins when it changed, and keeps the caveats that do survive: an `@import` inside a
+  path-scoped rule still inlines at session start and defeats the rule; path-scoped content is
+  invisible to subagents, teammates, and skill-forked contexts (#32906, closed NOT_PLANNED,
+  accepted behavior); a new-file Write does not trigger the rule; and before v2.1.211 on-demand
+  rules loaded even when `project` was excluded from `--setting-sources`.
+
+## [0.4.0]
+
+### Added
+
+- **`stateless`: machine-wide mode (`status all` / `purge all`).** The skill's name and
+  description invite "am I stateless everywhere on this machine?", but every action was
+  single-project. A machine-wide audit had to hand-roll a loop over
+  `~/.claude/projects/*/memory/`. New `scripts/enumerate-all-projects.sh` lists every
+  per-project store under `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/` with MEMORY.md line
+  counts and topic-file counts (enumeration-only, never exits non-zero on absence, reusable
+  by the sibling `audit` skill; ships with its own test script). `status all` appends the
+  machine-wide table to the posture report, with explicit caveats that per-repo settings
+  overrides and relocated `autoMemoryDirectory` stores are not visible from enumeration
+  alone. `purge all` runs the same manifest → gate → optional-backup → delete flow with
+  every per-project store as the candidate set, one combined manifest, and ONE combined
+  confirmation gate stating the machine-wide total and every directory with per-dir counts;
+  the backup offer covers the whole manifest with per-dir sibling snapshots. (#981)
+
+## [0.3.5]
+
+### Changed
+
+- **`stateless` disable: dotfile-manager backfill detection beyond chezmoi.** Step 3 claimed
+  to be repo-agnostic but only checked chezmoi, with a hand-wave to "check any other dotfile
+  manager". It now carries concrete detectors for chezmoi (managed-output check, since the previous
+  bare `&&` chain reported TRACKED whenever the binary existed), yadm
+  (`ls-files --error-unmatch`), and GNU stow / symlink managers (settings file is a symlink,
+  or its parent dir is, as in the stow tree-folded layout), plus a fingerprint fallback
+  (`.chezmoiroot`, `~/.local/share/chezmoi`, `~/.local/share/yadm`, `.stow-global-ignore`,
+  `~/.dotbot`) that reports "manager fingerprint
+  present but unconfirmed" instead of silently concluding the file is unmanaged when a
+  manager's artifacts exist without its binary on PATH. Backfill routing now names each
+  manager's own flow and warns against any `apply`/`restow` from the live session. (#980)
+
+## [0.3.4]
+
+### Added
+
+- **`stateless` purge: opt-in backup-before-purge escape hatch.** The confirmation gate now
+  offers to snapshot the manifest's exact files to a sibling `<memory_dir>.bak-<UTC>/`
+  directory before deleting ("yes, with backup"). The copy follows the same
+  manifest-exact/no-re-glob discipline as the delete, verifies the copy count before any
+  deletion, and Step 5 reports the snapshot path. (#979)
+
+### Changed
+
+- **`stateless` purge: bundled-consent does not satisfy the confirmation gate.** Step 3 now
+  states explicitly that consent gathered earlier via a bundled or multi-option answer does not
+  satisfy the gate: an upstream `/interview` round, a numbered menu selection whose option
+  happened to include the purge, or a "purge" given before the manifest was known. The gate must
+  restate the concrete now-known scope (file count, directories) and receive a fresh,
+  scope-referencing confirmation. A worked anti-pattern example is included. (#979)
+
+## [0.3.3]
+
+### Fixed
+
+- **Non-repo memory-dir resolution implemented (the documented fallback).** The shared
+  `resolve-memory-dir.sh` hard-required a git repo (`exit 1` when `git rev-parse --show-toplevel`
+  was empty) and the `stateless` skill's `scope-report.sh` pre-emptied it with a bail-out telling
+  the user to run from within a repo, but the official memory doc (re-verified 2026-07-22)
+  says "Outside a git repo, the project root is used instead", so a non-repo directory is a
+  fully valid case with a real memory store the skill could neither find nor report. The
+  resolver now derives the project slug from the current directory (same Windows-form
+  normalization as the repo-root path) when no repo is found, `scope-report.sh` calls it
+  unconditionally (with an informational note that the cwd is the project key), and the
+  regression test that had locked the bail-out in as a spec now asserts the resolved
+  cwd-derived path. The `audit` skill's deterministic M2 checker
+  (`memory-index-refs-check.sh`) carried its own now-redundant git-repo guard that would have
+  kept the audit from checking a non-repo store's index integrity. The guard is removed
+  (the shared resolver owns the non-repo case) with a non-repo regression test added. (#978)
+
+## [0.3.2]
+
+### Added
+
+- **`audit` skill: reciprocal scope-boundary note.** Model-era instruction-content findings
+  (prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo
+  directives, stale example scaffolding) now route to the `claude-config` plugin's
+  `audit-instructions` skill when that plugin is installed; absent it, such observations stay
+  in the audit report criteria-free rather than being judged against this checklist or
+  silently dropped. Completes the partition that skill declared toward this one.
+
+## [0.3.1]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention: bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.3.0]
+
+### Added
+
+- **New `stateless` skill (`/claude-memory:stateless`)** for inspecting and disabling Claude
+  Code auto memory, the notes Claude writes for itself per repo under
+  `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Actions:
+  `status` (default, read-only: effective on/off state and store contents across all settings
+  scopes), `disable` (sets `autoMemoryEnabled: false` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY` in a
+  confirmed scope, and flags a dotfile-manager backfill for a tracked `settings.json`), and
+  `purge` (destructive: reads `autoMemoryDirectory` at every scope, shows a deletion manifest,
+  and deletes auto-memory `*.md` files only after explicit confirmation). Scope is auto-memory
+  only; the instruction layer stays with `audit`, and transcripts/history are out of scope
+  (auto-cleaned by `cleanupPeriodDays`). Claude Desktop / claude.ai account memory is a
+  server-side store the skill gives direction for rather than deleting locally. Per the
+  env-vars doc, `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (the env var is
+  authoritative when set); `disable` writes the env var (`1`) plus `autoMemoryEnabled: false`,
+  and `status` treats a set env var as authoritative. The bundled `scope-report.sh` reuses the
+  plugin's single-source memory-dir resolver rather than re-deriving the path.
+
+### Fixed
+
+- **`resolve-memory-dir.sh` now honors `CLAUDE_CONFIG_DIR`.** The shared resolver (used by both
+  the `audit` and `stateless` skills) resolved the config root as `$HOME/.claude`, so a machine
+  that relocates its Claude Code config via `CLAUDE_CONFIG_DIR` had its memory directory resolved
+  to the wrong path. It now uses `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, per the official
+  `.claude-directory` doc, so the relocated `projects/<project>/memory/` tree resolves correctly.
+
+## [0.2.3]
+
+### Fixed
+
+- **`orphan-rule-check` no longer truncates a quoted `memory_dir` at an interior `#`.**
+  `memory_dir` resolution now routes through the shared `parse-concern-value.sh` helper
+  (materialized from `lib/parse-concern-value.sh`), which resolves surrounding quotes
+  *before* stripping comments: `memory_dir: ".scratch#dir"` keeps its `#` and the correct
+  tier is excluded from the reference search, rather than collapsing to `.scratch` and
+  masking an orphan rule. The naive `${seam%%#*}`-first strip is gone; an unquoted
+  whitespace-preceded trailing `# comment`, surrounding whitespace, and trailing-slash
+  handling are unchanged. As a
+  non-interactive detector it still degrades to the documented `.work` default when the
+  `memory_dir` is unset. The contract's inferred/interactive rungs stay the calling skill's job.
+- **A comment-only `memory_dir` now resolves to the fallback, not a literal directory.**
+  `memory_dir: # use default` is YAML-null; the parser previously kept `# use default`
+  as the value (its comment strip only fired on a whitespace-*preceded* `#`), so the
+  detector searched `# use default/` and stopped excluding the default `.work/` tier,
+  letting a `.work` reference mask an orphan. A `#` that starts the unquoted value is now
+  treated as a comment, so resolution falls through to the caller's fallback / documented
+  default.
+
+## [0.2.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.2.1]
+
+### Fixed
+
+- **`orphan-rule-check` now resolves the excluded memory tier from the topic-docs seam**
+  instead of hardcoding `.work/`. The reference search reads `memory_dir` from
+  `.claude/topic-docs.yaml` (falling back to `.work/` when unset) and excludes that path,
+  so a consumer that overrides `memory_dir` no longer has its real memory tier scanned.
+  Ephemeral files there can no longer register false references that mask an orphan rule.
+
+## [0.2.0]
+
+### Changed
+
+- **BREAKING: the `health` skill renamed to `audit`** (fleet conformance wave, naming grammar):
+  `/claude-memory:health` → `/claude-memory:audit`. The old invocation stops resolving; update any
+  saved references. Actions (`audit` / `fix` / `update` / `report`) are unchanged.
+
+## [0.1.0]
+
+### Added
+
+- Initial release. The `health` skill was extracted from the `claude-config-audit` plugin, where it
+  shipped as the `memory-health` skill, into this standalone plugin, invoked as `/claude-memory:health`.
+  It audits the Claude Code instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`,
+  and auto-memory) against a checklist derived from official Claude Code documentation, with a
+  deterministic script-backed spine (MEMORY.md index integrity, orphan always-loaded rules) and
+  `audit` / `fix` / `update` / `report` actions. Audit reports stay contributor-local in the plugin's
+  data directory.

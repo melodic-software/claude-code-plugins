@@ -4,11 +4,12 @@ The evidence spine behind every routing decision this plugin makes. Read it befo
 candidate whose destination turns on *when* content loads, *whether it survives compaction*, or
 *whether a subagent can see it*.
 
-**Citation posture.** Claims are marked *(doc)* when an official Anthropic page states them,
-*(measured)* when this plugin's own first-party repro established them, and *(inferred)* when
-neither. An inference is never presented as either of the other two. A `measured` claim names the
-Claude Code version it was taken on, because these mechanics have moved between releases and a
-version-less measurement cannot be re-verified or aged out.
+**Citation posture.** A claim marked *(doc)* is one this plugin relies on an official Anthropic
+page for; the page section is named in the pointer record beside it and is read there, not
+restated here. *(measured)* marks what this plugin's own first-party repro established, and
+*(inferred)* marks neither. An inference is never presented as either of the other two. A
+`measured` claim names the Claude Code version it was taken on, because these mechanics have moved
+between releases and a version-less measurement cannot be re-verified or aged out.
 
 ## Contents
 
@@ -28,13 +29,32 @@ whether a move is safe.
 |---|---|---|---|
 | Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc)* | Re-read from disk and re-injected *(doc)* | **Yes** *(measured)* |
 | `@import` from root `CLAUDE.md` | Session start, inlined *(doc)* | With its parent *(inferred)* | **Yes** *(measured)* |
-| Unscoped `.claude/rules/*.md` | Session start, "same priority as `.claude/CLAUDE.md`" *(doc)* | Re-injected *(doc)* | Unmeasured at 2.1.268; was **No** *(measured 2.1.238)* |
+| Unscoped `.claude/rules/*.md` | Session start, priced as `.claude/CLAUDE.md` *(doc)* | Re-injected *(doc)* | Unmeasured at 2.1.268; was **No** *(measured 2.1.238)* |
 | Path-scoped rule (`paths:`) | On **read** of a matching file *(doc, measured)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
 | Nested `CLAUDE.md` | On read of a file in that subtree *(doc, measured)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
 | `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
 | Bare nested `AGENTS.md` (no shim), with a `CLAUDE.md` on its path | **Never** *(doc, measured 2.1.238 and 2.1.278)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
 | Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
 | Skill body | On invocation *(doc)* | Listing re-injected; body on re-invoke *(doc)* | Discovered via the Skill tool *(doc)* |
+
+The plugin prices each instruction-file destination by the *(doc)* cells above and re-derives them
+from the memory page, never from this table.
+
+- **Pointer**: for when each instruction file loads, see
+  <https://code.claude.com/docs/en/memory#how-claude-md-files-load>,
+  <https://code.claude.com/docs/en/memory#set-up-rules>,
+  <https://code.claude.com/docs/en/memory#path-specific-rules> and
+  <https://code.claude.com/docs/en/memory#import-additional-files>; for what reloads after
+  compaction, <https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: any of those sections changes when a surface loads or reloads, or a release
+  note names instruction-file loading, rules, or compaction.
+
+The skill-body row predates this record and has fired its trigger: a 2026-10-01 read of
+<https://code.claude.com/docs/en/context-window#what-survives-compaction> no longer matches its
+compaction cell. It awaits re-derivation from that section and
+<https://code.claude.com/docs/en/skills#skill-content-lifecycle>; until then treat that cell as
+unverified.
 
 Three facts from that table carry the whole design:
 
@@ -84,15 +104,16 @@ Four findings follow, each of which a rubric rule depends on:
    rather than exclusive: a nested `CLAUDE.md` and a nested `AGENTS.md` both attach on a Read in
    that directory, and what the root `CLAUDE.md` does is make Claude Code read `CLAUDE.md` files
    *instead of* `AGENTS.md`.
-   - **Claim**: Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md` or
-     `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
-     `AGENTS.md` on a Read there under the same condition; reading it directly
-     depends on a CLI version floor and on the session, both in
-     `skills/migrate/reference/sources.md`, "The minimum CLI version".
-   - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code
-     reads AGENTS.md", "When AGENTS.md support is unavailable"; canary runs on 2.1.278.
-   - **As of**: 2026-09-29.
-   - **Recheck trigger**: that section changes which file names count for the check, or a release
+   The rubric treats an `AGENTS.md`, at the root or in a subdirectory, as shadowed wherever a
+   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the working directory or above
+   it, and treats direct `AGENTS.md` reading as dependent on the CLI floor and session recorded in
+   `skills/migrate/reference/sources.md`, "The minimum CLI version". Canary runs on 2.1.278
+   observed the shadowing.
+   - **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
+     <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+     <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+   - **As of**: 2026-09-29
+   - **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release
      note names `AGENTS.md` or instruction-file loading.
 4. **A subagent inherits none of the parent's on-demand loads.** Dispatched *after* the parent had
    already loaded all five surfaces, a general-purpose subagent reported exactly
@@ -130,7 +151,7 @@ triggering tool result, so their presence is read straight off the transcript.
 
 1. **Absent before the read.** At dispatch the subagent held the root `CLAUDE.md`/`AGENTS.md` pair
    only. Neither rule body was present, which reproduces finding 4's non-inheritance unchanged.
-2. **Present after a matching read.** A `Read` of a `.py` path under `docs/specs/` returned with
+2. **Present after a matching read.** A `Read` of a `.py` path the rule's glob covers returned with
    `Contents of <repo-root>/.claude/rules/ruff-pin.md:` and the rule's full body appended to the
    result. A `Read` of `plugins/autonomy/CLAUDE.md` likewise returned with
    `plugins/autonomy/AGENTS.md` appended, so the nested-shim `@import` hop defers and fires inside
@@ -149,16 +170,19 @@ Two boundaries this measurement does **not** cross, stated so nothing generalize
 
 ### Verification record
 
-- **Claim.** On Claude Code 2.1.268, a path-scoped `.claude/rules/` file and a nested
-  `CLAUDE.md`/`AGENTS.md` pair are injected inside a general-purpose subagent when that subagent
-  reads a path the surface covers, and the glob matches the requested path whether or not the file
-  exists. A subagent still inherits none of its parent's deferred loads.
-- **Basis.** First-party probe run inside a subagent dispatched into this repository on the harness
-  reported by `claude --version` as `2.1.268 (Claude Code)`, observing the `Contents of <path>:`
-  blocks appended to `Read` results for one nonexistent `**/*.py` path and one existing
-  `plugins/autonomy/CLAUDE.md`, against the rules and shims tracked at commit `49912c63`.
-- **As of.** 2026-09-13.
-- **Recheck trigger.** The consuming repository's Claude Code minor version moves past 2.1.268; or
+The rubric relies on what this probe observed on Claude Code 2.1.268: a path-scoped
+`.claude/rules/` file and a nested `CLAUDE.md`/`AGENTS.md` pair are injected inside a
+general-purpose subagent when that subagent reads a path the surface covers, the glob matches the
+requested path whether or not the file exists, and a subagent still inherits none of its parent's
+deferred loads.
+
+- **Pointer**: the first-party probe above, run inside a subagent dispatched into this repository
+  on the harness reported by `claude --version` as `2.1.268 (Claude Code)`, observing the
+  `Contents of <path>:` blocks appended to `Read` results for one nonexistent `**/*.py` path and
+  one existing `plugins/autonomy/CLAUDE.md`, against the rules and shims tracked at commit
+  `49912c63`.
+- **As of**: 2026-09-13
+- **Recheck trigger**: the consuming repository's Claude Code minor version moves past 2.1.268; or
   a Claude Code release note touches subagent context inheritance, memory loading, or path-scoped
   rule triggering; or a real session observes a covered `Read` inside a subagent that injects
   nothing. Any of these obliges re-running the three steps above and refreshing this record with
@@ -181,37 +205,45 @@ context. The index guarantees **availability**, not attention: injection is auto
 is discretionary. It therefore mitigates rather than erases, which is why the hard-deny class below
 is not also delegated to it.
 
-**The write-trigger gap.** "Path-scoped rules trigger when Claude reads files matching the pattern,
-not on every tool use" *(doc)*. Editing an existing file implies reading it, so the common case
-holds; **creating a new file does not**. Content that governs the *creation* of files, such as
+**The write-trigger gap.** The rubric treats a path-scoped rule as firing on a read of a matching
+file and on nothing else *(doc; pointer in the surface-table record)*. Editing an existing file
+implies reading it, so the common case holds; **creating a new file does not**. Content that governs the *creation* of files, such as
 scaffolding templates, "every new component must…", and file-header requirements, is therefore
 served badly by a path-scoped rule no matter how clean its glob looks. *Closed by:* routing creation-governing content
 to a directory-nested surface or leaving it always-loaded, never to `paths:`.
 
-**The compaction gap.** Root `CLAUDE.md` is re-read from disk after `/compact`; deferred surfaces
-return only when their trigger recurs *(doc)*. A long session that compacts mid-task and then works
+**The compaction gap.** The rubric prices compaction as bringing back the root `CLAUDE.md` and
+leaving each deferred surface to return only when its trigger recurs *(doc; pointer in the
+surface-table record)*. A long session that compacts mid-task and then works
 in a different subtree never re-loads what it demoted. *Closed by:* pricing this into every
 recommendation, and by the hard-deny class for content whose absence is unrecoverable.
 
 ## Glob semantics and their budgets
 
-All *(doc)* unless marked. The `check` skill enforces each mechanically.
+The `check` skill (through `scripts/glob-tools.sh`) holds these as its own settings and enforces
+each mechanically:
 
-- Patterns are globs over repo-relative paths: `**/*.ts`, `src/**/*`, `*.md` (root only),
-  `src/components/*.tsx`.
-- Brace expansion is supported and multiplies: `src/*.{ts,tsx}` is two patterns,
-  `{a,b}/{c,d}/*.{ts,tsx}` is eight. A rule's whole `paths:` list shares one budget of **1,000
-  expanded patterns and 4 MiB**. A pattern exceeding the budget is used **unexpanded**, so its
-  literal braces match nothing, a silent no-op rather than an error.
-- `[` opens a bracket expression. A `[` that cannot be read as one, as in `photos [2024/**`, makes
-  that pattern match nothing while the rule's other patterns keep working. Escape a literal one as
-  `photos \[2024/**`.
-- Symlinked paths into the project directory match as of v2.1.198.
-- Rules are discovered recursively under `.claude/rules/`, so subdirectories are organizational.
-- User-level `~/.claude/rules/` load before project rules, giving project rules higher priority.
+- Every `paths:` entry is a glob over repo-relative paths, matched against tracked files.
+- Brace groups multiply, and the check counts a rule's whole `paths:` list against a shared cap:
+  **1,000 expanded patterns, 4 MiB in total**. A pattern over the budget is reported `over-budget`,
+  because Claude Code would use it unexpanded and its literal braces would match nothing, a silent
+  no-op rather than an error.
+- A `[` the check cannot read as a bracket expression is reported `bad-bracket`, because that one
+  pattern would match nothing while the rule's other patterns keep working. The fix is an escaped
+  literal, `\[`.
+- The check walks `.claude/rules/` recursively, so subdirectories are organizational.
 
-A glob that matches **zero** tracked files is not an error to Claude Code. The rule simply never
+A glob that matches **zero** tracked files raises no error in Claude Code. The rule simply never
 fires. That silence is exactly why `check` treats it as a failure.
+
+- **Pointer**: for glob syntax, the brace-expansion budget, bracket expressions, recursive
+  discovery and user-level rule order, see
+  <https://code.claude.com/docs/en/memory#path-specific-rules>,
+  <https://code.claude.com/docs/en/memory#set-up-rules> and
+  <https://code.claude.com/docs/en/memory#user-level-rules>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section moves the budget, changes how an unreadable `[` or an
+  over-budget pattern behaves, or a release note names rule globs.
 
 ## Re-verification
 
@@ -225,5 +257,7 @@ claim's confidence:
 
 The repro is cheap: a temp git repo with canary tokens on each surface, an `InstructionsLoaded` hook
 appending each payload to a log, one headless run that reads a file in the subtree, and a read of
-the log. `InstructionsLoaded` is observability-only and cannot block or modify a load, so the
-measurement never perturbs what it measures.
+the log. The repro relies on `InstructionsLoaded` being an observe-only event, so the measurement
+does not perturb what it measures (see
+<https://code.claude.com/docs/en/hooks#instructionsloaded>, as of 2026-10-01; recheck when that
+section gives the event a decision control).

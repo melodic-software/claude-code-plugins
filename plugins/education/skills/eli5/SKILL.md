@@ -1,6 +1,6 @@
 ---
 description: "Dead-simple VISUAL explainer. Produces a visual HTML explainer that assumes zero prior knowledge: one idea per diagram, minimal text. Works on a codebase object (a module, a tradeoff, an incident) or a general concept, and grounds in the real artifact before drawing anything. Use when: 'ELI5', 'explain like I'm five', 'picture explainer', 'show me a diagram of this'. Delegates to the community `eli5` skill when that plugin is installed and performs the behavior inline when it is not. This produces a PICTURE. When the ask is a prose drop to plain words at a lower altitude, that is education:explain instead; when it is to restructure a dense message without losing precision, that is adhd:clarify (if installed)."
-argument-hint: "[topic to explain] (a module, a tradeoff, an incident, or any concept)"
+argument-hint: "[topic to explain]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -156,7 +156,7 @@ the argument behind a decision, the third reconstructs a sequence.
   simply always fires.
 - **Officialization.** If `eli5` ships as an official or bundled Claude Code surface, this
   wrapper's premise changes from wrapping a community plugin to duplicating something
-  native. Re-run `/claude-ops:audit-native-overlap` (via the Skill tool, if installed) at
+  native. Re-run `/harness-ops:audit-native-overlap` (via the Skill tool, if installed) at
   that point and re-decide the lane. No standing automation watches for this; the trigger
   is the observation.
 

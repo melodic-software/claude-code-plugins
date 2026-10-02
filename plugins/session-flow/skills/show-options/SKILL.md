@@ -60,7 +60,7 @@ acceptable sole source: it omits every `disable-model-invocation: true` skill ou
 listing overflows its budget it drops descriptions **starting with the least-invoked skills**, the
 forgotten ones this skill exists to surface. Ladder:
 
-1. `/claude-ops:inventory`, if that plugin is installed. It owns whole-fleet enumeration and its
+1. `/harness-ops:inventory`, if that plugin is installed. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
    than walking the plugin cache, whose layout is undocumented and version-keyed. **Read its output
    from stdout, never pass `--out` into the consuming project**, whose documented example writes
@@ -103,10 +103,8 @@ what this skill needs, in this plugin. Invoke it, or consume its briefing if it 
 session. A separate probe here would duplicate that read.
 
 **Slug selection** for artifact-grounded reads: an explicit argument wins; else the
-most-recently-modified topic slice; else the branch-derived slug. Resolve every path through the
-plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
-the memory and contract roots are configurable, so never hardcode them.
+most-recently-modified topic slice; else the branch-derived slug. Resolve every path from the
+memory root (default `.work/`), which is configurable, so never hardcode it.
 
 **When the memory root is unreadable or empty. Say so; do not infer.** In a worktree, a sibling
 lane, or a fresh clone the memory slice is invisible, so *every* upstream artifact reads "absent".

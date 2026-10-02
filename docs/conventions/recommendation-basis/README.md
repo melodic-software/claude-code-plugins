@@ -34,9 +34,10 @@ re-statement. It does not own:
   which in turn defers to the contract `/discovery:research` states. This doc uses those terms and
   does not redefine them.
 - **Durable records of upstream-derived facts.** A recommendation written into a committed file as
-  a standing decision carries the four-part record the
-  [upstream-drift convention](../upstream-drift/README.md) defines. The `Basis:` label covers what
-  is said to the user in session; the stamp covers what is stored.
+  a standing decision carries the record the
+  [upstream-drift convention](../upstream-drift/README.md#required-parts) requires: our decision, a
+  pointer, an as-of date and a recheck trigger. The `Basis:` label covers what is said to the user
+  in session; the record covers what is stored.
 
 ## What counts as a recommendation
 
@@ -133,14 +134,14 @@ Conforming with this contract's 1.0.0:
 | `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why, as verified, judgment, or withheld. |
 | `/discipline:do-your-research-deep` | Recommendations are an inventory type with one ledger row each, including a withheld verdict for an unsettled consequential one. |
 | `/discipline:pick-for-the-problem` | The chosen tool or approach carries a `Basis:`, or is withheld as an open question when research cannot settle a consequential choice. |
-| Shipped copies of the contract (`plugins/<plugin>/context/recommendation-basis.md` in `planning`, `source-control`, `github`, `work-items`, `naming`, `architecture`, `code-tidying`, `debugging`, `claude-ops`, `session-flow`) | The essentials, byte-identical to the `discipline` copy, held in sync by `scripts/check-cross-plugin-source-drift.sh`. |
+| Shipped copies of the contract (`plugins/<plugin>/context/recommendation-basis.md` in `planning`, `source-control`, `github`, `work-items`, `naming`, `architecture`, `code-tidying`, `debugging`, `harness-ops`, `session-flow`) | The essentials, byte-identical to the `discipline` copy, held in sync by `scripts/check-cross-plugin-source-drift.sh`. |
 | `/planning:interview` (`SKILL.md` "Ground before recommending", "Recommended answers") | Every `My recommendation:` line has a `Basis:` line; a consequential question research cannot settle is asked open with a `Withheld:` line; a revised recommendation is re-stated old → new → why. |
 | `/planning:design`, `/planning:prd`, `/planning:brainstorm` | Each recommendation carries a `Basis:`; a consequential one is grounded through explore and research, or withheld as an open question. |
 | `/source-control:pull-request`, `/source-control:babysit-prs`, and their shared `reference/review-discipline.md` D3/D4 | A fix, verdict, or merge that changes a shared artifact lists and checks its consumers first; the verdict carries a `Basis:`, and an unsettled consequential one is UNCERTAIN, naming the evidence that would settle it. |
 | `/github:advise` | Advice on something other repositories consume lists the repositories it reaches with read-only calls; each recommendation carries a `Basis:` or is withheld as a decision point. |
 | `/work-items:triage`, `/work-items:decompose` | A decision-defaulted answer is well-grounded by this bar, with its `Basis:` on the line after the `Decision defaulted` prefix, and a withheld one routes to human-gated; each HITL/AFK call carries a `Basis:`. |
 | `/adhd:clarify` | A clarified decision table carries the source's `Basis:` verbatim in its own column, and renders a withheld item as withheld. |
-| `/naming:name-it-better`, `/architecture:improve` (Design-It-Twice), `/code-tidying:tidy`, `/code-tidying:batch-simplify`, `/debugging:debug`, `/claude-ops:known-issues`, `/session-flow:retro` | The skill's recommendation (pick, winning interface, finding, deferral, post-fix recommendation, SAFE / CAUTION / DO NOT USE verdict, Phase 3 row) carries a `Basis:` or is withheld as an open question. |
+| `/naming:name-it-better`, `/architecture:improve` (Design-It-Twice), `/code-tidying:tidy`, `/code-tidying:batch-simplify`, `/debugging:debug`, `/harness-ops:known-issues`, `/session-flow:retro` | The skill's recommendation (pick, winning interface, finding, deferral, post-fix recommendation, SAFE / CAUTION / DO NOT USE verdict, Phase 3 row) carries a `Basis:` or is withheld as an open question. |
 
 Other surfaces adopt on touch.
 

@@ -1,11 +1,11 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per changed line, then a fresh-context reviewer judges productive versus arid versus equivalent; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (write the survivors as a findings file the review fix pass consumes)."
-argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
+description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [<test-path>]`, `--full`, `--paths <globs>`, `--max <n>`, `--no-suppress`, `--persist-findings`, `--record-mutants`, `--replay-mutants`."
+argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings --record-mutants --replay-mutants"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
-  summary: Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged
+  summary: Report surviving mutants on the diff or with --exercised, restoration verified, survivors triaged
 ---
 
 ## Repository context. Gather first
@@ -33,7 +33,13 @@ Arguments: `$ARGUMENTS`
 ## Argument parsing
 
 - **Scope** (optional): a path limiting which changed files are considered. Default: every changed
-  file inside the configured `mutate` globs.
+  file inside the configured `mutate` globs. Under `--exercised` it narrows the changed tests
+  considered, and it goes before the flag.
+- **`--exercised [<test-path>]`**: mutate the production code the changed tests call, judged
+  against those tests as one set ([The exercised scope](#the-exercised-scope---exercised)). The
+  scope runs only when this flag is passed. The token right after the flag is the test path when it
+  does not start with `--`, so `--exercised --max 5` takes no test path. Mutually exclusive with
+  `--full` and `--paths`: refuse the combination and name both flags.
 - **`--full`**: mutate the whole configured scope instead of the diff. Expensive and rarely correct,
   state the estimated cost from `baseline-suite-ms` and confirm before running.
 - **`--paths <globs>`**: mutate these paths regardless of the diff.
@@ -42,6 +48,10 @@ Arguments: `$ARGUMENTS`
   suppressed. Read-only inspection of the suppression policy; it never edits the record.
 - **`--persist-findings`**: after reporting, also write the survivors as a findings file the
   `review:fanout` `fix` action consumes ([Phase 6](#phase-6-persist-opt-in)). Off by default.
+- **`--record-mutants <file>`**: with `--exercised`, write the mutants this run applied and their
+  states to a record outside tracked space ([Record and replay](#record-and-replay)).
+- **`--replay-mutants <file>`**: with `--exercised <test-path>` and `--record-mutants <after>`,
+  apply exactly the recorded mutants and gate on lost kills ([Record and replay](#record-and-replay)).
 
 ### Effort, the mutant cap of last resort
 
@@ -63,6 +73,91 @@ An effort-derived cap is a cap like any other, so Phase 1 step 5 already governs
 say what was dropped, because a truncated run must never read as a clean one. Nothing downstream
 moves. Phase 4 triage still runs in fresh context on every surviving mutant, at every effort level.
 
+## The exercised scope (`--exercised`)
+
+The diff scope asks whether the suite checks the changed code. `--exercised` asks whether the
+changed tests check the code they call. Each mutant runs against those tests only, so a strong
+existing test cannot kill it and hide a weak new one, and the verdict is for the tests as one set:
+a mutant is killed when any test in the set fails. Each paragraph below replaces the named step of
+the diff scope for this run only.
+
+**The test set.** The changed files are the committed range, `git diff --name-only
+<diff-target>...HEAD`, plus the working tree, `git status --porcelain --untracked-files=all`
+(tracked modified files and untracked files, each listed by path), so tests an agent has just
+written count before they are committed. A scope path narrows them. With `--exercised <test-path>`
+the files under that test file or folder replace the changed files, the mapping starts from them,
+and every step below that reads "the test set" means the tests under that path. That is not the
+scope path, which only narrows the changed files.
+
+**Which files are tests.** For each candidate file, invoke `/testing:audit --file <path>` through
+the Skill tool and read the `adapter:` line of its coverage block:
+
+- `adapter: <id>`: a test, in the set.
+- `adapter: none (no adapter claims this file)`: not a test.
+- `adapter: none (<id> claims this file and is off in the testing config)`: not in the set. The
+  report lists it as skipped with that reason, because the team turned that adapter off.
+
+When the `testing` plugin is not installed, refuse: `--exercised` needs the `testing` plugin to
+recognize test files. Never guess from file names. A set with no tests ends the run as `no changed
+tests: scope empty`, a result, never a clean run.
+
+**The mapping.** Read each test in the set and list the functions it calls directly that are defined
+in files inside the `mutate` globs. The mapped-line set is the bodies of those functions. Only direct
+calls from the test body count, not callees of callees, so a call through dependency injection, an
+interface, HTTP or a test helper maps nothing. The scope report lists the mapped functions. Zero
+functions ends the run as `no mapping: scope empty`, a result, never a clean run. The mapped-line
+set is the scope `--exercised` resolves to, so a mode that takes `--paths` can take `--exercised`
+or `--exercised <test-path>` instead and inherit these limits; `--record-mutants` records over it.
+
+**Runner and regime.** Use the configured tool's own test restriction only where
+[`context/tool-test-restriction.md`](context/tool-test-restriction.md) reads `yes` in its
+no-coverage column, with that row's option and source cited in the scope report. Otherwise run the
+manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing the
+`{tests}` word with the test paths, each wrapped in single quotes with every `'` inside it written
+as `'\''`, so no character in a file name reaches the shell unquoted. No `test-command`, one where
+`{tests}` is not a standalone unquoted word, or a runner that only filters by name: refuse, naming
+`/mutation-testing:setup apply`. This is decided
+in Phase 0 and never switched mid-run.
+
+**Phase 0, in this order:** config; tool availability; the test set; which files are tests; the
+mapping; runner and regime; the dirty-target stop, on the mapped files; the regime gate with its
+refusal rule; one baseline run of the test set alone, which replaces the full-suite baseline (red
+stops the run; its wall-clock is the cost base); then the Phase 0 snapshot. A red test outside the
+set cannot kill these mutants, so it does not stop the run.
+
+**Phase 1.** Steps 2 and 3 key on the mapped-line set instead of the changed lines, so an arid
+record on a mapped node still applies. Step 4's selection is the test set, not every covering test.
+The effort cap, `--max` and `max-mutants` apply unchanged, and the estimate is the restricted
+baseline times the mutant count.
+
+**Phase 3.** Each mutant runs against the whole test set. There is no rerun after the loop; the
+flaky-test gotcha below states that limit.
+
+**Phase 4.** The brief hands over the whole test set for every survivor, not only the tests that
+reached it.
+
+**Phase 5.** The report carries the scope line, coverage and gap labeled with the same tests, and
+the blind-spot line ([`templates/report.md`](templates/report.md)). Coverage and gap come from the
+tool's no-coverage state only where the restriction keeps it; under the manual protocol both print
+`unknown` and files are listed in path order, never ranked on an assumed coverage. The blind spot
+is the one stated in the `principles` skill's
+[`theory.md`](../principles/reference/theory.md) "What a mutation score is evidence for": a test
+that copies the production formula kills the same mutants as one that states a literal, so a clean
+run does not clear a restated or copied expected value. That check belongs to the `testing`
+plugin's task-end judge rule `testing/judge/rule-restated-expectation`.
+
+## Record and replay
+
+`--record-mutants <file>` writes the mutants an exercised run applied, with their states.
+`--replay-mutants <before> --record-mutants <after>` applies exactly those mutants again after the
+tests changed, writes their new states, and compares the two records with
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/compare-records.sh" <before> <after>`: every mutant detected
+before must still be detected. The report carries one `Gate: pass` or `Gate: block` line and one
+`newly-surviving <path>:<line_start> <operator>` line per blocking mutant. Both runs use the manual
+protocol with `test-command`, and a red baseline stops either one and names the failing tests.
+Read [`context/mutant-record.md`](context/mutant-record.md) before either run: it owns the record
+format, the refusals, and the replay's Phase 0.
+
 ## The contract this skill holds
 
 Three properties, stated first because everything below depends on them:
@@ -78,7 +173,8 @@ Three properties, stated first because everything below depends on them:
    (the marketplace's `docs/plugin-philosophy.md` verb table). Its writes, the findings file and
    the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
    that root, are each **proven outside tracked space before that write is made**, never in tracked
-   source and never in a file another producer owns.
+   source and never in a file another producer owns. `--record-mutants` is a second such override,
+   on the same terms: its record is written outside tracked space, after restoration is verified.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
@@ -86,7 +182,8 @@ Three properties, stated first because everything below depends on them:
 
 ## Phase 0: Preflight
 
-Refuse to proceed, with the specific remediation, when any of these fail:
+Refuse to proceed, with the specific remediation, when any of these fail. Under `--exercised`, run
+them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
 
 - **Config missing** → `/mutation-testing:setup apply`.
 - **Tool unavailable** → `/mutation-testing:setup check` names the install line.
@@ -119,6 +216,9 @@ tool offers neither per-mutant observability nor interrupt safety: the gate that
 cannot be run, and a check that cannot run is not a check.
 
 ## Phase 1: Scope
+
+Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as
+[The exercised scope](#the-exercised-scope---exercised) states.
 
 1. Resolve the changed lines: `git diff --unified=0 <diff-target>...HEAD` for the files inside the
    configured `mutate` globs, intersected with any `--paths` or scope argument.
@@ -197,6 +297,21 @@ covered it, never the reasoning that produced the mutant. The brief says it is d
 handed-over survivor has one of the three verdicts or is marked unclassified, and that it returns
 early rather than guess when the handed-over code is not enough to decide.
 
+**Every productive survivor also gets a cause**, assigned in the same brief, in both scopes, with a
+quoted line as its evidence:
+
+| Cause | Meaning | Evidence to quote |
+|---|---|---|
+| `no-assertion` | No assertion in the handed-over tests reaches the mutated value | The test's line range and the absence, or the only assertions present |
+| `input-gap` | An independent oracle exists, but no input tells the mutant apart | The assertion line and the inputs it uses |
+| `unclassified` | No quotable evidence, or the expected value comes from the code under test | What was missing, or the assertion line whose expected side calls the mutated code |
+
+The brief's tie-breaks: a weak, inert or mock-only assertion on the mutated value is `no-assertion`;
+a mutated line no handed-over test reaches is `input-gap`, because no input takes that branch; an
+expected value that reaches the mutated function, directly or through a helper, is `unclassified`,
+never `input-gap`, and names `testing/judge/rule-restated-expectation`, so the fix goes to the
+oracle rather than to a new input; a cause without a quote is `unclassified`.
+
 For the **equivalence** call specifically, prefer a cross-vendor advisor when one is installed and
 set up (invoked per its own documentation), falling back to the same-vendor fresh-context subagent.
 Equivalence is formally undecidable, so the risk is a correlated blind spot rather than a lapse of
@@ -273,16 +388,15 @@ provenance.
 
 The mechanics are owned by [`context/persist-findings.md`](context/persist-findings.md), which reads
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
-are not optional: the destination comes from the contract's **whole** rung order, taking its
-**non-interactive collapse** for the rungs that confirm or ask, never a hardcoded default;
+are not optional: the destination is the contract's `<memory_dir>/reviews/<branch-slug>/`, never a hardcoded
+path outside it;
 **each** write this phase makes, the findings file and the self-ignore guard's `.gitignore` where a
 governing checkout was found, is proven outside tracked space before **that** write is made, against
 the checkout that governs the destination rather than the invoking worktree, with the guard's own
 write proven before the guard heals rather than reported afterwards, and with **nothing written at
 all** where a resolved root has no governing checkout, the guard's create-when-absent rule could
 land on a tracked-but-deleted `.gitignore` with no check having been possible, and the findings file
-on a tracked deletion it would modify rather than create, while the contract's
-`${CLAUDE_PLUGIN_DATA}` fallback is written normally, being outside every checkout by construction
+on a tracked deletion it would modify rather than create
 (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
@@ -323,6 +437,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 - Survivors remain and the killing tests are due: `/testing:write`.
 - A survivor is about to be called arid or equivalent: `/mutation-testing:principles`.
+- A clean exercised run: /testing:test-value.
 
 ## Gotchas
 
@@ -350,8 +465,8 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   soften it when a survivor is inconvenient.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
-  failure mode of resolving only the documented default on a repo that configured its own memory
-  root, which is why Phase 6 runs the whole rung order rather than its last rung.
+  failure mode of hardcoding `.work` on a repo that declares its own memory root, which is why
+  Phase 6 composes the home from the memory root.
 - **A high mutation score is not a correctness argument.** The coupling effect covers faults composed
   of local errors. It says nothing about a wrong algorithm, a missing requirement, a concurrency
   interleaving, or an unexpressed security property.
@@ -360,7 +475,8 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 
 - Write or modify tests, or leave any mutation in the tree.
 - Persist anything on bare invocation. The findings file is written only under `--persist-findings`,
-  and only into a memory tier proven to sit outside tracked space.
+  and only into a memory tier proven to sit outside tracked space; a mutant record only under
+  `--record-mutants`, outside tracked space too.
 - Apply its own findings, or read the consumer's consumption ledger. It writes one file and stops;
   what happens to that file belongs to the `fix` action.
 - Write suppressions without the user accepting them.

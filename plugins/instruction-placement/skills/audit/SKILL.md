@@ -130,15 +130,10 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the home through the plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
-and write under it. That document owns the rung order, the constant slug, the branch axis, and the
-memory root's self-ignore guard; `findings-artifact.md` owns what the file contains.
+Write under the home `findings-artifact.md` "Where it lives" defines, which also owns the
+constant slug, the branch axis, the self-ignore guard, and what the file contains.
 
-**Resolve the home; never hardcode the default's shape.** A skill that composes the documented
-default itself writes where the consumer's configured root is not, and the reader's failure mode is
-a missing-artifact stop indistinguishable from "the audit was never run". If a prior artifact exists
-at the resolved home, merge per the contract's re-run semantics rather than overwriting. An
+If a prior artifact exists at that home, merge per the contract's re-run semantics rather than overwriting. An
 operator's `declined` decision must survive a re-audit.
 
 ## The suppression surface
@@ -164,6 +159,26 @@ this run's scope. **Exclude the surface and its layers**, because auditing the f
 decisions would make recording one perturb the next run. That exclusion is applied to the candidate
 set after the detector has run, not to the corpus: the corpus document above stays the one owner of
 what is swept, and the detector's coverage numbers keep counting every file it read.
+
+## The content-home advisory
+
+The two lanes judge sections. One question is about a whole file: whether a `CLAUDE.md` should be
+the content home at all. For each `FILE` record of a tracked file named `CLAUDE.md` in a directory
+migrate's plan covers (outside the trees `IP_EXCLUDED_TREES` in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/discover.sh` names,
+`.claude/` among them), whose content is anything other than the single line `@AGENTS.md`, report
+one advisory. `.claude/CLAUDE.md` never gets one: `plan-migration.sh` emits no `DIR` row for it,
+and a shim there would import `../AGENTS.md`.
+
+> `<path>` holds project instructions that could live in `AGENTS.md`, where other coding agents
+> read them too. Plan the move with `/instruction-placement:migrate plan`. Keep the `CLAUDE.md` as
+> the one-line `@AGENTS.md` shim: migrate's `cutover-check` decides when shims can come out, and
+> this audit never proposes removing one. Claude-specific text goes to `.claude/rules/<topic>.md`
+> with a `paths:` glob, per migrate's routing.
+
+It is not a finding: no `finding_id`, no status, nothing `realign` acts on. It cancels none of the
+file's demote findings; the operator sequences those with the migration. Write it to the artifact's
+advisory section. Whether the file should be split for progressive disclosure is
+`docs-hygiene:audit-progressive-disclosure`, routed per [`context/routing-out.md`](context/routing-out.md).
 
 ## Routing out
 
@@ -202,8 +217,8 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Next
 
-`/instruction-placement:realign`. It applies the findings the operator accepts, one gated item at a
-time.
+- The operator accepts placement findings: `/instruction-placement:realign`.
+- A content-home advisory fired: `/instruction-placement:migrate plan`.
 
 ## Gotchas
 

@@ -14,7 +14,8 @@ A Claude Code plugin with two MCP audits. Both **report**; neither edits your co
 The criteria come from three upstream authorities, cited so the current text always governs:
 
 - [MCP specification 2025-11-25: Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-- [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+- [Define tools: best practices for tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions)
+  (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
 
 19 criteria (C1-C19) across seven categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
@@ -70,7 +71,7 @@ Claude can also invoke them when you ask to "audit MCP tools" or "is it safe to 
 - Does not print `env` or `headers` values from your configuration.
 - Does not test tool functionality. Use the MCP Inspector for that.
 - Does not evaluate MCP resources. Only tools.
-- Does not check whether MCP configuration is correct or enabled. `/claude-config:audit` does that.
+- Does not check whether MCP configuration is correct or enabled. `/harness-config:audit` does that.
 
 ## Requirements
 

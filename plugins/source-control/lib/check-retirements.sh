@@ -83,7 +83,7 @@
 #                remove/rename (on Windows usually a locked file — close it and
 #                re-run; nothing is left half-done).
 #
-# Shared source: this file is the canonical copy (claude-config) and is synced
+# Shared source: this file is the canonical copy (harness-config) and is synced
 # byte-identical into the plugins that carry it by scripts/sync-check-retirements.sh,
 # registered in scripts/cross-plugin-source-registry.txt. Bash 3.2-compatible on
 # purpose: no associative arrays, no mapfile, no jq, no python.

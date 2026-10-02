@@ -1,5 +1,28 @@
 # Changelog: evals
 
+## [0.3.12] - 2026-10-02
+
+### Fixed
+
+- The `design` `argument-hint` uses Claude Code's official bracket notation: the target changes
+  from optional to required, `<app|skill <name>|plugin <path>>`, because a run with no target asks
+  for one, and the `target:` label is dropped.
+- The `plugin-eval` `argument-hint` uses Claude Code's official bracket notation: it keeps
+  alternatives inside brackets with an unspaced `|`.
+
+## [0.3.11] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.3.10] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.3.9] - 2026-10-01
 
 ### Changed

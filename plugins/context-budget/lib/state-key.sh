@@ -55,7 +55,7 @@
 #
 # Shared source: this file is byte-identical across the plugins that carry it and
 # is registered in scripts/cross-plugin-source-registry.txt. Edit the canonical
-# copy (claude-config) and copy it over the others.
+# copy (harness-config) and copy it over the others.
 
 set -uo pipefail
 
