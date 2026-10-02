@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-10-02
+
+### Changed
+
+- **Bump fast-uri from 3.1.7 to 3.1.8 in /plugins/miro/server** (#5602).
+  Committed bundle or dist artifact changed with this update.
+
 ## [0.4.16] - 2026-09-29
 
 ### Changed
