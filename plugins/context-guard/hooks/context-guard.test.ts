@@ -1240,6 +1240,37 @@ test('snapshot: a session that never read its usage writes nothing at session.en
   expect(w.runs).toEqual([])
 })
 
+// The helper's write as it lands on disk: the mock process records the run but writes nothing.
+const landed = (w: World, target = TARGET) => {
+  w.files[target] = { text: String(w.runs[w.runs.length - 1].stdin), mtimeMs: T0 }
+}
+
+for (const reason of ['clear', 'resume', 'logout', 'prompt_input_exit', 'bypass_permissions_disabled', 'other']) {
+  test(`snapshot: after session.end (${reason}) an empty reading for the same session leaves the populated file`, async ($, on) => {
+    const { w } = world(on)
+    await bash($)
+    landed(w)
+    await end($, reason)
+    w.percent = undefined
+    await bash($)
+    expect(bodies(w).map(b => b.context_window.used_percentage)).toEqual([30])
+  })
+}
+
+test('snapshot: a fresh module whose first reading is empty writes nothing over a populated file', async ($, on) => {
+  const { w } = world(on, { percent: undefined, turns: 3 })
+  w.files[TARGET] = { text: JSON.stringify({ session_id: 'sess-1', context_window: { used_percentage: 42 } }), mtimeMs: T0 }
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await bash($)
+  expect(w.runs).toEqual([])
+})
+
+test('snapshot: with no file on disk an empty reading writes its null-figure body', async ($, on) => {
+  const { w } = world(on, { percent: undefined })
+  await bash($)
+  expect(bodies(w).map(b => [b.session_id, b.context_window.used_percentage])).toEqual([['sess-1', null]])
+})
+
 test('snapshot: after /clear the new session writes its own populated body at its first carrier', async ($, on) => {
   const { w } = world(on)
   await bash($)

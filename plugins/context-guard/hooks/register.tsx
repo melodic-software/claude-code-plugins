@@ -536,8 +536,11 @@ async function writeSnapshot($: EngineInterface, st: State, read: boolean) {
   const sig = JSON.stringify({ ...body, captured_at: undefined })
   const same = s.written?.sig === sig
   if (same && s.written !== undefined && now - s.written.at < FLOOR_MS) return
-  s.written = { sig, at: now }
   const target = `${home}/.claude/${CONTRACT_DIR}/context/${sid}.json`
+  // A body with no figures (before a session's first response, or after session.end or a fresh
+  // load dropped the in-memory one) never goes over a file on disk that has them.
+  if (body.context_window.used_percentage === null && (await diskHasFigures($, target))) return
+  s.written = { sig, at: now }
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--prune', ...(same ? ['--floor', String(FLOOR_MS / 1000)] : [])]
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
@@ -546,6 +549,16 @@ async function writeSnapshot($: EngineInterface, st: State, read: boolean) {
     }
   } catch (error) {
     logOnce($, st, 'write-threw', `snapshot write did not run: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function diskHasFigures($: EngineInterface, target: string) {
+  const text = await $.fs.read(target).then(String).catch(() => null)
+  if (text === null) return false
+  try {
+    return typeof JSON.parse(text)?.context_window?.used_percentage === 'number'
+  } catch {
+    return false
   }
 }
 

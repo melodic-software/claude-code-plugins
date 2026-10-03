@@ -260,19 +260,20 @@ for QCASE in \
   '{"thresholds":{"smart":40}}' \
   '{"actions":{"edit":"warn"}}' \
   '{"approach_margin":5}' \
-  '{"text":{"dumb":"stop"}}' \
-  '{"thresholds":{"smart":40},"actions":{},"text":{},"approach_margin":5}'; do
+  '{"thresholds":{"smart":40},"actions":{"dumb":{"text":"stop"}},"approach_margin":5}'; do
   printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
   GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
   if [[ "$GOT" == "acceptable" ]]; then ok "no edge keys, known keys only $QCASE → default bands"; else fail "no edge keys $QCASE: got '$GOT'"; fi
   if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
 done
 
-# Still malformed: not an object, an unknown key with no edge keys, one edge
+# Still malformed: not an object, an unknown key with no edge keys (text is
+# read only inside actions.<zone>, so a top-level one is unknown), one edge
 # key alone, and a known key beside a wrongly typed edge.
 for QCASE in \
   '[]' \
   '{"bogus":1}' \
+  '{"text":{"dumb":"stop"}}' \
   '{"smart_max_used_percentage":30}' \
   '{"thresholds":{"smart":40},"smart_max_used_percentage":"30","acceptable_max_used_percentage":60}'; do
   printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"

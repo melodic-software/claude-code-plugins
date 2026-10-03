@@ -33,6 +33,10 @@ const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
   }
 }
 
+// Keys an object with no edge keys may hold and still keep the default bands silently; the mod
+// reads all but token_bands.
+const KNOWN_KEYS = ['token_bands', 'actions', 'approach_margin', 'thresholds']
+
 // zones.json: each shape validated on its own, a malformed one falls back with its notice.
 export const readBands = (zones: string | null): { bands: Bands; notices: string[] } => {
   if (zones === null) return { bands: DEFAULT_BANDS, notices: [] }
@@ -46,7 +50,7 @@ export const readBands = (zones: string | null): { bands: Bands; notices: string
   if (isNumber(s) && isNumber(a) && s > 0 && s < a && a <= 100) {
     bands.smart = s
     bands.acceptable = a
-  } else {
+  } else if (!(isObject(z) && s === null && a === null && Object.keys(z).every(k => KNOWN_KEYS.includes(k)))) {
     notices.push('percent')
   }
   const tb = isObject(z) ? orNull(z.token_bands) : null

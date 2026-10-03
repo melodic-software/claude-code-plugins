@@ -81,7 +81,7 @@
 # object falls back to the shipped token bands with its own notice; an
 # ABSENT token_bands key is zero-config (shipped token defaults, silent) so
 # a v1 percentage-only zones.json keeps working unchanged. Likewise an object
-# with NO edge keys whose keys are all known (token_bands, actions, text,
+# with NO edge keys whose keys are all known (token_bands, actions,
 # approach_margin, thresholds; the last three are read by the mod, not here)
 # keeps the shipped percentage bands silently; an unknown key still warns. The resolver only
 # ever READS zones.json; seeding/refreshing it is the setup skill's `apply`.
@@ -154,7 +154,7 @@ if [[ -e "$zones" ]]; then
       (type == "object")
       and ((.smart_max_used_percentage? // null) == null)
       and ((.acceptable_max_used_percentage? // null) == null)
-      and (keys | all(IN("token_bands", "actions", "text", "approach_margin", "thresholds")));
+      and (keys | all(IN("token_bands", "actions", "approach_margin", "thresholds")));
     def tb_state:
       if (.token_bands? // null) == null then "absent"
       elif ((.token_bands | type) == "object")

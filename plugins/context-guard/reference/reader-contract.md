@@ -461,9 +461,11 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
 Validity is **per shape, independently**:
 
 - **Percentage keys:** both values numeric, `0 < smart_max < acceptable_max ≤ 100`. Malformed
-  (unparsable file, non-numeric, inverted, out of range, or the keys simply absent from an
-  otherwise-parsable file) → shipped percentage defaults with a visible stderr notice from the
-  resolver.
+  (unparsable file, not an object, non-numeric, inverted, out of range, one key without the
+  other, or both absent from an object holding a key outside `token_bands`, `actions`,
+  `approach_margin` and `thresholds`) → shipped percentage defaults with a visible stderr notice
+  from the resolver. An object with neither key and only those four keys keeps the shipped
+  percentage defaults silently.
 - **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
   string and every value carries numeric `smart_max_tokens` and `acceptable_max_tokens` with
   `0 < smart < acceptable ≤ class`. Malformed as a whole → shipped token bands with its own
