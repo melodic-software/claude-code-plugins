@@ -157,6 +157,8 @@ lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/session-bridge/wake.sh, generated into plugins/planning/surface/ as above.
 lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/prerequisites.mjs. harness-ops carries the first generated copy; every
 # plugin whose prerequisites.json passes the schema carries one too
 # (scripts/check-declared-prerequisites.mjs). A path-within-plugin line joins
