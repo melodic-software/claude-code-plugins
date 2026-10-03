@@ -780,4 +780,30 @@ run run-start --data "$BLOCKED" --session s1 --mode attended --session-evidence 
 assert_eq "an unwritable data folder exits 3 on run-start" "3" "$RUN_RC"
 assert_contains "run-start names the file it could not write" "findings.json" "$RUN_OUT"
 
+# --- 30. every write findings.py makes reports a denied write the same way: exit 3, one line ---
+# The target is a directory where a file belongs, which refuses the write on Windows and on Linux
+# alike, as any user. Every path goes to Python in its native spelling, so nothing lands outside $WORK.
+native() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
+denied() { # <label> <file the message names>
+  assert_eq "$1 exits 3" "3" "$RUN_RC"
+  assert_eq "$1 says one line naming $2" "yes" \
+    "$([[ "$RUN_OUT" == "cannot write "*"$2"* && "$RUN_OUT" != *$'\n'* ]] && echo yes || echo no)"
+}
+DS="$WORK/data/stuck-lock"
+mkdir -p "$DS/run.lock/held"
+run lock acquire --data "$(native "$DS")" --session s1
+denied "a stale lock that cannot be removed" "run.lock"
+assert_not_contains "a lock that cannot be removed is not reported as a run in flight" "in-flight" "$RUN_OUT"
+DB="$WORK/data/adopt-blocked"
+mkdir -p "$DB/adopted.jsonl"
+run adopt --data "$(native "$DB")" --session s1 --findings "$(native "$WORK/now-ok.json")" --id session-work-1 --route-taken next-run
+denied "an adoption log that cannot be appended to" "adopted.jsonl"
+FB="$WORK/finish-blocked"
+mkdir -p "$FB/report.md"
+cp "$RUN_DIR/findings.json" "$FB/findings.json"
+run finish --run "$(native "$FB")"
+denied "a report that cannot be written" "report.md"
+capture bash -c "cd '$REPO' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$BLOCKED' --runs 1"
+denied "a trace folder that cannot be made" "trace2-status.txt"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

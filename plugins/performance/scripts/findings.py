@@ -41,7 +41,8 @@ everything counts. records and bad_lines count the whole file.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
-3 a file in the data folder that cannot be written (one stderr line: cannot write <path>: <error>).
+3 a file in the data folder that cannot be written or removed, by any subcommand (one stderr line:
+cannot write <path>: <error>).
 """
 
 from __future__ import annotations
@@ -55,8 +56,9 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import NoReturn
 
@@ -393,16 +395,23 @@ def write_denied(path: Path, exc: OSError) -> NoReturn:
     sys.exit(WRITE_DENIED)
 
 
+@contextmanager
+def writing(path: Path) -> Iterator[None]:
+    """Every write or delete in the data folder runs inside this, so a refusal exits WRITE_DENIED."""
+    try:
+        yield
+    except OSError as exc:
+        write_denied(path, exc)
+
+
 def write_json(path: Path, data: dict, exclusive: bool = False) -> bool:
     """Write data as JSON; with exclusive, only when the file does not exist yet.
 
-    A folder or file that cannot be written exits WRITE_DENIED. A failed mkdir is checked on its
-    own: through a regular file it can raise FileExistsError, which is not a held lock.
+    A failed mkdir is checked on its own: through a regular file it can raise FileExistsError,
+    which is not a held lock.
     """
-    try:
+    with writing(path):
         path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        write_denied(path, exc)
     try:
         fd = os.open(
             path,
@@ -415,12 +424,9 @@ def write_json(path: Path, data: dict, exclusive: bool = False) -> bool:
         write_denied(path, exc)
     except OSError as exc:
         write_denied(path, exc)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(data, handle, indent=2)
-            handle.write("\n")
-    except OSError as exc:
-        write_denied(path, exc)
+    with writing(path), os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+        json.dump(data, handle, indent=2)
+        handle.write("\n")
     return True
 
 
@@ -458,7 +464,8 @@ def cmd_lock(args: argparse.Namespace) -> int:
             )
             return 1
         if stale:
-            path.unlink(missing_ok=True)
+            with writing(path):
+                path.unlink(missing_ok=True)
         if not write_json(path, record, exclusive=True):
             print("in-flight: another run took the lock first")
             return 1
@@ -478,7 +485,8 @@ def cmd_lock(args: argparse.Namespace) -> int:
         held["heartbeat"] = t
         write_json(path, held)
     else:
-        path.unlink(missing_ok=True)
+        with writing(path):
+            path.unlink(missing_ok=True)
     print(args.action)
     return 0
 
@@ -517,9 +525,10 @@ def cmd_adopt(args: argparse.Namespace) -> int:
         "route_overridden": args.route_taken != f.get("route"),
     }
     path = Path(args.data) / "adopted.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(record) + "\n")
+    with writing(path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record) + "\n")
     print(f"adopted {f['id']}")
     return 0
 
@@ -825,7 +834,8 @@ def cmd_finish(args: argparse.Namespace) -> int:
         print("\n".join(errors))
         return 1
     report = run / "report.md"
-    report.write_text(render(doc), encoding="utf-8", newline="\n")
+    with writing(report):
+        report.write_text(render(doc), encoding="utf-8", newline="\n")
     print(report.as_posix())
     return 0
 
@@ -838,8 +848,9 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     if probe.returncode != 0:
         die("not inside a git repository")
     trace = Path(args.data).resolve() / "trace2-status.txt"
-    trace.parent.mkdir(parents=True, exist_ok=True)
-    trace.unlink(missing_ok=True)
+    with writing(trace):
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        trace.unlink(missing_ok=True)
     # The column layout parsed below is the non-brief form; a caller's BRIEF setting would drop it.
     env = {**os.environ, "GIT_TRACE2_PERF": str(trace), "GIT_TRACE2_PERF_BRIEF": "0"}
     for _ in range(args.runs):
