@@ -21,7 +21,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   fires, and `always` builds it at the ready flip. A direct request always builds. It also
   resolves the `rendered-views` `medium` key, with `file` as this lane's default.
 - **A pull request cannot configure its own digest.** Team config is read from the base commit (`baseRefOid`), an
-  overlay applies only untracked and not through a symlink, and a change to any digest config file always
+  overlay applies only untracked, not through a symlink, and not when `.claude` is a submodule or tracked entry, and a change to any digest config file always
   fires the risk-path trigger.
 - **The digest never posts.** The skill grants no tool that comments, reviews, labels, or sets a
   check status, and its scripts never call `gh`.

@@ -52,7 +52,8 @@ The team layer, and the rendered-views team file, are read from the pull request
 (`baseRefOid`), never the working tree, so a checked-out pull request cannot configure its own
 digest. When that commit is not in the clone, the team layer is skipped with a warning. The
 overlay applies only when untracked, in any letter case, and is refused when `.claude` or the
-overlay is a symlink; one that is not gitignored is reported and still applied.
+overlay is a symlink, or when `.claude` is itself a tracked entry (a submodule or a tracked file) or
+holds a `.git`; one that is not gitignored is reported and still applied.
 
 An explicit `--policy` argument beats every layer. An unknown key is inert, and an invalid value
 is reported and ignored. Lists replace whole. No key is policy-floor: each one only decides when a
