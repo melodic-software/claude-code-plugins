@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The pr-explainer builder inlines the rendered-views chrome tokens. This test
+# The explain-change template inlines the rendered-views chrome tokens. This test
 # fails, naming the token, when an inlined value drifts from the reference.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILDER="$PLUGIN_DIR/skills/pr-explainer/scripts/build-explainer.mjs"
+TEMPLATE="$PLUGIN_DIR/skills/explain-change/templates/digest.html"
 CHROME="$PLUGIN_DIR/../visualization/reference/html-chrome.html"
 
 if [[ ! -f "$CHROME" ]]; then
@@ -26,20 +26,20 @@ check() { # label expected actual
   if [[ -n "$2" && "$2" == "$3" ]]; then
     echo "ok: $1 = $2"
   else
-    echo "FAIL: $1: reference '$2', builder '$3'" >&2
+    echo "FAIL: $1: reference '$2', template '$3'" >&2
     FAIL=$((FAIL + 1))
   fi
 }
 
 for t in ivory slate clay-deep gray-300 gray-500; do
-  check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$BUILDER")"
+  check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$TEMPLATE")"
 done
 
-# Dark-mode --focus is the reference's clay-soft; the builder holds the literal.
-check "dark --focus" "$(value clay-soft "$CHROME")" "$(value focus "$BUILDER" dark)"
+# Dark-mode --focus is the reference's clay-soft; the template holds the literal.
+check "dark --focus" "$(value clay-soft "$CHROME")" "$(value focus "$TEMPLATE" dark)"
 
 # Focus rule: same declarations as the reference's focus-visible rule.
 rule() { tr '\n' ' ' <"$1" | grep -oE 'a:focus-visible[^}]*\}' | head -n1 | tr -s '[:space:]' ' ' | sed 's/ *}/ }/; s/; }/;}/'; }
-check "focus rule" "$(rule "$CHROME")" "$(rule "$BUILDER")"
+check "focus rule" "$(rule "$CHROME")" "$(rule "$TEMPLATE")"
 
 exit "$((FAIL > 0))"
