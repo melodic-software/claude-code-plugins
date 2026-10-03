@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# GENERATED from lib/session-bridge/wake.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
-# edit the canonical source, then rerun the script.
 # One wake: apply the ops Claude wrote, then re-arm the watcher. watch.sh prints this as "next".
 #   bash wake.sh '<data_dir>'
 # Runs the app's control script (CONTROL in session-bridge.conf beside this script) as

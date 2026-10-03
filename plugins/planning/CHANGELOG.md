@@ -21,6 +21,17 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - The plan and brainstorm skills no longer offer a model-written HTML page; they offer the built view.
 
+## [0.63.1] - 2026-10-03
+
+### Changed
+
+- The interview page's transport moved to the shared session-bridge library
+  (`lib/session-bridge/`): the 127.0.0.1 server, token, event stream, long-poll, watcher lease,
+  `watch.sh` and `wake.sh`. `surface/session_bridge.py`, `watch.sh` and `wake.sh` are now
+  generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
+  the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
+  watcher lease, which `round.sh lease` and `stop` now read.
+
 ## [0.63.0] - 2026-10-03
 
 ### Added
