@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.4] - 2026-10-02
+
+### Security
+
+- The `video-digest` recommendations-menu HTML view is built by a checked-in builder
+  (`skills/video-digest/scripts/build-menu-view.mjs`) that escapes every field derived from fetched
+  transcripts, titles, and URLs through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script and the URL
+  renders as text. `build-menu-view.mjs --check <file>` flags a page that bypassed the builder.
+
 ## [0.15.3] - 2026-10-02
 
 ### Changed
