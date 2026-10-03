@@ -70,6 +70,19 @@ saying so when capped or when GitHub has not finished computing a PR's mergeabil
 and the stranded-findings section renders `UNREADABLE`, because review threads have
 no REST read. That section never renders an all-clear it did not read.
 
+The brief treats a clean PR as verified only when its head contains its base branch's tip. It
+reads one comparison per clean PR, up to `--pr-limit`, and prints an `UNVERIFIED` line under a PR
+whose head is behind its base, whose comparison failed, or that fell past the cap; a capped read
+also prints `PARTIAL`.
+
+- **Pointer**: for what `behind_by` counts, see
+  <https://docs.github.com/en/rest/commits/commits#compare-two-commits>. For when GitHub
+  regenerates a PR's test merge commit, no docs page covers it as of the date; correlate with
+  <https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: a docs page starts to cover test merge commit regeneration, or the
+  `mergeStateStatus` enum gains or drops a value.
+
 Two upstream facts the script restates, each with its verification record:
 
 - **The refusal shape the script keys the transport switch on.** Basis: the body
@@ -96,7 +109,7 @@ Two upstream facts the script restates, each with its verification record:
 | Section | Source | Notes |
 |---|---|---|
 | Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
-| Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`) |
+| Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`). One compare read per clean PR, capped at `--pr-limit`; `UNVERIFIED` marks a head behind its base, a comparison that could not be read, or a PR past the cap |
 | Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count; window is `--stranded-days`, default 3 |

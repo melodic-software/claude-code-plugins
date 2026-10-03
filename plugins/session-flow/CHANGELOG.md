@@ -7,6 +7,15 @@
 - A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/session-flow:check`. The row is shared across plugins, so a session with several of them sees one notice.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
 
+## [0.46.2] - 2026-10-03
+
+### Fixed
+
+- The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
+  match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
+
 ## [0.46.1] - 2026-10-02
 
 ### Fixed

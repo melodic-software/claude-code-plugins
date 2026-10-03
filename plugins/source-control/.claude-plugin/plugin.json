@@ -1,6 +1,6 @@
 {
   "name": "source-control",
-  "version": "0.77.0",
+  "version": "0.78.0",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
@@ -117,6 +117,12 @@
       "description": "Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none.",
       "default": "auto",
       "options": ["auto", "squash", "merge", "rebase"]
+    },
+    "babysit_stacked_prs": {
+      "type": "boolean",
+      "title": "Babysit stacked PRs",
+      "description": "Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human.",
+      "default": false
     },
     "babysit_autopilot_merge_tier": {
       "type": "boolean",
