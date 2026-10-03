@@ -53,7 +53,7 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
   def judge($script; $extra): [{hooks: [cmd(["TEST_GUARDS_ENABLED", "TEST_JUDGE_ENABLED"]; $script) + $extra]}];
   # The node-notice row runs without node, so it is shell form; the prerequisites convention owns it.
   def notice: [{hooks: [{type: "command",
-    command: "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /testing:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /testing:check",
+    command: "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /testing:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /testing:check",
     timeout: 10, statusMessage: "Checking that node is on PATH..."}]}];
   {
     description: "Names what a Write or Edit to a test file removes and scans the written file, or a test file a Bash call changed, for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test'"'"'s expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
