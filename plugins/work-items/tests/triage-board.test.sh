@@ -110,6 +110,7 @@ check("the data block holds the hostile text as JSON", JSON.parse(/id="rv-data">
 
 // Failure exits.
 check("input that is not JSON exits 1", build("not json").status === 1);
+check("a --connect with no value exits 2", spawnSync("node", [builder, "--out", `${work}/x.html`, "--connect"], { input: "{}", encoding: "utf8" }).status === 2);
 check("no --out exits 2", spawnSync("node", [builder], { input: "{}", encoding: "utf8" }).status === 2);
 check("an empty board still builds", build({}).status === 0);
 

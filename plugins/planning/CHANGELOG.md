@@ -7,6 +7,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
+- **The bridge's checks are strict.** The view app matches keys and row ids in full (a trailing newline no
+  longer passes), refuses a data dir not owned by the user or open to group or other, and skips a Python 2
+  `python`.
 - **The plan view can send its reply to the session ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)).**
   The page gains a verdict choice, a send control and a list of the session's replies.
   `view-bridge/` carries the session-bridge view app: `view-bridge.sh ensure-running` serves the page

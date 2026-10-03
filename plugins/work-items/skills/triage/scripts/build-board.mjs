@@ -69,7 +69,10 @@ function main(argv) {
     args[argv[i]] = argv[i + 1];
   }
   const out = args["--out"];
-  if (!out || Object.keys(args).some((key) => !["--out", "--connect"].includes(key))) {
+  const ok = Object.entries(args).every(
+    ([key, value]) => ["--out", "--connect"].includes(key) && typeof value === "string" && value !== "",
+  );
+  if (!out || !ok) {
     console.error("usage: build-board.mjs --out <file> [--connect <session-bridge origin>]   (JSON on stdin)");
     return 2;
   }

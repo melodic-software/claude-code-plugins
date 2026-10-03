@@ -102,7 +102,7 @@ closes the loop.
    `notes.note` is their text. A page action is never the confirmation a tracker write needs: apply a
    label, close or other change only through the triage step that owns it, with that step's own
    confirmation in the session.
-6. Write `<data_dir>/ops.json` with the Write tool,
+6. Write `<dir>/board-bridge/ops.json` with the Write tool,
    `{"replies": [{"seq": 1, "text": "..."}], "handled": [2]}`, a reply of at most 4000 characters per
    event you answer and `handled` for the rest, then run the event line's `next` as a background Bash
    task. It applies the replies, which the board shows, and re-arms the watcher.
@@ -110,6 +110,6 @@ closes the loop.
    names its cause on stderr. When it asks for `ensure-running`, the server ended after 600 seconds
    with no watcher, and its token with it: run step 1 again, tell the reader to reload the board, and
    run the new `watch`. Report any other exit 2 cause. When triage is done, run
-   `bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<data_dir>" stop`.
+   `bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<dir>/board-bridge" stop`.
 
 With no session listening, the board says so and its copy control still works.

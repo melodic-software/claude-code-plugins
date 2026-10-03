@@ -255,6 +255,32 @@ class TestLoop(unittest.TestCase):
         finally:
             conn.close()
 
+    @unittest.skipUnless(os.name == "posix", "needs a POSIX PATH")
+    def test_a_python_2_interpreter_is_skipped(self):
+        stubs = self.tmp / "stubs"
+        stubs.mkdir()
+        (stubs / "python3").write_text(
+            '#!/bin/sh\ncase "$2" in *"version_info[0] >= 3"*) exit 1;; esac\nexit 0\n',
+            encoding="utf-8",
+        )
+        os.chmod(stubs / "python3", 0o755)
+        os.symlink(shutil.which("dirname"), stubs / "dirname")
+        r = subprocess.run(
+            [
+                shutil.which("bash"),
+                str(self.bin / "view-bridge.sh"),
+                "--dir",
+                str(self.dir),
+                "stop",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            env={**os.environ, "PATH": str(stubs)},
+        )
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("missing prerequisite: python3", r.stderr)
+
     @unittest.skipUnless(os.name == "posix", "mode bits are POSIX")
     def test_a_data_dir_open_to_others_is_refused(self):
         self.dir.mkdir()

@@ -7,6 +7,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Added
 
+- **The bridge's checks are strict.** The view app matches keys and row ids in full (a trailing newline no
+  longer passes), refuses a data dir not owned by the user or open to group or other, and skips a Python 2
+  `python`. `build-board.mjs` exits 2 on a flag with no value, and the board procedure names its data dir.
 - **The triage board can act on items through the session ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)).**
   The board gains an "Act on items" list: tick items, pick a destination, add a note, then send it to the
   session or copy it. `view-bridge/` carries the session-bridge view app: `view-bridge.sh ensure-running`
