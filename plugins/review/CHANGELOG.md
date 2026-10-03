@@ -3,6 +3,23 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0] - 2026-10-03
+
+### Added
+
+- **The change digest answers the reader's questions through `session-bridge` ([#5869](https://github.com/melodic-software/claude-code-plugins/issues/5869)).**
+  The page gains an ask control, the session's connection status, and a list of its answers. A
+  question reaches the session as framed data, never as the user's message, and carries only the
+  reader's text and the builder's row ids. The page connects only when it stays a local file served
+  from `127.0.0.1`; a connected page is never published, and the publish gate is unchanged. With no
+  session, the page says so and its copy and save buttons still work. The skill still never posts to
+  the pull request: a question asking it to comment, approve, or merge gets a reply saying so.
+- **`build-digest.mjs --connect <origin> --dir <data_dir>`.** It writes only `<data_dir>/page.html`,
+  and only into a private view-bridge data dir outside any working tree whose session file names that
+  origin's port. A planted `page.html` link is replaced, not followed. `--out` is still refused.
+- **`view-bridge/`**: the session-bridge view app, generated from `lib/session-bridge/`.
+  `prerequisites.json` declares curl and Python 3 for it.
+
 ## [0.39.1] - 2026-10-03
 
 ### Changed
