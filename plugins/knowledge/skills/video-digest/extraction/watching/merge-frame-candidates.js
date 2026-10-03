@@ -2,6 +2,8 @@
  * Merge frame candidates by file name, preferring entries with timestamps.
  */
 
+import { compareTimesUntimedLast } from "./timestamp-interleave.js";
+
 /** @typedef {import('@melodic/video-digestion/frames/models').FrameCandidate} FrameCandidate */
 
 /**
@@ -19,5 +21,5 @@ export function mergeFrameCandidates(frames) {
     }
   }
 
-  return [...byFile.values()].sort((a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0));
+  return [...byFile.values()].sort(compareTimesUntimedLast);
 }

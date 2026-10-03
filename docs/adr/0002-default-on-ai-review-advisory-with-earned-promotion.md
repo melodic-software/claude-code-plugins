@@ -20,6 +20,7 @@
   exception, which ADR 0037 (2026-09-19) had retired, are restored by ADR 0038. The
   advisory-before-blocking posture and earned promotion still apply. The skip-actors list file and
   the repo-owned evidence guards are removed by the 2026-09-24 addendum below.
+  Decision 1's security-lane path filter: superseded by [ADR 0038](0038-restore-the-claude-review-lanes-on-every-push.md#addendum-2026-09-24-the-security-lane-runs-on-every-pull-request).
 
 ## Context
 

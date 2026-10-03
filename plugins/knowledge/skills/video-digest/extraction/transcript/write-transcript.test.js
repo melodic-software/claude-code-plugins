@@ -243,6 +243,67 @@ so I opened clawed code today
     expect(result.transcripts[0].repairedTermCount).toBe(0);
   });
 
+  it("records a caption provenance note as the transcript degradation", async () => {
+    const note = "no manual English subtitles in info.json; a.en.vtt treated as auto captions";
+    const { result } = await writeWithFakeFs(
+      createAcquisitionEnvelope({
+        entries: [
+          entry({
+            captionPaths: ["/w/a.en.vtt"],
+            caption: {
+              path: "/w/a.en.vtt",
+              rung: "auto-en",
+              isAutoCaption: true,
+              provenanceNote: note,
+            },
+          }),
+        ],
+        metadata,
+        workDir: "/w",
+      }),
+    );
+
+    expect(result.transcripts).toHaveLength(1);
+    expect(result.transcripts[0].cleanedAutoCaptions).toBe(true);
+    expect(result.transcriptDegradation).toBe(note);
+  });
+
+  it("a strategy degradation outranks the caption provenance note", async () => {
+    const options = asrCandidateOptions();
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        ...options,
+        envelope: createAcquisitionEnvelope({
+          entries: [
+            entry({
+              mediaPath: "/w/a.mp4",
+              captionPaths: ["/w/a.en.vtt"],
+              caption: {
+                path: "/w/a.en.vtt",
+                rung: "auto-en",
+                isAutoCaption: true,
+                provenanceNote: "caption note",
+              },
+            }),
+            entry({ mediaPath: "/w/b.mp4" }),
+          ],
+          metadata,
+          workDir: "/w",
+        }),
+      },
+      fakeIo({}, {
+        detectAsr: async () => ({
+          available: false,
+          python: null,
+          version: null,
+          detail: "not installed",
+        }),
+      }),
+    );
+
+    expect(result.transcriptDegradation).toContain("faster-whisper");
+  });
+
   it("an ASR failure degrades the entry explicitly instead of failing the digest", async () => {
     const result = await writeEnvelopeTranscriptArtifacts(
       asrCandidateOptions(),

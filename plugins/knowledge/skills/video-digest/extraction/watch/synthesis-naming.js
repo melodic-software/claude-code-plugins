@@ -27,13 +27,16 @@ function sourceStem(sourceFile) {
 
 /**
  * @param {string} sourceFile
- * @param {number} timestampSec
+ * @param {number|null} timestampSec - `null` for an untimed frame
  * @param {Record<string, string>} [knownDestBySource]
  * @returns {string}
  */
 export function synthesisDestName(sourceFile, timestampSec, knownDestBySource = {}) {
   if (knownDestBySource[sourceFile]) {
     return knownDestBySource[sourceFile];
+  }
+  if (timestampSec == null || !Number.isFinite(timestampSec)) {
+    return `untimed-${sourceStem(sourceFile)}.png`;
   }
   return `at-${formatTimestampSlug(timestampSec)}-${sourceStem(sourceFile)}.png`;
 }
@@ -47,18 +50,15 @@ export function synthesisDestName(sourceFile, timestampSec, knownDestBySource = 
 export function synthesisNameQualityScore(fileName) {
   const base = path.basename(fileName, path.extname(fileName));
   let score = 0;
+  const generated = base.startsWith("at-") || base.startsWith("untimed-");
   if (/[a-z]/i.test(base)) score += 20;
-  if (base.startsWith("at-")) {
+  if (generated) {
     if (base.includes("scene_")) score += 5;
     if (base.includes("anchor_")) score += 8;
   }
   if (/^\d+(-\d+)*$/.test(base)) score -= 15;
   if (/-\d+(-\d+)+$/.test(base)) score -= 10;
-  if (
-    !fileName.startsWith("at-") &&
-    !fileName.startsWith("scene_") &&
-    !fileName.startsWith("anchor_")
-  ) {
+  if (!generated && !fileName.startsWith("scene_") && !fileName.startsWith("anchor_")) {
     score += 30;
   }
   return score;

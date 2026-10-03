@@ -227,10 +227,14 @@ The plugin itself ships hooks over the interface this contract defines, the firs
   keep working the task in hand. In `dumb` it also carries a note to write each expensive
   conclusion to a durable note against a short compaction distance. The **operator channel**
   (`systemMessage`) carries the same crossing plus the continuation menu that is the human's call
-  to make (continue /
-  `/clear` / handoff-then-`/clear`, with a hand-written resume note as the standalone-install
-  fallback / `/compact`) and the presence-gated pointer to `session-flow:workflow`'s router.
-  **Neither the menu nor the router pointer ever reaches the model channel.** A menu injected into
+  to make (continue / `/compact` / `/clear` / handoff-then-`/clear`, with a hand-written resume
+  note as the standalone-install fallback). The menu does not say which option fits when: it says
+  to route the next step with `/session-flow:workflow` (if installed). Without session-flow, we
+  send the operator to the docs section on a filling context and restate none of it. Pointer: for
+  what to do when the context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-02.
+  Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
+   pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
   live finding under the instruction-audit catalog's I23 (`harness-config`, `reference/criteria.md`),
   whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
@@ -370,8 +374,8 @@ changes what the percentage is measured against.
 
 **Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
-boundary decision while that decision is still being made deliberately: finish the phase, `/clear`,
-write a handoff. If auto-compact fires first, the harness has already made a lossy choice
+boundary decision while that decision is still being made deliberately, through the operator menu
+above. If auto-compact fires first, the harness has already made a lossy choice
 on the session's behalf and the boundary was reached too late. Auto-compact offers no steering
 hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move

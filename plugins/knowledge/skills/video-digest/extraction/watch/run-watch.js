@@ -4,6 +4,7 @@
  *
  * Usage: node watch/run-watch.js <video-url> [--skip-research] [--target <repo>]
  *   [--recover <slice-dir>] [--transcript-strategy <captions|captions+repair|asr>]
+ *   [--max-frame-gap-sec <sec>]
  *
  * Acquisition dispatches through the source-adapter registry (unknown host
  * fails closed, non-zero exit, listing supported sources) and consumes the
@@ -14,7 +15,9 @@
  * transcript strategy defaults per source (adapter `transcriptStrategy`); the
  * flag is the explicit pipeline override, and a degraded transcript surfaces
  * in the `transcriptDegradation` provenance field (watch.json + output),
- * never silently.
+ * never silently. `--max-frame-gap-sec` overrides the coverage plan's longest
+ * allowed stretch between timed frames (`MAX_FRAME_GAP_SEC` by default); the
+ * effective value is recorded in watch.json so `--recover` plans with it too.
  *
  * Vision absorption, research, and synthesis run in the skill session (not this script).
  */
@@ -38,6 +41,10 @@ import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
 import { parseTranscriptStrategyOverride } from "../transcript/transcript-strategy.js";
 import { writeEnvelopeTranscriptArtifacts } from "../transcript/write-transcript.js";
+import {
+  MAX_FRAME_GAP_SEC,
+  parseMaxFrameGapSecOverride,
+} from "../watching/compute-coverage-plan.js";
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
 import { detectRecoverableBootstrap } from "./detect-recoverable-bootstrap.js";
@@ -114,6 +121,12 @@ export async function runWatchCli(argv) {
     writeStderr(strategyArg.error);
     return 1;
   }
+  const maxFrameGapArg = parseMaxFrameGapSecOverride(argv);
+  if (!maxFrameGapArg.ok) {
+    writeStderr(maxFrameGapArg.error);
+    return 1;
+  }
+  const maxFrameGapSec = maxFrameGapArg.override ?? MAX_FRAME_GAP_SEC;
 
   // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
@@ -157,6 +170,7 @@ export async function runWatchCli(argv) {
     title: metadata.title,
     target,
     sourceMetadata: sourceMetadataSubset(metadata),
+    maxFrameGapSec,
   });
   state.tempSession = tempSession;
   state.status = "acquiring";
@@ -285,6 +299,7 @@ export async function runWatchCli(argv) {
     framesDir,
     contactSheetsDir: sheetsDir,
     cues,
+    maxFrameGapSec,
   });
 
   state.status = "vision";
