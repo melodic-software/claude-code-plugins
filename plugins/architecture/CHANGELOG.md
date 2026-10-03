@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1] - 2026-10-03
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
 ## [0.21.0] - 2026-10-03
 
 ### Added

@@ -5,6 +5,8 @@
 // never beside the record, and prints that path.
 //
 //   node build-view.mjs plan|brainstorm < data.json
+//   node build-view.mjs plan --connect http://127.0.0.1:<port> --out <data_dir>/page.html < data.json
+//     the Claude-interactive page that view-bridge (../view-bridge/) serves
 //
 // Exit 0 built, 1 the data or the page fails its checks, 2 usage or environment.
 
@@ -56,9 +58,15 @@ const shapeFailures = (shape, data) => {
   return failures;
 };
 
-const kind = process.argv[2];
-if (!Object.hasOwn(TEMPLATES, kind)) {
-  console.error("usage: build-view.mjs plan|brainstorm < data.json");
+const [kind, ...rest] = process.argv.slice(2);
+const flags = {};
+for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
+const flagsOk =
+  Object.keys(flags).every((key) => ["--connect", "--out"].includes(key)) &&
+  ("--connect" in flags) === ("--out" in flags) &&
+  Object.values(flags).every((value) => typeof value === "string" && value !== "");
+if (!Object.hasOwn(TEMPLATES, kind) || !flagsOk) {
+  console.error("usage: build-view.mjs plan|brainstorm [--connect <session-bridge origin> --out <data_dir>/page.html] < data.json");
   process.exit(2);
 }
 
@@ -70,7 +78,15 @@ try {
     profile: "interactive",
     template: readFileSync(fileURLToPath(new URL(TEMPLATES[kind], import.meta.url)), "utf8"),
     data,
+    connect: flags["--connect"] ?? null,
   });
+  if (flags["--out"]) {
+    // The view-bridge data dir, which ensure-running created private; never write through a link.
+    rmSync(flags["--out"], { force: true });
+    writeFileSync(flags["--out"], page, { mode: 0o600 });
+    console.log(flags["--out"]);
+    process.exit(0);
+  }
   // The temp root is shared: keep the directory private and never write through a link.
   const dir = join(tmpdir(), "planning-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });

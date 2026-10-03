@@ -97,11 +97,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 <h2>Send your decision back</h2>
 <label for="note">Note for the session</label>
 <textarea id="note" data-rv-note="note" placeholder="What should change before this merges"></textarea>
+<label for="verdict">Verdict</label>
+<select id="verdict" data-rv-choice="verdict"><option value="approve">Approve</option><option value="change">Ask for changes</option></select>
 <div class="actions">
+<button type="button" data-rv-send="triage">Send to the session</button>
 <button type="button" data-rv-copy="triage">Copy reply</button>
 <button type="button" data-rv-download="triage">Save as file</button>
 </div>
 <p class="status" role="status" data-rv-status=""></p>
+<p class="status" data-rv-session=""></p>
+<ol data-rv-replies=""></ol>
 <pre class="out" data-rv-out="" hidden></pre>
 </section>
 </main>
