@@ -11,6 +11,7 @@
 # asserted against a fixture built to a known size, as an exact value and never
 # as "more than zero", and each hook-location row is pinned across all five of
 # its fixed columns at once by row6.
+# test-scope: plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md .claude/settings.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

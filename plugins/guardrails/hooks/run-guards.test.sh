@@ -15,6 +15,7 @@
 #
 # The stub guard bodies below are single-quoted on purpose: they are written
 # verbatim into stub scripts, so their `$` must not expand here.
+# test-scope: plugins/guardrails/hooks/*.sh
 # shellcheck disable=SC2016
 set -uo pipefail
 

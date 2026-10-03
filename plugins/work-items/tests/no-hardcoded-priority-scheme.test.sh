@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regression guard for #1253: plugin prose must never name a `pN-*` priority value,
 # qualified or bare. CHANGELOG.md is exempt as a historical record.
+# test-scope: plugins/work-items/*.md
 # shellcheck disable=SC2016  # fixture bodies are literal prose in single quotes; expansion is never wanted
 set -uo pipefail
 

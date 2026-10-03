@@ -24,7 +24,7 @@
 #                                                the selector at <ref> (see REPLAY)
 #
 # --with-always is accepted and changes nothing: the suites that assert against
-# the live tree declare what they read in scripts/affected-tests-scopes.txt (R8).
+# the live tree declare what they read in a `# test-scope:` header (R8).
 #
 # Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
@@ -103,14 +103,15 @@
 #   R8 declared scope a suite that enumerates a directory of the live tree
 #                    (a grep -r, a find, a glob over a plugin or scripts/), or
 #                    builds a path from parts, never names the files it reads,
-#                    so scripts/affected-tests-scopes.txt declares them, one
-#                    `<suite> <glob>...` line per suite:
-#                        plugins/github/github.test.sh  plugins/github/*
+#                    so it declares them in its leading comment block, before
+#                    any code or docstring, in one or more lines of
+#                        # test-scope: plugins/github/* scripts/x.sh
 #                    A changed file matching a glob selects the suite and counts
 #                    as mapped. The globs use the dialect of the no-suite list:
-#                    matched against the repo-relative path, `*` crosses `/`.
-#                    An entry naming no suite fails every run (exit 2), and a
-#                    glob matching no file fails the run that changes the list.
+#                    matched against the repo-relative path, `*` crosses `/`;
+#                    a `#` after them starts a comment. Suites whose comments
+#                    start with `#` (shell, Python, Pester) can declare. A glob
+#                    matching no file fails the run that changes its suite.
 #
 # MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
 # PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
@@ -158,29 +159,25 @@
 # `import('...')`) are read by tools and still count, as does a trailing
 # comment on a code line.
 #
-# PYTHON IMPORTS. An import never spells the .py, so R3 also reads Python
-# import lines: `import foo`, `from foo import x`, `from . import foo` and the
-# dotted forms name foo.py (or the package foo/__init__.py) when the importer
-# sits in the directory foo is imported from or below it, when the dotted path
-# spells the path of foo, or when foo is the only module of that name in the
-# importer's plugin, the reach of a sys.path insert.
-#
 # REPLAY. `--replay <range>` selects every first-parent commit of <range>
 # (`git rev-list --first-parent <range>`) against its parent, the squash-merged
 # pull request's net diff, in a scratch clone checked out at that commit, with
-# THIS script's rules, no-suite list and scopes list, so it answers "what would
-# this selector have run for those pull requests". It prints one
-# `commit <sha> <suites> <unmapped>` line per commit, an indented
+# THIS script's rules, its no-suite list and its suites' declared scopes, so it
+# answers "what would this selector have run for those pull requests". It
+# prints one `commit <sha> <suites> <unmapped>` line per commit, an indented
 # `unmapped <path>` line per unmapped file and one indented
 # `<suite>  (<reason>)` line per suite. With `--against <ref>` it also runs the
-# selector at <ref>, with <ref>'s own lists, on the same tree, and prints only
-# the suites that differ (`+` this script only, `-` <ref> only, each with its
-# reason) after a `commit <sha> <new> <old> <new-unmapped> <old-unmapped>` line
+# selector at <ref>, with <ref>'s own no-suite list and declared scopes, on the
+# same tree, and prints only the suites that differ (`+` this script only,
+# `-` <ref> only, each with its reason) after a
+# `commit <sha> <new> <old> <new-unmapped> <old-unmapped>` line
 # and its `unmapped` lines, so a selector change shows its blast radius. Both
 # sides run with --allow-unmapped; a summary on stderr counts suites per commit
 # (p50, p95, max, total) and the commits with an unmapped file on each side.
-# Each run is pointed at the scratch clone with AFFECTED_TESTS_ROOT, and at the
-# lists with AFFECTED_TESTS_NO_SUITE and AFFECTED_TESTS_SCOPES.
+# Each run is pointed at the scratch clone with AFFECTED_TESTS_ROOT and at the
+# no-suite list with AFFECTED_TESTS_NO_SUITE, and AFFECTED_TESTS_SCOPES hands it
+# the declarations as `<suite> <glob>...` lines in place of the suites' headers,
+# since the replayed commits may predate them.
 #
 # MECHANICALLY the reverse lookup is two stages. `git grep -F` finds the
 # candidate LINES with the substring test, which keeps git's fixed-string fast
@@ -200,7 +197,7 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
-SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-scripts/affected-tests-scopes.txt}"
+SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
 
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
@@ -504,38 +501,41 @@ build_tree_index() {
     done <<<"${SYNC_SRC_COPIES[$src]}"
   done
 
-  # Every Python import line, read once for PYTHON IMPORTS. Fatal on a git
-  # error for the same reason as the reverse lookup: no lines reads as no edges.
-  local rc=0
-  git grep --untracked -I -E '^[[:space:]]*(from[[:space:]]+[.A-Za-z_][.A-Za-z0-9_]*[[:space:]]+import|import[[:space:]]+[A-Za-z_])' \
-    -- '*.py' >"$WORK_DIR/py-imports" || rc=$?
-  if [[ "$rc" -gt 1 ]]; then
-    echo "error: 'git grep' failed (exit $rc) listing the Python import lines." >&2
-    exit 2
-  fi
-
-  # R8, one `<suite> <glob>...` line per suite. An entry naming no suite fails
-  # the run: a declaration must not outlive what it declares. A replay hands in
-  # the list of the tree it started from, whose suites an older commit may lack.
+  # R8: the suites' `# test-scope:` headers, or the `<suite> <glob>...` lines
+  # a replay hands in, whose suites an older commit may lack.
   local -a entries=() words=()
-  local entry i
-  if [[ ! -f "$SCOPES_LIST" ]]; then
-    echo "error: missing $SCOPES_LIST, the declared test scopes (R8)." >&2
-    exit 2
+  local entry i decls
+  if [[ -n "$SCOPES_LIST" ]]; then
+    read_list::into entries "$SCOPES_LIST" --comments inline || exit 2
+  else
+    decls="$(scope_declarations "$WORK_DIR/all-files")" || exit 2
+    read_list::into_text entries "$decls" --comments inline || exit 2
   fi
-  read_list::into entries "$SCOPES_LIST" --comments inline || exit 2
   for entry in ${entries[@]+"${entries[@]}"}; do
     read -r -a words <<<"$entry"
     suite="${words[0]}"
-    if [[ -z "${AFFECTED_TESTS_SCOPES:-}" ]] && { ! is_suite_path "$suite" || [[ ! -f "$suite" ]]; }; then
-      echo "error: $SCOPES_LIST names '$suite', which is not a suite; update or remove the entry." >&2
-      exit 2
-    fi
     for ((i = 1; i < ${#words[@]}; i++)); do
       SCOPE_SUITES+=("$suite")
       SCOPE_GLOBS+=("${words[i]}")
     done
   done
+}
+
+# scope_declarations <file-list> -> one `<suite> <glob>...` line per
+# `# test-scope:` line in the leading comment block of each suite the list
+# names, read from the current directory (R8).
+scope_declarations() {
+  awk '
+    { b = $0; sub(/.*\//, "", b) }
+    !(/\.test\.sh$|\.Tests\.ps1$/ || b ~ /^test_.*\.py$/) { next }
+    {
+      while ((getline line < $0) > 0) {
+        sub(/\r$/, "", line)
+        if (line !~ /^#/ && line !~ /^[ \t]*$/) break
+        if (sub(/^#[ \t]*test-scope:/, "", line)) print $0 " " line
+      }
+      close($0)
+    }' "$1"
 }
 
 # ---------------------------------------------------------------------------
@@ -735,81 +735,6 @@ token_hits() {
   ' "$1" "$2" "$WORK_DIR/all-files" "$3" >"$4"
 }
 
-# py_hits <py-frontier> <hits> -> PYTHON IMPORTS: append one
-#   r<TAB><importer><TAB><frontier module>
-# line for every .py whose import line imports a frontier module, read from the
-# import lines build_tree_index listed.
-py_hits() {
-  awk -v front="$1" -v allf="$WORK_DIR/all-files" '
-    function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
-    function root_of(p,   c) { split(p, c, "/"); return c[1] == "plugins" ? "plugins/" c[2] "/" : c[1] "/" }
-    function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
-    # The module a file is: foo for foo.py, pkg for pkg/__init__.py.
-    function modname(p) {
-      if (p ~ /(^|\/)__init__\.py$/) { p = dir_of(p); sub(/\/$/, "", p) }
-      sub(/.*\//, "", p)
-      sub(/\.py$/, "", p)
-      return p
-    }
-    # imports: does dotted name D, imported in P, mean module file t? From the
-    # directory t is imported from, or below it (a tests/ directory); by a
-    # dotted path that spells t; or anywhere in the same plugin when t is the
-    # only module of that name there.
-    function imports(P, D, t, m,   home, pd, path) {
-      home = dir_of(t)
-      if (t ~ /(^|\/)__init__\.py$/) { sub(/\/$/, "", home); home = dir_of(home) }
-      pd = dir_of(P)
-      if (pd == home || (home != "" && index(pd, home) == 1)) return 1
-      if (index(D, ".")) {
-        path = D
-        gsub(/\./, "/", path)
-        if (ends("/" t, "/" path ".py") || ends("/" t, "/" path "/__init__.py")) return 1
-      }
-      return root_of(P) == root_of(t) && cnt[root_of(t), m] == 1
-    }
-    function cand(P, D,   m, k, t) {
-      m = D
-      sub(/.*\./, "", m)
-      for (k = 1; k <= nt[m]; k++) {
-        t = tg[m, k]
-        if (t != P && imports(P, D, t, m) && !((P SUBSEP t) in seen)) {
-          seen[P, t] = 1
-          print "r\t" P "\t" t
-        }
-      }
-    }
-    FILENAME == front { if ($0 != "") { m = modname($0); tg[m, ++nt[m]] = $0 } next }
-    FILENAME == allf { if ($0 ~ /\.py$/) cnt[root_of($0), modname($0)]++; next }
-    {
-      i = index($0, ":")
-      if (i == 0) next
-      P = substr($0, 1, i - 1)
-      s = substr($0, i + 1)
-      sub(/#.*/, "", s)
-      gsub(/[()\\]/, " ", s)
-      if (s ~ /^[ \t]*from[ \t]/) {
-        sub(/^[ \t]*from[ \t]+/, "", s)
-        base = s
-        sub(/[ \t].*/, "", base)
-        sub(/^[^ \t]+[ \t]+import[ \t]+/, "", s)
-        sub(/^\.+/, "", base)
-        if (base != "") cand(P, base)
-      } else {
-        sub(/^[ \t]*import[ \t]+/, "", s)
-        base = ""
-      }
-      n = split(s, ys, /,/)
-      for (k = 1; k <= n; k++) {
-        y = ys[k]
-        sub(/^[ \t]+/, "", y)
-        sub(/[ \t].*/, "", y)
-        if (y !~ /^[A-Za-z_][A-Za-z0-9_.]*$/) continue
-        cand(P, base == "" ? y : base "." y)
-      }
-    }
-  ' "$1" "$WORK_DIR/all-files" "$WORK_DIR/py-imports" >>"$2"
-}
-
 # colocated_suites <path> -> every sibling suite covering it, one per line.
 # PLURAL on purpose: a .py can carry a co-located test_<stem>.py and a
 # wrapping <stem>.test.sh at once, and returning one under-selects.
@@ -882,12 +807,10 @@ select_for() {
     : >"$WORK_DIR/patterns"
     : >"$WORK_DIR/plain"
     : >"$WORK_DIR/resolve"
-    : >"$WORK_DIR/pyfront"
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
       VISITED["$p"]=1
-      [[ "$p" == *.py ]] && printf '%s\n' "$p" >>"$WORK_DIR/pyfront"
       # R1/R2
       while IFS= read -r sib; do
         [[ -n "$sib" ]] || continue
@@ -948,8 +871,7 @@ select_for() {
     fi
     # Fatal for the same reason: a filter that dies mid-stream hands the walk a
     # TRUNCATED hit set.
-    if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$WORK_DIR/matched-lines" "$WORK_DIR/hits" ||
-      { [[ -s "$WORK_DIR/pyfront" ]] && ! py_hits "$WORK_DIR/pyfront" "$WORK_DIR/hits"; }; then
+    if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
       echo "error: the token filter over the reverse lookup failed on the current level." >&2
       echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
       echo "       under-selection is reported as success by everything downstream." >&2
@@ -1005,12 +927,14 @@ select_for() {
   done
 }
 
-# check_scope_globs -> exit 2 when a declared glob matches no file of the tree:
-# it declares nothing, so the suite misses the changes it reads. Run when the
-# scopes list itself changes, which is when a glob is written or goes stale.
+# check_scope_globs <suite> -> exit 2 when a glob the suite declares matches no
+# file of the tree: it declares nothing, so the suite misses the changes it
+# reads. Run when a declaring suite changes, which is when a glob is written.
 check_scope_globs() {
-  [[ ${#SCOPE_GLOBS[@]} -gt 0 ]] || return 0
-  printf '%s\n' "${SCOPE_GLOBS[@]}" | awk '
+  local i
+  for i in "${!SCOPE_GLOBS[@]}"; do
+    if [[ "${SCOPE_SUITES[i]}" == "$1" ]]; then printf '%s\n' "${SCOPE_GLOBS[i]}"; fi
+  done | awk '
     # The glob dialect of the lists: `*` any run of characters, `/` included.
     function to_regex(g,   r, i, c) {
       r = "^"
@@ -1027,7 +951,7 @@ check_scope_globs() {
     { for (g in want) if (!(g in hit) && $0 ~ want[g]) hit[g] = 1 }
     END { for (i = 1; i <= n; i++) if (!(order[i] in hit)) { print order[i]; bad = 1 } exit bad }
   ' - "$WORK_DIR/all-files" >"$WORK_DIR/stale-globs" && return 0
-  echo "error: $SCOPES_LIST declares globs that match no file of the tree:" >&2
+  echo "error: $1 declares test-scope globs that match no file of the tree:" >&2
   sed 's/^/  - /' "$WORK_DIR/stale-globs" >&2
   exit 2
 }
@@ -1158,7 +1082,7 @@ replay_select() {
 }
 
 run_replay() {
-  local tree="$WORK_DIR/replay-tree" against="$WORK_DIR/against" against_scopes=""
+  local tree="$WORK_DIR/replay-tree" against="$WORK_DIR/against" against_scopes="" against_sha=""
   local c subject n_new n_old u_new u_old
   local -a commits=() changed=() against_flags=()
   if ! git rev-list --first-parent --reverse "$replay_range" >"$WORK_DIR/commits"; then
@@ -1170,9 +1094,16 @@ run_replay() {
     echo "error: '$replay_range' holds no commits to replay." >&2
     exit 2
   fi
-  # This tree's rules travel with the replay: its no-suite and scopes lists.
+  # This tree's rules travel with the replay: its no-suite list and its suites'
+  # declared scopes.
   cp "$NO_SUITE_LIST" "$WORK_DIR/replay-no-suite" || exit 2
-  cp "$SCOPES_LIST" "$WORK_DIR/replay-scopes" || exit 2
+  if [[ -n "$SCOPES_LIST" ]]; then
+    cp "$SCOPES_LIST" "$WORK_DIR/replay-scopes" || exit 2
+  elif ! git ls-files --cached --others --exclude-standard >"$WORK_DIR/replay-files" ||
+    ! scope_declarations "$WORK_DIR/replay-files" >"$WORK_DIR/replay-scopes"; then
+    echo "error: could not read this tree's declared test scopes." >&2
+    exit 2
+  fi
   if ! git clone -q --shared --no-checkout . "$tree"; then
     echo "error: could not make the scratch clone for the replay." >&2
     exit 2
@@ -1197,9 +1128,14 @@ run_replay() {
     grep -q -- '--with-always)' "$against/scripts/affected-tests.sh" && against_flags+=(--with-always)
     git show "$against_ref:scripts/affected-tests-always.txt" >"$against/always.txt" 2>/dev/null ||
       rm -f "$against/always.txt"
-    # A selector that reads a scopes list gets <ref>'s own.
-    if git show "$against_ref:scripts/affected-tests-scopes.txt" >"$against/scopes.txt" 2>/dev/null; then
-      against_scopes="$against/scopes.txt"
+    # <ref>'s own declared scopes, read from its suites in the scratch clone.
+    against_scopes="$against/scopes.txt"
+    if ! against_sha="$(git rev-parse --verify -q "$against_ref^{commit}")" ||
+      ! git -C "$tree" -c advice.detachedHead=false checkout -q --detach "$against_sha" ||
+      ! git -C "$tree" ls-files >"$against/files" ||
+      ! (cd "$tree" && scope_declarations "$against/files") >"$against_scopes"; then
+      echo "error: could not read the declared test scopes at '$against_ref'." >&2
+      exit 2
     fi
   fi
 
@@ -1310,7 +1246,8 @@ build_tree_index
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
-  [[ "$f" == "$SCOPES_LIST" ]] && check_scope_globs
+  # Only this tree's own headers: handed-in declarations may postdate the tree.
+  [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && check_scope_globs "$f"
   select_for "$f"
   select_scoped "$f"
   if [[ "$SEED_HITS" -eq 0 ]]; then

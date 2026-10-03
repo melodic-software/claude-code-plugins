@@ -8,6 +8,7 @@
 # against the LIVE repo — the derived shared-lib copy set and the real no-suite
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
+# test-scope: scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh .github/workflows/ci.yml
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -73,8 +74,6 @@ mk_repo() { # <out-var>
 
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
-  # The live scopes list names suites this fixture does not have.
-  printf '# fixture scopes\n' >"$dir/scripts/affected-tests-scopes.txt"
 
   # --jobs N delegates to the SIBLING run-plugin-tests.sh rather than spawning
   # anything itself, so the fixture carries that sibling too. Its serial
@@ -1143,55 +1142,6 @@ else
   fail "py -> sh -> sh chain lost its suite (rc=$RC): $OUT"
 fi
 
-# --- Python imports name the module they load ---------------------------------
-# `import tool` never spells tool.py, so the import line is the edge: from the
-# module's directory or below it, by a dotted path that spells it, or from
-# anywhere in the plugin when the module name is unique there. A module of the
-# same name elsewhere in the plugin makes the bare import ambiguous, and a
-# module nothing imports selects only its own suites.
-mkdir -p "$repo/plugins/alpha/scripts/tests" "$repo/plugins/alpha/skills/one/scripts" \
-  "$repo/plugins/beta/scripts" "$repo/plugins/alpha/pkg/sub"
-printf 'def run():\n    return 1\n' >"$repo/plugins/alpha/scripts/tool.py"
-printf 'from tool import run\n' >"$repo/plugins/alpha/scripts/runner.py"
-printf 'import runner\n' >"$repo/plugins/alpha/scripts/test_runner.py"
-printf 'import sys\nimport tool as t\n' >"$repo/plugins/alpha/scripts/tests/test_tool_behavior.py"
-printf 'import tool\n' >"$repo/plugins/alpha/skills/one/scripts/use_tool.py"
-printf 'import use_tool\n' >"$repo/plugins/alpha/skills/one/scripts/test_use_tool.py"
-printf 'from . import tool\n' >"$repo/plugins/alpha/scripts/rel_user.py"
-printf 'import rel_user\n' >"$repo/plugins/alpha/scripts/test_rel_user.py"
-printf 'import tool\n' >"$repo/plugins/beta/scripts/other.py"
-printf 'import other\n' >"$repo/plugins/beta/scripts/test_other.py"
-printf 'X = 1\n' >"$repo/plugins/alpha/pkg/sub/deep.py"
-printf 'from pkg.sub.deep import X\n' >"$repo/plugins/alpha/dotted.py"
-printf 'import dotted\n' >"$repo/plugins/alpha/test_dotted.py"
-git_test_config "$repo" add plugins >/dev/null
-git_test_config "$repo" commit -qm pyimports >/dev/null
-run_sel "$repo" plugins/alpha/scripts/tool.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/scripts/test_runner.py &&
-  has_line "$OUT" plugins/alpha/scripts/tests/test_tool_behavior.py &&
-  has_line "$OUT" plugins/alpha/skills/one/scripts/test_use_tool.py &&
-  has_line "$OUT" plugins/alpha/scripts/test_rel_user.py &&
-  ! has_line "$OUT" plugins/beta/scripts/test_other.py; then
-  ok "python: an import (also 'from . import') selects from the module's directory, below it, and across its plugin"
-else
-  fail "python: import selection wrong for tool.py (rc=$RC): $OUT"
-fi
-run_sel "$repo" plugins/alpha/pkg/sub/deep.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/test_dotted.py; then
-  ok "python: a dotted import that spells the module's path selects"
-else
-  fail "python: dotted import lost (rc=$RC): $OUT"
-fi
-printf 'def run():\n    return 2\n' >"$repo/plugins/alpha/skills/one/scripts/tool.py"
-run_sel "$repo" plugins/alpha/scripts/tool.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/scripts/test_runner.py &&
-  ! has_line "$OUT" plugins/alpha/skills/one/scripts/test_use_tool.py; then
-  ok "python: a module name two directories of a plugin carry resolves by directory only"
-else
-  fail "python: an ambiguous module name still selected across the plugin (rc=$RC): $OUT"
-fi
-rm -f "$repo/plugins/alpha/skills/one/scripts/tool.py"
-
 # --- the crossing budget is aggregated per path, never assigned ------------
 # One path can be hit several times in a single round by different patterns, and
 # those hits can disagree about whether the chain reaching it has already
@@ -1397,12 +1347,8 @@ mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
 mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
 mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
 printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
-# A Python import never spells the .py, so a comment naming the module is the
-# only text edge from an importer; it keeps counting. Prose alone does not.
 printf 'X = 1\n' >"$repo3/eco/cmt/hubmod.py"
 printf 'import hubmod\n' >"$repo3/eco/cmt/test_hubmod.py"
-printf '# hubmod.py is shared with a sibling\nfrom hubmod import X\n' >"$repo3/eco/cmt/pyimporter.py"
-printf 'import pyimporter\n' >"$repo3/eco/cmt/test_pyimporter.py"
 printf '# see hubmod.py\nimport os\n' >"$repo3/eco/cmt/pyprose.py"
 printf 'import pyprose\n' >"$repo3/eco/cmt/test_pyprose.py"
 git_test_config "$repo3" add eco >/dev/null
@@ -1434,11 +1380,11 @@ else
 fi
 
 run_sel "$repo3" eco/cmt/hubmod.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_pyimporter.py &&
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_hubmod.py &&
   ! has_line "$OUT" eco/cmt/test_pyprose.py; then
-  ok "a comment naming a module the .py imports by name still selects; prose alone does not"
+  ok "a Python comment naming a module selects nothing"
 else
-  fail "python import-by-name comment edge lost or prose comment kept (rc=$RC): $OUT"
+  fail "python: a comment-only mention still selected (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
 
@@ -1541,39 +1487,40 @@ fi
 
 # --- R8: a declared scope selects the suite that scans a directory -----------
 # A suite that greps or globs a directory never spells the files it reads, so
-# scripts/affected-tests-scopes.txt declares them, and a matching change selects
-# it and counts as mapped. Pinned: the glob crosses `/`, the plugin's other
-# suites stay out, an inline comment ends the entry, and a plugin file nothing
-# names or declares is still UNMAPPED.
+# it declares them in `# test-scope:` lines of its leading comment block, and a
+# matching change selects it and counts as mapped. Pinned: the glob crosses
+# `/`, a suite may declare on several lines, an inline comment ends the globs,
+# a line below the first code line declares nothing, the plugin's other suites
+# stay out, and a plugin file nothing names or declares is still UNMAPPED.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
 printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
 printf 'kind: probe\n' >"$repo/plugins/alpha/skills/one/probe.yaml"
-suite_body alpha-scan >"$repo/plugins/alpha/tests/scan.test.sh"
+printf '#!/usr/bin/env bash\n# Scans the skill bodies.\n# test-scope: plugins/alpha/skills/*.md\n\n# test-scope: plugins/alpha/*.yaml  # and the probes\necho alpha-scan\n' \
+  >"$repo/plugins/alpha/tests/scan.test.sh"
+printf '# test-scope: plugins/alpha/skills/*/SKILL.md\n"""Scans the skill bodies."""\nimport unittest\n' \
+  >"$repo/plugins/alpha/tests/test_scan.py"
+printf '#!/usr/bin/env bash\necho late\n# test-scope: plugins/alpha/skills/*.md\n' >"$repo/plugins/alpha/tests/late.test.sh"
 printf 'import test from "node:test";\n' >"$repo/plugins/alpha/tests/scan.test.mjs"
-printf 'import unittest\n' >"$repo/plugins/alpha/tests/test_scan.py"
+printf '#!/usr/bin/env bash\n# test-scope: plugins/nowhere/*\necho stale\n' >"$repo/plugins/alpha/tests/stale.test.sh"
 printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
-{
-  printf '# fixture scopes\n'
-  printf 'plugins/alpha/tests/scan.test.sh  plugins/alpha/skills/*.md plugins/alpha/*.yaml  # scans skill bodies\n'
-  printf 'plugins/alpha/tests/scan.test.mjs  plugins/alpha/skills/*/SKILL.md\n'
-} >"$repo/scripts/affected-tests-scopes.txt"
-git_test_config "$repo" add plugins scripts >/dev/null
+git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm r8 >/dev/null
 
 run_sel "$repo" plugins/alpha/skills/one/SKILL.md
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
-  has_line "$OUT" plugins/alpha/tests/scan.test.mjs &&
-  ! has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
-  ! has_line "$OUT" plugins/alpha/tests/test_scan.py; then
-  ok "R8: a SKILL.md edit selects the suites that declare it and no other suite of the plugin"
+  has_line "$OUT" plugins/alpha/tests/test_scan.py &&
+  ! has_line "$OUT" plugins/alpha/tests/late.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/scan.test.mjs &&
+  ! has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "R8: a SKILL.md edit selects the suites whose headers declare it and no other suite of the plugin"
 else
   fail "R8: declared-scope selection wrong for a SKILL.md edit (rc=$RC): $OUT"
 fi
 
 out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/alpha/skills/one/SKILL.md 2>&1)"
 if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (test-scope plugins/alpha/skills/*.md)" &&
-  ! contains "$out" "scans skill bodies"; then
+  ! contains "$out" "and the probes"; then
   ok "R8: --explain reports the declared glob"
 else
   fail "R8: --explain lacks the declared glob: $out"
@@ -1581,7 +1528,7 @@ fi
 
 run_sel "$repo" plugins/alpha/skills/one/probe.yaml
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh; then
-  ok "R8: a declared file no other rule reaches is mapped, not UNMAPPED"
+  ok "R8: a file declared on a second header line, which no other rule reaches, is mapped"
 else
   fail "R8: a declared file was not mapped by its scope (rc=$RC): $OUT"
 fi
@@ -1593,40 +1540,29 @@ else
   fail "R8: a plugin file nothing names or declares was mapped (rc=$RC): $OUT"
 fi
 
-# The list is checked: an entry naming no suite fails every run, and a glob
-# matching no file fails the run that changes the list.
-cp "$repo/scripts/affected-tests-scopes.txt" "$TMP_ROOT/scopes.keep"
-printf 'plugins/alpha/tests/gone.test.sh  plugins/alpha/*\n' >>"$repo/scripts/affected-tests-scopes.txt"
-out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
-RC=$?
-if [[ "$RC" -eq 2 ]] && contains "$out" "names 'plugins/alpha/tests/gone.test.sh', which is not a suite"; then
-  ok "R8: an entry naming no suite fails the run"
-else
-  fail "R8: a stale suite entry was not refused (rc=$RC): $out"
-fi
-cp "$TMP_ROOT/scopes.keep" "$repo/scripts/affected-tests-scopes.txt"
-printf 'plugins/alpha/tests/scan.test.sh  plugins/nowhere/*\n' >>"$repo/scripts/affected-tests-scopes.txt"
+# A glob matching no file fails the run that changes the suite declaring it,
+# and only that run.
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
-  ok "R8: a glob matching nothing is not checked while the list is unchanged"
+  ok "R8: a glob matching nothing is not checked while its suite is unchanged"
 else
-  fail "R8: an unchanged list failed the run (rc=$RC): $out"
+  fail "R8: an unchanged suite's stale glob failed the run (rc=$RC): $out"
 fi
-out="$(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped scripts/affected-tests-scopes.txt 2>&1)"
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/stale.test.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && contains "$out" '  - plugins/nowhere/*'; then
-  ok "R8: a changed list declaring a glob that matches nothing fails loud"
+if [[ "$RC" -eq 2 ]] && contains "$out" "plugins/alpha/tests/stale.test.sh declares test-scope globs" &&
+  contains "$out" '  - plugins/nowhere/*'; then
+  ok "R8: a changed suite declaring a glob that matches nothing fails loud"
 else
-  fail "R8: a stale glob in a changed list was not refused (rc=$RC): $out"
+  fail "R8: a stale glob in a changed suite was not refused (rc=$RC): $out"
 fi
-cp "$TMP_ROOT/scopes.keep" "$repo/scripts/affected-tests-scopes.txt"
-out="$(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped scripts/affected-tests-scopes.txt 2>&1)"
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/scan.test.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
-  ok "R8: a changed list whose globs all match passes the check"
+  ok "R8: a changed suite whose globs all match passes the check"
 else
-  fail "R8: a valid list was refused (rc=$RC): $out"
+  fail "R8: a valid declaration was refused (rc=$RC): $out"
 fi
 
 # --- --unmapped-corpus: an unmapped file selects its own language's corpus ---
@@ -1664,7 +1600,7 @@ rm -rf "$repo"
 
 # --- --with-always is accepted and widens nothing ----------------------------
 # A caller that still passes it must neither fail nor get a wider selection:
-# the live-tree suites it used to add are declared in the scopes list now.
+# the live-tree suites it used to add declare their scopes in their headers now.
 mk_repo repo
 run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
 with_out="$OUT" with_rc="$RC"
@@ -1867,19 +1803,27 @@ fi
 rm -rf "$repo"
 
 # --- --replay: each commit selected against its parent, with this tree's rules --
-# A replay carries this tree's lists to every commit, since the commits may
-# predate them; --against runs the selector at <ref> with <ref>'s lists and
-# prints only the suites the two disagree on.
+# A replay carries this tree's no-suite list and declared scopes to every
+# commit, since the commits may predate them; --against runs the selector at
+# <ref> with <ref>'s own and prints only the suites the two disagree on.
 mk_repo repo
-printf '#!/usr/bin/env bash\necho old\n' >"$repo/scripts/zz-old-scan.test.sh"
-printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/zz-new-scan.test.sh"
-printf 'scripts/zz-old-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+# scan_suite <old|new> [<glob>]: a scripts/ suite declaring <glob>, or nothing.
+scan_suite() {
+  {
+    printf '#!/usr/bin/env bash\n'
+    if [[ -n "${2:-}" ]]; then printf '# test-scope: %s\n' "$2"; fi
+    printf 'echo %s\n' "$1"
+  } >"$repo/scripts/zz-$1-scan.test.sh"
+}
+scan_suite old 'plugins/alpha/*'
+scan_suite new
 git_test_config "$repo" add scripts >/dev/null
 git_test_config "$repo" commit -qm scans >/dev/null
 printf '# edited\n' >>"$repo/plugins/alpha/hooks/alpha-hook.sh"
 git_test_config "$repo" commit -qam 'edit alpha hook' >/dev/null
 alpha_commit="$(git -C "$repo" rev-parse HEAD)"
-printf 'scripts/zz-new-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+scan_suite old
+scan_suite new 'plugins/alpha/*'
 
 out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD 2>/dev/null)"
 RC=$?
@@ -1904,13 +1848,15 @@ fi
 
 # A commit this selector maps to no suite still reports what <ref> ran as
 # dropped, not as added.
-printf 'scripts/zz-old-scan.test.sh  plugins/beta/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+scan_suite old 'plugins/beta/*'
+scan_suite new
 git_test_config "$repo" commit -qam 'scan beta' >/dev/null
 printf 'notes\n' >"$repo/plugins/beta/zz-notes.yaml"
 git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm 'add beta notes' >/dev/null
 beta_commit="$(git -C "$repo" rev-parse HEAD)"
-printf 'scripts/zz-new-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+scan_suite old
+scan_suite new 'plugins/alpha/*'
 out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD --against HEAD 2>/dev/null)"
 RC=$?
 if [[ "$RC" -eq 0 ]] && contains "$out" "commit $beta_commit 0 1 " &&

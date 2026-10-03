@@ -19,6 +19,7 @@
 #
 # SC2016 is disabled file-wide on purpose. Single-quoted `$ARGUMENTS` strings in
 # assertion labels and grep patterns are literal prose/regex under test.
+# test-scope: plugins/discovery/*.md plugins/discovery/*.json
 # shellcheck disable=SC2016
 set -uo pipefail
 

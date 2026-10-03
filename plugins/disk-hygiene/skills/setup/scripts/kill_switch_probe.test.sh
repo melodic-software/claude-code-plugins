@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the kill-switch probe test suite.
+# test-scope: plugins/disk-hygiene/*.py plugins/disk-hygiene/*.sh plugins/disk-hygiene/*.mjs plugins/disk-hygiene/*.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

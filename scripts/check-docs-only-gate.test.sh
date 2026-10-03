@@ -19,6 +19,7 @@
 # no scratch git repo is needed. That is deliberate — a fixture repo would need
 # `git -C <dir> config user.*`, and the un-scoped form of that command writes the
 # test identity into the CALLER's repo config (claude-code-plugins#2839).
+# test-scope: .github/workflows/ci.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

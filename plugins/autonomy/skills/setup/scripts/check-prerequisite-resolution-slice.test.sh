@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Tests for the prerequisite-resolution setup slice wrappers.
+# test-scope: plugins/autonomy/skills/setup/scripts/fixtures/prerequisite-resolution/*
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

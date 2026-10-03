@@ -23,6 +23,7 @@
 # the SUT's own DATA_CARRIERS for that reason. Note that nothing written here
 # performs that exemption: the list lives in the gate, so this file cannot
 # excuse itself, which case 24 asserts.
+# test-scope: plugins/*/reference/reader-contract.md
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

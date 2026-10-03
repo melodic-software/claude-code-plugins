@@ -5,6 +5,7 @@
 # hash-locks it) and skip without it, so SPEECH_REQUIRE_DEPS=1 fails the run instead: a lane that provisions the
 # pinned requirements sets it, and a missing numpy then reads as a broken environment, not as passing coverage.
 # SPEECH_E2E_DATA_DIR opts into the real end-to-end narration (see test_narrate.py).
+# test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/hooks/*.sh plugins/speech/scripts/*.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
