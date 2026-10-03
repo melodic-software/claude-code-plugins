@@ -17,7 +17,9 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   location it already used outside a session (`telemetry-upsert.sh` then requires `--body-dir`).
   The `known-issues` registry-location rule now always passes `--data-dir`, as
   `"${CLAUDE_PLUGIN_DATA}"` when no `registry_dir` is configured, and `registry_manager.py`
-  refuses an unsubstituted placeholder.
+  refuses an unsubstituted placeholder. An empty `--data-dir` is not given.
+  `pathlib.Path("")` normalizes to `Path(".")`, so the flag used to resolve the
+  registry to the current working directory.
 
 ## [3.6.0] - 2026-10-03
 

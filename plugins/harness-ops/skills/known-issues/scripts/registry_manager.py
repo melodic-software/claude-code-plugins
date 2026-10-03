@@ -525,13 +525,26 @@ def action_stats(
 # ── CLI ─────────────────────────────────────────────────────────
 
 
+def _data_dir_option(value: str) -> Path | None:
+    """argparse type for --data-dir.
+
+    pathlib.Path("") normalizes to Path("."), and Path(".").resolve() is the
+    current directory. An empty argument is "not given", matching the shell
+    guards' [[ -n ]] check, so it falls through to the inherited-or-default
+    chain instead of landing on the working directory.
+    """
+    if value == "":
+        return None
+    return Path(value)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Manage registry.json for the /known-issues skill.",
     )
     parser.add_argument(
         "--data-dir",
-        type=Path,
+        type=_data_dir_option,
         default=None,
         help="Override path to registry.json directory",
     )

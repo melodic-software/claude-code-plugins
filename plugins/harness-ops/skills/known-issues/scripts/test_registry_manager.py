@@ -129,6 +129,19 @@ class TestDataDirResolution(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 rm.resolve_data_dir(Path(placeholder))
 
+    def test_empty_flag_falls_through_like_an_absent_flag(self) -> None:
+        args = rm.build_parser().parse_args(["--data-dir", "", "stats"])
+        self.assertIsNone(args.data_dir)
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": ""}):
+                with mock.patch.object(Path, "home", return_value=home):
+                    got = rm.resolve_data_dir(args.data_dir)
+            self.assertEqual(
+                got,
+                home / ".claude" / "plugins" / "data" / "harness-ops-melodic-software",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
