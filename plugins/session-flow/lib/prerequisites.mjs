@@ -6,7 +6,7 @@
 //
 //   prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]
 //   prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]
-//   prerequisites.mjs probe <plugin-root>
+//   prerequisites.mjs probe <plugin-root> [--run-if-unset-or-true <OPTION>]
 //
 // report  One TSV table across plugins, then a missing/present summary line.
 // check   One line per entry with the remediation, for setup and check skills.
@@ -16,6 +16,9 @@
 // probe   A SessionStart hook. Notifies once per session for each missing entry a
 //         hook needs, on both hook channels. Always exits 0 on a valid manifest,
 //         because Claude Code reads hook JSON only from a zero exit.
+//         --run-if-unset-or-true is the plugin option gate exec-bash.mjs offers: the
+//         probe stays silent when CLAUDE_PLUGIN_OPTION_<OPTION> is set to anything
+//         but true, so a plugin's kill switch silences its probe.
 //
 // Exit 0: every required entry resolves. Exit 1: a required entry is missing or
 // below its version floor. Exit 2: a usage error or a manifest that fails the schema.
@@ -54,6 +57,7 @@ const MIN_RE = /^\d+(\.\d+)*$/;
 const MODULE_RE = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
 const NPM_RE = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
 const ENV_RE = /^[A-Za-z_]\w*$/;
+const OPTION_RE = /^[A-Z0-9_]+$/;
 const SERVER_RE = /^[A-Za-z0-9._-]+$/;
 const MANAGER_RE = /^[a-z][a-z0-9-]*$/;
 const PROBE_TIMEOUT_MS = 5000;
@@ -386,7 +390,7 @@ function inScope(entry, scope) {
 const USAGE = [
   "usage: prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]",
   "       prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]",
-  "       prerequisites.mjs probe <plugin-root>",
+  "       prerequisites.mjs probe <plugin-root> [--run-if-unset-or-true <OPTION>]",
 ].join("\n");
 
 class UsageError extends Error {}
@@ -395,7 +399,7 @@ function parseArgs(argv) {
   const [mode, ...rest] = argv;
   if (!["report", "check", "probe"].includes(mode))
     throw new UsageError(mode ? `unknown mode: ${mode}` : "no mode given");
-  const opts = { mode, roots: [], scope: null, dataDir: null };
+  const opts = { mode, roots: [], scope: null, dataDir: null, gate: null };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === "--plugin-root" && mode === "report") {
@@ -407,6 +411,11 @@ function parseArgs(argv) {
     } else if (arg === "--data-dir" && mode === "check") {
       if (!rest[i + 1]) throw new UsageError("--data-dir needs a directory");
       opts.dataDir = rest[++i];
+    } else if (arg === "--run-if-unset-or-true" && mode === "probe") {
+      if (!rest[i + 1] || !OPTION_RE.test(rest[i + 1])) {
+        throw new UsageError("--run-if-unset-or-true needs the option name in capitals, such as BIOME_FORMAT_ENABLED");
+      }
+      opts.gate = rest[++i];
     } else if (!arg.startsWith("--") && mode !== "report" && opts.roots.length === 0) {
       opts.roots.push(arg);
     } else {
@@ -482,13 +491,15 @@ function cmdCheck(opts, ctx, out) {
   return counts.failed ? 1 : 0;
 }
 
-function cmdReport(opts, ctx, out) {
+// report(roots, ctx, out) -> exit code. The fleet table for any number of plugin roots,
+// none included; ctx needs env, platform and cwd.
+export function report(roots, ctx, out) {
   out.stdout(["plugin", "id", "kind", "need", "status", "check", "install"].join("\t"));
   let missing = 0;
   let present = 0;
   let requiredMissing = false;
   let invalid = false;
-  for (const root of opts.roots) {
+  for (const root of roots) {
     const { plugin, manifest, errors, absent } = loadManifest(root);
     if (absent) continue;
     if (errors.length) {
@@ -512,7 +523,15 @@ function cmdReport(opts, ctx, out) {
   return requiredMissing ? 1 : 0;
 }
 
+function cmdReport(opts, ctx, out) {
+  return report(opts.roots, ctx, out);
+}
+
 function cmdProbe(opts, ctx, out) {
+  if (opts.gate) {
+    const value = ctx.env[`CLAUDE_PLUGIN_OPTION_${opts.gate}`];
+    if (value !== undefined && value !== "" && value !== "true") return 0;
+  }
   const root = opts.roots[0];
   const { plugin, manifest, errors, absent } = loadManifest(root);
   if (absent) return 0;

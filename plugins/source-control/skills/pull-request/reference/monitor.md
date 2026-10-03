@@ -78,6 +78,8 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
    REPO=$(gh repo view --json name -q .name)
    prev_checks=""
    last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+   prev_threads=""
+   poll=0
 
    while true; do
      # Terminal state check — exit watch if PR closed/merged. REST, like the
@@ -136,11 +138,26 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
      else fetch_ok=0; fi
      [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
 
+     # Review threads: resolving one moves no check and posts no comment, so
+     # the reads above never see it. The Gate 7 read (readiness.md) costs a
+     # GraphQL call, so it runs every 4th poll (about 2 minutes) and emits
+     # when the unresolved count, or THREADS_UNPROVEN, changes.
+     if [ $((poll % 4)) -eq 0 ]; then
+       cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
+         | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
+       cur_threads=${cur_threads:-THREADS_UNPROVEN}
+       if [ "$cur_threads" != "$prev_threads" ]; then
+         echo "REVIEW-THREADS unresolved=$cur_threads"
+         prev_threads="$cur_threads"
+       fi
+     fi
+     poll=$((poll + 1))
+
      sleep 30
    done
    ```
 
-   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion and new comments. Stop with TaskStop <id> or end session.`
+   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session.`
 
 5. Proceed with the current monitoring iteration normally
 
@@ -401,7 +418,7 @@ For each security finding:
 2. **Explore:** read source files, check similar code, review the project's own rules, check `git log`
 3. **Research:** research the specific error in the exact framework/version, via your environment's research skill when one exists, otherwise direct doc lookups. Require multi-source consensus (aim for 3 sources)
 4. **Present the proposed fix with evidence:** error, root cause, proposed fix, sources with URLs, confidence level (HIGH/MEDIUM/LOW). If LOW, escalate. If MEDIUM, present trade-offs
-5. **Implement** (only after 1-4): make the change, re-run the project's build/test/lint gate, commit, push
+5. **Implement** (only after 1-4): make the change, re-run the project's build/test/lint gate, commit. Push once per cycle, after every failed check is fixed and with any §3.3.2 review fixes, which wait for every reviewer on the head (§3.3.2 step 0)
 6. **Loop restarts:** new push triggers 3.1 again. Track iteration count
 
 **Stale branch recovery.** If CI fails because the branch is out of date with the default branch (merge conflicts, "branch is not up to date" errors, or tests failing due to default-branch-only changes): integrate, resolve conflicts conservatively, push, restart the monitor loop from 3.1. This is distinct from code failures. There is no research gate for the integration itself, only for conflicts requiring intent judgment.
@@ -457,12 +474,13 @@ For **every substantive comment from every participant** (bot accounts with the 
 
 After all comments are evaluated and responded to, implement all VALID (fix now) fixes in a single batch:
 
+0. **Wait for every reviewer on the current head before pushing.** Every reviewer check run on the head SHA (`gh api "repos/<owner>/<repo>/commits/<head-sha>/check-runs"`) is completed, and every comment-only reviewer has landed its round or reached its Gate 5 bound in [readiness.md](readiness.md). A finding that arrives after the push needs a second push, and each push starts a full CI run and cancels the one in flight. Fix while you wait; hold only the push. Any §3.2 CI fix from this cycle goes in the same push
 1. **For each VALID (fix now) finding**, follow the full workflow: explore the fix context, verify the *fix* approach (not just the finding), implement by changing only the lines the finding names (any other edit needs its own finding; `/review:quality-gate` owns this review-fix rule), re-run the project's build/test gate after each fix
 2. **Stage all fixes together:** `git add <specific-files>` for each changed file
 3. **Single commit.** One commit addressing all review comments: `fix: address PR review findings`
-4. **Single push:** all fixes go up in one push, triggering one new monitoring cycle
+4. **Single push:** all fixes go up in one push, triggering one new monitoring cycle. Write any PR body or label change before this push, not after it: a body or label edit re-runs every workflow that triggers on `edited` or `labeled`, beside the push's own run
 
-**Why batch?** Each push restarts the monitoring loop (3.1). Fixing comments one-by-one with individual pushes creates N monitoring cycles instead of 1. Batch fixes, push once, then re-monitor.
+**Why batch?** Each push restarts the monitoring loop (3.1) and a full CI run. Fixing comments one-by-one with individual pushes creates N monitoring cycles and N CI runs instead of 1. Batch fixes, push once, then re-monitor.
 
 ### 3.3.3 Phase C: Re-monitor (loop restarts)
 
@@ -496,7 +514,7 @@ After the push:
 
 ## 3.4 Final monitoring report (readiness-gated)
 
-**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 6 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
+**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 7 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
 
 **The readiness checklist includes a 2-minute cooldown** after the last check-run completion or comment arrival. If a new comment or check result arrives during cooldown, restart the cooldown.
 
@@ -509,6 +527,7 @@ When all readiness gates pass:
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** [scanner] evaluated, N findings classified
 **Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or fix blocked on research; item ids), W incorrect
+**Review threads:** 0 unresolved
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Cooldown:** 2+ min since last activity
 **Fix iterations:** N

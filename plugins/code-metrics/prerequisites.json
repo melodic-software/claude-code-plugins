@@ -1,0 +1,69 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ]
+      },
+      "degrade": "Without Python 3, no /code-metrics collector runs, so every audit skill stops.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:audit-type-debt"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, /code-metrics:audit-type-debt cannot tell whether `typescript` resolves and reports no TypeScript type coverage.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "go",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit-complexity"
+      ],
+      "detect": {
+        "any": [
+          "go"
+        ]
+      },
+      "degrade": "Without go, /code-metrics:audit-complexity cannot read the version stamped into a gocognit binary; Go cognitive complexity is reported without it.",
+      "install": {
+        "docs": "https://go.dev/doc/install",
+        "brew": "go",
+        "winget": "GoLang.Go",
+        "apt": "golang"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

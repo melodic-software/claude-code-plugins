@@ -159,6 +159,6 @@ Mock/stub taxonomy and CQS in full: [observable-behavior-khorikov.md](observable
 
 > Editorial synthesis, drawing on Ousterhout, not from either source book.
 
-When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state. If the `architecture` plugin is installed, `/architecture:improve` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
+When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state. If the `architecture` plugin is enabled, `/architecture:improve` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
 
 This complements Khorikov's "observable behavior" principle: the deepened interface IS the observable behavior surface, so tests behind it are implementation-detail tests by definition.

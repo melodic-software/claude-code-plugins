@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plan View</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --chip: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --chip: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --chip: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+.eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.1rem; }
+.lede { margin: 0; max-width: 65ch; }
+.meta { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.row { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.row[hidden] { display: none; }
+.row .body { min-width: 0; display: grid; gap: 0.35rem; }
+.row p { margin: 0; }
+.pick { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-size: 0.75rem; color: var(--muted); }
+.pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.criteria { margin: 0; padding-left: 1.1rem; }
+.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.reply textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin: 0; min-height: 1.5em; color: var(--muted); }
+.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Plan view. PLAN.md is the record.</p>
+<h1 data-rv-text="title">Plan</h1>
+<p class="lede" data-rv-text="goal"></p>
+<p class="meta"><span data-rv-count="phases">0</span> phases. Blast radius: <span data-rv-text="blast"></span></p>
+</header>
+<div class="bar">
+<label for="find">Filter</label>
+<input id="find" type="search" placeholder="Type a word from a phase" data-rv-filter="phases">
+</div>
+<ol class="rows" data-rv-each="phases">
+<li class="row">
+<label class="pick"><input type="checkbox" data-rv-pick="">Change <span class="sr" data-rv-text="name"></span></label>
+<div class="body">
+<p class="head"><span class="chip" data-rv-text="status"></span><strong data-rv-text="name"></strong></p>
+<p data-rv-text="what"></p>
+<p class="meta">Depends on: <span data-rv-text="needs"></span></p>
+<p class="label">Accept when</p>
+<ul class="criteria" data-rv-each="criteria"><li data-rv-text="item"></li></ul>
+</div>
+</li>
+</ol>
+<section class="reply">
+<h2>Send your reply back</h2>
+<p class="meta">Tick the phases you want changed and say what to change. The ids name phases by their position in PLAN.md.</p>
+<label for="note">Note for the session</label>
+<textarea id="note" data-rv-note="note" placeholder="What should change before this plan is approved"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="plan-reply">Copy reply</button>
+<button type="button" data-rv-download="plan-reply">Save as file</button>
+</div>
+<p class="status" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
+</section>
+</main>
+</body>
+</html>

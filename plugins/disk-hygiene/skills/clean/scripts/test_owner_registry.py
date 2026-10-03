@@ -397,10 +397,12 @@ ACTIONS = re.compile(
     r"\b(?:rm|rmdir|unlink|rimraf|rmSync|unlinkSync|Remove-Item|child_process)\b"
     r"|\s-delete\b"
 )
-# What the launchers already do: remove a cache temp file, spawn bash.
+# What the launchers already do: remove a cache temp file, spawn bash. The
+# shared prerequisites checker spawns each declared detect command.
 LAUNCHER_ACTIONS = {
     PLUGIN / "hooks" / "run-python-hook.sh": 2,
     PLUGIN / "hooks" / "exec-bash.mjs": 1,
+    PLUGIN / "lib" / "prerequisites.mjs": 1,
 }
 SHIPPED = sorted(
     path

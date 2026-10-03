@@ -378,7 +378,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
   (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`. Proof the
   findings were decomposed, never proof the PR is merge-ready; the configured extra self identities are
   `${user_config.babysit_self_logins}`, when that value is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`), report
-- [ ] **Step 5, Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
+- [ ] **Step 5, Commit + push** fixes to the PR branch, one push per wave (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6, PR transition:** next-oldest PR needing attention (§5.1.6)
 - [ ] **Step 7, Self-pace:** schedule the next wake per the cadence contract (§5.3)

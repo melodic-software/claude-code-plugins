@@ -5,12 +5,12 @@
       "id": 1,
       "name": "fleet-table-from-the-script",
       "prompt": "Does this machine have the external tools my enabled plugins need?",
-      "expected_output": "Runs scripts/check-prerequisites.sh and relays its table (tool, plugin, present or missing, check skill, install command) and the closing missing=N present=M line, reading exit 1 as at least one tool missing.",
+      "expected_output": "Runs scripts/check-prerequisites.mjs with node and relays its table (plugin, id, kind, need, status, check skill, install hints) and the closing missing=N present=M line, reading exit 1 as a required entry missing.",
       "files": [],
       "expectations": [
-        "Runs `bash \"${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.sh\"` rather than probing binaries by hand",
-        "Reports the table with the tool, plugin, present/missing status, check skill, and install command columns, plus the missing=N present=M line",
-        "Reads exit 1 as at least one missing tool and exit 2 as no plugin roots readable, not as a script crash",
+        "Runs `node \"${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.mjs\"` rather than probing binaries by hand",
+        "Reports the table with the plugin, id, kind, need, status, check skill, and install columns, plus the missing=N present=M line",
+        "Reads exit 1 as at least one missing required entry and exit 2 as no plugin roots readable or a manifest failing the schema, not as a script crash",
         "Installs nothing"
       ]
     },

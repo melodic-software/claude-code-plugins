@@ -31,7 +31,7 @@ fixing an existing adapter (ordinary implementation work).
 ## The split
 
 Deterministic work is scripted; judgment is not
-(`/discipline:script-the-deterministic-work` if installed). Concretely:
+(`/discipline:script-the-deterministic-work` if enabled). Concretely:
 
 | Judgment, you, in this flow | Mechanical, `scripts/generate-adapter.sh` |
 |---|---|

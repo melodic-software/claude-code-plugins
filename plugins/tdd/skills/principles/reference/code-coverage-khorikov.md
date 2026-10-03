@@ -135,7 +135,7 @@ There's no automated way to measure test suite quality. You must evaluate each t
 > it says nothing about the other properties this chapter names, its ceiling is unknowable because
 > equivalent mutants cannot all be removed, and targeting the number reproduces exactly the perverse
 > incentive described above. For the operators, the metric family, and why not to gate on it, invoke
-> `/mutation-testing:principles` when the `mutation-testing` plugin is installed; without it, the
+> `/mutation-testing:principles` when the `mutation-testing` plugin is enabled; without it, the
 > one-line version is that the metric to read is the *covered-code* mutation score (PIT calls it
 > test strength, Infection calls it Covered Code MSI), because the plain score mixes weak tests with
 > absent tests, and that it belongs beside coverage as an indicator rather than as a target.

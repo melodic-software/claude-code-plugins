@@ -348,17 +348,17 @@ if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceilin
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
-if jq -e '(.tools | map(.name)) == ["pwsh", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+if jq -e '(.requires | map(.id)) == ["pwsh", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
   ok "manifest: declares exactly pwsh, jq and node"
 else
   fail "manifest: expected tools pwsh, jq and node: $(cat "$MANIFEST" 2>&1)"
 fi
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
-if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \
-  '[.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$launcher, "--run-if-unset-or-true", "POWERSHELL_FORMAT_ENABLED", $probe])] | length == 1' "$HOOKS_JSON" >/dev/null; then
-  ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
+if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
+  '[.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "POWERSHELL_FORMAT_ENABLED"])] | length == 1' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
 else
-  fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
+  fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
 fi
 NODE_BIN="$(command -v node 2>/dev/null)"
 if [[ -z "$NODE_BIN" ]]; then

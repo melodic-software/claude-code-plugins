@@ -761,11 +761,21 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, `review / claude-review-status` and
-  `security-review / claude-security-review-status`, report success on the live head, which is
-  the pinned head (a missing, skipped, failed, or running check holds, and so does a head that
-  moved off the pin);
+- both AI review checks, `review / claude-review-status` and the security lane's
+  `security-review / security-review` (matched by its whole name, never by the job segment alone),
+  report success on the live head, which is the pinned head (a missing, skipped, failed, or
+  running check holds, and so does a head that moved off the pin). Any
+  `claude-security-review-status` check the rollup also carries must succeed as well;
 - no review thread is unresolved, and every other gate blocker is clear.
+
+The gate's check names follow the lane jobs the ci-workflows reusables define.
+
+- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job keys
+  in [claude-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-review.yml)
+  and [claude-security-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-security-review.yml)
+  live.
+- **As of**: 2026-10-03
+- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable.
 
 Any other running check does not hold the arm: GitHub waits out a running required check
 (`ci-status`) itself, and a non-required check never holds a merge.

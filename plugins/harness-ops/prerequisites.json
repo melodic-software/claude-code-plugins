@@ -1,14 +1,44 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "node",
-      "check": "/harness-ops:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the harness-ops hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/harness-ops:check"
     },
     {
-      "name": "jq",
-      "check": "/harness-ops:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:audit-event-emitter.sh",
+        "hook:hook-failure-audit.sh",
+        "hook:session-event-log.sh",
+        "hook:session-retention.sh",
+        "hook:skill-usage-audit.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the harness-ops hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/harness-ops:check"
     }
   ]
 }

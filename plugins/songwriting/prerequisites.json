@@ -1,0 +1,67 @@
+{
+  "requires": [
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:rhyme"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, the Datamuse supplement is unavailable; the internally generated rhyme candidates still work.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:rhyme"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the Datamuse supplement cannot format its results and is unavailable; the internally generated rhyme candidates still work.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

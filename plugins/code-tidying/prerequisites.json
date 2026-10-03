@@ -1,0 +1,109 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:audit-comment-residue",
+        "skill:dissolve-comments",
+        "skill:tidy"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ]
+      },
+      "degrade": "Without Python 3, the comment census, change-shape and commented-out-code scripts cannot run, so these skills stop at the first measurement.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "pwsh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:dissolve-comments"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ]
+      },
+      "degrade": "Without pwsh, every PowerShell deletion and rename is a proposal, and the commented-out-code scan skips .ps1 and .psm1 files.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "brew": "powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:tidy"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /code-tidying:tidy cannot count open pull requests, so its throttle does not apply; the tidy itself still runs.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI, /code-tidying:setup cannot print the install and config commands it would run.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

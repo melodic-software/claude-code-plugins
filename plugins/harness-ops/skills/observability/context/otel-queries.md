@@ -42,25 +42,43 @@ WHERE session_id = '<id>' GROUP BY 1 ORDER BY n DESC;
 SELECT span_time, span_name, duration_ms, tool_name, parent_span_id
 FROM cc_spans WHERE trace_id = '<trace_id>' ORDER BY span_time;
 
--- token usage by kind, latest session
+-- token usage by model, effort and kind, latest session. A request that carried no effort
+-- level has no `effort` attribute; it groups as `unset`, never dropped.
 WITH latest AS (
   SELECT session_id FROM cc_metrics GROUP BY 1 ORDER BY max(event_time) DESC LIMIT 1)
-SELECT attr_type, sum(value)::BIGINT AS tokens
+SELECT model, COALESCE(effort, 'unset') AS effort, attr_type, sum(value)::BIGINT AS tokens
 FROM cc_metrics JOIN latest USING (session_id)
-WHERE metric_name = 'claude_code.token.usage' GROUP BY 1;
+WHERE metric_name = 'claude_code.token.usage' GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
 
--- cache health by model over the requested scope — the grain the report's Cache health section
--- renders. Consume the scope workflow's cutoff (data-sources.md derives SINCE_ISO per scope;
--- `all` maps to epoch so the predicate still holds). For `session` scope, replace the cutoff
--- line with:  AND session_id = '<session_id>'  (the workflow requires the session filter there).
-SELECT model,
+-- cache health by model and effort over the requested scope — the grain the report's Cache
+-- health section renders. Consume the scope workflow's cutoff (data-sources.md derives SINCE_ISO
+-- per scope; `all` maps to epoch so the predicate still holds). For `session` scope, replace the
+-- cutoff line with:  AND session_id = '<session_id>'  (the workflow requires the session filter
+-- there).
+SELECT model, COALESCE(effort, 'unset') AS effort,
        sum(value) FILTER (WHERE attr_type = 'cacheRead')::BIGINT     AS cache_read,
        sum(value) FILTER (WHERE attr_type = 'cacheCreation')::BIGINT AS cache_creation
 FROM cc_metrics
 WHERE metric_name = 'claude_code.token.usage'
   AND event_time >= TIMESTAMP '<SINCE_ISO>'
-GROUP BY 1 ORDER BY cache_creation DESC;
+GROUP BY 1, 2 ORDER BY cache_creation DESC;
+
+-- tokens and cost by model and effort over the requested scope — the grain of the report's
+-- Token / cost table (claude_code.cost.usage is Claude Code's estimate, not a bill)
+SELECT model, COALESCE(effort, 'unset') AS effort,
+       sum(value) FILTER (WHERE metric_name = 'claude_code.token.usage' AND attr_type = 'input')::BIGINT  AS input,
+       sum(value) FILTER (WHERE metric_name = 'claude_code.token.usage' AND attr_type = 'output')::BIGINT AS output,
+       sum(value) FILTER (WHERE metric_name = 'claude_code.cost.usage')                                AS cost_usd
+FROM cc_metrics
+WHERE metric_name IN ('claude_code.token.usage', 'claude_code.cost.usage')
+  AND event_time >= TIMESTAMP '<SINCE_ISO>'
+GROUP BY 1, 2 ORDER BY 1, 2;
 ```
+
+Every attribute the monitoring docs list is a typed column on `cc_logs`, `cc_metrics` and
+`cc_spans` (`.` in a key becomes `_`: `user.email` is `user_email`); `*_attributes_raw` keeps
+every attribute as JSON. A cold file compacted before a column existed reads that column as
+NULL, so the union pattern above binds over any mix of old and new cold files.
 
 Hot-tier only, deliberately: the `cc_*_cold()` macros raise `IO Error: No files found that match
 the pattern …` when the cold tier holds no parquet yet, so the union pattern above is for stores

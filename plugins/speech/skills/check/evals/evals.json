@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "narrate-exit-2-runs-the-check",
+      "prompt": "/speech:narrate just stopped with exit 2. What is missing?",
+      "expected_output": "Runs check.py with --data-dir and reports each PASS/FAIL row with the remedy it printed, then stops.",
+      "files": [],
+      "expectations": [
+        "Runs `scripts/check.py --data-dir`",
+        "Reports every FAIL row with the remedy the script printed",
+        "Installs and downloads nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/speech:check\n\nThe kokoro-model row failed. Fix it.",
+      "expected_output": "Does not download from this skill; names /speech:setup apply install-model as the route.",
+      "files": [],
+      "expectations": [
+        "Does not run `assets.py fetch` itself",
+        "Names /speech:setup apply install-model",
+        "Does not claim the model is now present"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/speech:check",
+      "expected_output": "When every row passes, reports the rows and the summary and stops without suggesting setup.",
+      "files": [],
+      "expectations": [
+        "Reports the rows and the summary line as printed",
+        "On all PASS, does not suggest /speech:setup",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

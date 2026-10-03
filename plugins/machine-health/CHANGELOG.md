@@ -3,6 +3,20 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1] - 2026-10-03
+
+### Changed
+
+- The shared `prerequisites.sh` and `prerequisites.ps1` stubs are synced with a new `node-notice` mode ([#5997](https://github.com/melodic-software/claude-code-plugins/pull/5997)); no change to this plugin's own behavior.
+
+## [0.15.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
 ## [0.14.10] - 2026-10-02
 
 ### Fixed

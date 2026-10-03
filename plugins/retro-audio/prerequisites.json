@@ -1,0 +1,47 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:music",
+        "skill:sfx"
+      ],
+      "detect": {
+        "any": [
+          "python3"
+        ]
+      },
+      "degrade": "Without Python 3, neither skill can synthesize audio; no .wav file is produced.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

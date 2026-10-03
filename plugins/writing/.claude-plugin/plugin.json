@@ -1,6 +1,6 @@
 {
   "name": "writing",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Prose a scanning reader can use. /writing:be-concise puts the bottom line first, cuts words the meaning does not need, and keeps structure scannable and tone factual. Bare, it sets a standing posture; given a target, it reshapes it and reports word counts. For tickets, PR descriptions, changelogs, READMEs, and status updates. Never drops a decision, number, ask, error, or warning. Paraphrases NN/g, GOV.UK, US plain-language guidelines, Google and Microsoft style guides, and BLUF.",
   "author": {
     "name": "Melodic Software",

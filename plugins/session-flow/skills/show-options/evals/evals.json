@@ -46,7 +46,7 @@
     {
       "id": 4,
       "name": "discloses-a-degraded-pool",
-      "prompt": "What should I run next? (harness-ops is not installed in this session and no project catalog is configured.)",
+      "prompt": "What should I run next? (harness-ops is not enabled in this session and no project catalog is configured.)",
       "expected_output": "The skill falls back to the in-context listing and says so in the output — naming that manual-only skills are not visible from that source and that descriptions for rarely-invoked skills may have been dropped. It does not present the truncated pool as a complete catalog.",
       "files": [],
       "narration": true,

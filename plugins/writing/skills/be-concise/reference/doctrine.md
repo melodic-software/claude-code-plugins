@@ -125,7 +125,7 @@ The seven revision techniques below are the practical how for this property.
   line it sits on.** This bound is written to stay inside the boundaries the
   `ai-slop` catalog already records, so that promoting either rule later does
   not fire on prose written to this doctrine. When the `ai-slop` plugin is
-  installed, `/ai-slop:audit` owns both: `rule-bold-overuse` records "excessive
+  enabled, `/ai-slop:audit` owns both: `rule-bold-overuse` records "excessive
   bolding of terms beyond emphasis convention" as a density candidate, and
   `rule-inline-header-lists` draws the boundary at "a bold label whose colon
   restates the line", while treating "a bold lead-in that ends in a period,

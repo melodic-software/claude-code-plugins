@@ -373,6 +373,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "speech",
+      "source": "./plugins/speech",
+      "category": "audio",
+      "tags": ["speech", "text-to-speech", "tts", "narration", "kokoro", "audio", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "pixel-art",
       "source": "./plugins/pixel-art",
       "category": "visual-arts",
@@ -384,6 +391,13 @@
       "source": "./plugins/animation",
       "category": "visual-arts",
       "tags": ["animation", "rotoscope", "2d-animation", "ink", "film", "canvas", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "explainer-video",
+      "source": "./plugins/explainer-video",
+      "category": "visual-arts",
+      "tags": ["explainer", "video", "manim", "animation", "math", "skill"],
       "defaultEnabled": false
     },
     {

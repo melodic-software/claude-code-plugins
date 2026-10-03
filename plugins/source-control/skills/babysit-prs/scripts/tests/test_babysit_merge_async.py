@@ -21,6 +21,7 @@ import unittest
 from datetime import timedelta
 from typing import Any
 from unittest import mock
+from urllib.parse import unquote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -864,7 +865,10 @@ class GateEvaluation(unittest.TestCase):
                 return self.views[int(args[2])]
             path = args[1]
             if path.startswith("repos/owner/repo/rules/branches/"):
-                return self.rules.get(path.split("/rules/branches/", 1)[1], [])
+                # The gate percent-encodes the branch. GitHub decodes that
+                # segment back to the branch name before matching rules.
+                branch = unquote(path.split("/rules/branches/", 1)[1])
+                return self.rules.get(branch, [])
             if path == "repos/owner/repo":
                 return {"name": "main"}
             if path.startswith("repos/owner/repo/pulls/") and "{stack: .stack}" in args:

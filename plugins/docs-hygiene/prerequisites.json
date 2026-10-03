@@ -1,0 +1,64 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:compress"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI, /docs-hygiene:compress cannot detect whether the caveman plugin is installed and reports that as unknown.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:compress"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, /docs-hygiene:compress cannot read `claude plugin list` output and reports the caveman plugin as unknown.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

@@ -60,7 +60,7 @@ emit_skipped() {
 # line-length class on a repo that never picked a line length). Like
 # bash-format's shfmt gate this is policy, not a degraded capability, so the
 # visible-skip doctrine for missing tools does not apply: no config, no rewrite,
-# no findings, no jq notice. The SessionStart probe (probe-prerequisite.sh,
+# no findings, no jq notice. The SessionStart probe (lib/prerequisites.mjs probe,
 # gated only by the markdown_format_enabled kill switch) still reports a
 # missing markdownlint-cli2 in a repo that never opted in; only this per-edit
 # hook is opt-in gated. The pre-check below keeps a repo without a config from

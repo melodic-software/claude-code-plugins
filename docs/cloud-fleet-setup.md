@@ -78,8 +78,8 @@ melodic-software repository (`gh repo list melodic-software --no-archived --limi
 the `--limit` matters, since `gh repo list` returns only 30 by default) carried
 `.claude/cloud-bootstrap.sh`, registered it as a `startup|resume` SessionStart hook, and declared
 the `melodic-software` marketplace; a repository created after that pass is not covered by it.
-Enabling the catalog is not among the per-repo steps: the standards fleet list does that for every
-repo, and a repo's own block carries only deltas
+Enabling the catalog is not among the per-repo steps: the fleet list derived from the catalog does
+that for every repo, and a repo's own block carries only deltas
 ([Step 2](#step-2-per-repo-wiring)). Read adoption state from the repos rather than from a table
 here; a per-repo enumeration in this doc can only lag them.
 
@@ -155,7 +155,7 @@ carry, because Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .
 cache build rather than unioning with it, so a repo that pins one .NET SDK does not also
 receive the other fallback SDK. The fleet pins cover whichever of those two the repo does
 not pin. The env copy is still a warm cache: each repo's bootstrap installs its exact pins
-repo-locally. The script then fetches the standards fleet plugin list to
+repo-locally. The script then derives the fleet plugin list from this repository's catalog into
 `/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope; only
 then does it run that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the
 snapshot. That plugin install is what makes the fleet's plugins live at turn one, because it
@@ -208,10 +208,9 @@ resolves in cloud sessions, unlike anything user-scoped):
 }
 ```
 
-The fleet's plugin set is not declared per repo: the shared environment installs the standards
-fleet list
-([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json))
-into every snapshot, and the bootstrap reads that list overlaid with the repo's own block. So a
+The fleet's plugin set is not declared per repo: the shared environment derives the fleet list
+from this repository's catalog (`.claude-plugin/marketplace.json`, every entry whose
+`defaultEnabled` is absent or `true`) and installs it into every snapshot, and the bootstrap reads that list overlaid with the repo's own block. So a
 repo's `enabledPlugins` carries only deltas: an explicit `false` to opt out of a fleet entry, or
 a `true` for a plugin beyond the fleet. The overlay is settings-wins: where both files name the
 same plugin the repo's value takes precedence, which is what makes the `false` an opt-out. A

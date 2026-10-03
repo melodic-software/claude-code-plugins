@@ -16,9 +16,9 @@ only entrance and is the router's one non-terminal edge.
 
 ## Zone input (presence-gated, conservative)
 
-When the `context-guard` plugin is installed, resolve this session's zone word per its reader
+When the `context-guard` plugin is enabled, resolve this session's zone word per its reader
 contract (the contract owns the snapshot path, staleness rule, and bands, so read them there; this
-router consumes only the resulting word, and inlines no band values). Absent plugin, absent
+router consumes only the resulting word, and inlines no band values). Plugin not enabled, absent
 snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
 and response quality). If context-guard's evidence-degraded marker exists for this session, or
 the session is otherwise known to have been compacted, treat the context as degraded regardless

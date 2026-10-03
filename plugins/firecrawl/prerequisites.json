@@ -1,0 +1,124 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "firecrawl",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:firecrawl"
+      ],
+      "detect": {
+        "any": [
+          "firecrawl"
+        ]
+      },
+      "degrade": "Without the firecrawl binary, /firecrawl:firecrawl cannot scrape, search or crawl; /firecrawl:setup installs it on request.",
+      "install": {
+        "docs": "https://docs.firecrawl.dev/sdks/cli",
+        "npm": "npm install -g firecrawl-cli"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "firecrawl-api-key",
+      "kind": "env",
+      "need": "required",
+      "for": [
+        "skill:firecrawl"
+      ],
+      "detect": {
+        "name": "FIRECRAWL_API_KEY"
+      },
+      "degrade": "Without FIRECRAWL_API_KEY, the firecrawl binary is unauthenticated and /firecrawl:firecrawl calls fail until the key is set.",
+      "install": {
+        "docs": "https://www.firecrawl.dev/app/api-keys"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:firecrawl",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, the firecrawl binary cannot be installed with `npm install -g firecrawl-cli`; a binary already installed keeps working.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:update"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, /firecrawl:update cannot fetch the upstream CLI and skill source, and stops.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:update"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, /firecrawl:update cannot read the upstream release data, and stops.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

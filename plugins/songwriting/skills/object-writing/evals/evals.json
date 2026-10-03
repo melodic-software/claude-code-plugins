@@ -53,6 +53,78 @@
         "Does not emit metaphor candidates from this skill",
         "Offers sensory material as input to the metaphor skill where relevant"
       ]
+    },
+    {
+      "id": 5,
+      "name": "generate-90s-kamikazi-concrete-seed",
+      "prompt": "/songwriting:object-writing generate 90 seconds on 'rusted bicycle chain'. You write it, I'm just going to mine it.",
+      "expected_output": "Dispatches one object-writer agent briefed with the seed 'rusted bicycle chain', the 90-second timer, a category, and an output path, nothing else. The agent writes an 80-150 word sense-bound dive that pivots through sense channels away from the bicycle, ends mid-word, and files it with a verbatim sense inventory; the main thread reads the file and grades coverage.",
+      "files": [],
+      "expectations": [
+        "Dispatches exactly one object-writer agent whose brief names the seed, a 90-second timer, a category, and an output path, and nothing else",
+        "The file header carries Seed, Timer (90 seconds), and Category fields",
+        "The write body is between 80 and 150 words",
+        "At least three of the four easily-missed channels (smell, taste, organic, kinesthetic) have one or more verbatim phrases in the inventory",
+        "The final third of the write does not mention a bicycle, a chain, or rust",
+        "Every phrase quoted under a sense-inventory heading appears verbatim in the write itself (no paraphrase, no phrase written only for the inventory)",
+        "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
+        "The write contains no concluding or reflective sentence explaining what the images mean",
+        "The agent's return message is only the file path, the seven channels each marked strong, thin, or absent, and one sentence on where the pivot chain landed; the write text is not in the message",
+        "Each channel graded strong in the return has at least two verbatim phrases under its inventory heading, and each channel graded absent has none"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "generate-5min-who-category-inside-the-body",
+      "prompt": "/songwriting:object-writing generate 5 minutes, Who category, seed: 'a night-shift crane operator at the Port of Baltimore'. Do the writing yourself.",
+      "expected_output": "Dispatches one object-writer agent with the seed, a 5-minute timer, the Who category, and an output path. The write is 250-400 words from inside the operator's body (their senses, their vocabulary), not a narrator describing them, pivots through at least four sense-channel changes away from the crane, and ends mid-word with a verbatim inventory.",
+      "files": [],
+      "expectations": [
+        "Dispatches one object-writer agent briefed with the seed, a 5-minute timer, the Who category, and an output path only",
+        "The write body is between 250 and 400 words",
+        "The write is voiced from inside the operator's senses (first person or close sensory present tense), with no sentence that comments on the operator from outside",
+        "At least one sentence holds five or more independent specifics (proper names, exact numbers or ages, named objects or garments) spread across two or more sense channels",
+        "Consecutive images hand off through a change of sense channel at least four times (for example touch to taste to hearing), rather than adding items to one scene",
+        "The write names no emotion word (such as lonely, sad, afraid, happy, nostalgic); feelings arrive as organic body sensations",
+        "Every phrase quoted under a sense-inventory heading appears verbatim in the write itself",
+        "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
+        "The agent's return message is only the file path, the seven channel grades (strong, thin, or absent), and one pivot-chain sentence; the write text is not in the message"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "generate-10min-where-seed-pivot-distance",
+      "prompt": "/songwriting:object-writing generate a 10-minute dive on 'the laundromat on Fenwick Street at 2am'",
+      "expected_output": "Dispatches one object-writer agent with the seed, a 10-minute timer, a category, and an output path. The 500-800 word write starts at the laundromat and, through six or more sense-channel pivots, ends somewhere unrelated to it, broken off mid-word, with an honest inventory that names any thin channel.",
+      "files": [],
+      "expectations": [
+        "Dispatches one object-writer agent briefed with the seed, a 10-minute timer, a category, and an output path only",
+        "The write body is between 500 and 800 words",
+        "Consecutive images hand off through a change of sense channel at least six times",
+        "The last 150 words of the write mention no laundromat, washer, dryer, detergent, or Fenwick Street",
+        "All seven channels appear as inventory headings, and any channel with fewer than two phrases is named on the thin-or-absent line rather than left unflagged",
+        "Every phrase quoted under a sense-inventory heading appears verbatim in the write itself",
+        "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
+        "The write contains no concluding or reflective sentence explaining what the images mean",
+        "Each channel graded strong in the return has at least two verbatim phrases under its inventory heading, and each channel graded absent has none"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "generate-two-seeds-parallel-blind-writers",
+      "prompt": "/songwriting:object-writing generate two 90-second writes for me: one on 'wet cardboard', one on 'a dentist's chair'",
+      "expected_output": "Dispatches two object-writer agents in a single message, one per seed, each briefed with only its own seed, timer, category, and output path. Two separate files result, each an 80-150 word mid-word-ending dive with its own verbatim inventory; the main thread then grades both and mines.",
+      "files": [],
+      "expectations": [
+        "Dispatches two object-writer agents in the same message, one per seed",
+        "Neither agent's brief mentions the other agent's seed",
+        "Two separate files are written, one per seed, each with its own header and sense inventory",
+        "Each write body is between 80 and 150 words",
+        "The two writes share no proper noun or named specific",
+        "In each write, the final third does not mention its own seed object",
+        "Every phrase quoted under a sense-inventory heading appears verbatim in its own write",
+        "Each write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word"
+      ]
     }
   ]
 }

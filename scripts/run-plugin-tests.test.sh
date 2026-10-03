@@ -80,6 +80,27 @@ assert_output_has "repo-local hook suites are discovered" "PASS: .claude/hooks/h
 assert_output_has "the all-green summary line" "All plugin tests passed."
 assert_output_has "the suite count is reported" "Suites: 3 (0 serial, 3 across up to 1 job(s))"
 
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "--list exits 0" --list --root "$r"
+if [[ "$RUN_OUTPUT" == $'.claude/hooks/h.test.sh\nplugins/a/a.test.sh\nplugins/b/b.test.sh' ]]; then
+  ok "--list prints the discovered corpus and runs nothing"
+else
+  fail "--list: got [$RUN_OUTPUT]"
+fi
+
+# A gate's self-test and a shared library's suite are corpus suites too: the
+# whole-tree run reaches them by discovery, not by a workflow step of their own.
+r="$(make_root scripts-lib)"
+write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
+write_suite "$r" scripts/check-x.test.sh 'echo "ok: gate self-test"'
+write_suite "$r" scripts/lib/helper.test.sh 'echo "ok: scripts lib"'
+write_suite "$r" lib/shared.test.sh 'echo "ok: shared lib"'
+write_suite "$r" tools/elsewhere.test.sh 'echo "ok: never discovered"'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "scripts/ and lib/ suites run with the corpus" --root "$r"
+assert_output_has "a scripts/ suite is discovered" "PASS: scripts/check-x.test.sh"
+assert_output_has "a scripts/lib/ suite is discovered" "PASS: scripts/lib/helper.test.sh"
+assert_output_has "a lib/ suite is discovered" "PASS: lib/shared.test.sh"
+assert_output_lacks "a suite outside the four roots is not discovered" "tools/elsewhere.test.sh"
+
 r="$(make_root fail)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
@@ -105,7 +126,7 @@ assert_output_has "the vacated suite is named" "DISCRIMINATING SKIP: plugins/a/a
 
 r="$(make_root none)"
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "no suites at all is an error, not a pass" --root "$r"
-assert_output_has "the empty corpus is named" "no plugin tests found"
+assert_output_has "the empty corpus is named" "no test suites found"
 
 r="$(make_root argv)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
@@ -327,21 +348,21 @@ assert_output_has "the bad shard spec is named" "--shard wants <index>/<total>"
 # scripts/affected-tests.sh hands its selection here instead of carrying a
 # second parallel runner. The three properties that matters rests on: only the
 # listed suites run, a listed suite OUTSIDE the discovered corpus still runs
-# (the selector reaches scripts/ and lib/, which `find` here never sees), and
-# the serial allowlist's stale guard still reads the FULL discovery, so an
+# (the selector's input is a path list, not this runner's discovery), and the
+# serial allowlist's stale guard still reads the FULL discovery, so an
 # allowlist entry the selection did not draw is not reported stale.
 r="$(make_root suites-from)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
-write_suite "$r" scripts/outside.test.sh 'echo "ok: outside"'
+write_suite "$r" tools/outside.test.sh 'echo "ok: outside"'
 selection="$scratch/selection.txt"
-printf 'plugins/a/a.test.sh\nscripts/outside.test.sh\n' >"$selection"
+printf 'plugins/a/a.test.sh\ntools/outside.test.sh\n' >"$selection"
 serial_b="$scratch/serial-b.txt"
 printf 'plugins/b/b.test.sh\n' >"$serial_b"
 PLUGIN_TEST_SERIAL_LIST="$serial_b" run_runner 0 "--suites-from runs exactly the supplied selection" \
   --root "$r" --suites-from "$selection"
 assert_output_has "a listed suite runs" "PASS: plugins/a/a.test.sh"
-assert_output_has "a listed suite outside the discovered corpus runs" "PASS: scripts/outside.test.sh"
+assert_output_has "a listed suite outside the discovered corpus runs" "PASS: tools/outside.test.sh"
 assert_output_lacks "an unlisted suite does not run" "=== plugins/b/b.test.sh ==="
 
 missing="$scratch/selection-missing.txt"

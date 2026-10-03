@@ -42,7 +42,13 @@ The `ci-status` required check depends on every **required** workload lane
 (`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). `test-windows` is deliberately outside that
+success to branch protection). On a draft pull request every lane but
+`changes` carries a draft gate, so a draft run lints and tests nothing, and its
+`ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
+(`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
+newest `ci-status` on the SHA from the flip to ready until the
+`ready_for_review` run's lanes finish, so a merge could land on nothing tested.
+The `ready_for_review` run lints and tests the same SHA. `test-windows` is deliberately outside that
 aggregate, as an informational platform lane; `test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `ci.yml`, it was the
@@ -59,34 +65,98 @@ no automated review, by design.
 `lint` and `lint-2` are two halves of one hygiene lane, split across two
 runners and balanced on measured wall time; every gate keeps the name it always
 had, and each half carries its own `aggregate-hygiene-results.sh` feed over
-exactly its own gate steps.
+exactly its own gate steps. ShellCheck runs in `hook-utils` with a one-row feed
+of its own, so its whole-repository scan does not set `lint`'s wall time.
+
+## What each event tests
+
+The `changes` job resolves one diff base, published as `lane_base`, and every
+diff-scoped step diffs against it:
+
+- **Pull request:** the base branch. The contract suites are the affected
+  selection (`scripts/affected-tests.sh`), and ShellCheck lints the changed
+  shell files.
+- **Push to `main`:** the commit of the newest green `ci` push run that HEAD
+  descends from, not HEAD's parent. A push run that went red, or was dropped
+  while pending, leaves its commits in the next run's range, so a break stays
+  red until a run passes. Push runs coalesce: one runs and only the newest
+  waits. With no such run among the last 50, or a range that touches the
+  shared test machinery (`ci.yml`, `.github/actions/`, the suite runner and
+  selector, `scripts/lib/`, the toolchain pins), the push tests the whole tree.
+- **Schedule (05:17 and 17:17 UTC) and dispatch:** the whole tree. That means
+  the full contract corpus, the whole-repository ShellCheck, and the check-25
+  scan over every skill. This run catches what a diff cannot show: a suite that
+  asserts against the live tree, or a dependency the selector does not see.
+
+Whole-tree gates whose verdict depends only on their own inputs are scoped the
+same way on a diff: markdownlint lints the changed markdown (its download is
+cached), the eval-quality lint reads the eval set of every skill directory the
+diff touched (a set's `files` entries resolve anywhere in it), `claude plugin
+validate` runs for the touched plugins, the manifest and workflow schemas run
+when their filter group matched, and the skill-count, eval-coverage and
+fixture-isolation scans skip when none of their inputs changed. Each falls back
+to the whole tree when there is no diff base or `ci.yml` changed, and the
+scheduled run scans everything. Replayed on 20 recent pull requests, every
+skipped or narrowed scan landed on a whole-tree success.
+
+`changes` also plans `test-linux`: one leg per 25 selected suites, one to
+four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
+slice needs the animation wheels, the inventory's parser packages or the DuckDB
+CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
+
+The selector's rule R8 covers the gap a full main run used to cover: a change
+anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
+because suites that scan their own plugin directory never name the file that
+changed.
 
 ## Contract-only `ci-status`
 
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
-the `ci-lanes` commit status on the head SHA. The composite waits up to 540 s
-for an in-flight full run. A `success` ends the wait at once. A `failure` or
-`error` ends it too, unless the full run that wrote it is being re-run; then the
-composite waits for that re-run's verdict.
+the `ci-lanes` commit status on the head SHA once, with no wait
+(`carry-forward-wait-seconds: '0'`, a 3-minute job). It passes only when the
+newest status the Actions bot wrote is `success`.
 
-**Operator remedy.** When a contract-only `ci-status` is red:
+No run waits on another run:
+
+1. A full run's `changes` job first writes `ci-lanes=pending` on the head SHA.
+   A contract-only run that reads it goes red at once instead of carrying an
+   older verdict forward while the lanes are in flight. Before its marker is
+   written, the full run is queued or in progress on the SHA, and the
+   contract-only run goes red at once on that too: one runs listing, where a
+   sibling whose `changes` job was skipped (contract-only) or whose `ci-status`
+   job has started (writing its verdict) does not count.
+2. The full run's own `ci-status` check run appears only when its lanes finish.
+   It is newer than the red one, and the newest same-name check run is the one
+   the merge gate reads: three merged pull requests kept an older, never
+   re-run red contract-only `ci-status` beside a newer green one, and the
+   `ci-gate` ruleset has no bypass actors.
+3. After recording `success`, the full run's `ci-status` re-runs the failed
+   jobs of every red contract-only run on the same SHA (`rerun-failed-jobs`,
+   `actions: write`). The re-run keeps its event, so it is contract-only again,
+   reads `success` and replaces the red check run within seconds. That
+   includes a run drawn while the pull request was a draft: its payload still
+   says draft, so `Fail a draft` reads the live draft state on a contract-only
+   run and passes once the pull request is ready
+   (`scripts/ci-fail-a-draft.test.sh`).
+
+A red contract-only run also stays red when its contract fails (an invalid
+title or a `do-not-merge` label). That is the intended answer.
+
+**Operator remedy.** When a contract-only `ci-status` is still red after the
+full run finished:
 
 - If `ci-lanes` on that SHA is `success` and the pull-request contract passes
   (valid title, no `do-not-merge` label), re-run the red contract-only `ci`
-  run. The composite logs `Carried forward: ci-lanes is success`, passes, and
-  the re-run replaces the red check run. Pushing a new commit is not needed.
+  run. This covers a contract-only run that was still in progress when the full
+  run listed its siblings. The composite logs
+  `Carried forward: ci-lanes is success`, passes, and the re-run replaces the
+  red check run. Pushing a new commit is not needed.
 - If the title is invalid or `do-not-merge` is applied, the contract check
   stays red on a re-run. Fix the title or remove the label first, then follow
   the other bullets for `ci-lanes`.
-- If `ci-lanes` is `failure` or missing, re-run the full workflow.
-
-Two cases still go red while a passing verdict is on its way. A re-run of a
-different full run on the same SHA does not hold the old failure open, and a
-re-run of the writer that outlasts 540 s fails closed at the ceiling. In both,
-re-run the red contract-only run once `ci-lanes` is `success`; the failure
-message names this remedy. How a ruleset treats two same-name `ci-status` check
-runs on one SHA is unverified (#4670).
+- If `ci-lanes` is `failure`, `pending` with no full run in flight, or missing,
+  re-run the full workflow. On a draft, mark it ready instead.
 
 ## Toolchain integrity
 

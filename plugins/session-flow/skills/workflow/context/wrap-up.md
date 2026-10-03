@@ -16,7 +16,7 @@ Don't wait to be asked. Suggest as soon as primary work is done.
    context is limited, `/session-flow:retro codify` when a specific learning surfaced mid-session
 
 4. **Plugin audit offer.** If the session invoked at least one plugin skill and `plugin-quality` is
-   installed, offer `/plugin-quality:audit session` in one line. Offer only; the operator runs it
+   enabled, offer `/plugin-quality:audit session` in one line. Offer only; the operator runs it
 
 ## When to suggest each item
 
@@ -27,4 +27,4 @@ Don't wait to be asked. Suggest as soon as primary work is done.
 | Work unfinished, session ending | `/session-flow:handoff` |
 | Any session with substantive work | `/session-flow:retro` (full or quick based on context budget) |
 | Session had errors or surprises | `/session-flow:retro codify` (capture specific learnings immediately) |
-| Session invoked at least one plugin skill, `plugin-quality` installed | One-line offer of `/plugin-quality:audit session` (never run it) |
+| Session invoked at least one plugin skill, `plugin-quality` enabled | One-line offer of `/plugin-quality:audit session` (never run it) |

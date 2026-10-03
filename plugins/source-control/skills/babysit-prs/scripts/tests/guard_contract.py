@@ -45,9 +45,11 @@ REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
+THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
 RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
+THREADS_WRAPPER = "scripts/source-control-review-threads"
 
 # Where a refusal is enforced. The distinction is observable: a bash-wrapper
 # refusal never reaches Python, so it prints plain text to stderr and emits no
@@ -1384,6 +1386,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         backed_by=(),
     ),
     EntryPoint(
+        path=THREADS_CLI,
+        wrapper=THREADS_WRAPPER,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "The pull-request skill's readiness thread gate. It reads unresolved review "
+            "threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; "
+            "it writes no file and performs no GitHub write."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
         path=READINESS_GATE,
         wrapper=None,
         mutation=READ_ONLY,
@@ -1465,6 +1480,7 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
 WRAPPER_BACKING_CLI = {
     MERGE_WRAPPER: MERGE_CLI,
     RESOLVE_WRAPPER: RESOLVE_CLI,
+    THREADS_WRAPPER: THREADS_CLI,
 }
 
 # Flags the backing CLI accepts but the wrapper refuses, so a documented wrapper

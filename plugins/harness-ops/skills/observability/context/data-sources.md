@@ -84,8 +84,18 @@ On an event-log row, `effort` is one of three things:
 
 Path keys (`cwd`, `transcript_path`, `scratchpad_dir` and the other path-valued keys above) hold the
 payload's raw absolute values; `file_path` alone is reduced, repo-relative or to its last segment.
-Prompt text, messages, titles, tool input and output, and every object or array are never copied.
-The writer's allowlist (`SLOG_EVENT_LOG_STRINGS`, `SLOG_EVENT_LOG_SCALARS`) is the authority for the
+Prompt text, messages, titles, tool input and output, and every object or array are not copied
+unless the `session_event_log_content` option is on (default off). With it on, a row also carries
+whichever of these top-level content strings the payload held: `prompt session_title command_args
+message title last_assistant_message task_subject task_description error_details
+custom_instructions compact_summary url`, and `error` on `PostToolUseFailure` (tool output there,
+an enum on `StopFailure`). The hook reads only the first 64 KB (bytes, not characters) of a payload. When the cap cuts a
+content string that follows only scalar members, the row records its prefix, cut back to whole
+escapes and whole characters, beside `<key>_truncated: true` (for example `prompt_truncated`).
+When the cut string follows a nested value (`error` after `tool_input`, say), it is not recorded.
+Either way, a row whose payload reached the cap carries `content_truncated: true`; with the option
+off, no row carries it. Objects and arrays, `tool_input` and
+`tool_response` among them, stay out either way. The writer's allowlist (`SLOG_EVENT_LOG_STRINGS`, `SLOG_EVENT_LOG_SCALARS`) is the authority for the
 key list. The split between `n/a` and `unset` events is ours, from a probe.
 
 - **Pointer**: for the `effort` input field and `$CLAUDE_EFFORT`, see

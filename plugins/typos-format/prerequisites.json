@@ -1,19 +1,59 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "typos",
-      "check": "/typos-format:check",
-      "install": "cargo install typos-cli, a host package or a release binary, https://github.com/crate-ci/typos#install"
+      "id": "typos",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:typos-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "typos"
+        ]
+      },
+      "degrade": "Without typos, the hook cannot spell-check edited files; edits still go through.",
+      "install": {
+        "cargo": "cargo install typos-cli",
+        "docs": "https://github.com/crate-ci/typos#install"
+      },
+      "check": "/typos-format:check"
     },
     {
-      "name": "jq",
-      "check": "/typos-format:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:typos-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the typos-format hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/typos-format:check"
     },
     {
-      "name": "node",
-      "check": "/typos-format:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the typos-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/typos-format:check"
     }
   ]
 }

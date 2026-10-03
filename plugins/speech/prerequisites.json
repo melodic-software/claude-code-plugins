@@ -1,0 +1,44 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["hook:install-python-deps.sh"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node the SessionStart hook does not start, so numpy and onnxruntime are never installed and /speech:narrate stops. /speech:check still runs.",
+      "install": { "docs": "https://nodejs.org/en/download", "brew": "node", "winget": "OpenJS.NodeJS.LTS", "apt": "nodejs" },
+      "check": "/speech:check"
+    },
+    {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["hook:install-python-deps.sh", "skill:narrate", "skill:check", "skill:setup"],
+      "detect": {
+        "any": ["python3", "python"],
+        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
+      },
+      "degrade": "Without Python 3.12 or later the SessionStart hook cannot install numpy and onnxruntime, and /speech:narrate stops before it synthesizes anything.",
+      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" },
+      "check": "/speech:check"
+    },
+    {
+      "id": "espeak-ng",
+      "kind": "cli",
+      "need": "required",
+      "for": ["skill:narrate"],
+      "detect": { "any": ["espeak-ng"] },
+      "degrade": "Without espeak-ng the kokoro backend cannot turn the script into phonemes, so /speech:narrate stops before it writes narration.wav. espeak-ng is GPL-3.0: you install it, and this plugin never installs or ships it.",
+      "install": {
+        "docs": "https://github.com/espeak-ng/espeak-ng/blob/master/docs/guide.md",
+        "apt": "espeak-ng",
+        "dnf": "espeak-ng",
+        "pacman": "espeak-ng",
+        "brew": "espeak-ng",
+        "winget": "eSpeak-NG.eSpeak-NG (espeak-ng.exe must then be on PATH)"
+      },
+      "check": "/speech:check"
+    }
+  ]
+}

@@ -1,9 +1,41 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "ctx7",
-      "check": "/context7:check",
-      "install": "npm install -g ctx7@latest"
+      "id": "ctx7",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:lookup",
+        "skill:update"
+      ],
+      "detect": {
+        "any": [
+          "ctx7"
+        ]
+      },
+      "degrade": "Without ctx7, /context7:lookup falls back to the Context7 MCP server when one is configured and otherwise cannot look anything up.",
+      "install": {
+        "npm": "npm install -g ctx7@latest"
+      },
+      "check": "/context7:check"
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the ctx7 CLI (an npm package) cannot run and the bundled prerequisites checker only reports that node is missing; the Context7 MCP server still answers when it is configured.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/context7:check"
     }
   ]
 }

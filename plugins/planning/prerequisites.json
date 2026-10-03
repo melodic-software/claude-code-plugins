@@ -1,0 +1,110 @@
+{
+  "requires": [
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:wayfind"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /planning:wayfind shows no current user or open maps and cannot read or write the tracker; the other planning skills still work.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:wayfind"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, /planning:wayfind cannot read the container label from .work-item-tracker.json and falls back to work-map.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:interview"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ]
+      },
+      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, the planning surface watcher does not start; the questions are answered in chat.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

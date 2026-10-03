@@ -46,7 +46,9 @@ Frontmatter binds a floor-shaped default; it cannot follow a phase routed upward
 orchestrator ran a phase's implementer above this binding (the frontier tier for security-surface
 work, or a session model above it), it passes this verifier a per-invocation `model` at or above
 that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
-upward only. In a concurrent wave under a frontier session every implementer runs at `opus`, so
+upward only. The same holds for a Workflow script this repository ships: an `agent()` call naming
+this verifier never passes `effort` or `model` below this binding, and omits both to keep it. In a
+concurrent wave under a frontier session every implementer runs at `opus`, so
 this binding already meets the rule there (see `/implementation:implement-dispatch` Dispatch
 cadence step 2).
 

@@ -333,7 +333,7 @@ complete remainder by bare name with an explicit count, so nothing is off-screen
 Its contract is two rules: **never omit a candidate's name**, and **never invent one**. A skill the
 evidence says already ran is ranked normally and annotated `(ran this session)`, the model's judgment
 reaches rank and annotations, never presence. Candidates resolve from the full installed catalog
-(`/harness-ops:inventory` when installed, else a project-supplied catalog, else the in-context listing
+(`/harness-ops:inventory` when enabled, else a project-supplied catalog, else the in-context listing
 *with its truncation disclosed*), because that listing omits every manual-only skill and drops
 descriptions starting with the least-invoked ones, the very skills worth surfacing. Durable state is
 the primary signal; it builds no probe of its own and routes to `orient` for that.

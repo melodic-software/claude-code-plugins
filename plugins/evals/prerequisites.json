@@ -1,0 +1,67 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:plugin-eval",
+        "skill:validate"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ]
+      },
+      "degrade": "Without Python 3, /evals:validate cannot run, and /evals:plugin-eval skips its static validation step.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:plugin-eval"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI, /evals:plugin-eval cannot run `claude plugin eval`.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

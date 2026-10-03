@@ -167,6 +167,18 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 - [ ] No VALID (fix now) comments remain unaddressed
 - [ ] No UNCERTAIN classifications remain unresolved (escalate to user)
 
+### Gate 7: No unresolved review threads
+
+An unresolved review thread can hold the merge while every check is green, and Gates 1 to 6 read nothing that shows it. Read the threads with the bundled gate, which counts them exactly as the `/source-control:babysit-prs` merge gate does, outdated ones included. `fetch_review_threads` in `skills/babysit-prs/scripts/babysit_gh.py` owns how threads are fetched and why a failed fetch reports unproven instead of zero:
+
+```bash
+bash "<scripts-dir>/source-control-review-threads" <owner>/<repo>#<pr_number>
+```
+
+- [ ] The first line reads `THREADS_OK unresolved=0`
+- [ ] On `THREADS_BLOCKED`, name every listed thread (path, first commenter, URL) in the verdict as a blocker. Settle each through D7.5 in [SKILL.md](../SKILL.md): resolve a bot thread whose findings all carry a disposition; a human-opened thread, or one with an open finding, is the user's to close, so lead the verdict with it
+- [ ] `THREADS_UNPROVEN`, or exit 3 (no Python 3.11+ on PATH), is a held gate, never a pass: a read that did not happen is not evidence of zero threads. Report the reason and the PR's conversation tab as the place to check
+
 ## Readiness verdict
 
 Only when ALL gates pass, present:
@@ -178,6 +190,7 @@ Only when ALL gates pass, present:
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** GitGuardian [evaluated, N findings: X false positive, Y not applicable]
 **Comments:** X from N reviewers: Y fixed, Z deferred, W incorrect
+**Review threads:** 0 unresolved
 **Cooldown:** 2+ min since last activity
 **Reviewers:** [each discovered reviewer: responded, no-findings signal, or not yet responded at the bound with its missing artifacts named]
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
@@ -196,9 +209,10 @@ In `full` mode, readiness gates are NOT relaxed. Only difference: transition fro
 
 ## Recap
 
-The four failures the gates above exist to prevent:
+The five failures the gates above exist to prevent:
 
 1. **Merging with FAILURE check runs.** Never suggest merge while any check shows FAILURE without explicit classification (Gate 2)
 2. **Ignoring security scan results.** A security actor's check run and comment are both evaluated before merge (Gate 3)
 3. **Not waiting for comment-only actors.** A review bot can post minutes after PR creation; the cooldown gives it time (Gate 5)
 4. **Treating "no comments" as "ready".** An empty comment list may mean reviewers have not posted yet (Gate 5)
+5. **Reporting "blocked" without the reason.** A merge held only by unresolved review threads shows every check green; name the threads (Gate 7)

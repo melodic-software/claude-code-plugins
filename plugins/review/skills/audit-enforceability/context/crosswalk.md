@@ -12,7 +12,7 @@ cheapest rung whose check can actually assert it, never on a rung that merely co
 | `dotnet-invariant` (a project-specific API or usage invariant in C# expressible over syntax or the semantic model: a banned API, a required attribute, a misuse pattern) | `custom-analyzer` | Microsoft Learn, "Tutorial: Write your first analyzer and code fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>) |
 | `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `semgrep-rule` | the `semgrep-rule-creator` plugin when installed; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
 | `structure` (dependency direction, layering, namespace-to-layer naming, forbidden references) | `architecture-test` | ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET; dependency-cruiser (<https://github.com/sverweij/dependency-cruiser>) for JS/TS |
-| `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `hook` | the `harness-config` plugin's automation-gaps audit when installed; otherwise record the candidate and stop |
+| `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `hook` | the `harness-config` plugin's automation-gaps audit when enabled; otherwise record the candidate and stop |
 | `design-judgment` (readability, correctness reasoning, prose quality) and `unclassified` | `llm-only` | none; the finding stays a review-time judgment |
 
 The `custom-analyzer` rung is .NET-only. The same invariant in any other ecosystem is
@@ -29,9 +29,9 @@ The one id form the detector-findings contract allows is `<plugin>/<skill>/rule-
 match here is byte-exact on the whole id.
 
 Every owner cell below reading "already deterministic: keep the `<plugin>:<skill>` detector" is
-gated on that plugin still being installed in the consuming repo; where it is not, the finding has
+gated on that plugin still being enabled in the consuming repo; where it is not, the finding has
 no deterministic rung there and falls back to `llm-only`, a review-time judgment, until the
-detector is reinstalled. The same gate and the same fallback bind the rule-family rows.
+detector is enabled again. The same gate and the same fallback bind the rule-family rows.
 
 | Rule id | Class | Rung | Owner or pointer | Basis |
 |---|---|---|---|---|

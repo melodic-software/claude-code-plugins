@@ -5,6 +5,22 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.7.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [1.6.0] - 2026-10-03
+
+### Added
+
+- **A full `audit` runs the effort-pin drift check from its checklist.** The `effort:` and
+  `model:` frontmatter section gains a row that runs `check-effort-pins.sh` and reports its lines
+  verbatim, with what each exit code means and that a person re-decides every flagged pin.
+
 ## [1.5.3] - 2026-10-03
 
 ### Fixed

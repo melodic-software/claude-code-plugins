@@ -205,5 +205,20 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
         self.assertTrue([b for b in result["blockers"] if "unprotected" in b])
 
 
+class SlashedBranchNamesAreOnePathSegment(unittest.TestCase):
+    def test_a_slash_in_the_base_is_percent_encoded(self) -> None:
+        with mock.patch.object(merge, "gh_json", return_value=[]) as gh:
+            summary = merge.branch_rules("owner/repo", "release/1.x")
+        gh.assert_called_once_with(
+            ["api", "repos/owner/repo/rules/branches/release%2F1.x"]
+        )
+        self.assertNotIn("error", summary)
+
+    def test_a_plain_base_is_unchanged(self) -> None:
+        with mock.patch.object(merge, "gh_json", return_value=[]) as gh:
+            merge.branch_rules("owner/repo", "main")
+        gh.assert_called_once_with(["api", "repos/owner/repo/rules/branches/main"])
+
+
 if __name__ == "__main__":
     unittest.main()

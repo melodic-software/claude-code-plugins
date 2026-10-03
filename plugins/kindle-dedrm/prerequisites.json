@@ -1,0 +1,135 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.6"
+        }
+      },
+      "degrade": "Without Python 3.6 or newer, the Kindle DRM-removal phase scripts cannot run, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "winget": "Python.Python.3.13"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "pwsh",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ]
+      },
+      "degrade": "Without PowerShell 7, the provisioning steps cannot run, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "calibredb",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "calibredb"
+        ]
+      },
+      "degrade": "Without Calibre, books cannot be imported or converted to EPUB, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://calibre-ebook.com/download",
+        "winget": "calibre.calibre"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:manage"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, the /kindle-dedrm:manage drift check cannot probe upstream URLs and reports them as unreachable.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:manage"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, the /kindle-dedrm:manage drift check cannot read the DeDRM_tools releases and reports that source as unreachable.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

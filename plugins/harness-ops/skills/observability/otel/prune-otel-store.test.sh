@@ -848,7 +848,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   before="$(cold_sum)"
 
   out="$(run_prune_real "$S" --scrub-cold --dry-run)"
-  assert_contains "scrub dry-run lists the dirty logs file" "$out" "cold/${dirty_logs##*/}: would_scrub rows=2 prompt_rows=1"
+  assert_contains "scrub dry-run lists the dirty logs file" "$out" "cold/${dirty_logs##*/}: would_scrub rows=2 scrub_rows=1"
   assert_contains "scrub dry-run counts affected files" "$out" "action=dry-run-scrub-cold affected_files=2"
   assert_eq "scrub dry-run mutates nothing" "$before" "$(cold_sum)"
 
@@ -967,6 +967,152 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "next cold-only run makes no duckdb call" "0" "$(duckdb_calls)"
 else
   skip_case "duckdb not found — skipping cold marker case"
+fi
+
+# --- content-class fixtures: each promoted content column carries SECRET_<COLUMN>_SENTINEL ---
+# <column>:<attribute key> per table; spans' tool.output event attributes are listed apart
+# because they ride the span event, not the span's own attribute array.
+readonly LOG_CONTENT="response:response error:error tool_parameters:tool_parameters tool_input:tool_input hook_definitions:hook_definitions hook_matcher:hook_matcher managed_settings_settings:managed_settings.settings managed_settings_helper_path:managed_settings.helper.path body_ref:body_ref workspace_host_paths:workspace.host_paths user_email:user.email"
+readonly SPAN_CONTENT="user_system_prompt:user_system_prompt response_model_output:response.model_output new_context:new_context tool_input:tool_input full_command:full_command error:error hook_definitions:hook_definitions system_prompt_preview:system_prompt_preview user_email:user.email file_path:file_path"
+readonly SPAN_EVENT_CONTENT="content:content output:output diff:diff bash_command:bash_command"
+readonly METRIC_CONTENT="user_email:user.email"
+sentinel() {
+  local c="${1^^}"
+  printf 'SECRET_%s_SENTINEL' "$c"
+}
+content_attrs() { # <items>: comma-prefixed attribute fragment, one sentinel per item
+  local item col key out=""
+  for item in $1; do
+    col="${item%%:*}" key="${item#*:}"
+    if [[ "$key" == workspace.host_paths ]]; then
+      out+=",{\"key\":\"$key\",\"value\":{\"arrayValue\":{\"values\":[{\"stringValue\":\"$(sentinel "$col")\"}]}}}"
+    else
+      out+=",{\"key\":\"$key\",\"value\":{\"stringValue\":\"$(sentinel "$col")\"}}"
+    fi
+  done
+  printf '%s' "$out"
+}
+content_store() { # <store>: aged logs, spans and metrics carrying every content sentinel plus prompts
+  local s="$1" span_attrs event_attrs
+  {
+    real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA"
+    real_log_line "$OLD" tool_result claude_code.tool_result "$TOOL_EXTRA$(content_attrs "$LOG_CONTENT")"
+    real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  } >"$s/cc-logs.json"
+  span_attrs="$(content_attrs "$SPAN_CONTENT")"
+  event_attrs="$(content_attrs "$SPAN_EVENT_CONTENT")"
+  {
+    real_trace_line "$OLD" claude_code.interaction "$SPAN_PROMPT_EXTRA"
+    real_trace_line "$OLD" claude_code.tool "$span_attrs" |
+      sed "s/\"attributes\":\[{\"key\":\"session.id\"/\"events\":[{\"name\":\"tool.output\",\"timeUnixNano\":\"$OLD\",\"attributes\":[${event_attrs#,}]}],&/"
+  } >"$s/cc-traces.json"
+  real_metric_line "$OLD" claude_code.token.usage '"asInt":"5"' |
+    sed "s/{\"key\":\"type\"/{\"key\":\"user.email\",\"value\":{\"stringValue\":\"$(sentinel user_email)\"}},&/" >"$s/cc-metrics.json"
+}
+# Count rows of one cold glob through the cold macro (a file without a column reads it NULL).
+cold_q() { # <store> <logs|metrics|spans> <predicate>
+  local glob
+  case "$2" in logs) glob=cc-logs ;; metrics) glob=cc-metrics ;; spans) glob=cc-traces ;; *) return 1 ;; esac
+  dq_macro "SELECT count(*) FROM cc_${2}_cold('$(sql_path "$1")/cold/$glob-*.parquet') WHERE $3;"
+}
+raw_col() { case "$1" in logs) printf log_attributes_raw ;; metrics) printf metric_attributes_raw ;; spans) printf span_attributes_raw ;; *) return 1 ;; esac }
+each_content() { # <callback>: calls <callback> <table> <column> <in raw: yes|no> per content column
+  local item
+  for item in $LOG_CONTENT; do "$1" logs "${item%%:*}" yes; done
+  for item in $SPAN_CONTENT; do "$1" spans "${item%%:*}" yes; done
+  for item in $SPAN_EVENT_CONTENT; do "$1" spans "${item%%:*}" no; done
+  for item in $METRIC_CONTENT; do "$1" metrics "${item%%:*}" yes; done
+}
+
+# --- 31. content class, default keep: every non-prompt content column survives, prompts scrubbed ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store content-keep)"
+  content_store "$S"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  assert_eq "default-keep compaction exits 0" "0" "$rc"
+  keep_case() {
+    assert_eq "default keep: $1 $2 sentinel survives in cold" "1" \
+      "$(cold_q "$S" "$1" "CAST($2 AS VARCHAR) LIKE '%$(sentinel "$2")%'")"
+  }
+  each_content keep_case
+  assert_eq "default keep: logs prompt column NULLed" "0" "$(cold_q "$S" logs "prompt IS NOT NULL")"
+  assert_eq "default keep: prompt sentinels scrubbed from logs raw" "0" "$(cold_q "$S" logs "log_attributes_raw::VARCHAR LIKE '%SECRET_PROMPT%'")"
+  assert_eq "default keep: spans user_prompt NULLed" "0" "$(cold_q "$S" spans "user_prompt IS NOT NULL")"
+  assert_eq "default keep: prompt sentinels scrubbed from spans raw" "0" "$(cold_q "$S" spans "span_attributes_raw::VARCHAR LIKE '%SECRET_PROMPT%'")"
+else
+  skip_case "duckdb not found — skipping content default-keep case"
+fi
+
+# --- 32. CC_OTEL_COLD_KEEP_CONTENT=0: every promoted content column NULL and gone from raw ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store content-scrub)"
+  content_store "$S"
+  out="$(CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$S")"
+  rc=$?
+  assert_eq "content=0 compaction exits 0" "0" "$rc"
+  scrub_case() {
+    assert_eq "content=0: $1 $2 column NULL in every cold row" "0" "$(cold_q "$S" "$1" "$2 IS NOT NULL")"
+    if [[ "$3" == yes ]]; then
+      assert_eq "content=0: $(sentinel "$2") gone from $1 raw" "0" \
+        "$(cold_q "$S" "$1" "$(raw_col "$1")::VARCHAR LIKE '%$(sentinel "$2")%'")"
+    fi
+  }
+  each_content scrub_case
+  assert_eq "content=0: cold rows kept (logs)" "2" "$(cold_q "$S" logs "true")"
+  assert_eq "content=0: cold rows kept (spans)" "2" "$(cold_q "$S" spans "true")"
+  assert_eq "content=0: cold rows kept (metrics)" "1" "$(cold_q "$S" metrics "true")"
+  assert_eq "content=0: non-content columns kept" "1" "$(cold_q "$S" logs "tool_use_id = 'toolu-1'")"
+  assert_eq "content=0: prompts still scrubbed" "0" "$(cold_q "$S" logs "log_attributes_raw::VARCHAR LIKE '%SECRET_PROMPT%' OR prompt IS NOT NULL")"
+else
+  skip_case "duckdb not found — skipping content scrub case"
+fi
+
+# --- 33. --scrub-cold with CC_OTEL_COLD_KEEP_CONTENT=0 cleans content already in cold ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store content-scrub-cold)"
+  content_store "$S"
+  run_prune_real "$S" >/dev/null
+  # A cold file written before this change: the old logs column set, no content columns.
+  dq_macro "COPY (SELECT event_time, session_id, event_name, tool_name, hook_name, decision, duration_ms, success, source, prompt_id, tool_use_id, terminal_type, event_sequence, trace_id, span_id, body, to_json(list_filter(attributes_list, lambda x: x.key NOT IN ('prompt', 'prompt_text'))) AS log_attributes_raw FROM cc_logs_from('$(sql_path "$S/cc-logs.json")')) TO '$(sql_path "$S/cold/cc-logs-00000000T000000Z.parquet")' (FORMAT PARQUET);" >/dev/null
+  old_sum="$(cksum <"$S/cold/cc-logs-00000000T000000Z.parquet")"
+
+  out="$(run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "default switches: content files count clean" "$out" "action=dry-run-scrub-cold affected_files=0"
+  out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" --scrub-cold)"
+  assert_contains "both switches keep: scrub is a no-op" "$out" "action=noop-scrub-cold-keep-user-prompts"
+
+  out="$(CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "content=0 dry-run: logs file would scrub" "$out" "would_scrub rows=2 scrub_rows=1"
+  assert_contains "content=0 dry-run: metrics file would scrub" "$out" "would_scrub rows=1 scrub_rows=1"
+  assert_contains "content=0 dry-run: pre-change cold file counts clean" "$out" "cold/cc-logs-00000000T000000Z.parquet: clean rows=1"
+  assert_contains "content=0 dry-run counts logs, spans and metrics" "$out" "action=dry-run-scrub-cold affected_files=3"
+
+  out="$(CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$S" --scrub-cold)"
+  rc=$?
+  assert_eq "content=0 scrub exits 0" "0" "$rc"
+  assert_contains "content=0 scrub rewrites three files" "$out" "action=scrubbed-cold scrubbed_files=3"
+  assert_eq "pre-change cold file untouched" "$old_sum" "$(cksum <"$S/cold/cc-logs-00000000T000000Z.parquet")"
+  dirty_case() {
+    assert_eq "after scrub: $1 $2 NULL in every cold row" "0" "$(cold_q "$S" "$1" "$2 IS NOT NULL")"
+  }
+  each_content dirty_case
+  assert_eq "after scrub: no content sentinel in any raw column" "0" \
+    "$(($(cold_q "$S" logs "log_attributes_raw::VARCHAR LIKE '%SECRET_%'") + $(cold_q "$S" spans "span_attributes_raw::VARCHAR LIKE '%SECRET_%'") + $(cold_q "$S" metrics "metric_attributes_raw::VARCHAR LIKE '%SECRET_%'")))"
+  out="$(CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "after scrub: zero dirty files remain" "$out" "action=dry-run-scrub-cold affected_files=0"
+
+  # Prompts kept, content scrubbed: the scrub runs and leaves prompt content alone.
+  P="$(new_store content-scrub-prompts-kept)"
+  content_store "$P"
+  CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$P" >/dev/null
+  out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$P" --scrub-cold)"
+  assert_contains "prompts kept + content=0: scrub runs" "$out" "action=scrubbed-cold scrubbed_files=3"
+  assert_eq "prompts kept + content=0: prompt column kept" "1" "$(cold_q "$P" logs "prompt = 'SECRET_PROMPT_SENTINEL'")"
+  assert_eq "prompts kept + content=0: content NULLed" "0" "$(cold_q "$P" logs "response IS NOT NULL")"
+  assert_eq "prompts kept + content=0: no prompt-clean marker" "no" "$([[ -e "$P/cold/.prompt-scrub-clean" ]] && echo yes || echo no)"
+else
+  skip_case "duckdb not found — skipping content --scrub-cold case"
 fi
 
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"

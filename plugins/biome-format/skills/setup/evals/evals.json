@@ -89,7 +89,7 @@
       "expectations": [
         "Runs `command -v node` via Bash and reports FAIL when it is absent, not INFO or a skip-notice case",
         "States the reason: every hook launch goes through node hooks/exec-bash.mjs, so a missing node is a hook launch error rather than a skip notice",
-        "Says the SessionStart probe resolves biome separately from the hook's walk, reads probe-prerequisite.sh for the probe's walk limit and file tests instead of reciting them, and that a PASS on the hook's resolution means the hook resolves it",
+        "Says the SessionStart probe resolves biome separately from the hook's walk, reads prerequisites.json and lib/prerequisites.mjs for the probe's walk limit and file tests instead of reciting them, and that a PASS on the hook's resolution means the hook resolves it",
         "Points at the README Requirements sentence for how often skip notices repeat instead of restating a latch wording of its own"
       ]
     },

@@ -73,7 +73,7 @@ text alone, without opening the target.
   cohesion problem. Before adding it, consider restructuring so the things that change together
   live together, a pointer papering over low cohesion outlives the reorganization that would
   have removed it. (Audit-side remediation home: `harness-memory:audit`'s C5 fix guidance, if
-  that plugin is installed.)
+  that plugin is enabled.)
 
 The full pointer-quality criteria are owned by the sibling audit skill. Invoke
 `/docs-hygiene:audit-progressive-disclosure` via the Skill tool to grade a draft against them,
@@ -149,7 +149,7 @@ rationale in two or three sentences or the evidence as a list.
   already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared home
   still waits for the third occurrence; below that it remedies the repetition in place.
 - Resolved or coined a term in the **consuming project's** domain? Invoke
-  `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed) rather
+  `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled) rather
   than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
   scope and stays where it is.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit

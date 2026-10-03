@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Self-locating wrapper for the read-only unresolved-review-thread gate that
+# /source-control:pull-request readiness runs (reference/readiness.md). Picks a
+# working Python 3.11+ the same way the babysit wrappers do; exit 3 means none.
+set -euo pipefail
+export PYTHONUTF8=1
+here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+scripts="$here/../skills/babysit-prs/scripts"
+
+# shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
+. "$scripts/babysit-python.sh"
+babysit_python "$scripts/pr_review_threads.py" "$@"

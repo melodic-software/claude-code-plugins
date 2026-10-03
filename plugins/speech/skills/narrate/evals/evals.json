@@ -1,0 +1,43 @@
+{
+  "skill_name": "narrate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "text-becomes-a-script-file-then-narration",
+      "prompt": "Make a voiceover for this, put it in ./media: \"Markdown is the record. Every view is generated from it.\"",
+      "expected_output": "Writes the text to ./media/script.txt, runs narrate.py through pydeps.py run with --script and --out ./media, and reports the narration.wav and words.json paths with the audio length.",
+      "files": [],
+      "expectations": [
+        "Writes the given text to a script file in the output folder before running",
+        "Runs `pydeps.py run --data-dir` with `narrate.py` after `--`, passing `--script` and `--out`",
+        "Reports the narration.wav path, the words.json path and the length the script printed",
+        "Does not install any package, model or tool"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-espeak-stops-without-installing",
+      "prompt": "/speech:narrate notes/intro.txt\n\n(The run printed: speech: espeak-ng was not found on PATH, so the kokoro backend cannot phonemize the script. ... and exited 2.)",
+      "expected_output": "Reports the exit-2 message as written, points at /speech:check for the install line, and does not install espeak-ng or any package that bundles it.",
+      "files": [],
+      "expectations": [
+        "Reports that espeak-ng is missing, using the script's message",
+        "Names /speech:check as the way to see the install line",
+        "Does not run apt, brew, winget, pip or any other install command",
+        "Does not claim narration.wav was written"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "voice-and-speed-are-passed-through",
+      "prompt": "Narrate docs/script.txt with a British male voice, a little slower than normal.",
+      "expected_output": "Picks a bm_ voice from the pinned list and a speed below 1.0 within 0.5-2.0, passes them as --voice and --speed, and reports the outputs.",
+      "files": [],
+      "expectations": [
+        "Passes a voice whose name starts with `bm_`",
+        "Passes a `--speed` value below 1.0 and at least 0.5",
+        "Writes the outputs beside docs/script.txt unless told otherwise"
+      ]
+    }
+  ]
+}

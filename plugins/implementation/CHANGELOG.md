@@ -3,6 +3,27 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1] - 2026-10-02
+
+### Changed
+
+- **A plan refresh in the pull request body is written before a push, or after its CI run has
+  finished, never right after it.** `/implementation:implement` Step 4 and
+  `/implementation:implement-dispatch` Phase boundaries say so: a body edit re-runs every workflow
+  that triggers on `edited`, beside the push's own run.
+- **`/implementation:implement-dispatch` limits the early push to the time before the pull
+  request exists.** A worker dispatched onto an open pull request commits as it goes and pushes
+  once, after its whole change set passes its checks, since each push starts a full CI run and
+  cancels the one in flight.
+
+## [0.21.0] - 2026-10-03
+
+### Changed
+
+- **The `implementer` and `phase-verifier` bindings cover Workflow scripts.** An `agent()` call in
+  a Workflow script this repository ships that names either agent never passes `effort` or `model`
+  below the agent's binding, and omits both to keep it.
+
 ## [0.20.5] - 2026-10-02
 
 ### Fixed

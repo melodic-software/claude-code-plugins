@@ -15,14 +15,12 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-EXEMPT=(animation) # no prerequisites file or check skill yet; the batch that declares it adds both
 MARKER='prerequisites.sh" node-notice'
 
 # --- fleet shape ----------------------------------------------------------------
 rows_checked=0
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
-  [[ " ${EXEMPT[*]} " == *" $plugin "* ]] && continue
   mapfile -t rows < <(jq -r '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh")) | .command] | .[]' "$hooks")
   if ((${#rows[@]} != 1)); then
     bad "$plugin: want exactly one node-notice SessionStart row" "found ${#rows[@]}"

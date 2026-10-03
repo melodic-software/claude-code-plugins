@@ -28,7 +28,7 @@ precisely where the operator needs it most, and it cannot tell that it is blind.
 
 | Rung | Source | Gate | Yields |
 |---|---|---|---|
-| 1 | `/harness-ops:inventory` | if that plugin is installed | Every **installed** skill across every marketplace, manual-only included; reconcile against the enabled set, below |
+| 1 | `/harness-ops:inventory` | if that plugin is enabled | Every **installed** skill across every marketplace, manual-only included; reconcile against the enabled set, below |
 | 2 | An operator-supplied catalog file | if the consuming project provides one | Whatever the project chose to publish |
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
@@ -104,7 +104,7 @@ Whenever the pool came from Ladder A rung 3, or Ladder B could not enrich, the o
 briefly, once, near the top. For example:
 
 ```text
-Pool: in-context listing only (harness-ops:inventory not installed). Manual-only skills are not
+Pool: in-context listing only (harness-ops:inventory not enabled). Manual-only skills are not
 visible here, and descriptions for rarely-invoked skills may be missing.
 ```
 

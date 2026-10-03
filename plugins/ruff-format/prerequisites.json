@@ -1,20 +1,62 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "ruff",
-      "local_bin": ".venv/bin/ruff",
-      "check": "/ruff-format:check",
-      "install": "pip install ruff in the project .venv, https://docs.astral.sh/ruff/installation/"
+      "id": "ruff",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:ruff-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "ruff"
+        ],
+        "local_bin": [
+          ".venv/bin/ruff"
+        ]
+      },
+      "degrade": "Without ruff, the hook cannot format or lint edited Python files; edits still go through.",
+      "install": {
+        "pip": "pip install ruff",
+        "docs": "https://docs.astral.sh/ruff/installation/"
+      },
+      "check": "/ruff-format:check"
     },
     {
-      "name": "jq",
-      "check": "/ruff-format:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:ruff-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the ruff-format hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/ruff-format:check"
     },
     {
-      "name": "node",
-      "check": "/ruff-format:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the ruff-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/ruff-format:check"
     }
   ]
 }

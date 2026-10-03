@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-# Claude's watcher. Run in a background Bash task; it exits when the page has something new.
+# GENERATED from lib/session-bridge/watch.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
+# session-bridge's watcher (the loopback adapter's client). Run in a background Bash task; it exits
+# when the page has something new.
 #   bash watch.sh '<data_dir>'
+# Reads NAME and CONTROL from session-bridge.conf beside this script: NAME names the session env
+# file (.<NAME>-session.env) and the token header (X-<Name>-Token); CONTROL is the app's control
+# script beside this one, named in messages and run by wake.sh.
 # Long-polls /api/wait (each poll is the heartbeat the page shows as "Claude is listening"),
 # prints the unhandled events as one JSON line carrying "dataDir" and "next" (the exact re-arm
-# command), stores the seq in .watch-seq, and exits 0. Events a dead turn never handled come
-# back at once on the next arm; after that re-delivery (recorded in .watch-replay) an arm waits
-# for a new event.
-# Exits 2 when curl is missing, when the env file's PORT is not all digits, when the token was
-# rejected (the server restarted), or when the server stays unreachable for WAIT_FAILS polls
-# (default 12, 5 s apart).
+# command, wake.sh beside this script), stores the seq in .watch-seq, and exits 0. Events a dead
+# turn never handled come back at once on the next arm; after that re-delivery (recorded in
+# .watch-replay) an arm waits for a new event.
+# Exits 2 when curl is missing, when session-bridge.conf is missing or malformed, when the env
+# file's PORT is not all digits, when the token was rejected (the server restarted), or when the
+# server stays unreachable for WAIT_FAILS polls (default 12, 5 s apart).
 # Exits 3 when another watcher holds the server's lease (one session watches a data dir at a
 # time), when this watcher's lease was released while it waited, or when a poll fails after
-# round.sh stop removed the env file; it prints why to stderr and does not retry. Each poll sends
-# this process's pid (&pid=$$), which the lease records so round.sh stop can end this watcher.
+# `CONTROL stop` removed the env file; it prints why to stderr and does not retry. Each poll sends
+# this process's pid (&pid=$$), which the lease records so `CONTROL stop` can end this watcher.
 # Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (Claude Code exports it to
 # every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. A parent
 # pid of 1 (a Claude Code Bash shell on Windows reports it, for every session) names no one, so
@@ -27,9 +33,15 @@ command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (wa
 # Elsewhere `pwd -W` fails and plain `pwd` applies.
 abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
 here=$(abs_dir "$(dirname "${BASH_SOURCE[0]}")")
+conf="$here/session-bridge.conf"
+NAME=$(sed -n 's/^NAME=//p' "$conf" 2>/dev/null | tr -d '\r')
+CONTROL=$(sed -n 's/^CONTROL=//p' "$conf" 2>/dev/null | tr -d '\r')
+[[ "$NAME" =~ ^[a-z][a-z0-9-]*$ && "$CONTROL" =~ ^[A-Za-z0-9._-]+$ ]] ||
+  { echo "no valid NAME and CONTROL in $conf" >&2; exit 2; }
+header="X-$(printf '%s' "${NAME:0:1}" | tr '[:lower:]' '[:upper:]')${NAME:1}-Token"
 dir=$(abs_dir "$1") || { echo "no such data dir: $1" >&2; exit 2; }
-env_file="$dir/.interview-session.env"
-[[ -f "$env_file" ]] || { echo "no $env_file: run round.sh ensure-running first" >&2; exit 2; }
+env_file="$dir/.$NAME-session.env"
+[[ -f "$env_file" ]] || { echo "no $env_file: run $CONTROL ensure-running first" >&2; exit 2; }
 PORT=$(sed -n 's/^PORT=//p' "$env_file" | tr -d '\r')
 TOKEN=$(sed -n 's/^TOKEN=//p' "$env_file" | tr -d '\r')
 WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
@@ -85,15 +97,15 @@ fails=0
 while :; do
   # The body comes back on stdout (no file path reaches curl), with the status on a last line.
   resp=$("$curl_bin" -s -w '\n%{http_code}' --noproxy '*' --max-time $((WAIT_TIMEOUT + 10)) \
-    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher&pid=$$")
+    -H "$header: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher&pid=$$")
   code=${resp##*$'\n'}
   out=${resp%$'\n'*}
   if [[ "$code" == 409 && "$out" == *'"lease held"'* ]]; then
-    echo "another watcher holds this interview's lease: session $(field holder), since $(field since), last poll $(field lastWaitAt); one session watches a data dir at a time; coordinate with that session, or wait for the lease to expire ($(field expiresAt))" >&2
+    echo "another watcher holds this $NAME's lease: session $(field holder), since $(field since), last poll $(field lastWaitAt); one session watches a data dir at a time; coordinate with that session, or wait for the lease to expire ($(field expiresAt))" >&2
     exit 3
   fi
   if [[ "$code" == 409 && "$out" == *'"lease released"'* ]]; then
-    echo "this watcher's lease was released while it waited (round.sh lease --release); another session may hold it now; run round.sh lease to see, and re-arm only if this session should watch" >&2
+    echo "this watcher's lease was released while it waited ($CONTROL lease --release); another session may hold it now; run $CONTROL lease to see, and re-arm only if this session should watch" >&2
     exit 3
   fi
   case "$code" in
@@ -103,10 +115,10 @@ while :; do
       exit 2
       ;;
     *)
-      # round.sh stop removes the env file once the server is down: a refused poll after that is a
-      # clean stop, not an outage to retry.
+      # `CONTROL stop` removes the env file once the server is down: a refused poll after that is
+      # a clean stop, not an outage to retry.
       if [[ ! -f "$env_file" ]]; then
-        echo "the interview server was stopped (round.sh stop): not re-arming" >&2
+        echo "the $NAME server was stopped ($CONTROL stop): not re-arming" >&2
         exit 3
       fi
       fails=$((fails + 1))

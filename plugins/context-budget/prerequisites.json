@@ -1,9 +1,22 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "node",
-      "check": "/context-budget:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the context-budget hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/context-budget:check"
     }
   ]
 }

@@ -9,7 +9,8 @@
 # Deliberately NOT lib/hook-utils.sh: a logging producer runs on every hook
 # event, and parsing that library costs more than the rest of the hook.
 # Nothing here spawns a
-# process; every function assigns into a caller-named variable (`printf -v`)
+# process, except slog_append on a locked line (`rm`, and `sleep` while it
+# waits for the lock); every other function assigns into a caller-named variable (`printf -v`)
 # or returns a status. Locals carry a `slog__` prefix so `printf -v` can never
 # land on a shadowed name.
 #
@@ -44,11 +45,10 @@
 # numbers (SCALARS, emitted with their JSON type). Paths are recorded as the
 # payload's raw absolute values; `file_path` keeps its own reduction in the
 # hook. A `key@Event` entry is read only on that event: `error` is an enum on
-# StopFailure and tool output on PostToolUseFailure. Never copied: content
-# (prompt, session_title, command_args, message, title, last_assistant_message,
-# task_subject, task_description, error_details, custom_instructions,
-# compact_summary, url, and every object or array, tool_input and
-# tool_response among them), and the payload keys `source` and `duration_ms`,
+# StopFailure and tool output on PostToolUseFailure. Content strings
+# (SLOG_EVENT_LOG_CONTENT) are copied only when the session_event_log_content
+# option is true. Never copied: every object or array, tool_input and
+# tool_response among them, and the payload keys `source` and `duration_ms`,
 # whose names the record's spine already holds.
 #
 # `effort` is on every event-log record: the level, `n/a` on the events in
@@ -73,10 +73,12 @@
 # Recheck: each /harness-ops:changelog ingest whose release notes touch hook
 # input fields, when a key here stops appearing in the page's input sections,
 # or when Stop rows on an effort-capable model record `unset`.
-# shellcheck disable=SC2034 # the three lists are read by session-event-log.sh
+# shellcheck disable=SC2034 # the lists are read by session-event-log.sh
 SLOG_EVENT_LOG_STRINGS="transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name error@StopFailure old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action"
 # shellcheck disable=SC2034
 SLOG_EVENT_LOG_SCALARS="seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm"
+# shellcheck disable=SC2034
+SLOG_EVENT_LOG_CONTENT="prompt session_title command_args message title last_assistant_message task_subject task_description error_details custom_instructions compact_summary url error@PostToolUseFailure"
 # shellcheck disable=SC2034
 SLOG_EFFORT_NA_EVENTS="SessionStart SessionEnd Setup InstructionsLoaded UserPromptSubmit UserPromptExpansion Notification SubagentStart TaskCreated TaskCompleted TeammateIdle ConfigChange CwdChanged DirectoryAdded WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult"
 
@@ -323,6 +325,77 @@ slog_record_to() {
     slog__sep=","
   done
   printf -v "$slog__var" '%s' "${slog__line}}"
+}
+
+# slog_append <file> <line> [lock]: appends <line> and a newline; always
+# returns 0. Bash's printf writes in 4096-byte chunks, so a longer line is
+# several write() calls, and any appender that skips the lock can land inside
+# one. A line goes under the lock file <file>.lock when it is over 4000 bytes
+# or when the caller passes `lock` (session-event-log.sh does whenever content
+# fields are on, so its short rows wait for a long one too); otherwise it is
+# the single unlocked write it always was, with nothing spawned.
+#
+# The lock holds the owner's token, and only the owner removes it. A waiter
+# polls every 0.05 s. A lock whose token stays the same for 100 polls (5 s or
+# more; a 64 KB append takes milliseconds) is stale and is removed, but only
+# while it still holds that token. After 200 polls (10 s or more) without the
+# lock, the line is appended unlocked, the one path that can still interleave,
+# so a hook never drops its row or holds up the session for longer.
+slog_append() {
+  local slog__f="$1" slog__l="$2" slog__lock="$1.lock" slog__bytes slog__token
+  local slog__seen="" slog__cur slog__same=0 slog__n=0 slog__held=0
+  slog_byte_len_to slog__bytes "$slog__l"
+  if [[ "${3:-}" != lock ]] && ((slog__bytes <= 4000)); then
+    printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+    return 0
+  fi
+  slog__token="$$.$RANDOM$RANDOM"
+  while ((slog__n++ < 200)); do
+    if slog_lock "$slog__lock" "$slog__token"; then
+      slog__held=1
+      break
+    fi
+    slog__cur=""
+    IFS= read -r slog__cur 2>/dev/null <"$slog__lock"
+    if [[ "$slog__cur" != "$slog__seen" ]]; then
+      slog__seen="$slog__cur"
+      slog__same=0
+    elif ((++slog__same >= 100)); then
+      slog_unlock "$slog__lock" "$slog__seen"
+      slog__same=0
+    fi
+    sleep 0.05 2>/dev/null
+  done
+  printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+  ((slog__held)) && slog_unlock "$slog__lock" "$slog__token"
+  return 0
+}
+
+# slog_lock <path> <token>: 0 when this call created <path>, writing <token>
+# into it. noclobber makes the `>` an O_EXCL create, so exactly one racer
+# wins, with no process spawned. Not mkdir: uutils mkdir 0.10.0 was caught
+# exiting 0 on EEXIST under contention.
+slog_lock() {
+  local slog__was=0 slog__rc=0
+  [[ $- == *C* ]] && slog__was=1
+  set -C
+  { printf '%s' "$2" >"$1"; } 2>/dev/null || slog__rc=1
+  ((slog__was)) || set +C
+  return "$slog__rc"
+}
+
+# slog_unlock <path> <token>: removes <path> only while it holds <token>.
+slog_unlock() {
+  local slog__cur=""
+  IFS= read -r slog__cur 2>/dev/null <"$1"
+  [[ "$slog__cur" == "$2" ]] && rm -f "$1" 2>/dev/null
+  return 0
+}
+
+# slog_byte_len_to <var> <string>: the string's length in bytes, not characters.
+slog_byte_len_to() {
+  local LC_ALL=C
+  printf -v "$1" '%s' "${#2}"
 }
 
 # slog_event_record_to <var> <source> <ts> <session_id> <hook_event_name>

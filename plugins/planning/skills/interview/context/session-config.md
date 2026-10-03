@@ -48,6 +48,20 @@ treats it as a default, not a rule.
 No docs page states the heuristic itself as of 2026-10-01; the pages above only order the levers.
 Recheck trigger for the heuristic: a docs page starts covering it.
 
+## Effort per phase: implement and verify
+
+An engineering handoff recommends two effort levels, not one: one for the implement phase and a
+separate one for the verify phase. For each, read model-config's effort table (pointer below) when
+forming the recommendation, pick the level whose described use fits that phase's work, and name
+both the level and the matched use. Implementing changes code and verifying checks it, so neither
+is advised below medium; skip any row the table says is not an effort level. When the page cannot
+be read, say so, cite the URL, and recommend no level for either phase.
+
+- **Pointer**: for choosing an effort level, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-10-02
+- **Recheck trigger**: the section is renamed or moved, or its table columns change.
+
 ## Advisor pairing
 
 For non-trivial work this skill does not recommend a faster main model running

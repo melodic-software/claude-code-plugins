@@ -1,0 +1,19 @@
+# Changelog
+
+All notable changes to the `explainer-video` plugin are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+## [0.1.0] - 2026-10-02
+
+### Added
+
+- The `produce` skill: plans the beats of a short explainer, writes one ManimCE scene script, renders
+  it at low quality with `scripts/render.py`, and re-renders until every check passes and the frames
+  read clean ([#5861](https://github.com/melodic-software/claude-code-plugins/issues/5861)).
+  `render.py` fails the run on a wrong stream layout or duration (ffprobe), a blank frame while
+  something is on screen, overlapping text, or an element cut off by the frame edge, and extracts a
+  frame after every animation for the skill to read back.
+- The `check` skill: read-only PASS/FAIL rows for Python 3.12 or 3.13, ManimCE, ffmpeg and ffprobe.
+- A `SessionStart` hook that installs the hash-locked `requirements.txt` (ManimCE 0.21.0 with Typst)
+  into the plugin data directory through `scripts/pydeps.py`, and `prerequisites.json` declaring
+  node, Python, ffmpeg and ffprobe.

@@ -241,7 +241,7 @@ else
   ingest_line="$(awk '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
     fm && /^---[[:space:]]*$/ { fm = 0; next }
-    !fm && /WebFetch|curl |gh issue|gh pr|gh api/ { print NR; exit }
+    !fm && /WebFetch|curl |gh issue|gh pr|gh api/ { print NR; exit } # prereq-ok: a pattern matched against the audited file, not a command this script runs
   ' "$COMPONENT")"
   if [[ -z "$ingest_line" ]]; then
     emit_probe untrusted-content not-applicable "$home_out/untrusted-content/README.md:$unc_cite" - "no ingest signal"

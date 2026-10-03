@@ -38,6 +38,7 @@
         "Never appends override text to the skill's arguments",
         "Runs guard.sh before committing and runs the printed git reset --soft on exit 11",
         "Makes exactly one commit whose final paragraph holds Playbook, Playbook-Step, and Co-Authored-By trailers, or ticks no-findings with skill@version and makes no commit",
+        "Pushes the commit before the committed tick, never after it",
         "Tells the user to run review if anything went wrong, then /clear and next"
       ]
     },

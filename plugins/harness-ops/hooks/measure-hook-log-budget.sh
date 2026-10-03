@@ -254,8 +254,13 @@ append_probe() {
   : >"$file"
   pad="$(head -c "$bytes" /dev/zero | tr '\0' 'a')"
   i=1
+  # Each append goes through slog_append, the hook's own write path.
   while [[ "$i" -le 33 ]]; do
-    printf '{"i":%s,"pad":"%s"}\n' "$i" "$pad" >>"$file" &
+    (
+      # shellcheck source=session-log-lib.sh
+      source "$SCRIPT_DIR/session-log-lib.sh"
+      slog_append "$file" "{\"i\":$i,\"pad\":\"$pad\"}"
+    ) &
     i=$((i + 1))
   done
   wait
@@ -276,6 +281,7 @@ append_probe() {
 
 read -r append4_lines append4_corrupt <<<"$(append_probe 4096)"
 read -r append16_lines append16_corrupt <<<"$(append_probe 16384)"
+read -r append64_lines append64_corrupt <<<"$(append_probe 65536)"
 
 LS_DIR="$WORK/lst"
 mkdir -p "$LS_DIR"
@@ -338,6 +344,8 @@ append_4kb_lines: $append4_lines
 append_4kb_corrupt: $append4_corrupt
 append_16kb_lines: $append16_lines
 append_16kb_corrupt: $append16_corrupt
+append_64kb_lines: $append64_lines
+append_64kb_corrupt: $append64_corrupt
 ls_t_order: $ls_order
 ls_t_resolution: $ls_resolution
 late_eof_ms: $late_eof

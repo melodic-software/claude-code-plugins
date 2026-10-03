@@ -1,0 +1,4 @@
+# Direct pins for the kokoro backend: onnxruntime runs the Kokoro-82M ONNX export, numpy holds its tensors.
+# Python >= 3.12 (numpy 2.5). After a change, recompile requirements.txt with the command in its header.
+numpy==2.5.3
+onnxruntime==1.30.0

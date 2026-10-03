@@ -1,24 +1,76 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "shfmt",
-      "check": "/bash-format:check",
-      "install": "host package or release binary, https://github.com/mvdan/sh#shfmt"
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:bash-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ]
+      },
+      "degrade": "Without shfmt, the hook cannot format edited shell scripts; edits still go through.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt"
+      },
+      "check": "/bash-format:check"
     },
     {
-      "name": "shellcheck",
-      "check": "/bash-format:check",
-      "install": "host package or release binary, https://github.com/koalaman/shellcheck#installing"
+      "id": "shellcheck",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:bash-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "shellcheck"
+        ]
+      },
+      "degrade": "Without shellcheck, the hook cannot lint edited shell scripts; edits still go through.",
+      "install": {
+        "docs": "https://github.com/koalaman/shellcheck#installing"
+      },
+      "check": "/bash-format:check"
     },
     {
-      "name": "jq",
-      "check": "/bash-format:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:bash-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the bash-format hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/bash-format:check"
     },
     {
-      "name": "node",
-      "check": "/bash-format:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the bash-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/bash-format:check"
     }
   ]
 }

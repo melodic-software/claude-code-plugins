@@ -1,9 +1,22 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "node",
-      "check": "/disk-hygiene:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the disk-hygiene hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/disk-hygiene:check"
     }
   ]
 }

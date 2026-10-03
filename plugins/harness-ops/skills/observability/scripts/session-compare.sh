@@ -102,7 +102,7 @@ END {
   print "Context: measure with https://code.claude.com/docs/en/monitoring-usage (token and cost counters); correlate: \"What a task costs on Opus 5.5\", https://claude.dev/blog/what-a-task-costs-on-opus-5-5/#measure-it-yourself"
   print "Costs are the estimate Claude Code reports; on a subscription they measure work, not a bill.\n"
   fmt = "%-" sw "s  %-" mw "s  %-" ew "s  %10s  %10s  %12s  %13s\n"
-  print "Tokens by type (claude_code.token.usage); effort none = the request carried no effort level"
+  print "Tokens by type (claude_code.token.usage); effort unset = the request carried no effort level"
   printf fmt, "session", "model", "effort", "input", "output", "cacheRead", "cacheCreation"
   for (r = 1; r <= nt; r++) { split(tok[r], f, "\t"); printf fmt, f[2], f[3], f[4], f[5], f[6], f[7], f[8] }
   for (k = 1; k <= 2; k++) {

@@ -25,7 +25,7 @@ Discover live members through the bound adapter's label listing (GitHub:
 `work-class: structural` (C4) and `work-class: untrusted-provenance` (C5) are human-gated
 **regardless of any other signal** (the admission-gate table in
 [`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate", which binds
-whether or not the `autonomy` plugin is installed). The autonomous-eligible role label
+whether or not the `autonomy` plugin is enabled). The autonomous-eligible role label
 (default `agent-ready`) asserts the opposite, so **an item must never carry both**. Applying
 that role label to a C4 or C5 item is a triage defect, not an operator override: no label
 lifts the floor.
