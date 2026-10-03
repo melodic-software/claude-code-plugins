@@ -394,6 +394,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "explainer-video",
+      "source": "./plugins/explainer-video",
+      "category": "visual-arts",
+      "tags": ["explainer", "video", "manim", "animation", "math", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",

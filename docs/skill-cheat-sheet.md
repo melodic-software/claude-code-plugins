@@ -91,6 +91,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/animation:produce`](../plugins/animation/skills/produce/SKILL.md) | `animation` | Brief, boards, approval gate, shots, render, and pack review |
 | [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
+| [`/explainer-video:produce`](../plugins/explainer-video/skills/produce/SKILL.md) | `explainer-video` | Script, render and self-check a silent ManimCE explainer video |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |
 | [`/instruction-placement:migrate`](../plugins/instruction-placement/skills/migrate/SKILL.md) | `instruction-placement` | Move a repository's instruction content to AGENTS.md behind an operator gate |
@@ -237,6 +238,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/education:quiz-me`](../plugins/education/skills/quiz-me/SKILL.md) | `education` | Generate a post-change report with a quiz verifying you absorbed the work |
 | [`/education:teach`](../plugins/education/skills/teach/SKILL.md) | `education` | Multi-session learning coach for general topics or repo-grounded concepts |
 | [`/eol-normalizer:check`](../plugins/eol-normalizer/skills/check/SKILL.md) | `eol-normalizer` | Report whether node and jq resolve for the eol-normalizer hooks. Never installs. |
+| [`/explainer-video:check`](../plugins/explainer-video/skills/check/SKILL.md) | `explainer-video` | Report whether Python, ManimCE, ffmpeg and ffprobe are ready. Never installs. |
 | [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message |
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |

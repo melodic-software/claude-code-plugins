@@ -426,7 +426,7 @@ Current emitters, grandfathered on their shipped ladder and `medium` only, since
 content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`planning:interview` (and planning's other rendered views),
+`planning:interview` (and planning's other rendered views, except the plan and brainstorm views below),
 `overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
 
@@ -434,6 +434,10 @@ Emitters on the escape-helper gate (the third bullet of the security baseline), 
 its page with a checked-in builder: `education:illustrate`, `education:teach` (codebase mode),
 `knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
 grandfathered list when they moved onto it.
+
+Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `planning:plan` and
+`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
+(`plugins/planning/scripts/build-view.mjs`).
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
