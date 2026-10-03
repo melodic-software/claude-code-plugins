@@ -37,6 +37,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -110,8 +111,12 @@ def _q(path: Path) -> str:
     return shlex.quote(path.as_posix())
 
 
+_PS_SINGLE_QUOTES = re.compile("['‘’‚‛]")
+
+
 def _ps_q(path: Path) -> str:
-    return "'" + str(path).replace("'", "''") + "'"
+    # PowerShell reads all four curly forms as single quotes; doubling escapes each.
+    return "'" + _PS_SINGLE_QUOTES.sub(lambda m: m[0] * 2, str(path)) + "'"
 
 
 def install_command(target: Path, platform: str = sys.platform) -> str:

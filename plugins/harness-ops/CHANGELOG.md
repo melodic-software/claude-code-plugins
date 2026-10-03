@@ -42,6 +42,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   modules with a load the parser cannot name. `--reader` stays `regex` by default.
   `--reader=compare` output is unchanged on every installed build.
 
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
 ## [3.1.0] - 2026-10-02
 
 ### Added
