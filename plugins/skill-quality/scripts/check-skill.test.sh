@@ -1318,7 +1318,7 @@ fi
 git -C "$TMP" mv -f "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 
-# 21.A `!` injection with a `shell:` declaration is silent — the author has
+# 21. A `!` injection with a `shell:` declaration is silent — the author has
 #     taken explicit responsibility for the shell (check 19).
 make_skill inj-shell-ok '---
 name: inj-shell-ok

@@ -1393,13 +1393,16 @@ function frontmatterScalar(frontmatter, key) {
   const lines = frontmatter.split(/\r?\n/);
   const start = lines.findIndex((line) => line.startsWith(`${key}:`));
   if (start === -1) return undefined;
-  const head = lines[start].slice(key.length + 1).trim();
+  const raw = lines[start].slice(key.length + 1).trim();
+  // A comment starts at a # preceded by whitespace, outside a quoted scalar.
+  const head = /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
   const rest = [];
   for (const line of lines.slice(start + 1)) {
     if (line !== "" && !/^\s/.test(line)) break;
     rest.push(line.trim());
   }
-  if (/^[|>][+-]?$/.test(head)) return rest.join(head[0] === ">" ? " " : "\n").trim();
+  // Block scalar header: indicator, then an optional indentation digit and chomping sign in either order.
+  if (/^[|>](?:[1-9][+-]?|[+-][1-9]?)?$/.test(head)) return rest.join(head[0] === ">" ? " " : "\n").trim();
   const value = [head, ...rest].filter(Boolean).join(" ");
   if (/^".*"$/.test(value)) return JSON.parse(value);
   if (/^'.*'$/.test(value)) return value.slice(1, -1).replace(/''/g, "'");
