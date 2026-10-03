@@ -8,7 +8,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 ### Changed
 
 - `map-flow` runs `/visualization:mermaid-gate` on the diagram it writes when that skill is
-  installed, and says the diagram was not checked when it is not.
+  enabled, and says the diagram was not checked when it is not.
 
 ## [0.18.4] - 2026-10-02
 

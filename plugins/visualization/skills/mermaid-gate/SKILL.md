@@ -1,5 +1,5 @@
 ---
-description: "Parse every Mermaid block before it is emitted and, when the pinned mmdc is present, pre-render it to SVG for a local page. Use when: 'check this mermaid', 'validate the diagram', 'does this mermaid parse', 'pre-render the mermaid to SVG', or before writing a local HTML page or markdown file that carries a mermaid block. Skip for a published Artifact, which renders Mermaid natively. Another plugin's mermaid-emitting skill may call it."
+description: "Parse every Mermaid block before it is emitted and, when the pinned mmdc is present, pre-render it to SVG for a local page. Use when: 'check this mermaid', 'validate the diagram', 'does this mermaid parse', 'pre-render the mermaid to SVG', or before writing a local HTML page or markdown file that carries a mermaid block. For a published Artifact, which renders Mermaid natively, run the parse without --svg-dir. Another plugin's mermaid-emitting skill may call it."
 argument-hint: "<check|<file> ...> [--svg-dir <dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -47,5 +47,5 @@ Without `mmdc`, the parse is a structural check: an unknown diagram type, an unt
 
 ## Gotchas
 
-- The gate uses `mmdc` only at the pinned version, and the version is in `prerequisites.json` and the script's `PINNED_MMDC`. Any other version is treated as absent, with the reason in the report. As of 2026-10-02, 11.17.0 is the newest 11.x release of `@mermaid-js/mermaid-cli`. Recheck when the Artifact runtime's Mermaid version (see `visualize/context/decision-matrix.md`) moves to a different major.
+- The gate uses `mmdc` only at the minimum version in `prerequisites.json` and the script's `PINNED_MMDC`, or a newer one, found on PATH or at `node_modules/.bin/mmdc` under the working directory. An older version is treated as absent, with the reason in the report. Pointer: <https://github.com/mermaid-js/mermaid-cli/releases>. As of 2026-10-03. Recheck when the Artifact runtime's Mermaid version (see `visualize/context/decision-matrix.md`) moves to a different major.
 - `mmdc` renders in a headless browser. A failure that is not a parse error (no Chrome) falls back to source with the failure text as the reason. It is not a syntax error.

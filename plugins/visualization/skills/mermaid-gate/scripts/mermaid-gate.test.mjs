@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -57,6 +57,7 @@ test("structuralCheck accepts valid heads and names each defect", () => {
   assert.match(structuralCheck("flowchart TD\n  A[\"x] --> B\n"), /line 2: unterminated double quote/);
   assert.equal(structuralCheck("flowchart TD\n  A>text] --> B\n  C[a>b] --> D\n"), null);
   assert.match(structuralCheck("flowchart TD\n  A>text --> B\n"), /line 2: unbalanced/);
+  assert.equal(structuralCheck("flowchart TD\n  A-->|rate>5|B\n"), null);
   assert.match(structuralCheck("\n%% only a comment\n"), /empty/);
 });
 
@@ -104,7 +105,22 @@ test("mmdc parse error is reported by name and fails the gate", { skip: !POSIX }
 test("a wrong mmdc version is not used", { skip: !POSIX }, () => {
   const [block] = gate([doc(GOOD)], { svgDir: join(dir, "svg-ver"), mmdc: fakeMmdc("10.9.1") }).blocks;
   assert.equal(block.render, "source");
-  assert.match(block.reason, new RegExp(`10\\.9\\.1.*${PINNED_MMDC} is pinned`));
+  assert.match(block.reason, new RegExp(`10\\.9\\.1.*${PINNED_MMDC} or newer is needed`));
+});
+
+test("a newer mmdc version is used, as the prerequisite check's minimum accepts it", { skip: !POSIX }, () => {
+  const [block] = gate([doc(GOOD)], { svgDir: join(dir, "svg-newer"), mmdc: fakeMmdc("11.18.0") }).blocks;
+  assert.equal(block.render, "svg");
+});
+
+test("two input files with the same name keep separate SVGs", { skip: !POSIX }, () => {
+  const svgDir = join(dir, "svg-dup");
+  const files = ["a", "b"].map((d) => {
+    mkdirSync(join(dir, d), { recursive: true });
+    return write(join(d, "design.mmd"), GOOD);
+  });
+  const report = gate(files, { svgDir, mmdc: fakeMmdc(PINNED_MMDC) });
+  assert.equal(new Set(report.blocks.map((b) => b.svg)).size, 2);
 });
 
 test("an mmdc render failure that is not a parse error falls back to source", { skip: !POSIX }, () => {

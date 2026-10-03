@@ -8,7 +8,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Added
 
 - `mermaid-gate` skill: parses every Mermaid block before it is emitted, names the error and
-  line of a failing block, and pre-renders to SVG for a local page when `mmdc` 11.17.0 is
+  line of a failing block, and pre-renders to SVG for a local page when `mmdc` 11.17.0 or newer is
   installed. Without it the source is kept and the report gives the reason. A published Artifact
   needs the parse only.
 - `prerequisites.json` declaring `node` (required for the gate) and `mmdc` (optional, pinned

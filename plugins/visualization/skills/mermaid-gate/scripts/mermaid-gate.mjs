@@ -77,7 +77,7 @@ export function structuralCheck(source) {
   for (const { text, n } of lines.slice(1)) {
     if ((text.match(/"/g) ?? []).length % 2) return `line ${n}: unterminated double quote`;
     if (!flow) continue;
-    const bare = text.replace(/"[^"]*"/g, "");
+    const bare = text.replace(/"[^"]*"/g, "").replace(/\|[^|]*\|/g, "");
     const unbalanced = unbalancedBracket(bare);
     if (unbalanced) return `line ${n}: unbalanced '${unbalanced}'`;
   }
@@ -89,13 +89,25 @@ function run(cmd, args) {
   return { ...r, out: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() };
 }
 
+function atLeast(version, min) {
+  const [a, b] = [version, min].map((s) => s.split(".").map(Number));
+  const i = a.findIndex((n, k) => n !== b[k]);
+  return i === -1 || a[i] > b[i];
+}
+
 export function resolveMmdc(explicit) {
-  const cmd = explicit ?? "mmdc";
-  const v = run(cmd, ["--version"]);
-  if (v.error) return { reason: `mmdc is not installed (pinned ${PINNED_MMDC}), so the Mermaid source is kept` };
+  const candidates = explicit ? [explicit] : ["mmdc", join(process.cwd(), "node_modules", ".bin", "mmdc")];
+  let cmd = candidates[0];
+  let v = run(cmd, ["--version"]);
+  for (const next of candidates.slice(1)) {
+    if (!v.error) break;
+    cmd = next;
+    v = run(cmd, ["--version"]);
+  }
+  if (v.error) return { reason: `mmdc is not installed (${PINNED_MMDC} or newer is needed), so the Mermaid source is kept` };
   const version = /(\d+\.\d+\.\d+)/.exec(v.out)?.[1];
-  if (version !== PINNED_MMDC) {
-    return { reason: `mmdc ${version ?? "of unknown version"} is installed but ${PINNED_MMDC} is pinned, so the Mermaid source is kept` };
+  if (!version || !atLeast(version, PINNED_MMDC)) {
+    return { reason: `mmdc ${version ?? "of unknown version"} is installed but ${PINNED_MMDC} or newer is needed, so the Mermaid source is kept` };
   }
   return { cmd };
 }
@@ -118,11 +130,12 @@ export function gate(files, { svgDir, mmdc: explicitMmdc } = {}) {
   const work = mkdtempSync(join(tmpdir(), "mermaid-gate-"));
   if (svgDir) mkdirSync(svgDir, { recursive: true });
   const blocks = [];
+  let count = 0;
   try {
     for (const file of files) {
       const found = extractBlocks(readFileSync(file, "utf8"), /\.(mmd|mermaid)$/.test(file));
-      found.forEach(({ source, line }, i) => {
-        const name = `${basename(file).replace(/\.[^.]*$/, "")}-${i + 1}`;
+      found.forEach(({ source, line }) => {
+        const name = `${basename(file).replace(/\.[^.]*$/, "")}-${++count}`;
         const block = { file, line, status: "ok", render: "source", reason: mmdc.reason };
         const structural = structuralCheck(source);
         if (structural) {
