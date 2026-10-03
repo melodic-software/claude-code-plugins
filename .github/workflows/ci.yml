@@ -45,6 +45,21 @@ on:
     # `pull_request` whatever `permissions:` requests, so it cannot record lane
     # state — and runs the full workflow on every event exactly as before.
     types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+  # A merge queue tests each queued merge commit through this event alone; a
+  # required check that never reports on it leaves the queued pull request
+  # unmergeable. A merge-group run carries no `github.event.pull_request`, so
+  # every expression below that reads one takes its non-PR branch: the
+  # contract-only and draft gates are false, so every lane runs in full; the
+  # concurrency group falls back to `github.run_id`, so no queued run cancels
+  # another; the docs-only detector does not run, the change-detection action
+  # fails open and `changes` resolves no diff base, so the whole tree is
+  # tested; the base-diff gates decline as on a push; `pr-contract` finds no pull
+  # request number and reports `skipped`, because the title, label and linkage
+  # were already checked on the pull request before it could enter the queue;
+  # and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -71,7 +86,8 @@ permissions:
 # runs instead of one each (a replay of 529 main pushes: 47% would be dropped
 # while pending). The surviving run diffs from the newest green push run, not
 # from its parent, so a dropped run's commits are still in its range. A
-# schedule or dispatch run keeps the unique `github.run_id` group.
+# merge-group, schedule or dispatch run keeps the unique `github.run_id`
+# group, so it is never cancelled.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&

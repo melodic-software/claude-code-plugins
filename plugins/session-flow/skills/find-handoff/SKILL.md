@@ -1,5 +1,5 @@
 ---
-description: "Recover a lost handoff after `/clear`: find the save-point file or resume prompt. Read-only: checks `<memory_dir>/handoffs/`, then a bounded scan of recent transcripts, then confirms before resuming. Use when: 'find my handoff', 'recover the handoff', 'I lost the resume prompt', 'forgot to copy the resume prompt', 'I cleared without saving the prompt', 'where's my handoff', 'recover after /clear', 'get back the handoff'. A session that ended mid-work goes to /session-flow:keep-going."
+description: "Recover a lost handoff after `/clear`: find the save-point file or resume prompt. Read-only: checks `MEMORY_DIR/handoffs/`, then a bounded scan of recent transcripts, then confirms before resuming. Use when: 'find my handoff', 'recover the handoff', 'I lost the resume prompt', 'forgot to copy the resume prompt', 'I cleared without saving the prompt', 'where's my handoff', 'recover after /clear', 'get back the handoff'. A session that ended mid-work goes to /session-flow:keep-going."
 user-invocable: true
 disable-model-invocation: false
 shell: bash
