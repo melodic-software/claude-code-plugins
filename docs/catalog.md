@@ -125,7 +125,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Learning
 
-- [`education`](../plugins/education): Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. eli5 answers as a diagram-led HTML artifact for someone new to the topic. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.
+- [`education`](../plugins/education): Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. illustrate explains a concept or codebase topic as diagrams: a markdown record plus an interactive page. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.
 
 ## Visual Arts
 

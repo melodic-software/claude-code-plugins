@@ -182,6 +182,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown prose |
+| [`/animation:check-prerequisites`](../plugins/animation/skills/check-prerequisites/SKILL.md) | `animation` | Report whether the tools animation declares resolve. Never installs. |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
 | [`/autonomy:check`](../plugins/autonomy/skills/check/SKILL.md) | `autonomy` | Report whether node and jq resolve for the autonomy hooks. Never installs. |
@@ -234,8 +235,8 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/docs-hygiene:write-for-humans`](../plugins/docs-hygiene/skills/write-for-humans/SKILL.md) | `docs-hygiene` | Authoring-time doctrine for human-read documentation |
 | [`/docs-naming:audit-file-names`](../plugins/docs-naming/skills/audit-file-names/SKILL.md) | `docs-naming` | Inventory a doc tree's file names and plan the renames with their references |
 | [`/docs-naming:realign-file-names`](../plugins/docs-naming/skills/realign-file-names/SKILL.md) | `docs-naming` | Apply a file-name rename plan, one acceptance per file |
-| [`/education:eli5`](../plugins/education/skills/eli5/SKILL.md) | `education` | Visual HTML explainer assuming zero prior knowledge, one idea per diagram |
 | [`/education:explain`](../plugins/education/skills/explain/SKILL.md) | `education` | Explain any concept or the last response in genuinely plain words |
+| [`/education:illustrate`](../plugins/education/skills/illustrate/SKILL.md) | `education` | Visual explainer for a concept or codebase topic, record plus interactive page |
 | [`/education:quiz-me`](../plugins/education/skills/quiz-me/SKILL.md) | `education` | Generate a post-change report with a quiz verifying you absorbed the work |
 | [`/education:teach`](../plugins/education/skills/teach/SKILL.md) | `education` | Multi-session learning coach for general topics or repo-grounded concepts |
 | [`/eol-normalizer:check`](../plugins/eol-normalizer/skills/check/SKILL.md) | `eol-normalizer` | Report whether node and jq resolve for the eol-normalizer hooks. Never installs. |

@@ -1,0 +1,41 @@
+{
+  "skill_name": "check-prerequisites",
+  "evals": [
+    {
+      "id": 1,
+      "name": "node-notice-runs-the-check",
+      "prompt": "A session-start notice said node is missing for animation. What else is missing?",
+      "expected_output": "Runs the shared checker through lib/prerequisites.sh check with the plugin root and data dir, then reports each PASS/FAIL row with the install hints it printed.",
+      "files": [],
+      "expectations": [
+        "Runs `lib/prerequisites.sh check` with the plugin root and --data-dir",
+        "Reports each FAIL row with the install hint the checker printed",
+        "Installs nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-declined",
+      "prompt": "/animation:check-prerequisites\n\nnode is missing. Install it.",
+      "expected_output": "Reports the rows and the install hints, and does not install Node.js.",
+      "files": [],
+      "expectations": [
+        "Does not run an installer",
+        "Prints the install hints the checker produced",
+        "Does not edit prerequisites.json"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "windows-without-sh-uses-the-powershell-stub",
+      "prompt": "/animation:check-prerequisites on Windows without Git Bash.",
+      "expected_output": "Runs lib/prerequisites.ps1 with the same arguments instead of the sh stub.",
+      "files": [],
+      "expectations": [
+        "Uses `lib/prerequisites.ps1` when there is no `sh`",
+        "Passes the same check, plugin root and --data-dir arguments",
+        "Reports the PASS/FAIL rows as a table"
+      ]
+    }
+  ]
+}

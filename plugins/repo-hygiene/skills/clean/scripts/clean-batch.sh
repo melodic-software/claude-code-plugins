@@ -26,9 +26,9 @@
 #   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
 #                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
 #                  [--skip ENTRY]... [--skip-from FILE]...
-#                  [--batch-plan FILE] [--list-paths-max N] [--help]
+#                  [--batch-plan FILE] [--data-dir DIR] [--list-paths-max N] [--help]
 # --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
-# durable per-repo-set dir under ${CLAUDE_PLUGIN_DATA:-~/.claude/plugins/data/repo-hygiene}).
+# durable per-repo-set dir under the plugin data dir, resolved by plugin_data_dir).
 # Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
 # plan, and --apply / --batch-plan with it are usage errors.
 #
@@ -52,7 +52,7 @@ Usage:
   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
                  [--skip ENTRY]... [--skip-from FILE]...
-                 [--batch-plan FILE] [--list-paths-max N] [--help]
+                 [--batch-plan FILE] [--data-dir DIR] [--list-paths-max N] [--help]
 
 Default: --dry-run (inventory only; writes a batch plan, no mutations).
 
@@ -100,10 +100,16 @@ Gate:
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
                      instead of the default. The default is a new run
                      directory under one durable directory per tier, repo set
-                     and skip list in ${CLAUDE_PLUGIN_DATA} (else
-                     ~/.claude/plugins/data/repo-hygiene): a repeat dry-run
-                     never replaces a plan you already confirmed, and run
-                     directories older than 14 days are removed.
+                     and skip list in the plugin data dir (--data-dir): a
+                     repeat dry-run never replaces a plan you already
+                     confirmed, and run directories older than 14 days are
+                     removed.
+  --data-dir DIR     the repo-hygiene plugin data dir that holds the default
+                     plan. The skill passes it; without it an inherited
+                     CLAUDE_PLUGIN_DATA is used only when its last path
+                     segment names repo-hygiene (another plugin's hook can
+                     export its own dir under that name), else
+                     ~/.claude/plugins/data/repo-hygiene.
   --list-paths-max N per-repo cap on the dry-run path listing (default 20;
                      0 lists none).
   --apply --batch-plan P
@@ -125,10 +131,41 @@ fail_usage() {
   exit 2
 }
 
+# plugin_data_dir: print the directory the default batch plan lives under. The
+# Bash tool's environment does not carry this plugin's CLAUDE_PLUGIN_DATA, and
+# another plugin's SessionStart hook can export its own data dir there under that
+# name, so the skill passes --data-dir "${CLAUDE_PLUGIN_DATA}", substituted when
+# the skill loads. An inherited value is used only when its last path segment
+# names this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the
+# run.* pruning beside it, would land in another plugin's data dir. Basis:
+# plugins reference, "Where each variable resolves", as of 2026-10-03.
+plugin_data_dir() {
+  local seg
+  if [[ -n "$DATA_DIR_ARG" ]]; then
+    # shellcheck disable=SC2016 # the literal, unexpanded token is what is matched
+    case "$DATA_DIR_ARG" in
+    *'${'* | *'<plugin-data>'*) fail_usage "--data-dir got an unsubstituted placeholder: $DATA_DIR_ARG" ;;
+    *) ;;
+    esac
+    printf '%s\n' "$DATA_DIR_ARG"
+    return 0
+  fi
+  seg="${CLAUDE_PLUGIN_DATA:-}"
+  seg="${seg%[/\\]}"
+  seg="${seg##*[/\\]}"
+  if [[ "$seg" == repo-hygiene || "$seg" == repo-hygiene-* ]]; then
+    printf '%s\n' "$CLAUDE_PLUGIN_DATA"
+    return 0
+  fi
+  [[ -n "${HOME:-}" ]] || fail_usage "cannot place the batch plan: no --data-dir and HOME is not set (use --batch-plan FILE)"
+  printf '%s\n' "$HOME/.claude/plugins/data/repo-hygiene"
+}
+
 TIER=""
 DRY_RUN=1
 APPLY_GIVEN=0
 BATCH_PLAN_ARG=""
+DATA_DIR_ARG=""
 LIST_MAX=20
 PLAN_RETAIN_DAYS=14
 REPO_INPUTS=()
@@ -152,6 +189,11 @@ while [[ $# -gt 0 ]]; do
   --batch-plan)
     [[ $# -ge 2 ]] || fail_usage "--batch-plan requires a file"
     BATCH_PLAN_ARG="$2"
+    shift
+    ;;
+  --data-dir)
+    [[ $# -ge 2 ]] || fail_usage "--data-dir requires a directory"
+    DATA_DIR_ARG="$2"
     shift
     ;;
   --list-paths-max)
@@ -499,11 +541,7 @@ if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
 else
-  DATA_DIR="${CLAUDE_PLUGIN_DATA:-}"
-  if [[ -z "$DATA_DIR" ]]; then
-    [[ -n "${HOME:-}" ]] || fail_usage "cannot place the batch plan: neither CLAUDE_PLUGIN_DATA nor HOME is set (use --batch-plan FILE)"
-    DATA_DIR="$HOME/.claude/plugins/data/repo-hygiene"
-  fi
+  DATA_DIR="$(plugin_data_dir)" || exit 2
   SET_KEY="$({
     printf 'repo\t%s\n' "${BATCH_TOPS[@]}"
     [[ ${#BATCH_SKIP_INPUTS[@]} -eq 0 ]] || printf 'skip\t%s\n' "${BATCH_SKIP_INPUTS[@]}"

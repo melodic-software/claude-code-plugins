@@ -150,7 +150,7 @@ is the honest boundary of the claim.
   On Windows, print the PowerShell form instead of that POSIX line:
 
   ```powershell
-  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
+  New-Item -ItemType Directory -Force -Path "${CLAUDE_PLUGIN_DATA}\sdk" | Out-Null; npm install --prefix "${CLAUDE_PLUGIN_DATA}\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
   ```
 
 ## Workflow

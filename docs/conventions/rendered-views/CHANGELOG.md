@@ -10,6 +10,13 @@ versioned; this log records each change to it.
   `medium: file`, and keeps the planned `artifact` default behind its own review. The
   escape-helper bullet and the thin-skill example name the new lane.
 
+## The first interactive emitter, 2026-10-03
+
+- **`education:illustrate` replaces `education:eli5` on the escape-helper emitter list
+  (#5858).** It builds its page through the shared builder's interactive profile, from a
+  checked-in template plus the explainer model as JSON data, and writes the markdown
+  record from the same model.
+
 ## The map-* skills offer views on the builder, 2026-10-03
 
 - **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**
