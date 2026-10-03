@@ -37,7 +37,7 @@ def record(script, starts, duration):
 class Timing(unittest.TestCase):
     def test_each_paragraph_starts_at_its_first_word_and_the_list_ends_with_the_narration(self):
         t = narration.timing(SCRIPT, record(SCRIPT, [0.3, 2.0, 4.5], 6.0))
-        self.assertEqual(t['starts'], [0.0, 2.0, 4.5, 6.0])
+        self.assertEqual(t['starts'], [0.3, 2.0, 4.5, 6.0])
         self.assertEqual(t['beats'], [(0, 4), (4, 6), (10, 1)])
 
     def test_a_script_that_does_not_match_the_words_raises(self):
@@ -116,6 +116,12 @@ class Captions(unittest.TestCase):
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=2)
         self.assertEqual([c[2] for c in cues], ['One two.', 'Three four', 'five', 'Six'])
         self.assertEqual(cues[0][:2], (0.0, 0.45))
+
+    def test_a_sentence_end_inside_a_closing_quote_or_bracket_still_breaks_the_caption(self):
+        script = '"Done." (Yes.) Next one'
+        rec = record(script, [0.0], 2.0)
+        cues = narration.captions(rec, narration.timing(script, rec)['beats'])
+        self.assertEqual([c[2] for c in cues], ['"Done."', '(Yes.)', 'Next one'])
 
     def test_srt_numbers_cues_and_formats_hours_minutes_seconds_millis(self):
         self.assertEqual(narration.srt([(0.0, 1.25, 'Hi'), (3661.5, 3662.0, 'Later')]),

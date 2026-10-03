@@ -17,6 +17,7 @@ from pathlib import Path
 ENV = 'EXPLAINER_TIMING'
 CAPTION_WORDS = 8           # most words in one caption
 SENTENCE_END = set('.!?…')
+CLOSERS = '"\'’”)]}»'            # may follow a sentence end: "Done." or finished.)
 
 
 def paragraphs(script):
@@ -34,7 +35,7 @@ def timing(script, record):
                          'narrate the script again so both describe the same words')
     starts, beats, first = [], [], 0
     for p in paras:
-        starts.append(0.0 if first == 0 else float(words[first]['start']))
+        starts.append(float(words[first]['start']))
         beats.append((first, len(p)))
         first += len(p)
     return {'starts': starts + [float(record['duration'])], 'beats': beats}
@@ -80,7 +81,7 @@ def captions(record, beats, limit=CAPTION_WORDS):
         run = []
         for w in words[first:first + count]:
             run.append(w)
-            if len(run) == limit or set(w['word'][-1:]) & SENTENCE_END:
+            if len(run) == limit or set(w['word'].rstrip(CLOSERS)[-1:]) & SENTENCE_END:
                 cues.append(run)
                 run = []
         if run:

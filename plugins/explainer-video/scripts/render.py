@@ -12,7 +12,7 @@ overlap check.
 With --narration NDIR, the folder holding script.txt, narration.wav and words.json from speech:narrate, the scene's
 beat() calls follow the narration (narration.py) and the render is muxed with narration.wav and captions built from
 words.json. Narrated checks: every beat cued within one frame of its narration start; one video, one audio and one
-subtitle stream; the video and audio streams within a frame per animation of each other.
+subtitle stream; the video and audio streams within a frame per animation, plus one, of each other.
 
 Writes DIR/SCENE_CLASS.mp4, DIR/frames/fNNNN.png and DIR/report.json (plus DIR/captions.srt and DIR/timing.json when
 narrated), and prints the report summary.
@@ -91,7 +91,7 @@ def stream_defects(probe, expected, fps, animations):
 
 def narrated_defects(probe, fps, animations):
     """ffprobe's JSON of the muxed file: one video, audio and subtitle stream; video and audio the same length
-    within a frame per animation."""
+    within a frame per animation, plus one."""
     streams = probe.get('streams', [])
     defects = []
     for kind in ('video', 'audio', 'subtitle'):
