@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
 ## [0.18.0] - 2026-10-03
 
 ### Changed

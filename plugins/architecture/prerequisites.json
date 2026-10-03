@@ -4,13 +4,46 @@
       "id": "node",
       "kind": "runtime",
       "need": "optional",
-      "for": ["skill:map-flow"],
+      "for": [
+        "plugin"
+      ],
       "detect": {
-        "any": ["node"]
+        "any": [
+          "node"
+        ]
       },
-      "degrade": "Without node, map-flow cannot parse the Mermaid diagram it writes and reports it unchecked; the trace itself still runs.",
-      "install": { "docs": "https://nodejs.org/en/download" },
-      "check": "/architecture:map-flow"
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npx",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:map-components",
+        "skill:map-containers",
+        "skill:map-context",
+        "skill:map-deployment"
+      ],
+      "detect": {
+        "any": [
+          "npx"
+        ]
+      },
+      "degrade": "Without npx, the map skills cannot validate a LikeC4 model with `likec4 validate`; the models they write are unchanged.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

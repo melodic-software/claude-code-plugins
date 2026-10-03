@@ -3,12 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.0] - 2026-10-03
+## [0.20.0] - 2026-10-03
 
 ### Changed
 
 - `map-flow` parses the diagram it writes with its own copy of `lib/mermaid-gate.mjs` and says
-  the diagram was not checked when node is missing. `prerequisites.json` declares `node` for it.
+  the diagram was not checked when node is missing.
+
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
 
 ## [0.18.4] - 2026-10-02
 

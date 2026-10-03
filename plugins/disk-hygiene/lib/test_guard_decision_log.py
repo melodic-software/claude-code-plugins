@@ -76,8 +76,11 @@ class GuardDecisionLogTests(unittest.TestCase):
     def test_record_creates_the_log_under_the_data_root(self) -> None:
         self.assertTrue(self.write_one())
         self.assertTrue(self.log_file.is_file())
+        # The on-disk location is the contract README.md publishes
+        # (`<CLAUDE_PLUGIN_DATA>/guard-decisions/decisions.jsonl`). Literals,
+        # not the module constants, so a renamed directory or file fails here.
         self.assertEqual(
-            self.data_root / decision_log.LOG_DIRNAME / decision_log.LOG_FILENAME,
+            self.data_root / "guard-decisions" / "decisions.jsonl",
             self.log_file,
         )
 
