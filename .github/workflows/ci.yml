@@ -269,53 +269,21 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. A push diffs against the commit of the newest green push run
-      # that HEAD descends from, not against its parent: a push run coalesced
-      # away while pending, or a red one, leaves its commits in the next range,
-      # so a break stays in every later range until a run passes. A push with no
-      # such run in the last 50, or whose range touches the shared test
+      # branch. A push diffs against the newest commit on HEAD's first-parent
+      # line with a green push run, not against its parent: a push run
+      # coalesced away while pending, or a red one, leaves its commits in the
+      # next range, so a break stays in every later range until a run passes.
+      # A push with no such commit, or whose range touches the shared test
       # machinery (this workflow, the actions it calls, the suite runner, the
-      # selector and planner, scripts/lib/, the toolchain pins), and every schedule or
-      # dispatch run, get no base: the whole tree.
+      # selector and planner, the resolver, scripts/lib/, the toolchain pins),
+      # and every schedule or dispatch run, get no base: the whole tree.
+      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
-        run: |
-          case "$GITHUB_EVENT_NAME" in
-          pull_request)
-            echo "ref=origin/$BASE_REF" >>"$GITHUB_OUTPUT"
-            exit 0
-            ;;
-          push) ;;
-          *)
-            echo "::notice::A $GITHUB_EVENT_NAME run tests the whole tree."
-            exit 0
-            ;;
-          esac
-          whole() {
-            echo "::notice::$1; this push run tests the whole tree."
-            exit 0
-          }
-          shas=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=50" \
-            --jq '.workflow_runs[].head_sha') || whole "The green push runs could not be listed"
-          base=''
-          for sha in $shas; do
-            if git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-              base="$sha"
-              break
-            fi
-          done
-          [ -n "$base" ] || whole "No green push run among the last 50 is an ancestor of $GITHUB_SHA"
-          infra=$(git diff --name-only "$base" HEAD -- .github/workflows/ci.yml .github/actions \
-            '.github/requirements-ci*.txt' 'scripts/run-plugin-tests*' 'scripts/affected-tests*' \
-            'scripts/plan-test-lanes*' 'scripts/run-outside-node-suites*' 'scripts/outside-node-*.txt' scripts/lib \
-            .shellcheckrc .node-version .python-version package.json package-lock.json) ||
-            whole "git diff $base failed"
-          [ -z "$infra" ] || whole "The range since $base touches the shared test machinery: ${infra//$'\n'/ }"
-          echo "Diff base: $base, the commit of the newest green push run HEAD descends from."
-          echo "ref=$base" >>"$GITHUB_OUTPUT"
+        run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
       - name: Detect a docs-only diff
