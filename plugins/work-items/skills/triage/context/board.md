@@ -20,8 +20,13 @@ into it: the board holds titles, labels, state and blockers only.
 First hit wins:
 
 1. The `medium` key of the `rendered-views` cascade: read whichever of `~/.claude/rendered-views.md`,
-   `<root>/.claude/rendered-views.md` and `<root>/.claude/rendered-views.local.md` exist (`<root>` is
-   `git rev-parse --show-toplevel`); the last layer that states `medium:` wins. A layer that is malformed is reported and treated as absent.
+   `<root>/.claude/rendered-views.md` and `<root>/.claude/rendered-views.local.md` exist. `<root>` is
+   `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`, never the working
+   directory. When `<root>` is `$HOME`, an ancestor of `$HOME`, or not inside a git working tree, the team
+   and overlay layers are not applicable: say so and read the user-global layer only. A team or overlay path
+   that is the same file as the user-global one is skipped. A team layer that is not tracked is a hard stop;
+   an overlay that is staged or not gitignored is reported, not honored. The last layer that states
+   `medium:` wins. A layer that is malformed is reported and treated as absent.
 2. `auto`, which is also the value when no layer states one.
 
 | `medium` | Result |

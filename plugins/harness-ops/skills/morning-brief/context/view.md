@@ -19,9 +19,13 @@ data, never from markup or script you write. Do not edit the page after it is bu
 Before running the script, first hit wins:
 
 1. The `medium` key of the `rendered-views` cascade: read whichever of `~/.claude/rendered-views.md`,
-   `<root>/.claude/rendered-views.md` and `<root>/.claude/rendered-views.local.md` exist (`<root>` is
-   `git rev-parse --show-toplevel`); the last layer that states `medium:` wins. A layer that is
-   malformed is reported and treated as absent.
+   `<root>/.claude/rendered-views.md` and `<root>/.claude/rendered-views.local.md` exist. `<root>` is
+   `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`, never the working
+   directory. When `<root>` is `$HOME`, an ancestor of `$HOME`, or not inside a git working tree, the team
+   and overlay layers are not applicable: say so and read the user-global layer only. A team or overlay path
+   that is the same file as the user-global one is skipped. A team layer that is not tracked is a hard stop;
+   an overlay that is staged or not gitignored is reported, not honored. The last layer that states
+   `medium:` wins. A layer that is malformed is reported and treated as absent.
 2. `auto`, which is also the value when no layer states one.
 
 | `medium` | Result |
@@ -36,15 +40,21 @@ report the choice. Pointer: `docs/conventions/rendered-views/README.md` in the m
 
 ## Build
 
-When the medium calls for a page, run the script with `tee` in place of the bare form, so the page is
-built from the same bytes the reader sees and the queries run once:
+When the medium calls for a page, run the script once into a file, print that file, then build from it,
+so the page is built from the same bytes the reader sees and the queries run once:
 
 ```bash
-bash "<plugin-root>/skills/morning-brief/scripts/morning-brief.sh" $ARGUMENTS | tee "<dir>/morning-brief.txt"
+bash "<plugin-root>/skills/morning-brief/scripts/morning-brief.sh" $ARGUMENTS > "<dir>/morning-brief.txt"
+```
+
+When that exits non-zero (4 or 5 included), print the script's message, build nothing, and stop. Otherwise
+print the file, then run:
+
+```bash
 node "<plugin-root>/skills/morning-brief/scripts/build-brief-view.mjs" --out "<dir>/morning-brief.html" < "<dir>/morning-brief.txt"
 ```
 
-`<dir>` is a temp directory. Print the brief as usual first; the page follows it. Each `== Section ==`
+`<dir>` is a temp directory. The page follows the printed brief. Each `== Section ==`
 becomes a collapsible block, all open, and one filter box matches any word on any line: a PR or
 issue number, a lane, a flag, a word of a title.
 
