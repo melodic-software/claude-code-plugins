@@ -153,9 +153,8 @@ else in this repository.
 
 The operator approved trimming both lanes on 2026-10-02: "Yeah, anything here that would improve
 quality, efficiency, and accuracy, and optimize performance, I approve." and "Whatever you have to
-do, I approve it." This narrows decisions 2 and 4. The narrowing takes effect on this repository
-with the sync that re-pins its callers to the ci-workflows tag that carries it; until then the
-callers stay on v0.30.1 and decisions 2 and 4 hold as written above.
+do, I approve it." This narrows decisions 2 and 4. The narrowing is in effect on this repository
+since the 2026-10-03 standards sync (#6024) re-pinned both hosted callers to ci-workflows v0.32.0.
 
 The reason is the concurrency limit. GitHub runs at most 60 Linux jobs at once for the org, and
 the operator will not pay to raise it. Two peak windows on this repository were measured as each
