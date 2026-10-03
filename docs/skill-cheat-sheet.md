@@ -200,7 +200,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/context-budget:audit`](../plugins/context-budget/skills/audit/SKILL.md) | `context-budget` | Measure the startup context payload per item and ledger every lever's real delta |
 | [`/context-budget:check`](../plugins/context-budget/skills/check/SKILL.md) | `context-budget` | Report whether node resolves for the context-budget hooks. Never installs. |
-| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve for the context-guard hooks. Never installs. |
+| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve and whether the context-guard mod can load. Never installs. |
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |

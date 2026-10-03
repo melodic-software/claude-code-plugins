@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that node and jq resolve for the context-guard hooks. Use when a hook notice says node or jq is missing, or before assuming the context-guard hooks ran. Does not install."
+description: "Read-only check that node and jq resolve for the context-guard hooks, and whether its mod can load (mods off, or Claude Code older than the 2.1.287 floor). Use when a hook notice says node or jq is missing, or before assuming the context-guard hooks ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether node and jq resolve for the context-guard hooks. Never installs.
+  summary: Report whether node and jq resolve and whether the context-guard mod can load. Never installs.
 ---
 
 ## Purpose
@@ -15,7 +15,9 @@ Run the read-only check. Do not run `apply`. Do not install Node.js or jq, and d
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only the Node.js row and the jq row of its `check` section. Its pre-computed context lines do not run when the file is read, so run `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash. Do not run setup's other probes or `apply`. Report a PASS/FAIL row for node and for jq, with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when it is missing. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only the Node.js row and the jq row of its `check` section. Its pre-computed context lines do not run when the file is read, so run `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash. Do not run setup's other probes or `apply`. Report a PASS/FAIL row for node and for jq, with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when it is missing.
+
+Then report a row for the module, from inside this session: the module registers the tool `mcp__context-guard__status` when the session starts, so look for that name in your own tool list, deferred tool names included. Present → PASS "the mod is running in this session". Absent → INFO "mods off in this session, or the status tool was refused by policy" (a refused registration leaves one debug-log line, "context-guard: the status tool could not register"); with mods off there are no zone lines, no gate and no module writes here, and the PostCompact marker hook still runs. Run `claude --version` too: older than 2.1.287 → FAIL "mods off: older than the 2.1.287 floor, unsupported". A separate `claude plugin test` process never sees this session's settings, so use it, if at all, only to say whether mods can load on this build, read against [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load) (as of 2026-10-03, Claude Code 2.1.288; recheck when that table changes a message), never as this session's state. Stop.
 
 ## Next
 

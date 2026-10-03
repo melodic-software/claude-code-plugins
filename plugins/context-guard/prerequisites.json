@@ -12,9 +12,34 @@
           "node"
         ]
       },
-      "degrade": "Without node, the context-guard hooks cannot launch, so they do nothing.",
+      "degrade": "Without node, the context-guard hooks cannot launch and the module writes no snapshot, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/context-guard:check"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "^([0-9.]+)",
+          "min": "2.1.287"
+        }
+      },
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, runs the blocking gate, draws the band row, serves the status tool and writes the snapshot does not load there.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
       },
       "check": "/context-guard:check"
     },
@@ -24,8 +49,7 @@
       "need": "required",
       "for": [
         "hook:post-compact-mark.sh",
-        "hook:zone-crossing-inject.sh",
-        "hook:zone-gate.sh"
+        "skill:setup"
       ],
       "detect": {
         "any": [

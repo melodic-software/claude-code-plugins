@@ -17,8 +17,9 @@
 - [Consumers](#consumers)
 
 The consumer-facing contract for the per-session context-window snapshots this plugin produces.
-The writer is the plugin's `scripts/statusline-tee.sh`; `scripts/context-zone.sh` is the bundled
-resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding
+The writer is the plugin's module (`hooks/register.tsx`, a Claude Code mod), which writes through
+`lib/write-snapshot.mjs`; the statusline tee `scripts/statusline-tee.sh` writes the same file where
+it is still wired. `scripts/context-zone.sh` is the bundled resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding
 whether to dispatch deep work to a fresh subagent). An installed plugin cannot read a sibling
 plugin's files at runtime, so **consumers inline the operable floor below verbatim** and cite this
 file for provenance only.
@@ -217,16 +218,31 @@ translation with the shipped 50/75 percentage defaults is coincidence, not valid
 
 ## Zone-crossing hooks (first shipped consumer)
 
-The plugin itself ships hooks over the interface this contract defines, the first shipped consumer:
+The plugin's module (`hooks/register.tsx`, a Claude Code mod; Claude Code 2.1.287 or later) is the
+first shipped consumer. It decides from the live session's figures, the same ones it writes to the
+snapshot, through a TypeScript copy of the resolver's band function; the shared fixture
+`scripts/context-zone.fixtures.mjs` (generated from the repo's `lib/context-zone.fixtures.mjs`)
+holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
+skill's module check), none of the following runs except the PostCompact marker.
 
-- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
-  than any this session has already reported, report the crossing on **two channels with two
-  audiences**. The **model channel** (`additionalContext`) carries the determination and a
-  counter-steer: the reading is a measurement rather than an instruction, real
-  degradation shows up in the model's own output and never in a zone word, and the model is told to
-  keep working the task in hand. In `dumb` it also carries a note to write each expensive
-  conclusion to a durable note against a short compaction distance. The **operator channel**
-  (`systemMessage`) carries the same crossing plus the continuation menu that is the human's call
+- **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
+  into a zone worse than any this session has already reported, report the crossing on **two
+  channels with two audiences**. The **model channel** (the `context` a `tool.call` or
+  `prompt.submit` hook adds) carries the zone word and a counter-steer worded as facts with their
+  source: the reading is a measurement rather than an instruction, degradation shows in the work
+  itself and never in a zone word, and continuation is the operator's call. In `dumb` it also
+  carries the save-state note, labelled as the dumb zone's default. A line carries no figure
+  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  crossings the module sends one approach line per boundary per cycle (`approach_margin`
+  percentage points before it), one line per `thresholds` entry passed, the verdict restated once
+  after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
+  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. After
+  `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
+  only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
+  offers them as the prompt box's suggestion plus a band notice when the turn ends; headless,
+  loop, schedule and notification turns get the lines either way. The **operator channel** (a
+  transcript line Claude does not read, and a band notice) carries the same crossing plus the
+  continuation menu that is the human's call
   to make (continue / `/compact` / `/clear` / handoff-then-`/clear`, with a hand-written resume
   note as the standalone-install fallback). The menu does not say which option fits when: it says
   to route the next step with `/session-flow:workflow` (if installed). Without session-flow, we
@@ -256,21 +272,29 @@ The plugin itself ships hooks over the interface this contract defines, the firs
   same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
   the hook sees one word per observation, never the occupancy behind it, and separating those two
   cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
-- **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
-  `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
-  snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only
-  tools, Bash, and Skill invocations are never gated, so a durable handoff is always writable.
-- **PostCompact marker**: writes the evidence-degraded marker file (below) and re-arms the
-  blocking gate's grace budget (compaction opens a fresh window, hence a fresh budget rather than
-  a disarmed gate).
-- **Both zone consumers honor the marker**: when the marker exists, the injection hook and the
-  blocking gate treat the session's effective zone as **dumb** regardless of the resolved word,
-  including a green post-compaction reading and including `unknown`. That implements this
-  contract's own "evidence-degraded regardless of zone" rule, so the marker is never write-only.
+- **Blocking gate** (in the module, when `zone_hook_mode` is `blocking` or `zones.json` sets a
+  `block` action): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls in the blocked zone
+  past a small grace budget. In a turn a person typed the block applies; in headless, loop,
+  schedule and notification turns only a compacted session is blocked, unless
+  `zone_block_unattended` is `same-as-typed`. Fail-open on `unknown`; handoff-path writes,
+  read-only tools, Bash, and Skill invocations are never gated, so a durable handoff is always
+  writable. Leaving the blocked zone, an `unknown` reading and a compaction each reset the budget.
+- **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
+  evidence-degraded marker file (below).
+- **Both zone consumers honor the marker**: when the marker exists, or the module saw the
+  compaction itself, the lines and the blocking gate treat the session's effective zone as
+  **dumb** regardless of the resolved word, including a green post-compaction reading and
+  including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
+  rule, so the marker is never write-only.
+- **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
+  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
+  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
-Hook state (last-seen zone, gate counters) lives under `${CLAUDE_PLUGIN_DATA}`, which is
-plugin-private and not part of this contract. The hooks consume that interface through the same
-resolver consumers re-implement; they add no new snapshot semantics.
+Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
+id; it is plugin-private and not part of this contract. The module adds no new snapshot
+semantics. For the mods API it uses, see <https://code.claude.com/docs/en/plugins/mods/overview>.
+As of: 2026-10-03, Claude Code 2.1.288. Recheck trigger: that page or its events reference changes
+`tool.call`, `prompt.submit` or `session.compact`.
 
 ## Evidence-degraded marker
 
@@ -449,6 +473,31 @@ Validity is **per shape, independently**:
 Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
 file idempotently; the resolver only reads it).
 
+**The module's keys (optional).** The module reads three more keys; the resolver ignores them, and
+an absent or invalid one means its default, so a file without them keeps working:
+
+```json
+{
+  "approach_margin": 5,
+  "actions": {
+    "acceptable": { "action": "none" },
+    "dumb": { "action": "save-state" }
+  },
+  "thresholds": [{ "at_percent": 60, "action": "handoff" }]
+}
+```
+
+- `approach_margin`: percentage points before each boundary (each zone edge and each threshold)
+  for the one approach line; a number from 0 (no approach lines) to below 100. Default 5.
+- `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
+  replaces the default wording. The action's sentence appears at that zone's crossing and
+  restatement, never on an approach line, labelled "operator setting for the <zone> zone".
+  Defaults: `none` everywhere except `save-state` at `dumb`. `block` arms the gate in that zone.
+  An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
+- `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
+  100), each with an `action` and optional `text`; each fires once per cycle like a zone
+  boundary and has its own approach line. A `block` threshold arms the gate once passed.
+
 **Consumers read `zones.json` directly** (it is a shared data file): under plugin cache isolation a
 consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup:
 file present and valid → its bands; absent or malformed → the inlined default bands above. The
@@ -560,7 +609,9 @@ and managed settings, where `statusLine` is also a valid key.
 
 ## Consumers
 
-- The plugin's own zone-crossing hooks (first shipped consumer, see "Zone-crossing hooks").
+- The plugin's own module (first shipped consumer, see "Zone-crossing hooks"), and through it the
+  `mcp__context-guard__status` tool, which any session with the module loaded can call as its
+  zone lookup.
 - The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
   decisions, conservative on `unknown`). It resolves the zone through a generated copy
   of this plugin's `scripts/context-zone.sh`. Its co-located `zones-inline-drift.test.sh` lane,

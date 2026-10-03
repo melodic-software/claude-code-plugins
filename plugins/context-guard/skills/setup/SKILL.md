@@ -153,6 +153,28 @@ zone bands, zones.json shape) are owned by
      exactly this. The file updates only while this session is interactive.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path; probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
+   When step 5a reports mods off, report an absent or stale file as "mods off", not as a missing
+   instrument.
+5a. **Module state.** The plugin's module (`hooks/register.tsx`) writes the same file, sends the
+   zone lines and runs the blocking gate; it loads only where mods can.
+   - **This session**: the module registers `mcp__context-guard__status` when the session starts.
+     Look for that name in your own tool list, deferred tool names included. Present → PASS, the
+     mod is running in this session. Absent → INFO "mods off in this session, or the status tool
+     was refused by policy" (a refused registration leaves one debug-log line, "context-guard: the
+     status tool could not register").
+   - Run `claude --version`. Older than 2.1.287 → FAIL "mods off: Claude Code <version> is older
+     than the 2.1.287 floor; older builds are unsupported". Remediation: update Claude Code.
+   - A separate `claude plugin test` process never sees this session's settings (a
+     `disableAllHooks` in this session's settings, `--bare`, worker crashes), so it may only say
+     whether mods can load on this build, read against the troubleshoot table at the pointer
+     below; never report it as this session's state.
+   - Where mods are off, the guard runs reactive-only there: no zone lines, no gate (blocking mode
+     does nothing), and the snapshot updates only from the tee; the PostCompact marker still runs.
+
+   - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288.
+   - **Recheck trigger**: that table changes a message, or the minimum version changes.
 6. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
    (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
    zero-config state, not a defect), present and valid
@@ -162,7 +184,11 @@ zone bands, zones.json shape) are owned by
    shipped token bands silently in effect; remediation: `apply`). A `(present but unreadable)`
    token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
    cannot be read, which is a defect the absent branch would hide. Report the read error and route
-   the operator to the file's permissions, not to `apply`. Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
+   the operator to the file's permissions, not to `apply`. Also report the module's keys when
+   present (`approach_margin`, `actions`, `thresholds`; the reader contract's "Zones"
+   section defines them); an absent or invalid one means its default, never a defect. The module
+   resolves zones with the same bands from the live session, so a machine with no snapshot files
+   still gets lines.
 7. **Hook registration vs hook activation**. Three separate facts, never collapsed into one
    status. A registered hook set that every hook exits out of immediately is the exact state an
    operator is diagnosing when injections or gating are missing, and reporting "active" because the
@@ -184,10 +210,13 @@ zone bands, zones.json shape) are owned by
        <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
        owns why the declared `default` field is not delivered to hook processes).
    - **Gate posture**. `zone_hook_mode` is `${user_config.zone_hook_mode}`, read and interpreted
-     the same way. Only `blocking` makes the PreToolUse gate do anything; `advisory` (the in-script
-     default) leaves it inert while the injection hook still runs. Report it separately: an armed
-     hook set with an advisory posture is a different runtime state from an inert hook set, and
-     only one of the two is a defect.
+     the same way. Only `blocking` (or a `block` action in `zones.json`) makes the module's gate do
+     anything; `advisory` (the default) leaves it inert while the zone lines still run, and
+     `zone_block_unattended` (`${user_config.zone_block_unattended}`) says whether headless, loop
+     and schedule turns get the block or only the post-compaction one. Report it separately: an
+     armed set with an advisory posture is a different runtime state from an inert set, and only
+     one of the two is a defect. The gate and the lines live in the module, so they need step 5a's
+     PASS.
 8. **Print the operator edit**, except when step 4 took the terminal-less exception, found the
    status line disabled by policy or trust, or found the effective command owned by managed
    settings. Those branches already forbade printing wiring the operator cannot make run. When

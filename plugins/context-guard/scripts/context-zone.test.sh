@@ -379,6 +379,68 @@ else
   fail "fallback: stale snapshot want unknown without %()T, got '$FB_OLD'"
 fi
 
+# --- Shared fixture: every case of context-zone.fixtures.mjs through this copy -
+# The same cases run through the mod's TypeScript resolver in its plugin tests,
+# so the two resolvers give the same word and the same notices. node lays out
+# each case's home (snapshot and zones.json, captured_at relative to its clock)
+# and prints one record per case; the resolver then runs on each.
+FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
+FX="$WORK/fixture"
+if ! command -v node >/dev/null 2>&1; then
+  fail "fixture: node is needed to read $FIXTURE"
+else
+  # shellcheck disable=SC2016 # the script is node's, not the shell's
+  FX_LAYOUT='
+    import { mkdirSync, writeFileSync } from "node:fs";
+    import { pathToFileURL } from "node:url";
+    const [, fixture, root] = process.argv;
+    const cases = (await import(pathToFileURL(fixture).href)).default;
+    const iso = (s) => new Date(s * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const text = (v, now) => {
+      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        if ("raw" in v) return v.raw;
+        const m = typeof v.captured_at === "string" ? /^@now([+-]\d+)?$/.exec(v.captured_at) : null;
+        if (m) return JSON.stringify({ ...v, captured_at: iso(now + Number(m[1] ?? 0)) });
+      }
+      return JSON.stringify(v);
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const out = [];
+    cases.forEach((c, i) => {
+      const home = `${root}/${i}`;
+      mkdirSync(`${home}/.claude/context-guard/context`, { recursive: true });
+      if (c.snapshot !== null && /^[A-Za-z0-9_-]+$/.test(c.sid)) {
+        writeFileSync(`${home}/.claude/context-guard/context/${c.sid}.json`, text(c.snapshot, now));
+      }
+      if (c.zones !== null) writeFileSync(`${home}/.claude/context-guard/zones.json`, text(c.zones, now));
+      out.push([i, c.sid, c.word, c.notices.join(","), c.name].join("\x1f"));
+    });
+    process.stdout.write(out.join("\n") + "\n");
+  '
+  if FX_LIST=$(node --input-type=module -e "$FX_LAYOUT" "$FIXTURE" "$FX"); then
+    fx_cases=0
+    fx_failed=0
+    while IFS=$'\x1f' read -r fx_i fx_sid fx_word fx_notices fx_name; do
+      fx_cases=$((fx_cases + 1))
+      fx_got=$(HOME="$FX/$fx_i" bash "$ZONE" "$fx_sid" 2>"$FX/$fx_i.err")
+      fx_got_notices=""
+      grep -q 'zones.json malformed' "$FX/$fx_i.err" && fx_got_notices="percent"
+      grep -q 'token_bands malformed' "$FX/$fx_i.err" && fx_got_notices="${fx_got_notices:+$fx_got_notices,}token_bands"
+      if [[ "$fx_got" != "$fx_word" || "$fx_got_notices" != "$fx_notices" ]]; then
+        fail "fixture '$fx_name': want '$fx_word' [$fx_notices], got '$fx_got' [$fx_got_notices]"
+        fx_failed=$((fx_failed + 1))
+      fi
+    done <<<"$FX_LIST"
+    if ((fx_cases >= 100 && fx_failed == 0)); then
+      ok "fixture: all $fx_cases shared cases give the fixture's word and notices"
+    elif ((fx_cases < 100)); then
+      fail "fixture: read $fx_cases cases from $FIXTURE, want at least 100"
+    fi
+  else
+    fail "fixture: node could not read $FIXTURE"
+  fi
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
