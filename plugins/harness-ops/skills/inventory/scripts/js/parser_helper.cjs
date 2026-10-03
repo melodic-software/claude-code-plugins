@@ -1020,10 +1020,21 @@ class Namespace {
     const key = memberName(member);
     if (key === null) throw new Unresolved("a computed read of the namespace", member.start);
     if (key === this.name) throw new Unresolved(`a read of \`${key}\``, member.start);
-    const holder = this.parents.get(member);
-    if (isCallee(holder, member)) throw new Unresolved("a method call on the namespace", member.start);
+    this.readOnly(member, "the namespace");
+  }
+
+  // A member read that neither calls the member with its object as
+  // `this` (`o.f()`, and `(o?.f)()` too) nor writes or deletes it.
+  readOnly(member, what) {
+    let use = member;
+    let holder = this.parents.get(member);
+    while (holder?.type === "ChainExpression") {
+      use = holder;
+      holder = this.parents.get(holder);
+    }
+    if (isCallee(holder, use)) throw new Unresolved(`a method call on ${what}`, member.start);
     if (isTarget(this.parents, member) || holder?.type === "UpdateExpression" || (holder?.type === "UnaryExpression" && holder.operator === "delete")) {
-      throw new Unresolved("a write to the namespace", member.start);
+      throw new Unresolved(`a write to ${what}`, member.start);
     }
   }
 
@@ -1080,12 +1091,8 @@ class Namespace {
       const use = this.parents.get(r.identifier);
       if (use?.type === "MemberExpression" && use.object === r.identifier) {
         const k = memberName(use);
-        const after = this.parents.get(use);
         if (k === null) throw new Unresolved("a computed read of the record", use.start);
-        if (isCallee(after, use)) throw new Unresolved("a method call on the record", use.start);
-        if (isTarget(this.parents, use) || after?.type === "UpdateExpression" || (after?.type === "UnaryExpression" && after.operator === "delete")) {
-          throw new Unresolved("a write to the record", use.start);
-        }
+        this.readOnly(use, "the record");
         if (!own.has(k)) this.trusted.add(k);
         if (k === key) this.value(use);
         continue;

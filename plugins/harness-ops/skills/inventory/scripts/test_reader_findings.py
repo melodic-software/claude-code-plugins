@@ -547,6 +547,7 @@ class TestOpenFindings(unittest.TestCase):
         for module in (
             # A namespace read by name: a method call passes it as `this`.
             'import.meta.require("/a.js").f();',
+            '(import.meta.require("/a.js")?.f)();',
             # Destructuring: a rest element takes every export.
             'var{q,...o}=await import("/a.js");o.pY.push("B");',
             'var o={...await import("/a.js")};',
@@ -561,6 +562,7 @@ class TestOpenFindings(unittest.TestCase):
             'var e={names:import.meta.require("/a.js"),get g(){return this}};var x=e.g;',
             'var e={names:import.meta.require("/a.js")};e={};',
             'var e={names:import.meta.require("/a.js"),f(){return this.names}};e.f();',
+            'var e={names:import.meta.require("/a.js"),f(){return this.names}};(e?.f)();',
             # Promise.all: a rest element, a local `Promise`, no array pattern.
             'var[...r]=await Promise.all([import("/a.js")]);',
             'var Promise={all:(a)=>a};var[{q}]=await Promise.all([import("/a.js")]);',
@@ -606,6 +608,10 @@ class TestOpenFindings(unittest.TestCase):
             True,
             reexport + 'then(r){for(var k in this)this[k].push&&this[k].push("B")}',
             awaited,
+        )
+        # An `export*` can bring in a `then` the module does not list.
+        self.assert_across_modules(
+            True, reexport + 'f(){}export*from"/d.js";', awaited, "export var then;"
         )
 
     def test_a_computed_key_known_to_name_no_trusted_name_clears(self) -> None:

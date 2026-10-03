@@ -739,6 +739,8 @@ class TestFlowQuery(unittest.TestCase):
             sorted(self.reader.exports(src, 0, len(src)) or []), ["a", "b", "c", "e"]
         )
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
+        star = 'export*from"/b.js";export var a=1;'
+        self.assertIsNone(self.reader.exports(star, 0, len(star)))
 
 
 class TestModuleTable(unittest.TestCase):

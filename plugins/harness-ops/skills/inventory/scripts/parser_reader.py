@@ -371,9 +371,11 @@ class ParserReader:
 
     def exports(self, src: str, lo: int, hi: int) -> list[str] | None:
         """Every name the module `src[lo:hi]` exports, or None when it does
-        not parse."""
+        not parse or holds an `export*`, whose names it cannot list."""
         res = self._send("exports", src, lo, hi)
-        return None if res.get("unreadable") or "error" in res else res["names"]
+        if res.get("unreadable") or "error" in res or res["star"]:
+            return None
+        return res["names"]
 
     def export_binding(
         self, src: str, lo: int, hi: int, name: str
