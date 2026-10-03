@@ -145,6 +145,13 @@ plugins/*/evals/*
 # which run those tests whenever any script in that directory changes.
 plugins/evals/skills/plugin-eval/scripts/fixtures/*.jsonl
 
+# The performance plugin's generated copy of lib/spawn_noise.py
+# (scripts/shared-copies.txt). No code in the plugin imports it; its skills
+# show the import in prose. It changes only with its canonical, whose shared-lib
+# fan-out selects harness-ops's spawn_noise suites, and the shared-copies
+# --check drift step fails a copy that differs from the canonical.
+plugins/performance/lib/spawn_noise.py
+
 # The task-end judge's calibration cases: test and production code copied
 # verbatim from other repositories' histories, read as data by the judge, never
 # run. The lane covering them is the testing plugin's shell lane: metrics.test.sh
