@@ -7,7 +7,7 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ### Fixed
 
-- `morning-brief` no longer quotes the GitHub REST `mergeable` sentence in its skill body. The retry of a null read stays, recorded as a pointer to the Get a pull request schema, an as-of date, and a recheck trigger ([#5963](https://github.com/melodic-software/claude-code-plugins/issues/5963)).
+- `morning-brief` no longer quotes the GitHub REST `mergeable` sentence in its skill body. The missing review-decision field and the null-`mergeable` retry are separate bullets, each with its own pointer, as-of date, and recheck trigger ([#5963](https://github.com/melodic-software/claude-code-plugins/issues/5963)).
 
 ## [3.4.0] - 2026-10-03
 
