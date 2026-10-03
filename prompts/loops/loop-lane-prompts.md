@@ -404,9 +404,9 @@ Two consequences of that order:
     `model` values.
 
 ```bash
-claude --model opus     # worker lane
-claude --model opus     # merge lane
-claude --model opus     # attended queue
+claude --model opus --effort high     # worker lane
+claude --model opus --effort medium   # merge lane
+claude --model opus --effort high     # attended queue
 ```
 
 Swap `opus` for `best` on a lane root where the organization runs its
@@ -423,46 +423,76 @@ advisor pairing is a settings value fixed at launch.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
-Leave effort at its default. Each model ships its own default, and a lane that
-pins a level stops following it when the lane's model changes. For the current
-defaults, see
-[Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-**As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed,
-or stops stating each model's default effort.
+Launch every lane with an explicit `--effort`, chosen by matching the lane's
+work against each level's "When to use it" text in
+[Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+A lane that renders a verdict, such as the worker lane's admission verdict or
+the attended queue's decisions, takes the level whose text names work where
+verification matters. A coordinating lane, such as the merge lane, whose root
+partitions the rungs and hands the fixing to workers, passes the launching
+model's default level explicitly, so it does not follow a later
+change to that default. Code and verification work never runs below `medium`.
+The lanes config sets the level per lane (`lanes[].effort`), and the launcher
+refuses a lane that names none.
+
+The lane's `--effort` covers the orchestrator's own turns. A Workflow dispatch
+sets effort per task, and an Agent-tool dispatch runs at the effort pinned in
+the agent's definition.
+
+The level a lane passes is not proof of the level it ran at. An organization
+effort cap or the `maxEffortLevel` setting clamps it, a level the model does
+not support falls back to the highest supported level below it, and
+`CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and every agent or skill pin.
+The launcher warns when that variable is set. The `effort` field in the
+work-loop and babysit-loop state blocks records the level that ran.
+
+**As of:** 2026-10-02. **Recheck trigger:** the "Choose an effort level"
+section is renamed, its rows change, or the default effort of a model a lane
+launches on changes.
 
 ## Concurrent workers on one repository
 
-The obvious idea, two worker lanes on one repo with one taking oldest items
-and one taking newest, does not work, for two independent reasons.
+Two worker lanes can run on one repository. Each launch line passes its own
+`--shard`, `--ordering`, and `--instance`. Flag grammar and validation live in
+[`invocation-argv.md`](../../plugins/work-items/skills/work-loop/reference/invocation-argv.md).
 
-**The sharding is not expressible.** Selection Priority tier 3 sorts
-oldest-first on `createdAt`, deterministically, and no code path reads
-anything a launch prompt can set. Both lanes would chase the same oldest
-candidate.
+Lane A keeps issue numbers where `number % 2 == 0` and fills cap slots oldest first:
 
-**They would not duplicate work, but they would corrupt shared state.**
-The claim is provider-arbitrated (assignee plus lease; exit 7 means
-"another session won, advance, do not retry"), so two lanes interleave
-correctly. Durable loop state is the problem. Both resolve the same
-telemetry issue and sentinel, making these last-writer-wins:
+```text
+/loop /work-items:work-loop --shard 0/2 --ordering oldest-first --instance worker-a
+```
 
-- `item_cap`, `clean_streak`, and `no_progress_streak`: the adaptive cap and
-  the stall detector stop reflecting either machine's real experience.
-  Annoying, not dangerous.
-- `rate_limit_latch`: one machine can clear the other's pause latch.
-- `first_drain_complete`: one machine setting it ends C3 earn-trust
-  admission for **both**. This is the one that matters: it widens autonomy
-  with no human ratification, which is the opposite of that gate's purpose.
+Lane B keeps issue numbers where `number % 2 == 1` and fills cap slots newest first:
 
-**Recommendation: one worker lane per repository.** A single lane already
-runs its adaptive item cap (2–3) times the dispatch wave cap (3–5), so
-6–15 concurrent workers. That sits under the harness's per-session subagent
-cap ([Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit);
-**as of** 2026-10-02, **recheck** when that section changes the default or the
-variable that sets it). Usage rate limits, not that cap, are what we expect a
-second lane to hit first; that expectation is judgment, not a measurement. For
-more parallelism, point the second machine at a **different repository**.
-No shared state, no contention, and the sharding problem disappears.
+```text
+/loop /work-items:work-loop --shard 1/2 --ordering newest-first --instance worker-b
+```
+
+`--shard <i>/<n>` keeps items whose issue number satisfies `number % n == i`
+(`invocation-argv.md`, `--shard`). `--ordering` orders the cap slots filled
+from that shard (`invocation-argv.md`, `--ordering`). Two lanes that pass the
+same shard select the same items.
+
+**Each lane needs a distinct `--instance`.** Durable state is one telemetry
+comment per instance
+([Instance-collision check](../../plugins/work-items/skills/work-loop/reference/telemetry-upsert.md#instance-collision-check-cycle-start-before-any-write)).
+A second live lane that resolves the same instance id writes nothing and stops.
+With distinct ids, `item_cap`, `clean_streak`, `no_progress_streak`,
+`rate_limit_latch`, and `first_drain_complete` stay on the instance that wrote
+them
+([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md),
+"Telemetry and durable loop state").
+
+**Both lanes share one subscription's rate-limit windows.** Each lane reads the
+same rate-limit guard floor
+([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md#rate-limit-guard-floor-inlined)).
+A pause recorded there applies to every lane that is running.
+
+Each lane is its own session, so the per-session subagent cap applies inside
+that session
+([Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit);
+**as of** 2026-10-03, **recheck** when that section changes the default or the
+variable that sets it).
 
 ---
 
@@ -627,8 +657,10 @@ wakeup ceiling for days rather than finishing.
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
 > merge within whatever rung resolves after `{{MERGE}}` caps it, never
-> above. You never claim backlog items and never author work-item PRs.
-> That is the worker lane's authority.
+> above. The goal is to merge more classes autonomously as each class's
+> promotion evidence accrues; today the lane merges only within the rung
+> it resolves at run time. You never claim backlog items and never author
+> work-item PRs. That is the worker lane's authority.
 >
 > **PR ordering.** Ordering only, never eligibility. Eligibility is the
 > skill's deterministic partition and nothing here overrides it. Within

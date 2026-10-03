@@ -3,6 +3,115 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs`, `rewrite-guard.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.21.3] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.21.2] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.21.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.21.0] - 2026-10-02
+
+### Added
+
+- **`/testing:fix-until-green` workflow** (`workflows/fix-until-green.js`). One runner runs the
+  command and lists failures with the source files each points at or imports. The workflow
+  groups them so no two groups share a file and runs one fixer per group in the same working
+  tree, in waves of `maxConcurrent`. A verifier then checks the
+  diff from the starting commit for test weakening and for changed files no fixer was allowed to
+  edit, and the command runs again. It stops when the command passes, at `maxRounds`, after two
+  rounds in a row with no fewer failures, when a fixer's root cause sits in a file that is out of
+  scope or protected (an editable in-scope file joins that fixer's group next round instead), when
+  the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
+  and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent
+  settings, hooks, CI, editor tasks or dependency trees, or name a dependency manifest, lockfile,
+  build file, or secret-bearing file or directory in any common ecosystem, never reach a fixer
+  (matched case-insensitively). A file a fixer asks for joins its group only when git tracks it.
+  The checks, and every re-run, count untracked files and a moved HEAD, and fixers are told to run
+  no git command that writes. After any round that dispatched a fixer, a green run gets a final
+  verifier that re-runs the command and reviews the whole diff. Its `args` carry `command`
+  (required; without it the run returns `{error: "missing-command"}` and dispatches nothing; a
+  string that is itself valid JSON, such as `true`, stays the command), `scope` (path prefixes
+  the fixers may edit; when every entry is rejected the run returns `{error: "bad-scope"}`),
+  `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16), `roles`
+  and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`, `changes`
+  per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers take the
+  worker role's fan-out variant at `medium` effort, the runner the retrieval role's single
+  variant at `low`, and the round check and final verifier the verifier role's single variant at
+  `high`, from `/multi-agent:route` when the caller passes them, else from built-in fallbacks that
+  run fixers on `opus`. It commits nothing.
+- **`testing:green-runner`, `testing:green-fixer` and `testing:green-verifier` agents**, one per
+  workflow stage, each holding only that stage's tools: Bash for the runner; Read, Edit and Bash
+  for fixers; Read and Bash for the verifier. Fixers and the verifier preload `testing:test-value`.
+  Each inherits the model and pins no effort; the workflow passes both from the role map.
+
+### Changed
+
+- **`diagnose` offers the workflow when several tests fail across files**
+  (`context/fix-until-green.md`): it asks for a clean working tree, checks that the Workflow tool
+  is available, resolves roles with `/multi-agent:route all code` when that skill resolves, and
+  falls back to the investigate and loop phases on the main thread. It grants
+  `Workflow(testing:fix-until-green)` only.
+
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and `playwright` and `mutation-testing` now install disabled. `cleanup` stops when `mutation-testing` is not enabled.
+
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- `test-value` names six more judgment-only shapes: a negative test that passes for an unrelated
+  reason, a fixture that supplies the outcome, a mock that implements the asserted behavior, a name
+  that promises more than the assertions check, a hand-copied inventory, and a test kept only to
+  preserve a test-only export.
+- `write`'s per-cycle checklist asks whether existing coverage already catches the regression, keeps
+  one regression test per bug at its owning boundary, and rejects a test that needs a production
+  seam no production caller uses.
+- `cleanup` classifies a layer replay (a mocked re-proof of a contract a stronger kept test already
+  proves) under row 5 and deletes it with both tests cited, takes user-named duplicates as a fourth
+  input, and judges tests by their assertions using `test-value`'s judgment-only shapes.
+
+### Changed
+
+- `cleanup` reports a test that fails the same way on every baseline run as a possible product bug,
+  never a quarantine, and re-scans each rewritten file before the mutation replay, stopping on a
+  finding step 1 did not list. Its `## Next` points at `/code-tidying:audit-dead-code` for exports a
+  deletion leaves with no caller.
+
+### Removed
+
+- Provenance notes in `test-value` (where its examples came from and where it departs from that
+  source) and `write` (the upstream skill a rule came from). The rules stand on their own.
+
 ## [0.19.1] - 2026-10-02
 
 ### Fixed

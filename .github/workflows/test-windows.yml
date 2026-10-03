@@ -16,15 +16,21 @@ name: test-windows
 # false green. Inside the required closure the same condition would let a lane
 # report success having run nothing, which both of ci.yml's gates reject.
 #
-# The triggers, the contract-only predicate, the concurrency shape and the
-# permissions are ci.yml's, unchanged. The `changes` job below is the minimum
-# re-resolution the split forces: job outputs do not cross workflow files, so
-# `run_windows` has to be computed here. It is derived by the SAME expression
-# ci.yml publishes, from the same detector and the same shell, python, and
-# powershell filter groups, so the two answers cannot disagree on any diff.
-# Keep them in step: a change to ci.yml's `run_windows` row, to
-# `scripts/check-docs-only.sh`, or to those filter patterns belongs in both
-# files in the same commit.
+# SCOPE IS DECIDED AT TRIGGER LEVEL. Being outside the required closure is
+# also what makes `on.paths` legal here: a workflow a path filter never starts
+# leaves no pending required check behind. The `paths` lists below are the
+# union of the `shell`, `python` and `powershell` groups of ci.yml's
+# change-detection filter table, so a diff that touches none of them (docs
+# only, say) starts no run and no Linux resolver job. Keep them in step with
+# those three groups. GitHub reads at most the first 300 changed files for a
+# `paths` filter, so a larger diff whose matching files fall past that point
+# starts no run; accepted for an informational lane.
+#
+# Draft pull requests run nothing: every job gates on the draft flag, and
+# `ready_for_review` starts the run when the draft flips. Contract-only events
+# (`edited`, `labeled`, `unlabeled`) are not triggers, since this lane reads
+# nothing from the pull request body or labels. Nor is `merge_group`: a merge
+# queue waits only on required checks, and this lane is not one.
 
 on:
   # Present for parity with ci.yml, which takes a dispatch to run its bench
@@ -32,134 +38,66 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - .github/**
+      - scripts/**
+      - lib/**
+      - package.json
+      - package-lock.json
+      - pyproject.toml
+      - uv.lock
+      - requirements*.txt
+      - .node-version
+      - .python-version
+      - .shellcheckrc
+      - ruff.toml
+      - plugins/docs-naming/skills/generate-file-name-gate/**
+      - .claude/docs-naming.json
+      - "**/*.sh"
+      - "**/*.bash"
+      - "**/*.py"
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
   pull_request:
-    # ci.yml's type list verbatim. `ready_for_review` is load-bearing: the draft
-    # filter in `run_windows` leaves this lane reporting not-applicable while a
-    # pull request is a draft, and without this type a draft flipped to ready
-    # triggers no run at all. `edited`, `labeled` and `unlabeled` are the
-    # CONTRACT-ONLY events the predicate below subtracts — this lane records no
-    # state to carry forward, so on those events it simply does not run.
-    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - .github/**
+      - scripts/**
+      - lib/**
+      - package.json
+      - package-lock.json
+      - pyproject.toml
+      - uv.lock
+      - requirements*.txt
+      - .node-version
+      - .python-version
+      - .shellcheckrc
+      - ruff.toml
+      - plugins/docs-naming/skills/generate-file-name-gate/**
+      - .claude/docs-naming.json
+      - "**/*.sh"
+      - "**/*.bash"
+      - "**/*.py"
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
 
 permissions:
   contents: read
 
-# ci.yml's concurrency shape, verbatim: the group branches on the contract-only
-# predicate, every branch cancels, and a contract-only run takes a group of its
-# own keyed on `github.run_id` so it can neither be cancelled nor evict
-# anything. The full branch is namespaced by `github.workflow`, which differs
-# from ci.yml's, so the two workflows never share a group.
+# Namespaced by `github.workflow`, which differs from ci.yml's, so the two
+# workflows never share a group.
 concurrency:
-  group: >-
-    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
-    (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-    (github.event.action == 'edited' && !github.event.changes.base)))
-    && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  # The same single resolution ci.yml's `changes` job performs, narrowed to the
-  # one output this workflow consumes. Fail-closed toward running the suite: a
-  # detector that cannot complete leaves `steps.detect.outputs.docs_only` unset,
-  # which the expression below resolves toward running, and the narrowing terms
-  # read the change-detection action through fromJSON with a `|| '{}'` default
-  # and compare `!= 'false'`, never `== 'true'`, for the same reason.
-  #
-  # The detector self-test runs first and is NOT `continue-on-error`, so a
-  # broken detector turns this job red rather than resolving a scope nobody
-  # verified.
-  changes:
-    # The contract-only gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    # The change-detection action lists the pull request's files through the
-    # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else.
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: detect
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
-      # The `shell`, `python`, and `powershell` groups of ci.yml's filter table,
-      # verbatim: `run_windows` reads those three. Every group repeats the
-      # toolchain and configuration paths on purpose — a pull request touching
-      # only a lockfile, only a workflow file or only the ShellCheck
-      # configuration changes what this lane would find, so it must run rather
-      # than not. Patterns are ROOT-ANCHORED gitignore rules.
-      - name: Match the changed files against the filter groups
-        id: match
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
-        with:
-          filters: |
-            shell:
-              .github/**
-              scripts/**
-              lib/**
-              package.json
-              package-lock.json
-              pyproject.toml
-              uv.lock
-              requirements*.txt
-              .node-version
-              .python-version
-              .shellcheckrc
-              **/*.sh
-              **/*.bash
-              plugins/docs-naming/skills/generate-file-name-gate/**
-              .claude/docs-naming.json
-            python:
-              .github/**
-              scripts/**
-              package.json
-              package-lock.json
-              pyproject.toml
-              uv.lock
-              requirements*.txt
-              .node-version
-              .python-version
-              .shellcheckrc
-              ruff.toml
-              **/*.py
-            powershell:
-              .github/**
-              scripts/**
-              package.json
-              package-lock.json
-              pyproject.toml
-              uv.lock
-              requirements*.txt
-              .node-version
-              .python-version
-              .shellcheckrc
-              **/*.ps1
-              **/*.psm1
-              **/*.psd1
-
-  # One of the only two jobs on a Windows runner in this repository, and
-  # deliberately so; `test-windows-guardrails` below is the other. Every other
-  # suite is platform-agnostic bash string logic that a Linux runner
-  # exercises identically — `lib/powershell/ps-command.sh`, for instance,
-  # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
-  # PowerShell commands, so Linux tests it faithfully.
+  # The only jobs on a Windows runner in this repository, and deliberately so.
+  # Every other suite is platform-agnostic bash string logic that a Linux
+  # runner exercises identically — `lib/powershell/ps-command.sh`, for
+  # instance, carries zero `OSTYPE`/`cygpath`/`uname` branches despite
+  # classifying PowerShell commands, so Linux tests it faithfully.
   #
   # Five surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
   # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
@@ -176,10 +114,41 @@ jobs:
   # System32 WSL relay and spawns bash from node.exe with no shell, none of
   # which a Linux runner does.
   #
-  # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
-  # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
+  # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
+  # cygpath or MSYS run here too: block-windows-drive-tmp, hardcoded-path-check,
+  # block-hook-bypass, secret-pattern-detection, run-guards and
+  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
+  # `jq.exe` on a Windows host writes CRLF after every line, so its family and
+  # README lookups miss there and only a Windows run exercises that. A
+  # host-gated case that cannot run must print a counted SKIP line.
   #
-  # The guardrails suites run in `test-windows-guardrails`, not here.
+  # Keep these jobs SMALL. Adding a platform-agnostic suite here buys no
+  # coverage and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on
+  # Linux).
+  #
+  # SIX PARALLEL JOBS (#5830, #5988). Every slow step is a bash suite bound by
+  # that spawn cost, so the lane's wall time is its longest job. The rename
+  # executor suite, the longest at about 270 s, runs as two shards in two jobs
+  # (APPLY_RENAME_TEST_SHARD=1 and 2); each shard prints its group and case
+  # counts, and the suite refuses to start when a case group is in neither
+  # shard. The suites are spread by measured p50 step time (seconds), each job
+  # about 200 s of steps plus about 27 s of checkout and setup:
+  #   rename-1  rename shard 1 147, run-guards 59                       = 206
+  #   rename-2  rename shard 2 147, Pester + machine-health 36,
+  #             pipefail grep 12, drive-root litter 2, emit helper 1     = 198
+  #   secrets   secret-pattern-detection 176, GuardTests 18,
+  #             skill-visibility 3, coverage-manifest 2                  = 199
+  #   guards    block-hook-bypass 138, hardcoded-path-check 63           = 201
+  #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
+  #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
+  #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
+  #             Pester + kindle-dedrm 6                                  = 197
+  # Each suite is a step of its own so its log shows its own duration. Put a
+  # new suite in the job with the smallest total, and keep each install step
+  # in the job whose suites need it: Pester before each Pester suite
+  # (rename-2, lib), PyYAML before the exec-form probe (hooks). Do not run
+  # suites concurrently inside a job: hook-utils and markdown-format assert
+  # timing that CPU contention breaks.
   #
   # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
   # print a SKIP line when they cannot pin their cases, so their Windows
@@ -201,17 +170,9 @@ jobs:
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
   # Tuesday. Free: GitHub Actions is free for public repositories on standard
   # GitHub-hosted runners, Windows included.
-  #
-  # If `changes` fails outright, rather than failing a continue-on-error step,
-  # `needs: [changes]` skips this job. That is accepted for a non-required
-  # lane: the fail-open path this file cares about runs through the resolver's
-  # published output, and that one is absorbed.
-  test-windows:
-    needs:
-      - changes
-    # The contract-only gate ANDed with the resolver gate. This lane is
-    # informational and gates no merge, so it may gate at job level.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
+  test-windows-rename-1:
+    # Not on a draft; always on push and dispatch, where the flag is absent.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -226,47 +187,49 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-      - name: Run shared lib tests on Windows
-        run: bash lib/hook-utils.test.sh
-      # GuardTests only, not the full hygiene module: two of its tests fail on
-      # windows-2025 and are already green on Linux — the preview case expects
-      # ready-for-explicit-approval where Windows returns blocked, and the
-      # handoff case compares path strings where 8.3 `RUNNER~1` differs from
-      # the long `runneradmin`. The other nine classes gate on the Linux run.
-      - name: Run disk-hygiene GuardTests on Windows
-        working-directory: plugins/disk-hygiene/skills/clean/scripts
-        run: python -m unittest -v test_hygiene.GuardTests
-      - name: Test the MSYS-to-Windows emit helper on Windows
-        run: bash scripts/emit-windows-path.test.sh
-      - name: Test the drive-root litter detector on Windows
-        run: bash scripts/check-drive-root-litter.test.sh
-      - name: Test the piped early-exit grep gate on Windows
-        run: bash scripts/check-pipefail-grep-q.test.sh
       # NTFS is case-insensitive, which is the whole point of running this one
       # here: the rename executor's case-only `git mv` path and its
       # index-not-filesystem existence test cannot be exercised on a
       # case-sensitive runner, so a regression in either would ship green from
       # Linux alone. Named explicitly, like the fixed suites above, rather than
-      # discovered.
-      - name: Test the file-name rename executor on Windows
+      # discovered. Shard 2 runs in `test-windows-rename-2`.
+      - name: Test the file-name rename executor on Windows (shard 1 of 2)
+        env:
+          APPLY_RENAME_TEST_SHARD: "1"
         run: bash plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
-      # The host-skip suites of #3683, named explicitly: each probes the host at
-      # run time, so a green step is only evidence once its log shows whether
-      # the probe fired or the cases ran.
-      - name: Test the markdown-format hook on Windows
-        run: bash plugins/markdown-format/hooks/markdown-format.test.sh
-      - name: Test cloud-bootstrap plugin accounting on Windows
-        run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
-      - name: Test the skill-visibility audit on Windows
-        run: bash plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
-      # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
-      # when pwsh is missing, which would read as green here. The selftest's
-      # exit code is its failure count.
-      - name: Run the gaming DLSS 5 selftest on Windows
-        run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      - name: Test run-guards on Windows
+        run: bash plugins/guardrails/hooks/run-guards.test.sh
+
+  test-windows-rename-2:
+    # `test-windows-rename-1`'s gate, verbatim.
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Test the file-name rename executor on Windows (shard 2 of 2)
+        env:
+          APPLY_RENAME_TEST_SHARD: "2"
+        run: bash plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
+      - name: Test the piped early-exit grep gate on Windows
+        run: bash scripts/check-pipefail-grep-q.test.sh
+      - name: Test the drive-root litter detector on Windows
+        run: bash scripts/check-drive-root-litter.test.sh
+      - name: Test the MSYS-to-Windows emit helper on Windows
+        run: bash scripts/emit-windows-path.test.sh
       # Pester has no Linux lane. These are the suites affected-tests.sh names
-      # and declines: machine-health's own runner, and the kindle-dedrm tests.
-      # #3703.
+      # and declines: machine-health's own runner here, and the kindle-dedrm
+      # tests in `test-windows-lib`, which installs Pester itself. #3703.
       - name: Install Pester 5.7
         shell: pwsh
         run: |
@@ -277,14 +240,91 @@ jobs:
       - name: Run machine-health Pester suites
         shell: pwsh
         run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
-      - name: Run kindle-dedrm Pester suites
-        shell: pwsh
-        run: |
-          $config = New-PesterConfiguration
-          $config.Run.Path = 'plugins/kindle-dedrm/skills/manage/tests'
-          $config.Run.Exit = $true
-          $config.Output.Verbosity = 'Detailed'
-          Invoke-Pester -Configuration $config
+
+  test-windows-secrets:
+    # `test-windows-rename-1`'s gate, verbatim.
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Test secret-pattern-detection on Windows
+        run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
+      - name: Test coverage-manifest on Windows
+        run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
+      # A host-skip suite of #3683 (see the job comment above).
+      - name: Test the skill-visibility audit on Windows
+        run: bash plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
+      # GuardTests only, not the full hygiene module: two of its tests fail on
+      # windows-2025 and are already green on Linux — the preview case expects
+      # ready-for-explicit-approval where Windows returns blocked, and the
+      # handoff case compares path strings where 8.3 `RUNNER~1` differs from
+      # the long `runneradmin`. The other nine classes gate on the Linux run.
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
+
+  test-windows-guards:
+    # `test-windows-rename-1`'s gate, verbatim.
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Test block-hook-bypass on Windows
+        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
+      - name: Test hardcoded-path-check on Windows
+        run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+
+  test-windows-hooks:
+    # `test-windows-rename-1`'s gate, verbatim.
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      # The host-skip suites of #3683, named explicitly: each probes the host at
+      # run time, so a green step is only evidence once its log shows whether
+      # the probe fired or the cases ran.
+      - name: Test the markdown-format hook on Windows
+        run: bash plugins/markdown-format/hooks/markdown-format.test.sh
+      - name: Test cloud-bootstrap plugin accounting on Windows
+        run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
+      # The launcher test spawns a real Git Bash through node.exe, with stdin,
+      # an argument and exit 2 passed through, and reads every hooks.json row
+      # for the node exec form.
+      - name: Test the guardrails exec-bash launcher on Windows
+        run: bash plugins/guardrails/hooks/exec-bash.test.sh
       # The probe reads hook frontmatter with PyYAML and exits 2 when the
       # module is missing. requirements-ci.txt also pins a Linux-only zizmor
       # wheel, so this step installs only the PyYAML pin from that file.
@@ -299,29 +339,14 @@ jobs:
         run: bash scripts/check-exec-form-windows-probe.sh
       # The resolver test hands resolveBash a win32 platform and a fake
       # `exists`, so a Linux run already covers its logic; here it runs under
-      # the real node.exe. The launcher test is the one that spawns a real Git
-      # Bash through node.exe, with stdin, an argument and exit 2 passed
-      # through, and reads every hooks.json row for the node exec form.
+      # the real node.exe. The launcher test above is the one that spawns a
+      # real Git Bash through node.exe.
       - name: Test the exec-form bash launcher resolver on Windows
         run: node --test lib/exec-bash.resolver.test.mjs
-      - name: Test the guardrails exec-bash launcher on Windows
-        run: bash plugins/guardrails/hooks/exec-bash.test.sh
 
-  # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
-  # cygpath or MSYS run here: block-windows-drive-tmp, hardcoded-path-check,
-  # block-hook-bypass, secret-pattern-detection, run-guards and
-  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
-  # `jq.exe` on a Windows host writes CRLF after every line, so its family and
-  # README lookups miss there and only a Windows run exercises that. Each suite
-  # is a step of its own so its log shows its own duration. They are a job of
-  # their own because added to `test-windows`'s steps they leave under a minute
-  # of margin below its 20-minute timeout. A host-gated case that cannot run
-  # must print a counted SKIP line.
-  test-windows-guardrails:
-    needs:
-      - changes
-    # `test-windows`'s gate, verbatim.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
+  test-windows-lib:
+    # `test-windows-rename-1`'s gate, verbatim.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -338,13 +363,27 @@ jobs:
           python-version-file: .python-version
       - name: Test block-windows-drive-tmp on Windows
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
-      - name: Test hardcoded-path-check on Windows
-        run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
-      - name: Test block-hook-bypass on Windows
-        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
-      - name: Test secret-pattern-detection on Windows
-        run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
-      - name: Test run-guards on Windows
-        run: bash plugins/guardrails/hooks/run-guards.test.sh
-      - name: Test coverage-manifest on Windows
-        run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
+      - name: Run shared lib tests on Windows
+        run: bash lib/hook-utils.test.sh
+      # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
+      # when pwsh is missing, which would read as green here. The selftest's
+      # exit code is its failure count.
+      - name: Run the gaming DLSS 5 selftest on Windows
+        run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      # `test-windows-rename-2` installs Pester for its own suite; this job runs
+      # on a separate runner and installs it again.
+      - name: Install Pester 5.7
+        shell: pwsh
+        run: |
+          $found = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.7.0' } | Select-Object -First 1
+          if (-not $found) {
+            Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+      - name: Run kindle-dedrm Pester suites
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'plugins/kindle-dedrm/skills/manage/tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config

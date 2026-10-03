@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "why": "P-canonical: says the two 1.00/1.00 cases measure nothing about the plugin and that the 0.95 without-plugin arm leaves very little room to show a gain.",
+      "answer": "No, the data doesn't show that yet. Three things limit what this run can tell you:\n\n1. Two of the four cases score 1.00 with and without the plugin. A case like that passes, but it measures nothing about the plugin; the model solves it either way.\n2. The without-plugin arm is already at 0.95. With the baseline that high, there's very little room left for the skill to show a gain.\n3. The rest is noise-sized. Four cases at three runs each is a small sample, and a 0.05 move is within what one run going differently produces.\n\nAdd harder cases, ones the model fails without the plugin, and more of them, then compare the arms again. Until then, treat the 0.92 to 0.97 move as unproven."
+    },
+    {
+      "why": "P-alt: different words: the 1.00-in-both cases are null measurements of the description, and a 0.95 no-plugin score puts the suite near its ceiling with only five points to work with.",
+      "answer": "Can't tell from this run. Look at what the suite is able to measure. The two cases at 1.00 in both arms are null measurements: the model gets them right with or without your skill, so they say nothing about whether the description matters. And a no-plugin score of 0.95 means the base model is already near the top, so even a genuinely better description has only five points to work with. The suite is close to its ceiling.\n\nOn top of that, 4 cases and 3 runs make a 0.05 difference indistinguishable from noise. Write cases the base model fails, grow the count, and rerun before you decide. The two 1.00 cases can stay in the suite as passing checks, but they shouldn't count toward the verdict."
+    },
+    {
+      "why": "P-caveat: both points (1.00-in-both cases show nothing about the plugin; the 0.95 without-plugin mean leaves almost no headroom); keeping those cases as passing checks and calling the direction encouraging do not undercut either point.",
+      "answer": "Not established. With 4 cases and 3 runs, a 0.05 shift is within noise, so add harder cases and more of them before you conclude anything.\n\nTwo features of the suite make it a poor instrument for this question:\n- A case scoring 1.00 in both arms shows nothing about the plugin. You can keep those two in the suite as passing checks, but they are not evidence either way.\n- The without-plugin mean of 0.95 leaves almost no headroom, so the suite can barely register an improvement.\n\nThe with-plugin arm moving from 0.92 to 0.97 is encouraging as a direction. It just isn't proof, and this suite can't turn it into proof until it has cases the base model fails. Report the delta with that context rather than as a headline number."
+    },
+    {
+      "why": "P-plain: makes both ceiling points (1.00 cases are null measurements; the 0.95 baseline leaves very little room) and calls the result inconclusive; it never names the small sample or asks for harder cases, which are another grader's points.",
+      "answer": "This suite can't really answer that question, for two reasons.\n\nFirst, two of your four cases score 1.00 whether the plugin is loaded or not. A case the model passes either way tells you nothing about the plugin: it is a passing test and a null measurement at the same time.\n\nSecond, the without-plugin arm already averages 0.95. That baseline leaves very little room above it, so even a description that genuinely helps has almost nowhere to show the improvement.\n\nPut together, most of the suite is measuring the base model rather than your skill, and the with-plugin 0.97 sits barely above a baseline that was already near the top. A higher with-plugin number on a suite like this mostly reflects how well the base model already does, not what the new description changed. Treat the result as inconclusive."
+    }
+  ],
+  "fail": [
+    {
+      "why": "F-wrong: treats the 1.00/1.00 cases as evidence the skill is solid and says the 0.95 baseline leaves plenty of room; both points are wrong.",
+      "answer": "Yes, and the suite backs it up well. The two cases at 1.00 in both arms show the skill is rock solid on the core tasks: it handles them perfectly, and the new description kept that intact. The real signal is in the other two cases, where the with-plugin arm improved enough to lift the mean from 0.92 to 0.97.\n\nSince the without-plugin arm stayed at 0.95, there's plenty of room to tell the arms apart, and the plugin now clearly sits above baseline. Keep the new description; if you want extra confidence, rerun at five runs to tighten the numbers. The two perfect cases also show the description introduced no regressions, which is exactly what you want to see from a change like this."
+    },
+    {
+      "why": "F-partial: makes the 0.95 headroom point and every noise point, but never says a case at 1.00 in both arms shows nothing about the plugin (point 1 is missing).",
+      "answer": "Not established. Two things stand in the way.\n\nThe sample is small: 4 cases at 3 runs each, and a 0.05 shift is well within what a single run going differently can produce. One lucky or unlucky run on one case moves the suite mean by about as much as the gain you're seeing.\n\nAnd the without-plugin arm already scores 0.95, so the baseline leaves almost no headroom for the skill to show a gain even if the description really is better.\n\nBefore concluding, add more cases, especially harder ones the model fails without the skill, so a real improvement has room to show and enough runs behind it to stand out from noise. Then rerun with the expanded suite and compare the arms again."
+    },
+    {
+      "why": "F-retract: states the 1.00-case point, raises the 0.95 headroom concern, then dismisses it ('a baseline of 0.95 still leaves plenty of room').",
+      "answer": "Not yet established. The two cases at 1.00 in both arms show nothing about the plugin, and 4 cases at 3 runs is too small a sample to separate a 0.05 move from noise.\n\nYou might also worry that the 0.95 without-plugin score leaves no headroom, but that concern doesn't really apply here. A baseline of 0.95 still leaves plenty of room above it, and the with-plugin arm used that room by reaching 0.97. Headroom isn't your problem; sample size is. Four cases can't carry a verdict either way, and three runs per case leaves wide error bars. Add more cases, including harder ones, and rerun before concluding anything about the description. If the gain holds on the bigger suite, you can call it."
+    },
+    {
+      "why": "F-near: the only 'ceiling' remark is that the two 1.00 cases are maxed out; it never says the 0.95 without-plugin score leaves little room, so point 2 is missing.",
+      "answer": "Not established. Two of your four cases are maxed out at 1.00 in both arms, so they add nothing and tell you nothing about the plugin; half the suite is sitting at its ceiling. That leaves only two cases that can move, and with three runs each, a 0.05 shift in the mean is within noise.\n\nHarden those two 1.00 cases so they can actually fail, and add more cases overall, then rerun with more runs so the error bars shrink. Until then, the 0.92 to 0.97 change could be nothing more than one lucky run on one of the two cases that can still move. Report the result as inconclusive for now, and keep the old description's numbers so you can compare against them later."
+    }
+  ]
+}

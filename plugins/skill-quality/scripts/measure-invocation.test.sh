@@ -306,6 +306,108 @@ else
   fail "score mishandled a quote in TMPDIR: $out"
 fi
 
+# emit-plugin-eval writes the CLI's default of 3 runs per case; --runs
+# overrides it, and a non-positive value is a usage error.
+if grep -qx 'runs: 3' "$emit_dir/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval defaults to runs: 3"
+else
+  fail "emit-plugin-eval should default to runs: 3: $(head -5 "$emit_dir/fixture-target-pos-train-01/prompt.md")"
+fi
+run emit-plugin-eval --runs 5 "$TMP/probes" "$TMP/eval-out-5" >/dev/null 2>&1
+if grep -qx 'runs: 5' "$TMP/eval-out-5/fixture-target-pos-train-01/prompt.md" 2>/dev/null; then
+  pass "emit-plugin-eval --runs 5 writes runs: 5"
+else
+  fail "emit-plugin-eval --runs 5 should write runs: 5"
+fi
+out="$(run emit-plugin-eval --runs 0 "$TMP/probes" "$TMP/eval-out-0" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q -- '--runs needs a positive integer' <<<"$out"; then
+  pass "emit-plugin-eval --runs 0 is a usage error"
+else
+  fail "emit-plugin-eval --runs 0 should exit 2 (rc=$rc): $out"
+fi
+
+# compare carries a paired normal-approximation interval on each trigger-rate
+# delta, from per-probe outcomes matched by id, and says "within noise" when
+# the interval contains 0.
+cmp_out="$(run compare "$TMP/score.json" "$TMP/score.json" 2>"$TMP/cmp.err")"
+if jq -e '.skills[0].validation.trigger_rate_within_noise == true
+    and (.skills[0].validation.trigger_rate_delta_interval | length == 2)' <<<"$cmp_out" >/dev/null &&
+  grep -q 'fixture:target validation trigger_rate delta .* within noise' "$TMP/cmp.err"; then
+  pass "compare against self reports an interval and within noise"
+else
+  fail "self-compare should report an interval and within noise: $cmp_out $(cat "$TMP/cmp.err")"
+fi
+# Rewrites the validation cases of the fixture report into $2 positive probes
+# named with prefix $3, of which the first $4 are hits. Output file: $1.
+paired_report() {
+  jq --argjson n "$2" --arg prefix "$3" --argjson hits "$4" \
+    '.skills[0].cases |= (map(select(.split != "validation"))
+      + [range(0; $n) | {id: ($prefix + tostring), split: "validation", expect_trigger: true,
+          predicted: (. < $hits), correct: (. < $hits)}])' "$TMP/score.json" >"$1"
+}
+paired_report "$TMP/pair-base.json" 100 p 0
+paired_report "$TMP/pair-treat.json" 100 p 10
+cmp_out="$(run compare "$TMP/pair-base.json" "$TMP/pair-treat.json" 2>"$TMP/cmp.err")"
+if jq -e '.skills[0].validation.trigger_rate_within_noise == false
+    and .skills[0].validation.trigger_rate_delta_interval[0] > 0' <<<"$cmp_out" >/dev/null &&
+  ! grep -q 'validation trigger_rate delta .* within noise' "$TMP/cmp.err"; then
+  pass "compare does not call 10 of 100 probes flipping miss to hit within noise"
+else
+  fail "10 of 100 positive probes flipping miss to hit should clear noise: $cmp_out $(cat "$TMP/cmp.err")"
+fi
+paired_report "$TMP/other-treat.json" 100 q 10
+cmp_out="$(run compare "$TMP/pair-base.json" "$TMP/other-treat.json" 2>/dev/null)"
+if jq -e '.skills[0].validation.trigger_rate_delta_interval == null
+    and .skills[0].validation.trigger_rate_within_noise == null' <<<"$cmp_out" >/dev/null; then
+  pass "compare reports no interval when the probe ids differ between reports"
+else
+  fail "differing probe ids should give a null interval: $cmp_out"
+fi
+paired_report "$TMP/tiny-base.json" 4 p 0
+paired_report "$TMP/tiny-treat.json" 4 p 3
+paired_report "$TMP/one-base.json" 1 p 0
+paired_report "$TMP/one-treat.json" 1 p 1
+cmp_tiny="$(run compare "$TMP/tiny-base.json" "$TMP/tiny-treat.json" 2>/dev/null)"
+cmp_one="$(run compare "$TMP/one-base.json" "$TMP/one-treat.json" 2>/dev/null)"
+if jq -e '.skills[0].validation.trigger_rate_delta_interval[1] == 1' <<<"$cmp_tiny" >/dev/null &&
+  jq -e '.skills[0].validation.trigger_rate_delta_interval == null' <<<"$cmp_one" >/dev/null; then
+  pass "compare clamps the interval to 1 and reports no interval for a single probe"
+else
+  fail "interval should clamp at 1 and be null for one probe: $cmp_tiny $cmp_one"
+fi
+
+# validate warns when a should-trigger probe copies 4+ consecutive words of
+# the target listing; --copy-span widens the span; should-not probes are exempt.
+mkdir -p "$TMP/leak/probes"
+jq '.queries[0].request = "before I ship, check skill before publishing for me"
+    | .queries[10].request = "Skill-authoring QA. Use when you want it"' \
+  "$TMP/probes/target.json" >"$TMP/leak/probes/target.json"
+jq '.queries |= map(if .expect_trigger and .id != "pos-train-01" then .request = "does my new helper look ready" else . end)' \
+  "$TMP/leak/probes/target.json" >"$TMP/leak/probes/t.json" && mv "$TMP/leak/probes/t.json" "$TMP/leak/probes/target.json"
+out="$(run validate "$TMP/leak/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN:.*pos-train-01.*copies \"check skill before publishing\"" <<<"$out" &&
+  [[ "$(grep -c 'copies "' <<<"$out")" -eq 1 ]]; then
+  pass "validate warns once on a should-trigger probe copying 4 listing words"
+else
+  fail "validate should warn on the leaky positive only (rc=$rc): $out"
+fi
+out="$(run validate --copy-span 5 "$TMP/leak/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'copies "' <<<"$out"; then
+  pass "validate --copy-span 5 silences a 4-word copy"
+else
+  fail "--copy-span 5 should silence a 4-word copy (rc=$rc): $out"
+fi
+out="$(run validate --copy-span x "$TMP/leak/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q -- '--copy-span needs a positive integer' <<<"$out"; then
+  pass "validate --copy-span x is a usage error"
+else
+  fail "validate --copy-span x should exit 2 (rc=$rc): $out"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1

@@ -164,7 +164,12 @@ for agent in "${agents[@]}"; do
   #    absence; this is the only one that can fire on an input that is present
   #    and wrong.
   # ---------------------------------------------------------------------------
-  if grep -qE '^(scope|topic|target)_as_received: ' <<<"$agent_body"; then
+  #    sweep-worker is exempt: the research-sweep workflow dispatches it with a
+  #    schema, so its return is the structure that schema forces, validated by
+  #    the workflow script, and no parent acceptance gate reads an echo field.
+  if [[ "$agent" == sweep-worker.md ]]; then
+    pass "$agent: returns a workflow-schema structure, so no echo-back field is owed"
+  elif grep -qE '^(scope|topic|target)_as_received: ' <<<"$agent_body"; then
     pass "$agent: the return payload echoes back the scope/topic/target as received"
   else
     fail "$agent: the return payload has no \`scope_as_received:\`/\`topic_as_received:\`/\`target_as_received:\` field — a corrupted input passes every gate"

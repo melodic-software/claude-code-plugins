@@ -10,8 +10,8 @@ documented public seam. A shared shell assertion library is neither.
 ## Why not the existing vendoring mechanism
 
 This repo already has one sanctioned way to share source across plugins: a canonical file under
-[`lib/`](../../../lib/), copied (not imported) into each carrying plugin by a dedicated
-`scripts/sync-*.sh`, and tracked in
+[`lib/`](../../../lib/), generated (not imported) into each carrying plugin by
+`scripts/sync-shared-copies.sh`, and tracked in
 [`scripts/cross-plugin-source-registry.txt`](../../../scripts/cross-plugin-source-registry.txt) so
 `check-cross-plugin-source-drift.sh --check` fails if a copy drifts. `lib/hook-utils.sh` is the
 worked example.

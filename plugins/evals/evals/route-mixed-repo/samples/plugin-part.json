@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Split it by part, because the two need different tools.\n\n- **Plugin (`.claude-plugin/plugin.json`, three skills):** use `claude plugin eval`, Claude Code's built-in runner, which measures each case with the plugin against a no-plugin baseline. Scaffold the suite with `/evals:design` and run it with `/evals:plugin-eval`.\n- **`services/summarizer/`:** it calls the Anthropic Messages API, so it is a Claude API app. Type `/claude-api build-eval` to create its first eval suite; later, `/claude-api hillclimb` can tune it against that suite.\n\nKeep the two suites separate. The plugin cases test whether the skills change Claude Code's behavior; the summarizer cases test summary quality on real meeting notes.",
+      "why": "P-canonical: the plugin goes to claude plugin eval against a no-plugin baseline, scaffolded with /evals:design and run with /evals:plugin-eval."
+    },
+    {
+      "answer": "Two parts, two routes. The summarizer under `services/summarizer/` is ordinary application code calling Claude through the Messages API, so its evals start with the bundled claude-api skill: run `/claude-api build-eval`. The plugin is different. A `.claude-plugin/plugin.json` with skills is evaluated by Claude Code's own `claude plugin eval` command, which runs each case with the plugin installed and without it, and reports the difference. The evals plugin wraps that: `/evals:design` interviews you and scaffolds the plugin's cases, and `/evals:plugin-eval` runs them. Don't fold the skills into the summarizer's suite or the other way round; each part gets its own route.",
+      "why": "P-alt: service first, then the plugin routed to claude plugin eval (with/without comparison) via /evals:design and /evals:plugin-eval, in prose."
+    },
+    {
+      "answer": "For the plugin with its three skills, the route is `claude plugin eval`: cases run with the plugin and against a no-plugin baseline, and the delta is what you read. You can scaffold the cases with `claude plugin eval init`, or through `/evals:design`, and run them with `/evals:plugin-eval`. For `services/summarizer/`, which calls the Anthropic Messages API, type `/claude-api build-eval` to create its first eval suite.\n\nOne caution on the plugin side: every case runs in both arms, so the suite costs roughly twice the model calls of the cases alone. Start with a few cases per skill, covering when each skill should fire and when it should stay quiet, and grow the set once the first results look trustworthy.",
+      "why": "P-caveat: plugin routed to claude plugin eval (init or /evals:design to scaffold, both allowed by the rubric), plus a cost caution that does not change the route."
+    },
+    {
+      "answer": "Treat them as two targets.\n\n1. The plugin: its three skills are covered by `claude plugin eval`, which compares runs with the plugin installed against a no-plugin baseline. `/evals:design` scaffolds the cases and `/evals:plugin-eval` runs them.\n2. The summarizer: build a set of 30 or so meeting notes with reference summaries, then write a pytest harness that calls the service and has an LLM judge score each output for faithfulness and coverage of action items, plus a code check on length.\n\nRun the two separately; they measure different things and fail for different reasons.",
+      "why": "P-plain: plugin correctly routed to claude plugin eval; the summarizer gets a hand-written harness instead of build-eval, which only the service-part sibling grades."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use one harness for the whole repository so results land in one place. promptfoo fits well here:\n\n```\nnpx promptfoo init\n```\n\nDefine two groups of tests in `promptfooconfig.yaml`. For the summarizer, point a provider at the Anthropic Messages API, feed it sample meeting notes, and grade outputs with `llm-rubric` assertions on faithfulness and coverage. For the plugin, add a test per skill that sends the skill's trigger prompt to Claude with the SKILL.md text included and asserts on the response. One config, one report, one CI job, and both parts of the repo are covered by the same pass/fail dashboard.",
+      "why": "F-wrong: one promptfoo harness for the whole repository, skills included; the plugin never goes to claude plugin eval."
+    },
+    {
+      "answer": "Each part needs its own approach. For `services/summarizer/`, which calls Claude through the Messages API, type `/claude-api build-eval` to create its first eval suite; it sets up example meeting notes and a grader for the summaries. For the plugin, write a handful of cases for each of the three skills: a prompt that should trigger the skill, a prompt that should not, and what a good response looks like. Keep those cases next to each skill's folder so they are updated whenever the skill changes, and review them together before each release.",
+      "why": "F-partial: the service route is right, but the plugin gets no specific route (only 'write cases for each skill'), the one missing point."
+    },
+    {
+      "answer": "For the plugin part, the natural fit is `claude plugin eval`, which runs cases against a no-plugin baseline; `/evals:design` and `/evals:plugin-eval` scaffold and run it. For `services/summarizer/`, type `/claude-api build-eval` to create its first suite.\n\nOn reflection, though, running two separate tool chains for one repository is more overhead than it is worth. The skills are prompts sent to Claude in the end, so drop the plugin eval route and fold the three skills into the summarizer's build-eval suite as extra inputs. One suite, one grader setup, one place to read results, and both parts of the repository are covered.",
+      "why": "F-retract: routes the plugin to claude plugin eval, then drops that route and sends the skills into /claude-api build-eval."
+    },
+    {
+      "answer": "Route each part by what it is.\n\n- `services/summarizer/` is where Claude is actually prompted, so give it the plugin eval route: scaffold its cases with `/evals:design`, run them with `/evals:plugin-eval`, and let `claude plugin eval` compare summary quality across runs.\n- The plugin's three skills are prompts that reach Claude through the API too, so `/claude-api build-eval` can generate their suite, and `/claude-api hillclimb` can then tune each skill's wording against it.\n\nThis keeps every model-facing piece of the repo under a dedicated tool rather than a hand-rolled harness.",
+      "why": "F-near: the routes are swapped: claude plugin eval and /evals:* go to the summarizer, and the plugin's skills go to /claude-api build-eval and hillclimb."
+    }
+  ]
+}

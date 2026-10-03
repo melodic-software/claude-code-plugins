@@ -1,0 +1,75 @@
+{
+  "skill_name": "audit-sessions",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-sweep-collects-then-sweeps",
+      "prompt": "Audit my Claude Code sessions. Where is my time going?",
+      "expected_output": "The skill runs collect.py collect against the plugin data directory with the three userConfig values passed as flags, then sweep.py with the drift flags and the installed-skill catalog, and presents the markdown report with each finding's route and suggested skill.",
+      "files": [],
+      "expectations": [
+        "Runs collect.py collect before sweep.py",
+        "Passes --retention-days, --excerpt-chars and --excerpt-words to collect explicitly",
+        "Passes --min-count, --versions and --catalog to sweep",
+        "Passes the plugin data directory as a literal --data-dir value",
+        "Presents the report's findings with their routes as suggestions"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "first-collect-gets-a-long-timeout",
+      "prompt": "This is a fresh machine. Sweep my sessions for the first time.",
+      "expected_output": "The first collect reads every transcript, so the skill runs it with a Bash timeout above the 120 s default (600000 ms) or in the background, then sweeps once it finishes.",
+      "files": [],
+      "expectations": [
+        "Runs the first collect with a timeout above 120 seconds or in the background",
+        "Waits for collect to finish before running sweep"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "drift-is-advisory",
+      "prompt": "Sweep my sessions. Last time it said something about drift, what does that mean?",
+      "expected_output": "The skill explains that drift means the transcript format changed between Claude Code versions; unknown record types are advisory, and only a metric whose canary was lost is reported unavailable (exit 1). It still presents every other metric.",
+      "files": [],
+      "expectations": [
+        "Explains drift as a transcript format change between Claude Code versions",
+        "Does not refuse the whole report because of drift",
+        "Names any unavailable metric rather than presenting a number for it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "does-not-apply-findings",
+      "prompt": "Audit my sessions and then just fix whatever it finds in my settings and CLAUDE.md.",
+      "expected_output": "The skill runs the sweep and presents each finding with its route and suggested skill, but edits no setting, instruction file or work item itself; it says the person picks which suggestion to run.",
+      "files": [],
+      "expectations": [
+        "Does not edit settings.json, CLAUDE.md or any rule file",
+        "Does not file a work item or open a pull request",
+        "Presents the suggested skill for each finding for the person to run"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "skip-route-to-improvement-find",
+      "prompt": "What should we improve in this codebase and its CI config?",
+      "expected_output": "This is a ranked improvement sweep across code and config, not a session audit; /improvement:find is the skill for it, and audit-sessions is not invoked.",
+      "files": [],
+      "expectations": [
+        "Routes to /improvement:find rather than running audit-sessions"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "project-scope-uses-state-key",
+      "prompt": "Audit only the sessions for this repository and save the report.",
+      "expected_output": "The skill runs lib/state-key.sh from the project root and passes its output as --state-key with --scope project and --write-report; the store stays machine-wide.",
+      "files": [],
+      "expectations": [
+        "Runs lib/state-key.sh to get the project key",
+        "Passes --scope project, --state-key and --write-report to sweep.py"
+      ]
+    }
+  ]
+}

@@ -182,9 +182,8 @@ loop's own escalation contract is not outside it.
 - Fix (c) like any other in-scope defect, but count it. It is never deferrable, because it is a
   defect this change is shipping (`<plugin-root>/reference/review-discipline.md`,
   D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A (b) finding follows D4.6's
-  scope test: a small or medium one is fixed in this PR in a review-fix commit, even when unrelated
-  to the task, and only a structural, urgent-but-cannot-land, or fix-blocked-on-research one is filed and
-  deferred. A second consecutive **advisory** round whose findings are *all* (c) means incremental
+  scope test, which places a small or medium fix and files and defers only a structural,
+  urgent-but-cannot-land, or fix-blocked-on-research one. A second consecutive **advisory** round whose findings are *all* (c) means incremental
   patching is injecting defects about as fast as it removes them; that is the non-convergence
   signal a round count only approximates. The test is scoped to advisory rounds because those are
   the rounds the ledger records. A blocking-defect round in between neither counts nor resets it.
@@ -461,7 +460,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
-  <watched-owners> --self-logins @me,<self-logins>` (merge-readiness gate) and
+  <watched-owners> --self-logins @me,<self-logins> --state-dir <state-dir>` (merge-readiness gate) and
   `source-control-babysit-resolve-thread
   owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>
   --self-logins @me,<self-logins>` (thread list).
@@ -471,6 +470,17 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   React to those blockers; never bypass the gate. One reading caveat: a `ready: false` immediately
   following a `ready: true` on the same expected head is often GitHub's own mergeability recompute
   lag, so re-run the read-only check once before treating it as a real block.
+- **`CLEAN` is not proof the PR was tested against the live base.** GitHub regenerates a PR's test
+  merge commit only on a push, a merge-base change, or once the last one is 12 hours old, and
+  states that this leaves mergeability checks, conflict reporting, and rule enforcement unchanged.
+  So the gate keeps trusting `CLEAN` for mergeability; what can be up to 12 hours behind the base
+  is the merge commit `pull_request` CI ran against. Only a strict up-to-date rule (`BEHIND`) proves
+  the head is current at merge; under a non-strict base the stale-base rule in
+  [freshness.md](freshness.md) is the guard, and the gate adds no hold of its own. **Claim, basis,
+  as of, recheck:** that regeneration rule,
+  [changes to test merge commit generation](https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests),
+  2026-10-02, and a GitHub changelog entry that changes test-merge regeneration or says it now
+  affects mergeability.
 - **`--self-logins @me,<self-logins>` rides on every merge form too**, read-only and mutating
   alike. `@me` resolves to your own `gh` login and the `babysit_self_logins` extras follow it; drop
   the trailing `,<self-logins>` when that value is empty. On the merge gate this flag is what
@@ -490,6 +500,12 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
   only when **both** keys are unset: the pair is `userConfig`-only, and a repository's declaration
   of either key never supplies or changes it. See §Review-Settle Hold.
+- **`--stacked-prs` rides on every merge form, read-only and mutating alike, when
+  `babysit_stacked_prs` is `true`**, and is omitted otherwise. A read-only check without it reports
+  a stack layer held while the merge with it would land the stack, so the two must agree.
+- **`--state-dir <state-dir>` rides on every merge form, read-only and mutating alike.** It is how
+  a merge request left pending on GitHub stays visible to later runs (§Async Merge Path); the gate
+  writes nothing else there.
 - **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
   error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
   key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
@@ -514,8 +530,9 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   <merge-method>`, and rejects `--allow-unpinned-head` outright. There is no unpinned merge. A
   missing pin, or a pin that no longer matches the live head, refuses the merge: re-snapshot and
   reassess the new head rather than reaching for an override, so no unattended unpinned merge
-  exists. The pin is carried through to GitHub's own server-side match-head-commit guard, so the
-  refusal holds on GitHub's side as well as in the wrapper.
+  exists. The pin is carried through to GitHub's own server-side head match (the async merge API's
+  `sha`, or `gh pr merge --match-head-commit`), so the refusal holds on GitHub's side as well as in
+  the wrapper. Which API merges is in §Async Merge Path below.
 - The merge wrapper never uses `--admin`, and it cannot resolve threads, post replies, or
   force-push. It merges or it refuses.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
@@ -524,7 +541,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   the repository's default branch, absent `--allow-unprotected`. The self exemption covers the
   solo-owner repository whose default branch carries no rules; it does not cover a merge onto
   another branch (a stack layer, or any other feature-onto-feature merge), where the default
-  branch's required checks never governed the merge. Both
+  branch's required checks never governed the merge. `--stacked-prs` changes this for a native
+  stack layer only (§Async Merge Path). Both
   overrides are human decisions, never passed autonomously. The held dependency-manager set is the
   built-in dependabot/renovate bots plus, when `babysit_extra_dependency_manager_logins` is
   configured (non-empty, not a literal unexpanded token), the logins appended via
@@ -576,7 +594,11 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   - `deferred` + `--tracker-item <owner/repo#N|#N|N>`: the item must exist and still be **open**.
     A closed follow-up is not a deferral; it is the finding disappearing. The script cannot check
     D4.6's scope test, so claim `deferred` only for a structural, urgent-but-cannot-land, or
-    fix-blocked-on-research finding; a small or medium one is `fixed` in this PR.
+    fix-blocked-on-research finding; a small or medium one is never `deferred`.
+  - `linked-pr` + `--linked-pr <N>`: the fix D4.6's scope test placed in a separate PR. `N` must
+    be a different, non-draft PR whose head is in the same repository, cited (`#N` or its URL) in a
+    **reply** on the thread by someone other than the opener, and **open or merged**: a PR closed
+    without merging is the fix disappearing.
   - `incorrect` + `--counter-evidence <text>`: the text must already appear in a **reply** on the
     thread, posted by **someone other than the thread's opener**. Excluding the opening comment
     alone is not enough: the mandated classification reply restates the finding's own text, so a
@@ -590,7 +612,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   unresolved, which is the recoverable direction, while a suppressed finding is not. Each refusal
   is its own per-thread `action`: `refused-fix-commit-not-on-head`,
   `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
-  `refused-counter-evidence-not-found`, and `refused-evidence-unverifiable` for an API that could
+  `refused-counter-evidence-not-found`, `refused-linked-pr-not-cited`,
+  `refused-linked-pr-not-found`, `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`, and `refused-evidence-unverifiable` for an API that could
   not be consulted, kept distinct so an outage is never reported as a false claim. **Only a
   confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure, whether
   403, 429, 5xx, a timeout, an unreachable API, or no HTTP response at all, reports
@@ -630,10 +653,90 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so and `merged` is true;
-  `"action": "auto-merge"` means armed, not merged. The resolve action vocabulary is
+  `"action": "auto-merge"` means armed, not merged, and `"action": "enqueue"` with
+  `enqueued: true` means queued, not merged. The resolve action vocabulary is
   `resolved` against `skipped-*`, the `refused-*` family (`refused-stale-pin` and the evidence
   refusals above), and `resolve-failed`; read the run's `resolvedCount`/`eligibleCount` summary
   alongside the per-thread entries before reporting or re-checking the merge gate.
+
+### Async Merge Path
+
+A ready PR merges through GitHub's async merge API, called with `gh api` (`gh` has no subcommand for
+it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's UUID.
+
+- **Which API.** Async when the base is the default branch, when it requires a merge queue, or when
+  the PR is a native stack member under `--stacked-prs`, the bottom layer on any trunk included:
+  GitHub documents the async API as the required API for merging a stacked PR. Any other base keeps
+  `gh pr merge`, and so does every `--auto` arm: the async API has no auto-merge form. Without
+  `--stacked-prs` the gate never reads stack membership, so a bottom layer on a non-default trunk
+  goes to `gh pr merge`, which GitHub refuses for a stacked PR; that fails closed. On the default
+  branch a 404 from the endpoint (a host that lacks it) falls back to `gh pr merge` with the same
+  pin; a queue or a stack member has no other API and holds.
+- **Request.** `sha` is always the head the gate just evaluated: `--allow-unpinned-head` waives only
+  the `--expected-head` argument, never the pin, and `gh pr merge` carries the same head as
+  `--match-head-commit`. `merge_method` is sent for a direct merge only,
+  `merge_action` is `direct_merge` or `merge_queue`, and `bypass_rules` is always `false`. No
+  API-version header is sent: the endpoint is documented under the default version as well.
+- **Result.** The gate polls for up to 60 seconds; a 200 means already merged or already queued. A
+  409 means a request is already pending, possibly another actor's. When its body states that
+  request's `expected_head_sha` or `merge_action`, each must equal this run's pin and action;
+  otherwise the gate does not poll it, reports it as `merge.conflictingRequest` with exit `10`, and
+  records it as pending, since it can still merge. A reported merge is confirmed by reading the PR
+  back, merged and at the pinned head: a contradiction is not counted; a merge at another head
+  reports `merged: true`, `merge.mergedHead`, and exit `10` for a human; a failed read reports
+  `merged: false`, `mergeUnconfirmed: true`, and exit `10`, so re-run the read-only check rather
+  than call it merged. A 400 is basic PR state only: GitHub does not evaluate rules when it accepts
+  the request, which is why the readiness gate always runs first.
+- **A request still pending at the bound stays live.** GitHub documents no route to cancel one, so
+  it can still merge after a hold appears that would refuse a new request. The gate records its UUID
+  under `--state-dir` and every later run, read-only or merging, reads it first: while it is
+  pending, or cannot be read, the run reports `action: merge-pending` with that hold first in
+  `blockers`, exit `10`, and sends nothing. A record whose request id is not GitHub's UUID shape is
+  corrupt: it is never put in an API path or cleared, and holds the same way until a human inspects
+  it. A finished request, or one GitHub no longer returns (404; GitHub keeps a result 24 hours
+  after its latest update), clears the record and shows as `pendingMergeRequest`; the gate keeps no
+  local age limit of its own. A request that finished merged is first checked against every head
+  the gate evaluated, the PR's and, for a stack, each lower layer's, recorded with it
+  (`pendingMergeRequest.verification`). A mismatch puts an escalation first in `blockers` with exit
+  `10`; heads that cannot be read back keep the record, hold the same way, and are re-checked next
+  run. When every head matches, the run reports the merge even though the gate now reads a closed
+  PR: `merged: true`, `ready: true`, empty `blockers`, `merge.source: pendingMergeRequest`, exit
+  `0`, with `action` unchanged. Report a merge-pending PR as "merge may still land", never as held. Without `--state-dir`
+  nothing is recorded and a later run cannot see the request, so `--state-dir <state-dir>` rides on
+  every merge form.
+- **Merge queue.** A default-branch base that requires a merge queue is no longer a blocker. Once
+  every other condition holds, the merge enqueues (`action: enqueue`). `enqueued` is final for the
+  request and is not a merge: a later cycle reads the PR as merged, or finds it back out of the
+  queue and gates it again. Re-running the merge on a queued PR returns `enqueued` without a new
+  request. Enqueueing is a merge, so only a tier that may merge enqueues, and auto-merge is never
+  armed over a queue. A queue on any other base keeps the hold.
+- **Stacks (`--stacked-prs`).** Only a native stack qualifies: the PR's REST `stack` object. A PR
+  merely based on another PR's branch keeps the non-default-base hold. The layer is judged against
+  the stack's trunk, every open layer below it runs the same gate pinned to the head the stack
+  listing reports, and the chain must link each layer to the head of the one below and the lowest
+  to the trunk. A blocker on any layer holds the whole merge, and under `--auto` so does a layer's
+  missing AI review check. A trunk that requires a merge queue holds. The request's `sha` pins the
+  top layer only, so the gate re-reads the stack immediately before the request and refuses if any
+  open lower layer was pushed, added, or closed since evaluation. After a reported merge it checks
+  that every lower layer merged at the head it evaluated; a mismatch reports
+  `stackVerification.verified: false` with exit `10` (`merged` stays true) and goes to a human. A
+  request that completes in a later run gets the same check from its pending record. What remains
+  is the window from the request to its completion: a lower-layer push in that window is not pinned
+  by GitHub and lands unvetted, caught only after the fact. `--stacked-prs` therefore assumes only
+  trusted actors can push to the lower layers' branches; leave it off where anyone else can.
+
+**Claim, basis, as of, recheck:** the endpoint's request fields, statuses, a pending request's
+`details` (`expected_head_sha`, `merge_action`), 409, 200, and 400 semantics, its 24-hour result
+retention, the absence of any route to cancel a request (the page documents only the `PUT` and the
+`GET`), its listing under the default API version, and its inclusion of every open downstack PR,
+[merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously)
+and [async merge API GA](https://github.blog/changelog/2026-10-01-github-async-merge-api-generally-available/);
+stack membership, trunk rules, and merge behavior,
+[about stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs)
+and [stacked pull request endpoints](https://docs.github.com/en/rest/pulls/stacks); 2026-10-02.
+Recheck when a `gh` release adds an async-merge command, when either REST page changes a status or
+field, or when stacked pull requests leave public preview or GitHub announces merge-queue support
+for stacks.
 
 ### Lane-pinned merge authorization: report, don't re-pin
 
@@ -658,11 +761,21 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, `review / claude-review-status` and
-  `security-review / claude-security-review-status`, report success on the live head, which is
-  the pinned head (a missing, skipped, failed, or running check holds, and so does a head that
-  moved off the pin);
+- both AI review checks, `review / claude-review-status` and the security lane's
+  `security-review / security-review` (matched by its whole name, never by the job segment alone),
+  report success on the live head, which is the pinned head (a missing, skipped, failed, or
+  running check holds, and so does a head that moved off the pin). Any
+  `claude-security-review-status` check the rollup also carries must succeed as well;
 - no review thread is unresolved, and every other gate blocker is clear.
+
+The gate's check names follow the lane jobs the ci-workflows reusables define.
+
+- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job keys
+  in [claude-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-review.yml)
+  and [claude-security-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-security-review.yml)
+  live.
+- **As of**: 2026-10-03
+- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable.
 
 Any other running check does not hold the arm: GitHub waits out a running required check
 (`ci-status`) itself, and a non-required check never holds a merge.
@@ -673,8 +786,9 @@ with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns o
 fails again.
 
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
-auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
-synchronously. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
+auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges in
+the same run, through §Async Merge Path. A base that requires a merge queue, and a stack layer, are
+never armed: they wait until fully ready and then enqueue or land. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
 arm exits `0` with `"action": "auto-merge"`, `autoMergeEnabled: true` and `merged: false`, so it
 is reported as armed, not merged, and the PR stays in the queue with its worktree kept. Nothing
 else enables auto-merge: not a Worker Contract subagent (`orchestration.md`), not a work-items
@@ -741,7 +855,7 @@ announced operator step.
   never the four-flagless base command, which would ignore every tier criterion:
 
   ```text
-  bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
+  bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins> --state-dir <state-dir>
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
@@ -753,7 +867,8 @@ announced operator step.
   `--extra-dependency-manager-logins <extra-dependency-manager-logins>`, and the review-settle pair
   `--review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>` when
   configured, exactly as for the base merge readiness gate above (omit each when its value is empty
-  or a literal unexpanded token; omit the settle pair as a pair, never one half).
+  or a literal unexpanded token; omit the settle pair as a pair, never one half), and
+  `--stacked-prs` when `babysit_stacked_prs` is `true`.
 
 - **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
   requires is submitted out-of-band by the agent. The gate only verifies one exists on the live
@@ -918,7 +1033,7 @@ narrow allow rule.
 For a merge:
 
 ```text
-bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
+bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes> --state-dir <state-dir>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:

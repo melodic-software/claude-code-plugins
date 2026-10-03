@@ -5,6 +5,47 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-10-02
+
+### Changed
+
+- **Shared `context-zone.sh`, `exec-bash.mjs`, `legacy-statusline-detect.md`, `unwrap-before-compose.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, scripts and skills.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The reader contract's wording about the resolver copy now names that generator.
+
+## [0.9.4] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.9.3] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.9.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.9.1] - 2026-10-02
+
+### Changed
+
+- The zone-crossing operator menu names its options (continue, `/compact`, `/clear`, a handoff
+  then `/clear`) without ranking them or saying when each fits, and drops "`/compact` as a last
+  resort". It says to route the next step with `/session-flow:workflow` (if installed), and links
+  [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
+  for an install without session-flow. The README and `reference/reader-contract.md` describe the
+  menu the same way, and the contract records the fallback link with an as-of date and a recheck
+  trigger.
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.9.0] - 2026-10-02
 
 ### Changed

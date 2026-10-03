@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "answered with no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "assert"
+          }
+        }
+      ],
+      "why": "searched the workspace, no skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api"
+          }
+        }
+      ],
+      "why": "a skill from another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "the bundled design skill, not evals:design"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        }
+      ],
+      "why": "methodology fired on a near miss"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:plugin-eval"
+          }
+        }
+      ],
+      "why": "plugin-eval fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "validate"
+          }
+        }
+      ],
+      "why": "bare evals skill name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        }
+      ],
+      "why": "evals:design fired"
+    }
+  ]
+}

@@ -86,12 +86,12 @@
     {
       "id": 8,
       "name": "continue-degraded-zone-rejects-in-session",
-      "prompt": "/workflow continue — context-guard reports the zone word as green, but this session hit an evidence-degraded `.compacted` marker earlier. What is left is designing the retry and idempotency semantics across three services.",
-      "expected_output": "The router treats the context as degraded regardless of the green zone word, because the compaction marker exists for this session. Question 3 therefore fails for judgment-heavy work — only mechanical, low-judgment steps qualify as 'simple enough' in a degraded context — so the router falls through to session-flow:handoff.",
+      "prompt": "/workflow continue — context-guard reports the zone word as smart, but this session hit an evidence-degraded `.compacted` marker earlier, and since then the answers have started missing details I gave before. What is left is designing the retry and idempotency semantics across three services.",
+      "expected_output": "The router treats the context as degraded regardless of the smart zone word, because the compaction marker exists for this session. Question 3 therefore fails for judgment-heavy work — only mechanical, low-judgment steps qualify as 'simple enough' in a degraded context — and the run has already been compacted, so question 5 routes to session-flow:handoff rather than a second compaction.",
       "files": [],
       "narration": true,
       "expectations": [
-        "The router treats the context as degraded because of the compaction marker, overriding the green zone word rather than trusting it",
+        "The router treats the context as degraded because of the compaction marker, overriding the smart zone word rather than trusting it",
         "It does NOT recommend continuing in session for the judgment-heavy design work",
         "It routes to session-flow:handoff and cites the degraded context as the evidence that drove it"
       ]
@@ -99,7 +99,7 @@
     {
       "id": 9,
       "name": "continue-healthy-zone-reasoning-verbatim",
-      "prompt": "/workflow continue — zone word is green, no compaction this session, and the next stage is writing the tests directly against the failure analysis I just reasoned through with you.",
+      "prompt": "/workflow continue — zone word is smart, no compaction this session, and the next stage is writing the tests directly against the failure analysis I just reasoned through with you.",
       "expected_output": "The router reaches question 3 and recommends continuing in session: the zone is healthy and the next stage consumes this stage's reasoning verbatim, which is the router's stated reason to prefer continue over any mechanism that would summarize the reasoning away — a summary of the reasoning is not the reasoning.",
       "files": [],
       "narration": true,
@@ -175,12 +175,144 @@
     {
       "id": 15,
       "name": "wrap-up-offers-plugin-audit-after-plugin-skill",
-      "prompt": "/workflow wrap-up — this session ran /source-control:commit and /verification:confirm. plugin-quality is installed.",
+      "prompt": "/workflow wrap-up — this session ran /source-control:commit and /verification:confirm. plugin-quality is enabled.",
       "expected_output": "The wrap-up checklist includes a one-line offer of `/plugin-quality:audit session` because the session invoked plugin skills. It is an offer only; the router does not run the audit.",
       "files": [],
       "expectations": [
         "The wrap-up output offers `/plugin-quality:audit session` in a single line",
         "It only offers the audit and does not run it or claim it ran"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "same-task-degraded-zone-compacts-with-focus",
+      "prompt": "/workflow continue — context-guard reports the zone word as dumb and the window is getting heavy. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
+      "expected_output": "The next work is the related next task: it uses this stage's artifact and files and serves the same goal. It is not unrelated (question 4), it does not leave the session and is not a finished plan moving into execution (question 5), so the router falls through to question 6 and recommends `/compact <focus>`, typed by the user, with a focus naming what the summary must keep (the plan path, the current phase, the files in play).",
+      "files": [],
+      "expectations": [
+        "It recommends `/compact` with a focus argument, not a bare `/compact`",
+        "The suggested focus names concrete state to keep, such as the plan path and the next phase",
+        "It does NOT recommend a handoff or `/clear` for this same-task continuation",
+        "It leaves `/compact` for the human to type rather than claiming to run it"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "finished-plan-into-execution-hands-off",
+      "prompt": "/workflow continue — the interview is done and PLAN.md is approved. The next stage is implementing it.",
+      "expected_output": "A finished plan moving into execution answers question 5: the router recommends `session-flow:handoff`, then the user runs `/clear`, so execution starts in a fresh session that reads the plan.",
+      "files": [],
+      "expectations": [
+        "It routes to session-flow:handoff followed by the user's `/clear`",
+        "It names the finished-plan-into-execution boundary as the reason",
+        "It does NOT recommend `/compact` for this boundary"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "two-failed-corrections-clears",
+      "prompt": "/workflow continue — I have corrected you twice on the same failing parser test and it is still wrong. How should I continue?",
+      "expected_output": "Two failed corrections on the same issue answer question 4: the router recommends `/clear` and a fresh start with a sharper prompt, because the session's context is now part of the problem.",
+      "files": [],
+      "expectations": [
+        "It recommends `/clear`",
+        "It cites the two failed corrections on one issue as the evidence",
+        "It does NOT recommend compacting or handing off this context"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "stepping-away-routes-before-the-break",
+      "prompt": "/workflow continue — I'm stepping away for a couple of hours and will pick this same task back up afterwards.",
+      "expected_output": "A break longer than the prompt cache lasts is work leaving the session, so question 5 routes to `session-flow:handoff`, then `/clear`. The timing rule applies: route now, before stepping away, so the handoff happens before the cache expires.",
+      "files": [],
+      "expectations": [
+        "It recommends acting now, before the break, rather than after returning",
+        "It ties the timing to the prompt cache expiring",
+        "It routes to session-flow:handoff then `/clear`"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "another-agent-takes-the-work-hands-off",
+      "prompt": "/workflow continue — a colleague's agent in another checkout will finish this branch.",
+      "expected_output": "The work passes to another agent in another checkout, so question 5 routes to `session-flow:handoff`, then the user `/clear`s.",
+      "files": [],
+      "expectations": [
+        "It routes to session-flow:handoff",
+        "It names the work leaving the session as the reason"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "boundary-explore-to-plan-stays-in-session",
+      "prompt": "/workflow continue — exploration of the auth module is done and the next stage is planning the change to it. The window is filling up.",
+      "expected_output": "Explore to plan is the same task, so it stays in one session; with the window filling, the route is `/compact <focus>` typed by the user, keeping the exploration findings.",
+      "files": [],
+      "expectations": [
+        "It keeps planning in the same session",
+        "It recommends `/compact` with a focus that keeps the exploration findings",
+        "It does NOT recommend a handoff or `/clear` at this boundary"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "boundary-implement-to-review-uses-fresh-context",
+      "prompt": "/workflow continue — implementation is finished and tests pass. Next is review.",
+      "expected_output": "Review runs in fresh context, for example a reviewer subagent, rather than this session reviewing its own work in place.",
+      "files": [],
+      "expectations": [
+        "It routes review to a fresh context such as a reviewer subagent",
+        "It does NOT have this session review its own diff in place as the review step"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "already-compacted-attended-run-degrading-hands-off",
+      "prompt": "/workflow continue — this attended session was compacted an hour ago and the last few answers have been repeating mistakes. The remaining work is the same task.",
+      "expected_output": "An attended run that has already been compacted and is now degrading answers question 5: the router hands off to a fresh session (`session-flow:handoff`, then `/clear`) rather than compacting again.",
+      "files": [],
+      "expectations": [
+        "It routes to session-flow:handoff then `/clear`",
+        "It does NOT recommend a second `/compact`",
+        "It cites the earlier compaction and the degrading output as the evidence"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "compare-second-compaction-with-handoff",
+      "prompt": "/workflow continue — this attended session was compacted once already and quality is slipping. Should I `/compact` again with a focus, or hand off and `/clear`? Explain what the recommendation rests on.",
+      "expected_output": "The router recommends handoff then `/clear` for an already-compacted, degrading attended run, and says the 'rather than compacting again' part of that rule is a judgment call no source it cites compares directly, so it is a recommendation, not a documented rule.",
+      "files": [],
+      "expectations": [
+        "It recommends session-flow:handoff then `/clear`",
+        "It says the comparison with a second compaction is a judgment call, not stated by the cited docs",
+        "It does NOT claim the docs say to hand off instead of compacting again"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "unrelated-next-task-clears",
+      "prompt": "/workflow continue — the auth refactor PR just merged and is done. Next I want to fix a typo in the billing README, which shares no files or goal with the refactor. How should I continue?",
+      "expected_output": "The next work neither uses the refactor's artifact or files nor serves its goal, so it is unrelated work and question 4 routes to `/clear`; nothing in this context needs carrying forward.",
+      "files": [],
+      "expectations": [
+        "It recommends `/clear`",
+        "It cites the next task being unrelated to the finished work as the evidence",
+        "It does NOT recommend `/compact` or a handoff for this context"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "stage-effort-advice-unreadable-table",
+      "prompt": "My plan is written and approved. What comes next, and what effort should I run that stage at? (Note: every fetch of the Claude Code model-config docs page fails with a network error in this session.)",
+      "expected_output": "Default mode suggests implement as the next stage and adds its effort advice per steps.md's 'Effort per stage' rule, which advises only from model-config's live 'Choose an effort level' table. That table could not be read, so the skill says so and advises no level rather than naming one from memory.",
+      "files": [],
+      "expectations": [
+        "The skill suggests implement as the next stage",
+        "It states that model-config's effort table could not be read",
+        "It advises no effort level: no level name is recommended for the stage, from memory or otherwise",
+        "It does not set or change the session's effort itself"
       ]
     }
   ]

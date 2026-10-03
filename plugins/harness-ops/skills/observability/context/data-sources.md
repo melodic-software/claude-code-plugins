@@ -69,7 +69,41 @@ no query normalizes an event key. `source` is the discriminator:
 |---|---|---|
 | spine | every row | `ts hook_event_name status duration_ms source`, plus `session_id` on every row but those in `hook-events.jsonl`, which carry no session by definition |
 | a hook run, `source: "envelope"` | both sink routes | `hook exit_code subject tool`, plus `changed` (boolean) when the producer sent a rewrite verdict |
-| an event the session saw, `source: "event-log"` | `sessions/<id>.jsonl` | `category`, plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when the payload carried them. No `hook`: no hook run is described, and `duration_ms` is the logger's own cost |
+| an event the session saw, `source: "event-log"` | `sessions/<id>.jsonl` | `category` and `effort`, plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` and these top-level payload keys when the payload carried them: strings `transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action`, `error` on `StopFailure` only, and booleans and numbers `seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm`. No `hook`: no hook run is described, and `duration_ms` is the logger's own cost |
+
+On an event-log row, `effort` is one of three things:
+
+- a level name: the payload's top-level `effort.level`, else `$CLAUDE_EFFORT` when the payload has
+  no effort object, so a value the hook only inherited never overrides the payload;
+- `n/a` on an event that never carries a level: the session, prompt, notification, `SubagentStart`,
+  task, teammate, config, `CwdChanged`, `DirectoryAdded`, `WorktreeRemove`, compaction,
+  model-switch and elicitation events (`SLOG_EFFORT_NA_EVENTS` in `hooks/session-log-lib.sh`);
+- `unset` on an event that can carry one (`PermissionRequest`, `PermissionDenied`,
+  `PostToolUseFailure`, `PostToolBatch`, `Stop`, `SubagentStop`, `StopFailure`) whose payload and
+  environment held none.
+
+Path keys (`cwd`, `transcript_path`, `scratchpad_dir` and the other path-valued keys above) hold the
+payload's raw absolute values; `file_path` alone is reduced, repo-relative or to its last segment.
+Prompt text, messages, titles, tool input and output, and every object or array are not copied
+unless the `session_event_log_content` option is on (default off). With it on, a row also carries
+whichever of these top-level content strings the payload held: `prompt session_title command_args
+message title last_assistant_message task_subject task_description error_details
+custom_instructions compact_summary url`, and `error` on `PostToolUseFailure` (tool output there,
+an enum on `StopFailure`). The hook reads only the first 64 KB (bytes, not characters) of a payload. When the cap cuts a
+content string that follows only scalar members, the row records its prefix, cut back to whole
+escapes and whole characters, beside `<key>_truncated: true` (for example `prompt_truncated`).
+When the cut string follows a nested value (`error` after `tool_input`, say), it is not recorded.
+Either way, a row whose payload reached the cap carries `content_truncated: true`; with the option
+off, no row carries it. Objects and arrays, `tool_input` and
+`tool_response` among them, stay out either way. The writer's allowlist (`SLOG_EVENT_LOG_STRINGS`, `SLOG_EVENT_LOG_SCALARS`) is the authority for the
+key list. The split between `n/a` and `unset` events is ours, from a probe.
+
+- **Pointer**: for the `effort` input field and `$CLAUDE_EFFORT`, see
+  <https://code.claude.com/docs/en/hooks#common-input-fields>; the per-event split is our probe of
+  the Claude Code 2.1.287 binary's hook-input builder.
+- **As of**: 2026-10-02, Claude Code 2.1.287
+- **Recheck trigger**: a `/harness-ops:changelog` ingest whose notes touch hook input fields, or
+  `Stop` rows from a model with effort support read `unset`.
 
 Select hook runs with `.source == "envelope"` (equivalently `.hook != null`) and the event
 timeline with `.source == "event-log"`. A store written before this shape holds shared-file rows

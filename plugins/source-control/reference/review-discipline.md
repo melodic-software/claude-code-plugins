@@ -139,7 +139,7 @@ Ledger constraints:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now)
+- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now), placed per D4.6's scope test
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
@@ -215,16 +215,21 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   `VALID (defer)` is simply not an available disposition there. It does not stall D5 and it does
   not stall the phase: fix the finding now instead, and when the fix genuinely does not belong in
   this change, post the D5 reply saying exactly that, leave the thread unresolved, and surface the
-  finding in the run's report for the user to place. An ungrounded deferral is not one of the three
+  finding in the run's report for the user to place. An ungrounded deferral is not one of the
   records D7.5 accepts, so the thread stays open and nothing merges over it
   <!-- contract-restatement-end: D4.6-deferral-grounding -->
-  - [ ] **Defer only what cannot land in this PR (scope test).** A small or medium finding is
-    `VALID (fix now)` and is fixed in this PR in a review-fix commit, separate from the original
-    work, even when it is unrelated to the task. `VALID (defer)`, and the tracker item behind it,
-    is only for a finding that is structural (large enough to need its own planning pass), urgent
-    and real but unable to land in this PR, or whose fix is blocked on research this lane is not
-    positioned to do (a claim research cannot confirm stays `UNCERTAIN`). Filing is never busy
-    work: no item for a nit or a speculative concern
+  - [ ] **Place the fix; defer only what cannot be fixed now (scope test).** <!-- contract-restatement-begin: D4.6-unrelated-fix-placement --> A small or
+    medium finding is `VALID (fix now)`. One about the task is fixed in this PR in a review-fix
+    commit, separate from the original work. An unrelated one lands in this PR only when it is in a
+    file the PR already touches; otherwise it goes in its own small PR with no tracker item, and
+    the reply cites that PR (D7.5). A lane that cannot open a PR replies saying where the fix
+    belongs, leaves the thread unresolved, and reports it. A project changes this placement in its
+    own CLAUDE.md or AGENTS.md. `VALID (defer)`, and the tracker item behind it, is only for a
+    finding that is structural (large enough to need its own planning pass), urgent and real but
+    unable to land in this PR, or whose fix is blocked on research this lane is not positioned to
+    do (a claim research cannot confirm stays `UNCERTAIN`). Filing is never busy work: no item for
+    a nit or a speculative concern
+    <!-- contract-restatement-end: D4.6-unrelated-fix-placement -->
   - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce
     before this change, this change introduced it, and it is `VALID (fix now)`. Fix it, or
@@ -256,8 +261,11 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
     since these endpoints return 30 per page oldest-first and your reply is the newest item
 - [ ] D6. Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
-  commit, push
-  - [ ] **verify commit pushed:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
+  commit. Do not push per finding: the round pushes once, after every VALID (fix now) finding in
+  it has its D6 commit and every reviewer on the head has finished, since each push starts a full
+  CI run and cancels the one in flight. D7 and D7.5 for every finding in the round wait for that
+  push and the check below
+  - [ ] **verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
     git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. Exit 0
     means the fix commit is on the PR branch as just fetched from the resolved push remote;
     non-zero means it is not. Resolve the push remote (the same resolver `push-branch.sh` pushed
@@ -282,9 +290,11 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 - [ ] D7.5. Resolve review thread. **Author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every
-  finding extracted from it per §2 must carry one of three recorded dispositions: `VALID (fix
-  now)` with the fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id
-  cited; or `INCORRECT` with the counter-evidence posted. One dispositioned finding does not make
+  finding extracted from it per §2 must carry one of four recorded dispositions: `VALID (fix
+  now)` with the fix pushed and cited (D6–D7); `VALID (fix now)` fixed in a linked PR, the
+  separate PR D4.6's scope test sends an unrelated fix to, with the reply citing that PR;
+  `VALID (defer)` grounded per D4.6 with the item id cited; or `INCORRECT` with the
+  counter-evidence posted. One dispositioned finding does not make
   a multi-finding thread eligible. `UNCERTAIN` is never resolved. It escalates, and a single
   `UNCERTAIN` holds its whole thread open. Resolving early is not a cosmetic error: a resolved
   thread drops every comment it carries out of the readiness denominator
@@ -292,7 +302,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   from the classification gate and the PR can merge over it. This is what
   `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry
   "Resolve any thread over a live, unaddressed finding" means operationally: *addressed* is one of
-  those three records for every finding present, never the absence of one.
+  those four records for every finding present, never the absence of one.
   <!-- contract-restatement-end: D7.5-thread-eligibility -->
   **What a tier may act on is bounded by its own
   tooling, and this list never overrides that.** A disposition making a thread eligible here does
@@ -344,7 +354,7 @@ lines untouched and the thread current, so a genuinely addressed finding is rout
 non-outdated. That is not a license to widen the guard: **worker-side self-resolution stays
 outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
 goes to the independent resolution dispatch, which verifies the D7.5 disposition, whether fix pushed and
-cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence, and resolves it through
+cited, fix in a linked PR, deferral grounded per D4.6, or `INCORRECT` with counter-evidence, and resolves it through
 the wrapper. The merging worker never resolves it, and neither does the orchestrator that dispatches
 the resolver. The orchestrator holds the merge decision. Where no independent dispatch is reachable, the same
 limit as above, the identical fail-closed fallback applies: leave the thread unresolved, do not

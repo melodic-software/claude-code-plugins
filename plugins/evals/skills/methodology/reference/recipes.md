@@ -6,14 +6,16 @@ source page carries full runnable code for every recipe in Python, TypeScript, C
 and Ruby. Fetch it for implementation; this file carries the design of each recipe. Re-fetch the
 source before treating any specific here as current.
 
+This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
+
 | Dimension | Method | Grading | Example scale |
 |---|---|---|---|
 | Task fidelity (classification) | Exact match | Code | 1,000 labeled tweets |
 | Consistency (FAQ bot) | Cosine similarity of sentence embeddings | Code | 50 paraphrase groups |
 | Relevance/coherence (summarization) | ROUGE-L F1 | Code | 200 articles w/ reference summaries |
-| Tone & style (support) | Likert 1–5 | LLM | 100 inquiries w/ target tone |
+| Tone & style (support) | Likert 1–5 (platform page's recipe) | LLM | 100 inquiries w/ target tone |
 | Privacy (medical chat) | Binary yes/no leak check | LLM | 500 simulated queries |
-| Context utilization (assistant) | Ordinal 1–5 | LLM | 100 multi-turn conversations |
+| Context utilization (assistant) | Ordinal 1–5 (platform page's recipe) | LLM | 100 multi-turn conversations |
 
 ## Code-graded recipes
 
@@ -29,6 +31,10 @@ source before treating any specific here as current.
   titles.
 
 ## LLM-graded recipes
+
+The two 1-to-5 recipes below (Likert and ordinal) are the platform page's recipes, kept as that
+page's; they are not this repository's rubric default
+(<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#example-evals>).
 
 - **Likert scale (1–5)**: rate a subjective quality against a named target ("Rate this response
   1–5 for being {empathetic|patient|professional}; 1: not at all, 5: perfectly; output only the

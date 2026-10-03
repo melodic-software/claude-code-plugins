@@ -5,6 +5,86 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.7.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `fetch-docs.sh`, `managed-scope.sh`, `resolve-convention-home.sh`, `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The state-key suite comment now names that generator.
+
+## [1.7.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [1.6.0] - 2026-10-03
+
+### Added
+
+- **A full `audit` runs the effort-pin drift check from its checklist.** The `effort:` and
+  `model:` frontmatter section gains a row that runs `check-effort-pins.sh` and reports its lines
+  verbatim, with what each exit code means and that a person re-decides every flagged pin.
+
+## [1.5.3] - 2026-10-03
+
+### Fixed
+
+- The audit engine's secret-shape check (`SECRET_RE`, which flags a token in tracked `settings.json` and redacts hook commands) covers GitHub OAuth, user, server and refresh tokens (`gho_`, `ghu_`, `ghs_`, `ghr_`) and the `ghs_<APPID>_<JWT>` installation-token format GitHub rolls out from 2026-04-27, whose JWT header starts `eyJ`. Before, only `ghp_` and `github_pat_` were matched. The check runs grep under `LC_ALL=C`, because in a UTF-8 locale GNU grep took 25 to 60 seconds on a long line against the widened pattern.
+
+## [1.5.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [1.5.1] - 2026-10-02
+
+### Changed
+
+- `audit-prompting-postures` and `audit-instructions` re-stamp their Opus 5.5 prompting guide reads to 2026-10-02. The guide changed; both recorded decisions still hold.
+
+## [1.5.0] - 2026-10-02
+
+### Added
+
+- **An effort-pin drift check and an `effort-pins` audit scope.** `check-effort-pins.sh` reads
+  model-config's effort tables and per-model defaults, compares their hash with a committed
+  baseline, and lists every effort pin in agents, skills, lane configs, and Workflow literals in
+  skill `context/` files and plugin `workflows/*.js` and `*.mjs` scripts. It
+  flags pins when the page changed or a pin names a level the page does not list, and never edits
+  a pin or the baseline. `/harness-config:audit effort-pins` runs only this check; a full audit
+  runs it in Phase 3.
+- **`unhobble` records the session's effort level** in its manifest and in each `stumbles.md`
+  row, written as `unset` when no level renders.
+
+## [1.4.0] - 2026-10-02
+
+### Fixed
+
+- **`audit-instructions` offers `/doctor prompt-audit` only where it can run.** The offer now
+  requires both `doctor` and the bundled `claude-api` skill to resolve in the session, and the
+  report says when it was skipped. The skill never asks either audit to apply its proposals.
+- **The `audit-instructions` records for the bundled `claude-api` and `doctor` skills are
+  links-only.** Each row in `reference/bundled-claude-api.md` and `reference/native-doctor.md` is
+  our decision, a pointer to the exact docs section or the guide at a pinned `anthropics/skills`
+  commit, an as-of date and a recheck trigger. The outdated record that two subcommands were
+  missing from the public repository and the docs is gone, and the record whose trigger fired at
+  Claude Code 2.1.283 was re-derived at 2.1.287.
+
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
+  still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
+  file can carry a rule that names the legacy tool.
+
 ## [1.3.3] - 2026-10-02
 
 ### Changed

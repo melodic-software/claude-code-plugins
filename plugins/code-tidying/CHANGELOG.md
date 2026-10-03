@@ -3,6 +3,40 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1] - 2026-10-03
+
+### Fixed
+
+- `evals-fixtures.test.sh` skips the change-shape self-certify checks, with one visible SKIP, when tree-sitter or a grammar it probes is absent, and still runs the parse, presence, and seeding checks. Bash and Python are probed separately, so a missing Python grammar does not fail the Bash fixtures or get reported as a fixture regression. The UNPROVABLE fixture is required to be present even when its self-certify check is skipped. `CODE_TIDYING_REQUIRE_TREE_SITTER=1` (set on the plugin-test CI steps) makes that absence a failure. A fixture no longer prints both `FAIL:` and `ok:` ([#6010](https://github.com/melodic-software/claude-code-plugins/issues/6010)).
+
+## [0.28.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.27.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `setup` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.27.0] - 2026-10-02
+
+### Changed
+
+- `batch-simplify` routes the model and effort of its generic simplifier agents, and in repo mode
+  its refutation verifiers, through `/multi-agent:route` when that skill resolves: simplifiers take
+  the `worker` role's `fanout` variant and verifiers the `verifier` role's. A named simplifier
+  keeps its own definition's tier unless that definition inherits the model and pins no effort.
+  Without `/multi-agent:route`, agents inherit the session model, or get `opus` when the session
+  model is frontier or unknown, at effort `medium` for simplifiers and `high` for verifiers, and the report says once that enabling the multi-agent plugin makes this routing
+  configurable. Repo mode no longer allows an unstated cheaper simplifier tier.
+
 ## [0.26.1] - 2026-10-02
 
 ### Fixed

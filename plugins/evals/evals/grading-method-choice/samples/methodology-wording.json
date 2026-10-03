@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "why": "ranking rule with 'and' instead of the comma",
+      "answer": "Grade the category field with code: parse the JSON and compare category to the label, and count a parse error as a miss. Grade the patient tone with an LLM judge and a short rubric that spells out what patient means. In general, choose the fastest, most reliable and most scalable method that fits: code first, an LLM judge next, people last. To trust the judge, give it a detailed rubric, allow only a fixed verdict, use a different model from the one under test, and check it against human labels."
+    },
+    {
+      "why": "ranking rule in the hub's own comma form",
+      "answer": "Use exact match in code for the category and an LLM judge for tone. The order of preference is the fastest, most reliable, most scalable method that fits the criterion."
+    },
+    {
+      "why": "ranking rule with a serial comma and 'and'",
+      "answer": "Start from the method that is fastest, most reliable, and most scalable, which for the category field is a code check."
+    },
+    {
+      "why": "ranking rule in title case",
+      "answer": "**Rule: Fastest, Most Reliable And Most Scalable wins.** Code for the category, a rubric-driven judge for tone."
+    },
+    {
+      "why": "verdict sampling only, 'compare a sample of its verdicts'",
+      "answer": "Code grades the category and a judge grades tone. Before you rely on the judge, compare a sample of its verdicts with your own grades, and do it again whenever the rubric changes."
+    },
+    {
+      "why": "verdict sampling only, 'reading samples of the grader's verdicts'",
+      "answer": "Keep reading samples of the grader's verdicts after every rubric change; a judge you have not checked is a guess."
+    },
+    {
+      "why": "showpiece only",
+      "answer": "Volume beats polish: run lots of automatically graded cases rather than a handful of hand-graded showpieces."
+    },
+    {
+      "why": "headline metric only",
+      "answer": "Report each criterion on its own, because one headline metric can hide a regression in tone while category accuracy rises."
+    },
+    {
+      "why": "headline number only",
+      "answer": "Do not collapse category and tone into a single headline number."
+    }
+  ],
+  "fail": [
+    {
+      "why": "empty answer",
+      "answer": ""
+    },
+    {
+      "why": "no answer",
+      "answer": "I don't know."
+    },
+    {
+      "why": "sound base-model answer: cheapest and most reproducible, humans grade a sample",
+      "answer": "Category: code-based exact match after parsing the JSON. Tone: an LLM judge with a clear rubric, checked against a sample graded by people. Code is the fastest, cheapest and most reproducible option, LLM grading handles subjective qualities, and human grading is slow and best kept for calibration. Make the judge reason first, output pass or fail, and use a different model."
+    },
+    {
+      "why": "near miss: single superlative list without 'most scalable'",
+      "answer": "Code-based checks are the fastest, cheapest, most reliable choice. Many automated cases beat a few hand-graded ones. Check the judge against human labels on a sample and measure agreement."
+    },
+    {
+      "why": "near miss: 'most reliable and scalable' drops the second superlative",
+      "answer": "Pick the most reliable and scalable option you can, which here means code for the category and a judge for tone."
+    },
+    {
+      "why": "near miss: spot-checking verdicts is not the hub's sampling rule",
+      "answer": "Use a judge for tone and spot-check its verdicts now and then; keep a fixed scale so the output parses."
+    },
+    {
+      "why": "near miss: reading a sample of outputs, not of the grader's verdicts",
+      "answer": "Read a sample of the assistant's outputs yourself each week to see whether tone drifts."
+    },
+    {
+      "why": "answers a different question",
+      "answer": "Put the fixture in conftest.py at the root of the tests directory and pytest will find it without an import."
+    }
+  ]
+}

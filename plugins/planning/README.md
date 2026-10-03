@@ -28,8 +28,25 @@ is too big to hold at once, then `brainstorm → prd → interview → design �
 design-handoff → plan` with `devils-advocate` attacking the plan before
 approval, while `/domain-driven-design:curate-language` is invoked whenever
 those workflows resolve vocabulary, when the `domain-driven-design` plugin is
-installed; without it, resolved terms are recorded in the design artifacts
+enabled; without it, resolved terms are recorded in the design artifacts
 themselves. Every skill also works standalone.
+
+## Workflows
+
+- **`/planning:plan-panel`** (`workflows/plan-panel.js`). A multi-angle plan
+  panel that `/planning:plan` launches, opt-in, for a hard or wide plan:
+  one planner per angle (MVP-first, risk-first, reuse-first and
+  testability-first by default), independent judges that score every draft on
+  goal fit, blast radius, test strategy and reversibility, and one synthesizer
+  that builds the plan from the winner and grafts runner-up ideas. Its `args`
+  carry `task` (required; without it the run dispatches nothing), `context`,
+  `angles`, `judges` (default 3), `roles` and `maxConcurrent` (default 4).
+  `roles` is the map `/multi-agent:route all` prints. Without it, built-in fallbacks run planners
+  on `opus` at `medium` effort and judges on `opus` at `high`, and the
+  synthesizer inherits the session model at `high`. It returns the plan, the
+  scores, the grafted ideas, the dissent and every draft; the synthesized plan goes
+  through the skill's reviewer and approval gate. When the Workflow tool is
+  absent, `/planning:plan` formulates the single plan as before.
 
 ## Works in any repo
 
@@ -37,7 +54,7 @@ themselves. Every skill also works standalone.
   review checklists, domain-vocabulary files, and commit policy come from your own
   project's `CLAUDE.md` and rules; where none exist, the skills apply standard
   engineering defaults.
-- **Graceful degrade.** Adjacent capabilities are invoked when installed:
+- **Graceful degrade.** Adjacent capabilities are invoked when enabled:
   codebase exploration and external research (`discovery`), test-design guidance
   (`tdd`), prototyping (`prototype`), decision recording (`architecture`), and
   session handoff (`session-flow`).

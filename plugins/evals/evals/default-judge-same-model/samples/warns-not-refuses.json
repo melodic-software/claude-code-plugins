@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "By default the llm graders are judged by haiku, a small, fast model, no matter what `--model` is set to.\n\nIf you add `--judge-model sonnet`, the judge and the model under test are both Sonnet. The preflight resolves both, sees they match, and prints a warning under its report:\n\n```text\nwarning: the judge is the model under test; pass a different --judge-model\n```\n\nIt won't refuse to start. That line is advice: the run still goes ahead, with Sonnet grading Sonnet. If you want sharper grading without the self-grading overlap, pass a judge other than the tested model.",
+      "why": "P-canonical: says --judge-model sonnet makes the judge the tested model, so the preflight prints the same-model warning advising a different --judge-model, and that the run still goes ahead because the warning is advice."
+    },
+    {
+      "answer": "It'll complain, but it won't stop you. Pinning `--judge-model sonnet` alongside `--model sonnet` means one model both answers and grades, and the preflight treats that as worth flagging: it prints a same-model warning recommending you pick a different `--judge-model`. Nothing about that warning blocks the pass; if you carry on, the runs launch and Sonnet does the grading.\n\nLeft alone, the judge would be haiku, the CLI's default, since the judge doesn't track `--model`. So your choice is Haiku grading by default, or a different model of your choosing; only the same-model choice draws the warning.",
+      "why": "P-alt: opens with the verdict ('it'll complain, but it won't stop you'), then gives the same-model warning recommending a different --judge-model and says the runs launch anyway."
+    },
+    {
+      "answer": "Without `--judge-model`, Haiku grades the llm graders; `--model sonnet` affects only the model being tested.\n\nWith `--judge-model sonnet`, the judge equals the tested model, so the preflight prints `warning: the judge is the model under test; pass a different --judge-model`. The run still goes ahead; it's a warning, not a refusal.\n\nWorth knowing:\n\n1. An alias and the full model ID for the same model count as the same, so spelling Sonnet differently won't avoid the warning.\n2. The plugin's `same_model_warning` setting can turn the check off, in which case the preflight prints `same_model: off` and compares nothing.\n3. Grading with the tested model risks it favoring its own style of answer.",
+      "why": "P-caveat: both points (same-model warning advising a different --judge-model; the run still goes ahead) plus accurate notes on alias matching and the setting that disables the check."
+    },
+    {
+      "answer": "Left alone, your graders use the CLI's own default judge rather than your `--model` value, so pinning Sonnet for the agent doesn't change who grades.\n\nAdding `--judge-model sonnet` changes that: now the judge and the model under test are the same. The preflight catches the match and prints a same-model warning that advises passing a different `--judge-model`. That's all it does. It won't refuse to start, and nothing blocks the run; the warning is advice, so the pass goes ahead with Sonnet grading Sonnet if you continue. A different judge model is the cleaner choice.",
+      "why": "P-plain: both points stated (same-model warning advising a different --judge-model; the run goes ahead); it never names haiku as the default judge, the sibling judge-default point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "By default the graders are judged by haiku, whatever `--model` says.\n\nPassing `--judge-model sonnet` is where you'd hit a wall. The preflight checks whether the judge matches the model under test, and when they're the same it fails the check and the run refuses to start, exiting before any agent run is launched or billed. That guard exists because a model grading its own answers tends to be lenient.\n\nSo don't pin Sonnet as the judge while you're testing Sonnet. Use Haiku, the default, or pick Opus for `--judge-model` if you want sharper grading.",
+      "why": "F-wrong: says the run refuses to start when the judge matches the tested model, a listed FAIL condition; no advisory warning is described."
+    },
+    {
+      "answer": "Out of the box the llm graders are judged by haiku, a small, fast model, independent of `--model`. So right now Sonnet answers and Haiku grades.\n\nIf you set `--judge-model sonnet`, the preflight will flag it. It compares the tested model with the judge, and when they match it prints:\n\n```text\nwarning: the judge is the model under test; pass a different --judge-model\n```\n\nThat's the preflight telling you a model grading its own answers is a weak setup. If you want sharper grading than Haiku, follow the advice and choose a judge that isn't Sonnet, such as Opus, so the comparison stays independent.",
+      "why": "F-partial: gives the same-model warning (point 1) but is missing point 2: it never says whether the run refuses or still goes ahead."
+    },
+    {
+      "answer": "Haiku grades your llm graders by default, independent of `--model`.\n\nWith `--judge-model sonnet`, the preflight sees the judge is the model under test and prints a same-model warning advising a different `--judge-model`. It's advisory, so the run still goes ahead.\n\nOne correction to that last part: when the same-model check fires, the plugin treats it as a stop condition, not just a note. The run won't start until you either change `--judge-model` or turn off the `same_model_warning` setting. So in practice, choose a judge other than Sonnet, such as Opus, before launching.",
+      "why": "F-retract: says the warning is advisory and the run goes ahead, then retracts it, saying the run won't start until the judge changes."
+    },
+    {
+      "answer": "Your graders are already judged by Sonnet: the judge follows `--model` unless you override it, so with `--model sonnet` Sonnet is grading Sonnet today.\n\nThat means adding `--judge-model sonnet` changes nothing; it only spells out what's already happening. The preflight will print its same-model warning either way, advising a different `--judge-model`, and either way the run still goes ahead, because the warning is advice rather than a refusal. If you want grading that's actually sharper and independent, set `--judge-model` to a different model, Opus for example. That costs a little more per judge call but gives you a grader that isn't marking its own work.",
+      "why": "F-near: describes the warning and that the run proceeds, but says passing --judge-model sonnet changes nothing because the judge already follows --model, an explicit FAIL condition."
+    }
+  ]
+}

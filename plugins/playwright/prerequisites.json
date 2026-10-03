@@ -1,9 +1,40 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "playwright-cli",
-      "check": "/playwright:check",
-      "install": "npm install -g @playwright/cli"
+      "id": "playwright-cli",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:playwright"
+      ],
+      "detect": {
+        "any": [
+          "playwright-cli"
+        ]
+      },
+      "degrade": "Without playwright-cli, /playwright:playwright cannot drive a browser; it stops and asks for the install instead of substituting another surface.",
+      "install": {
+        "npm": "npm install -g @playwright/cli"
+      },
+      "check": "/playwright:check"
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, playwright-cli (an npm package) cannot run and the bundled prerequisites checker only reports that node is missing, so /playwright:playwright cannot drive a browser.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/playwright:check"
     }
   ]
 }

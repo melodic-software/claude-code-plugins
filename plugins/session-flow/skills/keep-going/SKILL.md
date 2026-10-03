@@ -100,19 +100,20 @@ itself the thing this skill removes.
 
 Step 5 continues the main task in **this** session, and that is only right
 when this session's context is still fit for the work. When the
-`context-guard` plugin is installed, resolve this session's zone word per
+`context-guard` plugin is enabled, resolve this session's zone word per
 its reader contract before continuing (the contract owns the snapshot
 path, staleness rule, and bands. Read them there; this skill consumes
 only the resulting word and inlines no band values). Never substitute
 your own estimate of the remaining window for the instrument's reading,
 a resumed session's sense of its own budget is exactly the guess the
-instrument exists to replace. Absent plugin, absent snapshot, or
+instrument exists to replace. Plugin not enabled, absent snapshot, or
 `unknown` → judge from response quality alone, conservatively. A degraded
 zone, or context-guard's evidence-degraded marker for this session, does
 not stop the recovery (steps 1-4 are reads and evidence-gated actions
-either way); it changes where the *continuation* goes: prefer routing the
-remaining work through `/session-flow:handoff` over pushing a long or
-judgment-heavy task through a degraded window.
+either way); it changes where the *continuation* goes. Route it with
+`/session-flow:workflow continue`, whose router in
+[`../workflow/context/continuation.md`](../workflow/context/continuation.md)
+makes that choice.
 
 ## Active-verification protocol. Evidence before action
 
@@ -230,6 +231,12 @@ that is still the job.
   wakeup.
 - **Does not trust remembered state.** Every status claim is grounded in
   a fresh read of the real artifact.
+
+## Next
+
+/session-flow:workflow continue
+
+It routes how the recovered session carries on at the next phase boundary.
 
 ## Gotchas
 

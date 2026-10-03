@@ -164,9 +164,7 @@ export function densificationCoverage({ windows, promotedTimestampsSec, visualGa
     );
     const regionMin = Math.round(window.startSec / 60);
     const gapLogged =
-      visualGapsBody.includes(`~${regionMin}m`) ||
-      visualGapsBody.includes(`~${regionMin}–`) ||
-      visualGapsBody.includes(`${regionMin}m`);
+      visualGapsBody.includes(`~${regionMin}m`) || visualGapsBody.includes(`~${regionMin}–`);
     if (inWindow || gapLogged) covered++;
   }
   return { covered, total: windows.length };
@@ -631,7 +629,7 @@ function pushSynthesisCloseoutChecks(checks, sliceDir) {
       id: "watch-checklist-complete",
       pass: checklist.valid,
       actual: checklist.valid ? "blocking ticks checked" : checklist.errors.join("; "),
-      expected: "8.1–8.4 and 9.1, 9.2, 9.4 ticked when status complete",
+      expected: "8.1–8.4 and 9.1, 9.2, 9.4 ticked once synthesis is marked",
       severity: "fail",
     });
   }

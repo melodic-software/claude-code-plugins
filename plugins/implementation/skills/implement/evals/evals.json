@@ -89,6 +89,31 @@
         "Does NOT present the run as verified or complete on the strength of the build and tests alone",
         "Still hands off to the pre-PR sequence (review, then outcome verification once available) rather than committing and pushing unilaterally"
       ]
+    },
+    {
+      "id": 8,
+      "name": "heavy-window-at-phase-boundary-routes-not-stops",
+      "narration": true,
+      "prompt": "/implementation:implement: phase 2 of 4 in .work/billing/PLAN.md just passed its sanity check and is committed. The window is getting heavy. Phase 3 is the same plan, same model, no user-only commit gate. What happens at this boundary?",
+      "expected_output": "The boundary marks the plan, updates the status summary with the PLAN.md path and next phase, commits, then routes the next step with `/session-flow:workflow`, handing it .work/billing/PLAN.md and phase 3 as the facts it needs. It does not write a handoff and STOP by default, does not restate the compact/clear/handoff rule itself, and leaves any `/compact` for the user to type.",
+      "files": [],
+      "expectations": [
+        "It routes the next step with `/session-flow:workflow` and names the PLAN.md path and phase 3",
+        "It does NOT write a handoff entry and stop the turn just because a phase boundary was reached",
+        "It does NOT state its own rule for when to compact, clear or hand off",
+        "It does not claim to run `/compact` itself"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "model-switch-at-phase-boundary-still-hands-off",
+      "prompt": "/implementation:implement: phase 2 of 4 just passed and is committed. The plan routes phase 3 to a different model.",
+      "expected_output": "A model switch for the next phase is one of Step 4's own stop conditions, so this boundary writes the phase-boundary handoff entry with its resume prompt and ends the turn.",
+      "files": [],
+      "expectations": [
+        "It writes the phase-boundary handoff entry and ends the turn",
+        "It names the pending model switch as the reason"
+      ]
     }
   ]
 }
