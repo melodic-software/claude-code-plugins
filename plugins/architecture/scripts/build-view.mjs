@@ -47,16 +47,25 @@ const rowOf = (kind, item) => {
   return { kind, name, fields: Object.entries(item).map(([field, value]) => `${field}: ${show(value)}`) };
 };
 
-// The nodes reachable from `start` over from -> to edges, `start` included.
+// The project nodes reachable from `start` over resolved project edges, `start` included.
+// Package edges and unresolved edges are not reachability, as in render-components.sh.
 const closureFrom = (record, start) => {
   const { nodes, edges } = record;
   if (!Array.isArray(nodes) || !Array.isArray(edges)) throw new RecordError("--from needs a record with nodes and edges");
   if (!nodes.some((node) => isObject(node) && node.id === start)) throw new RecordError(`no node ${start} in the record`);
+  const projects = new Set(nodes.filter((node) => isObject(node) && node.kind === "project").map((node) => node.id));
   const seen = new Set([start]);
   for (let grew = true; grew; ) {
     grew = false;
     for (const edge of edges) {
-      if (isObject(edge) && seen.has(edge.from) && isText(edge.to) && !seen.has(edge.to)) {
+      if (
+        isObject(edge) &&
+        edge.kind === "project" &&
+        edge.status !== "unresolved" &&
+        seen.has(edge.from) &&
+        projects.has(edge.to) &&
+        !seen.has(edge.to)
+      ) {
         seen.add(edge.to);
         grew = true;
       }
@@ -67,7 +76,7 @@ const closureFrom = (record, start) => {
   return {
     ...Object.fromEntries(scalars),
     nodes: nodes.filter((node) => isObject(node) && seen.has(node.id)),
-    edges: edges.filter((edge) => isObject(edge) && seen.has(edge.from)),
+    edges: edges.filter((edge) => isObject(edge) && seen.has(edge.from) && seen.has(edge.to)),
   };
 };
 

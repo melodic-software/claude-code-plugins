@@ -120,6 +120,23 @@ function copyAndPath(result) {
 check("--from keeps the closure of that node", scoped.rows.map((row) => row.name).join("|") === "B/B.csproj|C/C.csproj|B/B.csproj -> C/C.csproj", JSON.stringify(scoped.rows.map((row) => row.name)));
 check("--from names its scope in a fact", scoped.facts[0] === "scope: reachable from B/B.csproj");
 
+const mixed = write("mixed", {
+  schema_version: 1,
+  nodes: [
+    { id: "A", name: "A", kind: "project" },
+    { id: "B", name: "B", kind: "project" },
+    { id: "pkg:x", name: "x", kind: "package" },
+    { id: "D", name: "D", kind: "project" },
+  ],
+  edges: [
+    { from: "A", to: "B", kind: "project", status: "resolved" },
+    { from: "A", to: "pkg:x", kind: "package", status: "resolved" },
+    { from: "A", to: "D", kind: "project", status: "unresolved" },
+  ],
+});
+const mixedScoped = dataOf(copyAndPath(build("components", mixed, "--from", "A")));
+check("--from follows resolved project edges only", mixedScoped.rows.map((row) => row.name).join("|") === "A|B|A -> B", JSON.stringify(mixedScoped.rows.map((row) => row.name)));
+
 const hostileBuilt = build("dependencies", bad);
 check("hostile text builds and passes the profile", hostileBuilt.status === 0, hostileBuilt.stderr);
 const badPath = `${work}/bad.html`;

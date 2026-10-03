@@ -46,7 +46,7 @@ never from markup or script written in the session.
 | `map-context` | `context` | `context.json` |
 | `map-deployment` | `deployment` | `deployment.json` |
 
-`--from <node-id>` keeps the nodes reachable from that deployable and the edges between them, which is the
+`--from <node-id>` keeps the project nodes reachable from that deployable over resolved project edges, and the edges between them, which is the
 closure a component view charts, and drops the record's other arrays.
 
 ## What the page shows
