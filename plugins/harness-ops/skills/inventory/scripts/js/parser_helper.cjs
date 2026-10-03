@@ -53,6 +53,11 @@
 //     -> {"id":7,"ok":true,"used":["pY"]}   names the module reads as a property
 //   {"id":8,"op":"exports","module":"<key>","source":"..."}
 //     -> {"id":8,"ok":true,"names":["pY","default"]}   every name it exports
+//   {"id":9,"op":"loads","module":"<key>","source":"..."}
+//     -> {"id":9,"ok":true,"files":["chunk-a.js"]}  files it loads whole
+//   {"id":10,"op":"namespace","module":"<key>","source":"...","file":"chunk-a.js","name":"pY"}
+//     Whether each whole load of the file reads only other exports by
+//     name; `namespace` below documents the reply.
 //   anything else
 //     -> {"id":...,"ok":false,"error":"..."}
 //
@@ -846,6 +851,339 @@ function flow(req) {
   return { ok: true, safe: true, exits: walk.exits, trusted: [...walk.trusted].sort() };
 }
 
+// The file name a module specifier ends in; loads match files by it.
+const fileName = (spec) => spec.split("/").at(-1);
+// What `loads` lists for a load whose file the scan cannot name.
+const UNKNOWN_FILE = "*";
+
+const literalString = (n) =>
+  n?.type === "Literal" && typeof n.value === "string"
+    ? n.value
+    : n?.type === "TemplateLiteral" && n.expressions.length === 0
+      ? n.quasis[0].value.cooked
+      : null;
+
+// `require(...)` or `x.require(...)`, which Bun answers with the module
+// namespace object for an ES module.
+const isRequire = (n) =>
+  n?.type === "CallExpression" && (n.callee.type === "Identifier" ? n.callee.name === "require" : memberName(n.callee) === "require");
+
+// The file a node loads whole as a namespace, or null: `import(f)`,
+// `require(f)`, `x.require(f)`, `import*as N from f` and `export*from f`,
+// with `f` a literal. A load with any other specifier is not seen.
+function loadedFile(node) {
+  let spec = null;
+  if (node.type === "ImportExpression") spec = literalString(node.source);
+  else if (isRequire(node)) spec = literalString(node.arguments[0]);
+  else if (node.type === "ImportDeclaration" && node.specifiers.some((s) => s.type === "ImportNamespaceSpecifier")) spec = node.source.value;
+  else if (node.type === "ExportAllDeclaration") spec = node.source.value;
+  return spec === null ? null : fileName(spec);
+}
+
+const isImportMeta = (n) => n?.type === "MetaProperty" && n.meta.name === "import";
+
+// What reading a namespace object does inside a module: every place the
+// module loads a file whole, followed to each read, accepting only a read
+// of another export by name. A namespace object has no prototype and no
+// accessors, so such a read runs no code; anything else (a computed read,
+// an enumeration, a spread, a method call passing it as `this`, an alias
+// escaping) could reach the export unseen and throws Unresolved. A promise
+// or a record on the way holds it only through the built-ins the walk
+// names in `trusted`; `thenable` is whether a promise resolves with the
+// namespace, which reads its `then` export.
+class Namespace {
+  constructor(entry, name) {
+    this.entry = entry;
+    this.name = name;
+    this.parents = parentsOf(entry);
+    this.trusted = new Set();
+    this.thenable = false;
+    this.steps = 0;
+    this.seen = new Set();
+  }
+
+  step(at) {
+    if (++this.steps > FLOW_STEPS) throw new Unresolved("the namespace is too long to follow", at);
+  }
+
+  site(node) {
+    const parent = this.parents.get(node);
+    if (node.type === "ImportExpression") {
+      this.thenable = true;
+      if (parent?.type === "ExpressionStatement") return;
+      if (parent?.type === "AwaitExpression") {
+        // Await reads the promise's `constructor` before it waits.
+        this.trusted.add("constructor");
+        return this.value(parent);
+      }
+      if (parent?.type === "ArrayExpression") return this.promiseAll(parent, node);
+      throw new Unresolved("an import() not awaited directly", node.start);
+    }
+    if (node.type === "CallExpression") {
+      const callee = node.callee;
+      const bare = callee.type === "Identifier" && !this.entry.refs.get(callee.start)?.resolved;
+      const meta = callee.type === "MemberExpression" && isImportMeta(callee.object) && !callee.computed;
+      if (!bare && !meta) throw new Unresolved("a require through a binding or object", node.start);
+      if (meta) this.importMetaIntact();
+      this.trusted.add("require");
+      return this.value(node);
+    }
+    if (node.type === "ImportDeclaration") {
+      const spec = node.specifiers.find((s) => s.type === "ImportNamespaceSpecifier");
+      return this.binding(this.entry.decls.get(spec.local.start));
+    }
+    throw new Unresolved("an `export*` re-exports every name", node.start);
+  }
+
+  // `import.meta` is this module's own object; only its own code can
+  // replace `import.meta.require`, and only by reaching it other than as
+  // a named read.
+  importMetaIntact() {
+    if (this.metaChecked) return;
+    const stack = [this.entry.ast];
+    while (stack.length) {
+      const node = stack.pop();
+      if (isImportMeta(node)) {
+        const member = this.parents.get(node);
+        const holder = this.parents.get(member);
+        const named = member?.type === "MemberExpression" && member.object === node && memberName(member) !== null;
+        if (!named || isTarget(this.parents, member) || holder?.type === "UpdateExpression" || (holder?.type === "UnaryExpression" && holder.operator === "delete")) {
+          throw new Unresolved("`import.meta` used other than for a named read", node.start);
+        }
+      }
+      for (const key of Object.keys(node)) {
+        const child = node[key];
+        for (const c of Array.isArray(child) ? child : [child]) {
+          if (c && typeof c.type === "string" && c !== node) stack.push(c);
+        }
+      }
+    }
+    this.metaChecked = true;
+  }
+
+  // Where the namespace `node` evaluates to goes next.
+  value(node) {
+    this.step(node.start);
+    const parent = this.parents.get(node);
+    switch (parent?.type) {
+      case "ChainExpression":
+      case "LogicalExpression":
+        return this.value(parent);
+      case "MemberExpression":
+        if (parent.object === node) return this.byName(parent);
+        break;
+      case "VariableDeclarator":
+        if (parent.init !== node) break;
+        if (parent.id.type === "ObjectPattern") return this.pattern(parent.id);
+        if (parent.id.type === "Identifier") return this.binding(this.entry.decls.get(parent.id.start));
+        break;
+      case "AssignmentExpression":
+        if (parent.operator !== "=" || parent.right !== node) break;
+        if (parent.left.type === "ObjectPattern") this.pattern(parent.left);
+        else if (parent.left.type === "Identifier") this.assigned(parent.left);
+        else break;
+        return this.value(parent);
+      case "Property":
+        if (parent.value !== node) break;
+        return this.record(parent);
+      case "AwaitExpression":
+        // Await reads a promise's `constructor`, and settling a promise
+        // with the namespace reads its `then`.
+        this.trusted.add("constructor");
+        this.thenable = true;
+        return this.value(parent);
+      case "ExpressionStatement":
+        return;
+      case "SequenceExpression":
+        if (parent.expressions.at(-1) === node) return this.value(parent);
+        return;
+      case "ConditionalExpression":
+        if (parent.test === node) return;
+        return this.value(parent);
+      case "UnaryExpression":
+        if (["typeof", "void", "!"].includes(parent.operator)) return;
+        break;
+      case "BinaryExpression":
+        if (parent.operator === "===" || parent.operator === "!==" || (parent.operator === "in" && parent.right === node)) return;
+        break;
+      case "IfStatement":
+      case "WhileStatement":
+      case "DoWhileStatement":
+      case "ForStatement":
+        if (parent.test === node) return;
+        break;
+    }
+    throw new Unresolved(`the namespace reaches a ${parent?.type ?? "module end"}`, node.start);
+  }
+
+  // A read of one export by name, which is safe unless it names the
+  // export being followed or calls the export with the namespace as `this`.
+  byName(member) {
+    const key = memberName(member);
+    if (key === null) throw new Unresolved("a computed read of the namespace", member.start);
+    if (key === this.name) throw new Unresolved(`a read of \`${key}\``, member.start);
+    this.readOnly(member, "the namespace");
+  }
+
+  // A member read that neither calls the member with its object as
+  // `this` (`o.f()`, and `(o?.f)()` too) nor writes or deletes it.
+  readOnly(member, what) {
+    let use = member;
+    let holder = this.parents.get(member);
+    while (holder?.type === "ChainExpression") {
+      use = holder;
+      holder = this.parents.get(holder);
+    }
+    if (isCallee(holder, use)) throw new Unresolved(`a method call on ${what}`, member.start);
+    if (isTarget(this.parents, member) || holder?.type === "UpdateExpression" || (holder?.type === "UnaryExpression" && holder.operator === "delete")) {
+      throw new Unresolved(`a write to ${what}`, member.start);
+    }
+  }
+
+  pattern(p) {
+    for (const prop of p.properties) {
+      if (prop.type === "RestElement") throw new Unresolved("a rest element taking the namespace", prop.start);
+      const key = keyName(prop.key, prop.computed);
+      if (key === null) throw new Unresolved("a computed key destructuring the namespace", prop.start);
+      if (key === this.name) throw new Unresolved(`a read of \`${key}\``, prop.start);
+    }
+  }
+
+  // Every read of the variable `v`, which may hold the namespace.
+  binding(v) {
+    if (!v) throw new Unresolved("an undeclared name", null);
+    if (this.seen.has(v)) return;
+    this.seen.add(v);
+    const decl = v.defs[0]?.type === "Variable" ? v.defs[0].parent : null;
+    if (decl && this.parents.get(decl)?.type === "ExportNamedDeclaration") throw new Unresolved("an exported namespace", decl.start);
+    for (const r of v.references) if (!r.isWrite() || r.isReadWrite()) this.value(r.identifier);
+  }
+
+  assigned(left) {
+    const ref = this.entry.refs.get(left.start);
+    if (!ref?.resolved) throw new Unresolved("an assignment to an undeclared name", left.start);
+    this.binding(ref.resolved);
+  }
+
+  // The namespace as a property of an object literal (`{names:ns}`) bound
+  // to a variable only ever holding it: every read of the variable is a
+  // named member read or a truth test. A read of the property follows the
+  // namespace; a read of a name the literal does not hold looks it up on
+  // Object.prototype, which is trusted.
+  record(prop) {
+    const obj = this.parents.get(prop);
+    const key = keyName(prop.key, prop.computed);
+    const own = new Set();
+    for (const p of obj.properties) {
+      const k = p.type === "Property" && p.kind === "init" ? keyName(p.key, p.computed) : null;
+      if (k === null || k === "__proto__") throw new Unresolved("a record with a spread, accessor, computed or __proto__ key", p.start);
+      own.add(k);
+    }
+    const holder = this.parents.get(obj);
+    const id = holder?.type === "VariableDeclarator" && holder.init === obj ? holder.id : null;
+    const v = id?.type === "Identifier" ? this.entry.decls.get(id.start) : null;
+    if (!v || v.defs.length !== 1 || v.references.some((r) => r.isWrite() && r.identifier !== id)) {
+      throw new Unresolved("a record not bound to a variable only ever holding it", obj.start);
+    }
+    if (this.parents.get(this.parents.get(holder))?.type === "ExportNamedDeclaration") {
+      throw new Unresolved("an exported record", obj.start);
+    }
+    for (const r of v.references) {
+      if (r.isWrite()) continue;
+      const use = this.parents.get(r.identifier);
+      if (use?.type === "MemberExpression" && use.object === r.identifier) {
+        const k = memberName(use);
+        if (k === null) throw new Unresolved("a computed read of the record", use.start);
+        this.readOnly(use, "the record");
+        if (!own.has(k)) this.trusted.add(k);
+        if (k === key) this.value(use);
+        continue;
+      }
+      // The variable only holds an object, so `v&&x` is x.
+      if (use?.type === "LogicalExpression" && use.operator === "&&" && use.left === r.identifier) continue;
+      if (use?.type === "ConditionalExpression" && use.test === r.identifier) continue;
+      if ((use?.type === "IfStatement" || use?.type === "WhileStatement") && use.test === r.identifier) continue;
+      if (use?.type === "UnaryExpression" && ["typeof", "void", "!"].includes(use.operator)) continue;
+      throw new Unresolved(`the record reaches a ${use?.type ?? "module end"}`, r.identifier.start);
+    }
+  }
+
+  // `[...]=await Promise.all([..., import(f), ...])`: the global
+  // Promise.all resolves each element through Promise.resolve and `then`,
+  // iterating both arrays, and the pattern binds the namespace where the
+  // import stood.
+  promiseAll(arr, node) {
+    const call = this.parents.get(arr);
+    const callee = call?.callee;
+    const global =
+      callee?.type === "MemberExpression" &&
+      memberName(callee) === "all" &&
+      callee.object.type === "Identifier" &&
+      callee.object.name === "Promise" &&
+      !this.entry.refs.get(callee.object.start)?.resolved;
+    if (!global || call.type !== "CallExpression" || call.arguments[0] !== arr) throw new Unresolved("an import() in an array other than Promise.all's", node.start);
+    if (arr.elements.some((e) => e?.type === "SpreadElement")) throw new Unresolved("a spread in Promise.all's array", arr.start);
+    for (const n of ["Promise", "all", "resolve", "then", "constructor", "@@species", "@@iterator", "next", "return"]) this.trusted.add(n);
+    const awaited = this.parents.get(call);
+    const holder = awaited?.type === "AwaitExpression" ? this.parents.get(awaited) : null;
+    let target = null;
+    if (holder?.type === "VariableDeclarator" && holder.init === awaited) target = holder.id;
+    else if (holder?.type === "AssignmentExpression" && holder.operator === "=" && holder.right === awaited && this.parents.get(holder)?.type === "ExpressionStatement") {
+      target = holder.left;
+    }
+    if (target?.type !== "ArrayPattern") throw new Unresolved("Promise.all's result not destructured by an array pattern", call.start);
+    const index = arr.elements.indexOf(node);
+    if (target.elements.slice(0, index + 1).some((e) => e?.type === "RestElement")) throw new Unresolved("a rest element taking the namespace", target.start);
+    let el = target.elements[index] ?? null;
+    if (el?.type === "AssignmentPattern") el = el.left;
+    if (el === null) return;
+    if (el.type === "ObjectPattern") return this.pattern(el);
+    if (el.type === "Identifier") {
+      const v = this.entry.decls.get(el.start) ?? this.entry.refs.get(el.start)?.resolved;
+      return this.binding(v);
+    }
+    throw new Unresolved("the namespace bound to a nested pattern", el.start);
+  }
+}
+
+// {"op":"namespace","module":key,"source"?:...,"file":F,"name":Z}
+//   Whether every place the module loads the file F whole reaches no read
+//   of the export Z other than through the walk above.
+//   -> {"safe":true,"sites":n,"trusted":[...],"thenable":bool}
+//   -> {"safe":false,"reason":"...","at":offset|null}
+function namespace(req) {
+  if (typeof req.module !== "string" || typeof req.file !== "string" || typeof req.name !== "string") {
+    return { ok: false, error: "namespace needs a string `module`, `file` and `name`" };
+  }
+  const entry = moduleFor(req);
+  if (entry === null) return { ok: true, need_source: true };
+  if (entry.error) return { ok: true, safe: false, reason: `the module does not parse: ${entry.error}`, at: null };
+  if (entry.evals) return { ok: true, safe: false, reason: "the module calls eval directly", at: null };
+  const walk = new Namespace(entry, req.name);
+  let sites = 0;
+  try {
+    const stack = [entry.ast];
+    while (stack.length) {
+      const node = stack.pop();
+      if (loadedFile(node) === req.file) {
+        sites++;
+        walk.site(node);
+      }
+      for (const key of Object.keys(node)) {
+        const child = node[key];
+        for (const c of Array.isArray(child) ? child : [child]) {
+          if (c && typeof c.type === "string" && c !== node) stack.push(c);
+        }
+      }
+    }
+  } catch (e) {
+    if (e instanceof RangeError) return { ok: true, safe: false, reason: "the namespace is too deep to follow", at: null };
+    if (!(e instanceof Unresolved)) throw e;
+    return { ok: true, safe: false, reason: e.message, at: e.at };
+  }
+  return { ok: true, safe: true, sites, trusted: [...walk.trusted].sort(), thenable: walk.thenable };
+}
+
 // The name a member or property key spells: `x.k`, `x["k"]`, and
 // `x[Symbol.k]` as "@@k"; null for any other computed key.
 function keyName(key, computed) {
@@ -859,6 +1197,33 @@ function keyName(key, computed) {
 }
 
 const SINK_LIMIT = 20;
+// A computed key known to be a number, which no trusted name spells.
+const NUMBER = Symbol("number");
+const ARITHMETIC = new Set(["-", "*", "/", "%", "**", "|", "&", "^", "<<", ">>", ">>>"]);
+// node:vm's ways to run a string as code, its specifiers, and the names
+// an import of it may hold and still run nothing.
+const VM_RUNNERS = new Set([
+  "runInThisContext",
+  "runInNewContext",
+  "runInContext",
+  "compileFunction",
+  "SourceTextModule",
+  "SyntheticModule",
+]);
+const VM_SPECIFIERS = new Set(["vm", "node:vm"]);
+const VM_HARMLESS = new Set(["isContext"]);
+
+// The specifier a node loads from, any kind of load or re-export, or null.
+function loadedSpecifier(node) {
+  if (node.type === "ImportExpression") return literalString(node.source);
+  if (isRequire(node)) return literalString(node.arguments[0]);
+  if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration" || node.type === "ExportNamedDeclaration") {
+    return node.source?.value ?? null;
+  }
+  return null;
+}
+
+const TYPEOF = ["undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function"];
 
 // `Object` or `Reflect`, as a name or a member (`globalThis.Object`); by
 // name, so a shadowing binding counts too.
@@ -888,15 +1253,23 @@ function definerOf(n) {
 //   Where the module may write a property the flow trusts (`names`) on an
 //   object that could be a built-in prototype:
 //   - a member write, update or `delete` whose key is one of the names;
-//   - a member write with a computed key that names nothing, which can
-//     write any name;
+//   - a member write with a computed key that may name anything, which
+//     can write any name. A computed key is known when every value it can
+//     evaluate to is: a literal, a number (arithmetic, `++`, a unary
+//     minus), a boolean or typeof result, or a variable every write of
+//     which is one of those (`for(let i=0;...;i++)o[i]=`, a TypeScript
+//     enum's `e[e.X=1]=`); it then counts only for the names it spells;
 //   - a call given one of the names as a string or `Symbol.x` argument
 //     (`Object.defineProperty(o,"includes",...)`, `o.__defineGetter__("has")`,
 //     `Reflect.set(o,"some",f)`, or any other callee that may pass it on);
 //   - an object literal holding one of the names given to `assign`,
 //     `defineProperties`, `setPrototypeOf` or `defineProperty`;
 //   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
-//     which can put any object's properties on the chain.
+//     which can put any object's properties on the chain;
+//   - a write to an undeclared (global) name that is one of the names;
+//   - code run from a string through node:vm: any load of the vm module
+//     except an import naming only `isContext`, and a vm runner's name
+//     (`runInThisContext`, `runInNewContext`, ...) read from any object.
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
@@ -982,8 +1355,91 @@ function sinks(req) {
         return false;
     }
   };
+  // `Promise=f` in a module replaces the global binding a trusted
+  // `Promise.all` reads.
+  for (const ref of entry.manager.globalScope.through) {
+    if (ref.isWrite() && names.has(ref.identifier.name)) hit("global-write", ref.identifier.name, ref.identifier);
+  }
+  // What a computed key can be: the strings it can evaluate to, NUMBER for
+  // any number, or null when unknown. A variable counts only when every
+  // write to it is known; a cycle through one (`s=s+x`) is unknown.
+  const seenKeys = new Set();
+  const union = (...sets) => (sets.includes(null) ? null : new Set(sets.flatMap((s) => [...s])));
+  const keyValues = (node, depth = 0) => {
+    if (depth > 16) return null;
+    switch (node.type) {
+      case "Literal":
+        if (typeof node.value === "string") return new Set([node.value]);
+        if (typeof node.value === "number" || node.bigint !== undefined) return new Set([NUMBER]);
+        return node.value === null || typeof node.value === "boolean" ? new Set([String(node.value)]) : null;
+      case "TemplateLiteral":
+        return node.expressions.length === 0 ? new Set([node.quasis[0].value.cooked]) : null;
+      case "UpdateExpression":
+        return new Set([NUMBER]);
+      case "UnaryExpression":
+        if (["-", "+", "~"].includes(node.operator)) return new Set([NUMBER]);
+        if (node.operator === "!") return new Set(["true", "false"]);
+        if (node.operator === "void") return new Set(["undefined"]);
+        if (node.operator === "typeof") return new Set(TYPEOF);
+        return null;
+      case "BinaryExpression":
+        if (ARITHMETIC.has(node.operator)) return new Set([NUMBER]);
+        if (node.operator !== "+") return new Set(["true", "false"]);
+        {
+          const sides = union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+          return sides !== null && [...sides].every((v) => v === NUMBER) ? sides : null;
+        }
+      case "ConditionalExpression":
+        return union(keyValues(node.consequent, depth + 1), keyValues(node.alternate, depth + 1));
+      case "LogicalExpression":
+        return union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+      case "SequenceExpression":
+        return keyValues(node.expressions.at(-1), depth + 1);
+      case "AssignmentExpression":
+        if (node.operator === "=") return keyValues(node.right, depth + 1);
+        return ARITHMETIC.has(node.operator.slice(0, -1)) ? new Set([NUMBER]) : null;
+      case "Identifier": {
+        const v = variable(node);
+        if (!v || v.defs.length !== 1 || v.defs[0].type !== "Variable" || seenKeys.has(v)) return null;
+        const def = v.defs[0];
+        if (def.node.id !== def.name || isLoop(parents.get(def.parent))) return null;
+        seenKeys.add(v);
+        try {
+          // A `var` read before its initializer runs is undefined.
+          const sets = [def.parent.kind === "var" || def.node.init === null ? new Set(["undefined"]) : new Set()];
+          for (const r of v.references) {
+            if (!r.isWrite()) continue;
+            if (r.identifier === def.name) {
+              if (def.node.init !== null) sets.push(keyValues(def.node.init, depth + 1));
+              continue;
+            }
+            const w = parents.get(r.identifier);
+            if (w?.type === "UpdateExpression") sets.push(new Set([NUMBER]));
+            else if (w?.type === "AssignmentExpression" && w.left === r.identifier) sets.push(keyValues(w, depth + 1));
+            else return null;
+          }
+          return union(...sets);
+        } finally {
+          seenKeys.delete(v);
+        }
+      }
+    }
+    return null;
+  };
+  // The trusted names a computed `key` may spell, or null when it may spell any.
+  const keyNames = (key) => {
+    const values = keyValues(key);
+    if (values === null || values.has("__proto__") || (values.has(NUMBER) && numericName)) return null;
+    return [...values].filter((v) => v !== NUMBER && names.has(v));
+  };
+  const numericName = [...names].some((n) => String(Number(n)) === n || n === "-0");
   const literalNames = (obj) =>
-    obj.properties.map((p) => (p.type === "Property" ? keyName(p.key, p.computed) : null)).filter((k) => k === null || names.has(k));
+    obj.properties.flatMap((p) => {
+      if (p.type !== "Property") return [null];
+      const k = keyName(p.key, p.computed);
+      if (k !== null) return names.has(k) ? [k] : [];
+      return keyNames(p.key) ?? [null];
+    });
   const stack = [entry.ast];
   while (stack.length && hits.length < SINK_LIMIT) {
     const node = stack.pop();
@@ -998,7 +1454,9 @@ function sinks(req) {
         if (key === "__proto__") {
           if (!fresh(node.object)) hit("proto-swap", key, node);
         } else if (key === null) {
-          if (!fresh(node.object)) hit("computed-write", null, node);
+          const spelled = fresh(node.object) ? [] : keyNames(node.property);
+          if (spelled === null) hit("computed-write", null, node);
+          else for (const n of spelled) hit("write", n, node);
         } else if (names.has(key) && !fresh(node.object)) {
           hit("write", key, node);
         }
@@ -1018,7 +1476,11 @@ function sinks(req) {
         if (definer.name === "setPrototypeOf") hit("proto-swap", null, node);
         if (node.arguments.some((a) => a.type === "SpreadElement")) hit("computed-define", null, node);
         const keyArg = definer.receiver ? node.arguments[0] : definer.keyed ? node.arguments[1] : null;
-        if (keyArg && keyName(keyArg, true) === null) hit("computed-define", null, keyArg);
+        if (keyArg && keyName(keyArg, true) === null) {
+          const spelled = keyNames(keyArg);
+          if (spelled === null) hit("computed-define", null, keyArg);
+          else for (const n of spelled) hit("argument", n, keyArg);
+        }
         if (definer.name === "assign" || definer.name === "defineProperties") {
           for (const arg of node.arguments.slice(1)) {
             if (arg.type !== "ObjectExpression") hit("computed-define", null, arg);
@@ -1059,6 +1521,20 @@ function sinks(req) {
     const member = memberName(node);
     if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
       hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
+    }
+    // node:vm runs strings as code, and even a new context reaches this
+    // realm (`this.constructor.constructor("...")()` inside
+    // `runInNewContext` patches the outer prototypes). Any load of the vm
+    // module is a sink, except an import naming only functions that run no
+    // code; so is a vm runner's name read or destructured from any object.
+    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
+      hit("vm-string-code", null, node);
+    }
+    if (VM_SPECIFIERS.has(loadedSpecifier(node))) {
+      const harmless =
+        node.type === "ImportDeclaration" &&
+        node.specifiers.every((s) => s.type === "ImportSpecifier" && VM_HARMLESS.has(s.imported.name ?? s.imported.value));
+      if (!harmless) hit("vm-string-code", null, node);
     }
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
@@ -1120,26 +1596,75 @@ function exportsOf(req) {
 // reads it from: a member name (`x.k`, `x["k"]`, `` x[`k`] ``) and a
 // destructured key (`{k}=x`, `{k:y}=x`, `{"k":y}=x`). A computed read
 // with any other key reads no name here. Kept per module key for
-// `keys_used`.
-const keySets = new Map();
+// `keys_used`, beside the files it loads whole (`loadedFile`) for `loads`.
+const scans = new Map();
 // The name a member reads or writes, as `keyName` spells it; null for a
 // computed key that names nothing.
 const memberName = (n) => (n?.type === "MemberExpression" ? keyName(n.property, n.computed) : null);
 
-// `keysOf`, or null (every name used) when the analysis itself fails.
-function keysOrNull(ast, source) {
+// `scanOf`, or null (every name used, every file loaded) when the
+// analysis itself fails.
+function scanOrNull(ast) {
   try {
-    return keysOf(ast, source);
+    return scanOf(ast);
   } catch {
     return null;
   }
 }
 
-function keysOf(ast, source) {
+// The module's scan, parsing `req.source` when it is not held; undefined
+// when the source is needed.
+function scanFor(req) {
+  let scan = scans.get(req.module);
+  if (scan === undefined) {
+    if (typeof req.source !== "string") return undefined;
+    try {
+      scan = scanOrNull(acorn.parse(req.source, PARSE_OPTIONS));
+    } catch {
+      scan = null;
+    }
+    scans.set(req.module, scan);
+  }
+  return scan;
+}
+
+// Whether `node` (with parent `parent`) may load a module the scan cannot
+// name: `import(x)` with a specifier that is no literal, and `require`,
+// `import.meta.require` or `x.require` used other than as the direct callee
+// of a call with a literal specifier (an alias, `.call`, `(0,require)`), a
+// `typeof` test, or `require.resolve`. A binding named `require` is no use.
+function unknownLoad(node, parent) {
+  if (node.type === "ImportExpression") return literalString(node.source) === null;
+  // `import.meta` other than read by name can hand out its `require`
+  // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
+  // destructured `require` key.
+  if (isImportMeta(node)) return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) !== null);
+  if (node.type === "Property" && parent?.type === "ObjectPattern") return keyName(node.key, node.computed) === "require";
+  const named = node.type === "Identifier" ? node.name === "require" : memberName(node) === "require";
+  if (!named) return false;
+  if (node.type === "Identifier") {
+    const binding =
+      (parent?.type === "MemberExpression" && parent.property === node && !parent.computed) ||
+      ((parent?.type === "Property" || parent?.type === "MethodDefinition" || parent?.type === "PropertyDefinition") && parent.key === node && !parent.computed && !parent.shorthand) ||
+      (parent?.type === "VariableDeclarator" && parent.id === node) ||
+      (FUNCTIONS.has(parent?.type) && (parent.id === node || parent.params.includes(node))) ||
+      ["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier", "ExportSpecifier", "LabeledStatement", "BreakStatement", "ContinueStatement"].includes(parent?.type);
+    if (binding) return false;
+  }
+  if (parent?.type === "CallExpression" && parent.callee === node) return literalString(parent.arguments[0]) === null;
+  if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
+  return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
+}
+
+function scanOf(ast) {
   const keys = new Set();
-  const stack = [ast];
+  const loads = new Set();
+  const stack = [[ast, null]];
   while (stack.length) {
-    const node = stack.pop();
+    const [node, parent] = stack.pop();
+    const loaded = loadedFile(node);
+    if (loaded !== null) loads.add(loaded);
+    if (unknownLoad(node, parent)) loads.add(UNKNOWN_FILE);
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -1155,11 +1680,11 @@ function keysOf(ast, source) {
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+        if (c && typeof c.type === "string" && c !== node) stack.push([c, node]);
       }
     }
   }
-  return keys;
+  return { keys, loads };
 }
 
 // {"op":"keys_used","module":key,"source"?:...,"names":[...]}
@@ -1169,17 +1694,20 @@ function keysUsed(req) {
   if (typeof req.module !== "string" || !Array.isArray(req.names)) {
     return { ok: false, error: "keys_used needs a string `module` and a `names` list" };
   }
-  let keys = keySets.get(req.module);
-  if (keys === undefined) {
-    if (typeof req.source !== "string") return { ok: true, need_source: true };
-    try {
-      keys = keysOrNull(acorn.parse(req.source, PARSE_OPTIONS), req.source);
-    } catch {
-      keys = null;
-    }
-    keySets.set(req.module, keys);
-  }
-  return { ok: true, used: req.names.filter((n) => keys === null || keys.has(n)) };
+  const scan = scanFor(req);
+  if (scan === undefined) return { ok: true, need_source: true };
+  return { ok: true, used: req.names.filter((n) => scan === null || scan.keys.has(n)) };
+}
+
+// {"op":"loads","module":key,"source"?:...}
+//   -> {"files":[file names the module loads whole]} (`loadedFile`), with
+//      "*" when it may load one the scan cannot name (`unknownLoad`), or
+//      {"files":null} for a module that does not parse.
+function loads(req) {
+  if (typeof req.module !== "string") return { ok: false, error: "loads needs a string `module`" };
+  const scan = scanFor(req);
+  if (scan === undefined) return { ok: true, need_source: true };
+  return { ok: true, files: scan === null ? null : [...scan.loads].sort() };
 }
 
 function handle(req) {
@@ -1197,10 +1725,10 @@ function handle(req) {
       }
       try {
         const ast = acorn.parse(req.source, PARSE_OPTIONS);
-        if (typeof req.module === "string") keySets.set(req.module, keysOrNull(ast, req.source));
+        if (typeof req.module === "string") scans.set(req.module, scanOrNull(ast));
         return { ok: true, parsed: true };
       } catch (e) {
-        if (typeof req.module === "string") keySets.set(req.module, null);
+        if (typeof req.module === "string") scans.set(req.module, null);
         return { ok: true, parsed: false, error: e.message, pos: e.pos ?? null };
       }
     case "binding":
@@ -1211,6 +1739,10 @@ function handle(req) {
       return flow(req);
     case "keys_used":
       return keysUsed(req);
+    case "loads":
+      return loads(req);
+    case "namespace":
+      return namespace(req);
     case "sinks":
       return sinks(req);
     case "exports":

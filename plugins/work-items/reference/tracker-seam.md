@@ -118,8 +118,16 @@ Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAU
 
 Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` for small / medium drift
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
-corrections, one-paragraph clarifications) and other small or medium fixes belong in the current
-change as their own commit, even when unrelated to the task. File NEW items only when the work is
+corrections, one-paragraph clarifications) and other small or medium fixes are made, not filed.
+<!-- contract-restatement-begin: D4.6-unrelated-fix-placement -->
+A fix about the task, or an unrelated one in a file the change already touches, lands in the
+current change as its own commit; any other unrelated fix goes in its own small PR with no tracker
+item. A lane that cannot open a PR says where the fix belongs (on the review thread when the
+finding came from one, leaving that thread unresolved) and reports it. A project changes this
+placement in its own CLAUDE.md or AGENTS.md; the rule's owner is the D4.6 scope test in the
+source-control plugin's `reference/review-discipline.md`.
+<!-- contract-restatement-end: D4.6-unrelated-fix-placement -->
+File NEW items only when the work is
 structural (large enough to need its own `/planning:plan` pass), an urgent, real problem that
 cannot land in the current change, or blocked on research the current session isn't positioned to
 do. Auto-suggesting

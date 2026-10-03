@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.0] - 2026-10-02
+## [0.12.0] - 2026-10-03
 
 ### Added
 
@@ -14,6 +14,12 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
 - Hooks call `hook::require jq` where they called `hook::require_jq`.
+
+## [0.11.95] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 
 ## [0.11.94] - 2026-10-02
 

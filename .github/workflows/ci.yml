@@ -2209,12 +2209,13 @@ jobs:
         run: |
           [ "$LEG" = 3 ] || exit 0
           scripts/sync-shared-copies.sh --check
-      - name: Run shared-copies generator and html-escape tests
+      - name: Run shared-copies generator, html-escape and view-builder tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
+          bash lib/view-builder.test.sh
       # docs/conventions/prerequisites/: the checker and its stubs, then the gate
       # that validates every prerequisites.json and fails on an undeclared tool
       # not listed in scripts/prerequisites-baseline.txt.
@@ -2497,8 +2498,9 @@ jobs:
       # Counters only, never durations, so the answer does not move with runner
       # load. A lower count is lowered in the file by hand in the same PR
       # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job, because a counter this deterministic only drops when a PR changes
-      # it. LEG 0 carries it alone. The hook counters run through
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed

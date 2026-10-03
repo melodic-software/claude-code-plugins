@@ -1,5 +1,5 @@
 ---
-description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only, never modifies code, never opens PRs, never files issues by default. Use when the user names a defect they observed ('there is a bug in <X>', 'expected X got Y', 'I am seeing <error> in <file>') or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
+description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only, never modifies code, never opens PRs, never files issues by default. Use when the user names a defect they observed ('there is a bug in X', 'expected X got Y', 'I am seeing ERROR in FILE') or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
@@ -84,6 +84,8 @@ Question priority order. Only ask if the field cannot be backed from context:
 | Severity | "Who or what is blocked? Production users / dev workflow / cosmetic?" |
 | Fix location | (do not ask. Derive from the survey; if unknown, mark `(unknown — needs reporter confirmation)`) |
 | Title | (do not ask. Derive from symptom + symbol) |
+
+A pasted screenshot or image path backs Expected vs actual the way the reporter's own words do; name it under Notes so it is attached when the report is filed. A video file cannot be read, so ask for a screenshot or a few still frames instead. A repo that wants a screenshot on every rendered-output report says so in the `## Gotchas` section of its `.claude/bugs.md`.
 
 Stop conditions: every required field has a backed answer OR an explicit `(unknown — needs reporter confirmation)` placeholder. Modifiers:
 

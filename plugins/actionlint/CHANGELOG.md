@@ -3,7 +3,7 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.0] - 2026-10-02
+## [0.12.0] - 2026-10-03
 
 ### Added
 
@@ -13,6 +13,12 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 ### Changed
 
 - The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+
+## [0.11.13] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 
 ## [0.11.12] - 2026-10-02
 

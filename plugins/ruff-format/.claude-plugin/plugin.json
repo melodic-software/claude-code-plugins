@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ruff-format",
   "version": "0.9.0",
   "description": "Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo, using the consuming repo's own Ruff config.",

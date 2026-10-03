@@ -109,6 +109,8 @@ markdown-format schema
 mcp-tools jq
 miro claude
 miro npm
+multi-agent node
+multi-agent schema
 pixel-art ffmpeg
 pixel-art python3
 planning curl
@@ -118,7 +120,6 @@ playbooks claude
 playbooks curl
 playbooks gh
 playbooks jq
-playbooks yarn
 playwright jq
 playwright npm
 playwright npx

@@ -4,6 +4,17 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [2.1.0] - 2026-10-02
+
+Additive guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability verdict changes.
+
+"Required parts" names the context-glue Pointer form, `when <situation>, fetch <link to the exact
+upstream section> live`, and uses it in the template. New records use it; a Pointer in the 2.0.0
+form, `for <topic>, see <link>`, still conforms. The record parts may sit on one line under the
+decision prose; in that layout a post's correlate note, where no docs page covers the topic, may
+take the Pointer line's place, ending `no docs page covers <topic> as of <date>`.
+
 ## [2.0.0] - 2026-10-01
 
 Major under this contract's own rule: the required parts change.

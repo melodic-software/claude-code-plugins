@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "go-format",
   "version": "0.5.0",
   "description": "Auto-fix Go formatting and import management on edit via goimports. Runs unconditionally (no consumer-config gate), skipping generated files.",

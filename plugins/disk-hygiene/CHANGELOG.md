@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.43.0] - 2026-10-02
+## [0.43.0] - 2026-10-03
 
 ### Added
 
@@ -13,6 +13,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - The `SessionStart` node notice is the shared row instead of an inline bash command, so it also works without Git Bash and appears once per session across plugins.
+
+## [0.42.10] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 
 ## [0.42.9] - 2026-10-02
 

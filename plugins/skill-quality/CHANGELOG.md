@@ -3,12 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.0] - 2026-10-02
+## [0.27.0] - 2026-10-03
 
 ### Added
 
 - `/skill-quality:check-prerequisites`, a read-only report of whether the tools the plugin declares in `prerequisites.json` resolve, through the shared Node checker. `/skill-quality:check` keeps the skill-authoring gate.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker.
+
+## [0.26.1] - 2026-10-02
+
+### Changed
+
+- Check 8 (vendor/ byte-identity) passes a pure rename inside `vendor/`, since every byte is kept. A rename that also edits content still fails.
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `check` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
 
 ## [0.26.0] - 2026-10-02
 
