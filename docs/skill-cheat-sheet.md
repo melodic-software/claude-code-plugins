@@ -91,7 +91,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/animation:produce`](../plugins/animation/skills/produce/SKILL.md) | `animation` | Brief, boards, approval gate, shots, render, and pack review |
 | [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
-| [`/explainer-video:produce`](../plugins/explainer-video/skills/produce/SKILL.md) | `explainer-video` | Script, render and self-check a silent ManimCE explainer video |
+| [`/explainer-video:produce`](../plugins/explainer-video/skills/produce/SKILL.md) | `explainer-video` | Script, narrate, render and self-check a ManimCE explainer video |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |
 | [`/instruction-placement:migrate`](../plugins/instruction-placement/skills/migrate/SKILL.md) | `instruction-placement` | Move a repository's instruction content to AGENTS.md behind an operator gate |
