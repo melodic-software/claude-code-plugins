@@ -87,7 +87,7 @@
 #                          commands, error text, configuration text, user_email, absolute paths;
 #                          the list is cc-otel.sql's cold content boundary) and scrubs their
 #                          attributes in the cold tier (default: unset = 1, kept)
-#   CC_OTEL_START_CMD     command that starts the Collector service — hermetic test seam
+#   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
 #   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
 #   CC_OTEL_RUNNING_CMD    service query command: exit 0 = running/not Stopped, 1 = Stopped,
 #                          2+ = query error — hermetic test seam
