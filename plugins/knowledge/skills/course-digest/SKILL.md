@@ -11,8 +11,8 @@ shell: bash
 ## Pre-computed context
 
 ```!
-{ printf 'course-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
-{ printf 'Playwright Chromium: '; node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.env.CLAUDE_PLUGIN_DATA&&path.join(process.env.CLAUDE_PLUGIN_DATA,'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));console.log(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'course-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'Playwright Chromium: '; node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.argv[1]&&path.join(process.argv[1],'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));console.log(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
 { printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (see Prerequisites)"; }
 { printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (see Prerequisites)"; }
 ```
@@ -35,7 +35,7 @@ This skill's `.work/` root resolves through the knowledge plugin's own `library_
 
 ## Prerequisites (verify before starting)
 
-1. **course-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent. Safe to re-run, and re-run after a plugin update.
+1. **course-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent. Safe to re-run, and re-run after a plugin update.
 2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars, and a stored option value is not a secret store.
 3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
 4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
@@ -45,10 +45,10 @@ If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for
 
 ## Running the pipeline scripts
 
-Every extraction script runs through the launcher, which resolves the vendored node dependencies from `${CLAUDE_PLUGIN_DATA}` and pins Playwright's browser path:
+Every extraction script runs through the launcher, which resolves the vendored node dependencies from the data directory its leading `--data-dir` names and pins Playwright's browser path:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" <script.js> [args…]
+node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" <script.js> [args…]
 ```
 
 Gate on `setup-deps.mjs` first (Prerequisites above).
@@ -59,16 +59,16 @@ The Playwright batch script handles transcripts, video frame extraction, and cou
 
 ```bash
 # Full extraction: transcripts + frames + metadata
-node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path-to-course-data> --extract-frames
+node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path-to-course-data> --extract-frames
 
 # Transcripts only (faster, no ffmpeg needed)
-node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path-to-course-data>
+node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path-to-course-data>
 
 # Frames only (skip transcripts already extracted)
-node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path-to-course-data> --extract-frames --skip-transcripts
+node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path-to-course-data> --extract-frames --skip-transcripts
 
 # Course metadata only
-node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path-to-course-data> --metadata-only
+node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path-to-course-data> --metadata-only
 ```
 
 Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome itself. Chrome 136+ blocks CDP on default profiles). Auth handled via `addCookies()` after context launch: with credentials set it logs in and saves state; subsequent runs inject cached cookies automatically. Skips already-extracted lessons (crash-safe, resumable). Runs headless by default (`--show-browser` to show the browser).
@@ -88,7 +88,7 @@ Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome 
 
 ```bash
 # Run in background with nohup — no timeout limit
-nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path> > extraction.log 2>&1 &
+nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path> > extraction.log 2>&1 &
 echo $!  # save PID
 
 # Monitor progress periodically
@@ -237,12 +237,20 @@ Repo-applicability analysis follows the template in [reference/analysis-template
 
 ## Spoke paths
 
-The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command. Those files arrive through the
-Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the
-Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
+and the plugin data directory as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`. Put those paths
+in place of the placeholders before running a command. Those files arrive through the Read tool as
+plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash tool's
+environment has no `CLAUDE_SKILL_DIR` to expand it from.
+
+Every `run.mjs` and `setup-deps.mjs` command takes the leading `--data-dir` flag shown above.
+The Bash tool's environment does not carry this plugin's `CLAUDE_PLUGIN_DATA`, and another
+plugin's SessionStart hook can put its own data directory there under that name. The scripts
+therefore take the directory from the flag, and accept an inherited value only when it names this
+plugin. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+2026-10-02; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+lists the Bash tool among the processes that receive the variables.
 
 ## Storage
 

@@ -403,7 +403,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           <button data-view="groups">Groups</button><button data-view="rounds">Rounds</button><button data-view="tree">Tree</button>
         </div>
         <div class="trow">
-          <label>Show <select id="filter" aria-keyshortcuts="/"><option value="all">All</option><option value="open">Open</option><option value="pending">Pending</option><option value="answered">Answered</option></select></label>
+          <label>Show <select id="filter" aria-keyshortcuts="/"><option value="all">All</option><option value="open">Open</option><option value="review">Review</option><option value="pending">Pending</option><option value="answered">Answered</option></select></label>
           <span class="order-note" id="orderNote"></span>
         </div>
       </div>
@@ -659,7 +659,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function passes(q){
     const st = stateOf(q);
-    return S.filter === "all" || (S.filter === "open" && needsYou(q)) || (S.filter === "pending" && (st === "wait" || st === "need" || q.state === "upstream-pending" || waitingReply(q))) || (S.filter === "answered" && isAnswered(st));
+    return S.filter === "all" || (S.filter === "open" && needsYou(q) && !isAnswered(st)) || (S.filter === "review" && needsYou(q) && isAnswered(st)) || (S.filter === "pending" && (st === "wait" || st === "need" || q.state === "upstream-pending" || waitingReply(q))) || (S.filter === "answered" && isAnswered(st));
   }
   const opened = () => new Set(lsGet("opened", []));
 
@@ -700,8 +700,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
-      s.open = s.items.filter(q => stateOf(q) === "wait" || needsYou(q)).length;
-      s.done = s.items.length > 0 && s.open === 0;
+      s.open = s.items.filter(q => !isAnswered(stateOf(q)) && (stateOf(q) === "wait" || needsYou(q))).length;
+      s.review = s.items.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length;
+      s.done = s.items.length > 0 && s.open === 0 && s.review === 0;
       s.fresh = s.items.some(q => landed.has(q.id));
       const o = lsGet("col:" + s.key, null), dflt = s.done;
       s.collapsed = s.fresh ? false : o && o.d === dflt ? o.c : dflt;
@@ -755,12 +756,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const t = treeData(), on = pathOf(t, S.sel), seen = new Set(), fresh = unseenIds();
     const node = id => {
       if (seen.has(id)) return ""; seen.add(id);
-      const q = Q[id]; if (!passes(q) && S.filter !== "all" && !(t.kids[id] || []).length) return "";
+      const q = Q[id], kids = (t.kids[id] || []).map(node).join("");
+      if (!passes(q) && S.filter !== "all") return kids; // a filtered-out node drops out and its matching descendants move up a level
       let h = railItem(q, null, {}, fresh);
       h = h.replace('class="qbtn', 'class="qbtn' + (on.has(id) && S.sel && S.sel !== SUMMARY ? " onpath" : ""));
       if (!clickable) h = h.replace("<button", '<button tabindex="-1"');
       const also = (t.extra[id] || []).length ? '<div class="also">also after ' + t.extra[id].map(esc).join(", ") + "</div>" : "";
-      const kids = (t.kids[id] || []).map(node).join("");
       return "<li>" + h + also + (kids ? '<ul class="tree">' + kids + "</ul>" : "") + "</li>";
     };
     return '<ul class="tree">' + t.roots.map(node).join("") + "</ul>";
@@ -780,7 +781,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         if (!items.length && S.filter !== "all") continue;
         const elig = s.items.filter(q => op.has(q.id) && eligible(q)), aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + s.collapsed + '" data-dflt="' + s.done + '">' +
-          '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + "</span></button>" +
+          '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + (s.review ? ", " + s.review + " to review" : "") + "</span></button>" +
           (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") +
           (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
@@ -793,9 +794,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
   }
-  function railOrder(){
-    if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(id => passes(Q[id])); }
-    return sections().secs.flatMap(s => s.items.filter(passes).map(q => q.id));
+  function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
+    const keep = id => all || passes(Q[id]);
+    if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
+    return sections().secs.flatMap(s => s.items.map(q => q.id)).filter(keep);
   }
   function revealInRail(id){
     const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');
@@ -1551,8 +1553,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
   }
   function nextNeeding(dir){ // next (1) or previous (-1) item needing you, in rail order
-    const order = railOrder(), len = order.length, i = order.indexOf(S.sel);
-    for (let k = 1; k <= len; k++) { const id = order[(((i < 0 && dir < 0 ? len : i) + dir * k) % len + len) % len]; if (id !== S.sel && needsYou(Q[id])) return id; }
+    const order = railOrder(true), len = order.length, i = order.indexOf(S.sel);
+    for (let k = 1; k <= len; k++) { const id = order[(((i < 0 && dir < 0 ? len : i) + dir * k) % len + len) % len]; if (id !== S.sel && needsYou(Q[id]) && passes(Q[id])) return id; }
     return null;
   }
   function armKind(kind){ // a arms Reconfirm when there is one, else Accept
@@ -1874,7 +1876,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (first) {
       S.loaded = true;
       S.view = lsGet("view", "groups"); if (!["groups", "rounds", "tree"].includes(S.view)) S.view = "groups";
-      S.filter = lsGet("filter", "all"); if (!["all", "open", "pending", "answered"].includes(S.filter)) S.filter = "all";
+      S.filter = lsGet("filter", "all"); if (!["all", "open", "review", "pending", "answered"].includes(S.filter)) S.filter = "all";
       S.fly = lsGet("fly", null); if (!["visuals", "notes", "activity", "settings"].includes(S.fly)) S.fly = null;
       S.pinned = lsGet("pinned", false); S.railHidden = lsGet("railHidden", false); S.noteSeen = lsGet("noteSeen", 0);
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen

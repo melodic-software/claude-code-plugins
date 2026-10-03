@@ -21,7 +21,7 @@ this skill's content as `${user_config.library_dir}`:
   **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
 
   ```bash
-  node "<skill-dir>/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
+  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
   ```
 
   `run.mjs` forwards it to the extraction child as an environment variable (a double-quoted CLI
@@ -45,8 +45,8 @@ this skill's content as `${user_config.library_dir}`:
   token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to
   `${CLAUDE_PROJECT_DIR}` (then `process.cwd()`), landing artifacts at the consuming repo root.
 
-The `setup-deps.mjs` install step is exempt. It installs node dependencies into
-`${CLAUDE_PLUGIN_DATA}`, not the work root.
+The `setup-deps.mjs` install step takes no `--work-root`. It installs node dependencies into the
+plugin data directory its `--data-dir "<plugin-data>"` flag names, not the work root.
 
 `run.mjs` translates `--work-root` into `VIDEO_DIGEST_WORK_ROOT`, the variable
 `resolveWorkRoot()` reads before the fallbacks above. Every extraction variable lives in that
