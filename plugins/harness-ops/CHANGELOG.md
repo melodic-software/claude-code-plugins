@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.1.1] - 2026-10-02
+## [3.1.2] - 2026-10-02
 
 ### Fixed
 
@@ -21,6 +21,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   starts only where a run of token characters starts, so its header stays unbounded and a JWS
   with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
   512 characters.
+
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
 
 ## [3.1.0] - 2026-10-02
 
