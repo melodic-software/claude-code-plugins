@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Decide whether to skip, offer, or build the change digest, and where a built
 // page goes. Reads the pull request's facts as `gh pr view --json
-// files,additions,deletions,labels` prints them, on stdin. Resolves the
-// review-digest cascade surface for the policy and thresholds and the
-// rendered-views surface for `medium`. Prints one JSON object. Paths and
-// labels from the pull request are compared, never echoed.
+// files,additions,deletions,labels,baseRefName` prints them, on stdin. Resolves
+// the review-digest cascade surface for the policy and thresholds and the
+// rendered-views surface for `medium`. Team files are read from the base ref,
+// never the working tree, so a checked-out pull request cannot configure its
+// own digest. Prints one JSON object. Paths and labels from the pull request
+// are compared, never echoed.
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
@@ -24,6 +26,14 @@ export const DEFAULTS = Object.freeze({
   risk_paths: [".github/workflows/**", "**/hooks/**", "**/migrations/**"],
   opt_in_label: "explain-change",
 });
+/** The config files themselves: a change to one always fires risk-path, whatever risk_paths says. */
+export const CONFIG_PATHS = Object.freeze([
+  "docs/conventions/review-digest.md",
+  ".claude/review-digest.json",
+  ".claude/review-digest.local.json",
+  ".claude/rendered-views.md",
+  ".claude/rendered-views.local.md",
+]);
 export const MEDIUM_DEFAULT = "file";
 const POLICIES = ["off", "offer", "always"];
 const MEDIUMS = ["terminal", "file", "artifact"];
@@ -65,13 +75,29 @@ const within = (child, parent) => {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 };
 
-function git(root, args) {
+/** git's stdout, or null when it fails. */
+function gitOut(root, args) {
   try {
-    execFileSync("git", ["-C", root, ...args], { stdio: "ignore" });
-    return true;
+    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   } catch {
-    return false;
+    return null;
   }
+}
+const git = (root, args) => gitOut(root, args) !== null;
+
+/**
+ * A reader of team files at the pull request's base ref (origin's copy first),
+ * or a reader that finds nothing, with a warning, when there is no usable ref.
+ */
+function baseReader(root, baseRef, warnings) {
+  if (typeof baseRef !== "string" || !/^[A-Za-z0-9._/][A-Za-z0-9._/-]*$/.test(baseRef) || baseRef.includes("..")) {
+    warnings.push("team: no baseRefName in the facts; team layer ignored");
+    return { ref: null, read: () => null };
+  }
+  const ref = [`refs/remotes/origin/${baseRef}`, `refs/heads/${baseRef}`].find((r) =>
+    git(root, ["rev-parse", "--verify", "--quiet", `${r}^{commit}`]),
+  );
+  return { ref: baseRef, root, read: (rel) => (ref ? gitOut(root, ["show", `${ref}:${rel}`]) : null) };
 }
 
 /** Team and overlay apply only inside a working tree that is not home or above it. */
@@ -85,7 +111,7 @@ function layerPaths(root, userFile, teamFiles, overlayFile) {
   return {
     user,
     root,
-    team: teamFiles.map((f) => join(root, f)).filter(notUser),
+    team: teamFiles.filter((f) => notUser(join(root, f))),
     overlay: notUser(join(root, overlayFile)) ? join(root, overlayFile) : null,
   };
 }
@@ -112,8 +138,19 @@ export function configBlock(markdown) {
 }
 
 function readJsonLayer(path, label, warnings) {
+  let text;
   try {
-    const value = JSON.parse(readFileSync(path, "utf8"));
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    warnings.push(`${label} ${path}: ${error.message}; layer ignored`);
+    return null;
+  }
+  return parseJsonLayer(text, label, path, warnings);
+}
+
+function parseJsonLayer(text, label, path, warnings) {
+  try {
+    const value = JSON.parse(text);
     if (value && typeof value === "object" && !Array.isArray(value)) return value;
     warnings.push(`${label} ${path}: not a JSON object; layer ignored`);
   } catch (error) {
@@ -122,15 +159,22 @@ function readJsonLayer(path, label, warnings) {
   return null;
 }
 
-function readTeamDigest(docsPath, dotPath, warnings) {
-  if (existsSync(docsPath)) {
-    const block = configBlock(readFileSync(docsPath, "utf8"));
+/** The team layer as the base ref holds it: the docs block, else the dot file. */
+function readTeamDigest(base, docsPath, dotPath, warnings) {
+  const [docs, dot] = [base.read(docsPath), base.read(dotPath)];
+  if (docs === null && dot === null && base.ref) {
+    for (const p of [docsPath, dotPath]) {
+      if (existsSync(join(base.root, p))) warnings.push(`team ${p}: not on the base ref ${base.ref}; layer ignored`);
+    }
+  }
+  if (docs !== null) {
+    const block = configBlock(docs);
     if (block.error) {
       warnings.push(`team ${docsPath}: ${block.error}; layer ignored`);
       return null;
     }
     if (!block.none) {
-      if (existsSync(dotPath)) warnings.push(`team: both ${docsPath} and ${dotPath} exist; used ${docsPath}`);
+      if (dot !== null) warnings.push(`team: both ${docsPath} and ${dotPath} exist; used ${docsPath}`);
       try {
         const value = JSON.parse(block.body || "{}");
         if (value && typeof value === "object" && !Array.isArray(value)) return { value, path: docsPath };
@@ -141,27 +185,28 @@ function readTeamDigest(docsPath, dotPath, warnings) {
       return null;
     }
   }
-  if (existsSync(dotPath)) {
-    const value = readJsonLayer(dotPath, "team", warnings);
+  if (dot !== null) {
+    const value = parseJsonLayer(dot, "team", dotPath, warnings);
     return value ? { value, path: dotPath } : null;
   }
   return null;
 }
 
-/** Per-layer verdicts: team must be tracked, overlay must be ignored. */
-function verdict(root, label, path, warnings) {
-  if (label === "team" && !git(root, ["ls-files", "--error-unmatch", "--", path])) {
-    warnings.push(`team ${path}: not tracked, so teammates never receive it; layer ignored`);
+/** An overlay applies only untracked and gitignored, so a pull request cannot ship one. */
+function overlayApplies(root, path, warnings) {
+  if (git(root, ["ls-files", "--error-unmatch", "--", path])) {
+    warnings.push(`overlay ${path}: tracked in git, so a pull request could set it; layer ignored`);
     return false;
   }
-  if (label === "overlay" && !git(root, ["check-ignore", "-q", "--", path])) {
-    warnings.push(`overlay ${path}: not gitignored, so it can reach team history`);
+  if (!git(root, ["check-ignore", "-q", "--", path])) {
+    warnings.push(`overlay ${path}: not gitignored, so it can reach team history; layer ignored`);
+    return false;
   }
   return true;
 }
 
 /** The review-digest surface, per-key over the shipped defaults. */
-export function resolveDigestConfig() {
+export function resolveDigestConfig(baseRef) {
   const warnings = [];
   const config = {};
   for (const [key, value] of Object.entries(DEFAULTS)) config[key] = { value, source: "default" };
@@ -177,19 +222,14 @@ export function resolveDigestConfig() {
     if (value) layers.push({ label: "user-global", path: paths.user, value });
   }
   if (paths.root) {
-    const [docsPath, dotPath] = [
-      join(paths.root, "docs/conventions/review-digest.md"),
-      join(paths.root, ".claude/review-digest.json"),
-    ];
-    const team = paths.team.length ? readTeamDigest(docsPath, dotPath, warnings) : null;
-    if (team && verdict(paths.root, "team", team.path, warnings)) {
-      layers.push({ label: "team", path: team.path, value: team.value });
+    if (paths.team.length) {
+      const base = baseReader(paths.root, baseRef, warnings);
+      const team = readTeamDigest(base, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
+      if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
-    if (paths.overlay && existsSync(paths.overlay)) {
+    if (paths.overlay && existsSync(paths.overlay) && overlayApplies(paths.root, paths.overlay, warnings)) {
       const value = readJsonLayer(paths.overlay, "overlay", warnings);
-      if (value && verdict(paths.root, "overlay", paths.overlay, warnings)) {
-        layers.push({ label: "overlay", path: paths.overlay, value });
-      }
+      if (value) layers.push({ label: "overlay", path: paths.overlay, value });
     }
   }
   for (const layer of layers) {
@@ -207,14 +247,22 @@ export function resolveDigestConfig() {
 }
 
 /** The rendered-views `medium` key: the last layer stating a recognized value wins. */
-export function resolveMedium(warnings) {
+export function resolveMedium(warnings, baseRef) {
   const paths = layerPaths(findRoot(), "rendered-views.md", [".claude/rendered-views.md"], ".claude/rendered-views.local.md");
-  const layers = [["user-global", paths.user], ...paths.team.map((p) => ["team", p]), ["overlay", paths.overlay]];
+  // The digest config already warned about a missing base ref.
+  const base = paths.root ? baseReader(paths.root, baseRef, []) : null;
+  const fromDisk = (p) => (existsSync(p) ? readFileSync(p, "utf8") : null);
+  const layers = [
+    ["user-global", paths.user, fromDisk(paths.user)],
+    ...paths.team.map((p) => ["team", `${base.ref}:${p}`, base.read(p)]),
+  ];
+  if (paths.overlay && existsSync(paths.overlay) && overlayApplies(paths.root, paths.overlay, warnings)) {
+    layers.push(["overlay", paths.overlay, fromDisk(paths.overlay)]);
+  }
   let medium = { value: MEDIUM_DEFAULT, source: "default" };
-  for (const [label, path] of layers) {
-    if (!path || !existsSync(path)) continue;
-    if (label !== "user-global" && !verdict(paths.root, label, path, warnings)) continue;
-    const match = /^[ \t]*medium:[ \t]*["']?([a-z]+)["']?[ \t]*$/m.exec(readFileSync(path, "utf8"));
+  for (const [label, path, text] of layers) {
+    if (text === null) continue;
+    const match = /^[ \t]*medium:[ \t]*["']?([a-z]+)["']?[ \t]*$/m.exec(text);
     if (!match || match[1] === "auto") continue;
     if (MEDIUMS.includes(match[1])) {
       medium = { value: match[1], source: `${label} ${path}` };
@@ -262,7 +310,7 @@ export function decide(facts, options, config) {
       ? num(facts.additions) + num(facts.deletions)
       : files.reduce((sum, f) => sum + num(f?.additions) + num(f?.deletions), 0);
   const labels = (Array.isArray(facts.labels) ? facts.labels : []).map((l) => (typeof l === "string" ? l : l?.name));
-  const patterns = value("risk_paths").map(globRegExp);
+  const patterns = [...CONFIG_PATHS, ...value("risk_paths")].map(globRegExp);
 
   const triggers = [];
   if (paths.length > value("max_files")) triggers.push("files");
@@ -313,10 +361,10 @@ function main(argv) {
     process.stderr.write("digest-policy: facts must be a JSON object\n");
     return 2;
   }
-  const { config, warnings } = resolveDigestConfig();
+  const { config, warnings } = resolveDigestConfig(facts.baseRefName);
   const policy = opts.policy ? { value: opts.policy, source: "argument" } : config.digest_policy;
   const result = decide(facts, { ...opts, policy: policy.value }, config);
-  const medium = resolveMedium(warnings);
+  const medium = resolveMedium(warnings, facts.baseRefName);
   process.stdout.write(
     `${JSON.stringify({ ...result, policy, event: opts.event, requested: opts.requested, medium, config, warnings }, null, 2)}\n`,
   );

@@ -33,7 +33,8 @@ Under `offer`, any one of these fires the offer:
 | label | the pull request carries the `opt_in_label` label | `opt_in_label` |
 
 `risk_paths` globs use `**` for any number of directories and `*` or `?` within one path
-segment. An empty `opt_in_label` turns the label trigger off. The blast radius comes from the
+segment. A change to any file this convention or the rendered-views `medium` key reads fires
+risk-path whatever `risk_paths` holds. An empty `opt_in_label` turns the label trigger off. The blast radius comes from the
 plan or a `/review:quality-gate downstream` pass, as LOW, MEDIUM, HIGH, or CRITICAL.
 
 ## The keys and their layers
@@ -46,6 +47,10 @@ an earlier one key by key:
 2. team: the `json config` block in `docs/conventions/review-digest.md`, else
    `.claude/review-digest.json`
 3. overlay `.claude/review-digest.local.json`
+
+The team layer, and the rendered-views team file, are read from the pull request's base ref
+(`baseRefName`), never the working tree, so a checked-out pull request cannot configure its own
+digest. The overlay applies only when untracked and gitignored.
 
 An explicit `--policy` argument beats every layer. An unknown key is inert, and an invalid value
 is reported and ignored. Lists replace whole. No key is policy-floor: each one only decides when a

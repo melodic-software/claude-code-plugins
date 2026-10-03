@@ -12,14 +12,17 @@ All notable changes to the `review` plugin are documented here. Format follows
   record. `scripts/build-digest.mjs` builds an interactive view from the checked-in
   `templates/digest.html` plus the digest as escaped JSON, through the shared view-builder's
   interactive profile. The page filters files, collapses hunks, and copies or saves a reply that
-  holds only the reader's input and builder row ids. It writes outside the working tree and
-  refuses a path inside one.
+  holds only the reader's input and builder row ids. It takes no output path: each page goes to a
+  fresh temp directory outside any working tree.
 - **`digest_policy` decides when the digest runs unasked.** `scripts/digest-policy.mjs` reads
-  `gh pr view --json files,additions,deletions,labels` and resolves the new `review-digest`
+  `gh pr view --json files,additions,deletions,labels,baseRefName` and resolves the new `review-digest`
   cascade concern. `off` never runs it, `offer` (the default) offers it when more than 5 files or
   200 changed lines, a HIGH or CRITICAL blast radius, a risk path, or the `explain-change` label
   fires, and `always` builds it at the ready flip. A direct request always builds. It also
   resolves the `rendered-views` `medium` key, with `file` as this lane's default.
+- **A pull request cannot configure its own digest.** Team config is read from the base ref, an
+  overlay applies only untracked and gitignored, and a change to any digest config file always
+  fires the risk-path trigger.
 - **The digest never posts.** The skill grants no tool that comments, reviews, labels, or sets a
   check status, and its scripts never call `gh`.
 

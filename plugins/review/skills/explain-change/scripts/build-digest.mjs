@@ -5,11 +5,13 @@
 // value into markup; view-builder puts it in the data block and the inlined
 // runtime renders it as text.
 //
-//   build-digest.mjs [--out <file>] < data.json   write the page, print its path
-//   build-digest.mjs --check <file>               validate a page
+//   build-digest.mjs < data.json      write the page into a fresh temp dir, print its path
+//   build-digest.mjs --check <file>   validate a page
+// The caller never picks the output path, so a diff-steered caller cannot aim
+// the page at a rules, shell, or settings file.
 // Exit 0 ok, 1 the page fails its profile, 2 usage, input, or output path.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,16 +91,12 @@ function main(args) {
     process.stdout.write("ok\n");
     return;
   }
-  let out = join(tmpdir(), `explain-change-${process.pid}-${Date.now()}.html`);
-  if (args[0] === "--out" && args[1]) {
-    out = resolve(args[1]);
-  } else if (args.length > 0) {
-    fail("usage: build-digest.mjs [--out <file>] < data.json | --check <file>", 2);
-  }
-  // A view never sits beside the record: refuse any path inside a working tree.
-  const root = repoRoot(dirname(out)) ?? repoRoot(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-  if (root && inside(out, root)) {
-    fail(`refused: ${out} is inside the working tree ${root}; write the view outside it`, 2);
+  if (args.length > 0) fail("usage: build-digest.mjs < data.json | --check <file>", 2);
+  // A view never sits beside the record: refuse a temp dir inside a working tree.
+  const temp = realpathSync(tmpdir());
+  const root = repoRoot(temp);
+  if (root && inside(temp, realpathSync(root))) {
+    fail(`refused: the temp dir ${temp} is inside the working tree ${root}; write the view outside it`, 2);
   }
   let input;
   try {
@@ -113,7 +111,8 @@ function main(args) {
   } catch (error) {
     fail(error.message, 1);
   }
-  writeFileSync(out, page);
+  const out = join(mkdtempSync(join(temp, "explain-change-")), "digest.html");
+  writeFileSync(out, page, { flag: "wx" });
   process.stdout.write(`${out}\n`);
 }
 
