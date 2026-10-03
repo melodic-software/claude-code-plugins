@@ -36,7 +36,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" "$chrome" <<'NODE'
-import { copyFileSync, readFileSync } from "node:fs";
+import { copyFileSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -138,6 +138,22 @@ if (!chrome) {
 check("an unknown view kind exits 2", build("deck", {}).status === 2);
 check("stdin that is not JSON exits 2", build("plan", "{not json").status === 2);
 check("data that is not an object exits 1", build("plan", "null").status === 1);
+check("plan data missing its fields exits 1", build("plan", {}).status === 1);
+check("brainstorm data missing its fields exits 1", build("brainstorm", {}).status === 1);
+check("a row with a wrongly typed field exits 1", build("plan", { ...fixtures.plan.data, phases: [{ ...fixtures.plan.data.phases[0], criteria: "none" }] }).status === 1);
+check("a list that is not a list exits 1", build("brainstorm", { ...fixtures.brainstorm.data, candidates: {} }).status === 1);
+
+const outDir = `${work}/planning-views`;
+check("the output directory is private", (statSync(outDir).mode & 0o077) === 0 || process.platform === "win32");
+check("an output path that is a symlink is replaced, not followed", (() => {
+  const target = `${work}/symlink-target.html`;
+  writeFileSync(target, "untouched");
+  const link = `${outDir}/plan.html`;
+  rmSync(link, { force: true });
+  symlinkSync(target, link);
+  const built = build("plan", fixtures.plan.data);
+  return built.status === 0 && readFileSync(target, "utf8") === "untouched" && !lstatSync(link).isSymbolicLink();
+})());
 
 process.exit(failed ? 1 : 0);
 NODE

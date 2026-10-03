@@ -57,6 +57,7 @@ code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .row p { margin: 0; }
 .pick { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-size: 0.75rem; color: var(--muted); }
 .pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
 .chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -85,7 +86,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 </div>
 <ol class="rows" data-rv-each="candidates">
 <li class="row">
-<label class="pick"><input type="checkbox" data-rv-pick="">Resonates</label>
+<label class="pick"><input type="checkbox" data-rv-pick="">Resonates<span class="sr" data-rv-text="name"></span></label>
 <div class="body">
 <p class="head"><span class="chip" data-rv-text="effort"></span><strong data-rv-text="name"></strong></p>
 <p data-rv-text="what"></p>
