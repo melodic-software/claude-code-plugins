@@ -3,6 +3,30 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`, and its description is shortened to fit claude.ai's
+  500-character limit. claude.ai's marketplace sync stripped `$schema` with a warning.
+
+## [0.3.0] - 2026-10-02
+
+### Added
+
+- **`/multi-agent:check`**, a read-only check that reports whether `node` resolves, whether
+  `hooks/hooks.json` registers the `drift-checker` fetch gate on `WebFetch`, and whether the gate
+  denies a sample off-host drift-checker fetch, through its bundled `scripts/check.sh`. The
+  registration row requires one `PreToolUse` entry to carry the matcher, command and script
+  together when `node` resolves. The script takes no arguments, and the skill installs nothing. `prerequisites.json` declares
+  `node` with this skill as its check.
+
+### Changed
+
+- **The README states that the fetch gate fails open without `node`**: the hook cannot start,
+  Claude Code shows a non-blocking hook error notice, and the drift checker's fetches are held to
+  first-party docs hosts only by the workflow's source filter and the agent's prompt.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

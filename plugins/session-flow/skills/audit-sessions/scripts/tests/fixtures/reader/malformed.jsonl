@@ -1,0 +1,7 @@
+{"type": "user", "uuid": "m-01", "message": {"role": "user", "content": "first"}}
+{"type": "assistant", "uuid": "m-02", "message": {"id": "msg_m
+not json at all
+
+[1, 2, 3]
+"a bare string"
+{"type": "system", "uuid": "m-07", "subtype": "turn_duration"}

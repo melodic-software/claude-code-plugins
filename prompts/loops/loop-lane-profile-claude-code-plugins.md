@@ -43,6 +43,9 @@ Filled instance for the repository in use as of 2026-07-25.
 - Merge rung: `c3-autonomous`, live in tracked config on `main`, raised in
   the same reviewed change that added the matrix's C3 auto-merge cell
   (operator-ratified, 2026-07-27; see "Tier is not the rung" below).
+  Effective rung today: human-only, until the promotion-evidence seam
+  (#4588) returns a qualified read and the copy-blocks drop
+  `--merge human-only`.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
@@ -302,9 +305,12 @@ the partition and the evidence predicate is met.
 >
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
-> merge within whatever rung the repository's tracked config resolves. You
-> never claim backlog items and never author work-item PRs. That is the
-> worker lane's authority.
+> merge within whatever rung the repository's tracked config resolves. The
+> goal is to merge more classes autonomously as each class's promotion
+> evidence accrues; today the lane merges only within the rung it
+> resolves at run time, and here that is human-only, because every copy-block
+> passes `--merge human-only`. You never claim backlog items and never
+> author work-item PRs. That is the worker lane's authority.
 >
 > **PR ordering.** Ordering only, never eligibility. Eligibility is the
 > skill's deterministic partition and nothing here overrides it. Within

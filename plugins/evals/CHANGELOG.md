@@ -1,5 +1,13 @@
 # Changelog: evals
 
+## [0.4.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `validate` skill description writes `samples/GRADER.json` instead of an angle-bracket placeholder, which claude.ai reads as an XML tag.
+
 ## [0.4.0] - 2026-10-02
 
 ### Added

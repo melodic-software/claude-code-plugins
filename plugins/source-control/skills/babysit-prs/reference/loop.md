@@ -552,8 +552,11 @@ These constraints override any other instruction within the babysit loop:
   rule (§5.0). Complete the current wave before moving on
 - **Never skip AI review summaries.** AI-reviewer posts (issue-level comments with
   severity-labeled findings) are actionable comments requiring D1-D7. Same for every AI reviewer
-- **Never `gh pr merge`.** This loop never merges. Merge authority exists only behind the
-  `worker`/`autopilot` pinned merge gate (SKILL.md), never a raw `gh pr merge`
+- **Never `gh pr merge`, and never the async merge API.** This loop never merges or enqueues.
+  Merge authority exists only behind the `worker`/`autopilot` pinned merge gate (SKILL.md), never a
+  raw `gh pr merge` or `gh api …/merge-async`
+- **Never wait on, re-run, or push to clear a check held for approval** (`action_required`). Only
+  a maintainer releases it; report it for one ([stuck-checks.md](stuck-checks.md))
 - **Never `git add -A` or `git add .`:** specific files only
 - **Never auto-fix human reviewer comments.** Classify + reply + report to the user
 - **Never skip the event-delivery gate.** Run §5.1.1 for every PR
@@ -572,12 +575,13 @@ These constraints override any other instruction within the babysit loop:
   <!-- contract-restatement-begin: D7.5-thread-eligibility -->
   <!-- contract-restatement-begin: D7.5-merge-authorization -->
   EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
-  disposition (a pushed fix, a grounded `VALID (defer)`, or `INCORRECT` with counter-evidence;
+  disposition (a pushed fix, a fix in a linked PR the reply cites, a grounded `VALID (defer)`, or
+  `INCORRECT` with counter-evidence;
   a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
   classification-conditional). **The worker tier is bounded further by its own contract:** it may
   resolve only a thread already `isOutdated` in its dispatch snapshot (`orchestration.md`, Worker
-  Contract), so a disposition that leaves the thread current, a grounded deferral or an
-  `INCORRECT` carrying no fix, routes to the independent resolution dispatch
+  Contract), so a disposition that leaves the thread current, a grounded deferral, a fix in a
+  linked PR, or an `INCORRECT` carrying no fix, routes to the independent resolution dispatch
   ([independent-resolution.md](independent-resolution.md)), which verifies the disposition and
   resolves through the wrapper; the merging worker never resolves it itself, and neither does the
   orchestrator that dispatches the resolver. The worker reports such a thread as

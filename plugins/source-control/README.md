@@ -362,6 +362,7 @@ repo's owner.
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
 | `babysit_merge_method` | string (picker) | `auto`: repo convention, then squash |
+| `babysit_stacked_prs` | boolean | `false`: a stacked PR layer is held for a human |
 | `babysit_review_trigger_phrase` | string | review-trigger module dormant |
 | `babysit_review_bot_logins` | string (multiple) | review-trigger module dormant; merge gate's review-settle hold dormant |
 | `babysit_review_gate_context` | string | review gate treated as absent |
@@ -520,6 +521,7 @@ reads it from.
 | `babysit_intended_write_identity` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_INTENDED_WRITE_IDENTITY` | The single GitHub login babysit-prs's own writes should land under, typically the bot posting identity; a recorded write landing under a different self login surfaces an attribution-drift finding. Set it to one of your self logins. Absent: the check is dormant. |
 | `babysit_default_tier` | string | `"safe"` | `CLAUDE_PLUGIN_OPTION_BABYSIT_DEFAULT_TIER` | Tier an explicit bare /source-control:babysit-prs invocation runs. safe (default) checks, fixes, and reports; worker adds resolving outdated bot threads and gate-proven merges; autopilot adds all authors under the watched owners. Never applies to auto-routed invocations. |
 | `babysit_merge_method` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_METHOD` | Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none. |
+| `babysit_stacked_prs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_STACKED_PRS` | Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human. |
 | `babysit_autopilot_merge_tier` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_AUTOPILOT_MERGE_TIER` | Turns on the autopilot merge tier: a distinct bot account submits an approving review, then the gate merges only when every criterion holds. Off by default; PRs go to the human merge-ready list. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels. |
 | `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when on) refuses fail-closed. |
 | `babysit_approver_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVER_BOT_LOGINS` | Bot logins whose approving review satisfies the autopilot merge tier's author-is-not-approver criterion. Absent: the tier (when on) refuses fail-closed. |

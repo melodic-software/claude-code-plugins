@@ -48,7 +48,7 @@ previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
 the direct merge gate itself (`bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners
-<watched-owners>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
+<watched-owners> --state-dir <state-dir>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
 and conversation resolution), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
 to do. That PR is routed straight to the mode-appropriate direct gate per `SKILL.md` instead.
@@ -405,6 +405,15 @@ same-worktree protections.
   or no subagent tools to dispatch to: leave the thread unresolved, do not merge, and report the PR with the
   addressed-but-unresolvable thread named. Never resolve past a refusal, and never reach around the
   wrapper.
+- A merge the gate reported `"action": "enqueue"` (`enqueued: true`) is queued, not merged. Keep
+  the PR and its worktree, and let a later cycle read its state: `MERGED` ends it like any merge; a
+  PR still open and out of the queue goes back through the gate. A merge reported
+  `status: pending`, or a later run reporting `"action": "merge-pending"`, is still live on GitHub
+  and may land whatever the gate now says: report it as "merge may still land", keep the PR, and
+  let the next cycle read it again. `mergeUnconfirmed: true` or `stackVerification.verified` other
+  than `true` goes to a human (`safety.md`, §Async Merge Path).
+- A PR whose snapshot reports `checks.approval_held` waits on a maintainer, not on CI or a fix:
+  report it for human approval and dispatch no worker for it (`stuck-checks.md`).
 - Keep state, cadence updates, and triage reporting in the main agent.
 - Do not duplicate worker work locally while workers are running.
 - Integrate worker results by verifying pushed commits, updating state, pruning clean worktrees,
@@ -836,9 +845,10 @@ Each worker must:
 - **report, never resolve, an addressed-but-unresolvable current bot thread.** A disposition that
   addresses a finding without moving its anchored lines leaves the thread current, so it satisfies
   neither guard above: an `INCORRECT` carrying counter-evidence, a `VALID (defer)` grounded per
-  D4.6, or a prose fix that rewrote elsewhere in the file. That is not a stuck PR and not a silent
-  skip. The worker returns the thread id, the disposition, and where the evidence lives (the reply
-  carrying the counter-evidence, the tracker item id, or the commit SHA), and the orchestrator
+  D4.6, a fix in a linked PR, or a prose fix that rewrote elsewhere in the file. That is not a stuck
+  PR and not a silent skip. The worker returns the thread id, the disposition, and where the
+  evidence lives (the reply carrying the counter-evidence, the tracker item id, the linked PR
+  number, or the commit SHA), and the orchestrator
   routes it to the independent resolution dispatch. Reporting nothing strands the thread, because
   the orchestrator cannot re-derive from a snapshot which current threads were addressed this round.
 - return changed files, tests/checks run, commit SHA, pushed branch, and remaining blockers

@@ -1,0 +1,48 @@
+# External tools scripts/check-declared-prerequisites.mjs looks for in plugin files.
+# One command name per line. A plugin whose files run one of these must declare it
+# in prerequisites.json (docs/conventions/prerequisites/README.md).
+# git, bash, sh and the POSIX utilities are assumed present and are not listed.
+actionlint
+biome
+ccusage
+claude
+ctx7
+curl
+deno
+docker
+dotnet
+duckdb
+ffmpeg
+ffprobe
+firecrawl
+gh
+go
+goimports
+jq
+magick
+markdownlint-cli2
+mmdc
+node
+npm
+npx
+playwright-cli
+pip
+pip3
+pipx
+pnpm
+pwsh
+py
+python
+python3
+rg
+ruff
+shellcheck
+shfmt
+sqlite3
+typos
+uv
+uvx
+wget
+yarn
+yq
+yt-dlp

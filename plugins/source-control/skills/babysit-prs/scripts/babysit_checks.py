@@ -209,6 +209,34 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
     }
 
 
+APPROVAL_HELD = "awaiting_approval"
+# The conclusion GitHub gives a run or check that needs a person to act before
+# it proceeds: a workflow run held for maintainer approval (a first-time or
+# outside contributor's fork PR, or a run GitHub flagged as potentially
+# malicious) or a check run requesting a manual action.
+APPROVAL_HELD_STATES = frozenset({"ACTION_REQUIRED"})
+
+
+def classify_approval_held_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Checks only a person can release, which no push, re-run, or wait clears.
+
+    Pure over already-normalized checks. They stay `failing` in the rollup
+    classification, so the merge gate keeps holding on them; this view exists
+    so the snapshot engine escalates them instead of dispatching a fix worker.
+    """
+    return [
+        {
+            "name": str(check.get("name") or ""),
+            "type": str(check.get("type") or ""),
+            "workflow_name": str(check.get("workflow_name") or ""),
+            "class": APPROVAL_HELD,
+            "details_url": str(check.get("details_url") or ""),
+        }
+        for check in checks
+        if check.get("effective_state") in APPROVAL_HELD_STATES
+    ]
+
+
 STUCK_ORPHANED_STATUS = "orphaned_status"
 STUCK_QUEUED = "stuck_queued"
 STUCK_NEVER_SETTLING = "never_settling"
