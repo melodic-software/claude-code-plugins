@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "why": "P-canonical: says `expectations` should be an array of strings instead of a single string and shows the fix.",
+      "answer": "One structural problem: `expectations` is a single string, but the skill-creator format expects an array of strings, one per check. Change it to:\n\n```json\n\"expectations\": [\"Names the release\"]\n```\n\nThe rest looks right: `skill_name` at the top, an `evals` list, and an eval with an integer `id`, a `prompt`, and an `expected_output`. Once it's an array you can add more checks, such as one for the three-line length."
+    },
+    {
+      "why": "P-alt: same point in different words: the checks belong in a list even when there is only one, and the bare string must be wrapped in brackets.",
+      "answer": "Yes, one thing. Skill-creator reads each eval's checks as a list, even when there's only one, and yours is a bare string. Wrap it in brackets: `\"expectations\": [\"Names the release\"]`. Everything else is in the expected shape. While you're editing, consider turning \"A three-line summary\" into a checkable expectation too, for example \"The summary is exactly three lines\", so the length requirement is graded rather than only described."
+    },
+    {
+      "why": "P-caveat: says `expectations` must be a list of strings; the extra notes about an optional `files` list and the validate-evals check do not touch the graded point.",
+      "answer": "`expectations` should be a list of strings, not a string: `[\"Names the release\"]`. That is the only structural issue I see. If a prompt depends on input files, an eval can also carry a `files` list, but this one doesn't need it. Before you run it, `/skill-quality:check validate-evals` will check the file against the skill-creator schema if you have the skill-quality plugin installed, which catches this kind of type mismatch automatically. Without that plugin, fixing the one field by hand is enough."
+    },
+    {
+      "why": "P-plain: minimal; says to change `expectations` from a string to an array of strings and shows the corrected file.",
+      "answer": "Change `expectations` from a string to an array of strings:\n\n```json\n{\"skill_name\": \"deploy-notes\", \"evals\": [{\"id\": 1, \"prompt\": \"Summarize the deploy notes\", \"expected_output\": \"A three-line summary\", \"expectations\": [\"Names the release\"]}]}\n```\n\nEach item in the array is one assertion checked against the output. Nothing else needs to change: the top-level keys and the other eval fields are already in the right form, so with that one fix the file is ready to use."
+    }
+  ],
+  "fail": [
+    {
+      "why": "F-wrong: confidently blames the key names (`skill_name`, `evals`) and says `expectations` is fine as written.",
+      "answer": "Two keys are named wrong. The top-level `skill_name` should be `name`, and the list of cases should sit under `tests`, not `evals`; the loader looks for those exact keys and finds zero cases otherwise. Rename both:\n\n```json\n{\"name\": \"deploy-notes\", \"tests\": [ ... ]}\n```\n\nThe fields inside each case, `id`, `prompt`, `expected_output` and `expectations`, are fine as written, so leave them alone. After the rename, run it once and confirm it reports one case loaded rather than none."
+    },
+    {
+      "why": "F-partial: flags only coverage and an optional `files` list; it never says `expectations` should be an array, so the one required point is missing.",
+      "answer": "It parses, and the top-level shape matches the skill-creator format: `skill_name` plus an `evals` list whose entry has an integer `id`, a `prompt`, and an `expected_output`. The main gap is coverage rather than structure. One eval won't tell you much, so add a few more with different kinds of deploy notes, including a short one and a messy one. If any of those prompts read input files, give the eval a `files` list naming them."
+    },
+    {
+      "why": "F-retract: says an array is the textbook form, then says a plain string is accepted and the file works as written.",
+      "answer": "Strictly, `expectations` is meant to be an array of strings, so the textbook form is `[\"Names the release\"]`. You don't need to change it, though: with a single expectation, skill-creator accepts a plain string and treats it as a one-item list, so your file works as written. Switch to an array only when you add a second expectation. The other fields, `skill_name`, `evals`, `id`, `prompt` and `expected_output`, are all fine."
+    },
+    {
+      "why": "F-near: says the JSON is structurally fine and that a string works for `expectations`.",
+      "answer": "Structurally it's fine. `expectations` accepts either a single string or an array, and a string is the natural choice when there's only one thing to check, so \"Names the release\" works as is. The `id` is an integer, `prompt` and `expected_output` are present, and `skill_name` sits at the top level where it belongs. If you want stronger coverage, add more evals rather than more fields; one case is a thin sample."
+    }
+  ]
+}

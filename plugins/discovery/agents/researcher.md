@@ -268,14 +268,18 @@ Run the skill's outcome gate against your own artifacts before the final write. 
 choices, and you are the context that made them:
 
 - the criterion requiring ≥2 **independent** corroborators per claim (a floor below criterion 7),
-- the criterion requiring every accepted claim to be HIGH confidence, and
+  or a `single source` reason that holds for a first-party content claim,
+- the criterion requiring every accepted claim to be HIGH confidence, `HIGH (single source)`
+  included, and
 - the criterion requiring every accepted claim to follow jointly from its cited sources.
 
 The gate's Owner column is the authority; where this list and that column differ, the column wins.
 Assemble the evidence those criteria need, since per-claim source URLs with their tier, publishing
 pool, what each measured, when it was published, and which product versions it applies to go in
 the sidecar headers, which is what lets a verifier who never saw your run grade them off
-the artifact, then hand them back as a verification request. Project fit against the consuming
+the artifact, then hand them back as a verification request. A claim you flag `single source`
+carries its reason in the header's `single_source:` field, because that reason is what the
+verifier grades in place of a corroborator count. Project fit against the consuming
 project's conventions is the parent's; it alone holds them. Every other criterion is yours, and the
 coverage ledger's and source applicability's verdicts are their scripts' exit statuses, not your
 reading of the table or the headers.

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No. `claude plugin eval` loads a plugin, not a bare skill folder, so wrap the skill first:\n\n```\nreview-notes-plugin/\n  .claude-plugin/plugin.json   {\"name\": \"review-notes\"}\n  skills/review-notes/SKILL.md\n  evals/...\n```\n\nPoint the command at `review-notes-plugin/`. The no-plugin arm then runs without the skill, which is the baseline you want.\n\nTo tell whether the skill was used, give each case a `tool_used` grader on `tool: Skill` with `input_match: review-notes`, and read it on the with-plugin arm. The no-plugin arm has no skill to call, so the score delta alone can't tell you whether it fired. Keep the plugin name matching the skill so the results are easy to read.",
+      "why": "P-canonical: says the command loads a plugin, not the bare folder, and to wrap it with `.claude-plugin/plugin.json` and point the command at the wrapper."
+    },
+    {
+      "answer": "Not as it stands. The eval harness only loads plugins, and every delta it reports is that plugin against no plugin. Scaffold a wrapper with `claude plugin init review-notes`, move your SKILL.md in under `skills/review-notes/`, add the eval cases, and run the command on the scaffolded plugin.\n\nFor whether it fired, the delta won't answer that. Add a `tool_used` grader for the Skill tool with `input_match` naming review-notes; it tells you directly whether the skill was invoked in the with-plugin runs. The no-plugin arm runs the same cases without the skill, so it is your baseline.",
+      "why": "P-alt: says the harness only loads plugins and to scaffold a wrapper with `claude plugin init review-notes`, then run the command on it."
+    },
+    {
+      "answer": "You can't point it at the bare folder: the runner's unit is a plugin, so a lone SKILL.md isn't a target. Wrap it in a minimal plugin, a directory with `.claude-plugin/plugin.json` naming it, your skill under `skills/review-notes/`, and the eval cases beside it, then point `claude plugin eval` at that directory.\n\nFor usage, add a `tool_used` grader on `tool: Skill`, optionally with `input_match: review-notes`. Two things to expect: it can only pass in the with-plugin arm, because the no-plugin arm has no skill to invoke, and it answers a different question from the delta. Read the indicator before crediting the skill with any gain.",
+      "why": "P-caveat: cannot take the bare folder because the runner loads a plugin; wrap with `.claude-plugin/plugin.json` and point at it; extra notes about the indicator do not touch the graded point."
+    },
+    {
+      "answer": "No, the command expects a plugin. Create a minimal one around the skill: add `.claude-plugin/plugin.json` with `{\"name\": \"review-notes\"}`, put the skill at `skills/review-notes/SKILL.md`, add your eval cases, and point `claude plugin eval` at the new plugin root.\n\nTo see whether the skill was used, compare the two arms. If the with-plugin score is clearly above the no-plugin baseline, the skill was being picked up; a delta near zero suggests it never fired. Run the cases at the default 3 runs so the comparison isn't a single noisy sample, and check that the plugin name in the manifest matches what you expect in the results.",
+      "why": "P-plain: wraps the skill in a minimal plugin and points the command at it; wrong on the sibling point (relies on the score delta)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, point it straight at the folder: `claude plugin eval ./review-notes`. When the target has a `SKILL.md` and no manifest, the CLI treats the folder as a single-skill plugin, so you don't need any wrapping.\n\nTo tell whether the skill was used, add a `tool_used` grader on the Skill tool with `input_match: review-notes`. That records whether the skill was invoked in the with-skill runs, which the score delta can't show on its own, since the baseline arm never has the skill. Add your cases under an `evals/` folder next to SKILL.md and run it as usual.",
+      "why": "F-wrong: says the command works on the bare folder and detects the skill automatically; sibling point is right."
+    },
+    {
+      "answer": "No. `claude plugin eval` loads plugins, so a standalone folder holding only `review-notes/SKILL.md` isn't something it can run against, and the with-versus-without comparison it reports is always a plugin against no plugin.\n\nFor the second question, don't rely on the score delta. Add a `tool_used` grader on `tool: Skill` with `input_match: review-notes` to each case; in the with-plugin runs it records whether the skill was actually invoked, which the no-plugin arm can never do. Keep the grader on the result separate from this one, so you can tell \"the answer was right\" apart from \"the skill is why\".",
+      "why": "F-partial: says the command cannot take the bare folder but never says to wrap the skill in a minimal plugin and point the command at it."
+    },
+    {
+      "answer": "The documented route is to wrap it: add `.claude-plugin/plugin.json` around the skill so the runner loads it as a plugin, then point the command at that wrapper.\n\nYou can skip that step now, though. Current versions of `claude plugin eval` generate a temporary manifest when the target holds only a `SKILL.md`, so `claude plugin eval ./review-notes` works on the folder as it is.\n\nTo see whether the skill was used, add a `tool_used` grader on the Skill tool with `input_match: review-notes` to each case and read it on the with-skill arm.",
+      "why": "F-retract: gives the wrap route, then retracts it by saying the command wraps the folder automatically."
+    },
+    {
+      "answer": "Not as a positional target, since the command expects a plugin root, but there's a flag for exactly this case:\n\n```bash\nclaude plugin eval --skill ./review-notes\n```\n\nIt loads the folder as the only component of a temporary plugin and runs the usual with-versus-without comparison.\n\nFor whether the skill was used, add a `tool_used` grader on `tool: Skill` with `input_match: review-notes`; in the with-skill runs it records whether the skill was actually invoked. Put your cases in an `evals/` folder beside SKILL.md; the flag picks them up from there. Keep a separate grader on the answer itself so a right answer and a fired skill are scored apart.",
+      "why": "F-near: invents a `--skill` flag instead of wrapping, which the rubric lists as a FAIL; sibling point is right."
+    }
+  ]
+}

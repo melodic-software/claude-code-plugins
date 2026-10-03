@@ -1,6 +1,6 @@
 {
   "method": "listing-overlap",
-  "generated_at": "2026-09-28T18:27:15Z",
+  "generated_at": "2026-10-01T21:59:26Z",
   "skills": [
     {
       "skill": "mcp-tools:audit",
@@ -44,9 +44,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 38,
+          "target_score": 27,
           "winner": "mcp-tools:audit",
-          "request": "check MCP tool descriptions before I ship the server"
+          "request": "before I ship this MCP server, are the descriptions on its tools clear enough for a model to pick them"
         },
         {
           "id": "pos-train-03",
@@ -54,9 +54,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 37,
+          "target_score": 25,
           "winner": "mcp-tools:audit",
-          "request": "review MCP server quality of our tool definitions"
+          "request": "how well designed are the tools our MCP server exposes"
         },
         {
           "id": "pos-train-04",
@@ -84,9 +84,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 26,
+          "target_score": 12,
           "winner": "mcp-tools:audit",
-          "request": "check the _meta annotations on these tools"
+          "request": "do these tools set the _meta fields Claude Code reads"
         },
         {
           "id": "pos-val-01",
@@ -94,9 +94,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 22,
+          "target_score": 20,
           "winner": "mcp-tools:audit",
-          "request": "are my server instructions too long"
+          "request": "the instructions block on my MCP server feels bloated, is it over budget"
         },
         {
           "id": "pos-val-02",
@@ -262,7 +262,7 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 30,
+          "target_score": 31,
           "winner": "skill-quality:check",
           "request": "check this skill before I publish it"
         },
@@ -272,9 +272,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 27,
+          "target_score": 16,
           "winner": "skill-quality:check",
-          "request": "is this SKILL.md valid"
+          "request": "will this SKILL.md load without frontmatter errors"
         },
         {
           "id": "pos-train-03",
@@ -292,7 +292,7 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 35,
+          "target_score": 36,
           "winner": "skill-quality:check",
           "request": "validate skill quality on plugins/foo/skills/bar"
         },
@@ -302,9 +302,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 31,
+          "target_score": 15,
           "winner": "skill-quality:check",
-          "request": "check skill before publishing"
+          "request": "I am about to publish this skill, is anything wrong with it"
         },
         {
           "id": "pos-train-06",
@@ -312,7 +312,7 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 39,
+          "target_score": 41,
           "winner": "skill-quality:check",
           "request": "validate evals.json for my new skill"
         },
@@ -322,9 +322,9 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 32,
+          "target_score": 16,
           "winner": "skill-quality:check",
-          "request": "is the skill listing overflowing"
+          "request": "are some of my skill descriptions getting cut off because there are too many"
         },
         {
           "id": "pos-val-02",
@@ -342,7 +342,7 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 31,
+          "target_score": 32,
           "winner": "skill-quality:check",
           "request": "validate skill frontmatter before I ship"
         },

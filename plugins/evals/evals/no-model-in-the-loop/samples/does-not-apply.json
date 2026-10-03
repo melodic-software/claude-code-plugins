@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "LLM evals don't fit this repo: nothing in the Go tool calls a model, so there is no model output to evaluate. What your manager probably wants is confidence the tool behaves correctly, and ordinary Go tests give that. Add table-driven unit tests for the parser, golden-file tests that compare output for sample CSVs, and a fuzz test (`go test -fuzz`) for malformed input, all running under `go test ./...` in CI.",
+      "why": "P-canonical: says LLM evals do not apply because nothing calls a model, and recommends ordinary Go tests, which the rubric allows."
+    },
+    {
+      "answer": "There's nothing here for an LLM eval to measure. Those evals score what a model produces, and this CSV parser never sends anything to a model; every output comes from deterministic Go code. So tell your manager the right quality check for this repo is its test suite: `go test ./...` with table-driven cases, golden files for representative CSVs, and fuzzing for edge cases like quoted commas and odd encodings.",
+      "why": "P-alt: makes the same point indirectly (nothing for an LLM eval to measure; the parser never calls a model) and designs no LLM eval."
+    },
+    {
+      "answer": "Short answer: LLM eval design doesn't apply. The tool parses CSV files in Go and nothing in it calls a model, so there is no model behavior to grade. Cover it with standard Go testing instead: table-driven tests, golden files and fuzzing. One caveat worth raising with your manager: if the request really comes from a plan to add an AI feature later, that feature would need LLM evals when it lands. Until then, there's nothing for them to evaluate.",
+      "why": "P-caveat: says it does not apply and why; the caveat about a possible future AI feature neither proposes adding a model call nor designs an eval."
+    },
+    {
+      "answer": "You shouldn't set any up. LLM evals measure the behavior of a model, and nothing in this Go command-line tool calls one: it reads CSV files and produces deterministic output. LLM eval design simply doesn't apply to this repository, and building a suite anyway would measure nothing. Explain that to your manager plainly rather than inventing a suite to satisfy the request.",
+      "why": "P-plain: minimal: LLM eval design does not apply because no model is called; no tests suggested (this case has no sibling graders)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Treat the tool's output as something to grade. Build 30 representative CSV files, run the tool on each, and pass the input plus the output to an LLM judge with a rubric: are all rows preserved, are quoted fields handled correctly, are error messages clear and helpful? Score each on a 1 to 5 scale, set a target average of 4.5, and run the suite in CI. Pair it with a few exact-match checks on row counts so the cheap failures are caught without a model call.",
+      "why": "F-wrong: designs an LLM-judge eval over the tool's CSV output and never says LLM evals do not apply."
+    },
+    {
+      "answer": "Set them up as a Go test suite. Create a `testdata/` folder of sample CSVs covering clean files, quoted commas, embedded newlines, empty fields and bad encodings. Write table-driven tests that run the parser on each and compare against golden output files, and add a fuzz target with `go test -fuzz` to catch crashes on malformed input. Run everything with `go test ./...` in CI and report the pass rate to your manager as the eval score.",
+      "why": "F-partial: designs no LLM eval, but never says LLM eval design does not apply because nothing calls a model (the one missing point); it presents Go tests as the requested evals."
+    },
+    {
+      "answer": "Strictly speaking, LLM evals don't apply: nothing in the Go tool calls a model. Ordinary table-driven tests and golden files cover the parser. Still, to give your manager what they asked for, add a small LLM eval on top: feed twenty tricky CSV files through the tool and have a model judge rate whether each output looks correct and whether error messages are understandable, on a 1 to 5 scale. Track the average in CI as your LLM eval score alongside the regular tests.",
+      "why": "F-retract: says it does not apply, then designs an LLM-judge eval over the CSV output anyway."
+    },
+    {
+      "answer": "Right now there's nothing for an LLM eval to measure, since the tool never calls a model. The way to make the request meaningful is to give it one: add an `--explain` flag that sends parse errors to a model and returns a plain-English fix suggestion. Then build evals around that feature: 25 malformed CSV files, an expected-fix note for each, and a rubric judge scoring whether the suggestion is correct and actionable. Your existing Go tests keep covering the parser itself.",
+      "why": "F-near: correctly notes no model is called, then proposes adding a model call so LLM evals can be built, which the FAIL list names."
+    }
+  ]
+}
