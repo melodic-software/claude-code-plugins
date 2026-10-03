@@ -12,8 +12,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parent
-sys.path.insert(0, str(HERE))
-import render  # noqa: E402
+_spec = importlib.util.spec_from_file_location('explainer_video_render', HERE / 'render.py')
+render = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(render)
 
 HAVE_DEPS = importlib.util.find_spec('manim') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
 REQUIRE = os.environ.get('EXPLAINER_VIDEO_REQUIRE_DEPS') == '1'

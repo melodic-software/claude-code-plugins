@@ -62,7 +62,7 @@ The lock carries a hash for every wheel and source archive; `scripts/pydeps.py` 
 ## Tests
 
 `scripts/explainer-video.test.sh` runs the installer and check-function suites with the standard
-library. The two real renders in `test_render.py` need ManimCE, ffmpeg and ffprobe, and skip
+library. The two real renders in `test_explainer_video_render.py` need ManimCE, ffmpeg and ffprobe, and skip
 without them; run them through the launcher with `EXPLAINER_VIDEO_REQUIRE_DEPS=1` so a missing
 dependency fails instead. `hooks/install-python-deps.test.sh` covers the install hook against a
 local fixture wheel.
