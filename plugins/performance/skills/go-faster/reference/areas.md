@@ -2,8 +2,8 @@
 
 The sweeper walks this file top to bottom: one entry per area, current state first (setup, CI and
 review history), then the session so far. Every area ends with at least one finding: measured,
-candidate, flag-only, or `not-checked` with its reason code and the instrument that would enable
-it. Finding fields are the record table in the `go-faster-sweeper` agent; this file says what to
+candidate, flag-only, or `not-checked` with its reason code and reason (the reason rule is under
+**Not checked** below). Finding fields are the record table in the `go-faster-sweeper` agent; this file says what to
 run and what to record for each area.
 
 Contents: [git](#git), [hooks](#hooks), [permissions](#permissions),
@@ -22,8 +22,12 @@ Each entry gives:
 - **Record**: the finding to add, with its fixed `workload` text where it is measured. `compare`
   matches `workload` verbatim, so copy it exactly.
 - **Not checked**: the condition, the reason code, and the `reason` text to use word for word.
-  Fill each `<...>` slot with what it names and copy the rest unchanged. Where a step would make
-  the area checkable, the reason names that step.
+  Fill each `<...>` slot with what it names and copy the rest unchanged. Every not-checked reason
+  states why the area was not checked, then either (a) the step that would make the area
+  checkable on a later go-faster run, named only when that run would in fact read it, or (b) the
+  scope that makes the area inapplicable here ("applies only ..."). It never names a step
+  go-faster would still not read, and never suggests creating or changing something (CI,
+  instruction files, delegation, security or elevation settings) only so go-faster can measure it.
 - **Guard**: the flag-only rule, where one applies.
 - **Catalog**: the catalog files and area slugs whose rows back a candidate or a remedy.
 
@@ -66,11 +70,16 @@ Each entry gives:
   `"$PY" "$ROOT/scripts/findings.py" pr-timing`. Each runs gh itself, with `GH_CONFIG_DIR` as above,
   and prints JSON whose numbers are objects with `value`, `unit`, `samples`, `excluded` and
   `command`; record `value` and `unit` as printed and copy `command` into the finding. A number
-  whose `samples` is 0 is not recorded as measured; an area left with no recorded number is
-  `not-checked`, `no-data`, reason "every timed sample was excluded (<excluded> excluded)". Never run
+  whose `samples` is 0 is not recorded as measured. An area left with no recorded number is
+  `not-checked`, `no-data`: when the call listed nothing (`runs_listed` or `prs` is 0), with the
+  area's own reason below. Otherwise count the excluded items: the number's `excluded`, plus
+  `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
+  (<that count> excluded): their timestamps were missing or unparseable". Zero: reason "the runs
+  or pull requests read had no job, step or review to time". Never run
   `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1
   makes every area fed by that call `not-checked`, `auth-gap`, reason "<the error line it
-  printed>; run `gh auth status`, and `gh auth login` if it shows no login for this host".
+  printed>; run `gh auth status`, and `gh auth login` if it shows no login for this host, then
+  rerun /performance:go-faster".
 - **History is not contended.** CI, review and job timestamps were recorded before this sweep, so
   findings built from them are tier E2 (aggregate) in both modes. Only timings the sweeper takes
   itself follow the contention rule.
@@ -159,13 +168,14 @@ them live when a command's output, or the files you find, do not match the entry
   read is not `true` is a candidate, tier E3, title naming the `volume=` it printed,
   `expected_size` null (a status time in ms is not a count, so it sorts unsized), `command` `bash "$ROOT/scripts/untracked-cache-probe.sh"`, `fix_owner` `steps-for-you`, horizon
   `later`, route `next-run`. Exit 1 (`unsupported`) or a config already `true` adds nothing.
-- **Not checked**: outside a repository: `no-data`, reason "not inside a git repository". A guard
-  refuses status-timing: `refused-by-guard`, reason "git status timing refused by a guard; time
-  `git --no-optional-locks status` yourself to measure it". Probe exit 2: a second `git` finding,
-  `not-checked` with the `reason_code=` it printed and its `reason=` text. A guard refuses the
-  probe call itself: `refused-by-guard`, reason "untracked-cache probe refused by a guard; run
-  `git update-index --test-untracked-cache` yourself in a scratch directory on this volume to
-  test it".
+- **Not checked**: outside a repository: `no-data`, reason "not inside a git repository; run
+  /performance:go-faster from inside the repository's working tree". A guard refuses
+  status-timing: `refused-by-guard`, reason "git status timing refused by a guard; this area
+  applies only where this session's guards allow `git status`". Probe exit 2: a second `git`
+  finding, `not-checked` with the `reason_code=` it printed and its `reason=` text. A guard
+  refuses the probe call itself: `refused-by-guard`, reason "untracked-cache probe refused by a
+  guard; this check applies only where this session's guards allow the probe;
+  `git update-index --test-untracked-cache` tests it separately, outside go-faster".
 - **Guard**: none.
 - **Catalog**: [catalog/git.md](catalog/git.md) rows with area `git`;
   [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
@@ -203,9 +213,10 @@ them live when a command's output, or the files you find, do not match the entry
 - **Record**: one `flag-only` finding per scope that has ask or deny rules: title
   "<n> ask and <m> deny rules in <scope>", reason "a permission rule that asks or denies is a
   safety guard; loosening it is yours to decide; prompt counts need OpenTelemetry tool_decision
-  events, which no installed skill reports yet".
+  events, which this version does not read".
 - **Not checked**: no ask or deny rule in any scope read: `no-data`, reason "no ask or deny rule
-  in <scopes read>; prompt timing needs OpenTelemetry tool_decision events" plus the unread scopes.
+  in <scopes read>; prompt timing needs OpenTelemetry tool_decision events, which this version
+  does not read" plus the unread scopes.
 - **Guard**: every finding in this area is `flag-only`.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) rows with area `permissions`;
   [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
@@ -229,7 +240,7 @@ them live when a command's output, or the files you find, do not match the entry
   instruction tokens on its own, add a measured finding instead: unit `tokens`, tier E2, workload
   `startup ledger, latest row`, `command` `/context-budget:audit --ledger`.
 - **Not checked**: no instruction file exists: `no-data`, reason "no always-loaded instruction
-  file found".
+  file found: nothing loads at launch, so there is no instruction cost to measure".
 - **Guard**: an instruction that blocks, denies or asks is a guard; a finding that would remove or
   relax one is `flag-only`. A speedup that conflicts with a loaded instruction sets
   `conflicts_instruction` to the file and line, and is `flag-only`.
@@ -246,7 +257,7 @@ them live when a command's output, or the files you find, do not match the entry
   total, tier E2, workload `startup ledger, latest row`, `command` `/context-budget:audit --ledger`,
   `fix_owner` `/context-budget:audit`, horizon `later`, route `performance-chain`.
 - **Not checked**: no history rows: `no-data`, reason "startup cost needs /context-budget:audit
-  ledger history; run /context-budget:audit yourself". Owner missing or stopped per the owner
+  ledger history; run /context-budget:audit yourself, then rerun /performance:go-faster". Owner missing or stopped per the owner
   table: `owner-unavailable`, with the owner-call table's reason.
 - **Guard**: none.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) rows with area `plugins-startup`;
@@ -264,7 +275,8 @@ them live when a command's output, or the files you find, do not match the entry
   E1 (unattended), workload `spawn ab x20, main session active` or
   `spawn ab x20, main session waiting`, `command` the ab.sh line, `fix_owner`
   `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`.
-- **Not checked**: not a Git Bash host: `no-data`, reason "not a Git Bash on Windows host". ab.sh
+- **Not checked**: not a Git Bash host: `no-data`, reason "not a Git Bash on Windows host; this
+  area applies only on Windows under Git Bash". ab.sh
   exits 2: `no-data`, reason "spawn timing refused: <its first stderr line>; fix what that line
   names and rerun /performance:go-faster". ab.sh exits 1: `no-data`, reason "spawn timing failed:
   <its first stderr line>; rerun /performance:go-faster unattended while the machine is idle".
@@ -276,12 +288,12 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## machine
 
-- **Source**: an elevated performance recording the user runs. This version has no input that
-  carries one, so the area is always `not-checked`.
+- **Source**: none. This version reads no machine performance recording, so the area is always
+  `not-checked`.
 - **Run**: nothing.
 - **Owner**: none.
-- **Record**: `not-checked`, `needs-elevation`, reason "needs an elevated performance recording;
-  flag-only".
+- **Record**: `not-checked`, `no-data`, reason "this version reads no performance
+  recording; machine remedies are flag-only".
 - **Not checked**: always, as above.
 - **Guard**: every machine remedy (an antivirus exclusion, moving work to a Dev Drive, any change
   to a security setting) is `flag-only`, whatever evidence a later version holds.
@@ -301,7 +313,9 @@ them live when a command's output, or the files you find, do not match the entry
   for run length from `run_length` (per run, latest job `completed_at` minus earliest job
   `started_at`, median): unit `ci-minutes`, same tier and workload. Both horizon `later`, route
   `performance-chain`.
-- **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this repository".
+- **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
+  repository; this area applies once this repository has completed GitHub Actions runs; this
+  sweep reads GitHub Actions only".
   GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: none beyond `gates`.
 - **Catalog**: [catalog/ci-cd.md](catalog/ci-cd.md) and
@@ -319,8 +333,10 @@ them live when a command's output, or the files you find, do not match the entry
   verifying check (test, lint, build, type or security check) or a guard. A remedy that runs it on
   fewer changes is `effect: fewer-checks` with a `guard_metric`; one that drops or weakens it goes
   to `/overengineering:audit`; a step you cannot classify is `flag-only` with the reason.
-- **Not checked**: `runs_listed` is 0 or `slowest_step` has `samples` 0: `no-data`, reason "no
-  completed CI runs to time". GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that
+- **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
+  repository; this area applies once this repository has completed GitHub Actions runs; this
+  sweep reads GitHub Actions only". Runs listed but `slowest_step` has `samples` 0: `no-data`,
+  with the shared samples-0 reason above. GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that
   reason.
 - **Guard**: a step that blocks a merge or a deploy (a required check, an approval gate) is a
   guard; a finding that would skip or relax it is `flag-only`.
@@ -340,7 +356,8 @@ them live when a command's output, or the files you find, do not match the entry
   `merged PRs, last 20`, `command` its `command`, horizon `later`, route `next-run`. PR size is a
   candidate only: `expected_size`
   `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`.
-- **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time". GitHub probe
+- **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time; this area
+  applies once this repository has merged pull requests on GitHub". GitHub probe
   failed or `pr-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: a required review or approval is a guard; a finding that would skip or relax one is
   `flag-only`.
@@ -360,7 +377,9 @@ them live when a command's output, or the files you find, do not match the entry
   `ci steps, last 5 completed runs`, `command` its `command`. Running fewer tests per change is
   `effect: fewer-checks` with a `guard_metric`; deleting or weakening tests goes to
   `/overengineering:audit`.
-- **Not checked**: `runs_listed` is 0: `no-data`, reason "no CI runs to read test outcomes from".
+- **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
+  repository; this area applies once this repository has completed GitHub Actions runs; this
+  sweep reads GitHub Actions only".
   GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: as `gates`.
 - **Catalog**: [catalog/ci-cd.md](catalog/ci-cd.md),
@@ -380,8 +399,12 @@ them live when a command's output, or the files you find, do not match the entry
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
   with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
   changed since the earlier run". Everything else is `later`.
-- **Not checked**: `EVIDENCE` false or `TRANSCRIPT` `none`: `no-data`, reason "no session evidence
-  yet".
+- **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
+  found for session unknown: the session id did not expand; this area reads only the live
+  session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
+  for session <SESSION>: its transcript file is missing; this area reads only the live session's
+  transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
+  /performance:go-faster after this session has done some work".
 - **Guard**: none beyond the rules above.
 - **Catalog**: [catalog/agentic-workflow.md](catalog/agentic-workflow.md) rows with area
   `session-work`; [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
@@ -392,8 +415,8 @@ them live when a command's output, or the files you find, do not match the entry
   version does not call it.
 - **Run**: nothing.
 - **Owner**: session-flow (later, once it offers a read-only consumer mode).
-- **Record**: `not-checked`, `no-data`, reason "needs a cross-session baseline; run
-  /session-flow:audit-sessions".
+- **Record**: `not-checked`, `no-data`, reason "needs a cross-session baseline go-faster cannot
+  read yet; /session-flow:audit-sessions shows it separately".
 - **Not checked**: always, as above.
 - **Guard**: none.
 - **Catalog**: [catalog/agentic-workflow.md](catalog/agentic-workflow.md) rows with area
@@ -408,9 +431,14 @@ them live when a command's output, or the files you find, do not match the entry
   per skill invoked more than once: tier E3, `expected_size`
   `{count: <invocations>, source_kind: session-count, source: "skill invocations this session"}`,
   horizon `later`, route `next-run`.
-- **Not checked**: no session evidence: `no-data`, reason "no session evidence yet". Counts but no
-  fetchable row: `no-data`, reason "skill fit needs a catalog row this run could fetch; counts
-  alone show which skills ran, not whether they fit".
+- **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
+  found for session unknown: the session id did not expand; this area reads only the live
+  session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
+  for session <SESSION>: its transcript file is missing; this area reads only the live session's
+  transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
+  /performance:go-faster after this session has done some work". Counts, and a row whose fetch failed: `no-data`, reason
+  "WebFetch of <pointer> failed; rerun with network access to that host". Counts but no row whose
+  cause these counts size: `no-data`, reason "no catalog row covers this cause".
 - **Guard**: none.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) and
   [catalog/agentic-workflow.md](catalog/agentic-workflow.md) rows with area `skills`;
@@ -425,8 +453,13 @@ them live when a command's output, or the files you find, do not match the entry
   naming the call count and `subagents`, tier E1, workload `transcript counts`, `command` the
   transcript-counts line, `fix_owner` `/multi-agent:assess`, horizon `later`, route `next-run`.
   A delegation, parallelism or batching change may be `now` only when it meets every `now` rule.
-- **Not checked**: no session evidence: `no-data`, reason "no session evidence yet". No subagent
-  calls: `no-data`, reason "no subagent calls in this session".
+- **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
+  found for session unknown: the session id did not expand; this area reads only the live
+  session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
+  for session <SESSION>: its transcript file is missing; this area reads only the live session's
+  transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
+  /performance:go-faster after this session has done some work". No subagent calls: `no-data`,
+  reason "this session made no subagent calls, so there is no delegation time to measure".
 - **Guard**: a change that lowers a subagent's model or effort, or drops its verification, is
   `flag-only`.
 - **Catalog**: [catalog/agentic-workflow.md](catalog/agentic-workflow.md) rows with area
@@ -440,7 +473,12 @@ them live when a command's output, or the files you find, do not match the entry
 - **Record**: a measured finding, unit `tokens`, value `cache_creation`, title naming
   `cache_read` and `input` beside it, tier E1, workload `transcript counts`, `command` the
   transcript-counts line, horizon `later`, route `next-run`. Counts only, never a price.
-- **Not checked**: no session evidence: `no-data`, reason "no session evidence yet".
+- **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
+  found for session unknown: the session id did not expand; this area reads only the live
+  session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
+  for session <SESSION>: its transcript file is missing; this area reads only the live session's
+  transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
+  /performance:go-faster after this session has done some work".
 - **Guard**: a lower model or effort is `flag-only` (`effect: lower-model` or `lower-effort`).
 - **Catalog**: [catalog/harness.md](catalog/harness.md) and
   [catalog/measurement.md](catalog/measurement.md) rows with area `model-cache`;

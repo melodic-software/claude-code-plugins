@@ -671,4 +671,22 @@ assert_eq "a PR with an unparseable review time is excluded from first review an
   "$(q '"\(.first_review.value) \(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
+# --- 27. transcript-counts: with no go-faster invocation, every tool call is prior work ---
+# Section 17's calls without the go-faster one: t1 (streamed twice, one call), t2, t3, t4, t5.
+{
+  use 1 m1 t1 Read '{"file_path":"a.py"}' 5
+  use 1 m1 t1 Read '{"file_path":"a.py"}' 7
+  result 3 t1 false
+  use 4 m2 t2 Read '{"file_path":"a.py"}' 5
+  result 5 t2 true
+  use 6 m3 t3 Bash '{"command":"make test"}' 5
+  result 16 t3 false
+  use 17 m4 t4 Bash '{"command":"make test"}' 5
+  result 27 t4 false
+  use 28 m5 t5 Skill '{"skill":"performance:goal"}' 5
+  result 29 t5 false
+} >"$WORK/no-invocation.jsonl"
+run transcript-counts "$WORK/no-invocation.jsonl"
+assert_eq "with no go-faster invocation, work before it is every tool call" "5" "$(q .work_before_invocation)"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

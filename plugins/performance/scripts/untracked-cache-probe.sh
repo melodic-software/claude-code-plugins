@@ -87,30 +87,30 @@ volume_of() { # <path>
 
 while [[ "$ROOT" == */ && "$ROOT" != / ]]; do ROOT="${ROOT%/}"; done
 if [[ -z "$ROOT" || "$ROOT" == / || "$ROOT" =~ ^(/[A-Za-z]|[A-Za-z]:[/\\]?)$ ]]; then
-  not_checked no-data "scratch root '$ROOT' is empty, / or a drive root"
+  not_checked no-data "scratch root '$ROOT' is empty, / or a drive root; this check applies only when its scratch root (\$TMPDIR, else /tmp) is a directory below a root"
 fi
-[[ -d "$ROOT" ]] || not_checked no-data "scratch root '$ROOT' is not a directory"
+[[ -d "$ROOT" ]] || not_checked no-data "scratch root '$ROOT' is not a directory; this check applies only when its scratch root (\$TMPDIR, else /tmp) is an existing directory"
 
-command -v git >/dev/null 2>&1 || not_checked no-data "git is not on PATH"
+command -v git >/dev/null 2>&1 || not_checked no-data "git is not on PATH; this check applies only where git runs"
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" ||
-  not_checked no-data "not inside a git working tree"
+  not_checked no-data "not inside a git working tree; run /performance:go-faster from inside the repository's working tree"
 
 REPO_VOLUME="$(volume_of "$REPO")"
 SCRATCH_VOLUME="$(volume_of "$ROOT")"
 printf 'volume=%s\nscratch_volume=%s\n' "${REPO_VOLUME:-unknown}" "${SCRATCH_VOLUME:-unknown}"
 [[ -n "$REPO_VOLUME" && -n "$SCRATCH_VOLUME" ]] ||
-  not_checked no-data "could not read the volume of '$REPO' or '$ROOT' with df"
+  not_checked no-data "could not read the volume of '$REPO' or '$ROOT' with df; this check applies only where df reports both volumes"
 [[ "$REPO_VOLUME" == "$SCRATCH_VOLUME" ]] ||
-  not_checked no-data "scratch root is on $SCRATCH_VOLUME, the repository on $REPO_VOLUME; pass --scratch-root on $REPO_VOLUME"
+  not_checked no-data "scratch root is on $SCRATCH_VOLUME, the repository on $REPO_VOLUME; this check applies only when its scratch root is on the repository's volume"
 
 if ! SCRATCH="$(mktemp -d "$ROOT/${PREFIX}XXXXXX" 2>&1)"; then
   error="$SCRATCH"
   SCRATCH=""
-  not_checked refused-by-guard "could not create a scratch dir under '$ROOT': $error; run git update-index --test-untracked-cache yourself in a scratch directory on this volume to test it"
+  not_checked refused-by-guard "could not create a scratch dir under '$ROOT': $error; this check applies only where a scratch dir can be created there; git update-index --test-untracked-cache tests it separately, outside go-faster"
 fi
 
 if ! init_out="$(cd "$SCRATCH" && git init -q . 2>&1)"; then
-  not_checked no-data "git init in the scratch dir failed: $init_out"
+  not_checked no-data "git init in the scratch dir failed: $init_out; this check applies only where git can create a repository in its scratch root"
 fi
 out="$(cd "$SCRATCH" && git update-index --test-untracked-cache 2>&1)"
 rc=$?
@@ -124,5 +124,5 @@ case "$rc" in
     printf 'result=unsupported\n'
     exit 1
     ;;
-  *) not_checked no-data "git update-index --test-untracked-cache exited $rc" ;;
+  *) not_checked no-data "git update-index --test-untracked-cache exited $rc, which is neither supported (0) nor unsupported (1); this check applies only where git answers one of those" ;;
 esac
