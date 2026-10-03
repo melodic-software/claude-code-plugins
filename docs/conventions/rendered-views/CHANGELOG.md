@@ -3,6 +3,20 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Decks use the account's Slides Artifact type, 2026-10-03
+
+- **New section, Artifact types (#5867).** It says when a producer uses a claude.ai Artifact type
+  instead of the shared builder, finds the type at run time through the Artifact tool's
+  `quickstart`, falls back to the markdown record when the account has no such type, keeps K2
+  content to escaped text, and runs the shared publish gate before the type's create call.
+- **`visualization:present` is the deck lane and the second `artifact` default.** It is listed
+  under Emitters through an Artifact type and in Default ladder and its reconciliation.
+- **The publish gate is a shared library.** `lib/publish-gate.mjs` holds the credential patterns
+  and the gate that `review:explain-change` used inline; both lanes carry a generated copy. It
+  also resolves the trusted medium layers, so a team file can keep a deck local but never publish it.
+- **A K2 deck is held to an allowlist**, read by a quote-aware tokenizer that fails closed, and the
+  create call's title is the one the gate read.
+
 ## The Claude-interactive tier opens to builder pages, 2026-10-03
 
 - **`session-bridge` meets rule 9, and the triage board and plan view adopt the tier (#5868).** Every wait
