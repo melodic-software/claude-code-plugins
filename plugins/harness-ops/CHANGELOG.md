@@ -19,7 +19,9 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `"${CLAUDE_PLUGIN_DATA}"` when no `registry_dir` is configured, and `registry_manager.py`
   refuses an unsubstituted placeholder. An empty `--data-dir` is not given.
   `pathlib.Path("")` normalizes to `Path(".")`, so the flag used to resolve the
-  registry to the current working directory.
+  registry to the current working directory. `check-all.sh` and `report-path.sh`
+  read `$HOME` only when the inherited data directory does not name harness-ops, so
+  an unset `HOME` no longer aborts a run that already has this plugin's directory.
 
 ## [3.6.0] - 2026-10-03
 

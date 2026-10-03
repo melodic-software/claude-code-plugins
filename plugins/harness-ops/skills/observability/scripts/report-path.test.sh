@@ -159,5 +159,10 @@ OUT_X=$(cd "$TEST_TMPDIR/repo-a" && HOME="$TEST_TMPDIR/home" CLAUDE_PLUGIN_DATA=
 assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$OUT_X" "$TEST_TMPDIR/home/.claude/plugins/data/harness-ops/reports/"
 assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no directory" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
 
+# $HOME is read only for that fallback. A value that already names this plugin
+# must still resolve when HOME is unset.
+OUT_NH=$(cd "$TEST_TMPDIR/repo-a" && env -u HOME CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "$DATE" 2>/dev/null)
+assert_contains "an unset HOME still uses a harness-ops CLAUDE_PLUGIN_DATA" "$OUT_NH" "$DATA/reports/"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."

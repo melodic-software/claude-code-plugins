@@ -129,12 +129,15 @@ fi
 # An inherited CLAUDE_PLUGIN_DATA is used only when its last path segment names
 # this plugin: the Bash tool does not carry harness-ops' value, and another
 # plugin's SessionStart hook can export its own data dir under that name.
-DATA_DIR="$HOME/.claude/plugins/data/harness-ops"
 seg="${CLAUDE_PLUGIN_DATA:-}"
 seg="${seg%[/\\]}"
 seg="${seg##*[/\\]}"
 if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
   DATA_DIR="$CLAUDE_PLUGIN_DATA"
+else
+  # Expanded only on the fallback. Under set -u, reading $HOME first aborts a
+  # sanitized environment that already supplied this plugin's data directory.
+  DATA_DIR="$HOME/.claude/plugins/data/harness-ops"
 fi
 COMPONENT_DIR="$DATA_DIR/reports"
 REPORT_DIR="$COMPONENT_DIR/$STATE_KEY"
