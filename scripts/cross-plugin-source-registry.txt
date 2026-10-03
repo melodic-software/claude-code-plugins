@@ -199,20 +199,48 @@ lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
 # lib/session-bridge/wake.sh, generated into plugins/planning/surface/ as above.
 lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
 
-# Dedicated check: scripts/sync-shared-copies.sh --check. Canonicals:
-# lib/session-bridge/. The planning and work-items plugins carry the view app
-# (view_bridge.py, view-bridge.sh) with the bridge beside it in view-bridge/,
-# generated with a header that names the canonical. The arrow lines are the
-# duplication audit's clusters.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/session_bridge.py. The planning and work-items plugins
+# carry it in view-bridge/, beside the view app, generated with a header that
+# names the canonical.
 view-bridge/session_bridge.py
-view-bridge/watch.sh
-view-bridge/wake.sh
-view-bridge/view_bridge.py
-view-bridge/view-bridge.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the view-bridge/ copies.
 lib/session-bridge/session_bridge.py -> plugins/*/view-bridge/session_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/watch.sh, generated into view-bridge/ as above.
+view-bridge/watch.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the view-bridge/ copies.
 lib/session-bridge/watch.sh -> plugins/*/view-bridge/watch.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/wake.sh, generated into view-bridge/ as above.
+view-bridge/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the view-bridge/ copies.
 lib/session-bridge/wake.sh -> plugins/*/view-bridge/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/view_bridge.py (the view app), generated into
+# view-bridge/ as above.
+view-bridge/view_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the view-bridge/ copies.
 lib/session-bridge/view_bridge.py -> plugins/*/view-bridge/view_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/view-bridge.sh (the view app's control script), generated
+# into view-bridge/ as above.
+view-bridge/view-bridge.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the view-bridge/ copies.
 lib/session-bridge/view-bridge.sh -> plugins/*/view-bridge/view-bridge.sh
 
 # No dedicated check: this script's own --check is the gate. The view app's
