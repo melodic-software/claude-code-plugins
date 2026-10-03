@@ -11,6 +11,18 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
+## [0.26.1] - 2026-10-02
+
+### Changed
+
+- Check 8 (vendor/ byte-identity) passes a pure rename inside `vendor/`, since every byte is kept. A rename that also edits content still fails.
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `check` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [0.26.0] - 2026-10-02
 
 ### Added

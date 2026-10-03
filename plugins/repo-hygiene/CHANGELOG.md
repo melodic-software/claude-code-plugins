@@ -11,6 +11,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
+## [0.18.6] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.18.5] - 2026-10-02
 
 ### Changed

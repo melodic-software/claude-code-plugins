@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [0.27.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is shortened to 500 characters, claude.ai's limit.
+
 ## [0.27.0] - 2026-10-02
 
 ### Changed

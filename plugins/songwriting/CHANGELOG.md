@@ -11,6 +11,22 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
+## [1.5.2] - 2026-10-03
+
+### Added
+
+- **Four `object-writing` eval cases that dispatch `object-writer`.** Each runs the `generate`
+  path (90 seconds, 5 minutes, 10 minutes, and two blind writers at once) and grades the write
+  itself: word count against the timer, the easily-missed sense channels, pivot count and drift
+  from the seed, inventory phrases quoted from the write, the mid-word stop, and the return
+  contract. They give an effort comparison for `object-writer` something to measure.
+
+## [1.5.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [1.5.0] - 2026-10-02
 
 ### Changed

@@ -11,6 +11,13 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
+## [0.5.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed

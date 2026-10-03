@@ -10,17 +10,17 @@ metadata:
 
 ## Purpose
 
-Answer "does this host have what the enabled plugins need?" Read `prerequisites.json` in each enabled plugin, probe each declared binary, and print one table. Do not install, download, or run `npx`.
+Answer "does this host have what the enabled plugins need?" Read `prerequisites.json` in each enabled plugin, resolve each declared dependency with the shared Node checker, and print one table. Do not install, download, or run `npx`.
 
-**Claim:** the fleet check lives here, not as a `deps` action on `plugins` and not as a machine-health category. `plugins` brings marketplace versions current and is `disable-model-invocation: true`. This question is read-only and model-invocable. Each plugin that needs a binary declares it in `prerequisites.json` at the plugin root (`name`, optional `local_bin`, `check`, `install`), which this skill and the per-plugin check both read. **Basis:** [skills](https://code.claude.com/docs/en/skills), `disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this skill. ... Default: `false`."), fetched 2026-09-28. **As of:** 2026-09-28. **Recheck:** a Claude Code release adds a manifest field for external binaries, or `plugins` becomes model-invocable for a read-only action.
+**Claim:** the fleet check lives here, not as a `deps` action on `plugins` and not as a machine-health category. `plugins` brings marketplace versions current and is `disable-model-invocation: true`. This question is read-only and model-invocable. Each plugin that needs an external dependency declares it in `prerequisites.json` at the plugin root, in the schema `docs/conventions/prerequisites/` owns, which this skill and the per-plugin check both read. **Basis:** [skills](https://code.claude.com/docs/en/skills), `disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this skill. ... Default: `false`."), fetched 2026-09-28. **As of:** 2026-09-28. **Recheck:** a Claude Code release adds a manifest field for external binaries, or `plugins` becomes model-invocable for a read-only action.
 
 ## Run
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.sh"
+node "${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.mjs"
 ```
 
-The table columns are tool, plugin, present or missing, the check skill, and the documented install command. `missing=N present=M` is the last line. Exit 1 means at least one tool is missing. Exit 2 means no plugin roots could be read.
+The table columns are plugin, id, kind, need, status, the check skill, and the install hints. `missing=N present=M` is the last line. The status is `present`, `missing`, `outdated` (below its version floor), `unverified` (the version could not be read) or `agent-check` (an MCP server only the agent can see). Exit 1 means a required entry is missing or below its floor, and a missing optional entry leaves exit 0. Exit 2 means no plugin roots could be read, the listing was not JSON, or a `prerequisites.json` fails the schema.
 
 With no arguments and a `claude` executable on PATH, the script reads the enabled set and each `installPath` from `claude plugin list --json`. That output lists installs across every project, so it keeps user and managed rows, and project or local rows only when their `projectPath` is the current project (`CLAUDE_PROJECT_DIR`, else the git toplevel); an id resolves by its most specific scope, so user-enabled and project-disabled is disabled. When `claude` is absent or prints nothing, it merges `enabledPlugins` from the settings files instead: the user settings in `~/.claude` (`CLAUDE_CONFIG_DIR` overrides that directory) and the project's `.claude/settings.json` and `settings.local.json`. A file holding any non-Boolean `enabledPlugins` value contributes none of its keys, and the managed scope is not read there. Output that is not a JSON list stops the run with exit 2 instead. Only when none of that state exists does it scan `plugins/*/prerequisites.json` in the current repository; a state with nothing enabled prints an empty table.
 
@@ -33,6 +33,8 @@ With no arguments and a `claude` executable on PATH, the script reads the enable
 - The fleet's versions, a different question: /harness-ops:plugins audit
 
 ## Gotchas
+
+Node is the only runtime this skill needs; the checker is `lib/prerequisites.mjs`, generated from the repository's canonical copy. A plugin whose `prerequisites.json` is still in the retired `tools` shape fails the schema and exits 2.
 
 A missing row is a report, not an install. Do not run `npx`, `npm install`, or `go install` from this skill.
 

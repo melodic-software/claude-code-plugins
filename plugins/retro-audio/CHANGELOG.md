@@ -11,6 +11,12 @@ All notable changes to the `retro-audio` plugin are documented here. Format foll
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
+## [0.1.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.1.1] - 2026-09-29
 
 ### Fixed

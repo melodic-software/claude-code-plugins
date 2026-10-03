@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "gold-0003",
+    "proj"
+  ],
+  "exit": 1,
+  "output": {
+    "status": "warning",
+    "summary": "No main transcript found, but 1 subagent(s) discovered",
+    "data": {
+      "subagents": [
+        {
+          "id": "agent-c1",
+          "type": "general-purpose",
+          "description": "Orphaned subagent with no main transcript"
+        }
+      ]
+    }
+  }
+}

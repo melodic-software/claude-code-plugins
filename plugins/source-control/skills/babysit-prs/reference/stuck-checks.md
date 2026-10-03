@@ -1,8 +1,9 @@
 # Stuck Checks
 
 Routing for checks that degrade `mergeStateStatus` to `UNSTABLE` without ever completing, blocking
-a clean merge-readiness read even when every REQUIRED check is green. Use this only when the
-snapshot reports a non-empty `checks.stuck` array for a PR. That field is the queue signal, and it
+a clean merge-readiness read even when every REQUIRED check is green, and for checks held for
+approval (§Held For Approval). Use this only when the snapshot reports a non-empty `checks.stuck`
+or `checks.approval_held` array for a PR. That field is the queue signal, and it
 is a **report/escalation** signal, never an auto-fix trigger.
 
 ## The Queue Signal
@@ -48,6 +49,34 @@ freshly-started non-required checks are never reported. `orphaned_status` has no
 no start time to age against, and so is detected structurally, not by age. A pending check whose
 inception time is unknown (a QUEUED `CheckRun` gh reports without `startedAt`) is left unflagged for
 the age-gated classes rather than reported on an unprovable age.
+
+## Held For Approval
+
+A separate signal from `checks.stuck`: the snapshot's `checks.approval_held[]`, always present,
+lists each rollup entry concluded `ACTION_REQUIRED` as `{name, type, workflow_name, class:
+"awaiting_approval", details_url}`, in any merge state. That is the conclusion of a workflow run
+waiting for a maintainer's approval, such as a fork PR from a first-time or outside contributor
+under the repository's approval setting, and of a check asking for a manual action. GitHub Actions
+also holds a run it judges potentially malicious in a public repository until a collaborator with
+write access approves it in an authenticated web session; GitHub has not said which conclusion
+that run carries, so when a run is missing or never starts, read the PR's checks page before
+treating the PR as waiting on CI.
+
+No push, re-run, or wait releases any of these, and an unattended agent cannot approve them:
+
+- The engine reports them as a `material_findings` entry. They are not counted in the
+  `failing check(s)` blocker or the new-failing-check worker arm, so no worker is sent to fix them.
+- They stay `failing` in the rollup, so the merge gate keeps holding.
+- Escalate to a maintainer with the PR and the run's link. Never approve a run, through the API or
+  otherwise: approval runs the PR's code with the repository's secrets, and that is the decision
+  the hold reserves for a person.
+
+**Claim, basis, as of, recheck:** fork-run approval and the malicious-run hold, including who may
+approve and where,
+[approving workflow runs from forks](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks)
+and [Actions holds potentially malicious workflows](https://github.blog/changelog/2026-07-28-github-actions-holds-potentially-malicious-workflows-for-approval);
+2026-10-02. Recheck when GitHub names the status a held run carries, adds an API route for the
+malicious-run hold, or changes either page.
 
 ## Not Stuck: Never Scheduled
 
