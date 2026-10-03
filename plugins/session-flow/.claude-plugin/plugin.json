@@ -1,7 +1,7 @@
 {
   "name": "session-flow",
-  "version": "0.45.1",
-  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (make work durable before shutdown), retro and running-retro (retrospectives), orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.",
+  "version": "0.46.1",
+  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -75,6 +75,44 @@
       "title": "Observer lifetime cap (seconds)",
       "description": "Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator.",
       "default": 86400
+    },
+    "audit_sessions_retention_days": {
+      "type": "number",
+      "title": "Session store retention (days)",
+      "description": "How long audit-sessions keeps a session's record in its local store after the session ended; default 180. 0 keeps every record. Collect drops older records and never ingests a session already past the window.",
+      "default": 180,
+      "min": 0
+    },
+    "audit_sessions_excerpt_chars": {
+      "type": "number",
+      "title": "Turn excerpt length (characters)",
+      "description": "Longest redacted excerpt of a short typed turn that audit-sessions stores; default 240, maximum 600. 0 stores no excerpt text at all. Redaction always runs first and cannot be turned off.",
+      "default": 240,
+      "min": 0,
+      "max": 600
+    },
+    "audit_sessions_excerpt_words": {
+      "type": "number",
+      "title": "Short turn limit (words)",
+      "description": "A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections.",
+      "default": 60,
+      "min": 1,
+      "max": 200
+    },
+    "audit_sessions_drift_min_count": {
+      "type": "number",
+      "title": "Drift key minimum count",
+      "description": "How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section.",
+      "default": 20,
+      "min": 1
+    },
+    "audit_sessions_drift_versions": {
+      "type": "number",
+      "title": "Drift vanish window (versions)",
+      "description": "How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20.",
+      "default": 3,
+      "min": 1,
+      "max": 20
     }
   }
 }

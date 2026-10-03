@@ -105,7 +105,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Workflow
 
-- [`session-flow`](../plugins/session-flow): Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (make work durable before shutdown), retro and running-retro (retrospectives), orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.
+- [`session-flow`](../plugins/session-flow): Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.
 - [`multi-agent`](../plugins/multi-agent): Workflow and model-routing guidance for multi-agent work: assess (workflow, subagent or single context), route (the role map a workflow script reads from args, keeping fan-out stages off a frontier model), audit-defaults (rechecks bundled defaults against upstream, or sweeps the repo's model and workflow guidance, via a read-only drift-audit workflow), check (whether node resolves and the fetch gate is registered), and setup (writes a user, team or local layer after a preview and a yes).
 
 ## Presentation

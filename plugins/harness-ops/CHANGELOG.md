@@ -3,13 +3,52 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.1.2] - 2026-10-02
+## [3.2.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [3.2.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows whole-module loads of an exported array.** An export hop used to stay
+  partial whenever the exporting file was loaded whole anywhere. The helper's new `namespace` op
+  now follows each `import()`, `require()`, `import.meta.require()` and `import*as` load to its
+  reads and accepts only reads of other exports by name: a member read that is not a call, an
+  object pattern without a rest element, a record property such as `{names:ns}` read only by name,
+  and `await Promise.all([...])` destructured by an array pattern. The built-ins those shapes rely
+  on join the names the sink rule watches, a write to an undeclared trusted name (`Promise=f`) is
+  now a sink, and a namespace settled through a promise requires its module to export no `then`.
+  Load sites come from the AST (`loads` op) instead of a regex over the raw bundle
+  ([#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901)).
+- **The sink rule reads computed keys.** A computed-key write or define counts only for the
+  trusted names its key can spell when every value of the key is known (a literal, a number, a
+  boolean or `typeof` result, or a variable written only with those), so loop counters and
+  TypeScript enums no longer count.
+- **node:vm counts as code built from a string.** Any `vm`/`node:vm` load except an import naming
+  only `isContext`, and a vm runner's name (`runInThisContext`, `runInNewContext`, `runInContext`,
+  `compileFunction`, `SourceTextModule`, `SyntheticModule`) read from any object, are sinks like
+  `eval` and `Function`: code in a new context still reaches this realm's prototypes.
+
+### Fixed
+
+- **A load the parser cannot name no longer reads a wrong literal.** An aliased `require` or
+  `import.meta.require`, `require.call(...)`, `(0,require)(...)`, or `import(x)` with a specifier
+  that is no literal could load the exporting file whole unseen; a module holding one now fails
+  every export hop.
+
+### Changed
+
+- The Explore and Plan `disallowed_tools` still read partial under `--reader=parser` on
+  2.1.284-2.1.288. Every load of the re-exporting chunk is read by name, but each build still has
+  computed-key writes on receivers the sink rule cannot show are not built-in prototypes, and code
+  built from strings (ajv's generated validators, protobufjs's direct `eval`); 2.1.288 also has 3
+  modules with a load the parser cannot name. `--reader` stays `regex` by default.
+  `--reader=compare` output is unchanged on every installed build.
 
 ## [3.1.1] - 2026-10-02
 

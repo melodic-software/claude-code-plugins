@@ -1,0 +1,4 @@
+{"type": "user", "sessionId": "sess-a2", "version": "2.1.287", "cwd": "__CWD_A__", "gitBranch": "main", "uuid": "b-u1", "timestamp": "2026-09-21T09:00:00Z", "promptSource": "typed", "message": {"role": "user", "content": "Fix the flaky test"}}
+{"type": "assistant", "sessionId": "sess-a2", "version": "2.1.287", "cwd": "__CWD_A__", "gitBranch": "main", "uuid": "b-a1", "timestamp": "2026-09-21T09:00:30Z", "message": {"id": "msg_x", "role": "assistant", "model": "claude-sonnet-5-5", "content": [{"type": "text", "text": "Fixed."}], "usage": {"input_tokens": 5, "output_tokens": 9, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}}}
+{"type": "assistant", broken
+{"type": "user", "sessionId": "sess-a2", "version": "2.1.287", "cwd": "__CWD_A__", "gitBranch": "main", "uuid": "b-u2", "timestamp": "2026-09-21T09:01:00Z", "promptSource": "typed", "message": {"role": "user", "content": "thanks"}}
