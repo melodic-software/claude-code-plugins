@@ -19,7 +19,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" <<'NODE'
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -98,6 +98,11 @@ check("--record alone writes only the record", recordOnly.status === 0 && !recor
 check("a missing --record exits 2", run(["--page", `${work}/x.html`], json).status === 2);
 check("invalid JSON exits 2", run(["--record", `${work}/bad.md`], "{").status === 2);
 check("an unknown flag exits 2", run(["--format", "html"], json).status === 2);
+const clash = run(["--record", `${work}/d/x.md`, "--page", `${work}/d/x.md`], json);
+check("the same file for --page and --record exits 2", clash.status === 2 && !existsSync(`${work}/d/x.md`), clash.stderr);
+check("a page beside the record exits 2", run(["--record", `${work}/d/y.md`, "--page", `${work}/d/y.html`], json).status === 2);
+const linky = buildExplainerRecord({ title: "![i](https://evil/x.png)", summary: ["[x](javascript:alert(1))"], sources: ["[s](https://evil/)"] });
+check("the record carries no markdown link or image syntax", !/(^|[^\\])\[/.test(linky) && !/(^|[^\\])\]/.test(linky), linky);
 writeFileSync(`${work}/page.html`, page);
 check("--check accepts a builder page", run(["--check", `${work}/page.html`]).status === 0);
 writeFileSync(`${work}/hand.html`, `<!doctype html><html><head></head><body><h1>${hostile[0]}</h1></body></html>`);

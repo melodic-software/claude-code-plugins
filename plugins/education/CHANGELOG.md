@@ -3,6 +3,13 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-10-03
+
+### Fixed
+
+- `illustrate` refuses a `--page` that shares a directory with `--record`, and escapes markdown
+  link and image brackets in record text.
+
 ## [0.13.0] - 2026-10-03
 
 ### Added

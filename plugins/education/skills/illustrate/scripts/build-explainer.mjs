@@ -10,7 +10,7 @@
 // ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage.
 
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { asText, rows, textList } from "../../../lib/page-kit.mjs";
@@ -54,9 +54,17 @@ export function buildExplainerPage(model) {
   });
 }
 
-// One line of record text: no line breaks, and no raw HTML a markdown viewer would render.
+// One line of record text: no line breaks, no raw HTML a markdown viewer would render, and no
+// link or image syntax (escaped brackets cannot open one).
 const md = (value) =>
-  asText(value).replace(/\s+/g, " ").trim().replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  asText(value)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]");
 
 /**
  * @param {Record<string, unknown>} model
@@ -87,6 +95,21 @@ function invokedDirectly() {
     return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
   } catch {
     return false;
+  }
+}
+
+// The path with its nearest existing ancestor resolved through symlinks.
+function realTarget(path) {
+  const parts = [];
+  let dir = resolve(path);
+  for (;;) {
+    try {
+      return join(realpathSync(dir), ...parts);
+    } catch {
+      if (dirname(dir) === dir) return resolve(path);
+      parts.unshift(basename(dir));
+      dir = dirname(dir);
+    }
   }
 }
 
@@ -123,6 +146,9 @@ function main(args) {
   }
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     return [2, "", "JSON root must be an object"];
+  }
+  if (opts.page && dirname(realTarget(opts.record)) === dirname(realTarget(opts.page))) {
+    return [2, "", "--page and --record must not share a directory; keep HTML views away from the markdown record"];
   }
   try {
     // Build the page before writing anything, so a refused page leaves no half-written pair.
