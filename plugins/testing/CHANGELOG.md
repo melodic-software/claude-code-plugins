@@ -17,12 +17,15 @@ All notable changes to the `testing` plugin are documented here. Format follows
   scope or protected (an editable in-scope file joins that fixer's group next round instead), when
   the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
   and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent
-  settings, hooks, CI, editor tasks or dependency trees, or name a package manifest or build file,
-  never reach a fixer (matched case-insensitively). The checks count untracked files, and fixers
-  are told to run no git command that writes. After any round that dispatched a fixer, a green run
-  gets a final verifier that re-runs the command and reviews the whole diff. Its `args` carry `command` (required; without it the run returns
-  `{error: "missing-command"}` and dispatches nothing), `scope` (path prefixes the fixers may
-  edit), `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16),
+  settings, hooks, CI, editor tasks or dependency trees, or name a dependency manifest, lockfile,
+  build file or secret-bearing file in any common ecosystem, never reach a fixer (matched
+  case-insensitively). A file a fixer asks for joins its group only when git tracks it. The checks,
+  and every re-run, count untracked files and a moved HEAD, and fixers are told to run no git
+  command that writes. After any round that dispatched a fixer, a green run gets a final verifier
+  that re-runs the command and reviews the whole diff. Its `args` carry `command` (required;
+  without it the run returns `{error: "missing-command"}` and dispatches nothing; a string that is
+  itself valid JSON, such as `true`, stays the command), `scope` (path prefixes the fixers may
+  edit; when every entry is rejected the run returns `{error: "bad-scope"}`), `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16),
   `roles` and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`,
   `changes` per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers
   take the worker role's fan-out variant at `medium` effort, the runner the retrieval role's single variant at `low`, and

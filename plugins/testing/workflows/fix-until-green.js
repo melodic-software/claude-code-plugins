@@ -12,7 +12,10 @@ export const meta = {
 
 let input = args
 if (typeof input === 'string') {
-  try { input = JSON.parse(input) } catch { input = { command: input } }
+  // A command such as `true` is itself valid JSON, so only a parsed object is args.
+  let parsed = null
+  try { parsed = JSON.parse(input) } catch {}
+  input = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { command: input }
 }
 if (!input || typeof input !== 'object' || Array.isArray(input)) input = {}
 
@@ -40,21 +43,38 @@ const norm = p => p.trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/
 const isRelative = p => !!p && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..')
 // A reported path under one of these directories, or with one of these names,
 // never reaches a fixer: git internals and ignored dependency trees escape the
-// diff the check reads, and agent settings, hooks, CI, editor tasks and package
-// manifests run code outside the test run. Segments compare case-insensitively
-// with trailing dots and spaces stripped, as a case-insensitive filesystem would.
-const PROTECTED_DIRS = ['.git', '.claude', '.github', '.husky', '.vscode', 'node_modules', '.venv', 'venv', '.tox']
-const PROTECTED_NAMES = ['package.json', 'makefile', 'lefthook.yml', '.pre-commit-config.yaml', '.envrc', '.gitattributes', '.gitmodules']
+// diff the check reads; agent settings, hooks, CI, editor tasks, dependency
+// manifests, lockfiles and build files run or fetch code outside the test run;
+// and secret-bearing files must not be read into a report. Segments compare
+// case-insensitively with trailing dots and spaces stripped, as a
+// case-insensitive filesystem would.
+const PROTECTED_DIRS = ['.git', '.claude', '.github', '.husky', '.vscode', 'node_modules', '.venv', 'venv', '.tox', '.ssh', '.aws']
+const PROTECTED_NAMES = [
+  'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.npmrc', '.yarnrc.yml',
+  'pyproject.toml', 'setup.py', 'setup.cfg', 'pipfile', 'pipfile.lock', 'poetry.lock', 'uv.lock', '.pypirc',
+  'cargo.toml', 'cargo.lock', 'go.mod', 'go.sum', 'gemfile', 'gemfile.lock', 'composer.json', 'composer.lock',
+  'pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts',
+  'nuget.config', 'global.json', 'directory.build.props', 'directory.build.targets', 'directory.packages.props',
+  'makefile', 'dockerfile', 'lefthook.yml', '.pre-commit-config.yaml', '.envrc', '.netrc',
+  '.gitattributes', '.gitmodules',
+]
+const PROTECTED_PATTERNS = [/^requirements.*\.txt$/, /^\.env(\..*)?$/, /\.(pem|key|p12|pfx)$/, /^id_(rsa|dsa|ecdsa|ed25519)/, /^credentials/, /^secrets?\./]
 const shaOf = v => (typeof v === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(v.trim()) ? v.trim() : null)
 const isEditable = p => {
   if (!isRelative(p)) return false
   const segs = p.split('/').map(s => s.toLowerCase().replace(/[. ]+$/, ''))
-  return !segs.some(s => PROTECTED_DIRS.includes(s)) && !PROTECTED_NAMES.includes(segs[segs.length - 1])
+  const name = segs[segs.length - 1]
+  return !segs.some(s => PROTECTED_DIRS.includes(s)) && !PROTECTED_NAMES.includes(name) &&
+    !PROTECTED_PATTERNS.some(re => re.test(name))
 }
 const askedScope = (Array.isArray(input.scope) ? input.scope : typeof input.scope === 'string' ? [input.scope] : [])
   .filter(s => typeof s === 'string' && s.trim() !== '')
 const SCOPE = askedScope.map(norm).filter(isRelative)
 if (askedScope.length > SCOPE.length) log('scope: ' + (askedScope.length - SCOPE.length) + ' entries dropped (absolute or containing ..)')
+// A scope that was asked for but has no usable entry must not widen to the whole repository.
+if (askedScope.length && !SCOPE.length) {
+  return { error: 'bad-scope', next: 'Pass repo-relative path prefixes in args.scope, or omit it to let fixers edit any reported file.' }
+}
 const inScope = f => !SCOPE.length || SCOPE.some(p => p === '.' || f === p || f.startsWith(p + '/'))
 
 // Role variants as /multi-agent:route emits them. `single` serves a stage that
@@ -151,10 +171,11 @@ const RUN_SCHEMA = {
       },
     },
     root: { type: 'string' },
+    changedFiles: { type: 'array', items: { type: 'string' } },
     head: { type: 'string' },
     note: { type: 'string' },
   },
-  required: ['passed', 'failures'],
+  required: ['passed', 'failures', 'head', 'changedFiles'],
 }
 const FIX_SCHEMA = {
   type: 'object',
@@ -183,6 +204,7 @@ const CHECK_SCHEMA = {
       },
     },
     head: { type: 'string' },
+    tracked: { type: 'array', items: { type: 'string' } },
     changedFiles: { type: 'array', items: { type: 'string' } },
   },
   required: ['weakened', 'head', 'changedFiles'],
@@ -201,16 +223,23 @@ const FINAL_SCHEMA = {
 
 const nulls = []
 
-async function runCommand(label) {
+// A re-run passes the base, so the runner also reports the tree and a command
+// that rewrites tracked files or moves HEAD is caught even on the last run.
+async function runCommand(label, base) {
+  const tree = base
+    ? ' Then report as changedFiles every path `git diff --name-only ' + base + '` lists plus every path ' +
+      '`git ls-files --others --exclude-standard` lists.'
+    : ''
   const got = await agentRetry(
     'Stage: run. Run the command below once, exactly as given, from the repository root, and wait for it ' +
     'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing ' +
     'test or check: a stable id (the test name or check rule), the repo-relative file it lives in, the ' +
     'failure message in one or two lines, and as suspects the repo-relative source files the output ' +
     'points at (stack frames, compiler errors) plus the project source files the failing test file ' +
-    'imports, read with a read-only command such as grep. List only files `git ls-files` reports as tracked. When the command fails with no ' +
-    'failure you can attribute to a file, say so in note. Then run `git rev-parse HEAD` and ' +
-    '`git rev-parse --show-toplevel` and report their output as head and root.' + fence('command', COMMAND),
+    'imports, read with a read-only command such as grep. List only files `git ls-files` reports as ' +
+    'tracked. When the command fails with no failure you can attribute to a file, say so in note. Then ' +
+    'run `git rev-parse HEAD` and `git rev-parse --show-toplevel` and report their output as head and ' +
+    'root.' + tree + fence('command', COMMAND),
     { label, phase: 'Run', schema: RUN_SCHEMA, ...opts('testing:green-runner', R.retrieval.single) }
   )
   if (got == null) { nulls.push(label); return null }
@@ -221,7 +250,7 @@ async function runCommand(label) {
       suspects: (Array.isArray(f.suspects) ? f.suspects : []).filter(s => typeof s === 'string').map(norm).filter(isEditable),
     }))
   if (failures.length > FAILURE_CAP) log(label + ': ' + (failures.length - FAILURE_CAP) + ' failures past the cap of ' + FAILURE_CAP + ' wait for a later round')
-  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, note: got.note || '' }
+  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, changedFiles: got.changedFiles, note: got.note || '' }
 }
 
 // Group failures into components that share no file: two failures sharing a
@@ -344,21 +373,24 @@ while (true) {
     })
   for (const r of reports) if (r.strayEdits.length) log(r.label + ': edited files outside its group: ' + r.strayEdits.join(', '))
   // A fixer that needs a file outside its group names it. An editable file in
-  // scope joins that group's test files for the next round; anything else
-  // stops the run as out of scope.
-  const widened = []
+  // scope is a request the check confirms git tracks; anything else stops the
+  // run as out of scope.
+  const requests = []
   const scopeStops = []
   fixers.forEach((f, i) => {
     const r = results[i]
     if (!r || r.status !== 'out-of-scope') return
     const file = typeof r.outsideFile === 'string' ? norm(r.outsideFile) : ''
     if (!isEditable(file) || !inScope(file) || f.allowed.includes(file)) { scopeStops.push(f.label); return }
-    for (const t of new Set(f.g.failures.map(x => x.file))) extra.set(t, [...new Set([...(extra.get(t) || []), file])])
-    widened.push(file)
+    requests.push({ f, file })
   })
-  if (widened.length) log('round ' + rounds + ': next round adds ' + widened.join(', ') + ' to the groups that asked')
-  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened, deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
+  const round = { round: rounds, failuresBefore: current.failures.length, fixers: reports, widened: [], deferred: outOfScope.map(g => g.failures.map(x => x.id)).flat() }
   changes.push(round)
+  const requested = [...new Set(requests.map(q => q.file))]
+  const askTracked = requested.length
+    ? ' For each path in requested-files, report it in tracked only when `git ls-files --error-unmatch -- <path>` succeeds.' +
+      fence('requested-files', requested)
+    : ''
 
   // A fixer's own report of what it changed is a claim, and a fixer that
   // returned nothing may still have edited, so the check runs whenever any
@@ -373,7 +405,7 @@ while (true) {
     'test, a loosened or removed assertion, an expected value recomputed from the code under test, or a ' +
     'snapshot rewritten to match new output. Quote the diff lines as evidence. A change that fixes ' +
     'production code, or corrects a test whose expected value was wrong with the reason stated, is not ' +
-    'weakening. Change no file.' + fence('fixer-reports', reports),
+    'weakening. Change no file.' + fence('fixer-reports', reports) + askTracked,
     { label: checkLabel, phase: 'Check', schema: CHECK_SCHEMA, ...opts('testing:green-verifier', R.verifier.single) }
   )
   if (check == null) { nulls.push(checkLabel); stoppedBecause = 'check-failed'; break }
@@ -382,17 +414,26 @@ while (true) {
   if (weakening.length) { stoppedBecause = 'test-weakening'; break }
   const tree = judgeTree(check, reports.flatMap(r => r.strayEdits))
   if (tree) { round.outsideEdits = outsideEdits; stoppedBecause = tree; break }
+  const tracked = new Set((Array.isArray(check.tracked) ? check.tracked : []).filter(x => typeof x === 'string').map(norm))
+  for (const { f, file } of requests) {
+    if (!tracked.has(file)) { scopeStops.push(f.label); continue }
+    for (const t of new Set(f.g.failures.map(x => x.file))) extra.set(t, [...new Set([...(extra.get(t) || []), file])])
+    if (!round.widened.includes(file)) round.widened.push(file)
+  }
   if (scopeStops.length) { stoppedBecause = 'out-of-scope'; break }
+  if (round.widened.length) log('round ' + rounds + ': next round adds ' + round.widened.join(', ') + ' to the groups that asked')
   // Nothing changed and a group widened: the failures stand as they are, so
   // the next round regroups them without a re-run.
-  if (widened.length && reports.every(r => !r.filesChanged.length)) continue
+  if (round.widened.length && reports.every(r => !r.filesChanged.length)) continue
 
   phase('Run')
   const label = 'run:' + rounds
   ran.push(label)
-  const next = await runCommand(label)
+  const next = await runCommand(label, BASE)
   if (!next) { stoppedBecause = 'runner-failed'; break }
   round.failuresAfter = next.failures.length
+  const after = judgeTree(next, [])
+  if (after) { round.outsideEdits = outsideEdits; current = next; stoppedBecause = after; break }
   stall = next.failures.length >= current.failures.length && !next.passed ? stall + 1 : 0
   current = next
   if (current.passed) { stoppedBecause = 'green'; break }

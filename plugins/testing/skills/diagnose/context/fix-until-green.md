@@ -33,7 +33,7 @@ Offer it; launch only on the user's yes. The run edits the working tree and comm
 | Key | Meaning |
 |---|---|
 | `command` | Required. Without it the workflow returns `{error: "missing-command"}` and runs nothing. |
-| `scope` | Optional repo-relative path prefixes the fixers may edit. Absolute paths and `..` are dropped. |
+| `scope` | Optional repo-relative path prefixes the fixers may edit. Absolute paths and `..` are dropped; when every entry is dropped the workflow returns `{error: "bad-scope"}` and runs nothing. |
 | `maxRounds` | Fix rounds, default 3, clamped to 1-5. |
 | `maxConcurrent` | Fixer wave size, default 2, clamped to 1-16. |
 | `roles` | The route output above, or omitted. |

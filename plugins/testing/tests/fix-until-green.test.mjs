@@ -22,6 +22,7 @@ const SHA = 'a'.repeat(40)
 const red = failures => ({ passed: false, exitCode: 1, failures, head: SHA })
 const GREEN = { passed: true, exitCode: 0, failures: [], head: SHA }
 const allowed = prompt => JSON.parse(prompt.match(/<data name="allowed-files">\n([\s\S]*?)\n<\/data>/)[1])
+const requested = prompt => { const m = prompt.match(/<data name="requested-files">\n([\s\S]*?)\n<\/data>/); return m ? JSON.parse(m[1]) : [] }
 
 // runs[i] answers run:i; the last entry repeats. Fixers fix the first allowed
 // file, checks find no weakening, and the final verifier agrees it is green.
@@ -35,7 +36,7 @@ function makeReply(runs, over = {}) {
     }
     if (label.startsWith('run:')) return runs[Math.min(Number(label.split(':')[1]), runs.length - 1)]
     if (label.startsWith('fix:')) return { status: 'fixed', rootCause: 'off by one', filesChanged: [allowed(prompt)[0]] }
-    if (label.startsWith('check:')) return { weakened: [], head: SHA, changedFiles: [] }
+    if (label.startsWith('check:')) return { weakened: [], head: SHA, changedFiles: [], tracked: requested(prompt) }
     if (label === 'verify') return { passed: true, weakened: [], head: SHA, changedFiles: [] }
     throw new Error('unexpected label ' + label)
   }
@@ -96,6 +97,20 @@ test('a string args value is taken as the command', async () => {
   const { result, calls } = await run('npm test')
   assert.equal(result.green, true)
   assert.match(one(calls, 'run:0').prompt, /npm test/)
+})
+
+test('a string args value that is itself valid JSON stays the command', async () => {
+  for (const cmd of ['true', 'false', 'null', '42']) {
+    const { result, calls } = await run(cmd)
+    assert.equal(result.green, true, cmd)
+    assert.ok(one(calls, 'run:0').prompt.includes(JSON.stringify(cmd)), cmd)
+  }
+})
+
+test('a scope whose every entry is rejected returns an error and dispatches nothing', async () => {
+  const { result, calls } = await run({ command: 'x', scope: ['/repo/src', '../src'] })
+  assert.equal(result.error, 'bad-scope')
+  assert.equal(calls.length, 0)
 })
 
 test('green on the first run: one runner, no fixers, zero rounds', async () => {
@@ -375,6 +390,36 @@ test('an absolute filesChanged path in another checkout stays a stray edit', asy
   const abs = { status: 'fixed', rootCause: 'r', filesChanged: ['/home/u/other/a.test.js'] }
   const { result } = await run({ command: 'x' }, makeReply(runs, { 'fix:1:1': abs }))
   assert.equal(result.stoppedBecause, 'outside-edit')
+})
+
+test('secret files and other ecosystems\' manifests are protected too', async () => {
+  const suspects = ['.env', 'config/.env.production', 'requirements-dev.txt', 'go.mod', 'Cargo.toml', 'pyproject.toml', 'keys/server.pem', '.ssh/id_rsa', 'src/a.js']
+  const { calls } = await run({ command: 'x' }, makeReply([red(fail('a.test.js', 1, suspects)), GREEN]))
+  assert.deepEqual(allowed(one(calls, 'fix:1:1').prompt), ['a.test.js', 'src/a.js'])
+})
+
+test('a requested file the check does not confirm as tracked stops the run', async () => {
+  const ask = { status: 'out-of-scope', rootCause: 'r', filesChanged: [], outsideFile: 'src/new.js' }
+  const check = { weakened: [], head: SHA, changedFiles: [], tracked: [] }
+  const { result, calls } = await run({ command: 'x' }, makeReply([red(fail('test/a.test.js'))], { 'fix:1:1': ask, 'check:1': check }))
+  assert.match(one(calls, 'check:1').prompt, /git ls-files --error-unmatch/)
+  assert.equal(result.stoppedBecause, 'out-of-scope')
+  assert.deepEqual(result.changes[0].widened, [])
+})
+
+test('a re-run that leaves an outside file changed stops even with finalVerify off', async () => {
+  const runs = [red(fail('a.test.js')), { ...GREEN, changedFiles: ['a.test.js', '__snapshots__/x.snap'] }]
+  const { result, calls } = await run({ command: 'x', finalVerify: false }, makeReply(runs))
+  assert.match(one(calls, 'run:1').prompt, new RegExp('git diff --name-only ' + SHA))
+  assert.equal(result.green, false)
+  assert.equal(result.stoppedBecause, 'outside-edit')
+  assert.deepEqual(result.outsideEdits, ['__snapshots__/x.snap'])
+})
+
+test('a re-run on a moved HEAD stops', async () => {
+  const moved = { ...red(fail('a.test.js', 1)), head: 'c'.repeat(40) }
+  const { result } = await run({ command: 'x' }, makeReply([red(fail('a.test.js', 2)), moved]))
+  assert.equal(result.stoppedBecause, 'head-moved')
 })
 
 test('a changed file no fixer was allowed to edit stops the run, whatever the fixers reported', async () => {
