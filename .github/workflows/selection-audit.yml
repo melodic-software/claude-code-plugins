@@ -57,7 +57,8 @@ jobs:
         with:
           persist-credentials: false
       # The suites read what they read only when their tools are present, so
-      # the toolchains match ci.yml's test lane; a suite that skips for a
+      # the toolchains match ci.yml's test-linux lane (Node, Python, ShellCheck,
+      # shfmt, the inventory parser packages, DuckDB); a suite that skips for a
       # missing tool reads less and can hide a gap, never invent one.
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -94,6 +95,18 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
             --requirement .github/requirements-ci-animation.txt
+          python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
+      - name: Install DuckDB CLI
+        env:
+          DUCKDB_VERSION: v1.5.5
+          DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
+        run: |
+          mkdir -p "$RUNNER_TEMP/duckdb"
+          curl -fsSL -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
+            "https://github.com/duckdb/duckdb/releases/download/$DUCKDB_VERSION/duckdb_cli-linux-amd64.gz"
+          echo "$DUCKDB_SHA256  $RUNNER_TEMP/duckdb/duckdb.gz" | sha256sum -c -
+          gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
+          chmod +x "$RUNNER_TEMP/duckdb/duckdb"
       - name: Test the selection audit
         run: bash scripts/selection-audit.test.sh
       # Budget 600 s: suites start for the first 360 s, selector queries stop
@@ -104,8 +117,11 @@ jobs:
         env:
           SHARD_INPUT: ${{ inputs.shard }}
           SUITES_INPUT: ${{ inputs.suites }}
+          # As in ci.yml: these suites fail on a missing dependency instead of skipping green.
+          ANIMATION_REQUIRE_DEPS: '1'
+          INVENTORY_REQUIRE_ACORN: '1'
         run: |
-          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$PATH"
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
           shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"
           read -ra suites <<<"${SUITES_INPUT:-}"
           scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 600 \

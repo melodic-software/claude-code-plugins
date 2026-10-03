@@ -15,7 +15,12 @@
 #       For each first-parent commit in GOOD..BAD, run that commit's own
 #       selector on its own diff and say whether it selected S. A suite no
 #       commit selected is a SELECTION MISS; one some commit selected is a
-#       regression its pull-request run should have caught, or a flake.
+#       regression its pull-request run should have caught, or a flake. A
+#       commit whose selector could not run is an error row, and a range with
+#       errors and no selecting commit is INCONCLUSIVE, not a miss.
+#
+# An unmapped file counts as selecting a suite only when ci.yml's UNMAPPED
+# fallback runs that suite (see fallback_corpus).
 #
 #   scripts/selection-audit.sh red-replay --run-id ID [--repo OWNER/REPO]
 #       For a failed ci run on main: read the failing suites from its job logs
@@ -74,6 +79,21 @@ reads() {
         if (p !~ /^\.git\//) print p
       }
     }' "$1" | sort -u
+}
+
+# fallback_corpus: the suites ci.yml's UNMAPPED fallback runs, one per line,
+# read from the commands in that branch of ci.yml rather than assumed. Of its
+# runners only run-plugin-tests.sh runs a suite of this corpus (it lists what
+# it discovers); run-outside-node-suites.sh runs Node packages' npm test.
+# Prints nothing when the branch runs no run-plugin-tests.sh; exit 1 when the
+# branch or the list cannot be read.
+fallback_corpus() {
+  local block
+  block="$(awk '/grep -q .\^UNMAPPED:/ { f = 1 } f && /^[[:space:]]*else$/ { exit } f' \
+    .github/workflows/ci.yml 2>/dev/null)"
+  [[ -n "$block" ]] || return 1
+  grep -q 'scripts/run-plugin-tests\.sh' <<<"$block" || return 0
+  bash scripts/run-plugin-tests.sh --list 2>/dev/null
 }
 
 # --- trace -----------------------------------------------------------------
@@ -141,6 +161,7 @@ cmd_trace() {
   out="$(cd "$out" && pwd -P)"
 
   git ls-files >"$out/tracked"
+  fallback_corpus >"$out/fallback" || die "cannot derive the suites ci.yml's UNMAPPED fallback runs"
   if ((${#suites[@]} == 0)); then
     mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" |
       awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
@@ -179,10 +200,10 @@ cmd_trace() {
     key="$(printf '%06d' "$k")"
     k=$((k + 1))
     awk -v f="$f" '{ print f "\t" $0 }' "$out/sel/$key.out" >>"$out/selected.tsv"
-    if grep -q '^UNMAPPED:' "$out/sel/$key.err"; then
+    if grep -q '^not checked' "$out/sel/$key.err"; then
+      echo "not checked: $(sed -n 's/^not checked: //p' "$out/sel/$key.err" | head -n1)"
+    elif grep -q '^UNMAPPED:' "$out/sel/$key.err"; then
       echo "unmapped: CI falls back to the full corpus"
-    elif grep -m1 "^not checked" "$out/sel/$key.err"; then
-      :
     elif [[ -s "$out/sel/$key.out" ]]; then
       echo "selects $(wc -l <"$out/sel/$key.out") other suite(s)"
     else
@@ -190,13 +211,16 @@ cmd_trace() {
     fi | awk -v f="$f" '{ print f "\t" $0 }' >>"$out/verdicts.tsv"
   done <"$out/files"
   # gaps.tsv: suite, file, verdict, for every read the selector would not
-  # take. An unmapped file is no gap (CI runs the full corpus on it); an
-  # unchecked one is counted apart.
+  # take. An unmapped file is no gap for a suite the fallback runs, and a gap
+  # for one it does not; an unchecked file is counted apart.
   awk -F'\t' '
+    FILENAME ~ /fallback$/ { fb[$0] = 1; next }
     FILENAME ~ /selected.tsv$/ { sel[$1 SUBSEP $2] = 1; next }
     FILENAME ~ /verdicts.tsv$/ { v[$1] = $2; next }
-    v[$2] !~ /^(unmapped|not checked)/ && !(($2 SUBSEP $1) in sel) { print $1 "\t" $2 "\t" v[$2] }
-  ' "$out/selected.tsv" "$out/verdicts.tsv" "$out/edges.tsv" | sort >"$out/gaps.tsv"
+    v[$2] ~ /^not checked/ || (($2 SUBSEP $1) in sel) { next }
+    v[$2] ~ /^unmapped/ { if ($1 in fb) next; print $1 "\t" $2 "\tunmapped: the full-corpus fallback does not run this suite"; next }
+    { print $1 "\t" $2 "\t" v[$2] }
+  ' "$out/fallback" "$out/selected.tsv" "$out/verdicts.tsv" "$out/edges.tsv" | sort >"$out/gaps.tsv"
 
   local traced not_traced failed gaps gap_suites unchecked
   traced=$(awk -F'\t' '$2 != "not-traced"' "$out/suites.tsv" | wc -l)
@@ -233,7 +257,7 @@ cmd_trace() {
 
 # replay_rows <suite> <good> <bad> <worktree>: one TSV row per commit.
 replay_rows() {
-  local suite="$1" good="$2" bad="$3" wt="$4" c verdict rc
+  local suite="$1" good="$2" bad="$3" wt="$4" c verdict rc fallback
   local -a files
   for c in $(git rev-list --first-parent --reverse "$good..$bad"); do
     mapfile -t files < <(git diff --name-only "$c^" "$c")
@@ -247,7 +271,13 @@ replay_rows() {
     if grep -qxF -- "$suite" "$wt.out"; then
       verdict="selected"
     elif grep -q '^UNMAPPED:' "$wt.err"; then
-      verdict="selected (unmapped file: full-corpus fallback)"
+      if ! fallback="$(cd "$wt" && fallback_corpus)"; then
+        verdict="error: cannot derive the unmapped fallback's suites"
+      elif grep -qxF -- "$suite" <<<"$fallback"; then
+        verdict="selected (unmapped file: the full-corpus fallback runs it)"
+      else
+        verdict="not selected (unmapped file: the full-corpus fallback does not run it)"
+      fi
     elif ((rc != 0)); then
       verdict="error: selector exit $rc"
     else
@@ -258,9 +288,11 @@ replay_rows() {
 }
 
 # replay_report <suite> <good> <bad> <report>: append one suite's section;
-# return 1 on a selection miss.
+# return 1 on a selection miss. A commit the selector could not be run on is
+# an error row, neither selected nor not: with no selecting commit, any error
+# makes the range inconclusive rather than a miss.
 replay_report() {
-  local suite="$1" good="$2" bad="$3" report="$4" wt rows selected total
+  local suite="$1" good="$2" bad="$3" report="$4" wt rows selected total errors
   wt="$(mktemp -d "${TMPDIR:-/tmp}/selection-replay.XXXXXX")/wt"
   git worktree add -q --detach "$wt" "$bad" || die "cannot add a worktree at $bad"
   rows="$(replay_rows "$suite" "$good" "$bad" "$wt")"
@@ -268,6 +300,7 @@ replay_report() {
   rm -rf "$(dirname "$wt")"
   total=$(printf '%s' "$rows" | grep -c . || true)
   selected=$(printf '%s\n' "$rows" | grep -c $'\tselected' || true)
+  errors=$(printf '%s\n' "$rows" | grep -c $'\terror:' || true)
   {
     echo "### \`$suite\`"
     echo
@@ -275,6 +308,8 @@ replay_report() {
     echo
     if ((total == 0)); then
       echo "No commit in the range; nothing to replay."
+    elif ((selected == 0 && errors > 0)); then
+      echo "**Inconclusive**: $errors of $total commit(s) could not be replayed and no other commit selected this suite; not counted as a selection miss."
     elif ((selected == 0)); then
       echo "**Selection miss**: no commit's pull-request selection included this suite."
     else
@@ -288,7 +323,7 @@ replay_report() {
       echo
     fi
   } >>"$report"
-  ((total == 0 || selected > 0))
+  ((total == 0 || selected > 0 || errors > 0))
 }
 
 cmd_replay() {

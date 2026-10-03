@@ -5,6 +5,7 @@
 #
 #   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
 #                               [--suites-from FILE]
+#   scripts/run-plugin-tests.sh --list [--root DIR]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
@@ -41,6 +42,10 @@
 # interleave and the per-suite markers that CI log tooling reads survive. The
 # block is printed the moment its suite finishes, so progress stays visible.
 #
+# --list prints the discovered corpus, one repo-relative path per line, and
+# runs nothing. scripts/selection-audit.sh reads it to learn which suites the
+# full-corpus fallback runs.
+#
 # --root DIR discovers suites under DIR instead of the repository (test
 # injection for this runner's own suite, scripts/run-plugin-tests.test.sh).
 #
@@ -76,7 +81,7 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] | --list [--root DIR]" >&2
   exit 2
 }
 
@@ -137,9 +142,11 @@ jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
 shard_spec="0/1"
 suites_from=""
+list=0
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
+  --list) list=1 ;;
   --suites-from)
     [[ $# -ge 2 ]] || usage
     suites_from="$2"
@@ -195,6 +202,10 @@ mapfile -t tests < <(find plugins .claude/hooks -type f -name '*.test.sh' 2>/dev
 if [[ ${#tests[@]} -eq 0 ]]; then
   echo "error: no plugin tests found under plugins/**/*.test.sh" >&2
   exit 2
+fi
+if ((list)); then
+  printf '%s\n' "${tests[@]}"
+  exit 0
 fi
 
 # The serial allowlist: one repo-relative suite path per line, `#` comments and

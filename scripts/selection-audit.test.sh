@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Tests for scripts/selection-audit.sh: the strace read parser, the trace audit
-# end to end against a stub selector (a suite that reads a file the selector
-# does not map to it is a gap; a mapped, an unmapped and an untracked read are
-# not), the replay verdicts, and usage errors. The trace case needs strace, as
+# end to end against a stub selector and a stub ci.yml fallback (a suite that
+# reads a file the selector does not map to it is a gap, and so is an unmapped
+# read by a suite the fallback does not run; a mapped, a fallback-run, an
+# unchecked and an untracked read are not), the replay verdicts including
+# selector errors, and usage errors. The trace case needs strace, as
 # the audit does, so it fails rather than skips where strace is missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -20,6 +22,21 @@ git_repo() {
     git -C "$1" config user.email t@example.invalid &&
     git -C "$1" config user.name t &&
     git -C "$1" config commit.gpgsign false
+}
+
+# ci_fallback <repo> <suite>...: a ci.yml whose UNMAPPED branch calls
+# run-plugin-tests.sh, and a run-plugin-tests.sh whose --list is the suites given.
+ci_fallback() {
+  local repo="$1"
+  shift
+  mkdir -p "$repo/.github/workflows" "$repo/scripts"
+  printf '%s\n' "          if grep -q '^UNMAPPED:' \"\$err\"; then" \
+    '            scripts/run-plugin-tests.sh --jobs 3' \
+    '            scripts/run-outside-node-suites.sh' \
+    '          else' '            exit 1' '          fi' >"$repo/.github/workflows/ci.yml"
+  # shellcheck disable=SC2016 # the stub's $1 is its own argument, written literally
+  printf '%s\n' '#!/usr/bin/env bash' '[[ "$1" == --list ]] || exit 2' "printf '%s\\n' $*" \
+    >"$repo/scripts/run-plugin-tests.sh"
 }
 
 # --- reads: the parser -------------------------------------------------------
@@ -54,8 +71,12 @@ else
   echo hidden >"$t/data/hidden.txt"
   echo named >"$t/data/named.txt"
   echo odd >"$t/data/unmapped.txt"
-  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/named.txt data/unmapped.txt data/untracked.txt' >"$t/suites/reader.test.sh"
+  echo broken >"$t/data/broken.txt"
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
+  # Reads the unmapped file too, but the fallback corpus does not run it.
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
+  ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
   cat >"$TMP_ROOT/stub-selector.sh" <<'EOF'
@@ -65,6 +86,7 @@ f="${!#}"
 case "$f" in
 data/named.txt) echo suites/reader.test.sh ;;
 data/unmapped.txt) echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2 ;;
+data/broken.txt) exit 3 ;;
 *) echo "no-suite: $f (recorded in the stub)" >&2 ;;
 esac
 EOF
@@ -72,23 +94,29 @@ EOF
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" GITHUB_STEP_SUMMARY="$TMP_ROOT/summary.md" \
     bash "$AUDIT" trace --jobs 2 --out "$TMP_ROOT/out") >"$TMP_ROOT/trace.log" 2>&1 || rc=$?
   gaps="$(cat "$TMP_ROOT/out/gaps.tsv" 2>/dev/null)"
-  want=$'suites/reader.test.sh\tdata/hidden.txt\tno-suite: data/hidden.txt (recorded in the stub)'
+  want=$'suites/reader.test.sh\tdata/hidden.txt\tno-suite: data/hidden.txt (recorded in the stub)\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the full-corpus fallback does not run this suite'
   if [[ "$rc" -eq 1 ]]; then
     ok "trace: exits 1 on a gap"
   else
     fail "trace: exit $rc, want 1: $(cat "$TMP_ROOT/trace.log")"
   fi
   if [[ "$gaps" == "$want" ]]; then
-    ok "trace: only the read the selector does not map is a gap (mapped, unmapped, untracked and self are not)"
+    ok "trace: gaps are the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, fallback-run, unchecked, untracked and self are not)"
   else
     fail "trace: gaps.tsv [$gaps] want [$want]"
   fi
-  if grep -q '1 gap(s) in 1 suite(s)' "$TMP_ROOT/summary.md" 2>/dev/null; then
+  if grep -q '2 gap(s) in 2 suite(s)' "$TMP_ROOT/summary.md" 2>/dev/null; then
     ok "trace: the report reaches the step summary"
   else
     fail "trace: no gap count in the step summary"
   fi
-  if [[ "$(cut -f1,2 "$TMP_ROOT/out/suites.tsv")" == $'suites/quiet.test.sh\t0\nsuites/reader.test.sh\t0' ]]; then
+  if grep -qxF $'data/broken.txt\tnot checked: selector exit 3' "$TMP_ROOT/out/verdicts.tsv" 2>/dev/null &&
+    grep -q '; 1 not checked against the selector' "$TMP_ROOT/out/report.md"; then
+    ok "trace: a selector error is a 'not checked' verdict with its reason, counted apart from gaps"
+  else
+    fail "trace: verdicts.tsv [$(cat "$TMP_ROOT/out/verdicts.tsv" 2>/dev/null)]"
+  fi
+  if [[ "$(cut -f1,2 "$TMP_ROOT/out/suites.tsv")" == $'suites/quiet.test.sh\t0\nsuites/reader.test.sh\t0\nsuites/zz-outside.test.sh\t0' ]]; then
     ok "trace: suites.tsv records every traced suite and its exit"
   else
     fail "trace: suites.tsv [$(cat "$TMP_ROOT/out/suites.tsv")]"
@@ -96,11 +124,22 @@ EOF
 
   rc=0
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" \
-    bash "$AUDIT" trace --shard 0/2 --out "$TMP_ROOT/out-shard") >/dev/null 2>&1 || rc=$?
+    bash "$AUDIT" trace --shard 0/3 --out "$TMP_ROOT/out-shard") >/dev/null 2>&1 || rc=$?
   if [[ "$rc" -eq 0 && "$(cut -f1 "$TMP_ROOT/out-shard/suites.tsv")" == suites/quiet.test.sh ]]; then
-    ok "trace: --shard 0/2 keeps the first of two suites and finds no gap in it"
+    ok "trace: --shard 0/3 keeps the first of three suites and finds no gap in it"
   else
-    fail "trace: --shard 0/2 exit $rc, suites [$(cat "$TMP_ROOT/out-shard/suites.tsv" 2>/dev/null)]"
+    fail "trace: --shard 0/3 exit $rc, suites [$(cat "$TMP_ROOT/out-shard/suites.tsv" 2>/dev/null)]"
+  fi
+
+  rm "$t/.github/workflows/ci.yml"
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" \
+    bash "$AUDIT" trace --out "$TMP_ROOT/out-noci") >/dev/null 2>&1 || rc=$?
+  git -C "$t" checkout -q -- .github/workflows/ci.yml
+  if [[ "$rc" -eq 2 ]]; then
+    ok "trace: exits 2 when ci.yml's unmapped fallback cannot be read"
+  else
+    fail "trace: no ci.yml fallback exit $rc, want 2"
   fi
 fi
 
@@ -115,15 +154,18 @@ for f in "$@"; do
   case "$f" in
   covered) echo suites/x.test.sh ;;
   odd) echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2 ;;
+  boom) exit 5 ;;
   esac
 done
 exit 0
 EOF
 echo 'true' >"$r/suites/x.test.sh"
+echo 'true' >"$r/suites/y.test.sh"
+ci_fallback "$r" suites/x.test.sh
 git -C "$r" add -A && git -C "$r" commit -qm base
 good="$(git -C "$r" rev-parse HEAD)"
 declare -A sha=()
-for f in other covered odd; do
+for f in other covered odd boom; do
   echo "$f" >"$r/$f" && git -C "$r" add -A && git -C "$r" commit -qm "change $f"
   sha[$f]="$(git -C "$r" rev-parse HEAD)"
 done
@@ -139,10 +181,28 @@ fi
 rc=0
 out="$(cd "$r" && bash "$AUDIT" replay --suite suites/x.test.sh --good "$good" --bad "${sha[odd]}" --out "$TMP_ROOT/rp2" 2>&1)" || rc=$?
 if [[ "$rc" -eq 0 && "$out" == *"Selected by 2 of 3 commit(s)"* && "$out" == *"| selected | change covered |"* &&
-  "$out" == *"| selected (unmapped file: full-corpus fallback) | change odd |"* ]]; then
-  ok "replay: a selecting commit and an unmapped fallback both count as selected, exit 0"
+  "$out" == *"| selected (unmapped file: the full-corpus fallback runs it) | change odd |"* ]]; then
+  ok "replay: a selecting commit and an unmapped fallback that runs the suite both count as selected, exit 0"
 else
   fail "replay selected: exit $rc: $out"
+fi
+
+rc=0
+out="$(cd "$r" && bash "$AUDIT" replay --suite suites/y.test.sh --good "$good" --bad "${sha[odd]}" --out "$TMP_ROOT/rp3" 2>&1)" || rc=$?
+if [[ "$rc" -eq 1 && "$out" == *"**Selection miss**"* &&
+  "$out" == *"| not selected (unmapped file: the full-corpus fallback does not run it) | change odd |"* ]]; then
+  ok "replay: an unmapped fallback that does not run the suite is no selection, exit 1"
+else
+  fail "replay unmapped outside the fallback: exit $rc: $out"
+fi
+
+rc=0
+out="$(cd "$r" && bash "$AUDIT" replay --suite suites/y.test.sh --good "${sha[odd]}" --bad "${sha[boom]}" --out "$TMP_ROOT/rp4" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$out" == *"**Inconclusive**: 1 of 1 commit(s)"* && "$out" != *"Selection miss"* &&
+  "$out" == *"| error: selector exit 5 | change boom |"* ]]; then
+  ok "replay: a selector error is neither a miss nor a selection; the range is inconclusive, exit 0"
+else
+  fail "replay error: exit $rc: $out"
 fi
 if [[ -z "$(git -C "$r" worktree list | sed 1d)" ]]; then
   ok "replay: removes its worktree"

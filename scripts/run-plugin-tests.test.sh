@@ -80,6 +80,13 @@ assert_output_has "repo-local hook suites are discovered" "PASS: .claude/hooks/h
 assert_output_has "the all-green summary line" "All plugin tests passed."
 assert_output_has "the suite count is reported" "Suites: 3 (0 serial, 3 across up to 1 job(s))"
 
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "--list exits 0" --list --root "$r"
+if [[ "$RUN_OUTPUT" == $'.claude/hooks/h.test.sh\nplugins/a/a.test.sh\nplugins/b/b.test.sh' ]]; then
+  ok "--list prints the discovered corpus and runs nothing"
+else
+  fail "--list: got [$RUN_OUTPUT]"
+fi
+
 r="$(make_root fail)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
