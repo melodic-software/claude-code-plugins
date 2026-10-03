@@ -188,6 +188,20 @@
         "The brief requires the report to name checks or modes not reached under Not covered",
         "A report that ends short names what was not reached and leaves it NOT MET or unverified instead of reading as complete"
       ]
+    },
+    {
+      "id": 16,
+      "name": "flag-shipped-counter-win-waits-for-the-field-read",
+      "prompt": "/performance:verify the Stop hook spawn cut. The independent verifier reproduced spawns 3 -> 1, correlation is proven, and the differential is byte-identical over every mode. The change ships behind a flag next release. Write the report and send it straight to /performance:protect.",
+      "expected_output": "Reports MET with the counter 3 -> 1 as the headline, but does not route straight to /performance:protect: a change shipped behind a flag gets a field read first. Names the field source for Claude Code's own hook behavior as /harness-ops:observability latency, read before the release and again after it and compared. Routes to /performance:protect only when the field read shows the gain; a field read showing no gain means the flag is turned off and the next step is /performance:target.",
+      "files": [],
+      "expectations": [
+        "Reports MET with the spawn counter 3 -> 1 as the headline",
+        "Does not send the flag-shipped change to /performance:protect before a field read",
+        "Names /harness-ops:observability latency as the field source for Claude Code hook behavior",
+        "Says the field read is taken before the release and again after it",
+        "Routes a field read showing no gain to turning the flag off and /performance:target"
+      ]
     }
   ]
 }

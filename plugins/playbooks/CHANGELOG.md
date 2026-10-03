@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.4] - 2026-10-02
+
+### Changed
+
+- The Opus 5.5 chapter and the orchestration chapter's narrow-threads section keep only this
+  repository's rules, each with a pointer to read the official docs section live: the scope
+  section goes, Long runs says a project changes its named stops in its own CLAUDE.md or AGENTS.md,
+  and each thread's changes merge under the repository's own merge policy.
+
 ## [0.17.3] - 2026-10-02
 
 ### Changed

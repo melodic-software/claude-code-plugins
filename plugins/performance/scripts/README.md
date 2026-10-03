@@ -12,11 +12,11 @@ to ENFORCE the rules in it, and every refusal below is a defect that shipped in 
 | `spawn-census.sh` | One process-spawn census of one subject command, via a stable PATH shim directory. |
 | `run-spawn-census.sh` | Before and after censuses, with the rule 1 warm-agreement proof. |
 | `ab.sh` | Interleaved A/B timing with order flipping, order-flipped per iteration. |
-| `summarize.py` | Per-arm p50 and p95, refusing any percentile the sample count cannot express, printing the nearest-rank value beside each interpolated one, and flagging a p95 that one sample carries. |
+| `summarize.py` | Per-arm percentiles from the list in `BENCH_PERCENTILES` (`ab.sh --percentiles`, default p50 and p95), refusing any percentile the sample count cannot express, printing the nearest-rank value beside each interpolated one, and flagging a highest listed percentile that one sample carries. |
 | `ratio.py` | Paired ratio, suppressed under concurrency. |
 | `differential.py` | Pre-change versus post-change behavior over an argv matrix: byte-identical stdout and exit code, with any stderr difference disclosed as outside that bar. |
 | `discriminate.py` | Does this check actually fail without the fix. |
-| `ratchet.py` | Checked-in counter ceilings: `check` fails when a counter rises above its ceiling, `propose-tighten` lowers a ceiling only with `--write`, and `add` records a counter only when two runs agree. |
+| `ratchet.py` | Checked-in counter ceilings: `check` fails when a counter rises above its ceiling, `propose-tighten` lowers a ceiling only with `--write`, and `add` records a counter only when its runs agree (two by default, set with `--runs N` on `add` and `propose-tighten`). |
 
 Every script carries a co-located `<stem>.test.sh`. Run one with `bash <stem>.test.sh`.
 
