@@ -3,6 +3,51 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.4] - 2026-10-03
+
+### Fixed
+
+- **The babysit merge gate accepts the folded security lane's check.** The ci-workflows security
+  lane is becoming one job named `security-review`, so its check is
+  `security-review / security-review` and `claude-security-review-status` stops reporting.
+  `--auto` now takes `security-review / security-review` (whole name only) or the old status job as
+  the security lane's check, so another workflow's `security-review` job cannot satisfy it. Every
+  check that matches must succeed, so a caller on an older pin still holds on a red
+  `claude-security-review-status` beside its green `security-review` job.
+
+## [0.77.3] - 2026-10-03
+
+### Changed
+
+- **`/source-control:pull-request monitor` pushes review fixes once per round, after every
+  reviewer on the head has finished.** monitor.md §3.3.2 gains step 0: every reviewer check run
+  on the head is completed and every comment-only reviewer has landed its round or reached its
+  Gate 5 bound before the push, and the cycle's CI fixes (§3.2) go up in the same push. Steps
+  D6 in `SKILL.md` and `reference/review-discipline.md` commit per finding and push once per
+  round; the D6 "verify commit pushed" check, and D7 and D7.5 after it, run for every finding
+  after that push. A PR body or label change is written before that push, never after it.
+- **The ready flip pushes the security review's commits in one push right before
+  `gh pr ready`,** through `push-branch.sh`, so the ready run replaces that push's draft run
+  within seconds. ready-for-review.md also records that `gh pr update-branch` pushes nothing
+  when the head already contains the base tip.
+- **`/source-control:babysit-prs` runs a comment wave as one batch:** it starts only after every
+  reviewer check run on the head has completed, commits each fix, pushes once through
+  `lane_push`, then verifies each commit and posts each D7 reply. §5.1.4 no longer pushes per
+  finding.
+
+## [0.77.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.77.1] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
 ## [0.77.0] - 2026-10-03
 
 ### Added

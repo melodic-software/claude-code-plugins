@@ -166,3 +166,9 @@ plugins/harness-ops/lib/plugin_cache_versions.py
 plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
 plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
 
+# The generated session-bridge copy (scripts/shared-copies.txt). It changes only
+# with its canonical, lib/session-bridge/session_bridge.py, whose shared-lib
+# fan-out selects the carrying plugin's suites; the copy itself is covered by
+# the shared-copies --check drift step and by the affected-tests step's pytest
+# run of the planning surface's test_server.py and test_round.py, which import it.
+plugins/*/surface/session_bridge.py
