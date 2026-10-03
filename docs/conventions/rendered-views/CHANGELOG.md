@@ -3,6 +3,12 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The map-* skills offer views on the builder, 2026-10-03
+
+- **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**
+  One checked-in template plus the skill's JSON record as data, through the interactive profile, with the
+  destination taken from the `medium` key. The markdown and the record stay the record.
+
 ## Post-mortem and blindspot views on the builder, 2026-10-03
 
 - **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**

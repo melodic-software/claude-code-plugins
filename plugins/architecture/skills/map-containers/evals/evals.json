@@ -58,6 +58,18 @@
         "Keeps the host and drops the admin key from the record, the diagram, and stdout",
         "Lists search among the store kinds read in the report"
       ]
+    },
+    {
+      "id": 6,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-containers\n\ncontainers.json and containers.md are written. I would like to filter and trace the containers rather than read the tables.",
+      "expected_output": "After the report, offers an interactive view of containers.json in one sentence, builds it only with scripts/build-view.mjs containers from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "containers.md and containers.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs containers --record containers.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
