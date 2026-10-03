@@ -492,7 +492,7 @@ scope_table() {
     }' "$2"
 }
 
-declare -A AMBIGUOUS=() # basename -> 1 when two or more files carry it
+declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
 declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
 # build_tree_index: every tracked or untracked-unignored file, listed once for
