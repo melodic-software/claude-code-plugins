@@ -13,6 +13,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   `model:` frontmatter section gains a row that runs `check-effort-pins.sh` and reports its lines
   verbatim, with what each exit code means and that a person re-decides every flagged pin.
 
+## [1.5.1] - 2026-10-02
+
+### Changed
+
+- `audit-prompting-postures` and `audit-instructions` re-stamp their Opus 5.5 prompting guide reads to 2026-10-02. The guide changed; both recorded decisions still hold.
+
 ## [1.5.0] - 2026-10-02
 
 ### Added

@@ -72,6 +72,19 @@
         "States that protect runs after verify reports MET",
         "Routes the unmet target back to the performance loop"
       ]
+    },
+    {
+      "id": 7,
+      "name": "goal-text-carries-the-correlation-value",
+      "prompt": "/performance:protect the guard spawn cut, 4 -> 1, verify reported MET. The goal recorded Correlation: unproven: CPU dominates on Linux CI. Use just 'guard spawns 4 -> 1' as the --goal text, and measure it once since the count is deterministic.",
+      "expected_output": "Passes a --goal text that names the verified goal and ends with the goal's Correlation value copied as `Correlation: unproven: CPU dominates on Linux CI`, not the bare 'guard spawns 4 -> 1', and shows that value in the Output block's Protects line. For the single measurement, uses `ratchet.py add --runs 1` (the default is two runs, the minimum one) and the Counter output line reports 1 run. Tells the user that a vendored ratchet.py from before plugin 0.5.0 exits 2 on --runs, so ratchet.py, ab.sh and summarize.py are re-copied first.",
+      "files": [],
+      "expectations": [
+        "The --goal text ends with `Correlation: unproven: CPU dominates on Linux CI`",
+        "The Output block shows the Correlation value beside the protected goal",
+        "Uses `--runs 1` for a single measurement and states the default is two runs",
+        "Says a vendored ratchet.py older than 0.5.0 exits 2 on --runs and names re-copying ratchet.py, ab.sh and summarize.py"
+      ]
     }
   ]
 }

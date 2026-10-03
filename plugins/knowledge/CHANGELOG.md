@@ -12,6 +12,20 @@ only after that version increases.
   says no dispatched subagent takes a per-call effort override; which dispatch surfaces take one is
   read from that record's Workflow probe paragraph.
 
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- **The Anthropic docs profile tags a blog post's outcome counts for claude.ai as
+  `tag-exempt (consumer-surface)` with the `vendor-claimed` marker,** on both blog hosts. A team
+  that wants them handled otherwise says so in its own CLAUDE.md or AGENTS.md.
+
+### Changed
+
+- **The Anthropic docs queue's notes on the loops, Code Review, and test-impact analysis posts
+  record their fetched topics** and give each pointer in the when-fetch-live form with an as-of
+  date and a recheck trigger.
+
 ## [0.16.0] - 2026-10-02
 
 ### Added

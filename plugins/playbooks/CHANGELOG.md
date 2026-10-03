@@ -12,6 +12,15 @@ only after that version increases.
   Code's own "Changing effort level" page for what an effort change in a Claude Code session does
   to the cache.
 
+## [0.17.4] - 2026-10-02
+
+### Changed
+
+- The Opus 5.5 chapter and the orchestration chapter's narrow-threads section keep only this
+  repository's rules, each with a pointer to read the official docs section live: the scope
+  section goes, Long runs says a project changes its named stops in its own CLAUDE.md or AGENTS.md,
+  and each thread's changes merge under the repository's own merge policy.
+
 ## [0.17.3] - 2026-10-02
 
 ### Changed

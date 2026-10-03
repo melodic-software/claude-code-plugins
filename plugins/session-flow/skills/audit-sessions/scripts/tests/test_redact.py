@@ -1,0 +1,313 @@
+"""Tests for redact.py over vendor/gitleaks/gitleaks-rules.json (beside LICENSE-gitleaks).
+
+No secret, email, or home path is written literally here: each is assembled at run time, through
+`"".join` so the compiler cannot fold the fragments into a whole token inside the .pyc.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+import pytest
+
+import redact
+
+RULES_FILE = (
+    Path(__file__).resolve().parents[2] / "vendor" / "gitleaks" / "gitleaks-rules.json"
+)
+# AWS's documented example access key id.
+AWS_EXAMPLE_KEY = "".join(("AKIA", "IOSFODNN7", "EXAMPLE"))
+
+
+def test_every_shipped_rule_compiles() -> None:
+    shipped = json.loads(RULES_FILE.read_text(encoding="utf-8"))["rules"]
+    redactor = redact.load_redactor()
+    assert redactor.skipped == {}
+    assert not redactor.fail_closed
+    assert redactor.rule_count == len(shipped)
+
+
+def test_version_is_the_vendored_source_version() -> None:
+    shipped = json.loads(RULES_FILE.read_text(encoding="utf-8"))
+    assert redact.load_redactor().version == shipped["source_version"]
+
+
+def test_documented_example_token_is_replaced_with_its_rule_id() -> None:
+    text = f"export AWS_ACCESS_KEY_ID={AWS_EXAMPLE_KEY} then deploy"
+    assert redact.load_redactor().redact(text) == (
+        "export AWS_ACCESS_KEY_ID=<redacted:aws-access-token> then deploy"
+    )
+
+
+def test_mid_pattern_case_flag_survives_vendoring() -> None:
+    # linear-api-key is `lin_api_(?i)[a-z0-9]{40}` upstream; mixed case must still match.
+    token = "".join(("lin_", "api_", "Ab3" * 13, "Z"))
+    assert (
+        redact.load_redactor().redact(f"key {token} here")
+        == "key <redacted:linear-api-key> here"
+    )
+
+
+USER = "al" + "ice"
+BS = "\\"
+
+
+# The home-path spellings docs/conventions/windows-path-emit names, plus WSL and JSON-escaped forms.
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("/" + "home/" + USER + "/src/a.py", "~/src/a.py"),
+        ("/" + "Users/" + USER + "/src", "~/src"),
+        ("C:" + BS + "Users" + BS + USER + BS + "src", "~" + BS + "src"),
+        ("C:" + "/Users/" + USER + "/src", "~/src"),
+        ("/c" + "/Users/" + USER + "/src", "~/src"),
+        ("/mnt/c" + "/Users/" + USER + "/src", "~/src"),
+        ("c:" + BS + "users" + BS + USER, "~"),
+        ("D:" + "/USERS/" + USER + "/x", "~/x"),
+        ("C:" + BS * 2 + "Users" + BS * 2 + USER + BS * 2 + "x", "~" + BS * 2 + "x"),
+        ("C:" + BS + "Users" + BS + "Jane Doe" + BS + "src", "~" + BS + "src"),
+    ],
+)
+def test_home_prefix_becomes_tilde(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(f"open {raw} now") == f"open {expected} now"
+
+
+def test_bare_home_dir_ending_a_phrase_keeps_the_prose() -> None:
+    raw = "/" + "home/" + USER
+    assert (
+        redact.load_redactor().redact(f"cd {raw} first, then '{raw}'")
+        == "cd ~ first, then '~'"
+    )
+
+
+@pytest.mark.parametrize("name", ["password", "API_KEY", "Secret", "token"])
+def test_short_assigned_value_is_caught_by_the_generic_assignment_pass(
+    name: str,
+) -> None:
+    # Shorter than the 10 characters gitleaks' generic-api-key needs, so only this pass catches it.
+    value = "hun" + "ter2"
+    assert redact.load_redactor().redact(f"set {name}: {value} now") == (
+        f"set {name}: <redacted:generic-assignment> now"
+    )
+
+
+SHORT = "hun" + "ter2"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # A JSON-quoted key puts a closing quote between the key and the separator.
+        ('{"password": "' + SHORT + '"}', '{"password": <redacted:generic-assignment>}'),
+        ("{'api_key':'" + SHORT + "'}", "{'api_key':<redacted:generic-assignment>}"),
+        # A quoted value with spaces is redacted to its closing quote, not to the first space.
+        (
+            'password="correct horse ' + 'battery staple" ok',
+            "password=<redacted:generic-assignment> ok",
+        ),
+        ("pwd=" + SHORT + " ok", "pwd=<redacted:generic-assignment> ok"),
+        ("DB_PASSWD: " + SHORT, "DB_PASSWD: <redacted:generic-assignment>"),
+    ],
+)
+def test_generic_assignment_covers_quoted_keys_and_values(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("password:: " + SHORT, "password:: <redacted:generic-assignment>"),
+        ('password => "' + SHORT + '"', "password => <redacted:generic-assignment>"),
+        ("password := " + SHORT, "password := <redacted:generic-assignment>"),
+        ("DB_PASS=" + SHORT, "DB_PASS=<redacted:generic-assignment>"),
+        ("passphrase: " + SHORT, "passphrase: <redacted:generic-assignment>"),
+        ("pw: " + SHORT, "pw: <redacted:generic-assignment>"),
+        ("DB_PW=" + SHORT, "DB_PW=<redacted:generic-assignment>"),
+        ("bypass: yes", "bypass: yes"),
+    ],
+)
+def test_generic_assignment_separators_and_keywords(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("scheme", "host"),
+    [("postgres", "h/db"), ("https", "host/"), ("mysql", "localhost:3306/app"), ("redis", "cache:6379")],
+)
+def test_url_credentials_are_redacted(scheme: str, host: str) -> None:
+    raw = f"{scheme}://admin:{SHORT}@{host}"
+    assert redact.load_redactor().redact(f"use {raw} now") == (
+        f"use {scheme}://admin:<redacted:url-credential>@{host} now"
+    )
+
+
+@pytest.mark.parametrize(
+    "password",
+    ["p@ss" + "1", "p/ss" + "1", "p@s/s@" + "1"],
+    ids=["at", "slash", "both"],
+)
+def test_url_credential_password_runs_to_the_last_at_before_the_host(password: str) -> None:
+    raw = f"postgres://app:{password}@db:5432/x"
+    assert redact.load_redactor().redact(f"use {raw} now") == (
+        "use postgres://app:<redacted:url-credential>@db:5432/x now"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["a://b:" + "@/" * 2045, "a://b:" * 20_000],
+    ids=["at-slash-dense", "schemes-without-at"],
+)
+def test_url_credential_pass_stays_fast_on_long_tokens(text: str) -> None:
+    # Retrying the run to the last `@` from every scheme in an `@`-free token is quadratic.
+    started = time.monotonic()
+    redact.load_redactor().redact(text)
+    assert time.monotonic() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("my password is " + SHORT, "my password is <redacted:prose-credential>"),
+        ("the password " + SHORT + " works", "the password <redacted:prose-credential> works"),
+        ("password - " + SHORT, "password - <redacted:prose-credential>"),
+        # A value with no digit or symbol reads as prose and stays.
+        ("the password is wrong", "the password is wrong"),
+        ("token count is high", "token count is high"),
+    ],
+)
+def test_prose_credential_with_digit_or_symbol_is_redacted(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+def test_url_credential_pass_stays_fast_on_a_long_hyphenated_token() -> None:
+    # An unbounded scheme rescanned this token from every offset: 40 KB took seconds.
+    text = "a-" * 20_000
+    started = time.monotonic()
+    assert redact.load_redactor().redact(text) == text
+    assert time.monotonic() - started < 1.0
+
+
+@pytest.mark.parametrize("breaks", ["\r", "\r\n", "\n"], ids=["cr", "crlf", "lf"])
+def test_curl_rules_stay_fast_on_a_run_of_line_breaks(breaks: str) -> None:
+    # The curl rules were written for RE2; under re, `.` matching a bare \r made 50 of them take seconds.
+    started = time.monotonic()
+    assert redact.load_redactor().redact("curl " + breaks * 200) == "curl " + "\n" * 200
+    assert time.monotonic() - started < 1.0
+
+
+PEM_BEGIN = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
+PEM_END = "-----END " + "RSA PRIVATE" + " KEY-----"
+PEM_BODY = "\n".join(["Q" * 64] * 3)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # No END marker: everything from BEGIN on is key material.
+        (f"here it is\n{PEM_BEGIN}\n{PEM_BODY}\nand more", "here it is\n<redacted:private-key>"),
+        (f"{PEM_BEGIN}\n{PEM_BODY}\n{PEM_END} then done", "<redacted:private-key> then done"),
+    ],
+    ids=["no-end", "complete"],
+)
+def test_private_key_block_is_redacted_with_or_without_its_end(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("mysql -uroot -p" + SHORT + " app", "mysql -uroot -p<redacted:cli-password> app"),
+        ("mysqldump -h db -u admin -p" + SHORT + " app", "mysqldump -h db -u admin -p<redacted:cli-password> app"),
+        ("mariadb -u admin -p'" + SHORT + " x' app", "mariadb -u admin -p<redacted:cli-password> app"),
+        # A bare -p prompts for the password; -P is the port; other tools' -p is not a password.
+        ("mysql -u root -p app", "mysql -u root -p app"),
+        ("mysql -P3306 -h db", "mysql -P3306 -h db"),
+        ("find . -name x -print", "find . -name x -print"),
+        ("gcc -pedantic -Wall a.c", "gcc -pedantic -Wall a.c"),
+        ("ssh -p2222 host", "ssh -p2222 host"),
+    ],
+)
+def test_attached_database_client_password_is_redacted(raw: str, expected: str) -> None:
+    assert redact.load_redactor().redact(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "template",
+    ["Authorization: Basic {}", '"Authorization": "Basic {}"', "{{'authorization': 'basic {}'}}"],
+    ids=["unquoted", "double-quoted", "single-quoted"],
+)
+def test_basic_auth_header_is_redacted(template: str) -> None:
+    credential = "".join(("YWRtaW46", "c2VjcmV0MTIz"))  # spellchecker:disable-line
+    assert redact.load_redactor().redact(template.format(credential)) == template.format(
+        "<redacted:basic-auth>"
+    )
+
+
+def test_bearer_credential_is_redacted() -> None:
+    credential = "".join(("abcd", "EFGH", "1234", ".xyz"))
+    assert redact.load_redactor().redact(f"Authorization: Bearer {credential} sent") == (
+        "Authorization: Bearer <redacted:bearer> sent"
+    )
+
+
+def test_email_becomes_placeholder() -> None:
+    address = "jane.doe+ci" + "@" + "mail.example.co.uk"
+    assert (
+        redact.load_redactor().redact(f"mail {address}, thanks")
+        == "mail <email>, thanks"
+    )
+
+
+def write_rules(path: Path, *rules: dict) -> Path:
+    path.write_text(
+        json.dumps({"rules": list(rules), "excluded": []}), encoding="utf-8"
+    )
+    return path
+
+
+def test_rule_that_does_not_compile_is_skipped_counted_and_fails_closed(
+    tmp_path: Path,
+) -> None:
+    rules = write_rules(
+        tmp_path / "rules.json",
+        {"id": "ok", "regex": "abc", "keywords": []},
+        {"id": "broken", "regex": "(", "keywords": []},
+    )
+    redactor = redact.load_redactor(rules)
+    assert list(redactor.skipped) == ["broken"]
+    assert redactor.rule_count == 1
+    assert redactor.fail_closed
+    assert redactor.excerpt("abc", 240) is None
+
+
+def test_excerpt_truncates_after_redacting() -> None:
+    # Cut first, a token straddling the limit would leave its head ("AKIA...") in the excerpt.
+    text = "a" * 10 + " " + AWS_EXAMPLE_KEY
+    assert redact.load_redactor().excerpt(text, 16) == "aaaaaaaaaa <reda"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        None,
+        "not json",
+        json.dumps({"rules": [], "excluded": []}),
+        json.dumps({"rules": [{"id": "x"}]}),
+    ],
+    ids=["missing", "malformed", "empty", "rule-without-regex"],
+)
+def test_unusable_rules_file_fails_closed(tmp_path: Path, content: str | None) -> None:
+    rules = tmp_path / "rules.json"
+    if content is not None:
+        rules.write_text(content, encoding="utf-8")
+    redactor = redact.load_redactor(rules)
+    assert redactor.fail_closed
+    assert redactor.excerpt("plain text", 240) is None
+
+
+def test_url_path_segment_named_users_is_not_a_home() -> None:
+    text = "see example.org/api/users/" + USER
+    assert redact.load_redactor().redact(text) == text
