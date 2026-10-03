@@ -425,7 +425,7 @@ script's own arguments:
              "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh", "--flag"]
 
 Each carrying plugin has its own hooks/exec-bash.mjs, copied from
-lib/exec-bash.mjs by scripts/sync-exec-bash.sh. An option gate is a launcher
+lib/exec-bash.mjs by scripts/sync-shared-copies.sh. An option gate is a launcher
 flag placed before the script: `--require-true NAME` or
 `--run-if-unset-or-true NAME`.
 

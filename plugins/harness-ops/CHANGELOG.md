@@ -15,6 +15,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   printed brief stays the record.
 - The plugin carries generated copies of `lib/view-builder.mjs` and `lib/view-runtime.js`.
 
+## [3.4.2] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `exec-bash.mjs`, `fetch-docs.sh`, `managed-scope.sh`, `spawn_noise.py`, `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
 ## [3.4.1] - 2026-10-03
 
 ### Fixed
