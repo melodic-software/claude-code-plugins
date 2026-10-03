@@ -43,13 +43,13 @@ bash <skill-dir>/scripts/clean-batch.sh \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
   [--skip ENTRY]... [--skip-from FILE]... \
-  [--batch-plan FILE] [--list-paths-max N]
+  [--batch-plan FILE] [--data-dir "<plugin-data>"] [--list-paths-max N]
 ```
 
 Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
 plan to another path than the default: a new `run.*` directory per dry-run under one directory
-per tier, repo set and skip list in `${CLAUDE_PLUGIN_DATA}` (else
-`~/.claude/plugins/data/repo-hygiene`), so a repeat dry-run never replaces a confirmed plan; run directories older than 14 days are removed. `--list-paths-max N` caps the dry-run path listing per repo (default 20). Output labels and full flag help: script `--help`.
+per tier, repo set and skip list in the `--data-dir` directory, so a repeat dry-run never replaces a confirmed plan. Pass `--data-dir "<plugin-data>"` on every dry-run: without it the script uses an inherited `CLAUDE_PLUGIN_DATA` only when that value names repo-hygiene, else
+`~/.claude/plugins/data/repo-hygiene`; run directories older than 14 days are removed. `--list-paths-max N` caps the dry-run path listing per repo (default 20). Output labels and full flag help: script `--help`.
 
 ### Tiers
 
@@ -220,7 +220,7 @@ gated plan after confirming:
 
 ```bash
 ghq list -p | bash <skill-dir>/scripts/clean-batch.sh \
-  --tier caches --repos-from - --skip melodic-software/standards
+  --tier caches --repos-from - --skip melodic-software/standards --data-dir "<plugin-data>"
 # → BatchPlan: <plan-path>  — confirm, then:
 CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan <plan-path>
@@ -231,5 +231,5 @@ pruned once):
 
 ```bash
 bash <skill-dir>/scripts/clean-batch.sh \
-  --tier git --repo ~/repos/a --repo ~/repos/a-worktree --repo ~/repos/b
+  --tier git --repo ~/repos/a --repo ~/repos/a-worktree --repo ~/repos/b --data-dir "<plugin-data>"
 ```
