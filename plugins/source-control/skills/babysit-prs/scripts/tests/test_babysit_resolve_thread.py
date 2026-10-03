@@ -905,6 +905,27 @@ def _proc(
     )
 
 
+def _linked_pr_payload(
+    *,
+    state: str = "open",
+    merged: bool = False,
+    draft: bool = False,
+    head_repo: str = "owner/repo",
+) -> subprocess.CompletedProcess[str]:
+    """A `gh api repos/owner/repo/pulls/42` answer; defaults to a same-repo, ready PR."""
+    return _proc(
+        0,
+        json.dumps(
+            {
+                "state": state,
+                "merged": merged,
+                "draft": draft,
+                "head": {"repo": {"full_name": head_repo}},
+            }
+        ),
+    )
+
+
 # The verbatim shapes `gh` writes to stderr (gh 2.95.0), because the HTTP status
 # it carries is the only signal separating a negative answer from an outage.
 GH_404 = "gh: Not Found (HTTP 404)\n"
@@ -1305,7 +1326,7 @@ class IndependentResolverEvidence(unittest.TestCase):
     def test_linked_pr_resolves_for_an_open_pr_the_reply_cites(self) -> None:
         code, payload = self._linked_pr(
             "Fixed in #42, outside this PR's files.",
-            _proc(0, json.dumps({"state": "open", "merged": False})),
+            _linked_pr_payload(state="open", merged=False),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "resolved")
@@ -1316,7 +1337,7 @@ class IndependentResolverEvidence(unittest.TestCase):
     def test_linked_pr_resolves_for_a_merged_pr_cited_by_url(self) -> None:
         code, payload = self._linked_pr(
             "Fixed in https://github.com/owner/repo/pull/42",
-            _proc(0, json.dumps({"state": "closed", "merged": True})),
+            _linked_pr_payload(state="closed", merged=True),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "resolved")
@@ -1341,6 +1362,45 @@ class IndependentResolverEvidence(unittest.TestCase):
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "refused-linked-pr-not-cited")
         self.assertEqual(code, 10)
+
+    def test_linked_pr_refuses_a_pr_from_a_fork(self) -> None:
+        # A fork's head branch is not a fix this repository controls, so citing
+        # one does not dispose of the finding.
+        code, payload = self._linked_pr(
+            "Fixed in #42.", _linked_pr_payload(head_repo="stranger/repo")
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-linked-pr-fork")
+        self.assertEqual(code, 10)
+
+    def test_linked_pr_refuses_a_draft_pr(self) -> None:
+        code, payload = self._linked_pr("Fixed in #42.", _linked_pr_payload(draft=True))
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-linked-pr-draft")
+        self.assertEqual(code, 10)
+
+    def test_linked_pr_citation_needs_its_own_boundaries(self) -> None:
+        # Each reply names PR 42 only inside a longer token: another repo whose
+        # name ends in owner/repo, a non-GitHub host, or a longer PR number.
+        # No gh result is scripted, so reaching a lookup would raise.
+        for reply in (
+            "Fixed in xowner/repo#42.",
+            "Fixed in https://evil.host/owner/repo/pull/42",
+            "Fixed in https://notgithub.com/owner/repo/pull/42",
+            "Fixed in owner/repo#420.",
+            "Fixed in https://github.com/owner/repo/pull/420",
+        ):
+            with self.subTest(reply=reply):
+                code, payload = self._linked_pr(reply)
+                threads = cast(list[dict[str, object]], payload["threads"])
+                self.assertEqual(threads[0]["action"], "refused-linked-pr-not-cited")
+                self.assertEqual(code, 10)
+
+    def test_linked_pr_resolves_for_a_repo_qualified_citation(self) -> None:
+        code, payload = self._linked_pr("Fixed in owner/repo#42.", _linked_pr_payload())
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(code, 0)
 
     def test_linked_pr_refuses_a_pr_that_does_not_exist(self) -> None:
         code, payload = self._linked_pr("Fixed in #42.", _proc(1, stderr=GH_404))

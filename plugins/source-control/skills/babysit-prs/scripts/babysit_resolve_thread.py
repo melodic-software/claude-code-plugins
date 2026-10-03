@@ -811,17 +811,20 @@ def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool,
 def verify_linked_pr(
     thread: dict[str, object], repo: str, linked: str
 ) -> tuple[bool, str]:
-    """True when a reply on the thread cites PR `linked` and that PR is open or merged.
+    """True when a reply on the thread cites PR `linked`, a ready same-repo PR, open or merged.
 
     The D4.6 scope test sends an unrelated fix to its own PR, so the thread's
     record is the citation: it must be ON the thread, in a reply by someone other
     than the opener, the same visibility rule the `incorrect` disposition holds.
     A PR closed without merging is the fix disappearing, as a closed tracker
-    item is for a deferral.
+    item is for a deferral. A fork head or a draft is not a fix this repository
+    has in hand, so neither disposes of the finding.
     """
+    qualified = re.escape(repo)
     citation = re.compile(
-        rf"(?:(?<![\w/#])|{re.escape(repo)})#{linked}(?!\d)"
-        rf"|/{re.escape(repo)}/pull/{linked}(?!\d)",
+        rf"(?:(?<![\w/#])|(?<![\w./-]){qualified})#{linked}(?!\w)"
+        rf"|(?<![\w./-])(?:https?://)?(?:www\.)?github\.com/{qualified}"
+        rf"/pull/{linked}(?!\w)",
         re.IGNORECASE,
     )
     replies = thread.get("replyBodies")
@@ -842,11 +845,18 @@ def verify_linked_pr(
     except json.JSONDecodeError:
         return False, "refused-evidence-unverifiable"
     state = dig(payload, "state")
-    if state == "open" or dig(payload, "merged") is True:
-        return True, ""
-    if state == "closed":
-        return False, "refused-linked-pr-closed"
-    return False, "refused-evidence-unverifiable"
+    if not (state == "open" or dig(payload, "merged") is True):
+        return False, (
+            "refused-linked-pr-closed"
+            if state == "closed"
+            else "refused-evidence-unverifiable"
+        )
+    head_repo = dig(payload, "head", "repo", "full_name")
+    if not isinstance(head_repo, str) or head_repo.casefold() != repo.casefold():
+        return False, "refused-linked-pr-fork"
+    if dig(payload, "draft") is not False:
+        return False, "refused-linked-pr-draft"
+    return True, ""
 
 
 def verify_disposition(

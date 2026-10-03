@@ -18,7 +18,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `--disposition linked-pr --linked-pr <N>`: it resolves only when a reply on the thread by someone
   other than the opener cites `#N` or its URL and PR `N`, a different PR in the same repository,
   is open or merged. New refusals: `refused-linked-pr-not-cited`, `refused-linked-pr-not-found`,
-  `refused-linked-pr-closed`.
+  `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`.
 
 ### Added
 

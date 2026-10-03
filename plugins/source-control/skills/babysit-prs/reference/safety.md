@@ -577,9 +577,9 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
     D4.6's scope test, so claim `deferred` only for a structural, urgent-but-cannot-land, or
     fix-blocked-on-research finding; a small or medium one is never `deferred`.
   - `linked-pr` + `--linked-pr <N>`: the fix D4.6's scope test placed in a separate PR. `N` must
-    be a different PR in the same repository, cited (`#N` or its URL) in a **reply** on the thread
-    by someone other than the opener, and **open or merged**: a PR closed without merging is the
-    fix disappearing.
+    be a different, non-draft PR whose head is in the same repository, cited (`#N` or its URL) in a
+    **reply** on the thread by someone other than the opener, and **open or merged**: a PR closed
+    without merging is the fix disappearing.
   - `incorrect` + `--counter-evidence <text>`: the text must already appear in a **reply** on the
     thread, posted by **someone other than the thread's opener**. Excluding the opening comment
     alone is not enough: the mandated classification reply restates the finding's own text, so a
@@ -594,7 +594,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   is its own per-thread `action`: `refused-fix-commit-not-on-head`,
   `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
   `refused-counter-evidence-not-found`, `refused-linked-pr-not-cited`,
-  `refused-linked-pr-not-found`, `refused-linked-pr-closed`, and `refused-evidence-unverifiable` for an API that could
+  `refused-linked-pr-not-found`, `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`, and `refused-evidence-unverifiable` for an API that could
   not be consulted, kept distinct so an outage is never reported as a false claim. **Only a
   confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure, whether
   403, 429, 5xx, a timeout, an unreachable API, or no HTTP response at all, reports
