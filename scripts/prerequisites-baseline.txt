@@ -94,6 +94,8 @@ instruction-placement jq
 kindle-dedrm curl
 kindle-dedrm gh
 knowledge ffmpeg
+knowledge ffprobe
+knowledge gh
 knowledge node
 knowledge npm
 knowledge yt-dlp
@@ -107,6 +109,7 @@ markdown-format markdownlint-cli2
 markdown-format schema
 mcp-tools jq
 miro claude
+miro npm
 pixel-art ffmpeg
 pixel-art python3
 planning curl
@@ -143,6 +146,7 @@ ruff-format jq
 ruff-format ruff
 ruff-format schema
 session-flow claude
+session-flow gh
 session-flow jq
 session-flow python3
 session-flow schema

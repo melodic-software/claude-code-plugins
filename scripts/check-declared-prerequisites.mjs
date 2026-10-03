@@ -29,7 +29,8 @@ const BASELINE = "scripts/prerequisites-baseline.txt";
 const TOOLS = "scripts/prerequisites-tools.txt";
 const SHARED = "scripts/shared-copies.txt";
 const CHECKER_COPIES = ["prerequisites.mjs", "prerequisites.sh", "prerequisites.ps1"];
-const CODE_EXT = new Set([".sh", ".bash", ".mjs", ".js", ".cjs", ".py", ".ps1", ".psm1"]);
+const CODE_EXT = new Set([".sh", ".bash", ".mjs", ".js", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".py", ".ps1", ".psm1"]);
+const JS_LIKE = new Set([".mjs", ".js", ".cjs", ".ts", ".tsx", ".mts", ".cts"]);
 const SKIP_DIRS = new Set(["tests", "test", "fixtures", "evals", "node_modules", "__pycache__", ".venv"]);
 const TEST_FILE = /(\.test\.|\.spec\.|\.Tests\.ps1$|^test_.*\.py$|_test\.py$|^conftest\.py$)/;
 const ESCAPE = /prereq-ok:\s*\S/;
@@ -57,7 +58,13 @@ const alternation = (tools) =>
 function shellMatcher(tools) {
   const lead = String.raw`(?:^\s*\(?|[;&|{\x60]|\$\(|\b(?:then|do|else|elif|if|while|until|exec|xargs|time|env|nohup|sudo|!)\s|\bcommand(?:\s+-[vV])?\s|\btype(?:\s+-[aPpt])?\s|\bhash\s|\bwhich\s|\bGet-Command(?:\s+-Name)?\s|&\s*)`;
   const assign = String.raw`[A-Za-z_]\w*=(?:'[^']*'|"[^"]*"|[^\s'"(]\S*)?\s+`;
-  return new RegExp(String.raw`${lead}\s*(?:${assign})*(${alternation(tools)})(?=$|[\s;&\x60'"])(?!\s*=[^=])`, "g");
+  const names = alternation(tools);
+  // A tool that is the whole body of a substitution, `$(gh)` or `$(command -v gh)`, ends at `)`.
+  const closed = String.raw`(?:\$\(\s*|\bcommand\s+-[vV]\s+)(${names})(?=\))`;
+  return new RegExp(
+    String.raw`${lead}\s*(?:${assign})*(${names})(?=$|[\s;&\x60'"])(?!\s*=[^=])|${closed}`,
+    "g",
+  );
 }
 
 // Single-quoted text in shell and PowerShell is literal, so a tool name inside
@@ -117,8 +124,25 @@ function withoutHeredocs(lines) {
 
 function isComment(line, ext) {
   const t = line.trimStart();
-  if ([".mjs", ".js", ".cjs"].includes(ext)) return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*");
+  if (JS_LIKE.has(ext)) return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*");
   return t.startsWith("#");
+}
+
+// Process calls in JS, TS and Python often span lines, so the matcher runs over the whole
+// text with comment lines blanked, and a hit is reported on the line the tool name is on.
+function callUses(re, ext, text) {
+  const lines = text.split(/\r?\n/);
+  const masked = lines.map((l) => (isComment(l, ext) ? "" : l)).join("\n");
+  const seen = new Set();
+  const found = [];
+  for (const m of masked.matchAll(re)) {
+    const line = masked.slice(0, m.index + m[0].length).split("\n").length;
+    const key = `${m[1]}@${line}`;
+    if (seen.has(key) || ESCAPE.test(lines[line - 1])) continue;
+    seen.add(key);
+    found.push({ tool: m[1], line });
+  }
+  return found;
 }
 
 const matcherCache = new Map();
@@ -131,9 +155,10 @@ export function usesOf(file, text, tools) {
   if (!matcherCache.has(key)) matcherCache.set(key, shellish ? shellMatcher(tools) : callMatcher(tools));
   const re = matcherCache.get(key);
   const found = [];
+  if (!shellish) return callUses(re, ext, text);
   const lines = shellLines(file, text);
   let blockComment = false;
-  for (const [line, raw] of shellish ? withoutHeredocs(lines) : lines) {
+  for (const [line, raw] of withoutHeredocs(lines)) {
     if ([".ps1", ".psm1"].includes(ext)) {
       // PowerShell <# ... #> block comments are prose.
       if (blockComment || raw.trimStart().startsWith("<#")) {
@@ -141,9 +166,9 @@ export function usesOf(file, text, tools) {
         continue;
       }
     }
-    if (ESCAPE.test(raw) || isComment(raw, ext) || (shellish && CASE_LABEL.test(raw))) continue;
-    const content = shellish ? literalsBlanked(raw) : raw;
-    for (const tool of new Set([...content.matchAll(re)].map((m) => m[1]))) found.push({ tool, line });
+    if (ESCAPE.test(raw) || isComment(raw, ext) || CASE_LABEL.test(raw)) continue;
+    const content = literalsBlanked(raw);
+    for (const tool of new Set([...content.matchAll(re)].map((m) => m[1] ?? m[2]))) found.push({ tool, line });
   }
   return found;
 }

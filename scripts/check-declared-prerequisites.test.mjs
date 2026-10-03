@@ -23,6 +23,11 @@ describe("usesOf finds a run", () => {
     ["a.mjs", "execSync(`jq -r .x ${f}`)", ["jq@1"]],
     ["a.py", 'subprocess.run(["claude", "plugin", "list"])', ["claude@1"]],
     ["a.py", 'node = shutil.which("node")', ["node@1"]],
+    ["a.sh", 'PWSH="$(command -v go)"', ["go@1"]],
+    ["a.sh", "x=$(gh)", ["gh@1"]],
+    ["a.ts", 'spawnSync("gh", ["api"])', ["gh@1"]],
+    ["a.mts", 'execFileSync(\n  "jq",\n  ["."],\n)', ["jq@2"]],
+    ["a.js", 'const p = spawn(\n  "gh",\n  args,\n);', ["gh@2"]],
     ["skills/x/SKILL.md", "Text about jq.\n\n```bash\ngh pr view\n```\n\nRun: !`uv --version`", ["gh@4", "uv@7"]],
   ];
   for (const [file, text, want] of cases) {

@@ -129,7 +129,14 @@
                 "required": ["module", "paths"],
                 "properties": {
                   "module": { "type": "string", "pattern": "^(@[a-z0-9._-]+/)?[a-z0-9._-]+$" },
-                  "paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } }
+                  "paths": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$))(\\$\\{CLAUDE_PLUGIN_(DATA|ROOT)\\}(/.+)?|(?![\\\\/])(?![A-Za-z]:).+)$"
+                    }
+                  }
                 }
               }
             }
