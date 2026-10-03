@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
+
 ## [0.46.2] - 2026-10-03
 
 ### Fixed

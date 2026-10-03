@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.0] - 2026-10-03
+
+### Added
+
+- **`interview` recommends separate implement and verify effort levels.** An engineering handoff
+  names one level for each phase, matched to a row of model-config's "Choose an effort level"
+  table and never below medium. When the page cannot be read, it says so and recommends no level.
+  The downstream session-config eval checks both levels.
+
 ## [0.62.3] - 2026-10-02
 
 ### Fixed
