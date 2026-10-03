@@ -90,23 +90,21 @@ Research parallelizes well: read-only, results merge by union. Code parallelizes
 
 ## Narrow threads per benchmark or journey
 
-This section is our inference. No docs page covers the practice as of 2026-09-23 (correlate with the vendor's claude.ai performance post, <https://claude.dev/blog/how-we-made-claude-ai-faster>). Mapping a workstream thread to a Claude Code session, or to one long-lived worker, is our reading; no Claude Code mechanism stands behind it. Recheck trigger: a docs page covers running improvement work as owned threads.
+Running improvement work as owned threads is our inference, in our words: no docs page covers the practice, and mapping a thread to a Claude Code session, or to one long-lived worker, is our reading with no Claude Code mechanism behind it.
+
+- **Pointer**: when running work as owned threads, fetch [Subagent orchestration](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#subagent-orchestration), [Chain prompts for complex tasks](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency#chain-prompts-for-complex-tasks), [Avoid common failure patterns](https://code.claude.com/docs/en/best-practices#avoid-common-failure-patterns) and [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup) live (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster>). **As of**: 2026-10-02. **Recheck trigger**: a docs page covers running improvement work as owned threads.
 
 TRIGGER: an improvement effort spans several benchmarks or user journeys.
 
-- **One thread per benchmark or journey, searching only there.** A measurement is an existing boundary in the sense of "Existing boundaries only" above: each thread owns one number and its harness, and looks for improvements only within that scope. Many narrow searchers find more than one broad one, because each holds one number's context instead of all of them.
-- **Scale a loop horizontally only after it works on one thread.** Prove the loop end to end on one thread (measure, change, verify, keep or revert); after that, more threads are more instances of a loop you trust. Scaling an unproven loop multiplies its defects. The 3-5 wave cap above still binds any single orchestrator: give every thread its own human owner, so horizontal scale means many owned sessions, not one session reviewing every return.
+- **One thread per benchmark or journey, searching only there.** A measurement is an existing boundary in the sense of "Existing boundaries only" above: each thread owns one number and its harness, and looks for improvements only within that scope.
+- **One named human owner per thread.** The 3-5 wave cap above still binds any single orchestrator, so more threads means more owned sessions, not one session reviewing every return. The owner sets the goal and rules on tradeoffs and sequencing; each change merges under the repo's own merge policy: its branch ruleset and, where a merge lane runs, that lane's resolved rung.
 - **Merge threads that collide.** Two threads whose changes touch the same code, or whose wins trade against each other, are one piece under the touch-set rule in "Decompose by context, not by headcount" above. Combine them into one thread instead of reconciling their conflicts after the fact.
-- **Close a thread at diminishing returns.** These criteria are judgment: close when successive changes each move the number by less than its harness's run-to-run noise, when the next gain costs more complexity to maintain than it returns, or when what remains lies outside the thread's scope. Hitting the original target is not by itself a reason to close; a thread still finding in-scope gains keeps going.
-- **Leave room for agent-proposed work.** Keep capacity for threads the agent proposes from what it found during another thread's investigation or a scheduled job, and have the human owner rule on each. We set no share of capacity; any number would be judgment.
-- **One named human owner per thread, who steers.** The agent finds, measures, ships, and watches; the owner sets the goal, rules on tradeoffs, approves each change, and decides sequencing: which surfaces come first and which threads merge or close. A productive loop is not an autonomous one; keeping it fast, safe, and on track stays the owner's job.
-- **A standing brief per thread.** State the owned surfaces, the responsibilities as verbs, and the current autonomy limit once, where every later turn can see it. Follow-ups can then be terse ("you know what we want") because the context is already shared; a fresh worker still gets the full contract from "Write worker specs as contracts" above.
+- **Close a thread at diminishing returns.** These criteria are judgment: close when successive changes each move the number by less than its harness's run-to-run noise, when the next gain costs more complexity to maintain than it returns, or when what remains lies outside the thread's scope.
 - **A signal the thread can re-run alone.** A thread working for hours or unattended needs a local measurement it can repeat without the owner; without one it waits on a human or guesses.
-- **Run threads in one shared, visible place.** Owners and others can see every thread, join one, and argue a call, and a new owner can start from an existing thread instead of from nothing.
-- **Plan the reporting cadence before throughput outgrows it.** At high volume nobody can summarize the output by hand, so decide up front what each thread reports and how often.
+- **One shared brief, plus each thread's own lines.** Put what every thread shares once in CLAUDE.md, AGENTS.md or the lane prompt, and give each thread its owned surface and its number. A fresh worker still gets the full contract from "Write worker specs as contracts" above.
 
-> Weak: "One session: make the app faster."
-> Strong: "One session per journey: cold start, send message, load conversation. Each owns its benchmark and changes nothing outside it."
+> Weak: "One session: speed everything up."
+> Strong: "One session per benchmark: build time, test-suite time, API response time. Each owns its number and harness and changes nothing outside them."
 
 ## Keep working while workers run
 

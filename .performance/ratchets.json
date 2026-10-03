@@ -5,98 +5,98 @@
       "command": "mkdir -p \"$HOME/.cache/performance-ratchet\" && env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT=plugins/guardrails bash plugins/performance/scripts/spawn-census.sh --shim-dir \"$HOME/.cache/performance-ratchet/shim\" --label guardrails-commit-guard --no-ledger --tool awk --tool git --tool jq --tool sed --tool grep --tool dirname --stdin '{\"tool_name\":\"Bash\",\"cwd\":\".\",\"tool_input\":{\"command\":\"git commit -m \\\"feat: add x\\\"\"}}' -- node plugins/guardrails/hooks/exec-bash.mjs plugins/guardrails/hooks/run-guards.sh --lib lib/powershell/ps-command.sh --max-substitutions 256 --max-command-len 16384 block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh | grep -F ' rc=0 '",
       "field": "spawns",
       "ceiling": 6,
-      "goal": "The Bash PreToolUse guard row spends at most this many external processes judging a git commit with no convention cache (plugins/guardrails/hooks/hooks.json, block-convention-violation.sh)."
+      "goal": "The Bash PreToolUse guard row spends at most this many external processes judging a git commit with no convention cache (plugins/guardrails/hooks/hooks.json, block-convention-violation.sh). Correlation: unproven: not measured"
     },
     {
       "name": "harness-ops-stop-hook-failure-audit-growth",
       "command": "bash scripts/hook-census.sh harness-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",
       "ceiling": 0,
-      "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408). Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, strace 6.8; the ratchet step prints the current versions."
+      "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408). Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "disk-hygiene-stop-guard-launch-monitor-growth",
       "command": "bash scripts/hook-census.sh disk-hygiene Stop guard_launch_monitor.py '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth --setup 'mkdir -p \"$CLAUDE_PLUGIN_DATA/guard-launch-monitor\" && : >\"$CLAUDE_PLUGIN_DATA/guard-launch-monitor/census.launched\"'",
       "field": "growth",
       "ceiling": 0,
-      "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422). Measured on ubuntu-24.04 with bash 5.2.21, python3 3.14.7, strace 6.8; the ratchet step prints the current versions."
+      "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422). Measured on ubuntu-24.04 with bash 5.2.21, python3 3.14.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "harness-ops-stop-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh harness-ops Stop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the Stop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
+      "goal": "With session_event_log_enabled at its default (off), the Stop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "harness-ops-posttoolbatch-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh harness-ops PostToolBatch session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the PostToolBatch row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
+      "goal": "With session_event_log_enabled at its default (off), the PostToolBatch row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "harness-ops-subagentstop-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh harness-ops SubagentStop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"SubagentStop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the SubagentStop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
+      "goal": "With session_event_log_enabled at its default (off), the SubagentStop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "harness-ops-userpromptsubmit-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh harness-ops UserPromptSubmit session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the UserPromptSubmit row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions."
+      "goal": "With session_event_log_enabled at its default (off), the UserPromptSubmit row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "guardrails-posttooluse-run-guards-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 20,
-      "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows. The count includes every process git starts itself, so a runner image that changes git can move it. Parsing the payload once brought a Linux census to 38. Reusing the deleted-path set brought the cold finding fire to 25. Counting a non-word anchor in-process and reading the skip-worktree tag without tr or cut brought it to 19: the shell, the dispatcher, and five git processes. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 20. The ratchet step prints the current versions."
+      "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows. The count includes every process git starts itself, so a runner image that changes git can move it. Parsing the payload once brought a Linux census to 38. Reusing the deleted-path set brought the cold finding fire to 25. Counting a non-word anchor in-process and reading the skip-worktree tag without tr or cut brought it to 19: the shell, the dispatcher, and five git processes. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 20. The ratchet step prints the current versions. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
     },
     {
       "name": "guardrails-posttooluse-run-guards-nofinding-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 10,
-      "goal": "The same PostToolUse Edit(*.md) verify bundle spends at most this many process creations and execs on an Edit whose new text cites only a path that exists: the common no-finding path. The tracked-file list is not built when no candidate asks for it, and a fixed-string anchor is matched in-process (#4390). Was 13 before that. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 10. Measured on the CI runner (ubuntu-24.04) with strace 6.8; the ratchet step prints the current versions."
+      "goal": "The same PostToolUse Edit(*.md) verify bundle spends at most this many process creations and execs on an Edit whose new text cites only a path that exists: the common no-finding path. The tracked-file list is not built when no candidate asks for it, and a fixed-string anchor is matched in-process (#4390). Was 13 before that. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 10. Measured on the CI runner (ubuntu-24.04) with strace 6.8; the ratchet step prints the current versions. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
     },
     {
       "name": "guardrails-posttooluse-run-guards-sh-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 7,
-      "goal": "The same PostToolUse verify bundle spends at most this many process creations and execs on an Edit of a .sh file: cli-flag-verify scans it, and skill-reference-verify and stale-path-verify leave at their *.md check. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 7. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions."
+      "goal": "The same PostToolUse verify bundle spends at most this many process creations and execs on an Edit of a .sh file: cli-flag-verify scans it, and skill-reference-verify and stale-path-verify leave at their *.md check. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 7. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
     },
     {
       "name": "guardrails-posttooluse-run-guards-warm-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --seed --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 14,
-      "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run, and the anchor count and skip-worktree tag start no awk, tr, or cut. The cold fire of the same edit is ceiling 20. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 14. Measured on the CI runner (ubuntu-24.04) with bash 5.2.21, dash as sh, strace 6.8; the ratchet step prints the current versions. #4390."
+      "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run, and the anchor count and skip-worktree tag start no awk, tr, or cut. The cold fire of the same edit is ceiling 20. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 14. Measured on the CI runner (ubuntu-24.04) with bash 5.2.21, dash as sh, strace 6.8; the ratchet step prints the current versions. #4390. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
     },
     {
       "name": "context-guard-posttoolbatch-same-zone-rewrite-spawns",
       "command": "bash scripts/hook-census.sh context-guard PostToolBatch zone-crossing-inject.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --setup 'ts=$(date -u +%Y-%m-%dT%H:%M:%SZ); mkdir -p \"$HOME/.claude/context-guard/context\" \"$CLAUDE_PLUGIN_DATA/state\"; body=\",\\\"session_id\\\":\\\"census\\\",\\\"context_window\\\":{\\\"used_percentage\\\":10,\\\"remaining_percentage\\\":50,\\\"current_usage\\\":{\\\"input_tokens\\\":100}}}\"; printf \"{\\\"captured_at\\\":\\\"%s\\\"%s\\n\" \"$ts\" \"$body\" > \"$HOME/.claude/context-guard/context/census.json\"; printf \"smart\\n%s\\n\" \"$body\" > \"$CLAUDE_PLUGIN_DATA/state/census.inputs\"; printf \"z=0 c=0\\n\" > \"$CLAUDE_PLUGIN_DATA/state/census.seen\"; printf \"smart\\n\" > \"$CLAUDE_PLUGIN_DATA/state/census.zone\"; sleep 0.05; touch \"$HOME/.claude/context-guard/context/census.json\"' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 3,
-      "goal": "A PostToolBatch whose snapshot is newer than the mark, whose captured_at is fresh, and whose other bytes match the last resolve spends at most this many process creations and execs. The exec-form row runs node, which starts bash (creations 1); the resolver stays unstarted. The same fire measured 7 (creations 3) on main before the body reuse, 2026-09-28 Linux census. Wall on a measurable host (bash -c : p50 0.77 ms, n=22) is 2.88 S after hook-utils.sh stays unloaded on this path. A band crossing still starts the resolver. #4392."
+      "goal": "A PostToolBatch whose snapshot is newer than the mark, whose captured_at is fresh, and whose other bytes match the last resolve spends at most this many process creations and execs. The exec-form row runs node, which starts bash (creations 1); the resolver stays unstarted. The same fire measured 7 (creations 3) on main before the body reuse, 2026-09-28 Linux census. Wall on a measurable host (bash -c : p50 0.77 ms, n=22) is 2.88 S after hook-utils.sh stays unloaded on this path. A band crossing still starts the resolver. #4392. Correlation: unproven: not measured"
     },
     {
       "name": "testing-posttooluse-bash-test-scan-option-off-spawns",
       "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=false --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With test_guards_enabled at its default (false), the PostToolUse Bash row costs only the node launcher: the option gate closes before bash starts. The row has no if, so this is what every Bash call costs a user who never opted in (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions."
+      "goal": "With test_guards_enabled at its default (false), the PostToolUse Bash row costs only the node launcher: the option gate closes before bash starts. The row has no if, so this is what every Bash call costs a user who never opted in (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "testing-posttooluse-bash-test-scan-no-diff-spawns",
       "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 3,
-      "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions."
+      "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     }
   ]
 }

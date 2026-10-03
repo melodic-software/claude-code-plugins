@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.1] - 2026-10-02
+## [0.36.2] - 2026-10-02
 
 ### Added
 
@@ -15,6 +15,14 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **Bindings stay in page text.** The interactive validator refuses any `data-rv-*` binding on
   `html`, `head`, `title`, `meta`, `style`, or `script`, and any content binding (`data-rv-text`,
   `data-rv-count`, `data-rv-each`) on a form control; the runtime skips the same elements.
+
+## [0.36.1] - 2026-10-02
+
+### Changed
+
+- **`/review:quality-gate`'s architecture follow-up places a small unrelated pattern fix by
+  source-control's D4.6 scope test:** in this change only when it is in a file the change already
+  touches, otherwise its own small PR with no tracker item.
 
 ## [0.36.0] - 2026-10-02
 

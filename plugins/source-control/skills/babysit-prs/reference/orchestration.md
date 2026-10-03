@@ -836,9 +836,10 @@ Each worker must:
 - **report, never resolve, an addressed-but-unresolvable current bot thread.** A disposition that
   addresses a finding without moving its anchored lines leaves the thread current, so it satisfies
   neither guard above: an `INCORRECT` carrying counter-evidence, a `VALID (defer)` grounded per
-  D4.6, or a prose fix that rewrote elsewhere in the file. That is not a stuck PR and not a silent
-  skip. The worker returns the thread id, the disposition, and where the evidence lives (the reply
-  carrying the counter-evidence, the tracker item id, or the commit SHA), and the orchestrator
+  D4.6, a fix in a linked PR, or a prose fix that rewrote elsewhere in the file. That is not a stuck
+  PR and not a silent skip. The worker returns the thread id, the disposition, and where the
+  evidence lives (the reply carrying the counter-evidence, the tracker item id, the linked PR
+  number, or the commit SHA), and the orchestrator
   routes it to the independent resolution dispatch. Reporting nothing strands the thread, because
   the orchestrator cannot re-derive from a snapshot which current threads were addressed this round.
 - return changed files, tests/checks run, commit SHA, pushed branch, and remaining blockers
