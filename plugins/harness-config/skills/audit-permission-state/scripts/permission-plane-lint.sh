@@ -256,6 +256,12 @@ END {
 
   # File permissions are checked against Edit(path) and Read(path) rules ONLY.
   # A path rule for one of these is accepted and never consulted.
+  # MultiEdit stays listed on purpose: the tool is gone from our hook matchers, but
+  # a settings file can still carry a rule naming it, and that rule is dead.
+  # Pointer: for where the permissions page names the legacy MultiEdit tool, see
+  # https://code.claude.com/docs/en/permissions#read-and-edit
+  # As of: 2026-10-02
+  # Recheck trigger: that section stops naming MultiEdit, or moves.
   split("Write NotebookEdit Glob MultiEdit", uncovered_list, " ")
   for (i in uncovered_list) uncovered[uncovered_list[i]] = 1
 

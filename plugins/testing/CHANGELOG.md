@@ -3,6 +3,45 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and `playwright` and `mutation-testing` now install disabled. `cleanup` stops when `mutation-testing` is not enabled.
+
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- `test-value` names six more judgment-only shapes: a negative test that passes for an unrelated
+  reason, a fixture that supplies the outcome, a mock that implements the asserted behavior, a name
+  that promises more than the assertions check, a hand-copied inventory, and a test kept only to
+  preserve a test-only export.
+- `write`'s per-cycle checklist asks whether existing coverage already catches the regression, keeps
+  one regression test per bug at its owning boundary, and rejects a test that needs a production
+  seam no production caller uses.
+- `cleanup` classifies a layer replay (a mocked re-proof of a contract a stronger kept test already
+  proves) under row 5 and deletes it with both tests cited, takes user-named duplicates as a fourth
+  input, and judges tests by their assertions using `test-value`'s judgment-only shapes.
+
+### Changed
+
+- `cleanup` reports a test that fails the same way on every baseline run as a possible product bug,
+  never a quarantine, and re-scans each rewritten file before the mutation replay, stopping on a
+  finding step 1 did not list. Its `## Next` points at `/code-tidying:audit-dead-code` for exports a
+  deletion leaves with no caller.
+
+### Removed
+
+- Provenance notes in `test-value` (where its examples came from and where it departs from that
+  source) and `write` (the upstream skill a rule came from). The rules stand on their own.
+
 ## [0.19.1] - 2026-10-02
 
 ### Fixed

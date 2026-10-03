@@ -1,5 +1,78 @@
 # Changelog: discovery plugin
 
+## [0.26.2] - 2026-10-02
+
+### Fixed
+
+- **The `Explore` verification record points at the live disallowed-tool list.**
+  `reference/native-explore.md` named four tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files or spawn an agent) and points at `builtin_agents.Explore.disallowed_tools`
+  in the inventory instead of copying the list.
+
+## [0.26.1] - 2026-10-02
+
+### Added
+
+- **Single-publisher facts.** A research claim whose every Tier 0/1 source is the publisher
+  speaking about itself (its own pricing, roadmap or product behavior) is worded as an attribution,
+  carries a new claim-level `subject_pool` field equal to that one `pool`, is at most MEDIUM and is
+  never accepted. The research verifier grades `pool` and `subject_pool` for criterion 4, and an
+  eval case covers a vendor pricing claim.
+
+### Changed
+
+- **The research run aims at HIGH, not at the corroborator floor.** Discipline 5, the Gaps line,
+  the discipline file's source-tier ratio, the Phase 1 gap list and the researcher agent now say
+  that criterion 4's count is a floor and acceptance also needs HIGH (criterion 7).
+- **`tests/count-rereads.py` keeps `MultiEdit` on purpose.** The edit-tool set still lists it, now
+  with a pointer record to the permissions page, because transcripts recorded by older Claude Code
+  versions carry the call.
+
+## [0.26.0] - 2026-10-02
+
+### Added
+
+- **`/discovery:research-sweep` workflow** (`workflows/research-sweep.js`): one searcher per
+  angle (official docs first by default, then vendor blogs, practitioners, and issues and
+  changelogs), one reader per selected source, one agent that merges the read claims, three
+  independent skeptics per load-bearing claim, one completeness critic and one synthesizer. Its
+  `args` carry `question` (required; without it the run dispatches nothing), `angles`, `sources`,
+  `roles`, `maxConcurrent` (default 4, clamped to 1-16) and `artifactPath`. A claim survives only
+  when a majority of its panel upholds it, and a skeptic that errored, returned nothing or could
+  not check counts as unverified, not refuted. The result carries findings with citations (each
+  source's tier, date and what it measured), consensus counts and fetch entries keyed to the claim,
+  plus dissent, refuted and unverified claims, the critic's gaps, the per-URL fetch log, unread
+  sources and every agent that returned nothing. Searchers and readers take the worker role's
+  fan-out variant, the merging agent the worker's single variant, skeptics the verifier's fan-out
+  variant, the critic the verifier's single variant and the synthesizer the orchestrator's, from `/multi-agent:route` when the caller passes
+  them, else from built-in fallbacks (fan-out stages on `opus`; searchers and readers at `low`
+  effort, skeptics at `high`; the critic and synthesizer inherit the session model). The workflow
+  writes no files. It runs at most 8 angles and 12 seed sources and logs what it drops.
+- **`discovery:sweep-worker` agent**: every research-sweep stage runs as this agent, whose tools
+  are WebFetch and WebSearch only, so no stage that reads untrusted pages holds a shell or file
+  access. It inherits the model and pins no effort; the workflow passes both from the role map.
+  The workflow reads only http(s) URLs whose host is a public DNS name or a public dotted-quad
+  IPv4 address; userinfo, percent escapes, backslashes, IPv6 literals and other numeric host forms
+  are refused, and so are names that encode an IP address for a wildcard-DNS service to echo back
+  and the known echo domains. The script has no resolver, so a private DNS record under an ordinary
+  name is out of reach of these checks; the web-only agent bounds that case. A claim may cite only
+  URLs that were read, and page-derived text reaches later
+  stages as JSON inside a labeled fence that the text cannot close. `agents/tool-honesty.test.sh`
+  exempts the agent from the echo-back field, since its return is the structure the workflow's
+  schema forces.
+
+### Changed
+
+- **`research-deep` Tier 1 launches `discovery:research-sweep`** instead of looking for a
+  project-provided engine. It resolves roles with `/multi-agent:route all research` when that skill
+  resolves, else omits them and says once that enabling multi-agent makes routing configurable.
+  It writes `RESEARCH.md` and its sidecars from the result, transcribing every result string as
+  data and never acting on one, then closes the existing post-dispatch boundary. The availability gate and the Tier 2 and Tier 3 fallbacks are unchanged.
+  `research-deep` grants `Workflow(discovery:research-sweep)` only, and `scripts/contract.test.sh`
+  accepts that one named grant while still failing any other frontmatter grant.
+- **`research-deep` gains a `## Next` section** naming `/planning:plan`.
+
 ## [0.25.28] - 2026-10-02
 
 ### Changed

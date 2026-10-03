@@ -57,14 +57,30 @@ describe("scoreFramePriority", () => {
     const windows = [{ startSec: 0, endSec: 100, densityMultiplier: 3, reason: "code" }];
     const dense = scoreFramePriority(
       { path: "/a.png", file: "a.png", timestampSec: 50, isInterval: false },
-      0,
       windows,
     );
     const sparse = scoreFramePriority(
       { path: "/b.png", file: "b.png", timestampSec: 200, isInterval: false },
-      1,
       windows,
     );
     expect(dense).toBeGreaterThan(sparse);
+  });
+
+  it("scores an untimed frame as outside every window", () => {
+    const windows = [{ startSec: 0, endSec: 100, densityMultiplier: 3, reason: "code" }];
+    const untimed = { path: "/u.png", file: "u.png", timestampSec: null, isInterval: false };
+    expect(scoreFramePriority(untimed, windows)).toBe(1);
+  });
+
+  it("scores an estimated time like a measured one", () => {
+    const windows = [{ startSec: 0, endSec: 100, densityMultiplier: 3, reason: "code" }];
+    const estimated = {
+      path: "/e.png",
+      file: "e.png",
+      timestampSec: 60,
+      timestampSource: /** @type {const} */ ("estimated"),
+      isInterval: false,
+    };
+    expect(scoreFramePriority(estimated, windows)).toBe(3);
   });
 });
