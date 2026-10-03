@@ -16,7 +16,9 @@
 #
 # Each file's payload carries the call's session_id, transcript_path and cwd,
 # and <tool_use_id>-<n> as its own id, so test-scan.sh leaves the per-write
-# session record the task-end judge reads, as for a Write or Edit.
+# session record the task-end judge reads, as for a Write or Edit. A path
+# under the system temp directory or a Claude session scratchpad is not
+# recorded (testing::record_skip), the same working copies test-scan.sh skips.
 #
 # test-scan.sh's own stderr (a scanner that failed or timed out) passes
 # through, as on the Write and Edit route.
@@ -33,6 +35,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=scanner-run.sh
+source "$HOOK_DIR/scanner-run.sh"
 
 MAX_FILES=4
 
@@ -50,7 +54,11 @@ while IFS= read -r line; do
   p="${line:1}"
   case "$line" in
   G?*) globs+=("$p") ;;
-  P?*) ! hook::path_matches "${p##*[/\\]}" "${globs[@]}" || paths+=("$p") ;;
+  P?*)
+    hook::path_matches "${p##*[/\\]}" "${globs[@]}" || continue
+    testing::record_skip "$p" && continue
+    paths+=("$p")
+    ;;
   *) ;;
   esac
 done < <(printf '%s' "$INPUT" | jq -r --slurpfile h "$HOOK_DIR/hooks.json" '

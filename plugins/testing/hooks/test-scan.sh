@@ -15,8 +15,9 @@
 # Session state: every scanned write leaves one file,
 # $DATA/sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the test
 # blocks it created or changed (blocks:null when that is unknown: the whole
-# file), for the task-end judge. Only a gitignored path and a file the config
-# excludes write nothing.
+# file), for the task-end judge. A gitignored path, a file the config
+# excludes, and a working copy under the system temp directory or a Claude
+# session scratchpad write nothing.
 #
 # Test seams: TEST_SCAN_SCANNER replaces the scanner, TEST_SCAN_TIMEOUT
 # (seconds, default 8, below the hooks.json timeout of 10) bounds it.
@@ -83,6 +84,8 @@ trap 'rm -f "$out_file"' EXIT
 # create or when unknown), the judge's hint for a whole-file bash harness.
 state_write() {
   local repo="$REPO_ROOT" dir
+  # A temp or scratchpad copy is not an authored test: no judge record.
+  testing::record_skip "$FILE" && return 0
   [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
   testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$tpath" || return 0
   dir="$DATA/sessions/$PKEY/$session"
