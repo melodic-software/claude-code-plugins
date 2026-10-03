@@ -7,6 +7,7 @@
 # schema/visual.schema.json and schema/ops.schema.json.
 # The browser suites run only where playwright-cli resolves; elsewhere they print a SKIP with
 # the number of checks not run, never a pass.
+# test-scope: plugins/planning/surface/schema/* plugins/planning/surface/tests/fixtures/*
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)

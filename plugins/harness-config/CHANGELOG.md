@@ -5,11 +5,17 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.7.4] - 2026-10-03
+## [1.7.5] - 2026-10-03
 
 ### Changed
 
 - The plugin drift check reads each marketplace catalog's `renames` map before the name heuristic ([#6032](https://github.com/melodic-software/claude-code-plugins/issues/6032)). An enabled key the map sends to a name is a rename row naming the final name in the chain; a `null` entry is a removed row; a chain that repeats a name is reported as a cycle and is not given a final name. A key the map does not mention stays on the similarity heuristic. A repo-sourced catalog is read from the local marketplace clone when one is present, and fetched only otherwise. The fixer prints a catalog rename and a similarity guess as separate report-only lists, and only the catalog list carries the replace-the-key line.
+
+## [1.7.4] - 2026-10-03
+
+### Changed
+
+- `skills/audit-automation-gaps/scripts/inventory.test.sh` and `skills/audit-permission-state/scripts/audit.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
 
 ## [1.7.3] - 2026-10-03
 

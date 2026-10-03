@@ -3,6 +3,36 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-10-03
+
+### Changed
+
+- `scripts/speech.test.sh` declares the files it reads without naming them in a `# test-scope:` header, so CI's test selection runs it when one of them changes. Nothing the plugin runs changed.
+
+## [0.2.0] - 2026-10-03
+
+### Added
+
+- **Optional elevenlabs backend for `/speech:narrate`** ([#5860](https://github.com/melodic-software/claude-code-plugins/issues/5860)).
+  `scripts/elevenlabs.py` calls the ElevenLabs REST API and writes the same `narration.wav` and
+  `words.json`, with word times taken from the API's per-character alignment. The key is the
+  `ELEVENLABS_API_KEY` environment variable; it is never stored, printed, logged or put on a command line.
+- Every call is preceded by a statement of the character count, the host and the estimated cost. A run
+  without `--proceed` prints it and sends nothing; the skill shows it to the user and runs again with
+  `--proceed` only after they agree.
+- `SPEECH_EGRESS_FLOOR=local`, which an organization sets in managed settings, forbids the backend with a
+  stated reason (exit 4). kokoro stays the default.
+- `prerequisites.json` declares `ELEVENLABS_API_KEY` as an optional `env` entry, and `/speech:check` reports it
+  as `INFO` when unset.
+
+## [0.1.5] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.1.4] - 2026-10-03
 
 ### Changed

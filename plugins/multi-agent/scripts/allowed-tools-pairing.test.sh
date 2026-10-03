@@ -25,6 +25,7 @@
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
 # placeholders are substituted by Claude Code at load time. Letting the shell
 # expand any of them would make this gate silently match nothing.
+# test-scope: plugins/multi-agent/skills/*.md plugins/multi-agent/skills/*/scripts/*
 # shellcheck disable=SC2016
 set -uo pipefail
 

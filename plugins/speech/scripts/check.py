@@ -4,12 +4,14 @@ Standard library only, and it installs nothing.
 
 usage: check.py [--data-dir DIR]
 
-Rows: each cli and runtime entry in ../prerequisites.json (found on PATH, at its version floor), the hash-locked
+Rows: each cli and runtime entry in ../prerequisites.json (found on PATH, at its version floor), each env entry (set
+or not; an unset optional one is an INFO row, and the value is never printed), the hash-locked
 Python packages the SessionStart hook installs, and the Kokoro model files /speech:setup apply downloads. A FAIL row
 carries the entry's degrade line and its install hints, or the repair command. Exit 1 when any row fails.
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -30,9 +32,14 @@ def declared_rows(path=PREREQUISITES, which=shutil.which):
     """(status, id, detail) for each cli and runtime entry: the first name in detect.any on PATH, at its floor."""
     rows = []
     for entry in json.loads(Path(path).read_text(encoding='utf-8'))['requires']:
+        detect = entry['detect']
+        if entry['kind'] == 'env':   # the value is never read into a row
+            name = detect['name']
+            rows.append(('PASS', entry['id'], f'{name} is set') if os.environ.get(name, '').strip()
+                        else ('INFO', entry['id'], f'{name} is not set (optional). {entry["degrade"]}'))
+            continue
         if entry['kind'] not in ('cli', 'runtime'):
             continue
-        detect = entry['detect']
         found = next((p for p in map(which, detect['any']) if p), None)
         status, detail = 'PASS', found
         if not found:
@@ -85,7 +92,8 @@ def main(argv=None):
     for status, name, detail in rows:
         print(f'{status}  {name}: {detail}')
     failed = sum(s == 'FAIL' for s, _, _ in rows)
-    print(f'{len(rows) - failed} passed, {failed} failed')
+    info = sum(s == 'INFO' for s, _, _ in rows)
+    print(f'{len(rows) - failed - info} passed, {failed} failed' + (f', {info} optional not set' if info else ''))
     return 1 if failed else 0
 
 

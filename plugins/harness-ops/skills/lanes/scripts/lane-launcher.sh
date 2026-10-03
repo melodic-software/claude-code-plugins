@@ -50,7 +50,8 @@
 #   --agents-json FILE read the session list from FILE instead of
 #                      `claude agents --json` (offline / scripted / test reuse)
 #   --data-dir DIR     base dir for the per-lane launch-commit marker (below);
-#                      default: $CLAUDE_PLUGIN_DATA env var if set, else
+#                      default: $CLAUDE_PLUGIN_DATA env var if it names
+#                      harness-ops, else
 #                      ~/.claude/plugins/data/harness-ops. NOTE: CLAUDE_PLUGIN_DATA
 #                      is exported to hook/MCP/LSP subprocesses but NOT to a
 #                      script a skill shells out to via the Bash tool (Claude
@@ -465,12 +466,22 @@ resolve_prompt_dir() {
 }
 
 # --- Launch-commit marker (#792) ----------------------------------------------
-# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA, else the same
-# ~/.claude/plugins/data/harness-ops fallback check-all.sh uses for a machine
-# where the harness does not export CLAUDE_PLUGIN_DATA (e.g. a direct script
-# invocation outside a Claude Code session, as in the test suite).
+# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA when its last path segment
+# names this plugin (another plugin's SessionStart hook can export its own data
+# dir under that name), else the same ~/.claude/plugins/data/harness-ops
+# fallback check-all.sh uses (e.g. a direct script invocation outside a Claude
+# Code session, as in the test suite).
 resolve_data_dir() {
-  local base="${DATA_DIR_OVERRIDE:-${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/harness-ops}}"
+  local base="$DATA_DIR_OVERRIDE" seg="${CLAUDE_PLUGIN_DATA:-}"
+  if [[ -z "$base" ]]; then
+    seg="${seg%[/\\]}"
+    seg="${seg##*[/\\]}"
+    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+      base="$CLAUDE_PLUGIN_DATA"
+    else
+      base="$HOME/.claude/plugins/data/harness-ops"
+    fi
+  fi
   printf '%s/lanes' "${base%/}"
 }
 

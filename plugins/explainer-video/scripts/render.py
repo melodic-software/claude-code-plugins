@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Render one ManimCE scene to a silent MP4, then check the file it wrote. Run it through pydeps.py run.
+"""Render one ManimCE scene to an MP4, silent or narrated, then check the file it wrote. Run it through pydeps.py run.
 
-usage: render.py SCENE_FILE SCENE_CLASS --out DIR [--quality l|m|h]
+usage: render.py SCENE_FILE SCENE_CLASS --out DIR [--quality l|m|h] [--narration NDIR]
 
 Checks, every render: ffprobe reads one video stream, no audio stream, and a duration within a frame per animation
 of the scene's own timeline; a frame is extracted at the end of every animation and must not be blank while
@@ -9,17 +9,26 @@ something is on screen; no two text elements overlap and no element is cut off b
 any animation. A text element, or the top-level group holding it, with `allow_overlap = True` is skipped by the
 overlap check.
 
-Writes DIR/SCENE_CLASS.mp4, DIR/frames/fNNNN.png and DIR/report.json, and prints the report summary.
+With --narration NDIR, the folder holding script.txt, narration.wav and words.json from speech:narrate, the scene's
+beat() calls follow the narration (narration.py) and the render is muxed with narration.wav and captions built from
+words.json. Narrated checks: every beat cued within one frame of its narration start; one video, one audio and one
+subtitle stream; the video and audio streams within a frame per animation, plus one, of each other.
+
+Writes DIR/SCENE_CLASS.mp4, DIR/frames/fNNNN.png and DIR/report.json (plus DIR/captions.srt and DIR/timing.json when
+narrated), and prints the report summary.
 exit codes: 0 rendered and every check passed; 1 rendered with a defect (each one in report.json); 2 nothing to
-check (ffmpeg or ffprobe missing, the scene raised, or no video was written).
+check (ffmpeg or ffprobe missing, the narration unreadable, the scene raised, or no video was written).
 """
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import narration
 
 QUALITY = {'l': 'low_quality', 'm': 'medium_quality', 'h': 'high_quality'}
 TEXT_TYPES = ('Text', 'MarkupText', 'Paragraph', 'Tex', 'MathTex', 'SingleStringMathTex', 'Typst', 'MathTypst',
@@ -77,6 +86,31 @@ def stream_defects(probe, expected, fps, animations):
     if duration <= 0 or abs(duration - expected) > tolerance:
         defects.append(f'ffprobe duration {duration:.3f} s differs from the scene timeline {expected:.3f} s '
                        f'by more than {tolerance:.3f} s')
+    return defects
+
+
+def narrated_defects(probe, fps, animations):
+    """ffprobe's JSON of the muxed file: one video, audio and subtitle stream; video and audio the same length
+    within a frame per animation, plus one."""
+    streams = probe.get('streams', [])
+    defects = []
+    for kind in ('video', 'audio', 'subtitle'):
+        n = sum(s.get('codec_type') == kind for s in streams)
+        if n != 1:
+            defects.append(f'expected one {kind} stream, ffprobe found {n}')
+    lengths = {}
+    for s in streams:
+        try:
+            lengths[s.get('codec_type')] = float(s['duration'])
+        except (KeyError, TypeError, ValueError):
+            pass
+    v, a = lengths.get('video'), lengths.get('audio')
+    tolerance = (animations + 1) / fps
+    if v is None or a is None:
+        defects.append('ffprobe reports no video or audio stream duration')
+    elif abs(v - a) > tolerance:
+        defects.append(f'the video stream ({v:.3f} s) and the narration ({a:.3f} s) differ by more than '
+                       f'{tolerance:.3f} s')
     return defects
 
 
@@ -141,14 +175,29 @@ def snapshot(scene, text_types, containers):
 
 
 def clear_previous(out, scene_class):
-    """Drop the last run's report, video and frames, so a rerender that fails part-way leaves no PASS report."""
-    (out / 'report.json').unlink(missing_ok=True)
-    (out / f'{scene_class}.mp4').unlink(missing_ok=True)
+    """Drop the last run's report, video, captions and frames, so a rerender that fails part-way leaves no PASS
+    report."""
+    for name in ('report.json', f'{scene_class}.mp4', f'{scene_class}.silent.mp4', 'captions.srt', 'timing.json'):
+        (out / name).unlink(missing_ok=True)
     shutil.rmtree(out / 'frames', ignore_errors=True)
 
 
+def load_narration(folder, out):
+    """Read speech:narrate's output, write out/timing.json and point narration.beat at it."""
+    record = json.loads((folder / 'words.json').read_text(encoding='utf-8'))
+    wav = folder / record.get('audio', 'narration.wav')
+    if not wav.is_file():
+        raise FileNotFoundError(f'{wav} is missing')
+    timing = narration.timing((folder / 'script.txt').read_text(encoding='utf-8'), record)
+    path = out / 'timing.json'
+    path.write_text(json.dumps(timing, indent=2) + '\n', encoding='utf-8')
+    os.environ[narration.ENV] = str(path)
+    return {'record': record, 'wav': wav, 'timing': timing}
+
+
 def render(scene_file, scene_class, out, quality):
-    """Render with a timeline hook on Scene.play (Scene.wait plays a Wait). Returns (movie, checkpoints, config)."""
+    """Render with a timeline hook on Scene.play (Scene.wait plays a Wait). Returns (movie, checkpoints, frame,
+    beat marks)."""
     import manim
     text_types = tuple(t for t in (getattr(manim, n, None) for n in TEXT_TYPES) if isinstance(t, type))
     spec = importlib.util.spec_from_file_location('explainer_scene', scene_file)
@@ -175,12 +224,26 @@ def render(scene_file, scene_class, out, quality):
             movie = Path(scene.renderer.file_writer.movie_file_path or '')
     finally:
         manim.Scene.play = original
-    return movie, checkpoints, frame
+    return movie, checkpoints, frame, list(getattr(scene, 'beat_marks', []))
 
 
 def extract(movie, t, path):
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.3f}', '-i', str(movie), '-frames:v', '1', str(path)],
                    check=True, capture_output=True)
+
+
+def mux(video, audio, captions, out):
+    """The silent render's video, unchanged, with the narration as AAC and the captions as an MP4 text track."""
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(video), '-i', str(audio), '-i', str(captions),
+                    '-map', '0:v:0', '-map', '1:a:0', '-map', '2:s:0', '-c:v', 'copy', '-c:a', 'aac',
+                    '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng', str(out)],
+                   check=True, capture_output=True)
+
+
+def probe_file(path):
+    return json.loads(subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type,duration', '-of', 'json',
+         str(path)], check=True, capture_output=True, text=True).stdout)
 
 
 def blank(path):
@@ -195,6 +258,7 @@ def main(argv=None):
     ap.add_argument('scene_class')
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--quality', choices=sorted(QUALITY), default='l')
+    ap.add_argument('--narration', type=Path, help='folder with script.txt, narration.wav and words.json')
     a = ap.parse_args(argv)
     missing = [t for t in ('ffmpeg', 'ffprobe') if not shutil.which(t)]
     if missing:
@@ -204,8 +268,16 @@ def main(argv=None):
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     clear_previous(out, a.scene_class)
+    os.environ.pop(narration.ENV, None)
+    narrated = None
+    if a.narration:
+        try:
+            narrated = load_narration(a.narration.resolve(), out)
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            sys.stderr.write(f'explainer-video: the narration in {a.narration} is unusable: {e}\n')
+            return 2
     try:
-        movie, checkpoints, frame = render(a.scene_file.resolve(), a.scene_class, out, a.quality)
+        movie, checkpoints, frame, marks = render(a.scene_file.resolve(), a.scene_class, out, a.quality)
     except Exception as e:   # the scene's own error: report it, there is nothing to check
         import traceback
         traceback.print_exc()
@@ -216,14 +288,27 @@ def main(argv=None):
                          'self.wait.\n')
         return 2
     final = out / f'{a.scene_class}.mp4'
-    shutil.move(str(movie), final)
+    silent = out / f'{a.scene_class}.silent.mp4' if narrated else final
+    shutil.move(str(movie), silent)
     shutil.rmtree(out / 'media', ignore_errors=True)
 
-    probe = json.loads(subprocess.run(
-        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', str(final)],
-        check=True, capture_output=True, text=True).stdout)
+    probe = probe_file(silent)
     expected = checkpoints[-1]['t']
     defects = stream_defects(probe, expected, frame['fps'], len(checkpoints))
+    if narrated:
+        timing = narrated['timing']
+        defects += narration.beat_defects(marks, timing['starts'], frame['fps'])
+        captions = out / 'captions.srt'
+        captions.write_text(narration.srt(narration.captions(narrated['record'], timing['beats'])), encoding='utf-8')
+        try:
+            mux(silent, narrated['wav'], captions, final)
+        except subprocess.CalledProcessError as e:
+            reason = e.stderr.decode(errors='replace').strip()
+            sys.stderr.write(f'explainer-video: ffmpeg could not mux the narration: {reason}\n')
+            return 2
+        silent.unlink()
+        probe = probe_file(final)
+        defects += narrated_defects(probe, frame['fps'], len(checkpoints))
 
     frames_dir = out / 'frames'
     shutil.rmtree(frames_dir, ignore_errors=True)
@@ -250,7 +335,10 @@ def main(argv=None):
     probed = probed_duration(probe)
     report = {'scene': a.scene_class, 'quality': a.quality, 'video': str(final),
               'duration': {'timeline': round(expected, 3), 'ffprobe': probed},
-              'animations': len(checkpoints), 'frames': frames, 'defects': defects,
+              'animations': len(checkpoints), 'frames': frames,
+              'narration': {'audio': str(narrated['wav']), 'captions': str(out / 'captions.srt'),
+                            'beats': narrated['timing']['starts']} if narrated else None,
+              'defects': defects,
               'status': 'defect' if defects else 'pass'}
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(f'{report["status"].upper()}: {final} ({probed} s, {len(checkpoints)} animations)')

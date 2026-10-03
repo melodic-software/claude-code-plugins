@@ -64,6 +64,32 @@
         "Points at /explainer-video:check",
         "Does not claim the video rendered"
       ]
+    },
+    {
+      "id": 6,
+      "name": "narrated-video-follows-the-audio",
+      "prompt": "Make a narrated explainer video of how binary search halves the range. The speech plugin is installed.",
+      "expected_output": "Writes narration/script.txt with one paragraph per beat, runs /speech:narrate on it, writes scene.py calling beat(self, k) at each beat and beat(self, n) at the end, and renders with render.py --narration pointing at the narration folder, then reports the MP4 as narrated.",
+      "files": [],
+      "expectations": [
+        "Writes the narration script with a blank line between beats",
+        "Runs /speech:narrate before rendering",
+        "scene.py imports beat from narration and cues every beat in order",
+        "Passes --narration to render.py",
+        "Does not call add_sound"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "no-speech-plugin-renders-silent-and-says-so",
+      "prompt": "Make a narrated explainer video of why ice floats. /speech:narrate is not in the skill list.",
+      "expected_output": "Renders a silent video without --narration and tells the user that narration is unavailable because the speech plugin is not installed.",
+      "files": [],
+      "expectations": [
+        "Does not pass --narration to render.py",
+        "Says narration is unavailable and why",
+        "Still produces and checks the silent video"
+      ]
     }
   ]
 }

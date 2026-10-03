@@ -22,6 +22,7 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 

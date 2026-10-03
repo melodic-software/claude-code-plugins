@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.3] - 2026-10-03
+
+### Changed
+
+- `scripts/allowed-tools-pairing.test.sh` and `scripts/evals-fixtures.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.28.2] - 2026-10-03
 
 ### Changed

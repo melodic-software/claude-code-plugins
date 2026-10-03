@@ -261,6 +261,26 @@ assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipe
 # Point INTEGRATION_REPO + INTEGRATION_RUN_ID at a repo/run you can read
 # (the run should contain ##[error] markers).
 
+# Case: another plugin's SessionStart hook can export its own data dir into
+# every Bash call as CLAUDE_PLUGIN_DATA; the default scratch must not land there.
+FOREIGN="$TEST_TMPDIR/codex-openai-codex"
+OWN="$TEST_TMPDIR/source-control-melodic-software"
+mkdir -p "$TEST_TMPDIR/mktemp-root"
+PATH="$STUB_DIR:$PATH" FETCH_LOGS_REPO="example-org/example-repo" FETCH_LOGS_SCRATCH="" \
+  TMPDIR="$TEST_TMPDIR/mktemp-root" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" 12345 >/dev/null 2>&1
+if [[ ! -e "$FOREIGN" ]]; then
+  pass "a foreign CLAUDE_PLUGIN_DATA gets no scratch directory"
+else
+  fail "a foreign CLAUDE_PLUGIN_DATA gets no scratch directory" "absent" "present"
+fi
+PATH="$STUB_DIR:$PATH" FETCH_LOGS_REPO="example-org/example-repo" FETCH_LOGS_SCRATCH="" \
+  TMPDIR="$TEST_TMPDIR/mktemp-root" CLAUDE_PLUGIN_DATA="$OWN" bash "$SCRIPT" 12345 >/dev/null 2>&1
+if [[ -d "$OWN/scratch" ]]; then
+  pass "an inherited value naming source-control holds the scratch directory"
+else
+  fail "an inherited value naming source-control holds the scratch directory" "$OWN/scratch" "absent"
+fi
+
 if [[ "${INTEGRATION:-0}" == "1" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     skip_case "INTEGRATION mode but gh CLI not available"

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Change Digest</title>
+<style>
+:root {
+  --ivory: #faf9f5;
+  --slate: #141413;
+  --clay-deep: #a0512e;
+  --gray-300: #d1cfc5;
+  --gray-500: #87867f;
+  --serif: ui-serif, Georgia, serif;
+  --sans: system-ui, sans-serif;
+  --mono: ui-monospace, monospace;
+  --bg: var(--ivory);
+  --fg: var(--slate);
+  --muted: var(--gray-500);
+  --border: 1.5px solid var(--gray-300);
+  --focus: var(--clay-deep);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --muted: var(--gray-300);
+    --border: 1.5px solid var(--gray-500);
+    --focus: #e89b7e;
+    color-scheme: dark;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 54rem; margin: 0 auto; padding: 2rem 16px 4rem; display: grid; gap: 1.5rem; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; margin: 0; }
+h1 { font-size: 1.6rem; line-height: 1.2; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+.eyebrow, .muted { color: var(--muted); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
+section { display: grid; gap: 0.6rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+.pair div { border: var(--border); border-radius: 6px; padding: 0.75rem; display: grid; gap: 0.35rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: 0.45rem 0.5rem; vertical-align: top; }
+code, pre { font-family: var(--mono); font-size: 0.85rem; }
+code { overflow-wrap: anywhere; }
+pre { margin: 0; padding: 0.6rem; overflow-x: auto; border: var(--border); border-radius: 6px; white-space: pre; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.bar input, textarea { flex: 1 1 14rem; min-width: 0; padding: 0.5rem; border: var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.files { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.file { border: var(--border); border-radius: 8px; padding: 0.75rem 1rem; display: grid; gap: 0.5rem; }
+.file summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.hunks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.hunk { display: grid; gap: 0.35rem; }
+.pick { display: inline-flex; gap: 0.35rem; align-items: center; color: var(--muted); font-size: 0.85rem; }
+textarea { min-height: 5rem; resize: vertical; width: 100%; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+button { padding: 0.5rem 0.9rem; border: 1.5px solid var(--focus); border-radius: 6px; background: var(--focus); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--fg); }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
+}
+input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.out { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Change digest</p>
+<h1 data-rv-text="title">Change digest</h1>
+<p class="muted" data-rv-text="change"></p>
+</header>
+<section>
+<h2 id="why">Why</h2>
+<p data-rv-text="why"></p>
+</section>
+<section>
+<h2 id="before-after">Before and after</h2>
+<div class="pair">
+<div><h3>Before</h3><p data-rv-text="before"></p></div>
+<div><h3>After</h3><p data-rv-text="after"></p></div>
+</div>
+</section>
+<section>
+<h2 id="risk-map">Risk map</h2>
+<table>
+<thead><tr><th>Area</th><th>Level</th><th>Why</th></tr></thead>
+<tbody data-rv-each="risks"><tr><td data-rv-text="area"></td><td data-rv-text="level"></td><td data-rv-text="why"></td></tr></tbody>
+</table>
+</section>
+<section>
+<h2 id="focus">Where to focus</h2>
+<ol data-rv-each="focus"><li data-rv-text="item"></li></ol>
+</section>
+<section>
+<h2 id="files"><span data-rv-count="files">0</span> files, annotated</h2>
+<div class="bar">
+<label for="find">Filter</label>
+<input id="find" type="search" placeholder="Type a word from a file or note" data-rv-filter="files">
+</div>
+<ol class="files" data-rv-each="files">
+<li class="file">
+<details open>
+<summary><code data-rv-text="path"></code><span class="muted" data-rv-text="status"></span></summary>
+<p data-rv-text="note"></p>
+<ol class="hunks" data-rv-each="hunks">
+<li class="hunk">
+<p class="muted"><code data-rv-text="at"></code></p>
+<pre data-rv-text="code"></pre>
+<p data-rv-text="note"></p>
+</li>
+</ol>
+</details>
+<label class="pick"><input type="checkbox" data-rv-pick="">Reviewed</label>
+</li>
+</ol>
+</section>
+<section>
+<h2 id="reply">Send your questions back</h2>
+<label for="note">Questions or notes for the session</label>
+<textarea id="note" data-rv-note="note" placeholder="What is unclear, and which files you reviewed"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="explain-change">Copy reply</button>
+<button type="button" data-rv-download="explain-change">Save as file</button>
+</div>
+<p class="muted" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
+<p class="muted">The markdown record is the deliverable. This page is a view of it.</p>
+</section>
+</main>
+</body>
+</html>

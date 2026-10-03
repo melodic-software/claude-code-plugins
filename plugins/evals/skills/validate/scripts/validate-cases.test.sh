@@ -7,6 +7,7 @@
 #
 # Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter (a named
 # environment error, never a silent skip).
+# test-scope: plugins/evals/evals/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
