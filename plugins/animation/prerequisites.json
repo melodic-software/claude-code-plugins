@@ -31,11 +31,17 @@
       "detect": {
         "any": [
           "python3",
-          "python",
-          "py"
-        ]
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.12"
+        }
       },
-      "degrade": "Without Python 3, no animation script runs, so /animation:produce, /animation:rotoscope and /animation:setup stop.",
+      "degrade": "Without Python 3.12 or newer, the SessionStart hook cannot install the animation packages and no animation script runs, so /animation:produce, /animation:rotoscope and /animation:setup stop.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -70,6 +76,7 @@
       "kind": "cli",
       "need": "required",
       "for": [
+        "skill:learn-style",
         "skill:produce",
         "skill:rotoscope"
       ],
@@ -92,6 +99,7 @@
       "kind": "cli",
       "need": "required",
       "for": [
+        "skill:learn-style",
         "skill:produce",
         "skill:rotoscope"
       ],
@@ -114,6 +122,7 @@
       "kind": "system-lib",
       "need": "required",
       "for": [
+        "skill:learn-style",
         "skill:produce",
         "skill:rotoscope"
       ],

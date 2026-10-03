@@ -24,11 +24,42 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:docpage-digest",
+        "skill:map-corpus"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.9"
+        }
+      },
+      "degrade": "Without Python 3.9 or newer, the bundled gate scripts of /knowledge:map-corpus and /knowledge:docpage-digest cannot run, and both stop.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "npm",
       "kind": "cli",
       "need": "optional",
       "for": [
         "skill:course-digest",
+        "skill:setup",
         "skill:video-digest"
       ],
       "detect": {
@@ -36,7 +67,30 @@
           "npm"
         ]
       },
-      "degrade": "Without npm, the digest skills cannot run their test suites; a digest itself does not need it.",
+      "degrade": "Without npm, setup-deps.mjs cannot install the extraction dependencies, so the digest pipelines are unavailable until they are installed.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npx",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest",
+        "skill:setup",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "npx"
+        ]
+      },
+      "degrade": "Without npx, setup-deps.mjs cannot provision the Playwright Chromium the extraction pipelines drive, so they are unavailable until it is installed.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
@@ -56,9 +110,16 @@
       "detect": {
         "any": [
           "ffmpeg"
-        ]
+        ],
+        "version": {
+          "args": [
+            "-version"
+          ],
+          "pattern": "ffmpeg version n?([0-9]+\\.[0-9]+)",
+          "min": "7.1"
+        }
       },
-      "degrade": "Without ffmpeg, the video-digest watch action and course-digest cannot extract frames; the transcript-only digests still run.",
+      "degrade": "Without ffmpeg 7.1 or newer, the video-digest watch action and course-digest cannot extract frames reliably; the transcript-only digests still run.",
       "install": {
         "docs": "https://ffmpeg.org/download.html",
         "brew": "ffmpeg",
@@ -86,6 +147,34 @@
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "magick",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "magick"
+        ],
+        "version": {
+          "args": [
+            "-version"
+          ],
+          "pattern": "ImageMagick ([0-9.]+)",
+          "min": "7.0"
+        }
+      },
+      "degrade": "Without ImageMagick 7, frame classification cannot build contact sheets and the frame-based digests stop; the transcript-only digests still run.",
+      "install": {
+        "docs": "https://imagemagick.org/script/download.php",
+        "brew": "imagemagick",
+        "winget": "ImageMagick.ImageMagick"
       },
       "check": "/harness-ops:prerequisites"
     },

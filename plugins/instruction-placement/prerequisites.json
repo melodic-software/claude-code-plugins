@@ -26,15 +26,16 @@
       "kind": "cli",
       "need": "required",
       "for": [
+        "hook:hook-utils.sh",
         "hook:index-drift.sh",
-        "hook:hook-utils.sh"
+        "skill:migrate"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the rules-index drift hook cannot read its JSON input and reports nothing.",
+      "degrade": "Without jq, the rules-index drift hook cannot read its JSON input and reports nothing, and /instruction-placement:migrate's remove-shims action refuses because it cannot read the installed plugin versions.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",

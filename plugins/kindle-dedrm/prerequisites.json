@@ -22,6 +22,74 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.6"
+        }
+      },
+      "degrade": "Without Python 3.6 or newer, the Kindle DRM-removal phase scripts cannot run, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "winget": "Python.Python.3.13"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "pwsh",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ]
+      },
+      "degrade": "Without PowerShell 7, the provisioning steps cannot run, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "calibredb",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:manage",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "calibredb"
+        ]
+      },
+      "degrade": "Without Calibre, books cannot be imported or converted to EPUB, and /kindle-dedrm:setup reports FAIL.",
+      "install": {
+        "docs": "https://calibre-ebook.com/download",
+        "winget": "calibre.calibre"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "curl",
       "kind": "cli",
       "need": "optional",
