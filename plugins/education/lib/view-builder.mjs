@@ -17,6 +17,7 @@
 //
 // CLI:
 //   node view-builder.mjs --profile report|interactive --template <file> --data <file.json> --out <file>
+//                         [--connect http://127.0.0.1:<port>]   (interactive: the session-bridge origin)
 //   node view-builder.mjs --check <page.html>
 // Exit 0 ok, 1 the page or input fails its profile, 2 usage or environment.
 
@@ -72,7 +73,11 @@ const ATTRS = new Set([
 const DATA_RV = new Set([
   "data-rv-text", "data-rv-each", "data-rv-count", "data-rv-filter", "data-rv-pick",
   "data-rv-copy", "data-rv-download", "data-rv-note", "data-rv-status", "data-rv-out",
+  "data-rv-choice", "data-rv-send", "data-rv-session", "data-rv-replies",
 ]);
+// The one origin a Claude-interactive page may reach: a session-bridge server on loopback (rule 9).
+const BRIDGE_ORIGIN = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/;
+const CSP_CONNECT = /; connect-src (http:\/\/127\.0\.0\.1:[0-9]{1,5})$/;
 const INPUT_TYPES = new Set(["checkbox", "radio", "search", "range", "text"]);
 const FORM_CONTROLS = new Set(["input", "textarea", "select", "option"]);
 // Elements whose text is CSS, metadata, or code: data bound into them would stop being page text.
@@ -98,8 +103,9 @@ export function loadRuntime() {
 /**
  * @param {string} runtime
  * @param {string | null} style the body of the page's one style element
+ * @param {string | null} [connect] the session-bridge origin a Claude-interactive page reaches
  */
-export function contentSecurityPolicy(runtime, style) {
+export function contentSecurityPolicy(runtime, style, connect = null) {
   const styleSrc = style === null ? "'none'" : `'sha256-${sha256(style)}'`;
   return [
     "default-src 'none'",
@@ -107,19 +113,29 @@ export function contentSecurityPolicy(runtime, style) {
     `style-src ${styleSrc}`,
     "base-uri 'none'",
     "form-action 'none'",
+    ...(connect === null ? [] : [`connect-src ${connect}`]),
   ].join("; ");
 }
 
+const bridgeOriginOk = (origin) => {
+  const m = BRIDGE_ORIGIN.exec(origin);
+  return m !== null && Number(m[1]) <= 65535;
+};
+
 /**
- * @param {{ profile: "report" | "interactive", template: string, data?: unknown, runtime?: string }} input
+ * @param {{ profile: "report" | "interactive", template: string, data?: unknown, runtime?: string, connect?: string | null }} input
+ *   connect: the session-bridge origin (http://127.0.0.1:<port>) that makes the page Claude-interactive
  * @returns {string} the validated page
  */
-export function buildView({ profile, template, data = {}, runtime }) {
+export function buildView({ profile, template, data = {}, runtime, connect = null }) {
+  if (connect !== null && (profile !== "interactive" || !bridgeOriginOk(connect))) {
+    throw new ViewBuildError(["connect"]);
+  }
   if (profile === "report") {
     return buildReport(lf(template), data);
   }
   if (profile === "interactive") {
-    return buildInteractive(lf(template), data, runtime ?? loadRuntime());
+    return buildInteractive(lf(template), data, runtime ?? loadRuntime(), connect);
   }
   throw new ViewBuildError([`profile:${profile}`]);
 }
@@ -233,7 +249,7 @@ function styleBodies(html) {
   return [...html.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi)];
 }
 
-function buildInteractive(template, data, runtime) {
+function buildInteractive(template, data, runtime, connect) {
   const failures = [];
   if (template.includes("{{")) {
     failures.push("slot-in-interactive");
@@ -261,7 +277,7 @@ function buildInteractive(template, data, runtime) {
   }
   // `<` as < keeps `</script` and `<!--` out of the block (rule 2).
   const json = JSON.stringify(data).replaceAll("<", "\\u003c");
-  const csp = contentSecurityPolicy(runtime, styles.length ? styles[0][1] : null);
+  const csp = contentSecurityPolicy(runtime, styles.length ? styles[0][1] : null, connect);
   const meta = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`;
   const headEnd = head.index + head[0].length;
   const scripts = `${DATA_OPEN}${json}</script><script>${runtime}</script>`;
@@ -433,7 +449,12 @@ export function validateInteractivePage(html, runtime) {
   const csp = /^(?:<!doctype html>\s*)?<html[^>]*>\s*<head>\s*(?:<!--[^>]*-->\s*)?<meta charset="utf-8">\s*<meta http-equiv="Content-Security-Policy" content="([^"]*)">/i.exec(
     rest.trimStart(),
   );
-  const expected = escapeHtml(contentSecurityPolicy(lf(runtime), styles.length ? styles[0][1] : null));
+  // A connect-src passes only as the last directive naming one loopback origin.
+  const connect = csp ? (CSP_CONNECT.exec(csp[1])?.[1] ?? null) : null;
+  if (connect !== null && !bridgeOriginOk(connect)) {
+    failures.push("connect");
+  }
+  const expected = escapeHtml(contentSecurityPolicy(lf(runtime), styles.length ? styles[0][1] : null, connect));
   if (!csp) {
     failures.push("csp-position");
   } else if (csp[1] !== expected) {
@@ -492,7 +513,7 @@ function main(argv) {
   }
   if (!args.profile || !args.template || !args.data || !args.out) {
     console.error(
-      "usage: view-builder.mjs --profile report|interactive --template <file> --data <file.json> --out <file>\n" +
+      "usage: view-builder.mjs --profile report|interactive --template <file> --data <file.json> --out <file> [--connect <origin>]\n" +
         "       view-builder.mjs --check <page.html>",
     );
     return 2;
@@ -502,6 +523,7 @@ function main(argv) {
       profile: args.profile,
       template: readFileSync(args.template, "utf8"),
       data: JSON.parse(readFileSync(args.data, "utf8")),
+      connect: args.connect ?? null,
     });
     writeFileSync(args.out, page);
     console.log(`wrote ${args.out}`);

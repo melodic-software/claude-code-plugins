@@ -131,6 +131,23 @@ for (const [kind, fixture] of Object.entries(fixtures)) {
     check(`${kind}: browser keeps hostile data as text`, shownBad.includes('class="rv-ready"') && !/<img|<svg/i.test(shownBad) && shownBad.includes("&lt;img src=x"));
   }
 }
+if (chrome) {
+  check("plan: with no session the page says so and stays usable", dump(`${work}/plan-good.html`).includes("No session is connected."));
+}
+
+// Claude-interactive build into a view-bridge data dir.
+const bridgedOut = `${work}/bridged-page.html`;
+const bridged = spawnSync("node", [`${dir}/build-view.mjs`, "plan", "--connect", "http://127.0.0.1:8765", "--out", bridgedOut], {
+  input: JSON.stringify(fixtures.plan.data),
+  encoding: "utf8",
+  env,
+});
+check("plan --connect --out writes the page there and it passes the profile", bridged.status === 0 && bridged.stdout.trim() === bridgedOut && verify(bridgedOut).status === 0, bridged.stderr);
+check("plan --connect names the origin in connect-src", readFileSync(bridgedOut, "utf8").includes("connect-src http://127.0.0.1:8765\">"));
+const flag = (...args) => spawnSync("node", [`${dir}/build-view.mjs`, "plan", ...args], { input: JSON.stringify(fixtures.plan.data), encoding: "utf8", env }).status;
+check("--connect without --out exits 2", flag("--connect", "http://127.0.0.1:8765") === 2);
+check("an unknown flag exits 2", flag("--open", "x") === 2);
+check("--connect to a non-loopback origin exits 1", flag("--connect", "https://evil.example", "--out", `${work}/x.html`) === 1);
 if (!chrome) {
   console.log("SKIP: browser check, no Chrome or Chromium found (set CHROME to run it)");
 }

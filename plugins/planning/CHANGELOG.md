@@ -3,13 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.65.6] - 2026-10-03
+## [0.66.1] - 2026-10-03
 
 ### Changed
 
 - **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
   The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
   except App Installer's Python install stub.
+
+## [0.66.0] - 2026-10-03
+
+### Added
+
+- **The bridge's checks are strict.** The view app matches keys and row ids in full (a trailing newline no
+  longer passes), refuses a data dir not owned by the user or open to group or other, and skips a Python 2
+  `python`.
+- **The plan view can send its reply to the session ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)).**
+  The page gains a verdict choice, a send control and a list of the session's replies.
+  `view-bridge/` carries the session-bridge view app: `view-bridge.sh ensure-running` serves the page
+  that `scripts/build-view.mjs plan --connect <origin> --out <page>` builds, the reader's ticked phases,
+  verdict and note reach the session as data through the watcher, and the session's replies show on the
+  page. A page with no session says so and keeps its copy and save controls. An `approve` verdict is not
+  an approval; the approval gate stays in the conversation. The server and its token end 600 seconds
+  after the session's watcher last waited. Procedure: `reference/rendered-view.md`.
+
+### Changed
+
+- The interview watcher's data note now carries the untrusted-content framing contract, from the
+  regenerated `surface/session_bridge.py`. The shared `lib/view-builder.mjs` (`--connect`) and
+  `lib/view-runtime.js` (the session client) are regenerated too.
+- Python 3 and curl now also serve the plan view's session link (`prerequisites.json`).
 
 ## [0.65.5] - 2026-10-03
 

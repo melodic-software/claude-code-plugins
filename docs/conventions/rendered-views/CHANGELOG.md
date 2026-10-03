@@ -3,6 +3,20 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The Claude-interactive tier opens to builder pages, 2026-10-03
+
+- **`session-bridge` meets rule 9, and the triage board and plan view adopt the tier (#5868).** Every wait
+  answer now carries the untrusted-content framing contract as its data note. The bridge's new view app
+  hands the token only to same-origin page script, so it never enters the page's markup, ends itself and
+  its token 600 seconds after the session's watcher last waited, and takes page
+  actions holding only builder keys, row ids and the reader's notes. The builder's `--connect` adds one
+  `connect-src` naming the loopback origin, which the validator checks. The tier stays closed to
+  model-written pages. Rules 3 and 9 and View tiers record the change.
+- **Rule 9's token wording states what the code does.** The token is minted per server run, and the
+  server exits `IDLE_SECONDS` after the session's last wait (and on stop). The view app also matches
+  its validators in full, so a trailing newline no longer passes, and refuses a data dir that is not
+  owned by the user or is open to group or other.
+
 ## The digest publishes as an Artifact by default, 2026-10-03
 
 - **`review:explain-change` ships `medium: artifact` (#5856).** With no layer setting
