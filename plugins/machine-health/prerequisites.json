@@ -1,0 +1,113 @@
+{
+  "requires": [
+    {
+      "id": "pwsh",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "PowerShell ([0-9.]+)",
+          "min": "7.4"
+        }
+      },
+      "degrade": "Without PowerShell 7.4 or newer, /machine-health:audit cannot run its checks, and Windows PowerShell 5.1 does not qualify.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "brew": "powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "docker",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "docker"
+        ]
+      },
+      "degrade": "Without docker, the container disk-usage check reports no Docker figure; every other check still runs.",
+      "install": {
+        "docs": "https://docs.docker.com/get-started/get-docker/",
+        "winget": "Docker.DockerDesktop"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "dotnet",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "dotnet"
+        ]
+      },
+      "degrade": "Without dotnet, the SDK-version check skips .NET; the other runtimes are still checked.",
+      "install": {
+        "docs": "https://dotnet.microsoft.com/download",
+        "brew": "dotnet",
+        "winget": "Microsoft.DotNet.SDK.9"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the SDK-version check skips Node.js; the other runtimes are still checked.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "python",
+          "python3"
+        ]
+      },
+      "degrade": "Without python, the SDK-version check skips Python; the other runtimes are still checked.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
