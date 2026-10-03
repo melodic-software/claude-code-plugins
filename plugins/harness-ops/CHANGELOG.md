@@ -3,13 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.3.1] - 2026-10-02
+## [3.3.2] - 2026-10-02
 
 ### Changed
 
 - **Shared `check-retirements.sh`, `exec-bash.mjs`, `fetch-docs.sh`, `managed-scope.sh`, `spawn_noise.py`, `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, lib and scripts.**
   Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copies.
+
+## [3.3.1] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
 
 ## [3.3.0] - 2026-10-03
 

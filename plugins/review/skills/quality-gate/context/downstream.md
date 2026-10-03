@@ -117,9 +117,9 @@ This skill does not run builds or tests (see the parent skill's "What this skill
 claim resting on an unrun check is stated as **"assessed, not verified because Y"**, naming Y.
 
 That formula and the discipline behind it are owned by `/playbooks:fable-5 verification` when the
-`playbooks` plugin is installed. Invoke it **with the chapter name**, rather than reading into the
+`playbooks` plugin is enabled. Invoke it **with the chapter name**, rather than reading into the
 plugin's files, and rather than bare, which arms that playbook's entire doctrine as standing session
-instructions for the rest of the run. When it is not installed, the rule stands on its own as
+instructions for the rest of the run. When it is not enabled, the rule stands on its own as
 written here. Do not invent a grading scale for it. The unverified claim is marked in words, and
 its confidence is the shared `confidence` axis.
 
@@ -128,11 +128,11 @@ its confidence is the shared `confidence` axis.
 Name the smallest test or reproduction that fails if the most serious confirmed risk is real. Do not
 write it here. This mode reports.
 
-- Authoring the test routes to `/testing:write` when the `testing` plugin is installed.
+- Authoring the test routes to `/testing:write` when the `testing` plugin is enabled.
 - Proving the test actually catches the bug routes to `/mutation-testing:audit` when the
-  `mutation-testing` plugin is installed, which is stronger than asserting it will, because the
+  `mutation-testing` plugin is enabled, which is stronger than asserting it will, because the
   mutant is re-run and the agent that wrote the test does not grade itself into a pass.
-- Neither installed: state the test in enough detail that a reader can write it, and say that its
+- Neither enabled: state the test in enough detail that a reader can write it, and say that its
   existence is unverified.
 
 ## Skip conditions: when this is the wrong mode
