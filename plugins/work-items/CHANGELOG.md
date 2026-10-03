@@ -16,6 +16,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - The plugin carries generated copies of `lib/view-builder.mjs`, `lib/view-runtime.js` and
   `lib/html-escape.mjs`.
 
+## [0.45.3] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
 ## [0.45.2] - 2026-10-02
 
 ### Fixed

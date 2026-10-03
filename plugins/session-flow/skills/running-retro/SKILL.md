@@ -58,7 +58,7 @@ disk holds what *happened*; it does not hold the acting agent's present read of 
 only signal the analysis subagent cannot get for itself. It seeds the analysis.
 
 **Ground the note in the instrument when one is present.** When the `context-guard` plugin is
-installed, resolve this session's zone word per its reader contract (the contract owns the
+enabled, resolve this session's zone word per its reader contract (the contract owns the
 snapshot path, staleness rule, and bands, read them there; this note carries only the resulting
 word, no band values) and include it in the note. A self-impression of the window is a guess and
 can sit far from the instrument's reading, and the analysis subagent judging degradation deserves
@@ -137,7 +137,7 @@ Present the checkpoint findings, then OFFER the forward routes; act only on the 
   `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
 - **Build the new-skill candidate** → read `/playbooks:skill-authoring` for the authoring doctrine
-  and draft against it, then gate the result on `/skill-quality:check`, when those are installed;
+  and draft against it, then gate the result on `/skill-quality:check`, when those are enabled;
   otherwise say the candidate has no authoring route here and leave it recorded. The checkpoint
   already emits a "New-skill candidates" line, and a candidate with no named destination is a
   finding that evaporates. Read the doctrine before drafting rather than inventing a shape from

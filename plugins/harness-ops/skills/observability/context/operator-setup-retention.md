@@ -49,6 +49,7 @@ turned off). The size cap below bounds each hot file even when every line is ins
 | `CC_OTEL_BODY_RETENTION_DAYS` | `2` | Hot window for `api_request_body` / `api_response_body` records. Must not exceed the structure window (exit 2, reject rather than clamp). Aged body records are stripped in place; they never reach cold. |
 | `CC_OTEL_HOT_MAX_MB` | `1024` | Size cap per hot file in MiB; `0` disables. A file over the cap drops its oldest lines, compacted to cold first, until it fits, even inside the age windows. Must be a non-negative integer (exit 2 otherwise). |
 | `CC_OTEL_COLD_KEEP_USER_PROMPTS` | off | `=1` keeps `user_prompt` bodies + the `prompt` and `prompt_text` attributes un-scrubbed in the cold tier. Default scrubs both (prompt frequency/timing analytics survive either way). |
+| `CC_OTEL_COLD_KEEP_CONTENT` | `1` (keep) | `=0` NULLs the other content-class columns (response text, tool payloads, command strings, error text, configuration text, `user_email`, absolute paths; listed in [privacy.md](privacy.md#otel-cold-tier-content-boundary)) and scrubs their attributes in the cold tier, logs, spans and metrics alike. Any other value keeps them. |
 
 `RETENTION_DAYS` alone is **not read**. Set without `CC_OTEL_RETENTION_DAYS` it exits 2.
 
