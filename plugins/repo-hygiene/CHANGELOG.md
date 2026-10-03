@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.3] - 2026-10-03
+
+### Fixed
+
+- **The read-only scan stays off the network (#6039).** `scan.sh` no longer runs `git remote prune origin --dry-run`. `Git stale refs dry-run:` is `remote prune not measured`, including when `origin` is an unreachable SSH URL, and `clean-batch.sh --tier scan` does not open an SSH or credential prompt. `git ls-remote` (`git-branch-audit.sh --remote`), `git remote prune` (`git-prune.sh --apply`), and `git fetch` (`git-tree-reset.sh`) go through one helper that keeps the configured `core.sshCommand`, turns prompts off, and reports a remote-unreachable result instead of waiting on one.
+
 ## [0.19.2] - 2026-10-03
 
 ### Changed

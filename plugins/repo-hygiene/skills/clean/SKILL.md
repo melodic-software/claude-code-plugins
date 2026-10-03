@@ -165,7 +165,7 @@ Resolve no repo root here. This step is reachable from anywhere, including outsi
 
 ### 1. Scan (`scan`)
 
-`${CLAUDE_SKILL_DIR}/scripts/scan.sh`. Read-only inventory. Stop if action is `scan`.
+`${CLAUDE_SKILL_DIR}/scripts/scan.sh`. Read-only inventory. It does not contact the remote: `Git stale refs dry-run:` is `remote prune not measured`. Stop if action is `scan`.
 
 ### 1.5. Pre-flight (caches / build / all only)
 
@@ -191,7 +191,7 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 #### 4.1 Prune and gc
 
-`${CLAUDE_SKILL_DIR}/scripts/git-prune.sh`. `--dry-run` default; after confirmation, `CLEAN_GUARD_ACK=1 … --apply` (PowerShell: `$env:CLEAN_GUARD_ACK=1; … --apply`), per the session-scoped destructive guard above.
+`${CLAUDE_SKILL_DIR}/scripts/git-prune.sh`. `--dry-run` default; after confirmation, `CLEAN_GUARD_ACK=1 … --apply` (PowerShell: `$env:CLEAN_GUARD_ACK=1; … --apply`), per the session-scoped destructive guard above. `--apply` runs `git remote prune origin` non-interactively. An unreachable remote prints `RemoteUnreachable: remote unreachable` and the local worktree prune and gc still run.
 
 #### 4.2 Branch audit
 
@@ -241,7 +241,7 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these), `--repos-fro
 
 **Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason` (`nothing-to-do` for a repo with no paths to remove and no new shared object store), a `Repo | Outcome | Paths | Bytes` table, the planned paths per repo (largest first, capped at 20 per repo by `--list-paths-max N`, with an `N more, see plan file: <path>` tail; read from the manifests apply consumes), any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`; the git tier counts prunable worktrees, plus loose objects and garbage only when `git gc --auto` would run (thresholds and their verification: `context/clean-batch.md`), so a store below them counts 0 yet stays `would-clean`, and its bytes are an upper bound: `gc` packs reachable loose objects instead of deleting them, and remote-prune candidates are not counted. git/all append `gitdirs=G git_bytes=B`, all also `caches_bytes=C build_bytes=D`). For `caches`, `build`, and `all` it also runs `preflight.sh` **once** before the repo loop (not per repo) and prints `PreflightScope: batch-repositories` plus the preflight facts, with `RECENT_BUILD` scanned across every batch repository; the git-only tier skips that. `Progress:` lines go to stderr (`N/M <path>` on dry-run, `apply N <path>` on apply) so a long fleet run is not silent. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`, `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run `preflight.sh` again before confirming. [Confirmation gate](#confirmation-gate) **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan defaults to a new `run.*` directory per dry-run under one durable directory per tier, repo set and skip list in `${CLAUDE_PLUGIN_DATA}` (else `~/.claude/plugins/data/repo-hygiene`), so a repeat dry-run never replaces a plan you already confirmed (run directories older than 14 days are removed); `--batch-plan FILE` is also accepted with `--dry-run`, to pick another plan path. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
 
-**`--tier scan` (`scan-batch`) is read-only.** It runs the unchanged `scan.sh` per repo, writes no batch plan, and takes no `--apply` or `--batch-plan` (either is a usage error, exit 2), so it needs no confirmation gate. It prints per-repo `Outcome: scanned` and `Summary: repos=N planned=0 bytes=K`, K the summed `Total reclaimable`; run `scan.sh` inside one repo for its per-path inventory.
+**`--tier scan` (`scan-batch`) is read-only.** It runs the unchanged `scan.sh` per repo and does not contact the remote (`Git stale refs dry-run:` is `remote prune not measured`). It writes no batch plan, and takes no `--apply` or `--batch-plan` (either is a usage error, exit 2), so it needs no confirmation gate. It prints per-repo `Outcome: scanned` and `Summary: repos=N planned=0 bytes=K`, K the summed `Total reclaimable`; run `scan.sh` inside one repo for its per-path inventory.
 
 ## Spoke paths
 

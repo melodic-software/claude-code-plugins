@@ -192,7 +192,8 @@ non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
 ### The scan tier is read-only
 
 `--tier scan` runs the unchanged `scan.sh` in each selected repo, with the same repo
-sources and skip list as the other tiers. It writes no plan and runs no preflight, and
+sources and skip list as the other tiers. `scan.sh` does not contact the remote; its
+`Git stale refs dry-run:` line is `remote prune not measured`. It writes no plan and runs no preflight, and
 `--apply` or `--batch-plan` with it is a usage error (exit 2), so there is no gate to
 pass. Each repo emits `Outcome: scanned` with its path count and reclaimable size; a repo
 whose `scan.sh` prints no `Total reclaimable` is `blocked`, never counted as 0. The closing

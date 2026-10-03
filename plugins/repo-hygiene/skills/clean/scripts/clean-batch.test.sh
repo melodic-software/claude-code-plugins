@@ -530,6 +530,46 @@ out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet 2>/dev/null)" || rc=
 assert_exit "scan --fleet exits 0" 0 "$rc"
 assert_contains "scan --fleet reports the second clone as a duplicate" "$out" "skipped duplicate of $FL_A"
 
+# The same fixtures, under recorders for ssh and the credential helper. A scan
+# tier must not contact those URL strings.
+FLEET_REC="$TEST_TMPDIR/fleet-record"
+mkdir -p "$FLEET_REC"
+cat >"$FLEET_REC/ssh" <<EOF
+#!/bin/sh
+printf '%s\n' "\$0 \$*" >> "$FLEET_REC/ssh.log"
+exit 1
+EOF
+cat >"$FLEET_REC/askpass" <<EOF
+#!/bin/sh
+printf '%s\n' "\$0 \$*" >> "$FLEET_REC/askpass.log"
+exit 1
+EOF
+cat >"$FLEET_REC/cred" <<EOF
+#!/bin/sh
+printf '%s\n' "\$0 \$*" >> "$FLEET_REC/cred.log"
+cat >/dev/null
+exit 1
+EOF
+chmod +x "$FLEET_REC/ssh" "$FLEET_REC/askpass" "$FLEET_REC/cred"
+git config --file "$FLEET_REC/gitconfig" core.sshCommand "$FLEET_REC/ssh"
+git config --file "$FLEET_REC/gitconfig" credential.helper ""
+git config --file "$FLEET_REC/gitconfig" --add credential.helper "!$FLEET_REC/cred"
+rc=0
+out="$(
+  PATH="$SHIM:$PATH" \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL="$FLEET_REC/gitconfig" \
+    GIT_SSH_COMMAND="$FLEET_REC/ssh" \
+    GIT_ASKPASS="$FLEET_REC/askpass" \
+    SSH_ASKPASS="$FLEET_REC/askpass" \
+    bash "$BATCH" --tier scan --fleet 2>/dev/null
+)" || rc=$?
+assert_exit "scan --fleet with recorders exits 0" 0 "$rc"
+assert_contains "scan --fleet with recorders still dedupes" "$out" "skipped duplicate of $FL_A"
+assert_file_absent "scan --fleet records no ssh" "$FLEET_REC/ssh.log"
+assert_file_absent "scan --fleet records no askpass" "$FLEET_REC/askpass.log"
+assert_file_absent "scan --fleet records no credential helper" "$FLEET_REC/cred.log"
+
 # --repo and --repos-from are an explicit selection: two clones of one origin are
 # both planned, in the caches tier and in the scan tier, with no duplicate record.
 rc=0
