@@ -1,0 +1,105 @@
+{
+  "argv": [
+    "gold-0001",
+    "proj"
+  ],
+  "exit": 0,
+  "output": {
+    "status": "pass",
+    "summary": "Session: 4 assistant turns, 7 human messages, 1 compaction(s), 3.0min",
+    "data": {
+      "session": {
+        "id": "gold-0001",
+        "start": "2026-10-01T10:00:00+00:00",
+        "end": "2026-10-01T10:03:00+00:00",
+        "duration_minutes": 3.0,
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "versions": [
+          "2.1.287"
+        ],
+        "git_branches": [
+          "feat/login",
+          "main"
+        ]
+      },
+      "turns": {
+        "assistant": 4,
+        "user": 8,
+        "human_messages": 7,
+        "tool_result_messages": 1
+      },
+      "tokens": {
+        "total_input": 34,
+        "total_output": 103,
+        "cache_creation": 300,
+        "cache_read": 5000,
+        "total_context": 5334
+      },
+      "queued_user_messages": 1,
+      "tools": {
+        "usage": {
+          "Skill": 1,
+          "Edit": 1
+        },
+        "rejections": [
+          {
+            "tool_use_id": "tu-02",
+            "snippet": "The user rejected this edit"
+          }
+        ],
+        "rejection_count": 1
+      },
+      "compactions": {
+        "count": 1,
+        "details": [
+          {
+            "timestamp": "2026-10-01T10:02:00.000Z",
+            "trigger": "manual",
+            "pre_tokens": 5000
+          }
+        ]
+      },
+      "turn_durations": {
+        "count": 3,
+        "avg_ms": 6667,
+        "min_ms": 1000,
+        "max_ms": 18000,
+        "total_ms": 20000
+      },
+      "stop_reasons": {
+        "tool_use": 1,
+        "end_turn": 1
+      },
+      "hook_summaries": {
+        "count": 1,
+        "prevented_continuations": 0,
+        "hook_errors": 0
+      },
+      "plugin_usage": {
+        "skills": {
+          "session-flow:retro": 1,
+          "review:quality-gate": 1
+        }
+      },
+      "files_modified": [
+        "src/a.py",
+        "src/b.py"
+      ],
+      "subagents": [
+        {
+          "id": "agent-a1",
+          "type": "Explore",
+          "description": "Find the login handler"
+        }
+      ],
+      "errors": [
+        {
+          "type": "parse_error",
+          "detail": "Malformed JSON line"
+        }
+      ]
+    }
+  }
+}

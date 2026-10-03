@@ -1253,10 +1253,14 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=MERGE_CLI,
         wrapper=MERGE_WRAPPER,
         mutation=CONDITIONAL,
-        mutates_what="merges the PR on GitHub, or with --auto arms auto-merge",
+        mutates_what=(
+            "merges the PR on GitHub, or with --auto arms auto-merge; with --state-dir "
+            "it also keeps a local pending-merge record"
+        ),
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
-            "Without --merge this is a readiness reporter. With it, the TOCTOU guard "
+            "Without --merge this is a readiness reporter on GitHub; with --state-dir it "
+            "may still clear a finished pending-merge record locally. With --merge, the TOCTOU guard "
             "requires --expected-head unless --allow-unpinned-head is passed -- and the "
             "scripts/ wrapper refuses that override outright."
         ),

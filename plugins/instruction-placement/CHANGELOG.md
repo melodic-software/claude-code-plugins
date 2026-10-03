@@ -3,6 +3,13 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.19.2] - 2026-10-02
 
 ### Changed
