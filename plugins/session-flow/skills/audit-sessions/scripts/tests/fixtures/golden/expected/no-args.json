@@ -1,0 +1,9 @@
+{
+  "argv": [],
+  "exit": 2,
+  "output": {
+    "status": "error",
+    "summary": "Usage: parse_transcript.py <session_id> <base_path>  |  parse_transcript.py --sessions <sid...> --base <path>  |  parse_transcript.py --chain-from <file> --base <path>",
+    "data": {}
+  }
+}

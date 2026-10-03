@@ -2215,7 +2215,9 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
 
     - an export, to every module importing the exported name (a re-export
       exports it again), when no module reads that name as a property,
-      since `ns.name` on a module namespace reaches the export too;
+      since `ns.name` on a module namespace reaches the export too, and
+      every whole load of the exporting file reads other exports only by
+      name (`_namespace_holds`);
     - an argument to an imported function, to that function's parameter in
       the module its `from` path names in Bun's module table.
 
@@ -2251,13 +2253,12 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
                 )
                 continue
             name = hop[1]
-            if (
-                name == "default"
-                or _PARSER.keys_used(src, name, _module_spans(src))
-                or _taken_whole(src, name)
-                or _exporter_taken_whole(src, span[0], name)
-            ):
+            if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
                 return False
+            held = _namespace_holds(src, span[0], name)
+            if held is None:
+                return False
+            trusted.update(held)
             pending.extend(
                 (importer, {"import": name, "calls": hop[0] == "export-call"})
                 for importer in _importers(src, name)
@@ -2340,46 +2341,52 @@ def _importers(src: str, name: str) -> list[tuple[int, int]]:
     return list(dict.fromkeys(span for span, _ in _import_lists(src, name)))
 
 
-_NAMESPACE_SITE_RE = re.compile(
-    r"(?<![\w$.])(?:import\s*\*\s*as\s*[\w$]+\s*from|export\s*\*(?:\s*as\s*[\w$]+)?\s*from)"
-    r"\s*([\"'`])(.*?)\1"
-    r"|(?<![\w$])(?:import|require)\s*\(\s*([\"'`])(.*?)\3"
-)
+def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
+    """The built-in names trusted in showing that no whole load of the
+    module starting at `lo`, which exports `name`, reaches that export, or
+    None when one may.
 
-
-@functools.lru_cache(maxsize=4)
-def _namespace_targets(src: str) -> frozenset[str]:
-    """The file name of every module some code takes whole, as a namespace:
-    `import*as N from`, `export*from`, `import(...)`, `require(...)` and
-    `import.meta.require(...)` with a literal path."""
-    return frozenset(
-        (m.group(2) if m.group(2) is not None else m.group(4)).rsplit("/", 1)[-1]
-        for m in _NAMESPACE_SITE_RE.finditer(src)
-    )
-
-
-def _exporter_taken_whole(src: str, lo: int, name: str) -> bool:
-    """Whether the module starting at `lo`, which exports `name`, may be
-    taken whole as a namespace. Its file is the Bun module table's path for
-    it, else the file its importers name in `from"..."`; a module whose
-    file is unknown counts as taken whole, since nothing then rules out a
-    namespace of it. Following a namespace object to its reads is not
-    done: any namespace of the file counts."""
+    Its files are the Bun module table's path for it and every file its
+    importers import `name` from; with neither, the file is unknown and
+    nothing rules out a namespace of it. Every module that loads one of
+    those files whole (`import(...)`, `require(...)`, `import*as`,
+    `export*`, the parser's `loads` op) is followed by the `namespace` op,
+    which accepts only reads of other exports by name. A module that may
+    load a file the parser cannot name (an aliased `require`,
+    `require.call`, `import(x)`) could load this one, so it fails the hop.
+    A promise settled
+    with the namespace reads its `then` export, so each file's module
+    must be known and export no `then`."""
     assert _PARSER is not None
     path = _PARSER.module_path(src, lo)
-    files = [path] if path else [p for _, p in _import_lists(src, name)]
-    targets = _namespace_targets(src)
-    return not files or any(f.rsplit("/", 1)[-1] in targets for f in files)
-
-
-def _taken_whole(src: str, name: str) -> bool:
-    """Whether a module that `name`'s importers import it from is also taken
-    as a namespace somewhere, where a computed read or an enumeration could
-    reach the export unseen."""
-    targets = _namespace_targets(src)
-    return any(
-        path.rsplit("/", 1)[-1] in targets for _, path in _import_lists(src, name)
-    )
+    files = {
+        p.rsplit("/", 1)[-1]
+        for p in ([path] if path else []) + [p for _, p in _import_lists(src, name)]
+    }
+    if not files:
+        return None
+    trusted: set[str] = set()
+    thenable = False
+    for span in _module_spans(src):
+        loaded = _PARSER.loads(src, *span)
+        if loaded is not None and "*" in loaded:
+            return None
+        for file in sorted(files if loaded is None else files.intersection(loaded)):
+            found = _PARSER.namespace(src, *span, file, name)
+            if not found["safe"]:
+                return None
+            trusted.update(found["trusted"])
+            thenable = thenable or found["thenable"]
+    if thenable:
+        for file in files:
+            starts = _PARSER.modules_named(src, file)
+            if not starts:
+                return None
+            for start in starts:
+                exported = _PARSER.exports(src, *_chunk_span(src, start))
+                if exported is None or "then" in exported:
+                    return None
+    return trusted
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:

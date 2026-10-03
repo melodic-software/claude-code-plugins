@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 25 | 24 | route 4, suggest 21 | complementary 24, defer 1 |
+| Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
 | Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
@@ -260,6 +260,24 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/goal`, changes its condition contract or length limit, or makes it model-invocable (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `insights` → `session-flow:audit-sessions`
+
+- **Verdict:** `complementary`: The built-in command generates an HTML report across recent sessions; ours keeps a durable store of every session on the machine, flags sessions over measured thresholds and routes each finding to a skill. User-only, so ours suggests it. Ruled 2026-10-02 by the user at plan approval.
+- **Integration:** `suggest`
+- **Native surface:** `insights` (built-in command; markers: model-invocation-disabled)
+- **Our component:** `session-flow:audit-sessions` (skill)
+- **Evidence:**
+  - `insights` present in the extraction as builtin-command
+  - markers: model-invocation-disabled
+  - native description: Generate a report analyzing your Claude Code sessions
+  - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `prompt`)
+  - detect: human-added pair
+  - docs cross-check (commands reference, 2026-09-29): documented
+- **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

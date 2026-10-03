@@ -1298,6 +1298,26 @@ else
   fail "unpaired vendor/ diff should still fail (rc=$rc): $out"
 fi
 
+# 20b. A pure rename inside vendor/ keeps every byte, so check 8 passes it
+#      without an upstream-version bump; the staged rename is what git sees.
+git -C "$TMP" checkout -q -- "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+git -C "$TMP" mv "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md"
+out="$(run vendor-skill-bad 2>&1)"
+if grep -q 'only renamed' <<<"$out" && ! grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ pure rename passes check 8"
+else
+  fail "a pure vendor/ rename should pass check 8: $out"
+fi
+printf 'renamed and edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md"
+out="$(run vendor-skill-bad 2>&1)"
+if grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ rename with an edit still fails check 8"
+else
+  fail "an edited vendor/ rename should fail check 8: $out"
+fi
+git -C "$TMP" mv -f "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+
 # 21. A `!` injection with a `shell:` declaration is silent — the author has
 #     taken explicit responsibility for the shell (check 19).
 make_skill inj-shell-ok '---

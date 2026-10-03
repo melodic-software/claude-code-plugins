@@ -1,5 +1,5 @@
 ---
-description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on <host>', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
+description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
 argument-hint: "[relay]"
 user-invocable: true
 disable-model-invocation: false
