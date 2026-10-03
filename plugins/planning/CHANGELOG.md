@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.0] - 2026-10-03
+
+### Added
+
+- **The brainstorm view can send the reader's reaction to the session ([#5869](https://github.com/melodic-software/claude-code-plugins/issues/5869)).**
+  The page gains a send control, the session's connection status and a list of its replies. The
+  ticked candidates and the note reach the session as framed data; the session replies with a
+  proposed scope and route, and locks nothing until the reader confirms it in the conversation.
+  `build-view.mjs brainstorm --connect <origin> --out <page>` builds it. With no session, the page
+  says so and its copy and save buttons still work. Procedure in `reference/rendered-view.md`.
+- **`build-view.mjs --connect --out` takes only `page.html` in a private view-bridge data dir.** The
+  dir must be owned by you with mode 0700, reached with no link in its path, outside any working
+  tree, and hold the session file for that origin's port, or the build exits 2. A planted `page.html`
+  link is replaced, the file is created with `wx` and mode 0600, and a directory at that path is
+  refused.
+
 ## [0.66.0] - 2026-10-03
 
 ### Added

@@ -6,12 +6,16 @@
 // runtime renders it as text.
 //
 //   build-digest.mjs < data.json      write the page into a fresh temp dir, print its path
+//   build-digest.mjs --connect http://127.0.0.1:<port> --dir <data_dir> < data.json
+//                                     write the Claude-interactive page to <data_dir>/page.html,
+//                                     the view-bridge data dir that serves that origin
 //   build-digest.mjs --check <file>   validate a page
 // The caller never picks the output path, so a diff-steered caller cannot aim
-// the page at a rules, shell, or settings file.
+// the page at a rules, shell, or settings file: --dir takes only a private
+// view-bridge data dir outside any working tree, and the file name is fixed.
 // Exit 0 ok, 1 the page fails its profile, 2 usage, input, or output path.
 
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,12 +71,43 @@ export function shapeDigest(input) {
   };
 }
 
-export function buildDigest(input) {
+export function buildDigest(input, connect = null) {
   return buildView({
     profile: "interactive",
     template: readFileSync(TEMPLATE_PATH, "utf8"),
     data: shapeDigest(input),
+    connect,
   });
+}
+
+/**
+ * Why dir cannot take a connected page for origin, or null when it can: it must be
+ * a plain directory owned by this user with mode 0700, outside any working tree,
+ * holding the session file view-bridge ensure-running wrote for that origin's port.
+ */
+export function bridgeDirProblem(dir, origin) {
+  let st;
+  try {
+    st = lstatSync(dir);
+  } catch {
+    return `${dir} does not exist`;
+  }
+  if (!st.isDirectory()) return `${dir} is not a plain directory`;
+  if (process.platform !== "win32" && (st.uid !== process.getuid() || st.mode & 0o077)) {
+    return `${dir} must be owned by you with mode 0700`;
+  }
+  if (realpathSync(dir) !== resolve(dir)) return `${dir} is not a plain directory path (a link is in it)`;
+  const root = repoRoot(realpathSync(dir));
+  if (root) return `${dir} is inside the working tree ${root}`;
+  let session;
+  try {
+    session = JSON.parse(readFileSync(join(dir, ".view-session.json"), "utf8"));
+  } catch {
+    return `${dir} holds no view-bridge session; run view-bridge.sh ensure-running first`;
+  }
+  const port = /^http:\/\/127\.0\.0\.1:([0-9]{1,5})$/.exec(origin)?.[1];
+  if (!port || Number(port) !== session?.port) return `${origin} is not the origin this data dir serves`;
+  return null;
 }
 
 /** The working tree holding dir, found by walking up to a .git entry. */
@@ -110,11 +145,19 @@ function main(args) {
     process.stdout.write("ok\n");
     return;
   }
-  if (args.length > 0) fail("usage: build-digest.mjs < data.json | --check <file>", 2);
+  const usage = "usage: build-digest.mjs [--connect <origin> --dir <view-bridge data dir>] < data.json | --check <file>";
+  const flags = {};
+  for (let i = 0; i < args.length; i += 2) flags[args[i]] = args[i + 1];
+  const connected = args.length === 4 && typeof flags["--connect"] === "string" && typeof flags["--dir"] === "string";
+  if (args.length > 0 && !connected) fail(usage, 2);
+  if (connected) {
+    const problem = bridgeDirProblem(flags["--dir"], flags["--connect"]);
+    if (problem) fail(`refused: ${problem}`, 2);
+  }
   // A view never sits beside the record: refuse a temp dir inside a working tree.
   const temp = realpathSync(tmpdir());
   const root = repoRoot(temp);
-  if (root && inside(temp, realpathSync(root))) {
+  if (!connected && root && inside(temp, realpathSync(root))) {
     fail(`refused: the temp dir ${temp} is inside the working tree ${root}; write the view outside it`, 2);
   }
   let input;
@@ -126,9 +169,18 @@ function main(args) {
   if (!input || typeof input !== "object" || Array.isArray(input)) fail("JSON root must be an object", 2);
   let page;
   try {
-    page = buildDigest(input);
+    page = buildDigest(input, connected ? flags["--connect"] : null);
   } catch (error) {
     fail(error.message, 1);
+  }
+  if (connected) {
+    // Never write through a link a K2-steered run might have planted.
+    const out = join(realpathSync(flags["--dir"]), "page.html");
+    if (existsSync(out) && lstatSync(out).isDirectory()) fail(`refused: ${out} is a directory`, 2);
+    rmSync(out, { force: true });
+    writeFileSync(out, page, { flag: "wx", mode: 0o600 });
+    process.stdout.write(`${out}\n`);
+    return;
   }
   const out = join(mkdtempSync(join(temp, "explain-change-")), "digest.html");
   writeFileSync(out, page, { flag: "wx" });

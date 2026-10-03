@@ -200,8 +200,8 @@ lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
 lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/session-bridge/session_bridge.py. The planning and work-items plugins
-# carry it in view-bridge/, beside the view app, generated with a header that
+# lib/session-bridge/session_bridge.py. The planning, review and work-items
+# plugins carry it in view-bridge/, beside the view app, generated with a header that
 # names the canonical.
 view-bridge/session_bridge.py
 
@@ -247,7 +247,8 @@ lib/session-bridge/view-bridge.sh -> plugins/*/view-bridge/view-bridge.sh
 # session-bridge settings (NAME=view, CONTROL=view-bridge.sh) are hand-written
 # beside each copy set. Canonical copy:
 # plugins/planning/view-bridge/session-bridge.conf; copy it into
-# plugins/work-items/view-bridge/ to fix a drift failure.
+# plugins/review/view-bridge/ and plugins/work-items/view-bridge/ to fix a
+# drift failure.
 view-bridge/session-bridge.conf
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
