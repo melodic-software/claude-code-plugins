@@ -417,7 +417,7 @@ above). A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELO
 conflict worker or the inline freshness merge meets it, is resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh`, per
 `/source-control:resolve-conflicts` step 3. This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
-model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is installed, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
+model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is enabled, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
 The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement:
 **context independence**, per the convention's §3, the dispatched subagent must share no

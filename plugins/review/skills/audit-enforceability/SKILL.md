@@ -151,7 +151,7 @@ with its gate and its fallback:
   and the dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>)
   for JS/TS.
 - **`hook`**: run `/harness-config:audit-automation-gaps hooks` (if the `harness-config` plugin is
-  installed) and present the stub as a candidate in its candidate-list step, which is
+  enabled) and present the stub as a candidate in its candidate-list step, which is
   self-generated and takes no findings input; otherwise the stub records the candidate with the
   evidence that skill's gates ask for (frequency, incident history, the enforcement level already
   covering it) and stops.

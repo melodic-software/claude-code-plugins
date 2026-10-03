@@ -49,7 +49,7 @@ told:
    Recheck trigger: that section moves or starts stating its own multiplier, or a docs page starts
    covering fan-out sizing.
    "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
-   `context-guard` plugin installed, resolve this session's zone word per its reader contract
+   `context-guard` plugin enabled, resolve this session's zone word per its reader contract
    before a fan-out decision
    (the contract owns the snapshot path, staleness rule, and bands. Read them there; this
    imperative consumes only the word, no band values). Never estimate your own remaining window,

@@ -22,7 +22,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 **The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/conventions/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pre-pr-ordering/README.md). Read the order there; this file cites it rather than restating it.
 
-Every skill named below is invoked through the Skill tool when its plugin is installed, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
+Every skill named below is invoked through the Skill tool when its plugin is enabled, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
 
 **No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits, so a docs-only branch is not exempt: it owes the prose audits in 1.2.1. If the consuming project layers extra prep requirements on PR creation (hooks, gates), satisfy those per its own docs.
 
@@ -37,10 +37,10 @@ Run **one** fresh-context review over the branch diff: `/review:quality-gate` un
 
 Run the audit each detected class owes, over the changed files of that class only:
 
-- **`markdown`**: `/ai-slop:audit` when the `ai-slop` plugin is installed, otherwise read the changed markdown against the project's own prose rules; and `/docs-hygiene:audit-noise` when the `docs-hygiene` plugin is installed, otherwise read it for stale citations, dead references, and conversational residue
+- **`markdown`**: `/ai-slop:audit` when the `ai-slop` plugin is enabled, otherwise read the changed markdown against the project's own prose rules; and `/docs-hygiene:audit-noise` when the `docs-hygiene` plugin is installed, otherwise read it for stale citations, dead references, and conversational residue
 - **`renames`**: `/docs-hygiene:rename-references audit` when `docs-hygiene` is installed, otherwise grep the old path and the old name for every surviving reference. The class fires only when the diff reports a rename
-- **`skills`**: `/skill-quality:check` when the `skill-quality` plugin is installed, otherwise run the project's own skill lint, or read each changed skill's frontmatter against the contract the project documents
-- **`rules`**: `/instruction-placement:check` when the `instruction-placement` plugin is installed, otherwise confirm each changed rule's `paths:` glob still matches a tracked file
+- **`skills`**: `/skill-quality:check` when the `skill-quality` plugin is enabled, otherwise run the project's own skill lint, or read each changed skill's frontmatter against the contract the project documents
+- **`rules`**: `/instruction-placement:check` when the `instruction-placement` plugin is enabled, otherwise confirm each changed rule's `paths:` glob still matches a tracked file
 - **`security`**: not here. It reviews the pull request's own diff, so it runs in the ready step
 
 Audits that persist findings hand them to one `/review:fanout fix` pass when the `review` plugin is installed, and are applied by hand otherwise. Either way each finding goes through 1.3 first.

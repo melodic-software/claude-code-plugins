@@ -752,7 +752,7 @@ convention's capability table
   security-surface work, matching the merge-lane prompt's conflict path.
 
 Every dispatch prompt also carries the subagent discipline preamble (when the
-`discipline` plugin is installed, invoke its sweep skill; when absent, inline the
+`discipline` plugin is enabled, invoke its sweep skill; when it is not, inline the
 equivalent standing instructions), per the same convention. `/source-control:babysit-loop`
 documents the lane-level binding; this skill inherits it for every fan-out it
 performs.
