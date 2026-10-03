@@ -199,6 +199,18 @@
         "Does NOT offer `--remote` as a remedy: it fills facts for existing nodes and adds no system and no edge",
         "Does not invent an edge or a neighboring system to make the diagram look fuller"
       ]
+    },
+    {
+      "id": 14,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-landscape\n\nlandscape.json and the landscape artifact are written. I would like to filter and trace the systems rather than read the tables.",
+      "expected_output": "After the report, offers an interactive view of landscape.json in one sentence, builds it only with scripts/build-view.mjs landscape from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "The markdown artifact and landscape.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs landscape --record landscape.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
