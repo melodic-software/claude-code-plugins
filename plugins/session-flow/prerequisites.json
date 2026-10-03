@@ -1,14 +1,40 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "node",
-      "check": "/session-flow:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the session-flow hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/session-flow:check"
     },
     {
-      "name": "jq",
-      "check": "/session-flow:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:observer-arm.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the session-flow hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/session-flow:check"
     }
   ]
 }

@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.45.1] - 2026-10-02
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
 ## [0.45.0] - 2026-10-02
 
 ### Added

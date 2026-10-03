@@ -3,6 +3,13 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.12] - 2026-10-02
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+- The `SessionStart` row runs `lib/prerequisites.mjs probe` behind the same `--run-if-unset-or-true` kill-switch gate, and `hooks/probe-prerequisite.sh` is deleted. The notice text, its once-per-session latch shared with the per-edit hook, and its silence when the kill switch is off are unchanged; the hook test suite asserts each.
+
 ## [0.8.11] - 2026-10-02
 
 ### Changed
