@@ -47,6 +47,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - `safety.md` and `merge.md` record that `CLEAN` does not say which base CI tested, since GitHub
   regenerates a PR's test merge commit only on a push, a merge-base change, or after 12 hours.
 
+## [0.74.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.74.0] - 2026-10-02
 
 ### Added

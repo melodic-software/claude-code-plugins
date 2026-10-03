@@ -355,19 +355,34 @@ export async function acquireYouTubeMedia(
     return failVideo("Transcript mode must not download video");
   }
 
+  let info;
   let metadata;
   try {
-    metadata = parseVideoMetadata(JSON.parse(await readFile(artifacts.metadataPath)));
+    info = JSON.parse(await readFile(artifacts.metadataPath));
+    metadata = parseVideoMetadata(info);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return failVideo(`Invalid info JSON: ${message}`);
+  }
+
+  // info.json `subtitles` lists the manual tracks; the filename cannot tell
+  // a manual `.en.vtt` from an auto one.
+  const manualLanguages =
+    info?.subtitles && typeof info.subtitles === "object"
+      ? Object.keys(info.subtitles)
+      : undefined;
+  const finalCaption = selectCaptionFile(artifacts.captionPaths, source.captionClass, {
+    manualLanguages,
+  });
+  if (!finalCaption.success) {
+    return failVideo(finalCaption.error);
   }
 
   return ok(
     {
       artifacts,
       metadata,
-      caption: captionResult.selection,
+      caption: finalCaption.selection,
       workDir,
       acquireMetrics,
     },

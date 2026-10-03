@@ -5,6 +5,19 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-10-02
+
+### Changed
+
+- The zone-crossing operator menu names its options (continue, `/compact`, `/clear`, a handoff
+  then `/clear`) without ranking them or saying when each fits, and drops "`/compact` as a last
+  resort". It says to route the next step with `/session-flow:workflow` (if installed), and links
+  [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
+  for an install without session-flow. The README and `reference/reader-contract.md` describe the
+  menu the same way, and the contract records the fallback link with an as-of date and a recheck
+  trigger.
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.9.0] - 2026-10-02
 
 ### Changed

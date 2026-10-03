@@ -52,6 +52,9 @@ export async function writeWatchingManifest(sliceDir, watching, tempSession) {
     selectedFrames: watching.selectedFrames.map((frame) => ({
       file: frame.file,
       timestampSec: frame.timestampSec,
+      timestampSource: frame.timestampSource,
+      timestampMethod: frame.timestampMethod,
+      timestampErrorSec: frame.timestampErrorSec,
       priorityScore: frame.priorityScore,
       textDense: frame.textDense,
       readResolution: frame.readResolution,

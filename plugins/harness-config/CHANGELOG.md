@@ -5,11 +5,19 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.3.4] - 2026-10-02
+## [1.3.5] - 2026-10-02
 
 ### Fixed
 
 - The audit engine's secret-shape check (`SECRET_RE`, which flags a token in tracked `settings.json` and redacts hook commands) covers GitHub OAuth, user, server and refresh tokens (`gho_`, `ghu_`, `ghs_`, `ghr_`) and the `ghs_<APPID>_<JWT>` installation-token format GitHub rolls out from 2026-04-27, whose JWT header starts `eyJ`. Before, only `ghp_` and `github_pat_` were matched. The check runs grep under `LC_ALL=C`, because in a UTF-8 locale GNU grep took 25 to 60 seconds on a long line against the widened pattern.
+
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
+  still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
+  file can carry a rule that names the legacy tool.
 
 ## [1.3.3] - 2026-10-02
 
