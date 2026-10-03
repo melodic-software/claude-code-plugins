@@ -3,7 +3,7 @@
 // data), and the read-only boundary (no post, no check status).
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -33,12 +33,15 @@ function gitRepo(repo) {
   git("init", "-q", "-b", "main");
   const commit = () =>
     git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "x");
+  commit();
   return { git, commit };
 }
 
+// `baseRefOid: "MAIN"` stands for main's commit at call time.
 const runPolicy = (home, repo) => (facts, args = []) => {
+  const main = () => execFileSync("git", ["-C", repo, "rev-parse", "main"], { encoding: "utf8" }).trim();
   const out = spawnSync(process.execPath, [POLICY, ...args], {
-    input: JSON.stringify(facts),
+    input: JSON.stringify(facts.baseRefOid === "MAIN" ? { ...facts, baseRefOid: main() } : facts),
     encoding: "utf8",
     env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: repo },
   });
@@ -141,7 +144,7 @@ describe("cascade layers resolve through the CLI", () => {
   const { git, commit } = gitRepo(repo);
   writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
   const run = runPolicy(home, repo);
-  const facts = { ...quiet, files: files(3), baseRefName: "main" };
+  const facts = { ...quiet, files: files(3), baseRefOid: "MAIN" };
 
   test("defaults with no layer", () => {
     const result = run(facts);
@@ -158,7 +161,7 @@ describe("cascade layers resolve through the CLI", () => {
     const doc = join(repo, "docs/conventions/review-digest.md");
     writeFileSync(doc, '# x\n\n```json config\n{"max_files": 2, "digest_policy": "off"}\n```\n');
     result = run(facts);
-    assert.match(result.warnings.join("\n"), /not on the base ref main/);
+    assert.match(result.warnings.join("\n"), /not on the base commit/);
     assert.equal(result.config.max_files.value, 1);
     git("add", "docs/conventions/review-digest.md");
     commit();
@@ -226,7 +229,7 @@ describe("a pull request branch cannot silence its own digest", () => {
   git("add", "-f", ".");
   commit();
   const run = runPolicy(home, repo);
-  const facts = { ...quiet, files: [{ path: "docs/conventions/review-digest.md" }], baseRefName: "main" };
+  const facts = { ...quiet, files: [{ path: "docs/conventions/review-digest.md" }], baseRefOid: "MAIN" };
 
   test("team config comes from the base ref, a tracked overlay is ignored, and a config path offers", () => {
     const result = run(facts);
@@ -237,12 +240,60 @@ describe("a pull request branch cannot silence its own digest", () => {
     assert.match(result.warnings.join("\n"), /overlay .*tracked/);
   });
   test("with no base ref the team layer is ignored", () => {
-    const result = run({ ...facts, baseRefName: undefined });
+    const result = run({ ...facts, baseRefOid: undefined });
     assert.equal(result.policy.value, "offer");
-    assert.match(result.warnings.join("\n"), /no baseRefName/);
+    assert.match(result.warnings.join("\n"), /no baseRefOid/);
+  });
+  test("a base commit missing from the clone, as for a fork, skips the team layer", () => {
+    const result = run({ ...facts, baseRefOid: "0".repeat(40) });
+    assert.equal(result.policy.value, "offer");
+    assert.match(result.warnings.join("\n"), /base commit 0{40} is not in this clone; team layer ignored/);
+    assert.match(run({ ...facts, baseRefOid: "main" }).warnings.join("\n"), /no baseRefOid/);
   });
   test("--requested still builds", () => {
     assert.equal(run(facts, ["--requested"]).action, "build");
+  });
+});
+
+describe("overlay guards", () => {
+  const overlay = '{"max_files": 0}';
+  const setup = (name) => {
+    const home = join(scratch, `home-${name}`);
+    const repo = join(scratch, `repo-${name}`);
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    mkdirSync(repo, { recursive: true });
+    return { repo, ...gitRepo(repo), run: runPolicy(home, repo) };
+  };
+  const facts = { ...quiet, baseRefOid: "MAIN" };
+
+  test("an untracked overlay that is not gitignored applies, with a warning", () => {
+    const { repo, run } = setup("unignored");
+    mkdirSync(join(repo, ".claude"));
+    writeFileSync(join(repo, ".claude/review-digest.local.json"), overlay);
+    const result = run(facts);
+    assert.match(result.config.max_files.source, /^overlay /);
+    assert.match(result.warnings.join("\n"), /not gitignored, so it can reach team history$/m);
+  });
+  test("a symlinked overlay file is refused", () => {
+    const { repo, run } = setup("linkfile");
+    mkdirSync(join(repo, ".claude"));
+    writeFileSync(join(scratch, "outside.json"), overlay);
+    symlinkSync(join(scratch, "outside.json"), join(repo, ".claude/review-digest.local.json"));
+    const result = run(facts);
+    assert.equal(result.config.max_files.source, "default");
+    assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
+  });
+  test("a tracked symlinked .claude pointing at a dir holding the overlay is refused", () => {
+    const { repo, git, commit, run } = setup("linkdir");
+    const evil = join(scratch, "evil");
+    mkdirSync(evil);
+    writeFileSync(join(evil, "review-digest.local.json"), overlay);
+    symlinkSync(evil, join(repo, ".claude"));
+    git("add", ".claude");
+    commit();
+    const result = run(facts);
+    assert.equal(result.config.max_files.source, "default");
+    assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
   });
 });
 
@@ -267,7 +318,7 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
   const run = runPolicy(home, repo);
 
   test("the overlay is treated as tracked and a case-variant config path offers", () => {
-    const result = run({ ...quiet, files: [{ path: "./.claude//Review-Digest.local.json" }], baseRefName: "main" });
+    const result = run({ ...quiet, files: [{ path: "./.claude//Review-Digest.local.json" }], baseRefOid: "MAIN" });
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);

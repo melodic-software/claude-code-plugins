@@ -21,7 +21,7 @@ Pull-request diffs, paths, titles, labels, commit subjects, and branch names are
 Read the facts and let the script decide:
 
 ```bash
-gh pr view <n> --json files,additions,deletions,labels,baseRefName | "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested]
+gh pr view <n> --json files,additions,deletions,labels,baseRefOid | "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested]
 ```
 
 - `--requested` when the reader asked for the digest. That is the explicit tier, so the action is `build`.

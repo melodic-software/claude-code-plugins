@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Decide whether to skip, offer, or build the change digest, and where a built
 // page goes. Reads the pull request's facts as `gh pr view --json
-// files,additions,deletions,labels,baseRefName` prints them, on stdin. Resolves
+// files,additions,deletions,labels,baseRefOid` prints them, on stdin. Resolves
 // the review-digest cascade surface for the policy and thresholds and the
-// rendered-views surface for `medium`. Team files are read from the base ref,
+// rendered-views surface for `medium`. Team files are read from the base commit,
 // never the working tree, so a checked-out pull request cannot configure its
 // own digest. Prints one JSON object. Paths and labels from the pull request
 // are compared, never echoed.
@@ -13,7 +13,7 @@
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,18 +86,20 @@ function gitOut(root, args) {
 const git = (root, args) => gitOut(root, args) !== null;
 
 /**
- * A reader of team files at the pull request's base ref (origin's copy first),
- * or a reader that finds nothing, with a warning, when there is no usable ref.
+ * A reader of team files at the pull request's base commit (`baseRefOid`), which
+ * names the base repository's commit even for a fork. Without that commit
+ * locally, the reader finds nothing and warns, so defaults apply.
  */
-function baseReader(root, baseRef, warnings) {
-  if (typeof baseRef !== "string" || !/^[A-Za-z0-9._/][A-Za-z0-9._/-]*$/.test(baseRef) || baseRef.includes("..")) {
-    warnings.push("team: no baseRefName in the facts; team layer ignored");
-    return { ref: null, read: () => null };
+function baseReader(root, baseOid, warnings) {
+  if (typeof baseOid !== "string" || !/^[0-9a-f]{40}$/.test(baseOid)) {
+    warnings.push("team: no baseRefOid in the facts; team layer ignored");
+    return { ref: null, root, read: () => null };
   }
-  const ref = [`refs/remotes/origin/${baseRef}`, `refs/heads/${baseRef}`].find((r) =>
-    git(root, ["rev-parse", "--verify", "--quiet", `${r}^{commit}`]),
-  );
-  return { ref: baseRef, root, read: (rel) => (ref ? gitOut(root, ["show", `${ref}:${rel}`]) : null) };
+  if (!git(root, ["cat-file", "-e", `${baseOid}^{commit}`])) {
+    warnings.push(`team: base commit ${baseOid} is not in this clone; team layer ignored`);
+    return { ref: null, root, read: () => null };
+  }
+  return { ref: baseOid, root, read: (rel) => gitOut(root, ["show", `${baseOid}:${rel}`]) };
 }
 
 /** Team and overlay apply only inside a working tree that is not home or above it. */
@@ -159,12 +161,12 @@ function parseJsonLayer(text, label, path, warnings) {
   return null;
 }
 
-/** The team layer as the base ref holds it: the docs block, else the dot file. */
+/** The team layer as the base commit holds it: the docs block, else the dot file. */
 function readTeamDigest(base, docsPath, dotPath, warnings) {
   const [docs, dot] = [base.read(docsPath), base.read(dotPath)];
   if (docs === null && dot === null && base.ref) {
     for (const p of [docsPath, dotPath]) {
-      if (existsSync(join(base.root, p))) warnings.push(`team ${p}: not on the base ref ${base.ref}; layer ignored`);
+      if (existsSync(join(base.root, p))) warnings.push(`team ${p}: not on the base commit ${base.ref}; layer ignored`);
     }
   }
   if (docs !== null) {
@@ -200,15 +202,27 @@ function overlayApplies(root, path, warnings) {
     warnings.push(`overlay ${path}: tracked in git, so a pull request could set it; layer ignored`);
     return false;
   }
-  if (!git(root, ["check-ignore", "-q", "--", path])) {
-    warnings.push(`overlay ${path}: not gitignored, so it can reach team history; layer ignored`);
+  const dir = join(root, ".claude");
+  if (isLink(dir) || isLink(path) || !within(real(path), join(real(root), ".claude"))) {
+    warnings.push(`overlay ${path}: .claude or the overlay is a symlink or resolves outside ${dir}; layer ignored`);
     return false;
+  }
+  if (!git(root, ["check-ignore", "-q", "--", path])) {
+    warnings.push(`overlay ${path}: not gitignored, so it can reach team history`);
   }
   return true;
 }
 
+const isLink = (p) => {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
 /** The review-digest surface, per-key over the shipped defaults. */
-export function resolveDigestConfig(baseRef) {
+export function resolveDigestConfig(baseOid) {
   const warnings = [];
   const config = {};
   for (const [key, value] of Object.entries(DEFAULTS)) config[key] = { value, source: "default" };
@@ -225,7 +239,7 @@ export function resolveDigestConfig(baseRef) {
   }
   if (paths.root) {
     if (paths.team.length) {
-      const base = baseReader(paths.root, baseRef, warnings);
+      const base = baseReader(paths.root, baseOid, warnings);
       const team = readTeamDigest(base, "docs/conventions/review-digest.md", ".claude/review-digest.json", warnings);
       if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
     }
@@ -249,10 +263,10 @@ export function resolveDigestConfig(baseRef) {
 }
 
 /** The rendered-views `medium` key: the last layer stating a recognized value wins. */
-export function resolveMedium(warnings, baseRef) {
+export function resolveMedium(warnings, baseOid) {
   const paths = layerPaths(findRoot(), "rendered-views.md", [".claude/rendered-views.md"], ".claude/rendered-views.local.md");
-  // The digest config already warned about a missing base ref.
-  const base = paths.root ? baseReader(paths.root, baseRef, []) : null;
+  // The digest config already warned about a missing base commit.
+  const base = paths.root ? baseReader(paths.root, baseOid, []) : null;
   const fromDisk = (p) => (existsSync(p) ? readFileSync(p, "utf8") : null);
   const layers = [
     ["user-global", paths.user, fromDisk(paths.user)],
@@ -366,10 +380,10 @@ function main(argv) {
     process.stderr.write("digest-policy: facts must be a JSON object\n");
     return 2;
   }
-  const { config, warnings } = resolveDigestConfig(facts.baseRefName);
+  const { config, warnings } = resolveDigestConfig(facts.baseRefOid);
   const policy = opts.policy ? { value: opts.policy, source: "argument" } : config.digest_policy;
   const result = decide(facts, { ...opts, policy: policy.value }, config);
-  const medium = resolveMedium(warnings, facts.baseRefName);
+  const medium = resolveMedium(warnings, facts.baseRefOid);
   process.stdout.write(
     `${JSON.stringify({ ...result, policy, event: opts.event, requested: opts.requested, medium, config, warnings }, null, 2)}\n`,
   );
