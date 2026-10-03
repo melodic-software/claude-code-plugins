@@ -1130,7 +1130,7 @@ run_replay() {
       rm -f "$against/always.txt"
     # <ref>'s own declared scopes, read from its suites in the scratch clone.
     against_scopes="$against/scopes.txt"
-    if ! against_sha="$(git rev-parse --verify -q "$against_ref^{commit}")" ||
+    if ! changed_files::verify_base "$against_ref" || ! against_sha="$(git rev-parse "$against_ref")" ||
       ! git -C "$tree" -c advice.detachedHead=false checkout -q --detach "$against_sha" ||
       ! git -C "$tree" ls-files >"$against/files" ||
       ! (cd "$tree" && scope_declarations "$against/files") >"$against_scopes"; then
