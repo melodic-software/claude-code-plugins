@@ -21,8 +21,12 @@ the record), so the view is offered after the record, never emitted in its place
    the OS temp directory:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" plan
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" plan <<'JSON'
+   {"title": "...", "goal": "...", "blast": "...", "phases": [{"status": "TODO", "name": "...", "what": "...", "needs": "none", "criteria": ["..."]}]}
+   JSON
    ```
+
+   The quoted `JSON` delimiter keeps the shell from expanding the session's text.
 
    Use `brainstorm` for the brainstorm view. The page is a checked-in template plus your JSON as escaped data.
    Never write markup or script for it, and never hand-edit the output: a plan or brainstorm session reads
