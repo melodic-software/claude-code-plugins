@@ -731,12 +731,6 @@ else
   fail "scripts/ or lib/ suite(s) run as steps of their own:$(printf '%s' "$suite_steps" | tr '\n' ' ')"
 fi
 
-if grep -qF -- '--with-always' "$live_workflow"; then
-  ok "the live workflow's selection carries the always-run live-tree suites"
-else
-  fail "the live workflow's selection lost --with-always, so the live-tree suites run only on the schedule"
-fi
-
 # --- verdict ----------------------------------------------------------------
 
 test_harness::report

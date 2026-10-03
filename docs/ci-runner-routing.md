@@ -104,10 +104,11 @@ four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
 slice needs the animation wheels, the inventory's parser packages or the DuckDB
 CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
 
-The selector's rule R8 covers the gap a full main run used to cover: a change
-anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
-because suites that scan their own plugin directory never name the file that
-changed.
+A suite that scans a directory never names the file that changed, so it
+declares what it reads in a `# test-scope: <glob>` header, and the selector's
+rule R8 selects it for any changed file matching the glob. The rules, and the
+`--replay` mode that shows a selector change's effect on recent main commits,
+are in the header of `scripts/affected-tests.sh`.
 
 ## Contract-only `ci-status`
 
