@@ -130,8 +130,8 @@ Each shared source used to get **its own CI job**. Before claude-code-plugins#36
 `standards-contract-sync`. Each was a runner, a pinned `actions/checkout`, a
 `checkout-with-base` deepen to full history plus a base fetch, the `--check` and `--check-bump`
 steps, and in eleven of the thirteen a per-library test step as well. No toolchain install: these
-are shell scripts, and the toolchains belong to `test-linux`. The cost was the runner, the checkout
-and the unshallow, paid thirteen times over.
+are shell scripts, and the toolchains belonged to the test lane. The cost was the runner, the
+checkout and the unshallow, paid thirteen times over.
 
 **The cost is latency here and money on the fleet.** This repository is public and the jobs ran on
 `ubuntu-24.04`, a standard runner, so nothing was billed: what thirteen jobs bought was thirteen
@@ -144,12 +144,10 @@ is a per-library pooled minute there. That organization caps Actions spend at `$
 `prevent_further_usage` (melodic-software/github-iac ADR 0008), so the failure mode is not a line
 item but a hard stop on every private repository's hosted CI once the pool is gone.
 
-**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
-already performs that same deepen and base fetch for its own `--check-bump` steps;
-`sync-hook-utils.sh` runs in the `hook-utils` job beside the hook contract tests it covers, on the
-shell-only diff that job exists to keep off the heavier lanes. Adding a fourteenth shared source
-therefore adds a step to an existing job, and adding a job is the thing to justify rather than the
-default.
+**They are now steps, not jobs.** All thirteen run as steps of `check-plugins`, the job that holds
+the plugin contracts across files, which performs that same deepen and base fetch once for every
+`--check-bump` step. Adding a fourteenth shared source therefore adds a step to an existing job,
+and adding a job is the thing to justify rather than the default.
 
 One thing was lost and is worth naming rather than glossing. The old **job** name
 (`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every

@@ -41,7 +41,7 @@ workflow is not in this budget.
 
 CI enforces counts, never durations, in two places:
 
-1. **`.performance/ratchets.json`**, checked by the test-linux step "Check performance counter
+1. **`.performance/ratchets.json`**, checked by the check-plugins step "Check performance counter
    ceilings" (`ratchet.py check`). Hook counters run through `scripts/hook-census.sh`, which fires
    the command exactly as `hooks.json` registers it, under strace, from a scratch repository:
    - `spawns` counts process creations plus successful execs, the hook's own shell included;

@@ -47,7 +47,7 @@ markdown link, corrected under the plugin's own new release entry, which names t
 
 **Enforcement is a checker with a co-located test.** `scripts/check-docs-naming.sh --check`
 walks `git ls-files docs/`, applies the rule and the exemptions, and independently fails any two
-tracked paths under `docs/` that differ only by case. It runs in the `lint` job as an advisory
+tracked paths under `docs/` that differ only by case. It runs in the `lint-repo` job as an advisory
 step fed to the `ci-status` aggregate, beside the sibling gates. This record is the owner
 document a reader consults; a path-scoped `.claude/rules/` file that restates it for `docs/**`
 is not added while `main` carries the unhobble bare baseline recorded under `.claude/unhobble/`,
