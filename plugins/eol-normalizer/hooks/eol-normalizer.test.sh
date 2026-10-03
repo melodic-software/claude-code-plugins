@@ -49,10 +49,11 @@ trap cleanup EXIT
 # under the same environment, so the row and the script cannot disagree.
 # This section does not need git, so it runs before the no-git exit below.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
-if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
+# The SessionStart node-notice row is pinned fleet-wide by scripts/node-notice-rows.test.sh.
+if jq -e '[.hooks | del(.SessionStart)[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
   ok "row-gate: hooks.json registers exactly one hook command"
 else
-  fail "row-gate: hooks.json registers $(jq '[.hooks[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
+  fail "row-gate: hooks.json registers $(jq '[.hooks | del(.SessionStart)[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
 fi
 ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
 ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")

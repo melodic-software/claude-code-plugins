@@ -1940,7 +1940,7 @@ fi
 # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
 PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"]]'
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]?.args]' "$HOOKS_JSON")"
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
   if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
     ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
   else

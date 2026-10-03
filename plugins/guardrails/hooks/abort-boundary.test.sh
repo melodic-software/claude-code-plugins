@@ -309,7 +309,7 @@ assert_exit "block-windows-drive-tmp: shipped guard still denies D:/tmp" 2 "$RC"
 assert_absent "block-windows-drive-tmp: a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
 
 inject_after "$MID/hooks/cli-flag-verify.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
-  "hook::require jq() { : \"\${${MARKER}?forced abort in hook::require jq}\"; }"
+  "hook::require() { : \"\${${MARKER}?forced abort in hook::require}\"; }"
 mkdir -p "$TEST_TMPDIR/data"
 run_hook CLAUDE_PLUGIN_ROOT="$MID" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
   feed_run "$(write_json "$TEST_TMPDIR/notes.md" 'run git status')" bash "$MID/hooks/cli-flag-verify.sh"

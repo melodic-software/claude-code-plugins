@@ -25,16 +25,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
@@ -44,6 +34,16 @@
             ],
             "timeout": 10,
             "statusMessage": "Checking typos..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

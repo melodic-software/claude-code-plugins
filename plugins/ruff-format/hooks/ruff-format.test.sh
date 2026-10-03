@@ -663,10 +663,12 @@ EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
+  # The node-notice SessionStart row is filtered out here and pinned fleet-wide by
+  # scripts/node-notice-rows.test.sh.
   # The one row outside this gate is the SessionStart prerequisite probe, exec
   # form behind the ruff_format_enabled launcher gate, which is asserted on its
   # own here.
-  ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | select((.command // "") | contains("node-notice") | not) | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
   HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then

@@ -458,8 +458,8 @@ hook::require() {
 
 # hook::prerequisite_fields_to <degrade-var> <docs-var> <check-var> <id>
 # Reads the declared entry for <id> from ${CLAUDE_PLUGIN_ROOT}/prerequisites.json
-# with bash alone. An entry runs from its "id" to the next "id", which holds for
-# the schema's flat entries. An absent file or entry gives generic text and a
+# with bash alone. An entry runs from its "id" to the next "id", so each entry
+# carries "id" as its first key, as the convention's example does. An absent file or entry gives generic text and a
 # check command derived from the plugin root.
 hook::prerequisite_fields_to() {
   local __hu_d="hook skipped for this session." __hu_i="" __hu_c=""

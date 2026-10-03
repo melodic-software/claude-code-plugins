@@ -491,16 +491,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /harness-ops:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /harness-ops:check",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
@@ -510,6 +500,16 @@
             ],
             "timeout": 5,
             "statusMessage": "Logging the SessionStart event..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /harness-ops:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /harness-ops:check",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }
