@@ -52,7 +52,7 @@ closure a component view charts, and drops the record's other arrays.
 ## What the page shows
 
 The page lists the record's own rows, in record order. Each array in the record is counted in a header fact and
-each item is a row labelled with its array (`nodes`, `edges`, `findings`). An edge row is named `from -> to`; any
+each item is a row labeled with its array (`nodes`, `edges`, `findings`). An edge row is named `from -> to`; any
 other row takes the first of `id`, `name`, `message`, `title`, `path`, `entry`, `resource`. Open a row for every
 field it holds, evidence citations included. The filter matches a row's whole text, so typing a node id lists the
 node and every edge, finding and cycle that names it. The page draws no diagram: the markdown holds that.
