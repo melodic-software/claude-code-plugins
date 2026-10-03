@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.0.1] - 2026-10-02
+## [3.0.2] - 2026-10-02
 
 ### Fixed
 
@@ -21,6 +21,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   starts only where a run of token characters starts, so its header stays unbounded and a JWS
   with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
   512 characters.
+
+## [3.0.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command runs inside a child script block,
+  `& { ... }`, so its `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is
+  pasted into ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
 
 ## [3.0.0] - 2026-10-02
 
