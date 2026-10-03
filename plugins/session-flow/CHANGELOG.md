@@ -1,5 +1,83 @@
 # Changelog: session-flow plugin
 
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- **`audit-sessions` skill.** Collects every session transcript on the machine into a durable local
+  store under the plugin data directory (one record per session, incremental, redacted excerpts of
+  short typed turns only), then sweeps the store for sessions over this machine's own thresholds
+  and routes each finding to the skill that would act on it. It never applies a finding. A drift
+  check compares the transcript format across Claude Code versions and marks a metric unavailable
+  when a field it reads disappears.
+- **One shared transcript reader**, `scripts/transcript_reader.py`, used by `audit-sessions` and
+  `retro`'s parser.
+- **Five `audit_sessions_*` options**: store retention (default 180 days), excerpt length, the
+  short-turn word limit, and the two drift-check bounds.
+- `retro` names `/session-flow:audit-sessions sweep` as its next step.
+
+### Fixed
+
+- **`retro` no longer roughly doubles token counts or counts injected records as human
+  messages** (#5818). A message streamed as several transcript records is now counted once, and
+  `human_messages` counts only turns the person typed, not slash-command output, task
+  notifications, peer-session messages, interrupts or meta records. Field names, the output shape,
+  the CLI forms and exit codes are unchanged. **One-time step in retro trend history:** token and
+  human-message numbers from this version on are lower than earlier retros' for the same kind of
+  session; compare across that step with care.
+- **`retro`'s parser reports a transcript line that is valid JSON but not an object** as a parse
+  error instead of skipping it silently.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`workflow` advises an effort level per stage.** Each stage names its kind of work, and the
+  skill matches it to a row of model-config's "Choose an effort level" table, naming the level and
+  the matched text. Code-changing and verifying stages are never advised below medium. The
+  continuation router adds the advice when the next stage's level differs from the current one. It
+  only advises; the user sets the level with `/effort`. When the page cannot be read, it says so
+  and advises no level.
+- **`continue-in-background` passes an explicit `--effort`** for resumed verify work and any
+  unattended task, since a background session does not inherit the level. It picks the level from
+  the same table and names it in the launch report; when the page cannot be read, it passes none
+  and says the session starts at its default.
+
+## [0.44.7] - 2026-10-02
+
+### Changed
+
+- **`retro`'s transcript parser keeps `MultiEdit` on purpose.** The file-modifying tool set still
+  lists it, now with a pointer record to the permissions page, because transcripts recorded by older
+  Claude Code versions carry the call.
+- **`workflow`'s continuation router routes by task.** The related next task compacts with a focus
+  (`/compact <focus>`, typed by the user); work for a different task, disposable context and two
+  failed corrections on one issue clear; work leaving the session, a finished spec or plan moving into execution, and an
+  already-compacted attended run that is degrading hand off. A timing rule routes before a break so
+  the move lands before the prompt cache expires, and a same-task boundary list names which stage
+  changes stay in one session. Compaction is no longer the last resort, and the workflow's
+  spec-first mode row no longer says it clears between stages. New workflow evals cover each route,
+  and the router's zone examples use context-guard's own zone words.
+- **`handoff`, `keep-going`, spec-first and `retro` point at the continuation router.** The handoff
+  skill's window-depth section becomes "Handoff or compaction: route by task", a pointer to the
+  router; a handoff the model elects on its own walks the router first and writes nothing when it
+  routes elsewhere, while a user's explicit `/session-flow:handoff` still writes. `keep-going`
+  routes a degraded-zone continuation with `/session-flow:workflow continue`. Spec-first no longer
+  clears between every stage or reaches for a handoff mid-stage; each boundary is routed. The retro
+  efficiency check asks whether each continuation followed the router instead of treating a
+  compaction as a missed handoff. `handoff` and `keep-going` gain a `## Next` section, and a new
+  handoff eval covers the model-elected same-task case.
+
+## [0.44.6] - 2026-10-02
+
+### Changed
+
+- **`orchestrate`'s priming addendum points at model and effort routing.** One sentence sends the
+  workflow-or-subagents choice and each spawn's model and effort to `/multi-agent:assess` and
+  `/multi-agent:route` when they resolve, else to the subagents page's "Choose a model" section,
+  with an as-of date and recheck trigger. `context/sources.md` records it. Imperative 7 and the
+  export modes are unchanged.
+
 ## [0.44.5] - 2026-10-02
 
 ### Changed

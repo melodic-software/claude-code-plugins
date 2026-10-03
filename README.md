@@ -46,8 +46,10 @@ ignored if the locally registered marketplace came from a different source. That
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
 Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
 
-A few personal or external-service plugins install disabled (`defaultEnabled: false`) until the
-user opts in with `/plugin enable`; an existing install is never flipped by catalog changes.
+Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
+external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
+the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way
 
@@ -109,8 +111,8 @@ the gate that decides.
 
 It maps a changed file to its co-located suite, to any suite that names it, and
 to its dependents transitively, and it fans a shared-lib change out to every
-carrying plugin by reading the `copies=(...)` array out of that lib's
-`scripts/sync-*.sh` manifest, the same manifest CI's `*-sync` lanes enforce. The
+carrying plugin by reading the `--print-manifest` output of each
+`scripts/sync-*.sh` script, the same manifests CI's sync steps enforce. The
 fan-out is derived on every run, never transcribed, so a new carrying plugin is
 covered the moment it exists.
 

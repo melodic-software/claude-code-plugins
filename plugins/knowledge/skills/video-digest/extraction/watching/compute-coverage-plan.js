@@ -13,6 +13,13 @@ export const LONG_STRATIFIED_INTERVAL_SEC = 60;
 export const MEDIUM_STRATIFIED_INTERVAL_SEC = 45;
 export const MEDIUM_DURATION_THRESHOLD_SEC = 300;
 export const SCENE_SPARSE_RATIO = 120;
+/**
+ * Longest stretch, in seconds, allowed between two timed frames before a gap-fill
+ * frame is extracted. Defaults to the long-video stratified interval. Basis:
+ * judgment; each fill frame costs vision tokens. Override per run with
+ * `run-watch.js --max-frame-gap-sec <sec>`.
+ */
+export const MAX_FRAME_GAP_SEC = LONG_STRATIFIED_INTERVAL_SEC;
 
 const DEFAULT_CUE_ANCHOR_PATTERNS = [
   /\blook at\b/i,
@@ -42,6 +49,7 @@ function roundSec(sec) {
  * @property {number} targetMinFrames
  * @property {number|null} targetMaxFrames
  * @property {boolean} forceStratifiedPass
+ * @property {number} maxFrameGapSec
  * @property {string} rationale
  */
 
@@ -72,12 +80,14 @@ export function estimateStratifiedFrameCount(durationSec, intervalSec) {
  * @param {number} input.durationSec
  * @param {DensificationWindow[]} input.densificationWindows
  * @param {number} [input.sceneCandidateCount=0]
+ * @param {number} [input.maxFrameGapSec=MAX_FRAME_GAP_SEC]
  * @returns {CoveragePlan}
  */
 export function computeCoveragePlan({
   durationSec,
   densificationWindows,
   sceneCandidateCount = 0,
+  maxFrameGapSec = MAX_FRAME_GAP_SEC,
 }) {
   const safeDuration = Math.max(0, durationSec);
   const stratifiedIntervalSec = stratifiedIntervalForDuration(safeDuration);
@@ -89,14 +99,20 @@ export function computeCoveragePlan({
     sceneCandidateCount === 0 ||
     (safeDuration > 0 && sceneCandidateCount < safeDuration / SCENE_SPARSE_RATIO);
 
-  let rationale;
+  let content;
   if (safeDuration <= SHORT_VIDEO_MAX_SEC) {
-    rationale = `short video (${Math.round(safeDuration)}s): dense stratified every ${stratifiedIntervalSec}s + scene cuts`;
+    content = `short video (${Math.round(safeDuration)}s)`;
   } else if (forceStratifiedPass) {
-    rationale = `sparse scene yield (${sceneCandidateCount} vs ${Math.round(safeDuration / SCENE_SPARSE_RATIO)} expected): add stratified every ${stratifiedIntervalSec}s + densification anchors`;
+    content = `sparse scene yield (${sceneCandidateCount} vs ${Math.round(safeDuration / SCENE_SPARSE_RATIO)} expected)`;
   } else {
-    rationale = `${Math.round(safeDuration / 60)}m content: scene cuts + stratified every ${stratifiedIntervalSec}s + ${densificationWindowCount} densification windows`;
+    content = `${Math.round(safeDuration / 60)}m content`;
   }
+  const sampling = [
+    "scene cuts",
+    ...(forceStratifiedPass ? [`stratified every ${stratifiedIntervalSec}s`] : []),
+    `gap fill above ${maxFrameGapSec}s`,
+    `${densificationWindowCount} densification windows`,
+  ];
 
   return {
     durationSec: safeDuration,
@@ -105,8 +121,27 @@ export function computeCoveragePlan({
     targetMinFrames,
     targetMaxFrames: null,
     forceStratifiedPass,
-    rationale,
+    maxFrameGapSec,
+    rationale: `${content}: ${sampling.join(" + ")}`,
   };
+}
+
+/**
+ * Parse the `--max-frame-gap-sec` override out of argv.
+ *
+ * @param {string[]} argv
+ * @returns {{ ok: true, override: number|null } | { ok: false, error: string }}
+ */
+export function parseMaxFrameGapSecOverride(argv) {
+  const flagIndex = argv.indexOf("--max-frame-gap-sec");
+  if (flagIndex === -1) {
+    return { ok: true, override: null };
+  }
+  const value = Number(argv[flagIndex + 1]);
+  if (!Number.isFinite(value) || value <= 0) {
+    return { ok: false, error: "--max-frame-gap-sec requires a positive number of seconds" };
+  }
+  return { ok: true, override: value };
 }
 
 /**
@@ -117,9 +152,10 @@ export function computeCoveragePlan({
  * @param {object} input
  * @param {number} input.durationSec
  * @param {number} [input.sceneCandidateCount=0]
+ * @param {number} [input.maxFrameGapSec]
  * @returns {{ windows: DensificationWindow[], coveragePlan: CoveragePlan }}
  */
-export function planFrameCoverage(cues, { durationSec, sceneCandidateCount = 0 }) {
+export function planFrameCoverage(cues, { durationSec, sceneCandidateCount = 0, maxFrameGapSec }) {
   const windows = findDensificationWindows(cues);
   return {
     windows,
@@ -127,8 +163,36 @@ export function planFrameCoverage(cues, { durationSec, sceneCandidateCount = 0 }
       durationSec,
       densificationWindows: windows,
       sceneCandidateCount,
+      maxFrameGapSec,
     }),
   };
+}
+
+/**
+ * Timestamps that split every stretch longer than `maxGapSec` without a timed
+ * frame, counting 0 to the first frame and the last frame to the end, into
+ * equal parts no longer than `maxGapSec`.
+ *
+ * @param {number[]} timestampsSec - times of frames already held; untimed frames are left out
+ * @param {number} durationSec
+ * @param {number} maxGapSec
+ * @returns {number[]}
+ */
+export function gapFillTimestamps(timestampsSec, durationSec, maxGapSec) {
+  if (durationSec <= 0 || maxGapSec <= 0) return [];
+  const bounds = [0, ...[...timestampsSec].sort((a, b) => a - b), durationSec];
+  /** @type {number[]} */
+  const fill = [];
+  for (let i = 1; i < bounds.length; i++) {
+    const start = bounds[i - 1];
+    const gap = bounds[i] - start;
+    if (gap <= maxGapSec) continue;
+    const parts = Math.ceil(gap / maxGapSec);
+    for (let k = 1; k < parts; k++) {
+      fill.push(roundSec(start + (gap * k) / parts));
+    }
+  }
+  return fill;
 }
 
 /**

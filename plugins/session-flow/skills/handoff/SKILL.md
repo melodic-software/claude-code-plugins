@@ -19,24 +19,29 @@ matters most here because an isolated session is exactly the one that needs a sa
 
 ## Purpose
 
-Context bloat is expensive and quality degrades as context rots. When a task has room left but the
-session should fork anyway, capture a save-point, a handoff document, or a copy-paste resume
-prompt when follow-ups are small, and `/clear`.
+When work leaves this session with state that must survive, capture a save-point, a handoff
+document, or a copy-paste resume prompt when follow-ups are small, and `/clear`. Whether a given
+boundary hands off at all is the continuation router's call (see "Handoff or compaction: route by
+task" below).
 
 **What licenses that judgment matters as much as the judgment.** The trigger is the user's own
 report, an instrument that measures the window, or visible decay in the responses themselves,
 never a self-estimated budget. A remaining-context reading is a measurement, not a decay signal;
 volunteering a handoff on the strength of one interrupts work that was fine.
 
-We continue in a fresh window from a file rather than over a compacted history. The save-point
-carries the rest of the plan and a *snapshot* of in-flight state, including what was tried, what
-worked, and approaches already ruled out, so the next session loads that file and nothing else and
-does not waste effort rediscovering dead ends.
+When work leaves this session, we continue it in a fresh window from the save-point file. The
+save-point carries the rest of the plan and a *snapshot* of in-flight state, including what was
+tried, what worked, and approaches already ruled out, so the next session loads that file and
+nothing else and does not waste effort rediscovering dead ends. Whether the work leaves, compacts or
+clears is decided by the continuation router in
+[`../workflow/context/continuation.md`](../workflow/context/continuation.md), not here.
 
-- **Pointer**: for starting a fresh context window instead of compacting, see
-  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#workflows-across-multiple-context-windows>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section stops covering fresh-window continuation, or moves.
+- **Pointer**: for when context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for executing a
+  finished spec, see <https://code.claude.com/docs/en/best-practices#let-claude-interview-you>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: either section changes how it splits work between compaction and a fresh
+  session, or moves.
 
 This skill delivers the save-point for a MANUAL resume: the user `/clear`s and pastes the resume
 prompt themselves. To hand the resume prompt to a fresh background agent that continues the task
@@ -105,6 +110,12 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 
 ## When to invoke
 
+**When no one asked for a handoff.** If you elected this skill yourself, with neither the user nor a
+calling skill's step naming it, walk the continuation router in
+[`../workflow/context/continuation.md`](../workflow/context/continuation.md) first. When it routes
+anywhere but a handoff, recommend that route and write no save-point. A user's explicit
+`/session-flow:handoff` always writes one.
+
 - Mid-task and the user reports the session is heavy, or a context-measuring mechanism says to
   fork (`context-guard`'s zone report is one), never your own estimate of the remaining window
 - Quality degrading (context rot), responses drifting, repeating, or looping. This is the signal
@@ -131,21 +142,11 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 | The machine itself may go away | `/session-flow:clean-stop` semantics, make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
 | Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries, the line the other side re-resolves the file from. The file itself is memory-tier and gitignored, visible only in the checkout that wrote it, so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
 
-## Fork beats compaction when the window is deep
+## Handoff or compaction: route by task
 
-This section picks between two continuation mechanisms; it never licenses the continuation itself.
-That license comes from "When to invoke" above, and the thresholds here apply only once it is
-granted.
-
-Two ways to keep going past a heavy context: fork (handoff file + `/clear` + fresh session) or
-continue in place over a compacted history. Compaction suits an intentional break between phases
-while the window is still mostly fresh, the summarized turns were genuinely disposable. Once the
-session has consumed enough of its context window that reasoning quality degrades, roughly beyond
-the final third of the window. Fork instead: a handoff file carries forward exactly the state that
-matters, chosen deliberately, while a compaction summary carries forward whatever the summarizer
-happened to keep, and the degradation that prompted the move rides along into the continued
-session. Judge the threshold by window position and response quality, never by a fixed token count
-it shifts with model and configuration.
+This skill writes the save-point; it does not choose between handing off, compacting and clearing.
+The continuation router in
+[`../workflow/context/continuation.md`](../workflow/context/continuation.md) makes that choice.
 
 ## Reference other artifacts; promote durable value, never commit the file
 
@@ -385,6 +386,11 @@ prompt, so the Skill tool never lists it. We found no switch that disables it.
 - **As of**: 2026-09-29
 - **Recheck trigger**: a Claude Code release note or the commands page adds an `/export` format or
   redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+
+## Next
+
+- The resume prompt was lost after `/clear`: /session-flow:find-handoff.
+- The resumed session must check that the handoff's premises still hold: /session-flow:reanchor.
 
 ## What this skill does NOT do
 

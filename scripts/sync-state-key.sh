@@ -21,7 +21,7 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-state-key.sh"
 src="plugins/harness-config/lib/state-key.sh"
-copies=(plugins/harness-memory/lib/state-key.sh plugins/harness-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/code-metrics/lib/state-key.sh)
+copies=(plugins/harness-memory/lib/state-key.sh plugins/harness-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/code-metrics/lib/state-key.sh plugins/session-flow/lib/state-key.sh)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"

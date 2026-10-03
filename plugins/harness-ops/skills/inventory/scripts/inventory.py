@@ -12,8 +12,11 @@ Two independent evidence sources, never conflated in the output:
             skills page). Read-only; the file is never modified.
   disk    - settings, marketplaces, and plugin trees under the config dir.
 
-Requires Python 3.11+ and nothing else - no strings(1), no jq, no shell.
-Every path is built with pathlib so Windows, macOS, and Linux behave alike.
+Requires Python 3.11+ and, only for `--reader=parser` or `--reader=compare`,
+node and npm, which install the pinned JavaScript parser on first use
+(parser_reader.py); the default `--reader=regex` needs nothing else. No
+strings(1), no jq, no shell. Every path is built with pathlib so Windows, macOS, and Linux
+behave alike.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ import os
 import platform
 import re
 import shutil
+import struct
 import sys
 import time
 from dataclasses import dataclass, field
@@ -58,7 +62,7 @@ MIN_PYTHON = (3, 11)
 # the skill's evals. Drift from it is not an error - the extraction is designed
 # to survive ordinary releases - but it downgrades every count from "verified"
 # to "believed", which the report has to say out loud.
-VALIDATED_AGAINST = "2.1.287"
+VALIDATED_AGAINST = "2.1.288"
 
 # Commands that have shipped in every build observed. Their absence means the
 # extraction broke, not that Anthropic deleted /help. This is the cheapest
@@ -279,14 +283,18 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
 
 
 def read_bundle(
-    binary: Path, module_spans: list[tuple[int, int]] | None = None
+    binary: Path,
+    module_spans: list[tuple[int, int]] | None = None,
+    module_paths: dict[int, str] | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     """Pull the embedded JS bundle out of the executable.
 
     `module_spans`, when given, receives the `[start, end)` in the returned
     source of each printable run that opens with a bundle marker: the units
     the parser reader parses, since the runs joined after a module are
-    bytecode string tables, not JavaScript.
+    bytecode string tables, not JavaScript. `module_paths`, when given,
+    receives each module's `/$bunfs/root/...` path by the start of its
+    source in the returned text (`_graph_sources`).
 
     Deliberately format-agnostic. Parsing the PE section table (or Mach-O load
     commands, or ELF section headers) would work but ties the script to each
@@ -303,13 +311,42 @@ def read_bundle(
         return None, meta
 
     meta["container"] = detect_container(data)
-    return _select_region(data, meta, module_spans)
+    return _select_region(data, meta, module_spans, module_paths)
+
+
+_GRAPH_TRAILER = b"\n---- Bun! ----\n"
+_GRAPH_RECORD_BYTES = 52
+
+
+def _graph_sources(data: bytes) -> dict[int, str]:
+    """Each module's path by the file offset of its source, from the Bun
+    standalone module graph: the graph ends with a trailer, after a fixed
+    offsets block whose first fields are the graph's byte count and the
+    module table's (offset, length); each 52-byte table record opens with
+    the module's name and contents as (offset, length) into the graph.
+    Empty for a build without one, or a table that does not decode."""
+    end = data.rfind(_GRAPH_TRAILER)
+    if end < 32:
+        return {}
+    byte_count, table, size = struct.unpack_from("<QII", data, end - 32)
+    base = end - 32 - byte_count
+    if base < 0 or size % _GRAPH_RECORD_BYTES or base + table + size > end:
+        return {}
+    out: dict[int, str] = {}
+    for rec in range(base + table, base + table + size, _GRAPH_RECORD_BYTES):
+        name_at, name_len, body_at, _ = struct.unpack_from("<4I", data, rec)
+        name = data[base + name_at : base + name_at + name_len]
+        if not name.startswith(b"/"):
+            return {}
+        out[base + body_at] = name.decode("utf-8", "replace")
+    return out
 
 
 def _select_region(
     data: bytes,
     meta: dict[str, Any],
     module_spans: list[tuple[int, int]] | None = None,
+    module_paths: dict[int, str] | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     """Apply the region rule to raw bytes; the legacy longest-run path is the fallback.
 
@@ -331,7 +368,8 @@ def _select_region(
             module_spans.append((0, len(src)))
         return src, meta
 
-    runs = [m.group(0) for m in RUN_RE.finditer(data, first)]
+    matches = list(RUN_RE.finditer(data, first))
+    runs = [m.group(0) for m in matches]
     joined = b"\n".join(runs)
     if module_spans is not None:
         at = 0
@@ -339,6 +377,13 @@ def _select_region(
             if run.startswith(BUNDLE_MARKERS[-1]):
                 module_spans.append((at, at + len(run)))
             at += len(run) + 1
+    if module_paths is not None:
+        sources = _graph_sources(data)
+        at = 0
+        for m in matches:
+            if m.start() in sources:
+                module_paths[at] = sources[m.start()]
+            at += len(m.group(0)) + 1
     meta["anchor"] = marker_used
     meta["bundle_offset"] = first
     meta["region_rule"] = (
@@ -2141,18 +2186,207 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
 def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
     """`_written_elsewhere` from the AST: true unless `pos` names a plain
     `var`/`let`/`const` declarator (so neither a bare assignment nor an
-    arrow body) whose variable has no other write and no possible mutation,
-    which is any reference except a spread into an array or call and a
-    member read used as a value: an alias, an export, a method call or a
-    call argument lets the array change later. Text in strings and comments
-    is no reference, and a write the parser resolves to another binding is
+    arrow body) whose variable has no other write and whose array no code
+    may change. A reference other than a spread into an array or call and a
+    member read used as a value may let the array change later, so the
+    array is then followed (`_flow_holds`) and counts as written unless
+    every place it reaches is known safe. Text in strings and comments is
+    no reference, and a write the parser resolves to another binding is
     that binding's. A name the parser cannot answer for counts as
     written."""
     assert _PARSER is not None
     found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
     if found is None or not found["declares"]:
         return True
-    return bool(found["mutations"]) or any(w != pos for _, w, _ in found["writes"])
+    if any(w != pos for _, w, _ in found["writes"]):
+        return True
+    return bool(found["mutations"]) and not _flow_holds(src, ident, pos)
+
+
+# How many module-level steps `_flow_holds` takes before it gives up.
+FLOW_HOPS = 256
+
+
+def _flow_holds(src: str, ident: str, pos: int) -> bool:
+    """Whether the array declared as `ident` at `pos` reaches no code that
+    may change it. The parser's `flow` op follows it inside a module
+    through aliases, returns, arguments and callbacks of array methods that
+    never change the array; this follows the hops that leave the module:
+
+    - an export, to every module importing the exported name (a re-export
+      exports it again), when no module reads that name as a property,
+      since `ns.name` on a module namespace reaches the export too, and
+      every whole load of the exporting file reads other exports only by
+      name (`_namespace_holds`);
+    - an argument to an imported function, to that function's parameter in
+      the module its `from` path names in Bun's module table.
+
+    Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
+    is a bundle with a sink for a name the walk trusted (the built-in
+    methods it called on the array, a name it relied on the prototypes not
+    holding, the lookups of a coercion): a module that may write one of
+    those names on an object that could be a built-in prototype
+    (`_sink_hit`)."""
+    assert _PARSER is not None
+    pending = [(_chunk_span(src, pos), {"var": True, "offset": pos, "name": ident})]
+    done: set[tuple[tuple[int, int], str]] = set()
+    trusted: set[str] = set()
+    while pending:
+        span, start = pending.pop()
+        key = (span, json.dumps(start, sort_keys=True))
+        if key in done:
+            continue
+        done.add(key)
+        if len(done) > FLOW_HOPS:
+            return False
+        found = _PARSER.flow(src, *span, start)
+        if not found["safe"]:
+            return False
+        trusted.update(found["trusted"])
+        for hop in found["exits"]:
+            if hop[0] == "param":
+                home = _exporter_of(src, hop[1], hop[3] if len(hop) > 3 else None)
+                if home is None:
+                    return False
+                pending.append(
+                    (_chunk_span(src, home[0]), {"param": hop[2], "name": home[1]})
+                )
+                continue
+            name = hop[1]
+            if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
+                return False
+            held = _namespace_holds(src, span[0], name)
+            if held is None:
+                return False
+            trusted.update(held)
+            pending.extend(
+                (importer, {"import": name, "calls": hop[0] == "export-call"})
+                for importer in _importers(src, name)
+            )
+    return not trusted or not _sink_hit(src, sorted(trusted))
+
+
+def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
+    """The first place any module may write one of `names` (the built-in
+    methods and coercions the flow trusted) on an object that could be a
+    built-in prototype, or None. See the helper's `sinks` op."""
+    assert _PARSER is not None
+    for lo, hi in _module_spans(src):
+        hits = _PARSER.sinks(src, lo, hi, names)
+        if hits:
+            return hits[0]
+    return None
+
+
+def _module_spans(src: str) -> list[tuple[int, int]]:
+    """The bundle's modules, in order: the runs the parser parsed for
+    `src`, else every `_chunk_span`."""
+    assert _PARSER is not None
+    return _PARSER.module_spans(src) or [
+        (lo, _chunk_span(src, lo)[1]) for lo in _chunk_starts(src)
+    ]
+
+
+def _exporter_of(
+    src: str, name: str, source: str | None, depth: int = 0
+) -> tuple[int, str] | None:
+    """The module an import of `name` from `source` reaches, and the local
+    binding that export names there: the module whose path in Bun's module
+    table is `source`, read by the parser's `exports` op. A re-export
+    (`export{g}from"..."`) is followed to its own source the same way. None
+    for an external or unknown source, a bundle without a module table, a
+    module that does not export the name or exports no binding under it,
+    and a chain of more than 8 re-exports."""
+    assert _PARSER is not None
+    lo = _PARSER.module_start(src, source) if source else None
+    if lo is None or depth > 8:
+        return None
+    found = _PARSER.export_binding(src, *_chunk_span(src, lo), name)
+    if found is None or found[0] is None:
+        return None
+    local, via = found
+    if via is not None:
+        return _exporter_of(src, local, via, depth + 1)
+    return lo, local
+
+
+@functools.lru_cache(maxsize=256)
+def _import_lists(src: str, name: str) -> tuple[tuple[tuple[int, int], str], ...]:
+    """Every `{...}from"<path>"` list holding `name` as a word: the module
+    holding it and the path it names. A superset of the modules that import
+    or re-export `name`; the parser's `flow` op reads the specifiers."""
+    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
+    tail = re.compile(r"\s*from\s*([\"'`])(.*?)\1")
+    out: list[tuple[tuple[int, int], str]] = []
+    for m in token.finditer(src):
+        opened = src.rfind("{", max(0, m.start() - 262_144), m.start())
+        closed = src.find("}", m.end())
+        if (
+            opened < 0
+            or closed < 0
+            or "}" in src[opened : m.start()]
+            or "{" in src[m.end() : closed]
+        ):
+            continue
+        path = tail.match(src, closed + 1)
+        if path is None:
+            continue
+        hit = (_chunk_span(src, m.start()), path.group(2))
+        if hit not in out:
+            out.append(hit)
+    return tuple(out)
+
+
+def _importers(src: str, name: str) -> list[tuple[int, int]]:
+    return list(dict.fromkeys(span for span, _ in _import_lists(src, name)))
+
+
+def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
+    """The built-in names trusted in showing that no whole load of the
+    module starting at `lo`, which exports `name`, reaches that export, or
+    None when one may.
+
+    Its files are the Bun module table's path for it and every file its
+    importers import `name` from; with neither, the file is unknown and
+    nothing rules out a namespace of it. Every module that loads one of
+    those files whole (`import(...)`, `require(...)`, `import*as`,
+    `export*`, the parser's `loads` op) is followed by the `namespace` op,
+    which accepts only reads of other exports by name. A module that may
+    load a file the parser cannot name (an aliased `require`,
+    `require.call`, `import(x)`) could load this one, so it fails the hop.
+    A promise settled
+    with the namespace reads its `then` export, so each file's module
+    must be known and export no `then`."""
+    assert _PARSER is not None
+    path = _PARSER.module_path(src, lo)
+    files = {
+        p.rsplit("/", 1)[-1]
+        for p in ([path] if path else []) + [p for _, p in _import_lists(src, name)]
+    }
+    if not files:
+        return None
+    trusted: set[str] = set()
+    thenable = False
+    for span in _module_spans(src):
+        loaded = _PARSER.loads(src, *span)
+        if loaded is not None and "*" in loaded:
+            return None
+        for file in sorted(files if loaded is None else files.intersection(loaded)):
+            found = _PARSER.namespace(src, *span, file, name)
+            if not found["safe"]:
+                return None
+            trusted.update(found["trusted"])
+            thenable = thenable or found["thenable"]
+    if thenable:
+        for file in files:
+            starts = _PARSER.modules_named(src, file)
+            if not starts:
+                return None
+            for start in starts:
+                exported = _PARSER.exports(src, *_chunk_span(src, start))
+                if exported is None or "then" in exported:
+                    return None
+    return trusted
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
@@ -5606,6 +5840,7 @@ def _read_with_parser(
     src: str,
     meta: dict[str, Any],
     spans: list[tuple[int, int]],
+    paths: dict[int, str] | None = None,
 ) -> None:
     """The binary sections under --reader=parser or compare, plus a `reader`
     block. A reader that cannot run leaves the binary source unavailable with
@@ -5618,8 +5853,9 @@ def _read_with_parser(
         with reader:
             started = time.perf_counter()
             unparsed = []
+            reader.set_module_paths(src, paths or {})
             for start, end in spans:
-                ok, error = reader.parse_ok(src[start:end])
+                ok, error = reader.parse_module(src, start, end)
                 if not ok:
                     unparsed.append({"offset": start, "error": error})
             info["parse_seconds"] = round(time.perf_counter() - started, 3)
@@ -5630,6 +5866,7 @@ def _read_with_parser(
             info["extract_seconds"] = round(time.perf_counter() - started, 3)
             info["binding_lookups"] = reader.lookups
             info["write_lookups"] = reader.write_lookups
+            info["flow_lookups"] = reader.flow_lookups
     except parser_reader.ReaderBroken as exc:
         block.update(status="broken", reason=exc.reason, remediation=exc.command)
         report["sources"]["binary"] = {
@@ -5677,7 +5914,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             report["sources"]["binary"] = {"available": False, "reason": how}
         else:
             spans: list[tuple[int, int]] | None = [] if reader != "regex" else None
-            src, meta = read_bundle(binary, spans)
+            paths: dict[int, str] = {}
+            src, meta = read_bundle(binary, spans, paths)
             meta["selected_by"] = how
             if src is None:
                 report["sources"]["binary"] = {"available": False, **meta}
@@ -5685,7 +5923,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report.update(extract_binary(src, meta))
                 report["sources"]["binary"] = {"available": True, **meta}
             else:
-                _read_with_parser(report, args, src, meta, spans)
+                _read_with_parser(report, args, src, meta, spans, paths)
 
     if getattr(args, "docs", False):
         report["docs_crosscheck"] = build_crosscheck(
@@ -5774,9 +6012,10 @@ def main(argv: list[str] | None = None) -> int:
         "--reader",
         choices=("regex", "parser", "compare"),
         default="regex",
-        help="bundle reader: regex (default); parser, which installs the pinned "
-        "JavaScript parser on first use (needs node and npm) and fails closed "
-        "without it; compare, which runs both and reports every difference",
+        help="bundle reader: regex (default), the text reader; parser, which "
+        "installs the pinned JavaScript parser on first use (needs node and "
+        "npm) and fails closed without it; compare, which runs both and "
+        "reports every difference",
     )
     ap.add_argument(
         "--deps-dir",

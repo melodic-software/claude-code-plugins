@@ -544,9 +544,9 @@ environment variable, so it is a cost defect in a worker definition.
 *Decision.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may
 not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
-[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (a consequential
-verdict runs at the session-model tier or above) and "Effort tiers" (consequential-output lanes
-pin `high`; the pinned-agents record). *As of:* 2026-10-01. *Recheck trigger:* an edit to the
+[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
+in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
+record). *As of:* 2026-10-02. *Recheck trigger:* an edit to the
 philosophy's tier rule, lane rule, or pinned-agents record.
 
 ### A turn-limit stop returns partial output, and the parent can resume the agent
@@ -877,7 +877,7 @@ write `general-purpose` as the worker.
 
 | Value | State | Meaning |
 |---|---|---|
-| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. |
+| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. A pass keeps each claim's `single source` flag: the parent presents the flag with the claim and carries it into any record an edit rests on. |
 | `fail rows <n>[,<n>…] (research-verifier, <date>)` | `fail` | The verifier failed those rows, named as it returned them. `explore` and `trace-intent` have no rows: they write `fail (general-purpose, <date>)` and the failed claims stay in the verifier's return. |
 | `skipped (cost)` | outside the shape | Research only. The parent chose not to pay for a verifier: no worker, no date. |
 | `unverified (none, <date>)` | `unverified` | No verifier could be dispatched, in all three families. The index carries a numbered gap. |

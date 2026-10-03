@@ -79,6 +79,17 @@ Invoke via `@review:<agent>` or let Claude delegate.
   request (org-authored; built-in `/security-review` is unusable under Actions
   checkout).
 
+### Workflows
+
+- **`/review:fanout-sweep`** (`workflows/fanout-sweep.js`). The leaf fan-out of
+  `/review:fanout run-everything` as a saved workflow: the four reviewer agents by tier, then one
+  agent per project criteria slice, then one extraction agent that turns the raw findings into
+  records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
+  `slices`, `roles` and `maxConcurrent` (default 4). `roles` is the map `/multi-agent:route all`
+  prints. Without it, built-in fallbacks run slice agents on `opus` at `high` effort and the
+  extractor on `sonnet` at `low`. The reviewer agents keep the model and effort pinned in their
+  own definitions.
+
 ## Requirements
 
 - **git**. Every reviewer works from diffs, branches, and history.

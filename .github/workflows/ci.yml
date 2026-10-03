@@ -1047,18 +1047,17 @@ jobs:
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
 
-      # docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole
-      # catalog, so this repo dogfoods everything it publishes"; nothing
-      # enforced it, and ai-slop (#2892), context-budget (#2932) and
-      # improvement (#2985) each reached main catalogued but never enabled. The
-      # failure is silent by construction: .claude/cloud-bootstrap.sh computes
-      # its install set from that same enabledPlugins map. Repo-wide and
-      # static, so it always runs. The self-test runs first so a broken
-      # detector cannot mask a regression behind a green gate.
+      # The cloud plugin list is derived from the catalog's defaultEnabled, and
+      # .claude/settings.json overlays its enabledPlugins keys on it. A key that
+      # names no catalogued plugin silently no-ops, and .claude/cloud-
+      # bootstrap.sh installs only the marketplace it hardcodes, so the gate
+      # holds the keys to the catalog, their order, and that marketplace
+      # name. Repo-wide and static, so it always runs. The self-test runs first
+      # so a broken detector cannot mask a regression behind a green gate.
       - name: Test the plugin-catalog-enablement gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-catalog-enablement.test.sh
-      - name: Check every catalogued plugin carries an enabledPlugins key
+      - name: Check every enabledPlugins key names a catalogued plugin
         id: plugin_catalog_enablement
         continue-on-error: true
         run: scripts/check-plugin-catalog-enablement.sh
@@ -1729,11 +1728,12 @@ jobs:
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          # Dependabot's /.github pip entry bumps the animation wheels here but cannot reach the
-          # plugin's own pins, so a one-sided bump fails here instead of merging as drift.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) \
+          # Dependabot bumps the animation wheels here (its /.github pip entry) and the plugin's
+          # lock (its /plugins/animation entry) in separate pull requests, so a one-sided bump
+          # fails here instead of merging as drift.
+          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
                <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.txt pin different versions; bump the two together"; exit 1; }
+            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
@@ -2203,18 +2203,34 @@ jobs:
           fi
           scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
 
-      - name: Verify html-escape copies match the canonical helper
+      # Generated shared-library copies (ADR 0019): verify only, never write.
+      - name: Verify generated shared-library copies match their canonical sources
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          scripts/sync-html-escape.sh --check
-      - name: Run html-escape tests
+          scripts/sync-shared-copies.sh --check
+      - name: Run shared-copies generator, html-escape and view-builder tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
+          bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
-          bash scripts/sync-html-escape.test.sh
-      - name: Verify adopting plugins bumped when the escape helper changed
+          bash lib/view-builder.test.sh
+      # docs/conventions/prerequisites/: the checker and its stubs, then the gate
+      # that validates every prerequisites.json and fails on an undeclared tool
+      # not listed in scripts/prerequisites-baseline.txt.
+      - name: Run prerequisites checker and gate tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/prerequisites.test.sh
+          bash scripts/check-declared-prerequisites.test.sh
+      - name: Check plugin prerequisites are declared
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node scripts/check-declared-prerequisites.mjs
+      - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -2224,7 +2240,7 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
-          scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
+          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify fetch-docs copies match the canonical fetcher
         if: needs.changes.outputs.run_tests == 'true'
@@ -2482,8 +2498,9 @@ jobs:
       # Counters only, never durations, so the answer does not move with runner
       # load. A lower count is lowered in the file by hand in the same PR
       # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job, because a counter this deterministic only drops when a PR changes
-      # it. LEG 0 carries it alone. The hook counters run through
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed

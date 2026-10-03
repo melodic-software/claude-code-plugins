@@ -3,6 +3,20 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-10-02
+
+### Changed
+
+- **The `object-writer` agent's `medium` effort pin is provisional**: an eval comparing `medium`
+  and `high` decides the level. The agent records the pin's pointer, as-of date and recheck trigger.
+
+## [1.4.41] - 2026-10-02
+
+### Changed
+
+- **`object-writer` pins `effort: medium`, down from `high`.** Creative generation is not
+  verification; the `medium` choice is our judgment.
+
 ## [1.4.40] - 2026-10-02
 
 ### Changed

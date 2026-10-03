@@ -102,11 +102,12 @@ Reordering only changes outcomes for a run that stops early, which this mode doe
 
 Run **4–6 simplifiers concurrently** as a soft cap.
 
-This is a cost and quality choice, not a ceiling imposed by the tooling. Concurrent subagents are
-capped by `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, documented default 20
-(<https://code.claude.com/docs/en/env-vars>; verified 2026-08-10, recheck trigger: that page
-changing the default or the variable's name). Past the cap, an Agent-tool spawn fails with
-`Concurrent subagent limit reached` and the error tells Claude not to retry. The lower number here
+This is a cost and quality choice, not a ceiling imposed by the tooling. The harness has its own
+per-session cap on concurrent subagents, with exemptions; for its default, the variable that sets
+it, and what happens past it, see
+[Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+(as of 2026-10-02; recheck when that section changes the default, the variable's name, or the
+exemptions). The lower number here
 is chosen because a repo-scale run is long enough that rate-limit pressure is likely, and because a
 wave whose groups all finish at once produces more results than can be checked carefully at once.
 Read the consumer's own value rather than assuming the default.
@@ -129,9 +130,10 @@ One agent per group, spawned via the `Agent` tool with an inline prompt. Use the
 `subagent_type` ladder the main workflow's Phase 6 documents (`code-simplifier:code-simplifier`,
 then `pr-review-toolkit:code-simplifier`, then any other installed `code-simplifier` agent, else
 `general-purpose`). State which one you used in the group's result line; a silent substitution hides
-why one wave's output differs in character from another's. **Model tier:** refutation verifiers run
-on the parent session's model (they are the judgment stage); simplifiers default to that same model
-unless the orchestrator documents a cheaper tier for a wide repo sweep.
+why one wave's output differs in character from another's. **Model and effort:** simplifiers follow
+Phase 6's rule. Refutation verifiers are the judgment stage: they take the `verifier` role's
+`fanout` variant from the same `/multi-agent:route` run, or, when it does not resolve, the
+simplifiers' fallback model at effort `high`.
 
 The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 
@@ -146,9 +148,11 @@ The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 **Repo mode does not invoke the bundled `/simplify`.** This is not because `/simplify` lacks a
 target. It accepts one. There are two concrete reasons:
 
-1. `/simplify` fans out review agents of its own, so one dispatch occupies roughly five concurrency
-   slots rather than one. At a 4–6 soft cap that is a single group in flight, not four.
-2. Spawn depth is limited, and at the limit the Agent tool is withheld from the subagent, at which
+1. `/simplify` fans out review agents of its own, so one dispatch occupies several concurrency
+   slots rather than one. At a 4–6 soft cap that can leave a single group in flight, not four.
+2. Spawn depth is limited, and at the limit the Agent tool is withheld from the subagent
+   ([sub-agents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
+   as of 2026-10-02, recheck when the depth default or the at-limit behavior changes), at which
    point `/simplify` **silently** degrades to a single-pass inline variant. A per-group worker whose
    thoroughness depends on how deep in the spawn tree it happens to land gives a run that reports
    uniform coverage while delivering uneven coverage.
@@ -159,7 +163,7 @@ depth.
 ## Refutation verifier
 
 **Mandatory in repo mode, once per group.** Spawn a fresh-context agent that did not perform
-the simplification and has not seen the reasoning behind it, on the **parent session's model**, and
+the simplification and has not seen the reasoning behind it, on the verifier tier the spawn contract sets, and
 give it the group's diff and one job: try to refute the claim that behavior is preserved. Ask for a specific counterexample (an
 input, a call sequence, a state) that behaves differently before and after, not a general opinion
 about risk.

@@ -391,6 +391,9 @@ export function parseWatchChecklistBlockingTicks(checklistBody) {
 }
 
 /**
+ * Enforce the blocking checklist ticks once the slice is closing: synthesis
+ * is marked or status is already `complete`. Skips earlier phases.
+ *
  * @param {string} sliceDir
  * @returns {{ valid: boolean, errors: string[], skipped: boolean }}
  */
@@ -401,7 +404,7 @@ export function validateWatchChecklistForCompleteSlice(sliceDir) {
     return { valid: false, errors: ["watch.json missing"], skipped: false };
   }
   const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
-  if (watch.status !== "complete") {
+  if (watch.status !== "complete" && !watch.phases?.synthesis) {
     return { valid: true, errors: [], skipped: true };
   }
   const checklistPath = lanePath(absSlice, LANES.runState, "watch-checklist.md");

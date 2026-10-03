@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "With nothing else passed, your llm graders are judged by haiku, the CLI's small, fast default judge. `--model sonnet` only pins the agent under test; it doesn't change the judge.\n\nAdding `--judge-model sonnet` is allowed, but it makes the judge the same model as the one you're testing. The preflight notices that and prints a warning under its report:\n\n```text\nwarning: the judge is the model under test; pass a different --judge-model\n```\n\nThat warning is advice, not a block: the run still goes ahead. If you want a stronger judge without the overlap, pick a model other than sonnet, such as opus, for `--judge-model`.",
+      "why": "P-canonical: says the default judge is haiku, a small fast model, and that --model sonnet does not change it."
+    },
+    {
+      "answer": "Two separate settings are in play. `--model` decides which model runs your plugin; `--judge-model` decides which model grades the llm graders, and when you leave it out the CLI uses Haiku. So your current setup has Sonnet answering and Haiku grading, regardless of what `--model` says.\n\nSwitching the judge to Sonnet would mean Sonnet grading its own answers. The preflight flags exactly that case with a same-model warning telling you to pass a different `--judge-model`. It won't refuse to start, though; the warning is advisory and the run proceeds if you continue. A different, stronger judge avoids the overlap.",
+      "why": "P-alt: makes the point through the two flags: --judge-model left out means Haiku grades, regardless of --model, so Sonnet answers and Haiku grades."
+    },
+    {
+      "answer": "Default judge: haiku. The judge model is set by `--judge-model`, which defaults to a small, fast model (haiku) whatever you pass to `--model`, so today Sonnet is tested and Haiku grades.\n\nWith `--judge-model sonnet`, the preflight sees the judge and the tested model are the same and prints a same-model warning suggesting a different `--judge-model`. The run still starts.\n\nTwo caveats:\n\n- An alias and a full model ID naming the same model count as the same, so spelling out the full Sonnet model ID wouldn't dodge the warning.\n- The warning is controlled by the plugin's `same_model_warning` setting; set to false, the preflight prints `same_model: off` and skips the comparison.",
+      "why": "P-caveat: states haiku as the default judge whatever --model is, plus accurate caveats about alias matching and the same_model_warning setting that do not touch the judge default."
+    },
+    {
+      "answer": "Haiku. If you only pass `--model sonnet`, the llm graders are scored by haiku, because `--judge-model` has its own default (a small, fast model) and doesn't follow `--model`. Your tested agent is Sonnet; your judge is Haiku.\n\nAs for `--judge-model sonnet`: it's a valid flag and the CLI accepts it, so you can grade with Sonnet if you want the judge to be stronger than Haiku. The preflight has nothing to say about it, and the run starts as normal. Expect the judge calls to cost a little more per run than Haiku's, though they stay a small part of the bill.",
+      "why": "P-plain: gets the judge default right (haiku, not following --model); it wrongly says the preflight has nothing to say about --judge-model sonnet, which is the sibling warns-not-refuses point, not this one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If you pass nothing else, the judge falls back to the model under test, so with `--model sonnet` Sonnet grades Sonnet. That's the default because it keeps the grading consistent with whatever model you pinned.\n\nAdding `--judge-model sonnet` therefore makes that explicit rather than sharpening anything; you'd get the same grades. Whether the preflight complains: same-model judging is a known self-preference risk, so expect a warning suggesting a different judge, but it's advisory and the run still starts. If you want sharper grading, set `--judge-model opus` so a stronger model grades.",
+      "why": "F-wrong: says the judge defaults to the model under test, so Sonnet, a listed FAIL condition; haiku is never named."
+    },
+    {
+      "answer": "The judge isn't tied to `--model`. That flag pins only the agent under test; the llm graders are scored by the CLI's own default judge, which stays the same whatever `--model` says, and you change it only with `--judge-model`.\n\nSetting `--judge-model sonnet` would make the judge the same model as the one under test. The preflight flags that and prints:\n\n```text\nwarning: the judge is the model under test; pass a different --judge-model\n```\n\nIt's advice only: the run still goes ahead if you continue. If you want sharper grading without that overlap, pick a judge other than Sonnet.",
+      "why": "F-partial: correctly says the judge does not follow --model, but names no judge model: haiku (or a small, fast model) is never stated."
+    },
+    {
+      "answer": "By default the judge is haiku, a small, fast model, regardless of `--model`.\n\nCorrection, though: that was the behavior in earlier releases. Current versions have the judge follow `--model` when `--judge-model` is absent, so with `--model sonnet` your llm graders are already being judged by Sonnet, the same model you're testing.\n\nThat means `--judge-model sonnet` changes nothing in practice. The preflight compares the two and, since they match either way, prints its same-model warning advising a different `--judge-model`; it doesn't refuse, and the run still starts. For sharper, independent grading, pass `--judge-model opus`.",
+      "why": "F-retract: states the haiku default, then retracts it, saying the judge now follows --model so Sonnet already grades."
+    },
+    {
+      "answer": "The judge defaults to the model under test and only falls back to haiku when no `--model` is given. Since you pin `--model sonnet`, your llm graders are judged by Sonnet: haiku by default, but here the same model you're testing.\n\nAdding `--judge-model sonnet` keeps that arrangement and just makes it explicit. The preflight will still print its same-model warning, telling you to pass a different `--judge-model`, but it's advice: the run goes ahead. If sharper grading is the goal, choose a different judge such as opus, which removes the warning too.",
+      "why": "F-near: names haiku as a default but says the judge is the same model as the one under test (Sonnet) when only --model sonnet is passed, a listed FAIL condition."
+    }
+  ]
+}

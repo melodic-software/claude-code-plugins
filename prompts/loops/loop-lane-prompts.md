@@ -348,74 +348,52 @@ Launch each lane with an explicit `--model`. It applies to that session
 only, so a global default is left undisturbed. Aliases, never dated model
 IDs. The alias tracks the current recommended model and a pinned ID rots.
 
-- **Worker lane root: `sonnet`.** Snapshot, admission gate, dispatch,
-  telemetry upsert. Bookkeeping, not diff reasoning.
-- **Merge lane root: `sonnet`.** The rung partition is deterministic;
-  the real work happens in dispatched workers.
-- **Attended queue: `opus`.** Human in the loop, and where
-  classification proposals are made.
-- **Dispatched implementers: `opus`.** Strong tier, and the freshest
-  knowledge cutoff of the four. <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
-  A phase the plan routes `sonnet` as well-scoped goes to
-  `scoped-implementer` on `sonnet` instead.
-- **Conflict and security subagents: `fable`.** Frontier tier, which
-  babysit-loop requires for conflict workers unconditionally.
-- **Mechanical greps and log pulls: `haiku`.** Per-dispatch override
-  only: the smallest context window and the oldest cutoff of the four,
-  never for a question about current harness behavior.
+Each role below names a capability tier. The alias each tier binds, and the
+reason for each binding, live in the loop-lane convention's
+[tier table](../../docs/conventions/loop-lane/README.md#3-capability-tiers)
+and [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding);
+read them there rather than from this file.
 
-The per-model figures behind those two rationales, context window and
-knowledge cutoff, are upstream-owned <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
-([models overview](https://platform.claude.com/docs/en/about-claude/models/overview))
-and are not restated here. Both orderings resolved as written against that
-page on 2026-08-04. Both are *derived* comparisons rather than quoted
-figures, so either can flip while every underlying number still reads
-correctly: re-resolve them when a new Claude model family reaches GA,
-when one of the aliases above starts resolving to a different model, or
-when a model one of them resolves to is announced deprecated or retired
-([model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations),
-since the announcement leads the alias move, and upstream warns deprecated
-models are likely to be less reliable than active ones).
+- **Worker lane root: strong tier.** The orchestrator in the convention's
+  coordinator shape: it plans and coordinates (snapshot, admission gate,
+  dispatch, telemetry upsert), and the dispatched workers execute.
+- **Merge lane root: strong tier.** The same coordinator shape: it
+  partitions the rungs and decides, and dispatched workers do the fixing.
+- **Attended queue: strong tier.** Human in the loop, and where
+  classification proposals are made.
+- **Dispatched implementers: strong tier.** A phase the plan routes `sonnet`
+  as well-scoped goes to `scoped-implementer` on `sonnet` instead.
+- **Conflict and security subagents: frontier tier**, which babysit-loop
+  requires for conflict workers unconditionally.
+- **No `haiku` dispatch.** The convention admits it nowhere in these lanes,
+  mechanical greps and log pulls included.
 
 **The implementer tier is enforced structurally in the dispatch agents'
 frontmatter (#1649).** `/implementation:implement-dispatch` dispatches workers and
 phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
-current alias, so a `sonnet` worker-lane root no longer makes every
-implementer `sonnet`, and `/work-items:work`'s branch-owned fix
-re-dispatches ride the same agent surface. That binding covers unrouted
-and complex phases; a phase the plan's routing table marks `sonnet`
-dispatches to `scoped-implementer` with an explicit `model: sonnet`. Resolution order is: the
-per-invocation `model` parameter, then frontmatter (`inherit` selects the
-main conversation's model), then `CLAUDE_CODE_SUBAGENT_MODEL` when set to an
-alias or model ID, then the main conversation's model. Setting
-`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` replaces that order: every subagent runs on
-`CLAUDE_CODE_SUBAGENT_MODEL`, or on the main conversation's model when only
-`_FORCE` is set, and definitions' `model` and per-invocation `model` are
-both ignored
-(<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
-2026-09-27).
+current alias, so the worker-lane root's model does not decide the
+implementer's, and `/work-items:work`'s branch-owned fix
+re-dispatches ride the same agent surface. How that frontmatter ranks against
+a per-invocation `model` and operator overrides is set by
+[Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+**As of:** 2026-10-02. **Recheck trigger:** that section changes the order.
 
 Two consequences of that order:
 
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
   default: security-surface work classes and conflict workers still take an
-  explicit per-invocation frontier-alias override, and mechanical greps and
-  log pulls still take an explicit `haiku`. The worker-lane bodies below
+  explicit per-invocation frontier-alias override. The worker-lane bodies below
   carry only those overrides, not a per-dispatch binding for the tiers the
   agent frontmatter already enforces. The merge-lane bodies additionally keep their
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no
   agent frontmatter covers them.
-- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane.** It overrides
-  the frontmatter bindings and every deliberate per-dispatch override alike,
-  flattening the fast and frontier tiers onto one model, and with
-  `CLAUDE_CODE_SUBAGENT_MODEL` unset (or set to `inherit`, which counts as
-  unset) that model is the lane root's.
-  `CLAUDE_CODE_SUBAGENT_MODEL` alone only fills in where neither a
-  per-dispatch `model` nor frontmatter names one, so it does not flatten the
-  bindings; still leave it unset, since a dispatch that omits both should
-  land on the lane root's model, not on a tier chosen elsewhere.
+- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane, and leave
+  `CLAUDE_CODE_SUBAGENT_MODEL` unset.** The lane relies on the frontmatter
+  bindings and deliberate per-dispatch overrides deciding each dispatch, and
+  on a dispatch that names neither landing on the lane root's model. For what
+  each variable overrides, see the Basis links below.
   - **Claim:** decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on every lane.
   - **Basis:** <https://code.claude.com/docs/en/env-vars> and
     <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
@@ -426,16 +404,15 @@ Two consequences of that order:
     `model` values.
 
 ```bash
-claude --model sonnet   # worker lane
-claude --model sonnet   # merge lane
-claude --model opus     # attended queue
+claude --model opus --effort high     # worker lane
+claude --model opus --effort medium   # merge lane
+claude --model opus --effort high     # attended queue
 ```
 
-Pair the fast roots with a stronger advisor (`advisorModel: opus`). A fast
-orchestrator plus an advisor at or above the main tier is the convention's
-recommended shape, and it is what makes a `sonnet` root safe. Do not drive the
-headless text form `/advisor`, `/advisor <model>`, or `/advisor off` from a
-lane prompt. The pairing is the settings value above, fixed at launch.
+Swap `opus` for `best` on a lane root where the organization runs its
+orchestrator at the frontier tier. Do not drive the headless text form
+`/advisor`, `/advisor <model>`, or `/advisor off` from a lane prompt: any
+advisor pairing is a settings value fixed at launch.
 
 - **Claim:** decline `/advisor` in unattended lane prompts, including the
   headless text form.
@@ -446,12 +423,32 @@ lane prompt. The pairing is the settings value above, fixed at launch.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
-Leave effort at its default. Each model ships its own default, and a lane that
-pins a level stops following it when the lane's model changes. For the current
-defaults, see
-[Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-**As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed,
-or stops stating each model's default effort.
+Launch every lane with an explicit `--effort`, chosen by matching the lane's
+work against each level's "When to use it" text in
+[Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+A lane that renders a verdict, such as the worker lane's admission verdict or
+the attended queue's decisions, takes the level whose text names work where
+verification matters. A coordinating lane, such as the merge lane, whose root
+partitions the rungs and hands the fixing to workers, passes the launching
+model's default level explicitly, so it does not follow a later
+change to that default. Code and verification work never runs below `medium`.
+The lanes config sets the level per lane (`lanes[].effort`), and the launcher
+refuses a lane that names none.
+
+The lane's `--effort` covers the orchestrator's own turns. A Workflow dispatch
+sets effort per task, and an Agent-tool dispatch runs at the effort pinned in
+the agent's definition.
+
+The level a lane passes is not proof of the level it ran at. An organization
+effort cap or the `maxEffortLevel` setting clamps it, a level the model does
+not support falls back to the highest supported level below it, and
+`CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and every agent or skill pin.
+The launcher warns when that variable is set. The `effort` field in the
+work-loop and babysit-loop state blocks records the level that ran.
+
+**As of:** 2026-10-02. **Recheck trigger:** the "Choose an effort level"
+section is renamed, its rows change, or the default effort of a model a lane
+launches on changes.
 
 ## Concurrent workers on one repository
 
@@ -479,7 +476,11 @@ telemetry issue and sentinel, making these last-writer-wins:
 
 **Recommendation: one worker lane per repository.** A single lane already
 runs its adaptive item cap (2–3) times the dispatch wave cap (3–5), so
-6–15 concurrent workers; rate limits bind long before lane count does. For
+6–15 concurrent workers. That sits under the harness's per-session subagent
+cap ([Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit);
+**as of** 2026-10-02, **recheck** when that section changes the default or the
+variable that sets it). Usage rate limits, not that cap, are what we expect a
+second lane to hit first; that expectation is judgment, not a measurement. For
 more parallelism, point the second machine at a **different repository**.
 No shared state, no contention, and the sharding problem disappears.
 
@@ -541,17 +542,16 @@ No shared state, no contention, and the sharding problem disappears.
 > plugin's `implementer` / `phase-verifier` agent definitions carry the
 > binding in `model` frontmatter, so pass no `model` for those and never
 > one that undercuts the binding. Pass an explicit per-invocation `model`
-> only for the exceptions the agent frontmatter does not carry: `fable` for conflict
-> resolution and any security-surface work class, unconditionally; `opus`
-> for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never set
-> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
-> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
-> unset it puts every subagent on your own model. Leave
-> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
-> or override names a model
-> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
-> 2026-09-27).
+> only for the exceptions the agent frontmatter does not carry: the frontier
+> tier (`best`) for conflict resolution and any security-surface work class,
+> unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
+> ride the implementer surface. Those aliases follow the loop-lane
+> convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
+> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
+> bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
+> 2026-10-02; recheck when that section changes the order).
 > Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
 > <https://code.claude.com/docs/en/env-vars> and
 > <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
@@ -647,8 +647,10 @@ wakeup ceiling for days rather than finishing.
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
 > merge within whatever rung resolves after `{{MERGE}}` caps it, never
-> above. You never claim backlog items and never author work-item PRs.
-> That is the worker lane's authority.
+> above. The goal is to merge more classes autonomously as each class's
+> promotion evidence accrues; today the lane merges only within the rung
+> it resolves at run time. You never claim backlog items and never author
+> work-item PRs. That is the worker lane's authority.
 >
 > **PR ordering.** Ordering only, never eligibility. Eligibility is the
 > skill's deterministic partition and nothing here overrides it. Within
@@ -682,13 +684,15 @@ wakeup ceiling for days rather than finishing.
 > remedy in the cycle report and stop there. Posture and process corrections
 > that touch no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> **Dispatch model, every dispatch.** Your root runs on the strong tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
 > skill requires would silently run at orchestrator strength unless you say
-> otherwise. Pass an explicit per-invocation `model`: `fable` for conflict
-> resolution and every security-surface work class, unconditionally; `opus`
-> for CI fixes, review-comment work, and any judgment call; `haiku` only for
-> mechanical log pulls. Never leave it to inherit. One explicit exception to
+> otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for
+> conflict resolution and every security-surface work class, unconditionally;
+> the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
+> fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
+> loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
+> `haiku` dispatch. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias. Blocker resolution under that path never runs at the review-work

@@ -141,6 +141,11 @@ intervention through it, addressed by the worker's agent ID. Never re-invoke the
 continue a worker: that starts a second, independent worker. Read a refused message as a worker
 the user stopped. Pointers, as-of date and the empirical probe: `context/sources.md`, "SendMessage
 worker continuation".
+To choose between a workflow and subagents, and the model and effort each spawn gets, run
+`/multi-agent:assess` and `/multi-agent:route` when they resolve in this session; otherwise read
+<https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-10-02; recheck when that
+section changes how a subagent's model is chosen; record: `context/sources.md`, "Priming addendum:
+model and effort routing").
 Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 

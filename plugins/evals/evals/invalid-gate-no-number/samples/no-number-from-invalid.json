@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No. Don't post the +0.30, footnote or not. An INVALID verdict means what you report is \"INVALID: trace checks unchecked\", with no score or delta attached. Then fix the cause and rerun.\n\nThe cause here is that the gate inspects the per-run traces, and without `--keep-temp` the runner deletes them, so the trace checks can't run and the run can't be shown valid. `partial: false` and null errors only say the runs finished; they don't cover what the traces show.\n\nRerun with `--keep-temp` added, run `run-validity.py` again, and post a number only if it prints `verdict: VALID`.",
+      "why": "P-canonical: says not to post +0.30, to report INVALID with its reason and no number, and to fix the cause and rerun."
+    },
+    {
+      "answer": "The gate isn't being fussy: it needs each run's trace to check things like tool denials and whether the skill fired, and a plain `--json results.json` run deletes those traces once it ends. The clean JSON can't stand in for that.\n\nSo the +0.30 stays out of the channel. What you can share right now is the verdict itself: the eval run is INVALID because the trace checks are unchecked. No delta, not even a provisional one.\n\nTo get a reportable number, run the eval again with `--keep-temp` so the traces survive, then rerun `run-validity.py`; only `verdict: VALID` unlocks a score.",
+      "why": "P-alt: explanation first; then the +0.30 \"stays out of the channel\", the verdict is shared as INVALID with its reason and no delta, and the eval is rerun."
+    },
+    {
+      "answer": "I wouldn't post it. With `verdict: INVALID`, the only thing to report is INVALID and every reason on that line; the +0.30 doesn't go out with a footnote, a caveat, or an \"unvalidated\" tag. Then fix the cause and rerun.\n\nYour cause is missing traces. The validity checks read the per-run traces, and without `--keep-temp` those directories are gone by the time the run ends. Rerun with `--keep-temp` and gate again.\n\nOne thing to watch: if the INVALID line lists other reasons besides the unchecked traces, fix those too before the rerun, or you'll just get INVALID again.",
+      "why": "P-caveat: no posting, INVALID with every reason and no number, fix and rerun; the extra note about fixing any other listed reasons is consistent with the rubric."
+    },
+    {
+      "answer": "Hold the +0.30. The gate's verdict decides whether a number from this run can be reported, and INVALID means it can't, with or without a footnote. A clean `partial: false` and null errors don't override it.\n\nWhat to post instead, if you post anything: the eval run came back INVALID, with the reason the script printed (trace checks unchecked), and no delta.\n\nThen work out what made the run INVALID, fix it, and run the eval again. Gate the new result file the same way, and share a number only when it prints `verdict: VALID`.",
+      "why": "P-plain: not posting, INVALID with reasons and no delta, fix and rerun are all there; it misses the sibling point (no explanation of the deleted traces, no --keep-temp)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, a footnote is a reasonable way to handle it. `partial: false` and null errors on every run tell you the suite finished and nothing crashed, which is what matters for the score. The trace checks are an extra layer, and \"unchecked\" just means they had nothing to look at, not that anything failed.\n\nI'd post it like this: \"With-plugin delta: +0.30 (validity gate reported trace checks unchecked; results otherwise clean).\" Next time add `--keep-temp` to the run so the traces are kept and the gate can complete its checks.",
+      "why": "F-wrong: says to post +0.30 with a footnote and lets the clean JSON override the INVALID verdict."
+    },
+    {
+      "answer": "Don't post the +0.30. A `verdict: INVALID` from `run-validity.py` isn't a warning to footnote; it means this run produces no reportable score or delta, however clean the JSON looks. `partial: false` and null errors only show the runs finished, not that they can be shown valid.\n\nWhat goes in the channel is the verdict: \"Eval run INVALID: trace checks unchecked.\" No number beside it, provisional or otherwise.\n\nThe unchecked trace checks are the reason, since the gate had no per-run traces to read. That's the whole story for this run: report it as INVALID and stop there.",
+      "why": "F-partial: says not to post and to report INVALID with its reason and no number, but never says to fix the cause and rerun; that required point is missing."
+    },
+    {
+      "answer": "The short answer is no: INVALID means you report INVALID with its reasons and no score or delta, then fix the cause and rerun. The trace checks were unchecked because the runner deleted the traces; a run without `--keep-temp` doesn't keep them.\n\nThat said, the JSON itself is clean, `partial` is false and no run errored, so the +0.30 is very likely real. If the team is waiting on it, go ahead and post it now with a footnote saying \"validity gate INVALID: traces not kept, rerun pending\", and swap in the gated number once the `--keep-temp` rerun comes back VALID.",
+      "why": "F-retract: states the no-number rule, then says to post +0.30 now with a footnote."
+    },
+    {
+      "answer": "Not as a headline result. The INVALID comes from missing traces: the gate reads each run's trace, and without `--keep-temp` the runner removed them, so those checks couldn't run.\n\nWhat I'd do is keep +0.30 out of the summary line and put it in a clearly labeled thread reply: \"unvalidated: +0.30, gate INVALID (trace checks unchecked), rerun with --keep-temp in progress.\" That way nobody mistakes it for a validated result, and the team still sees where things stand. Then rerun with `--keep-temp`, gate the new file, and replace the unvalidated figure once it prints `verdict: VALID`.",
+      "why": "F-near: posts the +0.30 under an \"unvalidated\" label, which the FAIL list names, even though the rerun advice is right."
+    }
+  ]
+}

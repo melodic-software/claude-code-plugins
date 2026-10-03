@@ -4,6 +4,79 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- **The Anthropic docs profile tags a blog post's outcome counts for claude.ai as
+  `tag-exempt (consumer-surface)` with the `vendor-claimed` marker,** on both blog hosts. A team
+  that wants them handled otherwise says so in its own CLAUDE.md or AGENTS.md.
+
+### Changed
+
+- **The Anthropic docs queue's notes on the loops, Code Review, and test-impact analysis posts
+  record their fetched topics** and give each pointer in the when-fetch-live form with an as-of
+  date and a recheck trigger.
+
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
+
+## [0.15.4] - 2026-10-02
+
+### Security
+
+- The `video-digest` recommendations-menu HTML view is built by a checked-in builder
+  (`skills/video-digest/scripts/build-menu-view.mjs`) that escapes every field derived from fetched
+  transcripts, titles, and URLs through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script and the URL
+  renders as text. `build-menu-view.mjs --check <file>` flags a page that bypassed the builder.
+
+## [0.15.3] - 2026-10-02
+
+### Changed
+
+- `course-digest` writes `continuation-prompt.md` and the `course.json` phase markers after every
+  module, and at a module boundary routes the next step with `/session-flow:workflow`, naming the
+  course slug, the next module and the `course.json` path for a compaction focus. A new session
+  resumes with `continue <slug>`. Without session-flow it links the docs section on when context
+  fills up.
+
+### Fixed
+
+- `video-digest` no longer labels auto captions as manual. A bare `<id>.en.vtt` counts as manual
+  only when info.json lists English manual subtitles; otherwise the transcript uses the
+  auto-caption cleaner and records why in `transcriptDegradation`.
+- Transcript paragraphs no longer open with the words the previous cue ended on.
+- `status: complete` is written only by the new `watch-state.js close <slice-dir>`, which runs the
+  outcome checks and the blocking checklist first and leaves status unchanged when they fail.
+  `mark-phase <slice-dir> synthesis` delegates to it.
+- `video-digest` key frames carry the time ffmpeg measured instead of one spread evenly over the
+  video. Each frame records where its time came from in `timestampSource`; an interval frame
+  ffmpeg gave no time for is marked `estimated` with an error bound, and a frame with no basis
+  stays untimed and renders as `untimed` rather than 0:00. Scene detection writes the times to
+  `frame-times.json` in the temp frames directory, which recovery reloads instead of recomputing
+  them, and `selection.json` now carries each frame's time source.
+- `visual-gaps.md` logs a densification window as a gap only when no promoted frame's exact time
+  falls inside it; whole-minute labels are used only for slices with no promoted frames on disk.
+  Each row keeps its `~Nm` region and adds the window's exact bounds, and the outcome check no
+  longer credits a `~15m` row to region 5.
+- `video-digest` now extracts an extra frame inside any stretch between timed frames longer than
+  `maxFrameGapSec` (60 s by default, `run-watch.js --max-frame-gap-sec` per run), including the
+  start and end of the video. Gaps are measured over every timed frame examined, before dedup,
+  so an unchanged slide whose frames dedup dropped is not refilled. `watch.json` and `coverage-plan.json` record the value, so
+  `run-watch.js --recover` plans with the run's own gap (an older slice without it gets the
+  default); `SKILL.md` and `watch-pipeline.md` list the flag. The coverage-plan rationale names
+  stratified sampling only when that pass runs.
+
 ## [0.15.2] - 2026-10-02
 
 ### Changed

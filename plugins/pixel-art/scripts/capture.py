@@ -261,7 +261,9 @@ def _http_json(url, method="GET"):
 
 def _devtools_port(profile, proc):
     port_file = profile / "DevToolsActivePort"
-    deadline = time.time() + 20
+    # A browser that exits fails at once below; this bound is only for one that is still starting.
+    # A cold first launch on a busy 4-vCPU CI runner has run past 20 s with the browser alive.
+    deadline = time.time() + 60
     while time.time() < deadline:
         if proc.poll() is not None:
             raise RuntimeError(f"browser exited {proc.returncode} before the debugger opened")

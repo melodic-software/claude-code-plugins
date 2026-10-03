@@ -330,6 +330,19 @@
         "The resume region carries its own `/clear`, then copy instruction, the `Read @` directive, `Prior session:`, `Handoff origin:` and `Next:` lines, unchanged from a no-goal handoff",
         "The slot values put the goal region in `goal-first` and leave `goal-after` out, and `save_point.py validate` exits 0 before the prompt is printed"
       ]
+    },
+    {
+      "id": 24,
+      "name": "model-chosen-handoff-on-the-same-task-routes-to-compact",
+      "prompt": "We're halfway through refactoring the parser module and the next step is the same refactor's remaining two files. This session feels bloated and slow. Keep things moving the way you think is best.",
+      "expected_output": "The user did not ask for a handoff, so if the model elects the handoff skill it walks the workflow skill's continuation router before writing anything. The next work uses this session's files and serves the same goal, so the router routes to `/compact <focus>`, typed by the user, with a focus naming what the summary must keep (the parser refactor's remaining two files, decisions so far, and the tests to run). No handoff file is written and no rails resume prompt is emitted; the response recommends the compaction with its evidence and leaves the command to the user.",
+      "files": [],
+      "expectations": [
+        "No handoff file is written and no rails resume prompt is emitted, because no one asked for a handoff and the router does not route this case to one",
+        "The response recommends `/compact` with a focus argument naming what the summary must keep, such as the remaining parser files and the decisions made so far",
+        "The compaction is left for the user to type; the response does not claim to have run `/compact` or `/clear`",
+        "The recommendation names the evidence it rests on: the next work is the same refactor using this session's files"
+      ]
     }
   ]
 }

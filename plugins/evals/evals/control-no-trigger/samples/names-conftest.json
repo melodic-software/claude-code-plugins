@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Define the fixture in `tests/conftest.py`. pytest collects it on its own, so every test file under that directory can take the fixture as a parameter with no import. Add `scope=\"session\"` to build it once per run.",
+      "why": "file named in backticks with a path"
+    },
+    {
+      "answer": "Move the fixture into a conftest.py file in the tests folder or any parent of it, and pytest makes it available to every test below that folder.",
+      "why": "file named in plain prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Put the fixture in a conftest file next to your tests and pytest will find it.",
+      "why": "near miss: names a conftest file without the file name"
+    },
+    {
+      "answer": "Put the fixtures in a module and list it in the pytest_plugins variable of your root test package.",
+      "why": "a different mechanism, never names the file"
+    }
+  ]
+}

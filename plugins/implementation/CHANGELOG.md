@@ -3,6 +3,64 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.4] - 2026-10-02
+
+### Changed
+
+- **A phase boundary no longer writes a handoff and stops by default.** `implement` Step 4 treats
+  the phases of one approved plan as one task: it still verifies, marks the plan, updates the status
+  summary and commits, then routes the next step with `/session-flow:workflow`, handing it the
+  PLAN.md path and the next phase. It writes a handoff entry and stops only on its own conditions:
+  a model or domain switch, the end of the run, a user-only commit gate, or the work moving to
+  another session. The status summary points at the PLAN.md path and next phase when no handoff
+  was written. `implement-dispatch`'s heavy-window signal (Resident-vs-clear item (a)) routes the
+  same way instead of clearing by default. Both skills gain a `## Next` naming
+  `/review:quality-gate`, and new evals cover the routed boundary and the model-switch stop.
+
+## [0.20.3] - 2026-10-02
+
+### Fixed
+
+- **`implement-dispatch` never runs a concurrent wave on the frontier tier.** When more than one
+  `implementer` or `phase-verifier` will run at once and the session model or the upward route
+  resolves to the frontier tier (`fable` or `best`), every agent in that wave runs at `opus`. The
+  frontier tier is allowed only on a single, sequential dispatch: one security-surface or
+  frontier-routed implementer at a time with its one verifier, and a single final verification.
+  A phase that needs the frontier tier runs alone, as a wave of one: no other frontier-tier agent is
+  in flight, and the wave's `opus` rows may run beside it. The session-model raise now applies to
+  a single dispatch only, so a frontier session no longer lifts a whole wave. Inside a wave held at
+  `opus`, the `phase-verifier`'s `opus` binding already meets the checked-work rule. The
+  `implementer` and `phase-verifier` model-binding sections state the same limit. For generic
+  dispatch routing, the skill points at `/multi-agent:route` when that skill resolves in the
+  session.
+
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work.
+  The pin record points at the model-config `medium` row and the cost guide's per-task comparison,
+  as of 2026-10-02, rechecked at the next model release. The pin stays explicit so an
+  orchestrator's lowered effort does not reach the worker.
+- **`phase-verifier` pins `effort: high`, up from `medium`.** Its pin record points at the
+  model-config `high` row and the advisor capability rule. Its model rule now reads as never weaker than the work it checks, and a phase routed
+  upward passes the verifier the same tier.
+- **`implement-dispatch` raises the `phase-verifier` to the model the phase's implementer ran on.**
+  When a phase's implementer ran above the verifier's binding (the frontier alias for
+  security-surface work, or a session model above it), the phase's one verifier gets a
+  per-invocation `model` at or above that model, upward only, per the checked-work row of the
+  "Model tiers" ladder. The raise used to follow the orchestrating session's model, so a phase
+  routed upward under an `opus` session was certified on `opus`. `implementer`'s model-binding
+  note no longer assumes a fast orchestrator root.
+
+## [0.20.1] - 2026-10-02
+
+### Fixed
+
+- `implement-dispatch` points at the sub-agents page for model resolution order and notes
+  that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides the frontmatter binding and per-call models;
+  it is reported, not a reason to refuse dispatch.
+
 ## [0.20.0] - 2026-10-02
 
 ### Added
