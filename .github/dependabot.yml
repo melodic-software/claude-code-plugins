@@ -143,6 +143,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The explainer-video plugin's hash-locked Python packages (ManimCE). Nothing is vendored:
+  # the SessionStart hook installs requirements.txt on demand
+  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  - package-ecosystem: pip
+    directory: /plugins/explainer-video
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
   # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip

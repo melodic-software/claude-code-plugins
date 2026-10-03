@@ -143,7 +143,9 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # whether node and jq resolve for its hooks. context-budget and rate-limit-guard
 # join on the same grounds: context-budget reports whether node resolves for its
 # hooks, rate-limit-guard whether node and jq resolve for its hook and statusline tee.
-check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,testing,toolchain,typos-format
+# explainer-video joins on the same grounds: it reports whether Python, the
+# ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
+check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,testing,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.
@@ -249,3 +251,11 @@ report discovery,implementation,plugin-quality
 # Both bring a local copy level with its upstream. Unrelated targets, and the
 # namespace supplies the object in both; each description's first clause names it.
 sync dometrain,repo-fleet-hygiene
+
+# Settled name (#5835): explainer-video is a new plugin, not a Manim backend
+# inside animation. animation:produce makes a hand-drawn film from style packs
+# behind a storyboard approval gate; explainer-video:produce scripts and
+# self-checks a silent ManimCE explainer. Both produce a finished video; the
+# namespace supplies which kind, each description's first clause names it, and
+# explainer-video's routes hand-drawn film to animation:produce.
+produce animation,explainer-video
