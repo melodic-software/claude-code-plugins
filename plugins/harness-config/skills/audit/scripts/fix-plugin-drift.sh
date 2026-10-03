@@ -321,8 +321,12 @@ new_json=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"') ||
   findings_failed "new upstream"
 
 # Rename candidates (informational). A null `to` is not a rename: a removed row
-# lives in `.removed` and must not be printed as a rename to null.
-rename_json=$(findings '.renames[] | select(.to | type == "string") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
+# lives in `.removed` and must not be printed as a rename to null. A catalog
+# row and a name-similarity guess are separate lists so the remediation for
+# one is not printed under the other.
+catalog_rename_json=$(findings '.renames[] | select((.to | type == "string") and .source == "renames") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
+  findings_failed "renames"
+heuristic_rename_json=$(findings '.renames[] | select((.to | type == "string") and .source != "renames") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
   findings_failed "renames"
 
 removed_json=$(findings '.removed[]? | "\(.name)@\(.marketplace)"') ||
@@ -336,7 +340,9 @@ skipped_json=$(jq -c '[.[] | select(.status != "ok")
 remove_count=$(count "$remove_json")
 manual_count=$(count "$manual_json")
 new_count=$(count "$new_json")
-rename_count=$(count "$rename_json")
+catalog_rename_count=$(count "$catalog_rename_json")
+heuristic_rename_count=$(count "$heuristic_rename_json")
+rename_count=$((catalog_rename_count + heuristic_rename_count))
 removed_count=$(count "$removed_json")
 skipped_count=$(count "$skipped_json")
 ok_count=$(jq -j '[.[] | select(.status == "ok")] | length' "$INPUT_JSON") ||
@@ -373,7 +379,7 @@ if [[ "$ok_count" -eq 0 ]]; then
   exit 0
 fi
 
-if [[ "$remove_count" -eq 0 && "$manual_count" -eq 0 && "$new_count" -eq 0 && "$rename_count" -eq 0 ]]; then
+if [[ "$remove_count" -eq 0 && "$manual_count" -eq 0 && "$new_count" -eq 0 && "$rename_count" -eq 0 && "$removed_count" -eq 0 ]]; then
   printf '%sNo drift detected, nothing to do.%s\n' "$GREEN" "$RESET"
   exit 0
 fi
@@ -541,14 +547,21 @@ if [[ "$manual_count" -gt 0 ]]; then
   echo
 fi
 
-if [[ "$rename_count" -gt 0 ]]; then
-  printf '%sRENAME?%s %d rename pairs (report only, nothing is written):\n' "$YELLOW" "$RESET" "$rename_count"
-  print_list '  ' "$rename_json" 'san'
+if [[ "$catalog_rename_count" -gt 0 ]]; then
+  printf '%sRENAME%s %d catalog renames (report only, nothing is written):\n' "$YELLOW" "$RESET" "$catalog_rename_count"
+  print_list '  ' "$catalog_rename_json" 'san'
   if settings_file_is_managed; then
     printf '  %s\n' "update managed enabledPlugins"
   else
     printf '  %s\n' "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
   fi
+  echo
+fi
+
+if [[ "$heuristic_rename_count" -gt 0 ]]; then
+  printf '%sRENAME?%s %d possible rename pairs (heuristic, review manually):\n' "$YELLOW" "$RESET" "$heuristic_rename_count"
+  print_list '  ' "$heuristic_rename_json" 'san'
+  printf '  %s\n' "confirm before editing the key"
   echo
 fi
 

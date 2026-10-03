@@ -895,6 +895,7 @@ write_fixture "$case_dir/fixtures" mkt '{
 }'
 OUTPUT_JSON_PATH="$case_dir/findings.json"
 exit_code=0
+# shellcheck disable=SC2016 # $1..$4 belong to the inner bash -c, not this shell
 out=$(timeout 15 bash -c 'NO_COLOR=1 CLAUDE_SETTINGS_FILE="$1" SETTINGS_AUDIT_FIXTURE_DIR="$2" SETTINGS_AUDIT_OUTPUT_JSON="$3" bash "$4"' \
   _ "$case_dir/settings.json" "$case_dir/fixtures" "$OUTPUT_JSON_PATH" "$SCRIPT" 2>&1) || exit_code=$?
 assert_exit "case-28: a cycle finishes with the orphan exit" 1 "$exit_code"

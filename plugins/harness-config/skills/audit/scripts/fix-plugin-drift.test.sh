@@ -1456,11 +1456,14 @@ exit_code=0
 out=$(run_fix_apply "$case_dir") || exit_code=$?
 after=$(jq -c . "$case_dir/settings.json")
 assert_exit "renames-map: apply exits 0" 0 "$exit_code"
-assert_contains "renames-map: RENAME advisory" "$out" "RENAME?"
+assert_contains "renames-map: catalog heading" "$out" "catalog renames"
+assert_contains "renames-map: heuristic heading" "$out" "heuristic, review manually"
 assert_contains "renames-map: catalog pair shown" "$out" "old-name -> unrelated"
 assert_contains "renames-map: heuristic pair shown" "$out" "heuristic-old -> heuristic-older"
 assert_contains "renames-map: settings-file remediation" "$out" \
   "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+assert_contains "renames-map: heuristic pairs are not given the catalog fix" "$out" \
+  "confirm before editing the key"
 assert_not_contains "renames-map: a null to is not a rename" "$out" "-> null"
 assert_contains "renames-map: removed row shown" "$out" "REMOVED (report only)"
 assert_contains "renames-map: removed key shown" "$out" "gone@mkt"
