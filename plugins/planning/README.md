@@ -28,7 +28,7 @@ is too big to hold at once, then `brainstorm → prd → interview → design �
 design-handoff → plan` with `devils-advocate` attacking the plan before
 approval, while `/domain-driven-design:curate-language` is invoked whenever
 those workflows resolve vocabulary, when the `domain-driven-design` plugin is
-installed; without it, resolved terms are recorded in the design artifacts
+enabled; without it, resolved terms are recorded in the design artifacts
 themselves. Every skill also works standalone.
 
 ## Workflows

@@ -1,6 +1,6 @@
 {
   "name": "speech",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word. The kokoro backend runs Kokoro-82M (Apache-2.0) locally through onnxruntime, with timings from the model's own durations. espeak-ng (GPL-3.0) is installed by you, never by the plugin. A SessionStart hook installs the locked Python packages, setup downloads the pinned model files, and check reports each missing prerequisite.",
   "author": {
     "name": "Melodic Software",

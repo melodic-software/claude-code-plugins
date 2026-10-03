@@ -4,6 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.18.1] - 2026-10-03
+
+### Changed
+
+- `/playbooks:repo-sweep next` states why a committed step is pushed before it is ticked: the
+  tick writes the remote PR body, so ticking first lets the body name a commit the branch lacks
+  when the session dies before the push. An eval expectation now checks the order.
+
 ## [0.18.0] - 2026-10-03
 
 ### Changed

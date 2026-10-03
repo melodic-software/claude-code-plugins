@@ -1,0 +1,46 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "pwsh",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:dlss5",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ]
+      },
+      "degrade": "Without pwsh, /gaming:dlss5 and /gaming:setup cannot run their PowerShell scripts, so the plugin does nothing.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "brew": "powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

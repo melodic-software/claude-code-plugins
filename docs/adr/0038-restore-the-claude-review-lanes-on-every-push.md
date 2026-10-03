@@ -148,3 +148,71 @@ else in this repository.
   status check, and has no `workflow_dispatch` re-review, no per-PR cap and no path gate, so
   `skip-actors`, `status-check`, `max-reviews-per-pr`, `timeout-minutes` and `pr-number` are
   gone from the callers. A new review comes from a push, a reopen, or a draft-then-ready flip.
+
+## Addendum (2026-10-02): a push reviews what changed, one job per lane
+
+The operator approved trimming both lanes on 2026-10-02: "Yeah, anything here that would improve
+quality, efficiency, and accuracy, and optimize performance, I approve." and "Whatever you have to
+do, I approve it." This narrows decisions 2 and 4. The narrowing is in effect on this repository
+since the 2026-10-03 standards sync (#6024) re-pinned both hosted callers to ci-workflows v0.32.0.
+
+The reason is the concurrency limit. GitHub runs at most 60 Linux jobs at once for the org, and
+the operator will not pay to raise it. Two peak windows on this repository were measured as each
+lane's share of the Linux runner-seconds of every job in flight, reconstructed from the Actions
+jobs API:
+
+| Peak window (UTC) | Code review | Security review | Both lanes |
+|---|---|---|---|
+| 2026-09-28 19:15-19:30 | 19.4% | 5.0% | 24.4% |
+| 2026-09-30 05:15-05:30 | 8.0% | 6.6% | 14.6% |
+
+Review volume, counted over the three full UTC days 2026-09-29 00:00 to 2026-10-02 00:00: every
+run of each lane's workflows (`claude-review.yml` and `claude-review-hosted.yml`;
+`claude-security-review.yml` and `claude-security-review-hosted.yml`) whose conclusion was
+`success` or `failure`, read through the Actions runs API one hour at a time so that no query
+reached the API's 1,000-result cap, every page read. A draft's run is `skipped` and is not
+counted.
+
+| Lane | Runs | Per day | Pull-request branches | Runs per branch |
+|---|---|---|---|---|
+| Code review | 1,271 | 423.7 | 416 | 3.06 |
+| Security review | 1,464 | 488.0 | 419 | 3.49 |
+
+Every push to a ready pull request started 4 jobs, a review job and a status job per lane.
+
+1. **Decision 2 is narrowed.** Drafts are still skipped. `opened`, `reopened` and
+   `ready_for_review` review the whole pull request. A later push reviews only the pull request's
+   files that changed since the lane's last completed review. Each lane records that review's head
+   in one pull request comment it writes as `github-actions[bot]` and edits after each completed
+   review. A push reviews the whole pull request again when no earlier review is recorded, the
+   recorded head is not an ancestor of the new head (force push or rebase), 300 or more files
+   changed since, a base-branch merge since then changed a file the pull request also changes
+   (or 300 or more files, too many to check), or the API returns no patch for a changed text file
+   (too large to show). A push that changes none of the pull request's files gets no new review.
+2. **Documentation-only scopes skip the security lane.** When every file in scope matches
+   `docs/**/*.md`, `**/README.md` or `**/CHANGELOG.md`, no security review runs and its check is
+   green. Skill, agent, command, rule, `CLAUDE.md` and `AGENTS.md` files are agent instructions,
+   not documentation, and are always security-reviewed; the reusable enforces this whatever a
+   caller's `docs-only-paths` lists. This is the one exception to the
+   operator's rule of a security review on every pull request.
+3. **Decision 4 is narrowed.** Each lane is one job, which goes red, naming the cause, when no
+   review happened; a review that was not needed is green. The code-review check keeps its name,
+   `review / claude-review-status`. The security-review check is `security-review /
+   security-review`, the context the disabled `security-review-gate` org ruleset in
+   melodic-software/github-iac names (`OrgRulesets.cs`); `security-review /
+   claude-security-review-status` and `review / review` no longer report. The babysit merge gate
+   accepts either security check name (melodic-software/claude-code-plugins#5995). Decision 5 still
+   holds: only `ci-status` is required.
+4. **Timeouts fit measured durations.** Outside its Claude step, a review job took p95 17 s and
+   max 82 s (1,169 code-review and 1,366 security-review successful jobs in the window above). The
+   code-review step keeps its 11-minute limit and its job stops at 13 minutes (was 15); the
+   security-review step stops at 14 minutes (was 18) and its job at 16 (was 25).
+
+The change lives in the ci-workflows reusables (melodic-software/ci-workflows#653) and the
+standards caller components (melodic-software/standards#662). This repository's callers are
+sync-managed and pick it up with the sync that carries the re-pin.
+
+Revisit when a defect lands that an incremental review missed and a whole review of the same pull
+request would have flagged: set `incremental-review: false` on both caller components in
+melodic-software/standards (its runner-policy contracts for these reusables allow that input),
+let the sync carry it here, and record why.

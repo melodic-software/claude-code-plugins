@@ -52,7 +52,6 @@ events; prefer `handle` with explicit seqs.
 import argparse
 import calendar
 import contextlib
-import http.client
 import json
 import math
 import os
@@ -60,7 +59,6 @@ import re
 import secrets
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -72,9 +70,11 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
 import exporters  # noqa: E402
 import schema  # noqa: E402
+import session_bridge as bridge  # noqa: E402
 from server import (  # noqa: E402
     EMPTY_RESPONSES,
     LINE_CAP,
+    NAME,
     SCHEMA_VERSION,
     Settings,
     check_alt,
@@ -84,17 +84,15 @@ from server import (  # noqa: E402
     release_user_holds,
     repo_root,
     save_json,
-    write_private,
 )
+from session_bridge import end_watcher, write_private  # noqa: E402
 
 DECISIONS = ("accept", "alt", "own", "defer", "hedged")
-SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
 # The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
 FINISH_SECONDS = 1
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
 # Free-text caps: one-line fields (a title, a short label, a recommendation, an alternative, a
@@ -1375,21 +1373,6 @@ def unhandled_events(doc, r):
     ]
 
 
-def watcher_lease(d):
-    """The lease the data dir's running server shows, or None when the server is down or none is held."""
-    s = read_session(d)
-    if not (s and running(d, s)):
-        return None
-    conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=10)
-    try:
-        conn.request("GET", "/api/state")
-        return json.loads(conn.getresponse().read())["listener"].get("lease")
-    except (OSError, ValueError, KeyError):
-        return None
-    finally:
-        conn.close()
-
-
 def cmd_apply(d, a):
     """Every op against one loaded document, one validated write; any refusal writes nothing."""
     try:
@@ -1449,7 +1432,7 @@ def cmd_apply(d, a):
     for line in lines:
         print(line)
     print(f"applied {len(lines)} ops (rev {doc['rev']})")
-    if not watcher_lease(d):
+    if not bridge.watcher_lease(d, NAME):
         r = load_json(d / "responses.json", EMPTY_RESPONSES)
         print(
             f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
@@ -1765,102 +1748,10 @@ def sidecar_lock(d, seconds=None):
             _unlock(f)
 
 
-def ping(port, timeout=1.0):
-    """GET /api/ping on 127.0.0.1 (no proxy); the parsed body on 200, else None."""
-    conn = http.client.HTTPConnection("127.0.0.1", int(port), timeout=timeout)
-    try:
-        conn.request("GET", "/api/ping")
-        resp = conn.getresponse()
-        return json.loads(resp.read()) if resp.status == 200 else None
-    except (OSError, ValueError, http.client.HTTPException):
-        return None
-    finally:
-        conn.close()
-
-
-def read_session(d):
-    try:
-        s = json.loads((d / SESSION_FILES[0]).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return s if isinstance(s, dict) and s.get("port") and s.get("pid") else None
-
-
-def same_dir(a, b):
-    return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(
-        str(Path(b).resolve())
-    )
-
-
-def running(d, s):
-    """True only when the recorded port answers with the recorded PID for this data dir."""
-    p = ping(s["port"])
-    return bool(p) and p.get("pid") == s["pid"] and same_dir(p.get("dataDir") or "", d)
-
-
-def port_free(port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        if os.name == "posix":
-            # The server binds with SO_REUSEADDR, so a port a stopped server's connections hold in
-            # TIME_WAIT is free for it; without the option the kept port would never read as free.
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("127.0.0.1", port))
-        except OSError:
-            return False
-    return True
-
-
-def interpreter():
-    """The real interpreter: on Windows outside a venv, the base one behind a launcher such as a uv trampoline."""
-    base = getattr(sys, "_base_executable", "")
-    if os.name == "nt" and sys.prefix == sys.base_prefix and os.path.isfile(base):
-        return base
-    return sys.executable
-
-
 def start_server(d, port, nonce):
-    """Start server.py apart from this process: no inherited stdio, own session or process group.
-
-    On Windows the child gets a console with no window (CREATE_NO_WINDOW), never
-    DETACHED_PROCESS: a detached launcher's console child would allocate a new, visible one.
-    """
-    cmd = [
-        interpreter(),
-        str(HERE / "server.py"),
-        "--dir",
-        str(d),
-        "--port",
-        str(port),
-        "--nonce",
-        nonce,
-    ]
-    kw = {
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "close_fds": True,
-    }
-    if os.name != "nt":
-        return subprocess.Popen(cmd, start_new_session=True, **kw)
-    flags = NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
-    try:
-        return subprocess.Popen(
-            cmd, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw
-        )
-    except OSError:  # the job this process runs in forbids breakaway
-        return subprocess.Popen(cmd, creationflags=flags, **kw)
-
-
-def wait_started(d, nonce, proc, seconds=START_SECONDS):
-    """The session carrying our nonce once its /api/ping answers 200, or None."""
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline and proc.poll() is None:
-        s = read_session(d)
-        if s and s.get("nonce") == nonce and running(d, s):
-            return s
-        time.sleep(0.05)
-    return None
+    """server.py for the data dir, started apart from this process."""
+    cmd = [bridge.interpreter(), str(HERE / "server.py"), "--dir", str(d)]
+    return bridge.spawn([*cmd, "--port", str(port), "--nonce", nonce])
 
 
 def read_user_settings(path):
@@ -1887,7 +1778,7 @@ def open_browser(url, cmd):
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=NO_WINDOW,
+            creationflags=bridge.NO_WINDOW,
         )
         return
     webbrowser.open(url)
@@ -1910,18 +1801,6 @@ def record_emoji_markers(d, want):
     save(d, doc)
 
 
-def record_wait_timeout(d, seconds):
-    """The resolved waitTimeout into the session env file, where watch.sh reads it."""
-    env = d / SESSION_FILES[1]
-    lines = [
-        x
-        for x in env.read_text(encoding="utf-8").splitlines()
-        if not x.startswith("WAIT_TIMEOUT=")
-    ]
-    lines.append(f"WAIT_TIMEOUT={seconds}")
-    write_private(env, "\n".join(lines) + "\n")
-
-
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
@@ -1929,8 +1808,8 @@ def cmd_ensure_running(d, a):
     with sidecar_lock(d):
         flag = a.emoji_markers
         record_emoji_markers(d, None if flag is None else emoji_flag(flag))
-        s = read_session(d)
-        live = bool(s and running(d, s))
+        s = bridge.read_session(d, NAME)
+        live = bool(s and bridge.running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The
         # session file is data-dir content, so it never supplies the browser opener or the URL.
         user = str(Path(a.user_settings).resolve()) if a.user_settings else None
@@ -1940,14 +1819,14 @@ def cmd_ensure_running(d, a):
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
-            ports = [a.port, kept_port(d)]
+            ports = [a.port, bridge.kept_port(d, NAME)]
             if a.port is None:
                 ports.append(settings["port"]["value"])
-            port = next((p for p in ports if p and port_free(p)), 0)
+            port = next((p for p in ports if p and bridge.port_free(p)), 0)
             clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
-            s = wait_started(d, nonce, proc)
+            s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
             if s is None:
                 if proc.poll() is None:
                     proc.kill()
@@ -1956,31 +1835,14 @@ def cmd_ensure_running(d, a):
                 )
         if user and s.get("userSettings") != user:
             s["userSettings"] = user
-            write_private(d / SESSION_FILES[0], json.dumps(s, indent=2) + "\n")
-        record_wait_timeout(d, settings["waitTimeout"]["value"])
+            write_private(
+                d / bridge.session_files(NAME)[0], json.dumps(s, indent=2) + "\n"
+            )
+        bridge.set_wait_timeout(d, NAME, settings["waitTimeout"]["value"])
     url = f"http://127.0.0.1:{int(s['port'])}/"
     print(url)
     if a.open and settings["openBrowser"]["value"]:
         open_browser(url, read_user_settings(user).get("browserCommand"))
-
-
-def kept_port(d):
-    """The port the session file records, running or not, else None."""
-    try:
-        port = json.loads((d / SESSION_FILES[0]).read_text(encoding="utf-8"))["port"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    ok = isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536
-    return port if ok else None
-
-
-def clear_session(d):
-    """Remove the session files but leave the port, so the next start keeps the page's origin."""
-    port = kept_port(d)
-    for name in SESSION_FILES:
-        (d / name).unlink(missing_ok=True)
-    if port:
-        write_private(d / SESSION_FILES[0], json.dumps({"port": port}) + "\n")
 
 
 def clear_finished(d):
@@ -2013,75 +1875,38 @@ def finish_on_stop(d):
     time.sleep(FINISH_SECONDS)
 
 
-def end_watcher(d, pid):
-    """TERM the lease's watcher PID, only when its command line is this data dir's watch.sh.
-
-    Where the OS shows no command line (Windows), nothing is signaled: a recorded PID there is
-    not a native PID, so it could name any process.
-    """
-    if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
-        return
-    try:
-        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ")
-        text = cmd.decode("utf-8", "replace")
-    except OSError:
-        try:
-            text = subprocess.run(
-                ["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True
-            ).stdout
-        except OSError:
-            return
-    if "watch.sh" in text and d.name in text:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGTERM)
-
-
 def cmd_stop(d, a):
     """Kill the recorded PID only when its port answers with that PID; otherwise just clear the files."""
     if not d.is_dir():
         print("not running")
         return
     with sidecar_lock(d):
-        s = read_session(d)
-        if not (s and running(d, s)):
-            clear_session(d)
+        s = bridge.read_session(d, NAME)
+        if not (s and bridge.running(d, s)):
+            bridge.clear_session(d, NAME)
             print("not running")
             return
-        watcher = (watcher_lease(d) or {}).get("pid")
+        watcher = (bridge.watcher_lease(d, NAME) or {}).get("pid")
         finish_on_stop(d)
         end_watcher(d, watcher)
         os.kill(s["pid"], signal.SIGTERM)
         deadline = time.monotonic() + START_SECONDS
-        while time.monotonic() < deadline and ping(s["port"], timeout=0.5):
+        while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
             time.sleep(0.05)
-        clear_session(d)
+        bridge.clear_session(d, NAME)
     print(f"stopped {s['pid']}")
 
 
 def cmd_lease(d, a):
     """Print the watcher holding the lease, or `no lease`; --release clears it first."""
-    s = read_session(d)
-    if not (s and running(d, s)):
+    s = bridge.read_session(d, NAME)
+    if not (s and bridge.running(d, s)):
         sys.exit("not running")
-    conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=10)
-    try:
-        if a.release:
-            conn.request(
-                "POST",
-                "/api/lease",
-                body=json.dumps({"action": "release"}),
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Interview-Token": s["token"],
-                },
-            )
-            resp = conn.getresponse()
-            resp.read()
-            if resp.status != 200:
-                sys.exit(f"release refused: HTTP {resp.status}")
-    finally:
-        conn.close()
-    lease = watcher_lease(d)
+    if a.release:
+        status = bridge.release_lease(s, NAME)
+        if status != 200:
+            sys.exit(f"release refused: HTTP {status}")
+    lease = bridge.watcher_lease(d, NAME)
     if not lease:
         print("no lease")
         return

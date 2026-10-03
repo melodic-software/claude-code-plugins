@@ -1,19 +1,58 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "goimports",
-      "check": "/go-format:check",
-      "install": "go install golang.org/x/tools/cmd/goimports@latest"
+      "id": "goimports",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:go-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "goimports"
+        ]
+      },
+      "degrade": "Without goimports, the hook cannot format edited Go files; edits still go through.",
+      "install": {
+        "go": "go install golang.org/x/tools/cmd/goimports@latest"
+      },
+      "check": "/go-format:check"
     },
     {
-      "name": "jq",
-      "check": "/go-format:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:go-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the go-format hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/go-format:check"
     },
     {
-      "name": "node",
-      "check": "/go-format:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the go-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/go-format:check"
     }
   ]
 }
