@@ -162,14 +162,17 @@ async page => {
     await page.keyboard.press("Shift+N");
     ok("AC16: Shift+N goes back (P2)", await sel() === "P2", await sel());
 
-    // R1 holds an accept followed by Claude's reply to an ask: it still needs you, so Show: Open lists it and the group counts it
+    // R1 holds an accept followed by Claude's reply to an ask: it is answered, so Show: Open leaves it out and Show: Review lists it
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
     const openIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
-    ok("Show: Open lists an accepted question with an unanswered Claude reply", openIds.includes("R1"), openIds.join(","));
+    ok("Show: Open leaves out an accepted question with an unanswered Claude reply", !openIds.includes("R1"), openIds.join(","));
     ok("Show: Open leaves out a settled question", !openIds.includes("P1"), openIds.join(","));
     ok("Show: Open leaves out a question held for research, whose newest Claude line is the hold", !openIds.includes("H1"), openIds.join(","));
+    await page.selectOption("#filter", "review"); await page.waitForTimeout(200);
+    const reviewIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
+    ok("Show: Review lists the accepted question with an unanswered Claude reply and no unanswered one", reviewIds.includes("R1") && !reviewIds.includes("P1"), reviewIds.join(","));
     ok("no Sent to Claude chip once a reply carries replyTo at or past the last event", !/Sent to Claude/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
-    ok("the group counter counts the unanswered reply", /^1 open \//.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
+    ok("the group counter counts the unanswered reply as to review, not open", /^0 open \/ \d+, 1 to review/.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
     ok("a reply after the accept puts the after-answer chip on the card", /Replied after your answer/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
     await pick("R1");
     ok("an accepted question has input:checked on the recommended row, labeled Your answer", await page.$eval("#choices .choice.rec", el => el.querySelector("input:checked") !== null && /Your answer/.test(el.textContent)), await page.textContent("#choices"));
