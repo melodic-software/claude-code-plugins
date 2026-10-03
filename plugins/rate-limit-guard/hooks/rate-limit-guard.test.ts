@@ -563,8 +563,11 @@ test('pull tool: latest figures, verdicts and the spend limit, with no line atta
   })
 })
 
-test('snapshot: body on stdin and argv, no spend limit, no session name, no account without a response time', async ($, on) => {
-  const { w } = world(on, { limits: [...limits(23.5), { kind: 'spend_limit', percentUsed: 40 }] })
+test('snapshot: body on stdin and argv, no spend limit, no session name, no account before any response', async ($, on) => {
+  const { w } = world(on, {
+    limits: [...limits(23.5), { kind: 'spend_limit', percentUsed: 40 }],
+    files: { [STATE_FILE]: { text: JSON.stringify({ oauthAccount: { emailAddress: 'me@example.com' } }), mtimeMs: 0 } },
+  })
   await bash($)
   expect(w.runs.map(r => r.argv)).toEqual([
     ['node', expect.stringMatching(/\/lib\/write-snapshot\.mjs$/), TARGET, '--preserve-key', 'rate_limits'],
@@ -681,7 +684,7 @@ test('switch: rate_limit_lines_enabled false stops lines while writes continue',
   expect(w.runs).toHaveLength(2)
 })
 
-test('account: attributed when the state file is older than the last response, omitted otherwise', async ($, on) => {
+test('account: attributed while the identity matches the one at the last response, omitted after a switch, even at an equal mtime', async ($, on) => {
   const { w, clock } = world(on, {
     files: { [STATE_FILE]: { text: JSON.stringify({ oauthAccount: { emailAddress: 'me@example.com' } }), mtimeMs: T0 - 1 } },
   })
@@ -689,7 +692,7 @@ test('account: attributed when the state file is older than the last response, o
   await bash($)
   expect(bodies(w)[0].account).toEqual({ email: 'me@example.com' })
 
-  w.files[STATE_FILE].mtimeMs = T0
+  w.files[STATE_FILE] = { text: JSON.stringify({ oauthAccount: { emailAddress: 'other@example.com' } }), mtimeMs: T0 }
   w.limits = limits(30)
   await bash($)
   expect(bodies(w)[1].account).toBeUndefined()
@@ -702,15 +705,98 @@ test('account: attributed when the state file is older than the last response, o
   expect(w.runs.every(r => !r.argv.join(' ').includes('@'))).toBe(true)
 })
 
-test('account: read from CLAUDE_CONFIG_DIR when it is set', async ($, on) => {
+test('account: read from CLAUDE_CONFIG_DIR when it is set, not from HOME', async ($, on) => {
   const { w } = world(
     on,
-    { files: { '/cfg/.claude.json': { text: JSON.stringify({ oauthAccount: { emailAddress: 'cfg@example.com' } }), mtimeMs: 0 } } },
+    {
+      files: {
+        '/cfg/.claude.json': { text: JSON.stringify({ oauthAccount: { emailAddress: 'cfg@example.com' } }), mtimeMs: 0 },
+        [STATE_FILE]: { text: JSON.stringify({ oauthAccount: { emailAddress: 'home@example.com' } }), mtimeMs: 0 },
+      },
+    },
     { HOME, CLAUDE_CONFIG_DIR: '/cfg' },
   )
   await answerStep(on, $)
   await bash($)
   expect(bodies(w)[0].account).toEqual({ email: 'cfg@example.com' })
+})
+
+const stateFile = (email: string, mtimeMs: number, extra: object = {}) => ({
+  text: JSON.stringify({ ...extra, oauthAccount: { emailAddress: email } }),
+  mtimeMs,
+})
+const MEASURE = { context: { window: 200_000 }, rateLimits: limits(20), changed: ['rateLimits'] }
+
+test('account: the first write after a startup measurement, before any step, carries the account', async ($, on) => {
+  const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } })
+  await $.session.measure(MEASURE as any)
+  expect(bodies(w)).toHaveLength(1)
+  expect(bodies(w)[0].account).toEqual({ email: 'me@example.com' })
+})
+
+test('account: a timer write during a long call keeps the account when .claude.json was rewritten with the same identity', async ($, on) => {
+  const { w, clock } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } })
+  await answerStep(on, $)
+  await $.turn.start({ text: 'go', turnId: 'turn-1' })
+  await bash($)
+  w.files[STATE_FILE] = stateFile('me@example.com', T0 + 30_000, { numStartups: 318 })
+  await clock.advance(300_000)
+  expect(bodies(w)).toHaveLength(2)
+  expect(bodies(w)[1].account).toEqual({ email: 'me@example.com' })
+})
+
+test('account: omitted when the identity changed between the last response and the write (a /login)', async ($, on) => {
+  const { w } = world(on, { files: { [STATE_FILE]: stateFile('a@example.com', T0 - 1) } })
+  await answerStep(on, $)
+  w.files[STATE_FILE] = stateFile('b@example.com', T0 - 1, { numStartups: 2 })
+  await bash($)
+  expect(bodies(w)).toHaveLength(1)
+  expect(bodies(w)[0].account).toBeUndefined()
+})
+
+for (const [label, after] of [
+  ['unreadable', undefined],
+  ['malformed JSON', { text: '{"oauthAccount": {', mtimeMs: T0 + 1 }],
+] as const) {
+  test(`account: omitted when the state file is ${label} at the write, after a response that read it`, async ($, on) => {
+    const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } })
+    await answerStep(on, $)
+    if (after === undefined) delete w.files[STATE_FILE]
+    else w.files[STATE_FILE] = after
+    await bash($)
+    expect(bodies(w)).toHaveLength(1)
+    expect(bodies(w)[0].account).toBeUndefined()
+  })
+}
+
+test('account: omitted when the state file was unreadable at the response and readable at the write', async ($, on) => {
+  const { w } = world(on)
+  await answerStep(on, $)
+  w.files[STATE_FILE] = stateFile('me@example.com', T0 - 1)
+  await bash($)
+  expect(bodies(w)[0].account).toBeUndefined()
+})
+
+test('account: an unchanged state file is read once, and read again when its mtime or size changes', async ($, on) => {
+  const reads: string[] = []
+  const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    reads.push(e.path)
+    const file = w.files[e.path]
+    if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
+    return { value: file.text }
+  })
+  await answerStep(on, $)
+  await bash($)
+  w.limits = limits(30)
+  await bash($)
+  expect(reads.filter(p => p === STATE_FILE)).toHaveLength(1)
+  expect(bodies(w).map(b => b.account)).toEqual([{ email: 'me@example.com' }, { email: 'me@example.com' }])
+  w.files[STATE_FILE] = stateFile('me@example.com', T0 + 5, { numStartups: 3 })
+  w.limits = limits(40)
+  await bash($)
+  expect(reads.filter(p => p === STATE_FILE)).toHaveLength(2)
+  expect(bodies(w)[2].account).toEqual({ email: 'me@example.com' })
 })
 
 test('fail open: a throw after the tool ran leaves its result and the context beneath, and the tool runs once', async ($, on) => {

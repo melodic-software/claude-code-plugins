@@ -113,8 +113,8 @@ every 300 seconds across the machine, checked from main-thread tool results, eac
 a turn, a 60-second timer that runs only while a turn runs, and the session's end. It never writes
 from a turn a task notification started (a paused lane's own Monitor tick), and it follows the
 plugin's on/off switch and `rate_limit_guard_enabled`. The body carries `captured_at`,
-`session_id`, the windows, and `account.email` only when the account state file is older than the
-API response the windows came from; it never carries `session_name` or `spend_limit`. A session
+`session_id`, the windows, and `account.email` only when the account in the state file at the write
+is the one it held at the last API response (a startup quota check counts); it never carries `session_name` or `spend_limit`. A session
 with no windows writes a windowless body, which never replaces a file that has windows.
 
 Process cost: an event that writes nothing starts no process; each write starts one `node`

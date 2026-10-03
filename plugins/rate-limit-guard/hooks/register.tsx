@@ -53,6 +53,8 @@ type State = {
   notice: string | undefined
   bandShown: boolean
   lastResponseAtMs: number | undefined
+  responseEmail: string | undefined
+  identityCache: { key: string; email: string | undefined } | undefined
   lastAttempt: { sig: string; at: number } | undefined
   loggedOnce: Set<string>
   writing: Promise<void>
@@ -230,22 +232,40 @@ export const isEmailShaped = (value: unknown): value is string => {
   return points.length >= 3 && points.length <= 254 && value.includes('@') && !points.some(p => p < 32 || p === 34 || p === 92 || p === 127)
 }
 
-// Omit rather than guess: attribute only when the state file is strictly older than the response
-// the windows came from.
-async function accountEmail($: EngineInterface, home: string, lastResponseAtMs: number | undefined) {
-  if (lastResponseAtMs === undefined) return undefined
-  const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || home
-  const path = `${dir}/.claude.json`
+const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
+
+// The account in the state file, undefined when unreadable or malformed. The file is large and
+// rewritten often, so a parse is kept until the file's mtime or size changes.
+async function readIdentity($: EngineInterface, st: State, home: string) {
+  const path = `${(await $.env.get('CLAUDE_CONFIG_DIR')) || home}/.claude.json`
   const stat = await $.fs.stat(path).catch(() => undefined)
-  if (stat === undefined || stat.kind !== 'file' || !(stat.mtimeMs < lastResponseAtMs)) return undefined
+  if (stat === undefined || stat.kind !== 'file') return undefined
+  const key = `${path}|${stat.mtimeMs}|${stat.size}`
+  if (st.identityCache?.key === key) return st.identityCache.email
   const text = await $.fs.read(path).catch(() => undefined)
   if (typeof text !== 'string') return undefined
+  let email: string | undefined
   try {
-    const email: unknown = JSON.parse(text)?.oauthAccount?.emailAddress
-    return isEmailShaped(email) ? email : undefined
-  } catch {
-    return undefined
-  }
+    const value: unknown = JSON.parse(text)?.oauthAccount?.emailAddress
+    email = isEmailShaped(value) ? value : undefined
+  } catch {}
+  st.identityCache = { key, email }
+  return email
+}
+
+// An API response: its time, and the account it was for.
+async function recordResponse($: EngineInterface, st: State, cfg: Config) {
+  st.lastResponseAtMs = await $.clock.now()
+  st.responseEmail = undefined
+  const home = await homeDir($)
+  if (cfg.writes && home) st.responseEmail = await readIdentity($, st, home)
+}
+
+// Omit rather than guess: attribute only when the account now is the one read at the last response.
+async function accountEmail($: EngineInterface, st: State, home: string) {
+  if (st.responseEmail === undefined) return undefined
+  const email = await readIdentity($, st, home)
+  return email !== undefined && email === st.responseEmail ? email : undefined
 }
 
 export const snapshotBody = (capturedAt: string, sessionId: string, reading: Reading, email?: string): Body => {
@@ -278,11 +298,11 @@ const logOnce = ($: EngineInterface, st: State, key: string, text: string) => {
 // Decides in memory whether to write, so an event that writes nothing starts no process.
 async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger: 'event' | 'timer') {
   if (!cfg.writes || st.origin?.kind === 'task-notification' || st.reading === undefined) return
-  const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
+  const home = await homeDir($)
   if (!home) return
   const target = `${home}/.claude/${CONTRACT_DIR}/${SNAPSHOT_FILE}`
   const [now, sessionId] = await Promise.all([$.clock.now(), $.session.id()])
-  const email = await accountEmail($, home, st.lastResponseAtMs)
+  const email = await accountEmail($, st, home)
   const body = snapshotBody(isoSeconds(now), sessionId, st.reading, email)
   const onDisk = await $.fs
     .read(target)
@@ -373,6 +393,8 @@ export const register: Register = (on, options) => {
     notice: undefined,
     bandShown: cfg.band,
     lastResponseAtMs: undefined,
+    responseEmail: undefined,
+    identityCache: undefined,
     lastAttempt: undefined,
     loggedOnce: new Set(),
     writing: Promise.resolve(),
@@ -427,6 +449,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
+    await recordResponse($, st, cfg).catch(() => undefined)
     await refresh($, st, cfg, e.rateLimits)
     await queueWrite($, st, cfg, 'event')
     return next(e)
@@ -434,7 +457,7 @@ export const register: Register = (on, options) => {
 
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
-    st.lastResponseAtMs = await $.clock.now()
+    await recordResponse($, st, cfg).catch(() => undefined)
     return result
   }).catch(async function* ($, e, next) {
     return yield* next(e)
