@@ -429,6 +429,70 @@ test('operator mode: a suggestion that cannot show goes to Claude at the next pr
   expect(ownLines((await prompt($, 'composer')).context)[0]).toContain('is at the 90% pause edge')
 })
 
+const OPERATOR = { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }
+const EDGE_5H = `rate-limit-guard: the 5-hour window is at the 90% pause edge, resets at 2026-10-03 21:00 UTC ${SOURCE}`
+const shownInTypedTurn = async ($: any, w: World, next = limits(91)) => {
+  await prompt($, 'composer')
+  w.limits = next
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toHaveLength(1)
+}
+const noticeText = async ($: any) => {
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const found = await ui.find({ type: 'Text', text: /notice/ })
+  await ui.unmount()
+  return found?.text
+}
+
+for (const kind of ['scheduled-trigger', 'task-notification', 'sdk']) {
+  test(`operator mode: a shown suggestion not taken goes to Claude at the next ${kind} turn, once`, OPERATOR, async ($, on) => {
+    const { w } = world(on)
+    await shownInTypedTurn($, w)
+    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', EDGE_5H])
+    expect(await noticeText($)).toBeUndefined()
+    expect(ownLines((await prompt($, kind)).context)).toEqual([])
+  })
+}
+
+for (const kind of ['composer', 'bridge']) {
+  test(`operator mode: a new ${kind} turn clears a shown suggestion unsent`, OPERATOR, async ($, on) => {
+    const { w } = world(on)
+    await shownInTypedTurn($, w)
+    expect(ownLines((await prompt($, kind)).context)).toEqual([])
+    expect(await noticeText($)).toBeUndefined()
+    expect(ownLines((await prompt($, 'scheduled-trigger')).context)).toEqual([])
+  })
+}
+
+test('operator mode: a prompt delivered into a running turn leaves a shown suggestion pending', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w)
+  expect(ownLines((await prompt($, 'task-notification', { turnId: 'turn-1' })).context)).toEqual([])
+  expect(await noticeText($)).toBe(`rate-limit-guard notice: FYI, ${EDGE_5H}`)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+})
+
+test('operator mode: a hand-off and a restatement due at the same prompt send each window once', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w, limits(91, 86))
+  await $.session.end({ reason: 'clear', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([
+    EDGE_5H,
+    `rate-limit-guard: the 7-day window is approaching the 90% pause edge, resets at 2026-10-08 09:00 UTC ${SOURCE}`,
+  ])
+})
+
+test('automatic mode: a typed turn gets the line at once, offers nothing and hands nothing off', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([])
+})
+
 test('band: dashes before a reading, figures after, kept above what is drawn beneath', NO_WRITES, async ($, on) => {
   const { w } = world(on, { limits: [] })
   for (const surface of ['terminal', 'desktop'] as const) {

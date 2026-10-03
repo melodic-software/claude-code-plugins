@@ -68,7 +68,9 @@ suggestion (Tab takes it) and shown as a notice in the band. With text in the bo
 shows, and the suggestion is offered again once the box is empty. Where nobody can take a
 suggestion, the line goes to Claude as in automatic mode: `-p` and SDK turns, `/loop` and scheduled
 turns, task notifications and other non-typed turns, a session with no drawing surface (such as
-the VS Code panel), and a suggestion the session reports it cannot show.
+the VS Code panel), and a suggestion the session reports it cannot show. A suggestion that showed
+but was not taken goes to Claude as the automatic line at the next turn no person started; a turn
+a person starts drops it unsent.
 
 Upstream's render-sites table lists the band's site, `AbovePrompt`, as drawn in the terminal and
 the Desktop app. No probe of this plugin ran in the Desktop app or VS Code, so the band, the
@@ -80,8 +82,8 @@ notice and the suggestion there are untested.
   plugin is made.
 
 A `--bg` session reports its first prompt as typed, so in operator mode a `--bg` lane gets no line
-from that turn. A lane that needs the lines starts its session with its own options through
-`--settings`, which can set any key user settings can, including the plugin's `pluginConfigs`
+from that turn; its line reaches Claude at the lane's next turn no person started. A lane that
+wants the lines at once may start its session with its own options through `--settings`, which can set any key user settings can, including the plugin's `pluginConfigs`
 entry: `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
 {"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
 

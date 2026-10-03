@@ -44,6 +44,8 @@ type State = {
   limits: readonly SessionRateLimit[]
   model: string | undefined
   pending: Map<string, Event>
+  // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
+  handoff: Map<string, Event>
   restate: boolean
   restateIfLoud: boolean
   forceAutomatic: boolean
@@ -145,15 +147,18 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
 }
 
 
-// The lines due now, one per window, without consuming them.
-const dueLines = (st: State, cfg: Config): string[] => {
-  const reading = st.reading ?? new Map()
+// The events due now, one per window, without consuming them.
+const dueEvents = (st: State): [string, Event][] => {
   // After /clear or a fresh load mid-session, only a window at the edge is restated.
   const atEdge = st.restateIfLoud ? [...st.levels].filter(([, w]) => w.level === 'edge').map(([kind]) => kind) : []
-  const events: [string, Event][] = st.restate
-    ? [...reading.keys()].map(kind => [kind, st.levels.get(kind)?.level ?? 'quiet'])
+  return st.restate
+    ? [...(st.reading ?? new Map()).keys()].map(kind => [kind, st.levels.get(kind)?.level ?? 'quiet'])
     : [...new Map<string, Event>([...st.pending.entries(), ...atEdge.map(kind => [kind, 'edge'] as const)])]
-  return events
+}
+
+const dueLines = (st: State, cfg: Config): string[] => {
+  const reading = st.reading ?? new Map()
+  return dueEvents(st)
     .sort(([a], [b]) => order(a) - order(b))
     .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)} ${SOURCE_NOTE}`)
 }
@@ -328,6 +333,7 @@ async function offer($: EngineInterface, st: State) {
   if (box.text.trim() !== '') return false
   const { isShown } = await $.prompt.suggest({ text })
   if (isShown) {
+    st.handoff = new Map([...st.handoff, ...dueEvents(st)])
     consume(st)
   } else {
     st.notice = undefined
@@ -351,6 +357,7 @@ export const register: Register = (on, options) => {
     limits: [],
     model: undefined,
     pending: new Map(),
+    handoff: new Map(),
     restate: false,
     restateIfLoud: false,
     forceAutomatic: false,
@@ -424,7 +431,15 @@ export const register: Register = (on, options) => {
   on('prompt.submit', async ($, e, next) => {
     if (e.turnId === undefined) {
       st.origin = e.origin
-      if (isPersonTurn(st) && st.notice !== undefined) {
+      // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
+      const handingOff = !isPersonTurn(st) && st.handoff.size > 0
+      if (handingOff) {
+        for (const [kind, event] of st.handoff) {
+          if (!st.pending.has(kind) && (event === 'reset' || st.levels.has(kind))) st.pending.set(kind, event)
+        }
+      }
+      st.handoff.clear()
+      if ((isPersonTurn(st) || handingOff) && st.notice !== undefined) {
         st.notice = undefined
         st.reofferTimer = stopTimer(st.reofferTimer)
         $.ui.invalidate('ui.render')
