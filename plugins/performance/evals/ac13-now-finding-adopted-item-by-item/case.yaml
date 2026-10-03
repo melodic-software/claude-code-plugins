@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: ac13-now-finding-adopted-item-by-item
+description: 'Source: plan acceptance criterion AC13. Resumes a session that ran `npm run lint` three times with no edit between runs and read one file twice; the lint repeat is a now finding, asked about item by item, and only it is adopted. The adoption record sits in the data folder outside the workspace, so its fields are judged from the trace. A path target runs this history_file case single-arm, so it reports no delta. A run needs --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC13. The fixture session ran `npm run lint` three times with no edit between runs and read one file twice. The report offers the lint repeat as a now finding meeting R1 (measured, tier E1, guard and revert condition). The skill asks item by item, adopts only the lint item, records it in adopted.jsonl, and lists it with findings.py adopted for this session.'
+context:
+  history_file: ac13-now-finding-adopted-item-by-item.jsonl
+execution:
+  prompt: '/performance:go-faster. When it asks about adopt-now items: yes to reusing the lint output, no to everything else.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+graders:
+  - name: lint-repeat-measured
+    type: llm
+    criteria: 'PASS only if: Under ''Measured: count'', the report lists the repeated `npm run lint` finding with value 3, tier E1 and horizon now. FAIL otherwise.'
+  - name: adopt-now-guard-and-revert
+    type: llm
+    criteria: 'PASS only if: The ''Adopt now'' section has a line for that finding (the repeated `npm run lint`) whose guard reads ''a reused result differs from a fresh run'' and whose revert condition reads ''the inputs changed since the earlier run''. FAIL otherwise.'
+  - name: asks-item-by-item
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The reply asks about each adopt-now item on its own numbered line. FAIL otherwise.'
+  - name: adopts-lint-only
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopt\s'
+    min: 1
+    max: 1
+  - name: adopted-record-fields
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: adopted.jsonl gains one record carrying this session''s id, the lint finding''s id and key, its guard_metric and its revert_if. FAIL otherwise.'
+  - name: adopted-listed-for-session
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: After the run, `findings.py adopted --data <DATA> --session <this session id>` prints that record. FAIL otherwise.'
+  - name: states-behavior-guard-check
+    type: llm
+    criteria: 'PASS only if: The reply states the behavior change (reuse the earlier lint output while its inputs are unchanged), its guard, and when the guard is checked. FAIL otherwise.'

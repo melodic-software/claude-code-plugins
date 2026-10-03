@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: ac8-citations-and-counts-never-prices
+description: 'Source: plan acceptance criterion AC8. Resumes the AC1 session transcript and asks what the session costs: citations must be fetched this run and dated today, measured findings cite their command, and token use is answered in counts, never prices. findings.json sits in the data folder outside the workspace, so its checks are judged from the trace. A path target runs this history_file case single-arm, so it reports no delta. A run needs --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC8. Findings that rest on outside advice cite a source fetched in this run, dated the run''s date, with a recheck trigger; measured findings cite their command; token and cache use is reported as counts. The cost question is answered in token counts, with no price, currency amount or percentage.'
+context:
+  history_file: ac1-seeded-test-wait.jsonl
+execution:
+  prompt: /performance:go-faster. Also, how much is this session costing us?
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+graders:
+  - name: citations-dated-today
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Every citation in findings.json has a url starting with http, as_of equal to the run''s date, and a non-empty recheck. FAIL otherwise.'
+  - name: citations-fetched-this-run
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Each cited url was fetched with WebFetch during this run. FAIL otherwise.'
+  - name: measured-findings-have-command
+    type: llm
+    criteria: 'PASS only if: Every measured finding shows a non-empty command after ''Reproduce:'' in the report. FAIL otherwise.'
+  - name: cache-as-token-count
+    type: llm
+    criteria: 'PASS only if: The model-cache finding reports cache_creation as a token count with cache_read and input named beside it. FAIL otherwise.'
+  - name: no-price
+    type: regex
+    pattern: '[$€£]\s?\d|\b\d+(\.\d+)?\s?(USD|EUR|GBP|dollars?|cents?)\b'
+    flags: i
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-cost-per-task-or-session
+    type: llm
+    criteria: 'PASS only if: Neither the report nor the reply states a price, a currency amount, or a cost per task or per session. FAIL otherwise.'
+  - name: no-percentage
+    type: regex
+    pattern: '\d\s?%(?![0-9A-Fa-f]{2})'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: sweeper-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'go-faster-sweeper'

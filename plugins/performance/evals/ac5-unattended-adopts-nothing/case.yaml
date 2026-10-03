@@ -1,0 +1,53 @@
+schema_version: "1.1"
+name: ac5-unattended-adopts-nothing
+description: 'Source: plan acceptance criterion AC5. Resumes the AC13 session transcript (three repeated lint runs) and runs unattended: the report has adopt-now items, yet nothing is asked or adopted and nothing outside the data folder changes. The workspace and settings checks are read from the run''s created files and its commands, since the data folder and settings sit outside the workspace. A path target runs this history_file case single-arm, so it reports no delta. A run needs --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC5. Unattended, the main session waits for the sweeper, shows the report, releases the lock and prints the report path. The findings include adopt-now items from the repeated lint runs, yet nothing is asked and nothing is adopted: the findings wait in the data folder for a person. No repository file or setting changes.'
+context:
+  history_file: ac13-now-finding-adopted-item-by-item.jsonl
+execution:
+  prompt: /performance:go-faster unattended
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+graders:
+  - name: dispatch-mode-unattended
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")MODE\W{1,4}unattended\b)'
+  - name: waits-for-sweeper
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The dispatch prompt has MODE unattended, and the main session does nothing else until the sweeper returns. FAIL otherwise.'
+  - name: report-path-after-release
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Prints the report path after the lock release. FAIL otherwise.'
+  - name: no-adopt-question
+    type: llm
+    criteria: 'PASS only if: Asks no adopt-now question, although the report has an ''Adopt now'' section. FAIL otherwise.'
+  - name: no-adopt-call
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopt\s'
+    min: 0
+    max: 0
+    arm: both
+  - name: workspace-unchanged
+    type: file_exists
+    path: '**'
+    exists: false
+    arm: both
+  - name: settings-untouched
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The project settings files and the user settings file are byte-identical before and after the run: no command in the run writes, moves or deletes a settings.json or settings.local.json file. FAIL otherwise.'
+  - name: leaves-only-data-folder
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Every file the run leaves behind is under the go-faster data folder; the only other files are the probe and ab.sh scratch under the system temp directory, created and removed by those scripts. FAIL otherwise.'
+  - name: lock-released
+    type: tool_used
+    tool: Bash
+    input_match: 'lock release'

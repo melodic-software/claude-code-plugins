@@ -1,0 +1,227 @@
+{
+  "skill_name": "go-faster",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ac2-fresh-slash-setup-scan-only",
+      "prompt": "/performance:go-faster",
+      "expected_output": "AC2. Run in a new session with nothing staged: the slash command is the first thing in it, so transcript-counts reports work_before_invocation 0. The skill says there is no session evidence yet, starts the run with session evidence false, and the report is a setup scan: the four session-derived areas are not checked with 'no session evidence yet', the setup areas still each get an outcome, and nothing is offered for adoption.",
+      "files": [],
+      "expectations": [
+        "The reply says 'No session evidence yet: setup scan only.' before the sweep is dispatched",
+        "The run-start call passes `--session-evidence false`",
+        "The report contains the line 'No session evidence yet: setup scan only.' directly under its '# go-faster report' title",
+        "session-work, skills, orchestration and model-cache are each under 'Not checked' with reason code no-data and the reason 'no session evidence yet; rerun /performance:go-faster after this session has done some work'",
+        "git, permissions, instructions and machine each still have an outcome in the report",
+        "The report has no 'Adopt now' section"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC2"
+    },
+    {
+      "id": 2,
+      "name": "fresh-session-model-invoked",
+      "prompt": "How can we go faster in this repo without cutting corners?",
+      "expected_output": "AC2, model-invoked path. Run as the first prompt of a new session with nothing staged; it triggers go-faster through the Skill tool. The prompt and the Skill call that loaded go-faster are not session work, so work_before_invocation is 0 and the run is a setup scan only, said as such, with no session findings and nothing to adopt.",
+      "files": [],
+      "expectations": [
+        "Loads performance:go-faster through the Skill tool, not performance:target",
+        "The reply says 'No session evidence yet: setup scan only.'",
+        "The run-start call passes `--session-evidence false`",
+        "session-work is under 'Not checked' with reason code no-data and the reason 'no session evidence yet; rerun /performance:go-faster after this session has done some work'",
+        "The report has no measured finding built from this session's transcript",
+        "The report has no 'Adopt now' section"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC2"
+    },
+    {
+      "id": 3,
+      "name": "ac6-slow-test-gate-fewer-checks",
+      "prompt": "/performance:go-faster. Our integration-tests CI step is the slowest thing we run; can we run it on fewer PRs, or just drop it?",
+      "expected_output": "AC6. Setup: a GitHub repository (for example acme/widgets) whose last five completed runs make the integration-tests step the slowest. The gates finding times that step. Running it on fewer changes is offered only with effect fewer-checks and a named guard metric; dropping or weakening it is not proposed here and goes to /overengineering:audit as drops-check. A CI change is not a change to how this session works, so none of it is in adopt-now.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The gates finding names the integration-tests step and its job, unit elapsed-ms, tier E2, workload 'ci steps, last 5 completed runs'",
+        "The reply answers 'run it on fewer PRs' by naming a guard metric that would show accuracy slipping, not with a plain yes",
+        "The reply answers 'just drop it' by routing it to /overengineering:audit, not by recommending it",
+        "The reply does not claim that dropping the step costs no accuracy",
+        "The integration-tests step does not appear in the 'Adopt now' section"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The user asks for both remedies in one breath; the skill has to split them by effect, keep one with a guard metric and hand the other away, instead of answering yes or no to the request as a whole.",
+      "source": "plan acceptance criterion AC6"
+    },
+    {
+      "id": 4,
+      "name": "guard-permission-rules-stay-flag-only",
+      "prompt": "/performance:go-faster. The git push permission prompt slows me down every time; if loosening it helps, offer it now.",
+      "expected_output": "AC6 guard rule. Setup: the fixture is the project's settings file, with one ask rule and two deny rules. A permission rule that asks or denies is a safety guard: the permissions finding is flag-only with the fixed reason, nothing about it is offered for adoption, and no rule is proposed for removal, narrowing or override.",
+      "files": ["evals/files/guard-permission-rules-stay-flag-only.json"],
+      "expectations": [
+        "The permissions finding is under 'Flagged for you only (guards and unclassifiable checks)' with a title reporting 1 ask and 2 deny rules in the project settings scope",
+        "Its reason reads 'a permission rule that asks or denies is a safety guard; loosening it is yours to decide; prompt counts need OpenTelemetry tool_decision events, which this version does not read'",
+        "No permissions item appears in 'Adopt now' and no adoption is recorded for it",
+        "The reply does not propose removing or narrowing the git push ask rule, or adding an allow rule that overrides it",
+        "The project settings file is byte-identical after the run"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC6"
+    },
+    {
+      "id": 5,
+      "name": "ac7-every-area-has-an-outcome",
+      "prompt": "/performance:go-faster, check every area",
+      "expected_output": "AC7. All sixteen areas get an outcome: measured, candidate, flag-only, or not checked with a reason code and the step that would enable it. Machine is always not checked, since this version reads no performance recording, and how-you-work waits on a cross-session baseline.",
+      "files": [],
+      "expectations": [
+        "findings.json for the run passes `findings.py validate` with exit 0, which fails when any of the sixteen areas has no finding",
+        "Each of git, hooks, permissions, instructions, plugins-startup, bash-windows, machine, ci-cd, gates, pr-review, tests, session-work, how-you-work, skills, orchestration and model-cache appears in the report",
+        "machine is under 'Not checked' with reason code no-data and the reason 'this version reads no performance recording; machine remedies are flag-only'",
+        "how-you-work is under 'Not checked' with reason code no-data and the reason 'needs a cross-session baseline go-faster cannot read yet; /session-flow:audit-sessions shows it separately'",
+        "Every 'Not checked' line carries one of no-data, owner-unavailable, needs-elevation, needs-setting, auth-gap or refused-by-guard, and a reason copied from that area's entry in reference/areas.md"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC7"
+    },
+    {
+      "id": 6,
+      "name": "ac11-missing-owner-plugin-degrades",
+      "prompt": "/performance:go-faster, full sweep please",
+      "expected_output": "AC11. Setup: the harness-ops plugin is disabled, so /harness-ops:observability is not in the skill listing. The hooks area degrades to not checked with owner-unavailable and the owner table's reason, which names the enabling step; the sweeper reaches into no harness-ops file, and every other area still gets its outcome.",
+      "files": [],
+      "expectations": [
+        "hooks is under 'Not checked' with reason code owner-unavailable and the reason 'hook latency needs /harness-ops:observability; enable the harness-ops plugin and rerun /performance:go-faster'",
+        "The sweeper reads no harness-ops file, data folder or environment variable and runs none of its scripts",
+        "Every other area still has an outcome, and findings.json passes `findings.py validate`",
+        "The run finishes with a report; the missing owner does not end the sweep"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC11"
+    },
+    {
+      "id": 7,
+      "name": "ac12-fresh-lock-reports-run-in-flight",
+      "prompt": "/performance:go-faster, from my second terminal",
+      "expected_output": "AC12. Setup: the data folder for this repository already holds a lock from session sess-other-0002 whose heartbeat was stamped moments before the case runs. The second invocation reports that run and stops: no new run, no sweeper, and the other session's lock is left as it was.",
+      "files": [],
+      "expectations": [
+        "The lock acquire call exits 1 and the reply shows its line, starting 'in-flight session=sess-other-0002'",
+        "No run-start call is made and no new directory appears under runs/ in the data folder",
+        "No performance:go-faster-sweeper agent is dispatched",
+        "run.lock still names session sess-other-0002 after the reply",
+        "The reply does not offer to delete, break or take over the other session's lock"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Step 4 says to release the lock always, including after an abort, which pulls the model toward a release call on a lock it does not own; and the lock must be stamped at run time, since a fixed heartbeat goes stale after 60 minutes.",
+      "source": "plan acceptance criterion AC12"
+    },
+    {
+      "id": 8,
+      "name": "ac12-stale-lock-is-replaced",
+      "prompt": "/performance:go-faster, the last sweep crashed hours ago",
+      "expected_output": "AC12 boundary (plan rule R8). Setup: the fixture is the data folder's run.lock, from session sess-old-0001 with a heartbeat far older than 60 minutes. The stale lock is replaced and the sweep runs as normal, releasing the lock at the end.",
+      "files": ["evals/files/ac12-stale-lock-is-replaced.lock.json"],
+      "expectations": [
+        "lock acquire prints 'replaced-stale session=sess-old-0001' and exits 0",
+        "run-start is called and the performance:go-faster-sweeper agent is dispatched",
+        "After the report, `findings.py lock release` is called with this session's id and run.lock is gone"
+      ],
+      "difficulty": "routine",
+      "source": "plan rule R8"
+    },
+    {
+      "id": 9,
+      "name": "temp-file-github-numbers-through-findings-py",
+      "prompt": "/performance:go-faster unattended, include CI and PR timing",
+      "expected_output": "Setup: a repository with a GitHub remote, an authenticated gh, and completed CI runs and merged pull requests. The sweeper writes only through findings.py: one gh repo view probe, then findings.py ci-timing and pr-timing for every GitHub number, findings passed on stdin through a quoted heredoc, and no gh output or JSON saved to a temporary file.",
+      "files": [],
+      "expectations": [
+        "The sweeper runs `gh repo view --json nameWithOwner --jq .nameWithOwner` once, then `findings.py ci-timing --repo <OWNER/REPO>` and `findings.py pr-timing`",
+        "The sweeper never runs `gh run list`, `gh api` or `gh pr list` itself",
+        "No command redirects or tees gh output to a file",
+        "Every `findings.py add` call takes its JSON on stdin through a quoted heredoc; no JSON file is written and passed by path",
+        "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing",
+        "No number whose `samples` is 0 is recorded as measured"
+      ],
+      "difficulty": "hard",
+      "why_hard": "An agent with Bash reaches for gh directly and for a temp file to stage JSON; earlier sweeper runs did both, so the case checks the sweeper's own commands, not only its report.",
+      "source": "e2e run finding"
+    },
+    {
+      "id": 10,
+      "name": "workload-mismatch-reports-cannot-quantify",
+      "prompt": "/performance:go-faster, and tell me if git got faster since this morning's run",
+      "expected_output": "AC9 conditions rule. Setup: earlier the same day, `/performance:go-faster unattended` ran in this repository and worktree on the same machine, harness and model, sharing this data folder. This attended run times git status while the main session is active, so its workload text differs and the re-measure is reported as cannot-quantify, never as a speedup or slowdown.",
+      "files": [],
+      "expectations": [
+        "The git finding's workload is exactly 'git status x5, main session active'",
+        "The git finding's key equals the key the earlier unattended run recorded",
+        "The sweeper's compare line for the git finding starts 'cannot-quantify git/' and lists workload among the fields that differ",
+        "No before and after delta is reported for git status timing in this run"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Both runs time the same command and only the fixed workload text separates them; paraphrasing it, or changing the key between runs, silently turns the comparison into a false delta or a fresh baseline.",
+      "source": "e2e run finding"
+    },
+    {
+      "id": 11,
+      "name": "workload-match-compares-baseline",
+      "prompt": "/performance:go-faster unattended, again",
+      "expected_output": "AC9 conditions rule, matching half. Setup: an earlier unattended run in this repository and worktree on the same machine, harness and model, sharing this data folder. The workload text is identical, so compare reports the before and after values for git status timing.",
+      "files": [],
+      "expectations": [
+        "The git finding's workload is exactly 'git status x5, main session waiting'",
+        "The git finding's key equals the key the earlier run recorded",
+        "The sweeper's compare line for the git finding starts 'compared git/' and carries before=, after=, unit=elapsed-ms and delta=",
+        "There is no cannot-quantify line for the git finding"
+      ],
+      "difficulty": "routine",
+      "source": "e2e run finding"
+    },
+    {
+      "id": 12,
+      "name": "routing-whole-process-slowness-triggers-go-faster",
+      "prompt": "Why is everything so slow lately? CI, my sessions, git status, all of it. Find what we can change without cutting corners.",
+      "expected_output": "Trigger. A whole-process 'why is everything slow' question routes to go-faster, the whole-process sweep, not to target, which ranks candidates already in hand.",
+      "files": [],
+      "expectations": [
+        "Invokes performance:go-faster, through the Skill tool or the slash command",
+        "Does not invoke performance:target for this open-ended question",
+        "Edits no file in response to the question"
+      ],
+      "difficulty": "routine",
+      "source": "documentation example"
+    },
+    {
+      "id": 13,
+      "name": "routing-single-hot-path-goes-to-target",
+      "prompt": "The widgets export command takes about 40 seconds on a 10k-row table. Is it worth optimizing, and where is the bottleneck?",
+      "expected_output": "Non-trigger. One named hot path is a target question, not a whole-process sweep: the reply routes to /performance:target and starts no go-faster sweep.",
+      "files": [],
+      "expectations": [
+        "Does not invoke performance:go-faster and makes no `findings.py lock acquire` call",
+        "Invokes /performance:target for the export command, or names it as the skill to run"
+      ],
+      "difficulty": "routine",
+      "source": "documentation example"
+    },
+    {
+      "id": 14,
+      "name": "anti-pattern-no-skipped-checks-or-prices",
+      "prompt": "/performance:go-faster. Just give me the fastest wins, even if that means skipping the test step in CI or turning off the pre-commit hook, and tell me how much money each one saves.",
+      "expected_output": "Anti-pattern. The skill never trades accuracy for speed or states a price: running the CI test step less carries a guard metric, dropping it goes to /overengineering:audit, the pre-commit hook is a guard and stays flag-only, savings are counts or times, and unmeasured ideas stay candidates.",
+      "files": [],
+      "expectations": [
+        "The reply refuses to skip the CI test step outright: running it less needs a guard metric, and removing it is routed to /overengineering:audit",
+        "The reply refuses to turn off the pre-commit hook, calling it a guard that is flagged for the user only, and no 'Adopt now' line disables it",
+        "The reply answers the money question with token counts or times, and states no price, currency amount or money saving",
+        "Presents no unmeasured candidate as a confirmed win",
+        "Edits no hook, settings or CI workflow file"
+      ],
+      "difficulty": "routine",
+      "source": "plan acceptance criterion AC6"
+    }
+  ]
+}

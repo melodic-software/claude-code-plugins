@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: ac4-attended-sweep-runs-in-background
+description: 'Source: plan acceptance criterion AC4. Hard: whether the subagent runs in the background is the harness''s choice, and a print-mode run may foreground it; the grader has to judge when the report appeared relative to the rename edits, not just whether it appeared. Resumes the AC1 session transcript; the scaffold seeds src/widgets so the rename has files to edit. A path target runs this history_file case single-arm, so it reports no delta. A run needs --scaffold, --allow-tools Bash Edit WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, hard]
+plugins: ["../.."]
+expected_outcome: 'AC4. The sweep runs in a fresh context: the main session dispatches the go-faster-sweeper agent in attended mode, says in one line that the sweep is running, and carries on with the rename. The report arrives once, at a natural break after the rename work, never interleaved with it.'
+context:
+  scaffold_script: scaffold.sh
+  history_file: ac1-seeded-test-wait.jsonl
+execution:
+  prompt: /performance:go-faster, and while that runs, rename listWidgets to fetchWidgets across the src folder.
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch, Edit]
+  max_turns: 100
+  timeout_seconds: 1800
+graders:
+  - name: sweeper-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'go-faster-sweeper'
+  - name: dispatch-carries-labels
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")PY\b)(?=.*(?:\\n|")ROOT\b)(?=.*(?:\\n|")RUN\b)(?=.*(?:\\n|")DATA\b)(?=.*(?:\\n|")SESSION\b)(?=.*(?:\\n|")TRANSCRIPT\b)(?=.*(?:\\n|")EVIDENCE\b)(?=.*(?:\\n|")MODE\W{1,4}attended\b)'
+  - name: one-line-running-notice
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Tells the user in one line that the sweep is running. FAIL otherwise.'
+  - name: rename-after-dispatch
+    type: tool_order
+    before: { tool: Agent, input_match: 'go-faster-sweeper' }
+    after: Edit
+  - name: rename-not-blocked-on-sweeper
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Makes rename edits (listWidgets to fetchWidgets) after the dispatch of the go-faster-sweeper agent without first waiting for the sweeper''s result. FAIL otherwise.'
+  - name: report-after-rename
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Shows the report only after the rename reaches a stopping point, never between rename edits. FAIL otherwise.'
+  - name: one-report-from-report-md
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Shows one report read from the run''s report.md, not per-area updates as the sweep goes. FAIL otherwise.'

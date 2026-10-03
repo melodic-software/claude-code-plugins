@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "performance:go-faster-sweeper",
+            "description": "go-faster sweep",
+            "prompt": "PY: /usr/bin/python3\nROOT: /plugins/performance\nRUN: /data/go-faster/k/runs/r1\nDATA: /data/go-faster/k\nSESSION: s-1\nTRANSCRIPT: /home/.claude/projects/p/s-1.jsonl\nMODE: attended\nEVIDENCE: true"
+          }
+        }
+      ],
+      "why": "all eight labels, MODE attended"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "performance:go-faster-sweeper",
+            "prompt": "PY: /usr/bin/python3\nROOT: /plugins/performance\nRUN: /data/go-faster/k/runs/r1\nDATA: /data/go-faster/k\nSESSION: s-1\nTRANSCRIPT: /home/.claude/projects/p/s-1.jsonl\nMODE: unattended\nEVIDENCE: true"
+          }
+        }
+      ],
+      "why": "MODE unattended"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "performance:go-faster-sweeper",
+            "prompt": "PY: /usr/bin/python3\nROOT: /plugins/performance\nRUN: /data/go-faster/k/runs/r1\nDATA: /data/go-faster/k\nSESSION: s-1\nMODE: attended\nEVIDENCE: true"
+          }
+        }
+      ],
+      "why": "TRANSCRIPT missing"
+    }
+  ]
+}
