@@ -13,6 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { readLaneJson } from "../lib/watch-frame-index.js";
+import { frameMinuteLabel } from "../watching/timestamp-interleave.js";
 
 /**
  * @param {string} sliceDir
@@ -31,9 +32,11 @@ export function renderTriageLog(sliceDir) {
 
   for (const sheet of manifest.sheets) {
     const midCell = sheet.cells.find((c) => c.cell === "R3C2");
-    const midMin = midCell?.timestampSec ? Math.round(midCell.timestampSec / 60) : null;
+    const midLabel = midCell
+      ? ` (${frameMinuteLabel(midCell.timestampSec, midCell.timestampSource)})`
+      : "";
     lines.push(
-      `## ${sheet.sheetId}${midMin != null ? ` (~${midMin}m)` : ""}`,
+      `## ${sheet.sheetId}${midLabel}`,
       "",
       "| Cell | Frame | Verdict | Notes |",
       "| --- | --- | --- | --- |",

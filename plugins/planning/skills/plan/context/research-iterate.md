@@ -35,7 +35,7 @@ From the `/planning:devils-advocate` output, extract each CRITICAL and HIGH find
 
 ### 2. Research targeted queries
 
-Run targeted research (invoke `/discovery:research` via the Skill tool if installed, or the strongest research capability available) with specific queries targeting each finding:
+Run targeted research (invoke `/discovery:research` via the Skill tool if enabled, or the strongest research capability available) with specific queries targeting each finding:
 
 - Include the exact claim that failed
 - Include version numbers and context

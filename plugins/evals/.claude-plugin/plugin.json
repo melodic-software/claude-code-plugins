@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "evals",
-  "version": "0.3.13",
+  "version": "0.4.0",
   "description": "LLM evaluation methodology, eval-suite design, and guided practice around the Claude Code eval runner, distilled from Anthropic's official evaluation guidance: a knowledge router over success criteria, eval design, and grading methods (/evals:methodology); an action skill that interviews for measurable success criteria and scaffolds a graded eval suite for an LLM app or a Claude Code skill (/evals:design); a guided runner that preflights the CLI and the target, prices a suite before it spends, and reads the with-versus-without delta (/evals:plugin-eval); and a static case-file check that spends nothing and makes no model call (/evals:validate).",
   "author": {
     "name": "Melodic Software",
@@ -20,6 +20,45 @@
       "type": "boolean",
       "title": "No cost ceiling",
       "description": "Drop --max-cost-usd from the invocation so a suite always runs to completion. The estimate is still printed before the run; only the ceiling goes away.",
+      "default": false
+    },
+    "split_policy": {
+      "type": "string",
+      "title": "Train/test split policy",
+      "description": "How eval cases split when a skill or prompt is tuned against them. train-test (the default) splits train and test as the bundled hillclimb guide does; reporting-only also holds back a split that no keep-or-revert decision or final pick reads, used only to report the result.",
+      "default": "train-test",
+      "options": ["train-test", "reporting-only"]
+    },
+    "interval_method": {
+      "type": "string",
+      "title": "Interval method for pass counts",
+      "description": "Interval the noise report puts on the count of cases that pass the threshold. normal (the default) uses the normal approximation; wilson uses the Wilson score interval; jeffreys uses the Jeffreys interval. Score intervals and the with-versus-without difference always use normal.",
+      "default": "normal",
+      "options": ["normal", "wilson", "jeffreys"]
+    },
+    "review_format": {
+      "type": "string",
+      "title": "Case review output format",
+      "description": "Format /evals:design renders candidate eval cases in for your approval. markdown (the default) is a table plus one fenced block per case; html is one page with every field escaped.",
+      "default": "markdown",
+      "options": ["markdown", "html"]
+    },
+    "grader_run_twice": {
+      "type": "boolean",
+      "title": "Judge-vote agreement report",
+      "description": "When on, /evals:plugin-eval's noise report shows how often the judge votes for each llm grader agreed, read from votes the run already took, at no extra spend.",
+      "default": true
+    },
+    "same_model_warning": {
+      "type": "boolean",
+      "title": "Same-model judge warning",
+      "description": "When on, /evals:plugin-eval's preflight warns when the tested model and the judge model resolve to the same model, and /evals:design repeats the reminder beside the build-eval route.",
+      "default": true
+    },
+    "labeled_grader_check": {
+      "type": "boolean",
+      "title": "Labeled-set grader check",
+      "description": "When on, /evals:design checks a grader against a set of cases you label, not only the handful-of-cases agreement check.",
       "default": false
     }
   },

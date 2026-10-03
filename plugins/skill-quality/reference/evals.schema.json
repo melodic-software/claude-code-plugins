@@ -66,6 +66,20 @@
         "expectations": {
           "type": "array",
           "description": "Optional list of objectively-verifiable expectations (this repo's field name across rich-form skills). Items are skill-author-defined; schema does not constrain shape. Equivalent role to `assertions`; skill author picks one."
+        },
+        "difficulty": {
+          "enum": ["hard", "routine"],
+          "description": "Optional. `hard` marks a case a person judged hard; the eval-quality lint warns when a hard case has no `why_hard`."
+        },
+        "why_hard": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional. The stated reason a person judged this case hard."
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional. Where the case came from: an observed failure, a rewritten transcript, a documentation example."
         }
       }
     }

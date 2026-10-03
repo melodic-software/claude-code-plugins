@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes: don't pay for this run on native Windows.\n\nWhen a case grants Bash, Claude Code puts every command under its OS-level sandbox, and native Windows has no sandbox backend. The CLI does not fall back to running the helper script unconfined; it refuses each run that grants Bash, so the case reports a run error and usually scores 0. You would pay for runs that measure nothing.\n\nRun the suite somewhere with a backend instead:\n\n- WSL2 on this same machine\n- a Linux host or VM with bubblewrap and socat installed\n- macOS\n- a Claude cloud session\n\nCases that only use read-only tools such as Read, Grep, and Glob are unaffected and run anywhere, but the Bash case needs one of the hosts above.",
+      "why": "P-canonical: states that native Windows has no sandbox backend so each Bash-granting run is refused (run error, usually 0) rather than run unconfined, and says not to pay for the run on this machine."
+    },
+    {
+      "answer": "Hold off on spending anything from this machine. Claude Code confines the Bash tool inside an operating-system sandbox, and Windows without WSL gives it nothing to confine with. Rather than let your helper script execute unprotected, the eval CLI rejects every run in which Bash is allowed. Each of those runs comes back as a run error, which normally scores zero, so a paid pass here just buys a column of zeros for that case.\n\nThe fix is the environment, not the flags: move the run to a Mac or start it from a Claude cloud session, where the sandbox exists and the Bash case can actually execute.",
+      "why": "P-alt: the mechanism is paraphrased (no OS sandbox on Windows without WSL, so every Bash-allowed run is rejected as a run error scoring zero instead of running unprotected) and the stop is 'hold off on spending anything from this machine'."
+    },
+    {
+      "answer": "One blocker. On native Windows there is no sandbox backend for Claude Code, and granting Bash requires one. Each run of that case will be refused by the CLI instead of running unconfined; refused runs show up as run errors and usually score 0. So don't pay for the run on this machine.\n\nTwo things worth knowing:\n\n1. The eval skill's preflight also stops before spending when a case grants Write or Edit on a machine like this, so check the rest of the suite before you move it.\n2. Your read-only cases (Read, Glob, Grep, Skill) don't need the sandbox and would run fine here.\n\nFor the full suite, use a Linux machine or VM with bubblewrap and socat on PATH, and run it there.",
+      "why": "P-caveat: both points stated (no backend, so each Bash run is refused and usually scores 0 rather than run unconfined; don't pay here), plus true extra points about Write/Edit and read-only cases that do not touch the graded points."
+    },
+    {
+      "answer": "Before you spend anything: that Bash case can't produce a result on this machine.\n\nGranting Bash means each command has to run inside Claude Code's OS-level sandbox, and native Windows has no sandbox backend. The CLI won't quietly run your helper script unconfined. It refuses every run that grants Bash, so the case reports a run error and usually lands at 0, with or without the plugin. That's money spent on no signal.\n\nSo my advice is simple: don't pay for this run on this Windows machine. The read-only cases in the suite aren't affected, but the case that lists Bash in allowed_tools can't be measured here no matter which flags you pass.",
+      "why": "P-plain: mechanism (no backend, each Bash run refused with a run error usually scoring 0, not run unconfined) and stop (don't pay on this machine) are both stated; it names no supported place to run instead, which is the sibling route-elsewhere point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mostly you're fine. On native Windows the Bash tool runs through Git Bash, which ships with Git for Windows, so make sure Git for Windows is installed and on PATH before you start. Claude Code has no sandbox backend on Windows, so the helper script runs without isolation, as an ordinary process under your user account.\n\nThat means the run will work and score normally; you just don't get the containment you'd have on Linux or macOS. Since the script only touches the eval's temp directory, that's an acceptable trade for most suites.\n\nIf you want proper isolation later, WSL2 gives you the Linux sandbox. For this run, go ahead and pay for it with --allow-tools Bash.",
+      "why": "F-wrong: says the run will work with Bash running unsandboxed on Windows and tells the user to pay for it, both listed FAIL conditions; the refusal mechanism and the stop are absent."
+    },
+    {
+      "answer": "Yes: don't pay for this run from native Windows. A suite with a Bash case belongs on a different host.\n\nThe simplest route is WSL2 on the same machine. Install a distribution, install Claude Code inside it, clone or open the repo from the Linux side, and run the eval there with the same --allow-tools Bash flag. A Linux VM with bubblewrap and socat installed works too, as does macOS or a Claude cloud session.\n\nKeep the rest of your command identical so the results compare with any earlier passes, and run the preflight there first to confirm everything lines up before you spend.",
+      "why": "F-partial: has the stop (don't pay from native Windows) but is missing point 1, the mechanism: it never says Windows has no sandbox backend or that each Bash-granting run is refused and scores 0."
+    },
+    {
+      "answer": "Short version: don't pay for it on this machine. Native Windows has no sandbox backend, and Claude Code runs Bash only inside its sandbox, so each run that grants Bash is refused and reported as a run error that usually scores 0. WSL2, a Linux host with bubblewrap and socat, macOS, or a Claude cloud session would all give you a real measurement.\n\nThat said, this is mostly a concern from older releases. Current builds fall back to running Bash unconfined when no backend is found, printing a warning instead of refusing, so in practice your helper script will run and the case will score normally. You can go ahead with the run here.",
+      "why": "F-retract: states the mechanism and the stop, then retracts both: claims current builds run Bash unconfined and tells the user to go ahead and run here."
+    },
+    {
+      "answer": "Native Windows has no sandbox backend, so as configured every run that grants Bash is refused rather than executed, and the case logs a run error worth 0. Don't pay for the run in that state.\n\nYou don't have to change machines to fix it, though. Two options work:\n\n1. Set the sandbox to disabled in your Claude Code settings for this project, so Bash executes directly without needing a backend.\n2. Launch the terminal as administrator, which lets the CLI run the helper script with the permissions the sandbox would otherwise enforce.\n\nEither way the Bash case then runs on Windows. If you'd rather not touch settings, WSL2 also works.",
+      "why": "F-near: gets the mechanism and stop right, then says disabling the sandbox or running as administrator fixes it, both explicit FAIL conditions."
+    }
+  ]
+}

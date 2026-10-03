@@ -27,7 +27,8 @@ collision check reads them to tell a resume from a slug collision.
 - [ ] Phase 3: Digest fan-out, one agent per digest unit → `digests/NN-slug.md` (fixed
       structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)
 - [ ] Phase 4: Dual verification: pin-manifest written on agent-reported completion; standing
-      gates (`check-fences-exact.py`, `check-snippets.py`) PASS; Verifier A (same-vendor) +
+      gates (`check-fences-exact.py`, `check-snippets.py`, and `check-html-rows.py` when digests
+      carry `**FN.**` rows quoted from `source.html`) PASS; Verifier A (same-vendor) +
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
       hashes it audited; degraded fallback / death-ladder recorded, never silent)
 - [ ] Phase 5: Interview handoff, with `interview-handoff.md` authored and its own commands replayed

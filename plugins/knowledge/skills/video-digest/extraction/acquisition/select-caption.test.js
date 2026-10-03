@@ -108,6 +108,36 @@ describe("selectCaptionFile", () => {
     }
   });
 
+  it("classifies a bare .en.vtt as auto-en when info.json lists no manual English subtitles", () => {
+    const result = selectCaptionFile(
+      ["/w/_U-O5lYhJ7Q.en.vtt", "/w/_U-O5lYhJ7Q.en-orig.vtt"],
+      "manual-and-auto",
+      { manualLanguages: [] },
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.rung).toBe("auto-en");
+      expect(result.selection.isAutoCaption).toBe(true);
+      expect(result.selection.provenanceNote).toContain("_U-O5lYhJ7Q.en.vtt");
+    }
+  });
+
+  it("keeps manual-en when info.json lists manual English subtitles", () => {
+    for (const manualLanguages of [["en"], ["fr", "en-US"]]) {
+      const result = selectCaptionFile(
+        ["/w/a.en.vtt", "/w/a.en-orig.vtt"],
+        "manual-and-auto",
+        { manualLanguages },
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.selection.rung).toBe("manual-en");
+        expect(result.selection.isAutoCaption).toBe(false);
+        expect(result.selection.provenanceNote).toBeUndefined();
+      }
+    }
+  });
+
   it("returns error when no English captions exist", () => {
     const result = selectCaptionFile(["/tmp/clip.ja.vtt", "/tmp/clip.fr.vtt"]);
     expect(result.success).toBe(false);

@@ -171,15 +171,33 @@ describe("repair command", () => {
     expect(spawnSync("bash", ["-n", "-c", command]).status).toBe(0);
   });
 
+  const winTarget = "D:\\O'Brien Data\\mcp-server\\abc";
+
   it("is a Windows PowerShell 5.1 line on Windows, with no &&", () => {
-    const winTarget = "D:\\O'Brien Data\\mcp-server\\abc";
     const command = installCommand(winTarget, "win32");
     const quoted = "'D:\\O''Brien Data\\mcp-server\\abc'";
     expect(command).not.toContain("&&");
-    expect(command.startsWith("$ErrorActionPreference = 'Stop'; ")).toBe(true);
+    expect(command.startsWith("& { $ErrorActionPreference = 'Stop'; ")).toBe(true);
     expect(command).toContain(`Remove-Item -LiteralPath ${quoted} -Recurse -Force`);
     expect(command).toContain(`New-Item -ItemType Directory -Force -Path ${quoted}`);
     expect(command).toContain(`-Destination ${quoted};`);
-    expect(command).toContain(`npm ci --prefix ${quoted} --omit=dev --ignore-scripts`);
+    const npm = `; npm.cmd ci --prefix ${quoted} --omit=dev --ignore-scripts --no-audit --no-fund }`;
+    expect(command.endsWith(npm)).toBe(true);
+  });
+
+  const pwsh = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status === 0;
+
+  // One top-level `& { ... }` statement keeps `$ErrorActionPreference = 'Stop'` out of the user's
+  // session; a bare assignment would be a second top-level statement that persists.
+  it.skipIf(!pwsh)("parses as one child script block, so Stop does not leak", () => {
+    const probe =
+      "$e = $null; $s = [System.Management.Automation.Language.Parser]::ParseInput(" +
+      "$env:REPAIR_LINE, [ref]$null, [ref]$e).EndBlock.Statements; $c = $s[0].PipelineElements[0]; " +
+      '"$($e.Count) $($s.Count) $($c.InvocationOperator) $($c.CommandElements[0].GetType().Name)"';
+    const run = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command", probe], {
+      encoding: "utf8",
+      env: { ...process.env, REPAIR_LINE: installCommand(winTarget, "win32") },
+    });
+    expect(run.stdout.trim()).toBe("0 1 Ampersand ScriptBlockExpressionAst");
   });
 });

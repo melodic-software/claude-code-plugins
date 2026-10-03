@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "claude plugin eval ./plugins/notes --trust-plugin --model claude-sonnet-4-5 --judge-model claude-haiku-4-5 --json results.json",
+      "why": "in the command"
+    },
+    {
+      "answer": "Easy to miss: a CI runner has no TTY, so without `--trust-plugin` the run is refused at the trust prompt.",
+      "why": "named as a gotcha"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin eval ./plugins/notes --model sonnet --json results.json --threshold 0.8",
+      "why": "confident wrong: no trust flag"
+    },
+    {
+      "answer": "Set CLAUDE_TRUST_ALL=1 in the job env so the trust prompt is skipped.",
+      "why": "an invented variable instead"
+    },
+    {
+      "answer": "Pass --yes so the trust prompt auto-accepts in CI.",
+      "why": "an invented flag instead"
+    }
+  ]
+}
