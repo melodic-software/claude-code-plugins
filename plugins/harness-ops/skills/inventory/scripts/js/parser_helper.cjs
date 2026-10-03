@@ -1188,6 +1188,10 @@ function keyName(key, computed) {
 }
 
 const SINK_LIMIT = 20;
+// A computed key known to be a number, which no trusted name spells.
+const NUMBER = Symbol("number");
+const ARITHMETIC = new Set(["-", "*", "/", "%", "**", "|", "&", "^", "<<", ">>", ">>>"]);
+const TYPEOF = ["undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function"];
 
 // `Object` or `Reflect`, as a name or a member (`globalThis.Object`); by
 // name, so a shadowing binding counts too.
@@ -1217,8 +1221,12 @@ function definerOf(n) {
 //   Where the module may write a property the flow trusts (`names`) on an
 //   object that could be a built-in prototype:
 //   - a member write, update or `delete` whose key is one of the names;
-//   - a member write with a computed key that names nothing, which can
-//     write any name;
+//   - a member write with a computed key that may name anything, which
+//     can write any name. A computed key is known when every value it can
+//     evaluate to is: a literal, a number (arithmetic, `++`, a unary
+//     minus), a boolean or typeof result, or a variable every write of
+//     which is one of those (`for(let i=0;...;i++)o[i]=`, a TypeScript
+//     enum's `e[e.X=1]=`); it then counts only for the names it spells;
 //   - a call given one of the names as a string or `Symbol.x` argument
 //     (`Object.defineProperty(o,"includes",...)`, `o.__defineGetter__("has")`,
 //     `Reflect.set(o,"some",f)`, or any other callee that may pass it on);
@@ -1317,8 +1325,86 @@ function sinks(req) {
   for (const ref of entry.manager.globalScope.through) {
     if (ref.isWrite() && names.has(ref.identifier.name)) hit("global-write", ref.identifier.name, ref.identifier);
   }
+  // What a computed key can be: the strings it can evaluate to, NUMBER for
+  // any number, or null when unknown. A variable counts only when every
+  // write to it is known; a cycle through one (`s=s+x`) is unknown.
+  const seenKeys = new Set();
+  const union = (...sets) => (sets.includes(null) ? null : new Set(sets.flatMap((s) => [...s])));
+  const keyValues = (node, depth = 0) => {
+    if (depth > 16) return null;
+    switch (node.type) {
+      case "Literal":
+        if (typeof node.value === "string") return new Set([node.value]);
+        if (typeof node.value === "number" || node.bigint !== undefined) return new Set([NUMBER]);
+        return node.value === null || typeof node.value === "boolean" ? new Set([String(node.value)]) : null;
+      case "TemplateLiteral":
+        return node.expressions.length === 0 ? new Set([node.quasis[0].value.cooked]) : null;
+      case "UpdateExpression":
+        return new Set([NUMBER]);
+      case "UnaryExpression":
+        if (["-", "+", "~"].includes(node.operator)) return new Set([NUMBER]);
+        if (node.operator === "!") return new Set(["true", "false"]);
+        if (node.operator === "void") return new Set(["undefined"]);
+        if (node.operator === "typeof") return new Set(TYPEOF);
+        return null;
+      case "BinaryExpression":
+        if (ARITHMETIC.has(node.operator)) return new Set([NUMBER]);
+        if (node.operator !== "+") return new Set(["true", "false"]);
+        {
+          const sides = union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+          return sides !== null && [...sides].every((v) => v === NUMBER) ? sides : null;
+        }
+      case "ConditionalExpression":
+        return union(keyValues(node.consequent, depth + 1), keyValues(node.alternate, depth + 1));
+      case "LogicalExpression":
+        return union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+      case "SequenceExpression":
+        return keyValues(node.expressions.at(-1), depth + 1);
+      case "AssignmentExpression":
+        if (node.operator === "=") return keyValues(node.right, depth + 1);
+        return ARITHMETIC.has(node.operator.slice(0, -1)) ? new Set([NUMBER]) : null;
+      case "Identifier": {
+        const v = variable(node);
+        if (!v || v.defs.length !== 1 || v.defs[0].type !== "Variable" || seenKeys.has(v)) return null;
+        const def = v.defs[0];
+        if (def.node.id !== def.name || isLoop(parents.get(def.parent))) return null;
+        seenKeys.add(v);
+        try {
+          // A `var` read before its initializer runs is undefined.
+          const sets = [def.parent.kind === "var" || def.node.init === null ? new Set(["undefined"]) : new Set()];
+          for (const r of v.references) {
+            if (!r.isWrite()) continue;
+            if (r.identifier === def.name) {
+              if (def.node.init !== null) sets.push(keyValues(def.node.init, depth + 1));
+              continue;
+            }
+            const w = parents.get(r.identifier);
+            if (w?.type === "UpdateExpression") sets.push(new Set([NUMBER]));
+            else if (w?.type === "AssignmentExpression" && w.left === r.identifier) sets.push(keyValues(w, depth + 1));
+            else return null;
+          }
+          return union(...sets);
+        } finally {
+          seenKeys.delete(v);
+        }
+      }
+    }
+    return null;
+  };
+  // The trusted names a computed `key` may spell, or null when it may spell any.
+  const keyNames = (key) => {
+    const values = keyValues(key);
+    if (values === null || values.has("__proto__") || (values.has(NUMBER) && numericName)) return null;
+    return [...values].filter((v) => v !== NUMBER && names.has(v));
+  };
+  const numericName = [...names].some((n) => String(Number(n)) === n || n === "-0");
   const literalNames = (obj) =>
-    obj.properties.map((p) => (p.type === "Property" ? keyName(p.key, p.computed) : null)).filter((k) => k === null || names.has(k));
+    obj.properties.flatMap((p) => {
+      if (p.type !== "Property") return [null];
+      const k = keyName(p.key, p.computed);
+      if (k !== null) return names.has(k) ? [k] : [];
+      return keyNames(p.key) ?? [null];
+    });
   const stack = [entry.ast];
   while (stack.length && hits.length < SINK_LIMIT) {
     const node = stack.pop();
@@ -1333,7 +1419,9 @@ function sinks(req) {
         if (key === "__proto__") {
           if (!fresh(node.object)) hit("proto-swap", key, node);
         } else if (key === null) {
-          if (!fresh(node.object)) hit("computed-write", null, node);
+          const spelled = fresh(node.object) ? [] : keyNames(node.property);
+          if (spelled === null) hit("computed-write", null, node);
+          else for (const n of spelled) hit("write", n, node);
         } else if (names.has(key) && !fresh(node.object)) {
           hit("write", key, node);
         }
@@ -1353,7 +1441,11 @@ function sinks(req) {
         if (definer.name === "setPrototypeOf") hit("proto-swap", null, node);
         if (node.arguments.some((a) => a.type === "SpreadElement")) hit("computed-define", null, node);
         const keyArg = definer.receiver ? node.arguments[0] : definer.keyed ? node.arguments[1] : null;
-        if (keyArg && keyName(keyArg, true) === null) hit("computed-define", null, keyArg);
+        if (keyArg && keyName(keyArg, true) === null) {
+          const spelled = keyNames(keyArg);
+          if (spelled === null) hit("computed-define", null, keyArg);
+          else for (const n of spelled) hit("argument", n, keyArg);
+        }
         if (definer.name === "assign" || definer.name === "defineProperties") {
           for (const arg of node.arguments.slice(1)) {
             if (arg.type !== "ObjectExpression") hit("computed-define", null, arg);

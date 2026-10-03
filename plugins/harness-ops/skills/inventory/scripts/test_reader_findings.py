@@ -608,6 +608,43 @@ class TestOpenFindings(unittest.TestCase):
             awaited,
         )
 
+    def test_a_computed_key_known_to_name_no_trusted_name_clears(self) -> None:
+        """#5901 key provenance: the flow trusts `includes`, so any module
+        that may write `includes` on an object that could be a prototype
+        is a sink. A computed key whose every value is known and none is
+        `includes` cannot: a loop counter, arithmetic, a TypeScript enum's
+        `e[e.X=1]`, a constant other name."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            "for(let i=0;i<n;i++)Q[i]=0;Q[i*2+1]=0;Q[-i]=0;",
+            '(function(e){e[e.A=0]="A";e[e.B=1]="B"})(Q);',
+            'var k="other",j=c?"a":"b";Q[k]=0;Q[j]=1;delete Q[typeof x];',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, named, module)
+
+    def test_a_computed_key_that_may_name_a_trusted_name_stays_a_sink(
+        self,
+    ) -> None:
+        """#5901 adversarial probes for key provenance: each key can spell
+        `includes` (directly, after a second write, through a cycle, from a
+        loop over values, or not at all knowably), so the list reads
+        partial."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            'var k="includes";Q[k]=f;',
+            'var k=0;k="includes";Q[k]=f;',
+            'var s="inc";s=s+"ludes";Q[s]=f;',
+            'var s="inc";s+="ludes";Q[s]=f;',
+            'for(const k of ["includes"])Q[k]=f;',
+            'var k=c?0:"includes";Object.defineProperty(Q,k,{value:f});',
+            "Q[a+b]=f;",
+            'Q[`inc${"ludes"}`]=f;',
+            "function g(k){Q[k]=f}g(n);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,
