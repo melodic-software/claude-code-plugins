@@ -342,7 +342,7 @@ n=$(truncated_case c8 "${ONE_BS}u00e9")
 assert_record "truncated at cap: the row is valid JSON" "$(CLOG c8)"
 assert_eq "truncated at cap: prompt_truncated is true" "true" "$(jq -r .prompt_truncated "$(CLOG c8)" 2>/dev/null)"
 assert_eq "truncated at cap: the prefix stops before a cut \\u escape" "$n" "$(jq -r '.prompt | length' "$(CLOG c8)" 2>/dev/null)"
-n=$(truncated_case c9 'a\\b')
+n=$(truncated_case c9 'a\\b') # portability-ok: literal backslash payload, not a regex
 assert_eq "truncated at cap: the prefix keeps every whole escape and drops a cut one" "$((n + 1))" "$(jq -r '.prompt | length' "$(CLOG c9)" 2>/dev/null)"
 n=$(truncated_case c10 'a€' LC_ALL=C)
 assert_eq "truncated at cap (byte locale): a cut multibyte character is dropped" "$((n + 1))" "$(jq -r '.prompt | length' "$(CLOG c10)" 2>/dev/null)"
