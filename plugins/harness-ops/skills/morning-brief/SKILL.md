@@ -96,13 +96,15 @@ Two upstream facts the script restates, each with its verification record:
 - **The REST pull schema carries no review-decision field, so the REST path reports
   `n/a`.** Basis: the "Get a pull request" response schema at
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request>, which lists
-  `requested_reviewers` and `review_comments` and no `review_decision`; the same page
-  says of `mergeable` that "If the value is null, then GitHub has started a background
-  job to compute the mergeability. After giving the job time to complete, resubmit
-  the request", which is the retry the script performs. `reviewDecision` and
-  `mergeStateStatus` are `gh pr list --json` fields (gh 2.98.0 lists them client-side).
-  Verified 2026-09-10 against that page as fetched that day. Recheck when the REST
-  pull schema gains a review-decision field, or gh drops either `--json` field.
+  `requested_reviewers` and `review_comments` and no `review_decision`. The REST
+  path retries a null `mergeable` read instead of treating null as the final answer.
+  **Pointer**: when that retry runs, fetch
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
+  2026-10-03. **Recheck trigger**: that page changes the description of `mergeable`
+  or removes the field. `reviewDecision` and `mergeStateStatus` are `gh pr list
+  --json` fields (gh 2.98.0 lists them client-side). Verified 2026-09-10 against
+  that page as fetched that day. Recheck when the REST pull schema gains a
+  review-decision field, or gh drops either `--json` field.
 
 ## What each section reports
 
