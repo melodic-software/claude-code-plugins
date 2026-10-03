@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: ac4-attended-sweep-runs-in-background
-description: 'Source: plan acceptance criterion AC4. Hard: whether the subagent runs in the background is the harness''s choice, and a print-mode run may foreground it; the grader has to judge when the report appeared relative to the rename edits, not just whether it appeared. Resumes the AC1 session transcript; the scaffold seeds src/widgets so the rename has files to edit. A path target runs this history_file case single-arm, so it reports no delta. A run needs --scaffold, --allow-tools Bash Edit WebFetch and a sandbox backend.'
+description: 'Source: plan acceptance criterion AC4. Hard: whether the subagent runs in the background is the harness''s choice, and a print-mode run may foreground it; the grader has to judge when the report appeared relative to the rename edits, not just whether it appeared. Resumes the AC1 session transcript; the scaffold seeds src/widgets so the rename has files to edit, and stages the history in the workspace, where go-faster reads it and keeps its data folder. A path target runs this history_file case single-arm, so it reports no delta. A run needs --scaffold, --allow-tools Bash Edit WebFetch and a sandbox backend.'
 tags: [go-faster, session-history, hard]
 plugins: ["../.."]
 expected_outcome: 'AC4. The sweep runs in a fresh context: the main session dispatches the go-faster-sweeper agent in attended mode, says in one line that the sweep is running, and carries on with the rename. The report arrives once, at a natural break after the rename work, never interleaved with it.'
@@ -12,6 +12,9 @@ execution:
   allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch, Edit]
   max_turns: 100
   timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
 graders:
   - name: sweeper-dispatched
     type: tool_used

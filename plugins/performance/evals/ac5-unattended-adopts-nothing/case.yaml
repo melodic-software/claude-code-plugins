@@ -1,16 +1,20 @@
 schema_version: "1.1"
 name: ac5-unattended-adopts-nothing
-description: 'Source: plan acceptance criterion AC5. Resumes the AC13 session transcript (three repeated lint runs) and runs unattended: the report has adopt-now items, yet nothing is asked or adopted and nothing outside the data folder changes. The workspace and settings checks are read from the run''s created files and its commands, since the data folder and settings sit outside the workspace. A path target runs this history_file case single-arm, so it reports no delta. A run needs --allow-tools Bash WebFetch and a sandbox backend.'
+description: 'Source: plan acceptance criterion AC5. Resumes the AC13 session transcript (three repeated lint runs) and runs unattended: the report has adopt-now items, yet nothing is asked or adopted and nothing outside the data folder changes. The workspace check reads the run''s created files, all of which must sit under the data folder; the settings check reads its commands, since settings sit outside the workspace. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
 tags: [go-faster, session-history, routine]
 plugins: ["../.."]
 expected_outcome: 'AC5. Unattended, the main session waits for the sweeper, shows the report, releases the lock and prints the report path. The findings include adopt-now items from the repeated lint runs, yet nothing is asked and nothing is adopted: the findings wait in the data folder for a person. No repository file or setting changes.'
 context:
+  scaffold_script: scaffold.sh
   history_file: ac13-now-finding-adopted-item-by-item.jsonl
 execution:
   prompt: /performance:go-faster unattended
   allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
   max_turns: 100
   timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
 graders:
   - name: dispatch-mode-unattended
     type: tool_used
@@ -35,9 +39,11 @@ graders:
     max: 0
     arm: both
   - name: workspace-unchanged
-    type: file_exists
-    path: '**'
-    exists: false
+    type: regex
+    pattern: '^(?!.*(?:^|/)go-faster-data/).+$'
+    flags: m
+    match: not_contains
+    target: files
     arm: both
   - name: settings-untouched
     type: llm

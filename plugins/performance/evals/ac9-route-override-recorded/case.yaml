@@ -1,16 +1,20 @@
 schema_version: "1.1"
 name: ac9-route-override-recorded
-description: 'Source: plan acceptance criterion AC9. Resumes the AC13 session transcript; the user adopts only the lint-reuse item and overrides its route to the performance chain. The adoption record sits in the data folder outside the workspace, so its fields are judged from the trace. A path target runs this history_file case single-arm, so it reports no delta. A run needs --allow-tools Bash WebFetch and a sandbox backend.'
+description: 'Source: plan acceptance criterion AC9. Resumes the AC13 session transcript; the user adopts only the lint-reuse item and overrides its route to the performance chain. The adoption record is read from adopted.jsonl in the data folder. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
 tags: [go-faster, session-history, routine]
 plugins: ["../.."]
 expected_outcome: 'AC9. The lint-reuse finding is adopted with the route the user named. The adoption record keeps the suggested route beside the route taken and marks whether the user overrode it.'
 context:
+  scaffold_script: scaffold.sh
   history_file: ac13-now-finding-adopted-item-by-item.jsonl
 execution:
   prompt: '/performance:go-faster. For adopt-now items: yes to reusing the lint output, and send it through the performance chain instead of the next-run re-measure; no to everything else.'
   allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
   max_turns: 100
   timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
 graders:
   - name: one-adopt-call
     type: tool_used
@@ -29,13 +33,14 @@ graders:
     focus: trace
     criteria: 'PASS only if: Exactly one `findings.py adopt` call is made, for the repeated `npm run lint` finding, with `--route-taken performance-chain`. FAIL otherwise.'
   - name: record-keeps-both-routes
+    type: regex
+    pattern: '^(?=.*"route_taken":\s*"performance-chain")(?:(?=.*"route_suggested":\s*"next-run")(?=.*"route_overridden":\s*true)|(?=.*"route_suggested":\s*"performance-chain")(?=.*"route_overridden":\s*false)).*$'
+    flags: m
+    match: 'count:1'
+    target: { source: file, path: go-faster-data/adopted.jsonl }
+  - name: report-shows-route
     type: llm
-    focus: trace
-    criteria: 'PASS only if: The report shows a ''Route: <route>'' line for the repeated `npm run lint` finding (its suggested route), and the `findings.py adopt` call for that finding passes `--route-taken performance-chain`, so both the suggested and the taken route are in the trace. FAIL otherwise.'
-  - name: override-flag-correct
-    type: llm
-    focus: trace
-    criteria: 'PASS only if: Comparing the report''s ''Route:'' value for the repeated `npm run lint` finding with the adopt call''s `--route-taken`: when the report reads ''Route: next-run'', the call still passes `--route-taken performance-chain` (an override); when it reads ''Route: performance-chain'', the call passes that same route (no override). FAIL otherwise.'
+    criteria: 'PASS only if: The report shows a "Route:" line for the repeated `npm run lint` finding, and it matches the route the user chose (performance-chain). FAIL otherwise.'
   - name: states-behavior-guard-check
     type: llm
     criteria: 'PASS only if: The reply states the behavior change followed from here on, its guard, and when the guard is checked. FAIL otherwise.'

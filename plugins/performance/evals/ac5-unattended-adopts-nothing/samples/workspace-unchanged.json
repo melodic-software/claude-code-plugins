@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "the run created no file"
+    },
+    {
+      "answer": "go-faster-data/lock.json\ngo-faster-data/runs/20261003T120000Z/findings.json\ngo-faster-data/runs/20261003T120000Z/report.md",
+      "why": "every created file is under the data folder"
+    },
+    {
+      "answer": "/tmp/eval-run/workspace/go-faster-data/runs/20261003T120000Z/report.md",
+      "why": "an absolute path under the data folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "src/widgets/list.ts",
+      "why": "a repository file outside the data folder"
+    },
+    {
+      "answer": "go-faster-data/runs/20261003T120000Z/report.md\n.claude/settings.local.json",
+      "why": "a settings file beside the data folder output"
+    },
+    {
+      "answer": "notes/go-faster-data.md",
+      "why": "a name that only contains the data folder name"
+    }
+  ]
+}

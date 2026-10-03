@@ -34,13 +34,24 @@ Resolved when this skill loaded:
 ```!
 ( source "${CLAUDE_PLUGIN_ROOT}/scripts/harness-lib.sh" && harness_require_python && echo "PY=$HARNESS_PYTHON" ) || echo "PY=unresolved"
 echo "KEY=$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh" || echo unresolved)"
-echo "TRANSCRIPT=$(ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null | head -1 || true)"
+echo "DATA=$(d="${EVAL_GO_FASTER_DATA:-}"; case "$d" in "") ;; /*) echo "$d" ;; *) echo "$PWD/$d" ;; esac || true)"
+echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$t" ]; then case "$t" in /*) echo "$t" ;; *) echo "$PWD/$t" ;; esac; else ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null | head -1; fi || true)"
 ```
 
 If those lines reached you as literal commands, run them yourself with Bash. `PY=unresolved` means
 no Python runs here, and `KEY=unresolved` means no hash tool: stop and say which. An empty `TRANSCRIPT` is `none`.
 
-`DATA` is `${CLAUDE_PLUGIN_DATA}/go-faster/<KEY>`, spelled out literally in every later command.
+`DATA` is the `DATA` line when it is not empty, else `${CLAUDE_PLUGIN_DATA}/go-faster/<KEY>`,
+spelled out literally in every later command. `EVAL_GO_FASTER_DATA` and `EVAL_GO_FASTER_TRANSCRIPT`
+exist only for plugin-eval runs, whose sandbox cannot reach the plugin data folder or the session
+transcript; nothing else sets them.
+
+- **Pointer**: [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
+  and [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)
+- **As of**: 2026-10-03
+- **Recheck trigger**: either section changes what a run's Bash can read or write, or which
+  variables reach the run.
+
 Then take the lock, one sweep per repository and worktree:
 
 ```bash
