@@ -13,7 +13,8 @@
 #   bash_legs, python_legs    the lane's matrix, a JSON list of leg numbers (`[0]` at least)
 #   bash_plan, python_plan    a JSON object from leg number to the suites that leg runs
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
-#                             its suites need: animation, inventory, duckdb
+#                             its suites need: animation (the animation and
+#                             speech suites), inventory, duckdb
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the test-windows.yml jobs to run, a JSON list
 #   windows_steps             the test-windows.yml steps to run, a JSON list of the keys
@@ -290,7 +291,8 @@ pack() {
     awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
       function need(p,   s) {
         s = ""
-        if (p ~ /^plugins\/animation\//) s = s " animation"
+        # The animation wheels are also where the speech suites get numpy.
+        if (p ~ /^plugins\/(animation|speech)\//) s = s " animation"
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         return s

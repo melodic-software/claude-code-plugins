@@ -45,6 +45,8 @@ for s in a b c d e f g h; do
 done
 mk plugins/animation/anim.sh
 mk plugins/animation/anim.test.sh
+mk plugins/speech/sp.sh
+mk plugins/speech/sp.test.sh
 mk plugins/harness-ops/skills/inventory/inv.sh
 mk plugins/harness-ops/skills/inventory/inv.test.sh
 mk plugins/p/p.py "VALUE = 1"
@@ -127,6 +129,10 @@ plan -- plugins/animation/anim.sh plugins/harness-ops/skills/inventory/inv.sh pl
 is "$(key bash_needs)" '{"0":"","1":"animation inventory duckdb"}'
 check "a leg's needs name the optional toolchains of its own suites only" $?
 
+plan -- plugins/speech/sp.sh
+is "$(key bash_needs)" '{"0":"animation"}'
+check "a speech suite gets the animation wheels, where its numpy comes from" $?
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?
@@ -161,13 +167,13 @@ is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?
 
 plan -- plugins/z/data.cfg
-is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 11
+is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12
 check "an unmapped data file runs the whole shell corpus and is counted" $?
 
 # --- wider than the selection ------------------------------------------------
 
 plan -- .github/workflows/ci.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 11 &&
+is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 5 &&
   is "$(key windows_jobs)" "[]"
 check "a ci.yml change runs every ci.yml lane whole on 6 legs, and test-windows from the selection" $?
