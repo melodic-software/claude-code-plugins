@@ -82,14 +82,20 @@ jobs:
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-      run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
-      run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
+      run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
+      run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
+      run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
       lane_base: ${{ steps.base.outputs.ref }}
-      test_legs: ${{ steps.legs.outputs.legs }}
-      test_needs: ${{ steps.legs.outputs.needs }}
+      bash_legs: ${{ steps.plan.outputs.bash_legs }}
+      bash_plan: ${{ steps.plan.outputs.bash_plan }}
+      bash_needs: ${{ steps.plan.outputs.bash_needs }}
+      python_legs: ${{ steps.plan.outputs.python_legs }}
+      python_plan: ${{ steps.plan.outputs.python_plan }}
+      python_needs: ${{ steps.plan.outputs.python_needs }}
+      node_packages: ${{ steps.plan.outputs.node_packages }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out
@@ -486,6 +492,48 @@ expect "a draft-gated lane with no treat-skipped-as on the aggregate is rejected
 # The aggregate's own job-level condition is not a consumer's, and must stand.
 expect "the aggregate's own job-level condition is untouched" 0 "scope resolved once" --check "$base"
 
+# --- 12. A SKIP IS CHECKED ----------------------------------------------------
+#
+# A test lane may skip as a job on its own row, and only when the aggregate
+# reads its results through the step that checks every skip against that row.
+skip_form="${draft_gate% \}\}} && needs.scope.outputs.run_python == 'true' }}"
+ordered="$scratch/ordered-skip.yml"
+xform_insert_after "$skip_as_fail" "      - gamma" "      - test-python" "$scratch/o1.yml"
+xform_replace_line "$scratch/o1.yml" "      - name: Aggregate lane results" \
+  "      - name: Check each skipped lane against scope\n        id: lanes\n        run: echo checked\n      - name: Aggregate lane results" "$scratch/o2.yml"
+xform_insert_after "$scratch/o2.yml" "          treat-skipped-as: fail" "          results: \${{ steps.lanes.outputs.results }}" "$scratch/o3.yml"
+xform_append "$scratch/o3.yml" "
+  test-python:
+    needs: [scope]
+    if: $skip_form
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run the selected Python suites
+        run: echo python" "$ordered"
+expect "a test lane skipping on its own row, checked by the aggregate, is allowed" 0 "scope resolved once" --check "$ordered"
+
+f="$scratch/ordered-skip-other-row.yml"
+xform_replace_line "$ordered" "    if: $skip_form" "    if: ${skip_form/run_python/run_bash}" "$f"
+expect "a test lane skipping on another lane's row is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+f="$scratch/ordered-skip-not-a-test-lane.yml"
+xform_insert_after "$scratch/o3.yml" "  gamma:" "    if: $skip_form" "$f"
+expect "the ordered skip on a job that is not test-<x> is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+f="$scratch/ordered-skip-flipped.yml"
+want_true="run_python == 'true'"
+want_false="run_python == 'false'"
+xform_replace_line "$ordered" "    if: $skip_form" "    if: ${skip_form/"$want_true"/"$want_false"}" "$f"
+expect "the ordered skip with its polarity flipped is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+f="$scratch/ordered-skip-raw-results.yml"
+xform_replace_line "$ordered" "          results: \${{ steps.lanes.outputs.results }}" "          results: \${{ join(needs.*.result, ' ') }}" "$f"
+expect "an ordered skip the aggregate reads raw is rejected" 1 "A SKIP IS CHECKED" --check "$f"
+
+f="$scratch/ordered-skip-no-check-step.yml"
+xform_delete "$ordered" "        id: lanes" "$f"
+expect "an ordered skip with no checking step is rejected" 1 "has no step 'id: lanes'" --check "$f"
+
 # --- 6. EDGE DECLARED -------------------------------------------------------
 
 f="$scratch/missing-edge.yml"
@@ -580,11 +628,15 @@ xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.sco
 expect "a data output read under a non-env key is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-matrix.yml"
-xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.test_legs || '[0,1,2,3]') }}" "$f"
-expect "the matrix sized from test_legs with its four-leg default is allowed" 0 "scope resolved once" --check "$f"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.bash_legs || '[0]') }}" "$f"
+expect "the matrix sized from bash_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/data-matrix-python.yml"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.python_legs || '[0]') }}" "$f"
+expect "the matrix sized from python_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
 
 f="$scratch/data-matrix-no-default.yml"
-xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.test_legs) }}" "$f"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.bash_legs) }}" "$f"
 expect "the matrix read without its default is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-in-job-if.yml"
@@ -599,7 +651,7 @@ expect "a step gated on an output outside the table is rejected" 1 "which the re
 # against 'true' rather than 'false' skips the lane when detection is unset,
 # which is the direction that hides a regression.
 f="$scratch/inverted-narrowing.yml"
-xform_replace_line "$base" "      run_node:" "      run_node: \${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] == 'true' }}" "$f"
+xform_replace_line "$base" "      run_node:" "      run_node: \${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node == 'true' }}" "$f"
 expect "a narrowing row comparing against 'true' is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
 
 # The whole-corpus check-25 row keeps the draft term run_tests carries, so a
