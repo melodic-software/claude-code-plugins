@@ -331,7 +331,7 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
 
 Class vocabulary and admission policy are governing policy owned by the `autonomy` plugin's
 guardrail references (its `work-classes.md` and `admission-policy.md`), per the convention; when
-that plugin is installed, read those references for classification. Installed or not, these
+that plugin is enabled, read those references for classification. Enabled or not, these
 dispositions bind:
 
 | Class | Disposition |

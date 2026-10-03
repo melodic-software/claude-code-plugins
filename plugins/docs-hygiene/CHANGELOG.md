@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.25.2] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
 ## [0.25.1] - 2026-10-02
 
 ### Fixed
