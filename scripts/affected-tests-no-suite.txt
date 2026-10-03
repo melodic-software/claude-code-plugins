@@ -156,19 +156,3 @@ plugins/testing/skills/audit/evals/judge-calibration/cases/*
 # sweep table. The lane covering the code that reads them is the testing
 # plugin's shell lane: metrics.test.sh tests --table and --rerun on stub sweeps.
 plugins/testing/skills/audit/evals/judge-calibration/sweep/*
-
-# Python modules imported by Python suites that share no stem with them, so no
-# selection rule maps them. The covering lane is the affected-tests step's
-# pytest run, which executes test_install_state.py and test_deep_inventory.py
-# (plugin_cache_versions.py), test_overlap.py and test_native_drift.py
-# (discover.py), and test_inventory.py (docs_crosscheck.py).
-plugins/harness-ops/lib/plugin_cache_versions.py
-plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
-plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
-
-# The generated session-bridge copy (scripts/shared-copies.txt). It changes only
-# with its canonical, lib/session-bridge/session_bridge.py, whose shared-lib
-# fan-out selects the carrying plugin's suites; the copy itself is covered by
-# the shared-copies --check drift step and by the affected-tests step's pytest
-# run of the planning surface's test_server.py and test_round.py, which import it.
-plugins/*/surface/session_bridge.py

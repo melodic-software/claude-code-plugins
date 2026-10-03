@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/source-control/*
 # nesting-invariant-ssot.test.sh — the mechanism claim has ONE owner.
 #
 # The nesting invariant justifies a machine-wide worktree-placement rule enforced

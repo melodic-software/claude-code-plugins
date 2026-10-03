@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/autonomy/reference/routines/*.md
 # Unit tests for generate-identity-prerequisites.mjs. Cases are named in the
 # co-located manifest; this harness builds throwaway trees where needed and
 # drives generate / --check / drift / leaf↔emission parity.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md
 # Tests for inventory.sh (self-contained, ships with the plugin).
 #
 # The behavior under test: a location the script could not read must report

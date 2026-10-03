@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # Regression tests for the audit-complexity entry point (audit-complexity.sh):
 # option parsing, the references it prints with their provenance, the lanes it
 # reports as unavailable, and exit-code passthrough from dispatch.sh.

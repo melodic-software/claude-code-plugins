@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # Tests for setup.sh: check's four sections, lint findings, the consumer hook
 # entry, and an apply that writes only the docs convention file or .claude/testing.yaml.
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text

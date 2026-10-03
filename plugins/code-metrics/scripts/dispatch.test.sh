@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # Regression tests for dispatch.sh: scope, ladder walk, run rows, status, exit
 # codes. Collectors are stubbed at runtime: a temporary bin/ prepended to PATH
 # carries a fake `scc` that replays fixtures/tool-output/scc.json (design T13;

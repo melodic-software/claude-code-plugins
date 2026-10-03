@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/* plugins/guardrails/lib/*
 # Contract test for hooks/abort-boundary.sh (guardrails plugin, #3528).
 #
 # Black-box where it matters: every registered hook is run as a subprocess on

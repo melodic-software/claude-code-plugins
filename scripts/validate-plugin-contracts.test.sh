@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json
 # Black-box contract test for the check-only carve-out assertions in
 # validate-plugin-contracts.mjs.
 #

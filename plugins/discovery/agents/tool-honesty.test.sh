@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/discovery/agents/*.md
 # Contract test for the agent definitions in this directory.
 #
 # The defect this locks: `agents/researcher.md` carried a "Tool honesty"

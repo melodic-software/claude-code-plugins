@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/disk-hygiene/*.py plugins/disk-hygiene/*.sh plugins/disk-hygiene/*.mjs plugins/disk-hygiene/*.json
 # Cross-platform contract wrapper for the owner-registry test suite.
 set -euo pipefail
 

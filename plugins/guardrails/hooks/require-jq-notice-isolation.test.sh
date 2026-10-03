@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/*.sh
 # Cross-hook contract test: every guardrails hook's hook::require_jq call must
 # use a hook-specific notice_once key, not a key shared across the plugin.
 #

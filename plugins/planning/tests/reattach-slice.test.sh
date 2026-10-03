@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/skills/*/SKILL.md
 # The plan, prd, and design hubs' mandatory gates stay inside the compaction
 # re-attach slice (#4255). The stand-in for 5,000 tokens is the first 20,000
 # bytes. A phrase that also appears after that cut is a gate the re-attach can

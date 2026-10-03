@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/context-guard/hooks/*
 # Contract test for zone-crossing-inject.sh (PostToolBatch/UserPromptSubmit).
 #
 # Contract: emit ONCE per transition into a WORSE zone, splitting the report

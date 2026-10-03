@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/disk-hygiene/skills/clean/SKILL.md plugins/disk-hygiene/skills/clean/reference/*.json plugins/disk-hygiene/hooks/*
 # Cross-platform contract wrapper for the stdlib Python test suite.
 set -euo pipefail
 

@@ -83,9 +83,11 @@
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
 #                    spawn*, exec*, ...), a path to the file rather than its bare
-#                    name, or a shell script as the named file (another language
-#                    has no other use for one). A chain takes at most one such
-#                    transition and then keeps walking its new language freely.
+#                    name, a shell script as the named file (another language
+#                    has no other use for one), or a file in the naming file's
+#                    own directory (a wrapper suite hands its sibling Python
+#                    suite to a runner by bare name). A chain takes at most one
+#                    such transition and then keeps walking its new language.
 #                    A data file (any extension that is not code) reaches code of
 #                    every language that names it, and that first step spends no
 #                    transition: data has no language of its own to stay inside.
@@ -127,14 +129,16 @@
 # plugin.json, marketplace.json, settings.json, hooks.json, package.json,
 # package-lock.json), name a specific file only when the mention RESOLVES to
 # it, because a bare `SKILL.md` or `config.json` says nothing about which one.
-# Any mention from the file's own directory resolves. Elsewhere a bare name
-# never does, and a path does when it ends in the shortest suffix of the file's
-# path that no other file of that name ends in, or in the file's path relative
-# to a directory that holds both files: `$SCRIPT_DIR/lib/x.sh` from a script
-# beside lib/, `$PLUGIN_DIR/skills/interview/SKILL.md` or
-# `$PLUGIN_ROOT/hooks/hooks.json` from inside the plugin. Shared-library
-# basenames are the exception and keep the plain rule: R5's copies share a
-# basename on purpose, change together with their source, and a suite naming
+# Any mention from the file's own directory resolves. A bare name resolves from
+# a directory above the file when no other file of that name sits below that
+# directory (`FIXTURES / "questions.json"`), and never otherwise. A path
+# resolves when it ends in the shortest suffix of the file's path that no other
+# file of that name ends in, or in the file's path relative to a directory that
+# holds both files: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
+# `$PLUGIN_DIR/skills/interview/SKILL.md` or `$PLUGIN_ROOT/hooks/hooks.json`
+# from inside the plugin. A shared library's
+# source and copies are the exception and keep the plain rule: R5's copies share
+# a basename on purpose, change together with their source, and a suite naming
 # its own plugin's copy is naming the shared source.
 #
 # COMMENTS. A line that is only a comment (`#` in shell, Python and
@@ -489,7 +493,7 @@ scope_table() {
 }
 
 declare -A AMBIGUOUS=() # basename -> 1 when two or more files carry it
-declare -A SYNC_BASE=() # basename -> 1 when a shared library or its copy carries it
+declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
 # build_tree_index: every tracked or untracked-unignored file, listed once for
 # the ambiguous-name set, the reverse lookup's resolution, the declared scopes
@@ -505,9 +509,9 @@ build_tree_index() {
     AMBIGUOUS["$b"]=1
   done <"$WORK_DIR/ambiguous"
   for src in "${!SYNC_SRC_COPIES[@]}"; do
-    SYNC_BASE["${src##*/}"]=1
+    SYNC_MEMBER["$src"]=1
     while IFS= read -r copy; do
-      [[ -n "$copy" ]] && SYNC_BASE["${copy##*/}"]=1
+      [[ -n "$copy" ]] && SYNC_MEMBER["$copy"]=1
     done <<<"${SYNC_SRC_COPIES[$src]}"
   done
 
@@ -590,7 +594,7 @@ lang_family() {
 
 # token_hits <plain> <resolve> <matched-lines> <hits>
 # Reduce `git grep`'s SUBSTRING hits to the mentions the rules mean. Inputs:
-# the plain basenames this level asked about, the frontier paths whose names
+# the frontier paths this level looks up by plain basename, those whose names
 # must RESOLVE (AMBIGUOUS NAMES), and the `<path>:<line>` grep output. Output,
 # one line per pair:
 #   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
@@ -600,12 +604,15 @@ token_hits() {
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
-    # Plain basenames: a name that is itself a path token gets the exact test;
-    # anything else keeps the substring test rather than losing coverage.
+    # Plain names: a basename that is itself a path token gets the exact test;
+    # anything else keeps the substring test rather than losing coverage. The
+    # directories that carry each name feed the same-directory arm of R4.
     FILENAME == plainf {
       if ($0 == "") next
-      if ($0 ~ /^[A-Za-z0-9_.-]+$/) want[$0] = 1
-      else loose[$0] = 1
+      b = base_of($0)
+      pdir[b, dir_of($0)] = 1
+      if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
+      else loose[b] = 1
       next
     }
     FILENAME == resf {
@@ -637,14 +644,21 @@ token_hits() {
       return ""
     }
     # resolves: does path token pt, written in file namer, mean target t? Any
-    # mention from the directory of t does; elsewhere a bare name never does,
-    # and a path does when it ends in the shortest unique suffix of t, or in the
-    # path of t relative to a directory holding both files ($SCRIPT_DIR/lib/x.sh,
+    # mention from the directory of t does. A bare name does from a directory
+    # above t when no other file of that name sits below that directory. A path
+    # does when it ends in the shortest unique suffix of t, or in the path of t
+    # relative to a directory holding both files ($SCRIPT_DIR/lib/x.sh,
     # $PLUGIN_DIR/skills/<s>/SKILL.md).
-    function resolves(namer, pt, t,   u, a) {
+    function resolves(namer, pt, t,   u, a, i, b) {
       a = dir_of(namer)
       if (a == dir_of(t)) return 1
-      if (!index(pt, "/")) return 0
+      if (!index(pt, "/")) {
+        if (a != "" && index(t, a) != 1) return 0
+        b = base_of(t)
+        for (i = 1; i <= nsame[b]; i++)
+          if (same[b, i] != t && (a == "" || index(same[b, i], a) == 1)) return 0
+        return 1
+      }
       if (!(t in usuf)) usuf[t] = uniq_suffix(t)
       u = usuf[t]
       if (u != "" && (pt == u || ends(pt, "/" u))) return 1
@@ -655,16 +669,17 @@ token_hits() {
       }
     }
     # runs_or_loads: R4. An interpreter or process API on the line, a path to
-    # the file, or a shell script as the named file.
-    function runs_or_loads(name, n,   j) {
-      if (exec_line || name ~ /\.(sh|bash)$/) return 1
+    # the file, a shell script as the named file, or a file of the same
+    # directory: a wrapper suite hands its sibling to a runner by bare name.
+    function runs_or_loads(path, name, n,   j) {
+      if (exec_line || name ~ /\.(sh|bash)$/ || ((name SUBSEP dir_of(path)) in pdir)) return 1
       for (j = 1; j <= n; j++) if (ends(ptok[j], "/" name)) return 1
       return 0
     }
     function keep(path, name, n) {
       key = path SUBSEP name
       if (!(key in kept)) { kept[key] = 0; order[++nkept] = key }
-      if (!kept[key] && runs_or_loads(name, n)) kept[key] = 1
+      if (!kept[key] && runs_or_loads(path, name, n)) kept[key] = 1
     }
     # comment_only: a whole-line comment names nothing (COMMENTS in the header),
     # except a shellcheck source directive and a JSDoc type import.
@@ -896,7 +911,7 @@ select_for() {
       b="${p##*/}"
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
       if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
-        [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_BASE[$b]:-}" ]]; then
+        [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then
         printf '%s\n' "$p" >>"$WORK_DIR/resolve"
         continue
       fi
@@ -910,7 +925,7 @@ select_for() {
         # Any contributor that has NOT yet crossed wins: over-select.
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
-      printf '%s\n' "$b" >>"$WORK_DIR/plain"
+      printf '%s\n' "$p" >>"$WORK_DIR/plain"
     done
 
     [[ -s "$WORK_DIR/patterns" ]] || break

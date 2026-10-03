@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # Regression tests for the audit-type-debt entry point (audit-type-debt.sh):
 # the file rows and the lane row both collectors produce, the lanes that are
 # not-applicable, the null reference, and what an absent tool looks like.

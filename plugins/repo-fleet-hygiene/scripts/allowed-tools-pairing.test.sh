@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/repo-fleet-hygiene/skills/*.md plugins/repo-fleet-hygiene/skills/*/scripts/*
 # Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
 # with the invocation its skill body actually tells Claude to run.
 #

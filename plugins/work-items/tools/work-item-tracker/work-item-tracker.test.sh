@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # Tests for the core dispatcher: usage, binding resolution, capability gating, and
 # list-frontier derivation — all against a fake adapter (no network, no gh).
 set -uo pipefail

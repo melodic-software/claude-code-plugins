@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/review/agents/*.md
 # Offline test of the agents' change-set block: extracts the fenced block from
 # agents/code-reviewer.md step 2, asserts the other reviewer agents carry the
 # same text, and runs it in scratch repos. It proves the block's output only,

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # End-to-end list-sub-items behavior through the core CLI against the offline
 # local-markdown store: direct-child enumeration with state
 # filtering and parent stamping, the container-scoped frontier (list-frontier

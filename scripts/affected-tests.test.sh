@@ -1049,14 +1049,16 @@ fi
 # A file in another language that merely contains the name (a string, a log
 # message) is not a dependent and its suite is not selected: across languages
 # the text says nothing about a dependency unless the line runs or loads the
-# file. An interpreter on the line, or a path to the file, does.
-mkdir -p "$repo/eco/hop"
+# file. An interpreter on the line, a path to the file, or a bare name from the
+# file's own directory (a wrapper handing its sibling to a runner) does.
+mkdir -p "$repo/eco/hop" "$repo/eco/elsewhere"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
-printf 'echo "origin.js is the entry point"\n' >"$repo/eco/hop/mention.test.sh"
+printf 'echo "origin.js is the entry point"\n' >"$repo/eco/elsewhere/mention.test.sh"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
-printf 'node "$(dirname "$0")/origin.js"\n' >"$repo/eco/hop/node-runs.test.sh"
+printf 'node "$ROOT/eco/hop/origin.js"\n' >"$repo/eco/elsewhere/node-runs.test.sh"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
-printf 'cp "$SRC/eco/hop/origin.js" "$DEST"\n' >"$repo/eco/hop/path-loads.test.sh"
+printf 'cp "$SRC/eco/hop/origin.js" "$DEST"\n' >"$repo/eco/elsewhere/path-loads.test.sh"
+printf 'run_suite origin.js\n' >"$repo/eco/hop/wrapper.test.sh"
 # A .ps1 that runs the js, so the walk crosses into it once, and a shell file
 # that runs the .ps1: reaching ITS suite takes a second transition.
 printf "node origin.js\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
@@ -1064,9 +1066,10 @@ suite_body far >"$repo/eco/hop/Far.Tests.ps1"
 printf 'pwsh -File Far.ps1\n' >"$repo/eco/hop/far-runner.sh"
 suite_body far-runner >"$repo/eco/hop/far-runner.test.sh"
 run_sel "$repo" eco/hop/origin.js
-if ! has_line "$OUT" eco/hop/mention.test.sh &&
-  has_line "$OUT" eco/hop/node-runs.test.sh &&
-  has_line "$OUT" eco/hop/path-loads.test.sh; then
+if ! has_line "$OUT" eco/elsewhere/mention.test.sh &&
+  has_line "$OUT" eco/elsewhere/node-runs.test.sh &&
+  has_line "$OUT" eco/elsewhere/path-loads.test.sh &&
+  has_line "$OUT" eco/hop/wrapper.test.sh; then
   ok "R4: another language's suite runs only where its line runs or loads the file"
 else
   fail "R4: cross-language selection wrong (rc=$RC): $OUT"
@@ -1690,6 +1693,10 @@ done
     >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
   printf 'grep -q wording probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
   printf 'cat plugins/gamma/skills/sa/reference/probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
+  # A bare name from a directory above the file: one probe-doc.md below gamma's
+  # skill, two below alpha's skills/ directory.
+  printf 'grep -c . probe-doc.md\n' >"$repo/plugins/gamma/skills/sa/above.test.sh"
+  printf 'grep -c . probe-doc.md\n' >"$repo/plugins/alpha/skills/above-both.test.sh"
   printf '# reads plugins/alpha/skills/sa/reference/probe-doc.md\n' >"$repo/$own_a/scripts/sa-comment.test.sh"
   # A bare mention from the file's own directory, in a script whose suite is its sibling.
   printf 'grep -c . probe-doc.md\n' >"$repo/$own_a/reference/count.sh"
@@ -1732,6 +1739,17 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.
   ok "ambiguous: a same-named skill in another plugin is told apart by its path"
 else
   fail "ambiguous: gamma's probe-doc.md selection wrong (rc=$RC): $OUT"
+fi
+if has_line "$OUT" plugins/gamma/skills/sa/above.test.sh; then
+  ok "ambiguous: a bare name from above resolves when only one such file sits below"
+else
+  fail "ambiguous: a bare name unique below its namer did not resolve (rc=$RC): $OUT"
+fi
+run_sel "$repo" "$own_a/reference/probe-doc.md"
+if ! has_line "$OUT" plugins/alpha/skills/above-both.test.sh; then
+  ok "ambiguous: a bare name from above does not resolve when two such files sit below"
+else
+  fail "ambiguous: a bare name with two files below its namer resolved (rc=$RC): $OUT"
 fi
 
 run_sel "$repo" plugins/alpha/skills/one/SKILL.md

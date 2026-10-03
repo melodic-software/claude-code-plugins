@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/collectors/*.py
 # Regression tests for setup-check.sh: the layer rows, the tracked-file guard,
 # the resolved references, and one row per collector adapter.
 set -uo pipefail

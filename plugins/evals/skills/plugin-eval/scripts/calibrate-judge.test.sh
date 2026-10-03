@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/evals/evals/* plugins/evals/skills/plugin-eval/scripts/fixtures/calibrate-judge/*
 # Cross-platform wrapper for calibrate-judge.py's unittest suite, so the repo's
 # run-plugin-tests.sh discovery (plugins/**/*.test.sh) runs it. The interpreter
 # discovery follows plugins/evals/skills/validate/scripts/validate-cases.test.sh.

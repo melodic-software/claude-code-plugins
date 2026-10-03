@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/collectors/*.py
 # Regression tests for tool-free-path.sh: the excluded set is derived from
 # the collector ladder, the filled directory keeps those collectors off PATH,
 # and the resolvable-collector check fails when one is put back.

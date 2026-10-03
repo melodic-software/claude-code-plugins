@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/harness-ops/hooks/*-audit.sh
 # The nine harness-ops audit rows put the payload's session_id into their
 # envelope `data` (additive, docs/conventions/hook-telemetry rule 1) so the
 # reference sink can route the line into the per-session log. One suite for

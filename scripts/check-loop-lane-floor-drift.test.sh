@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/*/reference/reader-contract.md
 # Black-box contract test for check-loop-lane-floor-drift.sh.
 #
 # Self-contained and cwd-independent: builds a throwaway root holding a fake

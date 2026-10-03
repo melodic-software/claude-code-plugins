@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/*.sh
 # Contract tests for hooks/run-guards.sh, the one-process dispatcher that runs
 # several guards for one hook event. The guards' own decisions are covered by
 # their own *.test.sh; this file covers what the dispatcher owns: stdin read

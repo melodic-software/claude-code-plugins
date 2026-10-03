@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh
 # Test entry for the babysit-prs engine: runs the stdlib-unittest suite under
 # tests/ (test_babysit_delta.py and siblings, covering babysit_delta.py and the
 # other engine modules), an optional ruff lint pass, and a bash-level check of
