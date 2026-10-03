@@ -8,9 +8,6 @@
 # against the LIVE repo — the derived shared-lib copy set and the real no-suite
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
-#
-# The live cases run every sync manifest and read the selector's own lists:
-# test-scope: scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -76,6 +73,8 @@ mk_repo() { # <out-var>
 
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
+  # The live scopes list names suites this fixture does not have.
+  printf '# fixture scopes\n' >"$dir/scripts/affected-tests-scopes.txt"
 
   # --jobs N delegates to the SIBLING run-plugin-tests.sh rather than spawning
   # anything itself, so the fixture carries that sibling too. Its serial
@@ -1525,26 +1524,26 @@ else
   fi
 fi
 
-# --- R8: a declared test-scope selects the suite that scans a directory ------
+# --- R8: a declared scope selects the suite that scans a directory -----------
 # A suite that greps or globs a directory never spells the files it reads, so
-# it declares them in its leading comment block, and a matching change selects
+# scripts/affected-tests-scopes.txt declares them, and a matching change selects
 # it and counts as mapped. Pinned: the glob crosses `/`, the plugin's other
-# suites stay out, a declaration below the first code line is not read, the
-# Node `//` form works, and a plugin file nothing names or declares is still
-# UNMAPPED.
+# suites stay out, an inline comment ends the entry, and a plugin file nothing
+# names or declares is still UNMAPPED.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
 printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
 printf 'kind: probe\n' >"$repo/plugins/alpha/skills/one/probe.yaml"
-{
-  printf '#!/usr/bin/env bash\n# Scans every skill body.\n# test-scope: plugins/alpha/skills/*.md\n'
-  printf '#   test-scope: plugins/alpha/*.yaml\n\nset -u\n# test-scope: plugins/beta/*\n'
-} >"$repo/plugins/alpha/tests/scan.test.sh"
-printf '// test-scope: plugins/alpha/skills/*/SKILL.md\nimport test from "node:test";\n' \
-  >"$repo/plugins/alpha/tests/scan.test.mjs"
+suite_body alpha-scan >"$repo/plugins/alpha/tests/scan.test.sh"
+printf 'import test from "node:test";\n' >"$repo/plugins/alpha/tests/scan.test.mjs"
 printf 'import unittest\n' >"$repo/plugins/alpha/tests/test_scan.py"
 printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
-git_test_config "$repo" add plugins >/dev/null
+{
+  printf '# fixture scopes\n'
+  printf 'plugins/alpha/tests/scan.test.sh  plugins/alpha/skills/*.md plugins/alpha/*.yaml  # scans skill bodies\n'
+  printf 'plugins/alpha/tests/scan.test.mjs  plugins/alpha/skills/*/SKILL.md\n'
+} >"$repo/scripts/affected-tests-scopes.txt"
+git_test_config "$repo" add plugins scripts >/dev/null
 git_test_config "$repo" commit -qm r8 >/dev/null
 
 run_sel "$repo" plugins/alpha/skills/one/SKILL.md
@@ -1558,7 +1557,8 @@ else
 fi
 
 out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/alpha/skills/one/SKILL.md 2>&1)"
-if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (test-scope plugins/alpha/skills/*.md)"; then
+if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (test-scope plugins/alpha/skills/*.md)" &&
+  ! contains "$out" "scans skill bodies"; then
   ok "R8: --explain reports the declared glob"
 else
   fail "R8: --explain lacks the declared glob: $out"
@@ -1571,13 +1571,6 @@ else
   fail "R8: a declared file was not mapped by its scope (rc=$RC): $OUT"
 fi
 
-run_sel "$repo" plugins/beta/hooks/beta-hook.sh
-if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" plugins/alpha/tests/scan.test.sh; then
-  ok "R8: a declaration below the leading comment block is not read"
-else
-  fail "R8: a declaration after the first code line was honored (rc=$RC): $OUT"
-fi
-
 run_sel "$repo" plugins/alpha/zzorphan-plugin.sh
 if [[ "$RC" -eq 1 ]]; then
   ok "R8: a plugin file no suite names or declares is still UNMAPPED"
@@ -1585,24 +1578,41 @@ else
   fail "R8: a plugin file nothing names or declares was mapped (rc=$RC): $OUT"
 fi
 
-# A changed suite's declarations are checked: one below the leading comment
-# block is never read, and a glob matching no file has outlived what it read.
-out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/scan.test.sh 2>&1)"
+# The list is checked: an entry naming no suite fails every run, and a glob
+# matching no file fails the run that changes the list.
+cp "$repo/scripts/affected-tests-scopes.txt" "$TMP_ROOT/scopes.keep"
+printf 'plugins/alpha/tests/gone.test.sh  plugins/alpha/*\n' >>"$repo/scripts/affected-tests-scopes.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && contains "$out" 'plugins/alpha/tests/scan.test.sh:7'; then
-  ok "R8: a changed suite with a declaration below its header fails loud"
+if [[ "$RC" -eq 2 ]] && contains "$out" "names 'plugins/alpha/tests/gone.test.sh', which is not a suite"; then
+  ok "R8: an entry naming no suite fails the run"
 else
-  fail "R8: a misplaced declaration was not refused (rc=$RC): $out"
+  fail "R8: a stale suite entry was not refused (rc=$RC): $out"
 fi
-printf '#!/usr/bin/env bash\n# test-scope: plugins/nowhere/*\necho stale\n' >"$repo/plugins/alpha/tests/stale.test.sh"
-out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/stale.test.sh 2>&1)"
+cp "$TMP_ROOT/scopes.keep" "$repo/scripts/affected-tests-scopes.txt"
+printf 'plugins/alpha/tests/scan.test.sh  plugins/nowhere/*\n' >>"$repo/scripts/affected-tests-scopes.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && contains "$out" 'plugins/nowhere/*, which matches no file'; then
-  ok "R8: a changed suite declaring a glob that matches nothing fails loud"
+if [[ "$RC" -eq 0 ]]; then
+  ok "R8: a glob matching nothing is not checked while the list is unchanged"
 else
-  fail "R8: a stale declaration was not refused (rc=$RC): $out"
+  fail "R8: an unchanged list failed the run (rc=$RC): $out"
 fi
-rm -f "$repo/plugins/alpha/tests/stale.test.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped scripts/affected-tests-scopes.txt 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$out" '  - plugins/nowhere/*'; then
+  ok "R8: a changed list declaring a glob that matches nothing fails loud"
+else
+  fail "R8: a stale glob in a changed list was not refused (rc=$RC): $out"
+fi
+cp "$TMP_ROOT/scopes.keep" "$repo/scripts/affected-tests-scopes.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped scripts/affected-tests-scopes.txt 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]]; then
+  ok "R8: a changed list whose globs all match passes the check"
+else
+  fail "R8: a valid list was refused (rc=$RC): $out"
+fi
 
 # --- --unmapped-corpus: an unmapped file selects its own language's corpus ---
 # The report stays, the exit says so (4), and only the file's language runs: a
@@ -1639,7 +1649,7 @@ rm -rf "$repo"
 
 # --- --with-always is accepted and widens nothing ----------------------------
 # A caller that still passes it must neither fail nor get a wider selection:
-# the live-tree suites it used to add declare a test-scope now.
+# the live-tree suites it used to add are declared in the scopes list now.
 mk_repo repo
 run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
 with_out="$OUT" with_rc="$RC"
@@ -1814,19 +1824,19 @@ fi
 rm -rf "$repo"
 
 # --- --replay: each commit selected against its parent, with this tree's rules --
-# The replayed commits predate this tree's declarations, so a replay carries
-# the tree's own test-scope table to every commit; --against runs the selector
-# at <ref> with <ref>'s table and prints only the suites the two disagree on.
+# A replay carries this tree's lists to every commit, since the commits may
+# predate them; --against runs the selector at <ref> with <ref>'s lists and
+# prints only the suites the two disagree on.
 mk_repo repo
-printf '#!/usr/bin/env bash\n# test-scope: plugins/alpha/*\necho old\n' >"$repo/scripts/zz-old-scan.test.sh"
+printf '#!/usr/bin/env bash\necho old\n' >"$repo/scripts/zz-old-scan.test.sh"
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/zz-new-scan.test.sh"
+printf 'scripts/zz-old-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
 git_test_config "$repo" add scripts >/dev/null
 git_test_config "$repo" commit -qm scans >/dev/null
 printf '# edited\n' >>"$repo/plugins/alpha/hooks/alpha-hook.sh"
 git_test_config "$repo" commit -qam 'edit alpha hook' >/dev/null
 alpha_commit="$(git -C "$repo" rev-parse HEAD)"
-printf '#!/usr/bin/env bash\necho old\n' >"$repo/scripts/zz-old-scan.test.sh"
-printf '#!/usr/bin/env bash\n# test-scope: plugins/alpha/*\necho new\n' >"$repo/scripts/zz-new-scan.test.sh"
+printf 'scripts/zz-new-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
 
 out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD 2>/dev/null)"
 RC=$?

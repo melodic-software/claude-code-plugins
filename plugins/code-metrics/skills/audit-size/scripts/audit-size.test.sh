@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # Regression tests for the audit-size entry point (audit-size.sh): option parsing,
 # JSON versus markdown output, and exit-code passthrough from dispatch.sh.
 set -uo pipefail

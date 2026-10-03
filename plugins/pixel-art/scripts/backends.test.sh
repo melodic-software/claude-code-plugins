@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/pixel-art/examples/* plugins/pixel-art/palettes/*
 # Runs every pixel-art test suite (test_*.py).
 set -uo pipefail
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/autonomy/skills/setup/scripts/fixtures/prerequisite-resolution/*
 # Tests for the prerequisite-resolution setup slice wrappers.
 set -uo pipefail
 

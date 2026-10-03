@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/discovery/*.md plugins/discovery/*.json
 # Contract test for the discovery plugin's cross-file statements.
 #
 # The two sibling suites (`check-dispatch-artifact.test.sh`,

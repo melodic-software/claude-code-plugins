@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
 

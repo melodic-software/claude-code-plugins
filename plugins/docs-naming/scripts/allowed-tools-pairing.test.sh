@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/docs-naming/skills/*.md plugins/docs-naming/skills/*/scripts/*
 # Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
 # with the invocation its skill body actually tells Claude to run.
 #

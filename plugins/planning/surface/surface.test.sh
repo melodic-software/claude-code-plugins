@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/planning/surface/schema/* plugins/planning/surface/tests/fixtures/*
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
 # Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js

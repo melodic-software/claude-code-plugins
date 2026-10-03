@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/autonomy/skills/setup/scripts/fixtures/prerequisite-resolution/* plugins/autonomy/generated/*
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh.
 set -uo pipefail
 

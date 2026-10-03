@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/github/*
 # Contract test for the github plugin's durable invariants:
 #   - D4 zero-vendored-knowledge: no baked endpoints, no shipped scope tables, no prices
 #   - agnostic conformance: no publisher/org/tool assumptions in prose (plugin.json author is

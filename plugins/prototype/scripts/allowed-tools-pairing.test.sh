@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/prototype/skills/*.md plugins/prototype/skills/*/scripts/*
 # Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
 # with the invocation its skill body actually tells Claude to run.
 #

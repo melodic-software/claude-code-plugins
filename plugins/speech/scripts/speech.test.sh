@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/hooks/*.sh plugins/speech/scripts/*.json
 # Contract tests for the speech scripts narrate.py, assets.py, check.py and pydeps.py.
 # test_assets, test_speech_pydeps and most of test_narrate need only the standard library and always run (test_speech_pydeps
 # skips without pip). test_narrate's timing tests need numpy (../requirements.in pins it, ../requirements.txt

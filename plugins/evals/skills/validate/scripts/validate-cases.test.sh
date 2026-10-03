@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/evals/evals/*
 # Cross-platform wrapper for validate-cases.py's unittest suite, so the repo's
 # run-plugin-tests.sh discovery (plugins/**/*.test.sh) actually runs it. The
 # engine is Python and the runner step is bash-only, which is what this file

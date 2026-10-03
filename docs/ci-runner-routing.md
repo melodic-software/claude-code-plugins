@@ -104,8 +104,8 @@ four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
 slice needs the animation wheels, the inventory's parser packages or the DuckDB
 CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
 
-A suite that scans a directory never names the file that changed, so it
-declares what it reads in a `# test-scope: <glob>` header, and the selector's
+A suite that scans a directory never names the file that changed, so
+`scripts/affected-tests-scopes.txt` declares what it reads, and the selector's
 rule R8 selects it for any changed file matching the glob. The rules, and the
 `--replay` mode that shows a selector change's effect on recent main commits,
 are in the header of `scripts/affected-tests.sh`.

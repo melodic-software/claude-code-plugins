@@ -1,4 +1,3 @@
-# test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 """Tests for the exporters and import-ledger (AC27 to AC29), driven through round.py's CLI.
 
 Sessions are built in temporary data dirs: questions.json written directly, responses.json

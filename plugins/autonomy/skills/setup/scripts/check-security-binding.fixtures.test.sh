@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/autonomy/skills/setup/evals/fixtures/security-binding/*
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
 # this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 set -uo pipefail

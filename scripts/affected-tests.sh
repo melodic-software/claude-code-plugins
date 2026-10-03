@@ -24,7 +24,7 @@
 #                                                the selector at <ref> (see REPLAY)
 #
 # --with-always is accepted and changes nothing: the suites that assert against
-# the live tree declare what they read with a test-scope header (R8) instead.
+# the live tree declare what they read in scripts/affected-tests-scopes.txt (R8).
 #
 # Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
@@ -102,16 +102,16 @@
 #                    plugin-contract validator's suite, which bans vendor names
 #                    across that directory without naming any file in it.
 #   R8 declared scope a suite that enumerates a directory of the live tree
-#                    (a grep -r, a find, a glob over a plugin or scripts/) never
-#                    names the files it reads, so it declares them in its header:
-#                        # test-scope: plugins/github/*.md
-#                    (`//` for Node). A changed file matching a glob selects the
-#                    suite and counts as mapped. The globs use the dialect of the
-#                    no-suite list: matched against the repo-relative path, `*`
-#                    crosses `/`. Only the leading comment block is read, so a
-#                    fixture line further down can never declare one; a
-#                    changed suite whose declaration sits below that block, or
-#                    names a glob matching no file, fails the run (exit 2).
+#                    (a grep -r, a find, a glob over a plugin or scripts/), or
+#                    builds a path from parts, never names the files it reads,
+#                    so scripts/affected-tests-scopes.txt declares them, one
+#                    `<suite> <glob>...` line per suite:
+#                        plugins/github/github.test.sh  plugins/github/*
+#                    A changed file matching a glob selects the suite and counts
+#                    as mapped. The globs use the dialect of the no-suite list:
+#                    matched against the repo-relative path, `*` crosses `/`.
+#                    An entry naming no suite fails every run (exit 2), and a
+#                    glob matching no file fails the run that changes the list.
 #
 # MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
 # PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
@@ -158,21 +158,19 @@
 # REPLAY. `--replay <range>` selects every first-parent commit of <range>
 # (`git rev-list --first-parent <range>`) against its parent, the squash-merged
 # pull request's net diff, in a scratch clone checked out at that commit, with
-# THIS script's rules, no-suite list and test-scope declarations, so it answers
-# "what would this selector have run for those pull requests". It prints one
+# THIS script's rules, no-suite list and scopes list, so it answers "what would
+# this selector have run for those pull requests". It prints one
 # `commit <sha> <suites> <unmapped>` line per commit, an indented
 # `unmapped <path>` line per unmapped file and one indented
 # `<suite>  (<reason>)` line per suite. With `--against <ref>` it also runs the
 # selector at <ref>, with <ref>'s own lists, on the same tree, and prints only
 # the suites that differ (`+` this script only, `-` <ref> only, each with its
 # reason) after a `commit <sha> <new> <old> <new-unmapped> <old-unmapped>` line
-# and its `unmapped` lines,
-# so a selector change shows its blast radius. Both sides run with
-# --allow-unmapped; a summary on stderr counts suites per commit (p50, p95,
-# max, total) and the commits with an unmapped file on each side. The replay
-# points each run at the scratch clone with AFFECTED_TESTS_ROOT and hands it a
-# test-scope table with AFFECTED_TESTS_SCOPES; AFFECTED_TESTS_NO_SUITE names
-# the no-suite list.
+# and its `unmapped` lines, so a selector change shows its blast radius. Both
+# sides run with --allow-unmapped; a summary on stderr counts suites per commit
+# (p50, p95, max, total) and the commits with an unmapped file on each side.
+# Each run is pointed at the scratch clone with AFFECTED_TESTS_ROOT, and at the
+# lists with AFFECTED_TESTS_NO_SUITE and AFFECTED_TESTS_SCOPES.
 #
 # MECHANICALLY the reverse lookup is two stages. `git grep -F` finds the
 # candidate LINES with the substring test, which keeps git's fixed-string fast
@@ -192,6 +190,7 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
+SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-scripts/affected-tests-scopes.txt}"
 
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
@@ -470,28 +469,6 @@ build_sync_map() {
 # Tree index: every file, the ambiguous basenames, the declared scopes
 # ---------------------------------------------------------------------------
 
-# scope_table <root> <file-list> -> `<suite>\t<glob>` for every R8 declaration
-# in the leading comment block of each suite the list names (paths relative to
-# <root>). Reading stops at the first line that is neither blank nor a comment.
-scope_table() {
-  awk -v root="$1" '
-    { b = $0; sub(/.*\//, "", b) }
-    $0 ~ /\.(test\.(sh|js|mjs)|Tests\.ps1)$/ || b ~ /^test_.*\.py$/ {
-      f = root "/" $0
-      while ((getline line < f) > 0) {
-        sub(/\r$/, "", line)
-        if (line ~ /^[ \t]*$/) continue
-        if (line !~ /^[ \t]*(#|\/\/|\/\*|\*)/) break
-        if (line ~ /^[ \t]*(#|\/\/)[ \t]*test-scope:/) {
-          sub(/^[^:]*:/, "", line)
-          n = split(line, g, /[ \t]+/)
-          for (i = 1; i <= n; i++) if (g[i] != "") print $0 "\t" g[i]
-        }
-      }
-      close(f)
-    }' "$2"
-}
-
 declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
 declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
@@ -499,7 +476,7 @@ declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
 # the ambiguous-name set, the reverse lookup's resolution, the declared scopes
 # and the unmapped corpora. Fatal on a failed listing: a short list under-selects.
 build_tree_index() {
-  local b src copy suite glob
+  local b src copy suite
   if ! git ls-files --cached --others --exclude-standard >"$WORK_DIR/all-files" ||
     ! awk '{ sub(/.*\//, ""); if (++count[$0] == 2) print }' "$WORK_DIR/all-files" >"$WORK_DIR/ambiguous"; then
     echo "error: listing the tree failed." >&2
@@ -525,19 +502,28 @@ build_tree_index() {
     exit 2
   fi
 
-  # R8. A replay supplies the table of the tree it was started from, since the
-  # commits it checks out predate the declarations.
-  if [[ -n "${AFFECTED_TESTS_SCOPES:-}" ]]; then
-    cp "$AFFECTED_TESTS_SCOPES" "$WORK_DIR/scopes" || exit 2
-  elif ! scope_table . "$WORK_DIR/all-files" >"$WORK_DIR/scopes"; then
-    echo "error: reading the test-scope declarations failed." >&2
+  # R8, one `<suite> <glob>...` line per suite. An entry naming no suite fails
+  # the run: a declaration must not outlive what it declares. A replay hands in
+  # the list of the tree it started from, whose suites an older commit may lack.
+  local -a entries=() words=()
+  local entry i
+  if [[ ! -f "$SCOPES_LIST" ]]; then
+    echo "error: missing $SCOPES_LIST, the declared test scopes (R8)." >&2
     exit 2
   fi
-  while IFS=$'\t' read -r suite glob; do
-    [[ -n "$glob" ]] || continue
-    SCOPE_SUITES+=("$suite")
-    SCOPE_GLOBS+=("$glob")
-  done <"$WORK_DIR/scopes"
+  read_list::into entries "$SCOPES_LIST" --comments inline || exit 2
+  for entry in ${entries[@]+"${entries[@]}"}; do
+    read -r -a words <<<"$entry"
+    suite="${words[0]}"
+    if [[ -z "${AFFECTED_TESTS_SCOPES:-}" ]] && { ! is_suite_path "$suite" || [[ ! -f "$suite" ]]; }; then
+      echo "error: $SCOPES_LIST names '$suite', which is not a suite; update or remove the entry." >&2
+      exit 2
+    fi
+    for ((i = 1; i < ${#words[@]}; i++)); do
+      SCOPE_SUITES+=("$suite")
+      SCOPE_GLOBS+=("${words[i]}")
+    done
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -1005,32 +991,31 @@ select_for() {
   done
 }
 
-# check_declarations <changed-suite> -> exit 2 when a test-scope line of the
-# suite sits below its leading comment block, where R8 never reads it, or when
-# one of its globs matches no file of the tree. Either mistake silently drops
-# the suite from the changes it reads, so the pull request that makes it fails.
-check_declarations() {
-  local suite="$1" i f hit
-  if ! awk 'BEGIN { hdr = 1 } { sub(/\r$/, "") }
-      hdr && !/^[ \t]*$/ && !/^[ \t]*(#|\/\/|\/\*|\*)/ { hdr = 0 }
-      !hdr && /^[ \t]*(#|\/\/)[ \t]*test-scope:/ { printf "%s:%d\n", FILENAME, FNR; bad = 1 }
-      END { exit bad }' "$suite" >"$WORK_DIR/misplaced"; then
-    echo "error: a test-scope declaration below the leading comment block is never read:" >&2
-    sed 's/^/  - /' "$WORK_DIR/misplaced" >&2
-    exit 2
-  fi
-  for i in "${!SCOPE_GLOBS[@]}"; do
-    [[ "${SCOPE_SUITES[i]}" == "$suite" ]] || continue
-    hit=0
-    while IFS= read -r f; do
-      # shellcheck disable=SC2053 # the right-hand side is a glob pattern by design.
-      [[ "$f" == ${SCOPE_GLOBS[i]} ]] && hit=1 && break
-    done <"$WORK_DIR/all-files"
-    if [[ "$hit" -eq 0 ]]; then
-      echo "error: $suite declares test-scope ${SCOPE_GLOBS[i]}, which matches no file of the tree." >&2
-      exit 2
-    fi
-  done
+# check_scope_globs -> exit 2 when a declared glob matches no file of the tree:
+# it declares nothing, so the suite misses the changes it reads. Run when the
+# scopes list itself changes, which is when a glob is written or goes stale.
+check_scope_globs() {
+  [[ ${#SCOPE_GLOBS[@]} -gt 0 ]] || return 0
+  printf '%s\n' "${SCOPE_GLOBS[@]}" | awk '
+    # The glob dialect of the lists: `*` any run of characters, `/` included.
+    function to_regex(g,   r, i, c) {
+      r = "^"
+      for (i = 1; i <= length(g); i++) {
+        c = substr(g, i, 1)
+        if (c == "*") r = r ".*"
+        else if (c == "?") r = r "."
+        else if (index(".+(){}|^$\\", c)) r = r "\\" c
+        else r = r c
+      }
+      return r "$"
+    }
+    FNR == NR { if (!($0 in want)) { want[$0] = to_regex($0); order[++n] = $0 } next }
+    { for (g in want) if (!(g in hit) && $0 ~ want[g]) hit[g] = 1 }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in hit)) { print order[i]; bad = 1 } exit bad }
+  ' - "$WORK_DIR/all-files" >"$WORK_DIR/stale-globs" && return 0
+  echo "error: $SCOPES_LIST declares globs that match no file of the tree:" >&2
+  sed 's/^/  - /' "$WORK_DIR/stale-globs" >&2
+  exit 2
 }
 
 # select_scoped <changed-path> -> R8: add every suite whose declared test-scope
@@ -1137,13 +1122,12 @@ fi
 # Replay
 # ---------------------------------------------------------------------------
 
-# replay_select <out-prefix> <tree> <selector> <no-suite-list> <scope-table>
+# replay_select <out-prefix> <tree> <selector> <no-suite-list> <scopes-list>
 #               [<flag>...] -- <path>...
 # One selection in the replay tree, through a fresh process. Writes
 # <out-prefix>.sel (`<suite>\t<reason>`) and <out-prefix>.unmapped, and fails
 # loud on any exit but 0, because a broken selection counted as an empty one
-# would understate the side it ran for. An empty <scope-table> lets the
-# selector read the tree's own declarations.
+# would understate the side it ran for.
 replay_select() {
   local out="$1" tree="$2" sel="$3" list="$4" scopes="$5" rc=0
   shift 5
@@ -1172,12 +1156,9 @@ run_replay() {
     echo "error: '$replay_range' holds no commits to replay." >&2
     exit 2
   fi
-  # This tree's rules travel with the replay: its no-suite list and its
-  # test-scope table, read once here.
-  build_sync_map
-  build_tree_index
+  # This tree's rules travel with the replay: its no-suite and scopes lists.
   cp "$NO_SUITE_LIST" "$WORK_DIR/replay-no-suite" || exit 2
-  cp "$WORK_DIR/scopes" "$WORK_DIR/replay-scopes" || exit 2
+  cp "$SCOPES_LIST" "$WORK_DIR/replay-scopes" || exit 2
   if ! git clone -q --shared --no-checkout . "$tree"; then
     echo "error: could not make the scratch clone for the replay." >&2
     exit 2
@@ -1186,7 +1167,7 @@ run_replay() {
     # <ref>'s selector, its scripts/lib/ and its lists, pointed at the replay
     # tree through AFFECTED_TESTS_ROOT. A selector without that override gets
     # its one `cd` line rewritten; one with neither form cannot be pointed.
-    mkdir -p "$against/scripts" "$against/tree" || exit 2
+    mkdir -p "$against/scripts" || exit 2
     if ! git show "$against_ref:scripts/affected-tests.sh" >"$against/selector.orig" ||
       ! git archive "$against_ref" scripts/lib | tar -x -C "$against" ||
       ! git show "$against_ref:scripts/affected-tests-no-suite.txt" >"$against/no-suite.txt"; then
@@ -1202,15 +1183,9 @@ run_replay() {
     grep -q -- '--with-always)' "$against/scripts/affected-tests.sh" && against_flags+=(--with-always)
     git show "$against_ref:scripts/affected-tests-always.txt" >"$against/always.txt" 2>/dev/null ||
       rm -f "$against/always.txt"
-    # A selector that reads test-scope declarations gets <ref>'s own table.
-    if grep -q 'AFFECTED_TESTS_SCOPES' "$against/scripts/affected-tests.sh"; then
-      if ! git archive "$against_ref" | tar -x -C "$against/tree" ||
-        ! git ls-tree -r --name-only "$against_ref" >"$against/files" ||
-        ! scope_table "$against/tree" "$against/files" >"$against/scopes"; then
-        echo "error: could not read the test-scope declarations at '$against_ref'." >&2
-        exit 2
-      fi
-      against_scopes="$against/scopes"
+    # A selector that reads a scopes list gets <ref>'s own.
+    if git show "$against_ref:scripts/affected-tests-scopes.txt" >"$against/scopes.txt" 2>/dev/null; then
+      against_scopes="$against/scopes.txt"
     fi
   fi
 
@@ -1321,10 +1296,7 @@ build_tree_index
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
-  # A replay's table comes from another tree, so only a tree's own is checked.
-  if [[ -z "${AFFECTED_TESTS_SCOPES:-}" && -f "$f" ]] && is_suite_path "$f"; then
-    check_declarations "$f"
-  fi
+  [[ "$f" == "$SCOPES_LIST" ]] && check_scope_globs
   select_for "$f"
   select_scoped "$f"
   if [[ "$SEED_HITS" -eq 0 ]]; then

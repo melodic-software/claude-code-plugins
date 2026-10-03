@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/*.sh
 # Contract + behavioral test for the jq-gate POSTURE split (#2146).
 #
 # Two things are proven here, and the second is the one that matters:

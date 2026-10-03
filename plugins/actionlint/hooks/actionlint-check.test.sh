@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/actionlint/hooks/* plugins/actionlint/.claude-plugin/plugin.json
 # Black-box contract test for actionlint-check.sh (the actionlint plugin hook).
 #
 # Proves WIRING: the hook fires on .github/workflows/*.yml and *.yaml, skips

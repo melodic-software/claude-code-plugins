@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Self-test for scripts/lib/test-harness.sh.
 #
-# A live case reads every suite under scripts/ that sources the harness:
-# test-scope: scripts/*.test.sh
-#
 # The load-bearing property is the exit contract: a suite that recorded a
 # failed assertion and then called test_harness::report cannot exit 0. The
 # other cases pin the print format, the sourced-only guard, the last-line

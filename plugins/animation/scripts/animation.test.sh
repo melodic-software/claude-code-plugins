@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh
 # Contract tests for the animation scripts produce.py, pydeps.py, inkstats.py and woodcut_marks.py.
 # test_produce and test_pydeps need only the standard library and always run (test_pydeps skips without
 # pip). test_inkstats and test_woodcut_marks need numpy and opencv (../requirements.in pins them,

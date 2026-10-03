@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/planning/surface/schema/*
 # Tests for watch.sh against a live server started through round.sh ensure-running.
 #   bash watch.test.sh
 # Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a PORT that is not all

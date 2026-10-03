@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/retro-audio/examples/*
 # Contract tests for retro-audio WAV rendering.
 set -uo pipefail
 

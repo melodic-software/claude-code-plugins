@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/*
 # Contract tests for the audit-sessions scripts — delegates to the pytest suite.
 #
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the

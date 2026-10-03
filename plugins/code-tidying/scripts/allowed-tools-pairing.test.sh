@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-tidying/skills/*.md plugins/code-tidying/skills/*/scripts/*
 # Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
 # with the invocation its skill body actually tells Claude to run.
 #

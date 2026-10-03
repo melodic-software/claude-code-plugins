@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/parsers/*.py plugins/code-metrics/scripts/fixtures/*
 # Regression tests for the audit-coverage entry point (audit-coverage.sh):
 # artifact discovery and the usage error for a named path that does not exist,
 # the join it prints for each committed artifact format

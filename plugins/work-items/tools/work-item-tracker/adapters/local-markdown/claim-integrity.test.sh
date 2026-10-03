@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # Local-markdown lease/assignee-integrity behaviors that the abstract conformance
 # suite cannot assert (it runs against every adapter, and these two behaviors are
 # local-markdown-specific — the GitHub adapter has reclaim and a real assignee

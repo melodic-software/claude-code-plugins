@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 # Contract tests for save_point.py — delegates to the pytest suite under tests/.
 #
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
