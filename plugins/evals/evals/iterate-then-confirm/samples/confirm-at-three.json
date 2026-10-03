@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Iterate with `claude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none`: one case, one run, no baseline arm.\n\nA single run is noisy, so don't believe an improvement from it. Confirm the change at 3 runs per case, the default, and read the confirm run's noise report before you trust the result. If the report backs the change, keep it. While you iterate, each edit costs just one with-plugin run of that single case, and the output shows `SCORE` and `PASS%`.",
+      "why": "P-canonical: says to confirm at 3 runs per case, the default."
+    },
+    {
+      "answer": "For the tuning loop, `--case grader-tune --runs 1 --ablation none` is the cheapest it gets.\n\nBelieving the change is a separate step. Go back to the default of three runs for each case, run the confirm, and only treat the improvement as real once its noise verdict backs it up. Anything you saw at one run is a hint, not evidence. Skipping the baseline during the loop means each edit costs one with-plugin run of that case.",
+      "why": "P-alt: says the confirm uses the default three runs for each case, in different words."
+    },
+    {
+      "answer": "Re-run only that case with `--case grader-tune --runs 1 --ablation none`. Skipping the baseline arm means the output shows `SCORE` and `PASS%` instead of with, without and a delta, which is all you need while you tune the grader.\n\nBefore you believe a change helped, confirm it at 3 runs per case. That's the default, so you can simply drop `--runs 1`, keep the baseline arm if you want the delta back, and read the confirm's noise report before trusting the result.",
+      "why": "P-caveat: confirm at 3 runs per case, the default; the SCORE/PASS% note does not touch the graded point."
+    },
+    {
+      "answer": "While you iterate, run just that case once: `claude plugin eval ./plugins/notes --case grader-tune --runs 1`. It's quick and cheap, and you can repeat it after every edit.\n\nOne run moves around too much to judge by, so before you believe the change helped, confirm at 3 runs per case. If the score at 3 runs is higher than your previous version's, the change is real. Keep the iteration command handy; you'll run it many times before the confirm.",
+      "why": "P-plain: confirm at 3 runs per case; misses sibling points (no `--ablation none`, trusts the score without the noise report)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Iterate with `claude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none`, which runs only that case, once, without the baseline.\n\nSingle runs are noisy, so for the confirm you want real repetition: 5 runs per case at minimum, 10 if the case is borderline. Read that confirm's noise report before trusting the change. Each iteration in the meantime costs just one with-plugin run, and the output shows `SCORE` and `PASS%` instead of a delta, which is enough to see whether the grader now behaves.",
+      "why": "F-wrong: says the confirm needs 5 to 10 runs per case; sibling points (flags, noise report) are right."
+    },
+    {
+      "answer": "Use `--case grader-tune --runs 1 --ablation none` while you tune: one case, one run, no baseline arm.\n\nA single run can't tell a real improvement from noise, so once the grader looks right, do a confirm run with several runs per case and read its noise report before you trust that the change helped. While iterating, the output shows `SCORE` and `PASS%` rather than a with-versus-without delta, because the baseline arm is skipped; that's all you need to tell whether the grader now passes the answers it should.",
+      "why": "F-partial: gives no run count for the confirm (only 'several')."
+    },
+    {
+      "answer": "Tune with `--case grader-tune --runs 1 --ablation none` so each edit costs one with-plugin run.\n\nTo confirm, the default is 3 runs per case. Honestly, three is too few to separate a real gain from luck on a single case, so bump the confirm to `--runs 5` and read the noise report before you believe the change helped. Iterating stays cheap either way; only the confirm runs the case more than once, so the extra runs cost little.",
+      "why": "F-retract: states 3 runs per case, then says 3 is not enough and moves to 5."
+    },
+    {
+      "answer": "The cheap loop is `claude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none`: one case, one run, no baseline arm.\n\nDon't trust anything you see at one run. When you think the grader is right, confirm with 3 to 5 runs per case and read the confirm's noise report before you believe the change helped. Each iteration costs a single with-plugin run of that case, and the output shows `SCORE` and `PASS%` rather than a delta while you tune.",
+      "why": "F-near: '3 to 5 runs per case', which the rubric lists as a FAIL; sibling points are right."
+    }
+  ]
+}

@@ -125,6 +125,9 @@ passed.
 
 - Usage-based removal ("which plugins do I never use") belongs to the bundled `/doctor`; the
   skill routes there and never reimplements it.
+- Which skills to turn off goes to the built-in `/skill-doctor`, which the person runs; the audit measures what a toggle saved and never picks the skill.
+  Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
+  Recheck when that section sends the question to another command.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
 - Live in-session occupancy zones belong to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and

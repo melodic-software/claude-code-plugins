@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Don't have me hand-write these; run `claude plugin eval init ./plugins/notes`, which interviews you for the cases and graders and writes them in its runner's layout, measured against a no-plugin baseline.\n\nBefore you start it:\n\n1. **Criteria first.** Decide what success means for each skill, as numbers where you can, before any case exists. The cases test those criteria, whoever writes them.\n2. **Approve inputs.** Read and approve every case input before it is written.\n3. **No raw transcripts.** Describe scenarios in your own words rather than pasting session logs into the cases.",
+      "why": "P-canonical: says criteria are settled before any case and that every case input is read and approved before it is written; the transcripts line is the welcome extra."
+    },
+    {
+      "answer": "What should Claude do differently when the notes plugin is installed? Answer that first, with a measurable bar for each skill, because the cases exist to check those criteria and shouldn't come before them. Then hand the actual case writing to `claude plugin eval init`, which interviews you and writes the files where its runner looks. One rule while it runs: nothing goes into a case unreviewed. Look over each prompt and input file as it's proposed and sign off on it before it is saved. Keep raw session transcripts out of the inputs as well.",
+      "why": "P-alt: asks for the criteria first and requires the user to review and sign off on each proposed input before it is saved, in different words."
+    },
+    {
+      "answer": "Sure, with two conditions up front. Success criteria come first: before a single case exists, settle what the plugin must achieve, for example 'the capture skill files 9 of 10 save requests in the right folder'. And every case input gets read and approved by you before it is written, including any sample note files used as fixtures.\n\nWith those in place, the case writing itself goes to `claude plugin eval init ./plugins/notes`: it interviews you for cases and graders and writes them in the layout its runner reads.\n\nIf you seed cases from real sessions, rewrite them rather than pasting the raw transcripts, and swap out any names or paths from your own machine.",
+      "why": "P-caveat: both points stated plainly, plus the welcome transcripts note and a fixture-files detail that touch neither point."
+    },
+    {
+      "answer": "Yes, I can write them. First we settle success criteria: for each of the plugin's skills, what should happen with it installed that doesn't happen without it, and how often. No case gets written until those are agreed. Then I'll draft the cases one at a time, each a prompt plus the expected behavior and a grader, and you read and approve every case input before I write it to disk. We'll run each case with the plugin and without it and compare the results. If a skill misbehaves later, we add a case for it the same way.",
+      "why": "P-plain: criteria first and approve-every-input are both stated; it hand-writes the cases instead of handing off to claude plugin eval init, which only the hands-off sibling grades."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Hand this to `claude plugin eval init ./plugins/notes`. It interviews you for the cases and graders and writes them in the layout its runner reads, with a no-plugin run as the baseline. Answer its questions quickly and let it generate a broad first set; you can always prune cases later once you see which ones fail. Then run the suite, look at the with-versus-without delta, and add cases wherever a skill misbehaves. Speed matters more than polish on the first pass. Most teams get a usable suite in under an hour this way.",
+      "why": "F-wrong: no criteria step and no approval of inputs before they are written (it says to prune later); the sibling hand-off is correct."
+    },
+    {
+      "answer": "Pass this to `claude plugin eval init ./plugins/notes`; it interviews you for the cases and graders and writes them in its runner's layout, with a no-plugin baseline. Before you run it, settle your success criteria: what each skill should do with the plugin present, and a target rate for it. Those criteria shape every answer you give during the interview, so no case should exist before them. Keep raw session transcripts out of the cases as well and describe scenarios in your own words. The no-plugin arm then shows what each skill actually adds.",
+      "why": "F-partial: criteria first is present, but approving every case input before it is written is missing (the transcripts note does not meet it)."
+    },
+    {
+      "answer": "Two things before any case exists. Settle the success criteria for the notes plugin first, and read and approve every case input before it is written. Then run `claude plugin eval init ./plugins/notes`, which interviews you for cases and graders and writes them in its runner's layout.\n\nThat said, approving each input one by one is overkill for a plugin this size; init's interview already shapes them, so accept its defaults and skim the folder afterwards. Same with criteria: you'll learn what matters faster by running a first suite and setting targets from the results.",
+      "why": "F-retract: states both points, then retracts both (skip per-input approval; set criteria after a first run)."
+    },
+    {
+      "answer": "Start by settling success criteria: for each skill, the behavior you expect with the plugin installed and a target rate. Then hand case writing to `claude plugin eval init ./plugins/notes`; it interviews you for cases and graders and writes them in its runner's layout. Once it has written the suite, spot-check a few of the generated cases to make sure the inputs look reasonable, and keep raw session transcripts out of them. Run the suite with `/evals:plugin-eval` and compare against the no-plugin baseline, adding cases wherever a skill's delta looks wrong.",
+      "why": "F-near: criteria first is present, but approval is weakened to spot-checking a few cases after they are written, not reading and approving every input before it is written."
+    }
+  ]
+}

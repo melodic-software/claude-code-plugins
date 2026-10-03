@@ -301,6 +301,19 @@
         "It cites the next task being unrelated to the finished work as the evidence",
         "It does NOT recommend `/compact` or a handoff for this context"
       ]
+    },
+    {
+      "id": 26,
+      "name": "stage-effort-advice-unreadable-table",
+      "prompt": "My plan is written and approved. What comes next, and what effort should I run that stage at? (Note: every fetch of the Claude Code model-config docs page fails with a network error in this session.)",
+      "expected_output": "Default mode suggests implement as the next stage and adds its effort advice per steps.md's 'Effort per stage' rule, which advises only from model-config's live 'Choose an effort level' table. That table could not be read, so the skill says so and advises no level rather than naming one from memory.",
+      "files": [],
+      "expectations": [
+        "The skill suggests implement as the next stage",
+        "It states that model-config's effort table could not be read",
+        "It advises no effort level: no level name is recommended for the stage, from memory or otherwise",
+        "It does not set or change the session's effort itself"
+      ]
     }
   ]
 }

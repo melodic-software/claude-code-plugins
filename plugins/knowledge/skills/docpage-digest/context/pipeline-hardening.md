@@ -51,7 +51,14 @@ python3 "<skill-dir>/scripts/check-snippets.py" \
   --source <work-root>/source.md \
   --digest <work-root>/digests/01-….md \
   --digest <work-root>/digests/02-….md
+
+python3 "<skill-dir>/scripts/check-html-rows.py" \
+  <work-root>/source.html <work-root>/digests/01-….md <work-root>/digests/02-….md
 ```
+
+Run `check-html-rows.py` only when the slice keeps a `source.html` and a digest
+carries `**FN.**` rows quoted from it; name each such digest. Its zero-row exit 1
+is a failure there, never a skip.
 
 Use `source.txt` when the original is a PDF extraction. Repeat `--digest` once
 per digest file. A PASS prints the files, counts, and fields exercised; read it
@@ -60,8 +67,8 @@ section is a failure, never a skip.
 
 **A gate is a claim that needs its own evidence.** Do not believe a PASS until
 that gate's negative-control suite has failed the known-bad fixtures. For these
-two gates the evidence is `scripts/test_check_fences_exact.py` and
-`scripts/test_check_snippets.py` (empty input, zero-parse, indented fence,
+gates the evidence is `scripts/test_check_fences_exact.py`,
+`scripts/test_check_snippets.py` and `scripts/test_check_html_rows.py` (empty input, zero-parse, indented fence,
 stripped trailing space, blockquote/inline substitutes, fabricated
 quote/snippet). A newly written gate is not a required artifact until that
 suite is green. The ordering is the one `SKILL.md` already states.

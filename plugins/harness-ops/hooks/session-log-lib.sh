@@ -23,9 +23,11 @@
 #   source: "envelope"       hook, exit_code, subject, tool, and changed when
 #                            the producer sent a rewrite verdict — a hook run,
 #                            written by hook-telemetry-sink.sh on both routes
-#   source: "event-log"      category, plus prompt_id, tool_use_id, agent_id,
-#                            tool_name, file_path, reason and traceparent when
-#                            the payload carried them — one hook EVENT the
+#   source: "event-log"      category and effort, plus prompt_id, tool_use_id,
+#                            agent_id, tool_name, file_path, reason,
+#                            traceparent and the SLOG_EVENT_LOG_STRINGS and
+#                            SLOG_EVENT_LOG_SCALARS keys below when the
+#                            payload carried them — one hook EVENT the
 #                            session saw, written by session-event-log.sh;
 #                            no `hook`, because no hook run is described and
 #                            `duration_ms` is the logger's own cost
@@ -35,6 +37,48 @@
 # with `.source == "event-log"`. The skill-usage store is a SEPARATE contract
 # with its own readers (skills/audit-skill-visibility); it shares the formatter
 # and the escaping, not this key set.
+
+# THE EVENT-LOG METADATA ALLOWLIST. The payload keys an event-log record copies
+# when they sit at the payload's top level: string enums, ids, names and paths
+# (STRINGS, re-emitted as the payload's own JSON string bodies) and booleans and
+# numbers (SCALARS, emitted with their JSON type). Paths are recorded as the
+# payload's raw absolute values; `file_path` keeps its own reduction in the
+# hook. A `key@Event` entry is read only on that event: `error` is an enum on
+# StopFailure and tool output on PostToolUseFailure. Never copied: content
+# (prompt, session_title, command_args, message, title, last_assistant_message,
+# task_subject, task_description, error_details, custom_instructions,
+# compact_summary, url, and every object or array, tool_input and
+# tool_response among them), and the payload keys `source` and `duration_ms`,
+# whose names the record's spine already holds.
+#
+# `effort` is on every event-log record: the level, `n/a` on the events in
+# SLOG_EFFORT_NA_EVENTS, `unset` when an event that can carry a level did not.
+# The logged events outside that list (PermissionRequest, PermissionDenied,
+# PostToolUseFailure, PostToolBatch, Stop, SubagentStop, StopFailure) are built
+# from a tool-use context, the only source of the payload's effort object, and
+# Claude Code sets a hook's $CLAUDE_EFFORT from that object alone. So the
+# payload's level is recorded first; $CLAUDE_EFFORT fills in only when the
+# payload has no effort object, and an inherited value never overrides it.
+#
+# Claim: these keys, their types and the events carrying them are the hooks
+# reference's common input fields and per-event input sections; `effort` is
+# present only on events fired within a tool-use context, and a hook's
+# $CLAUDE_EFFORT is the payload's effort.level, so both are empty on the
+# SLOG_EFFORT_NA_EVENTS events.
+# Basis: https://code.claude.com/docs/en/hooks ("Common input fields" and each
+# event's "input" section); the page does not say which events, so the event
+# split is read from the Claude Code 2.1.287 binary (the hook-input builder
+# and the hook spawn environment).
+# As of: 2026-10-02.
+# Recheck: each /harness-ops:changelog ingest whose release notes touch hook
+# input fields, when a key here stops appearing in the page's input sections,
+# or when Stop rows on an effort-capable model record `unset`.
+# shellcheck disable=SC2034 # the three lists are read by session-event-log.sh
+SLOG_EVENT_LOG_STRINGS="transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name error@StopFailure old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action"
+# shellcheck disable=SC2034
+SLOG_EVENT_LOG_SCALARS="seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm"
+# shellcheck disable=SC2034
+SLOG_EFFORT_NA_EVENTS="SessionStart SessionEnd Setup InstructionsLoaded UserPromptSubmit UserPromptExpansion Notification SubagentStart TaskCreated TaskCompleted TeammateIdle ConfigChange CwdChanged DirectoryAdded WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult"
 
 # Default log root, project-relative. Overridden by the session_event_log_dir
 # userConfig option (CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR).

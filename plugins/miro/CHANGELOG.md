@@ -3,6 +3,17 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-10-02
+
+### Fixed
+
+- The Windows PowerShell repair command the launcher prints names `npm.cmd` instead of bare `npm`,
+  which resolves to `npm.ps1` and is refused by the default Restricted execution policy
+  ([#5880](https://github.com/melodic-software/claude-code-plugins/issues/5880)).
+- That command runs inside a child script block, `& { ... }`, so its
+  `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is pasted into
+  ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
 ## [0.5.2] - 2026-10-02
 
 ### Fixed

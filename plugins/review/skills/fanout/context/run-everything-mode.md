@@ -25,7 +25,13 @@ The Workflow tool is not present in every session: a user or organization can tu
 
 If availability cannot be positively confirmed, fall back (fail-safe, not fail-open).
 
-**Null reconciliation:** the workflow returns `nulls` (every leaf whose agent returned no result, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line in the form `Ran: [...]. Returned no result: [...]`, with NO silent caps. Every null is named.
+**Null reconciliation:** the workflow returns `nulls` (every leaf whose agent returned no result, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line in the form `Ran: [<label>@<level>, ...]. Returned no result: [...]`, with NO silent caps. Every null is named.
+
+**Leaf levels:** render each `ran` entry as `<label>@<level>`, main-thread, after the workflow returns. A slice takes its level from the returned `roles.slices.effort`. A named agent takes the `effort:` key from its definition's frontmatter: Read `<plugin-root>/agents/<name>.md`, where `<name>` is the `agentType` without its `review:` prefix; a definition with no `effort:` key ran at the session's level, rendered `<label>@session`. The rendered level is the level requested, not proven: we treat a set `CLAUDE_CODE_EFFORT_LEVEL` environment variable as able to override it. Check it with `printenv CLAUDE_CODE_EFFORT_LEVEL`; when it is set, end the `## Surfaces` line with one notice that the variable may override the shown levels.
+
+- **Pointer**: for how frontmatter effort ranks against the session level and the environment variable, see [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section changes, or the workflow's returned `roles` shape changes.
 
 ## Coverage-parity fallback (Workflows unavailable)
 
