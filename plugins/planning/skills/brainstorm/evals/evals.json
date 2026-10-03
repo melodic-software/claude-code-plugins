@@ -92,6 +92,20 @@
         "Output reports the disconnected items as candidates ahead of any greenfield option (wire up or enable existing work before building new)",
         "Output ends by inviting the user to react or mark what resonates rather than picking one"
       ]
+    },
+    {
+      "id": 8,
+      "name": "offers-built-candidate-view",
+      "prompt": "/planning:brainstorm how could we cut our CI runtime? You gave me twelve candidates, can I tick the ones I like in a page?",
+      "expected_output": "The skill keeps the numbered candidate list as the record and offers an interactive view built with the checked-in builder from JSON data, candidates ordered cheapest first, with the destination resolved from the medium cascade key.",
+      "files": [],
+      "expectations": [
+        "The numbered candidate list in the conversation stays the record",
+        "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
+        "The candidates in the view keep the cheapest-to-most-ambitious order of the list",
+        "The page is not written into the memory slice, even when brainstorm.md is persisted there",
+        "The publish destination comes from the medium key of the rendered-views cascade"
+      ]
     }
   ]
 }

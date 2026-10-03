@@ -14,12 +14,15 @@ name: claude-security-review
 # model, and the secret-handling model; per its header, this caller owns the
 # triggers, concurrency, and the GITHUB_TOKEN permission grant.
 #
-# There is no path gating: every non-draft same-repository PR is
-# security-reviewed. A `.github/claude-security-paths` file is no longer read.
+# There is no workflow-level path gating. The reusable skips, with a green
+# check, a review whose files in scope are all documentation (its
+# `docs-only-paths` default: `docs/**/*.md`, READMEs and changelogs). A
+# `.github/claude-security-paths` file is no longer read.
 #
-# NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a
-# required check whose workflow never triggers stays Pending forever and
-# wedges every out-of-scope PR.
+# NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a check
+# whose workflow never triggers is missing, not green, so a required check
+# would stay Pending forever, and the babysit merge gate, which waits for
+# `security-review / security-review`, never arms.
 #
 # The reusable skips fork PRs (they receive no secrets and a read-only token)
 # and every `[bot]` actor; a required check does NOT prove a fork PR was
@@ -34,9 +37,10 @@ name: claude-security-review
 
 on:
   pull_request:
-    # `synchronize`, matching the code-review lane: every push is reviewed,
+    # `synchronize`, matching the code-review lane: every push is re-reviewed,
     # including the push that resolves a merge conflict (GitHub runs no
-    # pull_request workflow while a PR conflicts with its base). The check
+    # pull_request workflow while a PR conflicts with its base), narrowed by
+    # the reusable to the files changed since the last completed review. The check
     # stays advisory: github-iac ADR 0011 forbids any organization ruleset
     # from making an agentic review a merge or deployment prerequisite. With
     # the per-PR group below not cancelling, pushes during a review queue at
@@ -69,14 +73,15 @@ jobs:
     if: github.event.pull_request.draft == false
     permissions:
       contents: read         # checkout + read the diff
-      pull-requests: write   # post the security review + tracking comment
+      pull-requests: write   # post the security review, tracking comment and
+                             # the lane's reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
     # Per-PR serialization without cancellation. See the workflow header.
     concurrency:
       group: claude-security-review-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@35880dcbb2f174aac90159e276dc7eddf1bc20b9 # v0.30.1
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@0a99a32989ec1303fcbca233370f4210e888a0f4 # v0.32.0
     with:
       runner: ubuntu-24.04
     # Pass only the one named secret (least privilege) rather than
