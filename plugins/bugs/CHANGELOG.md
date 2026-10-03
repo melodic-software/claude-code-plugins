@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.12] - 2026-10-02
+
+### Changed
+
+- `scan` takes each stage's model from the multi-agent role map (`/multi-agent:route`): hunters use the `retrieval` role, gates the `verifier` role, each through its `fanout` variant. Without the multi-agent plugin both stages inherit the session model, or run on `opus` under a frontier or unknown session, and the report says once that enabling multi-agent makes routing configurable. The skill no longer reads the loop-lane capability tiers.
+
 ## [0.11.11] - 2026-10-02
 
 ### Changed
