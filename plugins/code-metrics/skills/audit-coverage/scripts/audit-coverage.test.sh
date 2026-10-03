@@ -16,6 +16,7 @@
 # only, which is what makes Bash CRAP not-applicable). Nothing executable is
 # committed (design T13). No test command is ever run: this skill reads
 # artifacts.
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/parsers/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

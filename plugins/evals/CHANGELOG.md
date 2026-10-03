@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.5.2] - 2026-10-03
+
+### Changed
+
+- `skills/plugin-eval/scripts/calibrate-judge.test.sh`, `skills/plugin-eval/scripts/run-validity.test.sh`, and `skills/validate/scripts/validate-cases.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.5.1] - 2026-10-03
 
 ### Changed

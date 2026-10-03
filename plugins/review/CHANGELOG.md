@@ -22,6 +22,12 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **The digest publishes as an Artifact by default.** `digest-policy.mjs` resolves `medium` to
   `artifact` when no layer sets it. `medium: file` in a personal layer keeps the page local.
 
+## [0.38.1] - 2026-10-03
+
+### Changed
+
+- `tests/change-set-block.test.sh` declares the files it reads without naming them in a `# test-scope:` header, so CI's test selection runs it when one of them changes. Nothing the plugin runs changed.
+
 ## [0.38.0] - 2026-10-03
 
 ### Added
