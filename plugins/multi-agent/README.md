@@ -11,7 +11,8 @@ answer.
 |---|---|
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them. `all` is the map a workflow reads from `args.roles`. |
-| `/multi-agent:audit-defaults` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. Never edits a file. |
+| `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
+| `/multi-agent:check` | Reports whether `node` resolves, whether `hooks/hooks.json` registers the fetch gate on `WebFetch`, and whether the gate denies a sample off-host drift-checker fetch. Read-only; installs nothing. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
@@ -38,6 +39,27 @@ that enabling this plugin makes the routing configurable.
 `/review:fanout-sweep` in the `review` plugin is the first workflow built this
 way.
 
+## The drift-audit workflow
+
+`multi-agent:drift-audit` is the evidence pass behind `/multi-agent:audit-defaults`.
+Finders (one per default owner, or one per area of the repository) fetch the
+upstream sources and judge each claim; plain code dedups what they find; then
+three skeptics per batch try to refute each finding, and a majority decides it.
+In repo mode a `multi-agent:drift-reader` agent (Read, Grep, Glob) first quotes
+each area's claims, and the finders see only those quotes. Finders and skeptics
+run as `multi-agent:drift-checker` (WebFetch only, no search). Neither agent
+has a shell or can edit, write or spawn agents, and none holds both file and
+web access: the only repository text a checker holds is the quoted claim
+lines, and the hook below confines its fetches. The
+workflow returns findings and, for the defaults, a proposed diff; applying any
+of it is a reviewed edit.
+
+A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
+the host rule a gate: inside a `drift-checker` subagent it denies any fetch
+that is not an https URL on a first-party docs host with no query string. Every
+other agent and the main thread pass through. The workflow drops any source
+outside those hosts before a stage runs.
+
 ## The fan-out guard
 
 A stage that runs more than one agent never runs them on a frontier model by
@@ -62,6 +84,10 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
+- **Node.js** for the `drift-checker` fetch gate hook. Without `node` the gate fails open: the hook
+  cannot start, Claude Code shows a non-blocking hook error notice, and the drift checker's fetches
+  are held to first-party docs hosts only by the workflow's source filter and the agent's prompt.
+  `/multi-agent:check` reports whether `node` resolves and the gate is registered.
 
 ## Install
 

@@ -135,6 +135,13 @@ LICENSE
 # still selected by the reference rule before this line is consulted.
 plugins/*/evals/fixtures/*.txt
 
+# Kept-trace fixtures for the evals plugin's result checkers. test_run_validity.py
+# and test_calibrate_judge.py read them through their fixture directories, never
+# by basename, so no rule above selects a suite. The lane covering them is the
+# two wrapping shell suites, run-validity.test.sh and calibrate-judge.test.sh,
+# which run those tests whenever any script in that directory changes.
+plugins/evals/skills/plugin-eval/scripts/fixtures/*.jsonl
+
 # The task-end judge's calibration cases: test and production code copied
 # verbatim from other repositories' histories, read as data by the judge, never
 # run. The lane covering them is the testing plugin's shell lane: metrics.test.sh
@@ -155,6 +162,13 @@ plugins/testing/skills/audit/evals/judge-calibration/sweep/*
 plugins/harness-ops/lib/plugin_cache_versions.py
 plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
 plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
+
+# The generated session-bridge copy (scripts/shared-copies.txt). It changes only
+# with its canonical, lib/session-bridge/session_bridge.py, whose shared-lib
+# fan-out selects the carrying plugin's suites; the copy itself is covered by
+# the shared-copies --check drift step and by the affected-tests step's pytest
+# run of the planning surface's test_server.py and test_round.py, which import it.
+plugins/*/surface/session_bridge.py
 
 # The cleanup skill's eval fixture: a small repository (production modules,
 # a config, a judge findings file) that the cleanup evals copy and run the

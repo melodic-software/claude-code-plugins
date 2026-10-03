@@ -181,6 +181,52 @@ lib/html-escape.mjs
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/session_bridge.py. The planning plugin is the first
+# adopting copy (plugins/planning/surface/), generated with a header that names
+# the canonical. A path-within-plugin line stays out until a second plugin
+# carries it. The arrow line is the duplication audit's cluster.
+lib/session-bridge/session_bridge.py -> plugins/*/surface/session_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/watch.sh, generated into plugins/planning/surface/ as above.
+lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/wake.sh, generated into plugins/planning/surface/ as above.
+lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.mjs. harness-ops carries the first generated copy; every
+# plugin whose prerequisites.json passes the schema carries one too
+# (scripts/check-declared-prerequisites.mjs). A path-within-plugin line joins
+# once a second plugin carries it. The arrow line is the duplication audit's
+# cluster.
+lib/prerequisites.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/prerequisites.mjs -> plugins/*/lib/prerequisites.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.sh, the checker's POSIX sh stub. Carried beside every copy
+# of lib/prerequisites.mjs. The arrow line is the duplication audit's cluster.
+lib/prerequisites.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/prerequisites.sh -> plugins/*/lib/prerequisites.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.ps1, the checker's PowerShell stub. Carried beside every
+# copy of lib/prerequisites.mjs. The arrow line is the duplication audit's
+# cluster.
+lib/prerequisites.ps1
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/fetch-docs.sh. The harness-config and harness-ops plugins each carry a copy
 # because a plugin cache cannot see the repo-root canonical.
 scripts/fetch-docs.sh

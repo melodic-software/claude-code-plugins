@@ -8,7 +8,7 @@
 #
 # Modes:
 #   --check  (default) read-only: report upstream version + vendor SHA delta
-#   --apply  fetch latest upstream, replace vendor/SKILL.md verbatim, bump
+#   --apply  fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
 #            frontmatter metadata (upstream-version + synced). Does NOT
 #            rewrite the distilled SKILL.md body — integration is a manual,
 #            reviewed step (the update action is advisory).
@@ -29,7 +29,7 @@ INSTALL_URL="https://howborisusesclaudecode.com/api/install-thariq"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FRONTMATTER_FILE="${SKILL_DIR}/SKILL.md"
-VENDOR_FILE="${SKILL_DIR}/vendor/SKILL.md"
+VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t skill-authoring-update-XXXXXX)
 
 cleanup() {
@@ -124,13 +124,13 @@ run_check() {
     log "→ version match"
   fi
 
-  section "vendor/SKILL.md SHA"
+  section "vendor/upstream-skill.md SHA"
   upstream_sha=$(file_sha "$upstream_md")
   vendor_sha=$(file_sha "$VENDOR_FILE")
   log "vendor SHA256:   ${vendor_sha:-<missing>}"
   log "upstream SHA256: $upstream_sha"
   if [[ -z "$vendor_sha" ]]; then
-    log "→ vendor/SKILL.md missing — first sync"
+    log "→ vendor/upstream-skill.md missing — first sync"
     drift=1
   elif [[ "$upstream_sha" == "$vendor_sha" ]]; then
     log "→ vendor content matches upstream byte-for-byte"
@@ -174,10 +174,10 @@ run_apply() {
     return 0
   fi
 
-  section "Replace vendor/SKILL.md"
+  section "Replace vendor/upstream-skill.md"
   mkdir -p "$(dirname "$VENDOR_FILE")"
   cp "$upstream_md" "$VENDOR_FILE"
-  log "vendor/SKILL.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes)"
+  log "vendor/upstream-skill.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes)"
 
   section "Bump frontmatter metadata"
   today=$(date -u +%Y-%m-%d)
@@ -203,9 +203,9 @@ Vendor-backed update helper for the skill-authoring pack (playbooks plugin). Mai
 facing: run in a working-tree checkout of the plugin, not an installed copy.
 
   --check  (default) Read-only drift report: upstream frontmatter version +
-           SHA delta vs vendor/SKILL.md. Exit 0 in sync, 1 drift, 2 prereq/network.
+           SHA delta vs vendor/upstream-skill.md. Exit 0 in sync, 1 drift, 2 prereq/network.
 
-  --apply  Fetch latest upstream, replace vendor/SKILL.md verbatim, bump
+  --apply  Fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
            frontmatter metadata (upstream-version + synced). Distilled-body
            integration stays a manual step.
 

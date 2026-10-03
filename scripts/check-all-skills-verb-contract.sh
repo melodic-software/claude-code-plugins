@@ -4,7 +4,7 @@
 # guards skills a PR touches; this job keeps the full corpus green (#4586).
 #
 # The checker runs in its root form, once per plugins/*/skills root and in
-# parallel. Its exit 1 is normal (other checks fail on some skills); only
+# parallel, with CHECK_SKILL_ONLY=25 so it runs check 25 and nothing else. Only
 # check-25 lines count here. A run that cannot vouch for every skill exits 2:
 # a checker exit other than 0 or 1, or a pass/fail rollup that does not add up
 # to the number of skills on disk. That second test is what keeps a checker
@@ -50,7 +50,7 @@ jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 for i in "${!roots[@]}"; do
   printf '%s\t%s\n' "$i" "${roots[$i]}"
 done | xargs -P "$jobs" -L 1 bash -c '
-  CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$1" "$4" >"$2/$3.out" 2>&1
+  CHECK_SKILL_ONLY=25 bash "$1" "$4" >"$2/$3.out" 2>&1
   echo $? >"$2/$3.rc"
 ' _ "$CHECKER" "$work"
 

@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "answered with no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "conftest"
+          }
+        }
+      ],
+      "why": "searched the workspace but invoked no skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api"
+          }
+        }
+      ],
+      "why": "another plugin's skill is outside this control"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "pytest-helper"
+          }
+        }
+      ],
+      "why": "a non-evals skill is outside this control"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "the bundled design skill, not evals:design"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        }
+      ],
+      "why": "this plugin's skill fired on an off-topic prompt"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        }
+      ],
+      "why": "evals:design fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plugin-eval"
+          }
+        }
+      ],
+      "why": "bare evals skill name"
+    }
+  ]
+}

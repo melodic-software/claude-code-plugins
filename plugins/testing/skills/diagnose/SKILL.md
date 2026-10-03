@@ -3,6 +3,7 @@ description: "Diagnose and fix failing tests. Failure classification, root-cause
 argument-hint: "[failure]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(testing:fix-until-green)"]
 metadata:
   workflow-stage: test
   summary: Root-cause failing tests, never retry blindly
@@ -47,6 +48,7 @@ Examples: /testing:diagnose, /testing:diagnose the frozen-logger error, /testing
 |--------|-------|-------------|
 | Failure needs diagnosis. Stack trace, assertion mismatch, flaky test | **investigate** | [context/investigate.md](context/investigate.md) |
 | Root cause known, fix needed. Reproduce → isolate → fix → retest → regression | **loop** | [context/loop.md](context/loop.md) |
+| Several tests failing across files, user wants them fixed | **fix-until-green** (offer the workflow) | [context/fix-until-green.md](context/fix-until-green.md) |
 
 Default entry is **investigate**; it chains into **loop** once the root cause is found. Read the relevant context file before proceeding.
 
@@ -55,9 +57,9 @@ Default entry is **investigate**; it chains into **loop** once the root cause is
 | After phase | Suggest |
 |-------------|---------|
 | `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` |
-| `loop` | `/verification:confirm fix` (when the `verification` plugin is installed) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
+| `loop` | `/verification:confirm fix` (when the `verification` plugin is enabled) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
 
-The regression test takes its expected value from the bug report, not from the fixed code: `testing:test-value` (if installed).
+The regression test takes its expected value from the bug report, not from the fixed code: `testing:test-value` (if enabled).
 
 ## Integration with /implementation:implement
 

@@ -40,6 +40,7 @@ export function exportSheetFrameIndex(sliceDir) {
       cell: CELL_IDS[cellIndex],
       frame: file,
       timestampSec: byFile[file]?.timestampSec ?? null,
+      timestampSource: byFile[file]?.timestampSource ?? null,
       textDense: byFile[file]?.textDense ?? false,
     })),
   }));

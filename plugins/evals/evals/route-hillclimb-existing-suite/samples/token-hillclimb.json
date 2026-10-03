@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Type `/claude-api hillclimb` against your eval set.",
+      "why": "command form"
+    },
+    {
+      "answer": "Use the hill-climb subcommand of the claude-api skill.",
+      "why": "hyphenated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Script a grid over three models and two effort levels and pick the cheapest that hits 90%.",
+      "why": "grid only"
+    }
+  ]
+}

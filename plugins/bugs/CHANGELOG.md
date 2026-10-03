@@ -3,6 +3,25 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.13] - 2026-10-03
+
+### Changed
+
+- `scan` takes each stage's model from the multi-agent role map (`/multi-agent:route`): hunters use the `retrieval` role, gates the `verifier` role, through the `single` variant for a one-agent stage and the `fanout` variant otherwise, and a gate never runs on a weaker model than the hunters. Without the multi-agent plugin both stages inherit the session model, or run on `opus` under a frontier or unknown session, and the report says once that enabling multi-agent makes routing configurable. The skill no longer reads the loop-lane capability tiers.
+
+## [0.11.12] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The `scan` and `write` skill descriptions no longer contain angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.11.11] - 2026-10-02
+
+### Changed
+
+- `write` Step 3 accepts a pasted screenshot or image path as evidence for Expected vs actual, names it under Notes so it is attached when filed, and asks for still frames instead of a video file. A repo that wants a screenshot on every rendered-output report says so in its `.claude/bugs.md` Gotchas section.
+
 ## [0.11.10] - 2026-10-02
 
 ### Changed

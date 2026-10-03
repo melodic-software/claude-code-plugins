@@ -1,12 +1,19 @@
 # Changelog
 
-## [0.9.2] - 2026-10-02
+## [0.9.3] - 2026-10-02
 
 ### Changed
 
 - **Shared `check-retirements.sh`, `config-root.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
   Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copies.
+
+## [0.9.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 
 ## [0.9.1] - 2026-10-02
 

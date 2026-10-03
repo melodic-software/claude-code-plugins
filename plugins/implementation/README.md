@@ -8,7 +8,7 @@ concern: turning approved plans into verified code.
 
 | Skill | What it does |
 |---|---|
-| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary handoffs. |
+| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary records with the continuation routed through `/session-flow:workflow`. |
 | `/implementation:implement-dispatch` | Orchestrated execution variant. Composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
 
 Three plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`

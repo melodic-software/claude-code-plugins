@@ -3,13 +3,127 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.73.1] - 2026-10-02
+## [0.77.1] - 2026-10-02
 
 ### Changed
 
 - **Shared `check-retirements.sh`, `config-root.sh`, `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks and lib.**
   Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copies.
+
+## [0.77.0] - 2026-10-03
+
+### Added
+
+- **`babysit_stacked_prs` (boolean, default `false`) lets the babysit merge gate merge a native
+  stacked PR layer.** With it on, the gate's `--stacked-prs` judges the layer against the stack's
+  trunk and runs the full gate over every open layer below it, since merging the layer lands them
+  too. Under `--auto` a lower layer's missing AI review check holds the merge as well. The stack is
+  re-read just before the merge request and the merge is refused if a lower layer changed. After
+  the merge every lower layer is checked against the head the gate evaluated, including when the
+  request completes in a later run, and a mismatch is reported with exit `10`. A lower-layer push
+  between the request and its completion still lands unvetted, so the flag assumes only trusted
+  actors can push to the lower layers. Every stack member, the bottom layer on any trunk included,
+  merges through the async merge API, GitHub's required API for a stacked PR, and holds rather than
+  falling back when the endpoint is missing. Off, a stack layer is held exactly as before.
+- **The `pull-request` skill has a stacked-PR reference** (`reference/stacks.md`) for creating a
+  stack with the `gh stack` extension and merging it, including the v0.2.0 floor for stacks built
+  in linked worktrees, and `merge.md` shows how to merge through the async merge API with `gh api`.
+
+### Changed
+
+- **The babysit merge gate merges a ready PR on the default branch through GitHub's async merge
+  API** (`gh api` on the PR's `merge-async` endpoint), pinned with `sha` to the head the gate
+  evaluated, `bypass_rules` always false, and polled for up to 60 seconds. A 409 polls the request
+  already pending unless its body names another head or merge action, which is held instead; a host
+  without the endpoint falls back to `gh pr merge`. Any other base and every `--auto` arm keep
+  `gh pr merge`. A reported merge is read back: one at another head exits `10` for a human, and one
+  the gate cannot read back is reported as unconfirmed (`mergeUnconfirmed: true`, exit `10`), not
+  as merged.
+- **`--allow-unpinned-head` no longer sends an unpinned merge.** It waives only the
+  `--expected-head` argument; the merge still pins the head the run evaluated.
+- **A merge request still pending at the bound is recorded under `--state-dir`.** GitHub documents
+  no route to cancel one, so every later run reads it first and, while it is live or unreadable,
+  reports `action: merge-pending` and sends nothing. A request that later finishes merged is checked
+  against every head the gate evaluated: a mismatch is escalated with exit `10`, and a match is
+  reported as merged (`merged: true`, exit `0`) although the gate now reads a closed PR. A record
+  clears only when the request finishes or GitHub stops returning it (404), never on a local age
+  limit. A record with an unusable request id is held as corrupt, never read or cleared. Merge
+  commands now carry `--state-dir <state-dir>`.
+- **A default branch that requires a merge queue no longer blocks the gate.** A fully ready PR is
+  enqueued instead (`action: enqueue`, `enqueued: true`), which is reported as queued, not merged.
+  Auto-merge is never armed over a queue, and a queue on any other base is still held.
+- **A check concluded `action_required` (a workflow run held for approval) is escalated as a
+  material finding** (`checks.approval_held`) instead of counted as a failing check that dispatches
+  a fix worker. The merge gate still holds on it.
+- `safety.md` and `merge.md` record that `CLEAN` does not say which base CI tested, since GitHub
+  regenerates a PR's test merge commit only on a push, a merge-base change, or after 12 hours.
+
+## [0.76.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `babysit-loop` and `commit` skill descriptions no longer contain angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.76.0] - 2026-10-02
+
+### Changed
+
+- **An unrelated small review fix lands in the PR only when it is in a file the PR already
+  touches.** Any other goes in its own small PR with no tracker item; a lane that cannot open a PR
+  replies, leaves the thread unresolved, and reports it. A project changes this placement in its
+  own CLAUDE.md or AGENTS.md. The D4.6 scope test in `review-discipline.md` owns the rule, now
+  under its own contract-restatement clause; `pull-request`'s classify step and `monitor.md`,
+  and `babysit-prs`'s `safety.md` and `independent-resolution.md`, point at it.
+- **D7.5 gains a fourth thread disposition, fixed in a linked PR,** with the reply citing that PR.
+  `source-control-babysit-resolve-thread --independent-resolver` accepts it as
+  `--disposition linked-pr --linked-pr <N>`: it resolves only when a reply on the thread by someone
+  other than the opener cites `#N` or its URL and PR `N`, a different PR in the same repository,
+  is open or merged. New refusals: `refused-linked-pr-not-cited`, `refused-linked-pr-not-found`,
+  `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`.
+
+### Added
+
+- **`/source-control:pull-request create` drafts before/after media into the verification
+  section** when the diff changes rendered visual or audio output: it lists each capture's local
+  path and asks the person to drag the files into the PR description, since `gh pr create` cannot
+  upload a file. A project turns the step off in its own CLAUDE.md or AGENTS.md.
+- **`config-resolution.md` says where approval counts come from:** the repository ruleset's
+  `required_approving_review_count`, which the merge gate reads. No new key.
+
+## [0.75.0] - 2026-10-02
+
+### Added
+
+- **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
+## [0.74.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.74.0] - 2026-10-02
+
+### Added
+
+- **`pull-request` chooses who watches a PR once it is out of draft.** At the end of `ready`, and
+  at `monitor` entry when no choice was made, a matrix picks between this skill's monitor, a
+  background agent through `/session-flow:continue-in-background`, `/background`, `/autofix-pr`
+  and the babysit loop, by whether the person is staying and whether the machine stays on. For a
+  route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
+  a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
+  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
+  the recommendation, and unknown usage points at `/usage` and favors `monitor` for a person who
+  is staying. New
+  `reference/watch-handoff.md`, which inlines the rate-limit floor and is registered in
+  `check-loop-lane-floor-drift.sh`; `native-surfaces.md` records auto-fix's requirements and
+  limits, cloud sessions sharing the account's rate limits, and `/background`.
 
 ## [0.73.0] - 2026-10-02
 

@@ -3,13 +3,82 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.61.2] - 2026-10-02
+## [0.63.2] - 2026-10-02
 
 ### Changed
 
 - **Shared `resolve-convention-home.sh`, `standards-contract.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and reference.**
   Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copies.
+
+## [0.63.1] - 2026-10-03
+
+### Changed
+
+- The interview page's transport moved to the shared session-bridge library
+  (`lib/session-bridge/`): the 127.0.0.1 server, token, event stream, long-poll, watcher lease,
+  `watch.sh` and `wake.sh`. `surface/session_bridge.py`, `watch.sh` and `wake.sh` are now
+  generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
+  the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
+  watcher lease, which `round.sh lease` and `stop` now read.
+
+## [0.63.0] - 2026-10-03
+
+### Added
+
+- **`interview` recommends separate implement and verify effort levels.** An engineering handoff
+  names one level for each phase, matched to a row of model-config's "Choose an effort level"
+  table and never below medium. When the page cannot be read, it says so and recommends no level.
+  The downstream session-config eval checks both levels.
+
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.62.2] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record points at the live disallowed-tool list.**
+  `reference/native-plan-agent.md` named five tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files, spawn an agent, or exit plan mode) and points at
+  `builtin_agents.Plan.disallowed_tools` in the inventory instead of copying the list.
+
+## [0.62.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and most of the optional plugins this one routes to (`architecture`, `prototype`, `domain-driven-design`, `discipline`) now install disabled.
+
+## [0.62.0] - 2026-10-02
+
+### Added
+
+- **`/planning:plan-panel` workflow** (`workflows/plan-panel.js`): one planner per angle
+  (MVP-first, risk-first, reuse-first and testability-first by default), independent judges that
+  score every draft on goal fit, blast radius, test strategy and reversibility, and one
+  synthesizer that builds the plan from the winner and grafts runner-up ideas. It takes `task`,
+  `context`, `angles`, `judges`, `roles` and `maxConcurrent` through `args` and returns the plan,
+  the scores, the grafted ideas, the dissent and every draft in full. A missing `task` returns an
+  error and dispatches nothing, and a judge that does not score every draft exactly once is
+  counted as returning nothing. Planners take the worker role's fan-out variant, judges the verifier role's fan-out
+  variant and the synthesizer the orchestrator role's single variant, from `/multi-agent:route`
+  when the caller passes them, else from built-in fallbacks (`opus` at `medium` for planners,
+  `opus` at `high` for judges, the session model at `high` for synthesis). Agents run in waves of
+  `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than a cap or budget
+  error is retried once.
+
+### Changed
+
+- **`/planning:plan` can formulate through the panel, opt-in.** When the user asks for it or
+  `/multi-agent:assess` returns `workflow`, Step 2 launches `planning:plan-panel` behind a Workflow
+  availability gate, with the single-plan flow as the fallback; `context/plan-panel.md` holds the
+  launch and how the result feeds the plan. The synthesized plan still goes through the reviewer
+  and the approval gate. `plan` grants `Workflow(planning:plan-panel)` only, so no other workflow
+  or inline script is pre-approved.
 
 ## [0.61.1] - 2026-10-02
 

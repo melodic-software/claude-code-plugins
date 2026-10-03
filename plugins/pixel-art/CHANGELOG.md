@@ -3,6 +3,22 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.5.1] - 2026-10-02
+
+### Fixed
+
+- `capture.py` waits up to 60 seconds, not 20, for a running browser to open its debugger port. A
+  cold first browser launch on a busy CI runner passed 20 seconds while the browser was still
+  starting, which failed the campfire capture test with "browser did not open a debugger port". A
+  browser that exits still fails at once.
+
 ## [0.5.0] - 2026-10-02
 
 ### Changed

@@ -3,6 +3,9 @@
 # the only file to edit; each copy sits inside its plugin because a plugin cache
 # cannot see the repository root. Register a copy here, then run the script.
 lib/html-escape.mjs plugins/education/lib/html-escape.mjs
+lib/html-escape.mjs plugins/event-storming/lib/html-escape.mjs
+lib/html-escape.mjs plugins/harness-ops/lib/html-escape.mjs
+lib/html-escape.mjs plugins/knowledge/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
 lib/context-zone.sh plugins/context-guard/scripts/context-zone.sh
 lib/context-zone.sh plugins/plugin-quality/scripts/context-zone.sh
@@ -45,6 +48,7 @@ lib/state-key.sh plugins/harness-ops/lib/state-key.sh
 lib/state-key.sh plugins/context-budget/lib/state-key.sh
 lib/state-key.sh plugins/improvement/lib/state-key.sh
 lib/state-key.sh plugins/code-metrics/lib/state-key.sh
+lib/state-key.sh plugins/session-flow/lib/state-key.sh
 lib/rewrite-guard.sh plugins/bash-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/biome-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/eol-normalizer/hooks/rewrite-guard.sh
@@ -74,3 +78,15 @@ lib/exec-bash.mjs plugins/session-flow/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/source-control/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/testing/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/typos-format/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/speech/hooks/exec-bash.mjs
+lib/session-bridge/session_bridge.py plugins/planning/surface/session_bridge.py
+lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
+lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
+lib/view-builder.mjs plugins/review/lib/view-builder.mjs
+lib/view-runtime.js plugins/review/lib/view-runtime.js
+lib/prerequisites.mjs plugins/harness-ops/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/harness-ops/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1

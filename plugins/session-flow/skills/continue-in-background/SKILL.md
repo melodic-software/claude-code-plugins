@@ -140,6 +140,9 @@ fallback), then:
    cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
    ```
 
+   Insert `--effort "<level>"` before the prompt argument when "What the launched session
+   inherits" below calls for it.
+
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
    because this launch runs from a Bash-tool subprocess, which carries
@@ -175,6 +178,24 @@ The launched agent is a NEW session, not a fork of this one
   from the settings of the directory it starts in (project/user settings, including `env`
   values such as `ANTHROPIC_MODEL`). When the resumed work depends on a specific model or
   effort, pass the flags explicitly and note them in the launch report.
+
+  For resumed verify work, and for any task the launched session runs unattended, pass an
+  explicit `--effort` so the work does not silently run at the default. At launch, read
+  model-config's
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
+  table, pick the level whose described use fits the resumed task, and pass that level as
+  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
+  or verifies it is never given a level below medium; skip any row the table says is not an
+  effort level. The value is one level name of lowercase letters only, never free text, for the
+  same reason the topic slug is sanitized. The launch report names the level and quotes the
+  matched use. When the page cannot be read, say so, pass no `--effort`, and state that the
+  session will start at its default level.
+
+  - **Pointer**: for choosing a level, see the table linked above; for the `--effort` flag, see
+    [Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: either section is renamed or moved, the table's columns change, or the
+    `--effort` flag changes.
 - **Directory settings ARE read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
@@ -206,6 +227,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
   flagging), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
+- [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
+  whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
+  at its default level
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces

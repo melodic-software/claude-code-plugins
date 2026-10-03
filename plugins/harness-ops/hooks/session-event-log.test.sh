@@ -23,6 +23,7 @@ RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
   and (.hook_event_name|type)=="string" and (.status|type)=="string"
   and ((.duration_ms|type)=="number" or .duration_ms==null)
   and .source=="event-log" and (.category|type)=="string"
+  and (.effort|type)=="string"
   and (has("event")|not) and (has("hook")|not)'
 
 # assert_record <label> <file> [<extra jq clause>]
@@ -57,7 +58,7 @@ run() {
   shift 2
   payload_file="$(mktemp "$TEST_TMPDIR/payload.XXXXXX")"
   printf '%s' "$body" >"$payload_file"
-  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
+  env -u HOOK_TELEMETRY_SINK -u CLAUDE_EFFORT CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
 # --- default OFF: nothing is read or written --------------------------------
@@ -215,6 +216,151 @@ assert_record "an escaped payload body still satisfies the record schema" "$P/.o
 assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
   "$(jq -r .reason "$P/.observability/claude/sessions/s9e.jsonl")"
 
+# --- effort: env, then the payload's top-level effort.level, else unset or n/a ----
+# Payload shapes follow the hooks reference's Stop, SubagentStop,
+# PermissionRequest, PostToolUseFailure, SessionStart and UserPromptSubmit input
+# examples; the levels are the five the reference names.
+P=$(project effort)
+ELOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
+STOP_TAIL='"stop_hook_active":false,"last_assistant_message":"I finished the refactor","background_tasks":[{"id":"t1","type":"subagent","status":"running","description":"d","agent_type":"Explore"}],"session_crons":[]'
+run "$P" "$(payload e1 Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL")" "$ON" >/dev/null
+assert_eq "Stop with top-level effort.level records it" "high" "$(jq -r .effort "$(ELOG e1)")"
+assert_eq "Stop: stop_hook_active round-trips as a JSON boolean" "boolean false" "$(jq -r '"\(.stop_hook_active|type) \(.stop_hook_active)"' "$(ELOG e1)")"
+assert_eq "Stop: last_assistant_message (content) is absent" "false" "$(jq -r 'has("last_assistant_message")' "$(ELOG e1)")"
+assert_eq "Stop: a background task's agent_type is not read as the event's" "false" "$(jq -r 'has("agent_type")' "$(ELOG e1)")"
+assert_record "effort rows satisfy the record schema" "$(ELOG e1)"
+
+run "$P" "$(payload e2 SubagentStop '"effort":{"level":"medium"},"stop_hook_active":false,"agent_id":"def456","agent_type":"Explore","agent_transcript_path":"/home/<user>/.claude/projects/p/abc/subagents/agent-def456.jsonl","last_assistant_message":"done","background_tasks":[],"session_crons":[]')" "$ON" >/dev/null
+assert_eq "SubagentStop with top-level effort.level records it" "medium" "$(jq -r .effort "$(ELOG e2)")"
+assert_eq "SubagentStop: agent_type round-trips" "Explore" "$(jq -r .agent_type "$(ELOG e2)")"
+assert_eq "SubagentStop: agent_transcript_path is the raw absolute value" "/home/<user>/.claude/projects/p/abc/subagents/agent-def456.jsonl" "$(jq -r .agent_transcript_path "$(ELOG e2)")"
+
+run "$P" "$(payload e3 Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL")" "$ON" CLAUDE_EFFORT=xhigh >/dev/null
+assert_eq "payload wins over a conflicting inherited CLAUDE_EFFORT=xhigh" "high" "$(jq -r .effort "$(ELOG e3)")"
+run "$P" "$(payload e3a Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT=xhigh >/dev/null
+assert_eq "env fills in when the payload has none (CLAUDE_EFFORT=xhigh)" "xhigh" "$(jq -r .effort "$(ELOG e3a)")"
+run "$P" "$(payload e3b Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT=turbo >/dev/null
+assert_eq "a CLAUDE_EFFORT that names no level records unset" "unset" "$(jq -r .effort "$(ELOG e3b)")"
+
+run "$P" "$(payload e4 Stop "$STOP_TAIL")" "$ON" >/dev/null
+assert_eq "Stop payload without effort records unset" "unset" "$(jq -r .effort "$(ELOG e4)")"
+
+run "$P" "$(payload e5 UserPromptSubmit '"prompt":"Write a function to calculate the factorial","session_title":"my title"')" "$ON" CLAUDE_EFFORT=high >/dev/null
+assert_eq "n/a-list event (UserPromptSubmit) records n/a" "n/a" "$(jq -r .effort "$(ELOG e5)")"
+assert_eq "UserPromptSubmit: the prompt text (content) is absent" "false" "$(jq -r 'has("prompt")' "$(ELOG e5)")"
+assert_eq "UserPromptSubmit: session_title (content) is absent" "false" "$(jq -r 'has("session_title")' "$(ELOG e5)")"
+assert_eq "no line carries the prompt text anywhere" "0" "$(grep -c 'factorial' "$(ELOG e5)")"
+
+# Hostile: tool_input comes before every top-level key and carries a bare
+# "level":"max" and a nested effort object; only the real top-level level, or
+# unset, may land, never max. The same holds when no top-level effort exists.
+run "$P" '{"tool_input":{"command":"x","level":"max","effort":{"level":"max"},"mode":"secret-mode"},"session_id":"e6","cwd":"/x","hook_event_name":"PermissionRequest","tool_name":"Bash","effort":{"level":"high"}}' "$ON" >/dev/null
+assert_eq "hostile tool_input (PermissionRequest) with a nested effort records unset, never max" "unset" "$(jq -r .effort "$(ELOG e6)")"
+assert_eq "hostile tool_input: a nested allowlisted key (mode) is not copied" "false" "$(jq -r 'has("mode")' "$(ELOG e6)")"
+run "$P" '{"tool_input":{"command":"npm test","level":"max","effort":{"level":"max"}},"session_id":"e7","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_use_id":"toolu_07","error":"Exit code 1\nError: boom","is_interrupt":true,"duration_ms":4187}' "$ON" >/dev/null
+assert_eq "hostile tool_input (PostToolUseFailure) with only a nested effort records unset" "unset" "$(jq -r .effort "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: is_interrupt after tool_input round-trips as a JSON boolean" "boolean true" "$(jq -r '"\(.is_interrupt|type) \(.is_interrupt)"' "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: the error text (tool output) is absent" "false" "$(jq -r 'has("error")' "$(ELOG e7)")"
+assert_eq "PostToolUseFailure: duration_ms stays the logger's own, never the payload's" "false" "$(jq -r '.duration_ms == 4187' "$(ELOG e7)")"
+
+# boolean/number round trip, and a payload `source` never displaces the record's.
+run "$P" "$(payload e8 SessionStart '"source":"resume","model":"claude-opus-5","seconds_since_last_response":5400,"context_tokens":182340,"prompt_cache_likely_expired":true,"estimated_cache_write_usd":1.1396')" "$ON" >/dev/null
+assert_eq "boolean/number: numbers and a boolean keep their JSON types and values" \
+  "number 5400|number 182340|boolean true|number 1.1396" \
+  "$(jq -r '[.seconds_since_last_response, .context_tokens, .prompt_cache_likely_expired, .estimated_cache_write_usd] | map("\(type) \(.)") | join("|")' "$(ELOG e8)")"
+assert_eq "SessionStart: model round-trips" "claude-opus-5" "$(jq -r .model "$(ELOG e8)")"
+assert_eq "SessionStart: the payload's source does not displace the record's" "event-log" "$(jq -r .source "$(ELOG e8)")"
+assert_eq "SessionStart records n/a" "n/a" "$(jq -r .effort "$(ELOG e8)")"
+assert_record "metadata rows satisfy the record schema" "$(ELOG e8)"
+
+# The raw absolute cwd, transcript_path and scratchpad_dir (D32).
+run "$P" '{"session_id":"e9","transcript_path":"/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl","cwd":"/home/<user>/proj","scratchpad_dir":"/tmp/claude-1000/-home-dev-proj/e9/scratchpad","permission_mode":"auto","hook_event_name":"PostToolBatch","tool_calls":[]}' "$ON" >/dev/null
+assert_eq "raw absolute cwd round-trips" "/home/<user>/proj" "$(jq -r .cwd "$(ELOG e9)")"
+assert_eq "raw absolute transcript_path round-trips" "/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl" "$(jq -r .transcript_path "$(ELOG e9)")"
+assert_eq "raw absolute scratchpad_dir round-trips" "/tmp/claude-1000/-home-dev-proj/e9/scratchpad" "$(jq -r .scratchpad_dir "$(ELOG e9)")"
+assert_eq "permission_mode round-trips" "auto" "$(jq -r .permission_mode "$(ELOG e9)")"
+
+# Each allowlisted string field round-trips from the top level of a payload
+# that carries them all, `v-<key>` per key; error@StopFailure on StopFailure.
+STRINGS=$(bash -c 'source "$1"; printf "%s" "$SLOG_EVENT_LOG_STRINGS"' _ "$HOOK_DIR/session-log-lib.sh")
+members=""
+for entry in $STRINGS; do members+=",\"${entry%@*}\":\"v-${entry%@*}\""; done
+run "$P" "{\"session_id\":\"e10\",\"hook_event_name\":\"StopFailure\"$members}" "$ON" >/dev/null
+for entry in $STRINGS; do
+  assert_eq "allowlisted string $entry round-trips" "v-${entry%@*}" "$(jq -r --arg k "${entry%@*}" '.[$k]' "$(ELOG e10)")"
+done
+run "$P" "{\"session_id\":\"e11\",\"hook_event_name\":\"Stop\"$members}" "$ON" >/dev/null
+assert_eq "error@StopFailure is not read on another event" "false" "$(jq -r 'has("error")' "$(ELOG e11)")"
+
+# --- content opt-in (session_event_log_content) -----------------------------------
+# Off unless the option is exactly true; on, the top-level content strings land
+# as the payload's own bodies, and a content string cut by the 64 KB read cap
+# lands as its whole-escape prefix plus `<key>_truncated: true`.
+CONTENT_ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT=true
+P=$(project content)
+CLOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
+PROMPT_TAIL='"prompt":"Write a \"factorial\" function","session_title":"my title"'
+run "$P" "$(payload c1 UserPromptSubmit "$PROMPT_TAIL")" "$ON" >/dev/null
+assert_eq "opt-in off (default): prompt and session_title are absent" "false false" "$(jq -r '"\(has("prompt")) \(has("session_title"))"' "$(CLOG c1)")"
+run "$P" "$(payload c2 UserPromptSubmit "$PROMPT_TAIL")" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT=TRUE >/dev/null
+assert_eq "opt-in off: a value other than exactly true records no content" "false" "$(jq -r 'has("prompt")' "$(CLOG c2)")"
+
+run "$P" "$(payload c3 UserPromptSubmit "$PROMPT_TAIL")" "$ON" "$CONTENT_ON" >/dev/null
+assert_eq "opt-in on: the prompt text round-trips" 'Write a "factorial" function' "$(jq -r .prompt "$(CLOG c3)")"
+assert_eq "opt-in on: session_title round-trips" "my title" "$(jq -r .session_title "$(CLOG c3)")"
+assert_eq "opt-in on: a whole field carries no _truncated marker" "false" "$(jq -r 'has("prompt_truncated")' "$(CLOG c3)")"
+assert_record "opt-in on: content rows satisfy the record schema" "$(CLOG c3)"
+run "$P" "$(payload c4 Stop "$STOP_TAIL")" "$ON" "$CONTENT_ON" >/dev/null
+assert_eq "opt-in on: Stop's last_assistant_message round-trips" "I finished the refactor" "$(jq -r .last_assistant_message "$(CLOG c4)")"
+run "$P" '{"tool_input":{"command":"npm test","prompt":"nested"},"session_id":"c5","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1\nError: boom","is_interrupt":true}' "$ON" "$CONTENT_ON" >/dev/null
+assert_eq "opt-in on: PostToolUseFailure's error after tool_input round-trips" "$(printf 'Exit code 1\nError: boom')" "$(jq -r .error "$(CLOG c5)")"
+assert_eq "opt-in on: a content key inside tool_input is not copied" "false" "$(jq -r 'has("prompt")' "$(CLOG c5)")"
+run "$P" "$(payload c6 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"'"$P"'/src/a.sh"}')" "$ON" "$CONTENT_ON" >/dev/null
+assert_eq "opt-in on: file paths are still recorded project-relative" "src/a.sh" "$(jq -r .file_path "$(CLOG c6)")"
+
+# A row near 48 KB: the whole field lands, unmarked.
+FILL48=$(head -c 49152 /dev/zero | tr '\0' 'w')
+run "$P" "$(payload c7 UserPromptSubmit "\"prompt\":\"$FILL48\"")" "$ON" "$CONTENT_ON" >/dev/null
+assert_eq "opt-in on: a 48 KB prompt lands whole" 49152 "$(jq -r '.prompt | length' "$(CLOG c7)" 2>/dev/null)"
+assert_eq "opt-in on: the 48 KB row carries no _truncated marker" "false" "$(jq -r 'has("prompt_truncated")' "$(CLOG c7)" 2>/dev/null)"
+
+# truncated_case <sid> <tail-after-fill> [env...]: a UserPromptSubmit payload
+# whose prompt is `x` filler sized so the 64 KB cap lands just after the first
+# characters of <tail-after-fill>; prints the filler length.
+truncated_case() {
+  local sid="$1" tail="$2" head fill n
+  shift 2
+  head="$(payload "$sid" UserPromptSubmit '"prompt":"')"
+  head="${head%\}}"
+  n=$((65536 - ${#head} - 2))
+  fill=$(head -c "$n" /dev/zero | tr '\0' 'x')
+  run "$P" "${head}${fill}${tail}$(head -c 70000 /dev/zero | tr '\0' 'y')\"}" "$ON" "$CONTENT_ON" "$@" >/dev/null
+  printf '%s' "$n"
+}
+ONE_BS="\\"
+n=$(truncated_case c8 "${ONE_BS}u00e9")
+assert_record "truncated at cap: the row is valid JSON" "$(CLOG c8)"
+assert_eq "truncated at cap: prompt_truncated is true" "true" "$(jq -r .prompt_truncated "$(CLOG c8)" 2>/dev/null)"
+assert_eq "truncated at cap: the prefix stops before a cut \\u escape" "$n" "$(jq -r '.prompt | length' "$(CLOG c8)" 2>/dev/null)"
+n=$(truncated_case c9 'a\\b') # portability-ok: literal backslash payload, not a regex
+assert_eq "truncated at cap: the prefix keeps every whole escape and drops a cut one" "$((n + 1))" "$(jq -r '.prompt | length' "$(CLOG c9)" 2>/dev/null)"
+n=$(truncated_case c10 'a€' LC_ALL=C)
+assert_eq "truncated at cap (byte locale): a cut multibyte character is dropped" "$((n + 1))" "$(jq -r '.prompt | length' "$(CLOG c10)" 2>/dev/null)"
+iconv -f UTF-8 -t UTF-8 "$(CLOG c10)" >/dev/null 2>&1
+assert_exit "truncated at cap (byte locale): the row is valid UTF-8" 0 "$?"
+assert_eq "truncated at cap: a provable cut also carries content_truncated" "true" "$(jq -r .content_truncated "$(CLOG c8)" 2>/dev/null)"
+
+# A content string cut after a nested value cannot be placed at the top level:
+# it is not recorded, and the row says content was cut.
+FILL70=$(head -c 70000 /dev/zero | tr '\0' 'q')
+NESTED_CUT='{"session_id":"c11","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"npm test"},"error":"'"$FILL70"'"}'
+run "$P" "$NESTED_CUT" "$ON" "$CONTENT_ON" >/dev/null
+assert_record "cut after a nested value: the row is valid JSON" "$(CLOG c11)"
+assert_eq "cut after a nested value: content_truncated is true, error absent" "true false" "$(jq -r '"\(.content_truncated) \(has("error"))"' "$(CLOG c11)" 2>/dev/null)"
+assert_eq "under the cap: no content_truncated key" "false" "$(jq -r 'has("content_truncated")' "$(CLOG c5)")"
+run "$P" "${NESTED_CUT/c11/c12}" "$ON" >/dev/null
+assert_eq "opt-in off over the cap: no content keys and no content_truncated" "false false" "$(jq -r '"\(has("error")) \(has("content_truncated"))"' "$(CLOG c12)" 2>/dev/null)"
+
 # --- a pause after a NESTED `}` does not end the read early ----------------------
 # The writer stops for longer than one slice right after tool_input closes,
 # then sends the rest. Read as "the payload ended", the buffer has no event
@@ -274,6 +420,72 @@ wait
 PLOG="$P/.observability/claude/sessions/s12.jsonl"
 assert_eq "33 parallel fires → 33 lines" 33 "$(wc -l <"$PLOG" | tr -d ' ')"
 assert_eq "33 parallel fires → every line parses" 33 "$(jq -c . "$PLOG" 2>/dev/null | wc -l | tr -d ' ')"
+
+# --- 20 parallel rows over 4 KB on one session stay whole (the lock file) ---------
+P=$(project parallel-long)
+FILL8=$(head -c 8192 /dev/zero | tr '\0' 'z')
+for i in {1..20}; do
+  run "$P" "$(payload s12l UserPromptSubmit "\"prompt\":\"$i$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null &
+done
+wait
+LLOG="$P/.observability/claude/sessions/s12l.jsonl"
+assert_eq "20 parallel 8 KB rows → 20 lines" 20 "$(wc -l <"$LLOG" | tr -d ' ')"
+assert_eq "20 parallel 8 KB rows → every line parses" 20 "$(jq -c . "$LLOG" 2>/dev/null | wc -l | tr -d ' ')"
+assert_file_absent "20 parallel 8 KB rows → no lock left behind" "$LLOG.lock"
+
+# A stale lock (its token unchanged for 100 polls) never drops a row: it is
+# removed and the row appended.
+: >"$LLOG.lock"
+run "$P" "$(payload s12l UserPromptSubmit "\"prompt\":\"stale$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null
+assert_exit "stale lock → exit 0" 0 "$?"
+assert_eq "stale lock → the row is still appended" 21 "$(wc -l <"$LLOG" | tr -d ' ')"
+assert_file_absent "stale lock → broken after the wait" "$LLOG.lock"
+
+# Mixed sizes with content on: short rows take the lock too, so none lands
+# between the 4 KB chunks of a long row.
+P=$(project parallel-mixed)
+FILL64=$(head -c 65000 /dev/zero | tr '\0' 'z')
+for i in {1..10}; do
+  run "$P" "$(payload s12m UserPromptSubmit "\"prompt\":\"$i$FILL64\"")" "$ON" "$CONTENT_ON" >/dev/null &
+  run "$P" "$(payload s12m UserPromptSubmit "\"prompt\":\"s$i\"")" "$ON" "$CONTENT_ON" >/dev/null &
+  run "$P" "$(payload s12m Stop)" "$ON" "$CONTENT_ON" >/dev/null &
+done
+wait
+MLOG="$P/.observability/claude/sessions/s12m.jsonl"
+assert_eq "30 parallel mixed short and 64 KB rows → 30 lines" 30 "$(wc -l <"$MLOG" | tr -d ' ')"
+assert_eq "30 parallel mixed short and 64 KB rows → every line parses" 30 "$(jq -c . "$MLOG" 2>/dev/null | wc -l | tr -d ' ')"
+
+# A live holder keeps the lock past the old 1.5 s give-up (its token changes,
+# so it is not stale): the waiter appends only after the holder releases.
+P=$(project live-holder)
+HLOG="$P/.observability/claude/sessions/s12h.jsonl"
+mkdir -p "$P/.observability/claude/sessions"
+printf 'h0' >"$HLOG.lock"
+(
+  for t in 1 2 3 4 5 6; do
+    sleep 0.5
+    printf 'h%s' "$t" >|"$HLOG.lock"
+  done
+  printf '{"holder":"done"}\n' >>"$HLOG"
+  rm -f "$HLOG.lock"
+) &
+run "$P" "$(payload s12h UserPromptSubmit "\"prompt\":\"w$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null
+wait
+assert_eq "live holder → the waiter's row lands after the holder's" "done UserPromptSubmit" \
+  "$(jq -r '.holder // .hook_event_name' "$HLOG" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+
+# The read cap is bytes: 30,000 four-byte characters (120 KB) cross 64 KB.
+P=$(project multibyte)
+EMOJI=$(printf '\360\237\230\200')
+WIDE=""
+for _ in {1..30000}; do WIDE+="$EMOJI"; done
+run "$P" "$(payload s14 UserPromptSubmit "\"prompt\":\"$WIDE\"")" "$ON" "$CONTENT_ON" >/dev/null
+BLOG14="$P/.observability/claude/sessions/s14.jsonl"
+assert_eq "multibyte prompt over 64 KB → prompt_truncated and content_truncated" "true true" \
+  "$(jq -r '"\(.prompt_truncated) \(.content_truncated)"' "$BLOG14" 2>/dev/null)"
+if (($(wc -c <"$BLOG14") <= 66560)); then ok "multibyte prompt → the row stays within the 64 KB cap plus metadata"; else bad "multibyte prompt → row is $(wc -c <"$BLOG14") bytes"; fi
+iconv -f UTF-8 -t UTF-8 "$BLOG14" >/dev/null 2>&1
+assert_exit "multibyte prompt → the cut row is valid UTF-8" 0 "$?"
 
 # --- an unusable stdin_read_timeout falls back to the default ----------------------
 # The env-block channel can deliver any string, so the schema's `min: 1` is not

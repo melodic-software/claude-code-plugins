@@ -173,6 +173,19 @@
         "Dispatches the security-surface phase 3 as implementation:implementer at the frontier tier's current alias",
         "Does NOT pass a model weaker than the binding to implementation:implementer to reach Sonnet"
       ]
+    },
+    {
+      "id": 14,
+      "name": "heavy-window-signal-routes-not-clears",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run, phase 3 of 5 in .work/search/PLAN.md was just verified and committed. A context-guard hook just reported the window is heavy. Phase 4 is worker-routed, same model.",
+      "expected_output": "Resident-vs-clear item (a) fires, but it no longer means a default clear: the orchestrator routes the next step with `/session-flow:workflow`, handing it .work/search/PLAN.md and phase 4, and clears to resume from the emitted prompt only if the router routes there. It does not restate the compact/clear/handoff rule itself.",
+      "files": [],
+      "expectations": [
+        "It routes the boundary through `/session-flow:workflow` with the PLAN.md path and phase 4",
+        "It does NOT clear by default just because the heavy-window signal fired",
+        "It does NOT state its own rule for when to compact, clear or hand off"
+      ]
     }
   ]
 }

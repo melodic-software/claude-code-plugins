@@ -119,7 +119,7 @@ if command -v duckdb >/dev/null 2>&1; then
   assert_contains "cacheCreation is its own column" "$flat" "session model effort input output cacheRead cacheCreation"
   assert_contains "s-a high row sums each type, cache writes not folded into input" "$flat" "s-a m-x high 110 50 1000 200"
   assert_contains "s-a medium effort is its own row" "$flat" "s-a m-x medium 5 0 0 0"
-  assert_contains "absent effort renders as none" "$flat" "s-b m-y none 7 3 0 30"
+  assert_contains "absent effort renders as unset" "$flat" "s-b m-y unset 7 3 0 30"
   assert_contains "s-a per-type totals" "$flat" "s-a (all) (all) 115 50 1000 200"
   assert_contains "s-b per-type totals" "$flat" "s-b (all) (all) 7 3 0 30"
   assert_not_contains "a session not asked for is left out" "$flat" "9999"

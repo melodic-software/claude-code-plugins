@@ -3,6 +3,7 @@ description: "Agentic AI-driven multi-persona EventStorming simulation on Miro. 
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<--simulate|--process-model|--design-level|--evaluate|--retrospective…> [domain|board]"
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-bc-view.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-bc-view.mjs\":*)"]
 metadata:
   workflow-stage: plan
   summary: Multi-persona agentic EventStorming workshop on Miro
@@ -139,6 +140,16 @@ When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (C
 **Reproducibility guarantee:** Running `--discover-bcs` against the same board state should produce the same BCs, because the heuristics are applied mechanically against data, not subjectively. The evidence column provides traceability.
 
 **[Optional] HTML view:** Once the BC analysis table is produced, offer to render it as a self-contained HTML view of the bounded-context analysis (BC name, key events, primary personas, and per-heuristic evidence side-by-side) when the user wants a shareable visual. Markdown stays the durable tracked record; reach for the HTML view only when a shareable at-a-glance visual adds value, never as the source of truth.
+
+Board text (sticky content, persona names, evidence) is untrusted data. Only the checked-in builder writes the page. It escapes every field and stamps the generator marker the rendered-views validator checks. Pass a JSON object on stdin:
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/build-bc-view.mjs" <<'EOF'
+{"title":"","board":"","contexts":[{"name":"","events":[""],"personas":[""],"evidence":""}],"target":""}
+EOF
+```
+
+Write stdout to an untracked path and do not stage it. Do not hand-write the HTML, do not pre-escape values, and do not add script. `${CLAUDE_SKILL_DIR}/scripts/build-bc-view.mjs --check <file>` flags a page that bypassed the builder. Node missing: the table stands and the view is not built.
 
 ---
 

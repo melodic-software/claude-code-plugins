@@ -82,7 +82,7 @@ named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)).
 
 ```markdown
 <our decision, in our words>
-- **Pointer**: for <topic>, see <link to the exact upstream section>.
+- **Pointer**: when <situation>, fetch <link to the exact upstream section> live.
 - **As of**: YYYY-MM-DD
 - **Recheck trigger**: <an observable event, never a bare date>
 ```
@@ -94,9 +94,21 @@ named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)).
    where a main docs section covers the topic: it appears only as a "correlate with \<blog link>"
    note beside that pointer. Where no docs page covers it yet, the record links the post as that
    note, says no docs page covers the topic as of the date, and its recheck trigger is a docs page
-   starting to cover it, at which point the pointer moves there.
+   starting to cover it, at which point the pointer moves there. In the one-line layout, that
+   correlate note may take the Pointer line's place, keeping the **Pointer** label and the
+   when-fetch wording and ending `no docs page covers <topic> as of <date>`.
 3. **The as-of date**: when the decision was last derived from the page.
 4. **The recheck trigger**: the observable event that obliges re-derivation.
+
+This Pointer form is **context glue**: it names the situation in which a reader needs the upstream
+section and sends them to read it live, and a record that uses it is a context-glue record. New
+records use it. A Pointer in the earlier form, `for <topic>, see <link>.`, still conforms.
+
+The parts may also sit on one line under the decision prose, and that layout conforms too:
+
+```markdown
+- **Pointer**: when <situation>, fetch <link> live. **As of**: YYYY-MM-DD. **Recheck trigger**: <event>.
+```
 
 Two cases have their own form:
 

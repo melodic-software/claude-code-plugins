@@ -142,3 +142,16 @@ Any one of these means you did not run the exercise. Fix it before writing the f
 - It names emotions instead of producing the body that carries them.
 - An inventory channel is filled with a line written to fill it.
 - It asks the human to do the writing, or explains why you cannot.
+
+## Effort pin
+
+The effort pin in this file's frontmatter is our choice for one timed, sense-bound write. It is
+provisional: an eval comparing this agent's writes under `medium` and `high` decides it.
+
+- **Pointer**: for choosing a level, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  for what the `opus` alias resolves to, see
+  [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
+- **As of**: 2026-10-02
+- **Recheck trigger**: the `opus` alias resolves to another model, the `medium` row changes, or the
+  eval reports.
