@@ -24,27 +24,46 @@ export const TEMPLATE_PATH = join(selfDir, "../templates/digest.html");
 const text = (value) =>
   typeof value === "string" ? value : typeof value === "number" ? String(value) : "";
 const list = (value) => (Array.isArray(value) ? value.filter((row) => row && typeof row === "object") : []);
+const texts = (value) => (Array.isArray(value) ? value : []).map(text).filter((item) => item !== "");
+
+/** What the fresh-context check said about a risk row. Anything else reads as unchecked. */
+export const CHECKS = Object.freeze(["agreed", "disputed", "added", "unchecked"]);
 
 /**
  * Keep only the fields the template binds, each as a string. Anything else in
- * the input never reaches the page.
+ * the input never reaches the page. The quiz and the recording become lists of
+ * zero or one section, so the page omits a section the input does not carry.
  */
 export function shapeDigest(input) {
   const src = input && typeof input === "object" ? input : {};
+  const questions = list(src.quiz)
+    .map((q) => ({ question: text(q.question), choices: texts(q.choices), answer: text(q.answer) }))
+    .filter((q) => q.question !== "");
+  const recording = src.recording && typeof src.recording === "object" ? src.recording : {};
+  // Repo-relative only: an absolute or home path would show the reader's username.
+  const recordingPath = /^(?:[/\\~]|[A-Za-z]:)/.test(text(recording.path)) ? "" : text(recording.path);
   return {
     title: text(src.title) || "Change digest",
     change: text(src.change),
     why: text(src.why),
     before: text(src.before),
     after: text(src.after),
-    risks: list(src.risks).map((r) => ({ area: text(r.area), level: text(r.level), why: text(r.why) })),
-    focus: (Array.isArray(src.focus) ? src.focus : []).map(text).filter((item) => item !== ""),
+    risks: list(src.risks).map((r) => ({
+      area: text(r.area),
+      level: text(r.level),
+      why: text(r.why),
+      check: CHECKS.includes(r.check) ? r.check : "unchecked",
+      checker: text(r.checker),
+    })),
+    focus: texts(src.focus),
+    recording: recordingPath ? [{ path: recordingPath, head: text(recording.head) }] : [],
     files: list(src.files).map((f) => ({
       path: text(f.path),
       status: text(f.status),
       note: text(f.note),
       hunks: list(f.hunks).map((h) => ({ at: text(h.at), code: text(h.code), note: text(h.note) })),
     })),
+    quiz: questions.length ? [{ questions }] : [],
   };
 }
 
