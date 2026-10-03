@@ -39,8 +39,10 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 - Org-wide criteria: [`REVIEW.md`](REVIEW.md), synced from `melodic-software/standards`.
 - Skill and agent bodies link volatile upstream specifics with an as-of date and recheck trigger,
   never restate them: [rule](.claude/rules/skill-bodies-state-current-rules.md).
-- Cost claims: no prices or per-task costs outside `docs/upstream/`:
+- Cost claims: no prices or per-task costs, outside two named exceptions:
   [rule](.claude/rules/cost-claims.md).
+- Eval cases hold no raw session or product transcript:
+  [rule](.claude/rules/eval-case-transcripts.md).
 - Cross-plugin citations name the skill by `/plugin:skill`, never by path:
   [plugin philosophy](docs/plugin-philosophy.md#configuration-ownership-and-scope).
 - Mods: no `hooks/hooks.json` gains a `modules` key while
