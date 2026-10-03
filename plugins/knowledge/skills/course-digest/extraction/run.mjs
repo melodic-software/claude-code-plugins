@@ -18,17 +18,35 @@
  * path in lockstep. An explicit value already in the environment wins (honored,
  * not overwritten).
  *
- * Usage: node run.mjs <relative-script.js> [args…]
+ * The leading `--data-dir` names the data directory (`lib/plugin-data.js`). The child
+ * sees only the value `resolvePluginData` accepts, never an inherited
+ * `CLAUDE_PLUGIN_DATA` that names another plugin.
+ *
+ * Usage: node run.mjs [--data-dir <dir>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { resolvePluginData, takeDataDirFlag } from "./lib/plugin-data.js";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
-const [script, ...rest] = process.argv.slice(2);
+const usage = "Usage: node run.mjs [--data-dir <dir>] <relative-script.js> [args…]\n";
+
+let dataDir;
+let script;
+let rest;
+try {
+  const taken = takeDataDirFlag(process.argv.slice(2));
+  [script, ...rest] = taken.rest;
+  dataDir = resolvePluginData(taken.dataDir, process.env);
+} catch (error) {
+  process.stderr.write(`${error.message}\n${usage}`);
+  process.exit(2);
+}
 
 if (!script) {
-  process.stderr.write("Usage: node run.mjs <relative-script.js> [args…]\n");
+  process.stderr.write(usage);
   process.exit(2);
 }
 
@@ -39,9 +57,10 @@ if (rel.startsWith("..") || path.isAbsolute(rel)) {
   process.exit(2);
 }
 
-const env = { ...process.env };
-if (!env.PLAYWRIGHT_BROWSERS_PATH && env.CLAUDE_PLUGIN_DATA) {
-  env.PLAYWRIGHT_BROWSERS_PATH = path.join(env.CLAUDE_PLUGIN_DATA, "ms-playwright");
+const { CLAUDE_PLUGIN_DATA: _inherited, ...env } = process.env;
+if (dataDir) {
+  env.CLAUDE_PLUGIN_DATA = dataDir;
+  env.PLAYWRIGHT_BROWSERS_PATH ||= path.join(dataDir, "ms-playwright");
 }
 
 const registerHook = path.join(here, "register-hook.mjs");

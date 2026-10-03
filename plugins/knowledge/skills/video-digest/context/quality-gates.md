@@ -50,7 +50,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 ## Outcome verification (host verify script)
 
-`node "<skill-dir>/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
+`node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
 
 | ID | Binary criterion | FAIL → |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Host verify scripts prove **traceability and shape** (JSON valid, batch files on
 
 ## Research gate (host verify script)
 
-`node "<skill-dir>/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"`
+`node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-research-complete.js "<slice-dir>"`
 
 | Criterion | FAIL → |
 | --- | --- |

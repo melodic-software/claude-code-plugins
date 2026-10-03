@@ -9,6 +9,11 @@ versioned; this log records each change to it.
   builds an interactive page through the shared builder from a checked-in template, ships
   `medium: file`, and keeps the planned `artifact` default behind its own review. The
   escape-helper bullet and the thin-skill example name the new lane.
+## Post-mortem and blindspot views on the builder, 2026-10-03
+
+- **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**
+  Each view is a checked-in template plus the session's JSON as data, through the interactive profile, with
+  the destination taken from the `medium` key. Log, error and repository text reaches the page only as data.
 
 ## Plan and brainstorm views move onto the builder, 2026-10-03
 
