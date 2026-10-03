@@ -1,0 +1,64 @@
+{
+  "requires": [
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:check"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the evals-quality lint and the invocation scorer stop with an error; the static contract check still reports what it can.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npx",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:check"
+      ],
+      "detect": {
+        "any": [
+          "npx"
+        ]
+      },
+      "degrade": "Without npx, the markdownlint step of /skill-quality:check is skipped with a note; every other check runs.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

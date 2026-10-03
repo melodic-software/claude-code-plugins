@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.37.0] - 2026-10-03
+## [0.38.0] - 2026-10-03
 
 ### Added
 
@@ -31,6 +31,14 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`/review:pr-explainer` is a one-release stub** that names `/review:explain-change`. Its
   report-profile builder `build-explainer.mjs` is removed, and `tests/pr-explainer-chrome.test.sh`
   becomes `tests/explain-change-chrome.test.sh`, checking the new template's chrome tokens.
+
+## [0.37.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
 ## [0.36.4] - 2026-10-03
 
