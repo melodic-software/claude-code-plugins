@@ -351,6 +351,13 @@ class ParserReader:
             return None
         return next((lo for lo, p in held[1].items() if p == path), None)
 
+    def modules_named(self, src: str, file: str) -> list[int]:
+        """The starts of the modules whose path ends in the file name `file`."""
+        held = self._paths.get(id(src))
+        if not held:
+            return []
+        return [lo for lo, p in held[1].items() if p.rsplit("/", 1)[-1] == file]
+
     def module_path(self, src: str, lo: int) -> str | None:
         """The `/$bunfs/root/...` path of the module starting at `lo`."""
         held = self._paths.get(id(src))
@@ -380,6 +387,54 @@ class ParserReader:
         if found is None:
             return None
         return found[0], found[1]
+
+    def loads(self, src: str, lo: int, hi: int) -> list[str] | None:
+        """The file names the module `src[lo:hi]` loads whole (`import(f)`,
+        `require(f)`, `import*as N from f`, `export*from f`, `f` a literal),
+        or None when it does not parse."""
+        key = ("loads", id(src), lo)
+        if key not in self._answers:
+            res = self._send("loads", src, lo, hi)
+            self._answers[key] = {
+                "files": None if res.get("unreadable") else res["files"]
+            }
+        cached = self._answers[key]
+        assert cached is not None
+        return cached["files"]
+
+    def namespace(
+        self, src: str, lo: int, hi: int, file: str, name: str
+    ) -> dict[str, Any]:
+        """Whether every whole load of `file` in the module `src[lo:hi]`
+        reads only exports other than `name`, by name (the helper's
+        `namespace` op): {"safe": True, "trusted": [...], "thenable": bool}
+        or {"safe": False, "reason": ..., "at": offset in `src` or None}."""
+        key = ("namespace", id(src), lo, file, name)
+        cached = self._answers.get(key)
+        if cached is not None:
+            return cached
+        res = self._send("namespace", src, lo, hi, file=file, name=name)
+        if res.get("unreadable"):
+            answer: dict[str, Any] = {
+                "safe": False,
+                "reason": "the module holds a character outside the BMP",
+                "at": None,
+            }
+        elif res["safe"]:
+            answer = {
+                "safe": True,
+                "trusted": res["trusted"],
+                "thenable": res["thenable"],
+            }
+        else:
+            at = res.get("at")
+            answer = {
+                "safe": False,
+                "reason": res["reason"],
+                "at": None if at is None else at + lo,
+            }
+        self._answers[key] = answer
+        return answer
 
     def keys_used(
         self, src: str, name: str, spans: list[tuple[int, int]] | None = None

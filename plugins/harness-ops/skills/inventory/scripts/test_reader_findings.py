@@ -521,6 +521,93 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
 
+    def test_a_namespace_read_only_by_name_keeps_the_literal(self) -> None:
+        """#5901: each whole load of the exporting file that reads only other
+        exports by name, the shapes 2.1.284-2.1.288 load the Explore/Plan
+        array's re-exporter with, reaches no `pY`, so the literal stands."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        for module in (
+            'import("/a.js");',
+            'var{q:x,"r":y}=await import("/a.js");',
+            'var x=import.meta.require("/a.js").q,y=import.meta.url;',
+            'var n=null,e={name:import.meta.require("/a.js").q,names:import.meta.require("/a.js")},'
+            "M=[...e?[e.name,e.names.q]:[]],T={...e&&{[e.names.r]:e.name}};",
+            'var[{q},,{r}]=await Promise.all([import("/a.js"),import("/c.js"),import("/a.js")]);',
+            'async function f(){let[{q}]=await Promise.all([import("/a.js")]);return q}',
+            'import*as N from"/a.js";var x=N.q,y=typeof N;',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, named, module)
+
+    def test_a_namespace_read_other_than_by_name_stays_partial(self) -> None:
+        """#5901 adversarial probes, one or more per acceptance rule: each
+        shape can reach `pY` without naming it, or runs code the walk cannot
+        see with the namespace in hand, so the list reads partial."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        for module in (
+            # A namespace read by name: a method call passes it as `this`.
+            'import.meta.require("/a.js").f();',
+            # Destructuring: a rest element takes every export.
+            'var{q,...o}=await import("/a.js");o.pY.push("B");',
+            'var o={...await import("/a.js")};',
+            # import.meta must be read only by name.
+            'import.meta.require=(p)=>Q;var x=import.meta.require("/a.js").q;',
+            'var m=import.meta;var x=m.require("/a.js").q;',
+            # A record: a computed read, an escape, `||`, an accessor, a
+            # second write, a method call.
+            'var e={names:import.meta.require("/a.js")};e.names[k].push("B");',
+            'var e={names:import.meta.require("/a.js")};f(e);',
+            'var e={names:import.meta.require("/a.js")},x=e||0;',
+            'var e={names:import.meta.require("/a.js"),get g(){return this}};var x=e.g;',
+            'var e={names:import.meta.require("/a.js")};e={};',
+            'var e={names:import.meta.require("/a.js"),f(){return this.names}};e.f();',
+            # Promise.all: a rest element, a local `Promise`, no array pattern.
+            'var[...r]=await Promise.all([import("/a.js")]);',
+            'var Promise={all:(a)=>a};var[{q}]=await Promise.all([import("/a.js")]);',
+            'var r=await Promise.all([import("/a.js")]);r[0][k].push("B");',
+            # A promise not awaited directly.
+            'var p=import("/a.js");',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_what_a_namespace_load_trusts_stays_checked(self) -> None:
+        """#5901: Promise.all and await take built-ins on trust, so a module
+        replacing one is a sink; and a promise settled with the namespace
+        calls its `then` export with the namespace as `this`."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        loader = 'var[{q}]=await Promise.all([import("/a.js")]);'
+        self.assert_across_modules(True, named, loader, "Promise=function(){};")
+        self.assert_across_modules(
+            True, named, loader, "Promise.resolve=function(p){return p};"
+        )
+        self.assert_across_modules(
+            True, named, loader, 'Object.defineProperty(Q,"then",{});'
+        )
+        # Await reads the promise's `constructor`; a record read of a key
+        # the literal lacks reads Object.prototype.
+        getter = '{get(){for(var k in this.names)this.names[k].push("B")}}'
+        self.assert_across_modules(
+            True,
+            named,
+            'var{q}=await import("/a.js");',
+            'Object.defineProperty(Promise.prototype,"constructor",{get(){}});',
+        )
+        self.assert_across_modules(
+            True,
+            named,
+            'var e={names:import.meta.require("/a.js")},x=e.zz;',
+            f'Object.defineProperty(Object.prototype,"zz",{getter});',
+        )
+        reexport = 'export{pY as W}from"/a.js";export function '
+        awaited = 'var{q}=await import("/b.js");'
+        self.assert_across_modules(False, reexport + "f(){}", awaited)
+        self.assert_across_modules(
+            True,
+            reexport + 'then(r){for(var k in this)this[k].push&&this[k].push("B")}',
+            awaited,
+        )
+
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,
@@ -531,15 +618,21 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_the_module_table_names_the_exporters_own_file(self) -> None:
         """With Bun's module table, the exporter's own path decides, named
-        importer or not: the 2.1.284-2.1.287 re-exporting chunk of the
+        importer or not: the 2.1.284-2.1.288 re-exporting chunk of the
         Explore/Plan array is loaded whole 13 to 14 times by `import(...)`
-        and `import.meta.require(...)`."""
+        and `import.meta.require(...)`, here a record never read and one
+        whose namespace is read by a computed key."""
         if type(self).reader is None:
             type(self).reader = pr.ParserReader(_require_live(self))
         reader = type(self).reader
         exporter = AGENT_SRC + 'var pY=[xt,"Artifact"];' + PROBE + "export{pY};"
         for loader, changed in (
-            ('var n={names:import.meta.require("/$bunfs/root/chunk-a.js")};', True),
+            ('var n={names:import.meta.require("/$bunfs/root/chunk-a.js")};', False),
+            (
+                'var n={names:import.meta.require("/$bunfs/root/chunk-a.js")};'
+                'n.names[k].push("B");',
+                True,
+            ),
             ('import("/$bunfs/root/chunk-b.js");', False),
         ):
             with self.subTest(loader=loader):
@@ -664,8 +757,10 @@ class TestOpenFindings(unittest.TestCase):
     def test_a_direct_eval_leaves_the_module_unresolved_for_the_parser(self) -> None:
         """Known parser-only unresolved case: eslint-scope marks the scopes
         around a direct `eval` dynamic and resolves nothing through them,
-        and `optimistic` stays off because `eval` can rebind names. No
-        module in 2.1.284-2.1.287 has one; P4 of #5640 weighs it."""
+        and `optimistic` stays off because `eval` can rebind names. Each of
+        2.1.284-2.1.288 has one module with one (protobufjs's `inquire`),
+        off every flow path, which the sink rule counts against any name a
+        flow trusts."""
         self.assert_pinned(
             'var pY=[xt,"Artifact"];function e(){eval("")}',
             INITIAL,
@@ -691,15 +786,16 @@ class TestInstalledBuilds(unittest.TestCase):
     """P4 of #5640 on the builds that motivated it: the Explore and Plan
     agents' `disallowed_tools` spread an array that is exported, aliased,
     returned to a `.some(t)` caller and passed to an imported function.
-    The flow follows every hop, but it trusts `some`, `includes` and `has`
-    as built in, and every one of these builds has modules that may write
-    those names on an object the sink rule cannot show is no prototype (a
-    write whose key names nothing, `Object.defineProperty(o,k,...)`); and
-    the chunk re-exporting the array is loaded whole as a namespace 13 to
-    14 times. So both lists read partial under the parser: never a value the regex
-    reader does not also read. Whether the default still flips with that is
-    an operator decision on #5640. Each build is skipped when it is not
-    installed on this machine."""
+    The flow follows every hop, and since #5901 every whole load of the
+    re-exporting chunk too (13 to 14 per build, each read by name). It
+    trusts `some`, `includes` and `has` as built in, and the namespace
+    loads trust Promise.all and await, but every one of these builds has
+    modules that may write those names on an object the sink rule cannot
+    show is no prototype (a write whose key names nothing,
+    `Object.defineProperty(o,k,...)`) or that run code built from a string
+    (ajv's `Function(...)`, a direct `eval`). So both lists read partial
+    under the parser: never a value the regex reader does not also read.
+    Each build is skipped when it is not installed on this machine."""
 
     def test_explore_and_plan_read_partial_under_the_parser(self) -> None:
         target = _require_live(self)
