@@ -750,6 +750,80 @@ test('fail open: a failing write leaves the tool result and the line', async ($,
   expect(ownLines(called.context)).toHaveLength(1)
 })
 
+// The helper's outcomes by run number: 'exit' is its exit 1 for a rename refused 3 times, 'throw'
+// a spawn that never ran, 'skip' its exit 3; anything else writes the file and exits 0.
+type Outcome = 'exit' | 'throw' | 'skip' | undefined
+const scriptedWrites = (stub: any, outcome: (run: number) => Outcome) => {
+  const logs: string[] = []
+  const { w, clock } = world(stub, {}, { HOME }, ['process.run', 'ui.log'])
+  stub('ui.log', ($: unknown, e: { text: string }) => (logs.push(e.text), { value: undefined }))
+  stub('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
+    w.runs.push({ argv: e.argv, stdin: e.init?.stdin })
+    const how = outcome(w.runs.length)
+    if (how === 'throw') throw new Error('spawn refused')
+    if (how === 'exit') return { value: { exitCode: 1, stdout: '', stderr: 'write-snapshot: rename failed after 3 tries: EPERM' } }
+    if (how === 'skip') return { value: { exitCode: 3, stdout: 'skip lock', stderr: '' } }
+    w.files[e.argv[2]] = { text: String(e.init?.stdin), mtimeMs: clock.now() }
+    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+  })
+  return { w, clock, logs }
+}
+// The engine reports a stub's throw in its own words, so the thrown case matches the mod's prefix.
+const FAILURE_LOG = {
+  exit: /^rate-limit-guard: snapshot write failed \(exit 1\): write-snapshot: rename failed after 3 tries: EPERM$/,
+  throw: /^rate-limit-guard: snapshot write did not run: \S/,
+}
+// One of each carrier: a tool call, a measurement, the in-turn timer, and the session.end flush.
+const everyCarrier = async ($: any, w: World, clock: any, runsAfter: number[]) => {
+  await bash($)
+  runsAfter.push(w.runs.length)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  runsAfter.push(w.runs.length)
+  await $.turn.start({ text: 'go', turnId: 'turn-1' })
+  await clock.advance(60_000)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  runsAfter.push(w.runs.length)
+  await $.session.end({ reason: 'other', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  runsAfter.push(w.runs.length)
+}
+
+for (const how of ['exit', 'throw'] as const) {
+  test(`retry: a write that failed (${how}) is tried again at the next carrier, and a landed one dedupes`, async ($, on) => {
+    const { w } = scriptedWrites(on, run => (run === 1 ? how : undefined))
+    await bash($)
+    await bash($)
+    await bash($)
+    expect(w.runs).toHaveLength(2)
+    expect(bodies(w)[1].rate_limits.five_hour.used_percentage).toBe(20)
+  })
+
+  test(`retry: a write that keeps failing (${how}) is tried once at every carrier and logged once`, async ($, on) => {
+    const { w, clock, logs } = scriptedWrites(on, () => how)
+    const runsAfter: number[] = []
+    await everyCarrier($, w, clock, runsAfter)
+    expect(runsAfter).toEqual([1, 2, 3, 4])
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toMatch(FAILURE_LOG[how])
+  })
+}
+
+test('retry: session.end flushes the reading a failed write left unwritten', async ($, on) => {
+  const { w } = scriptedWrites(on, run => (run === 1 ? 'exit' : undefined))
+  await bash($)
+  await $.session.end({ reason: 'other', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  expect(w.runs).toHaveLength(2)
+  expect(w.files[TARGET]?.text).toBe(w.runs[1].stdin)
+})
+
+for (const how of [undefined, 'skip'] as const) {
+  test(`retry: a ${how === 'skip' ? 'write the helper skipped by rule' : 'landed write'} is not repeated by any later carrier inside the floor`, async ($, on) => {
+    const { w, clock } = scriptedWrites(on, () => how)
+    const runsAfter: number[] = []
+    await everyCarrier($, w, clock, runsAfter)
+    expect(runsAfter).toEqual([1, 1, 1, 1])
+  })
+}
+
 test('pull tool: a refused registration logs one line, and lines, band and writes carry on', async ($, on) => {
   const logs: string[] = []
   const { w } = world(on, {}, { HOME }, ['tool.register', 'ui.log'])

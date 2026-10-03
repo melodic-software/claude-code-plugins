@@ -296,13 +296,12 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   if (!moved && Number.isFinite(diskAt) && now - diskAt < FLOOR_MS) return
   const sig = JSON.stringify({ ...body, captured_at: undefined })
   if (st.lastAttempt !== undefined && st.lastAttempt.sig === sig && now - st.lastAttempt.at < FLOOR_MS) return
-  st.lastAttempt = { sig, at: now }
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--preserve-key', 'rate_limits', ...(moved ? [] : ['--floor', '300'])]
+  // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
-    if (run.exitCode !== 0 && run.exitCode !== 3) {
-      logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
-    }
+    if (run.exitCode === 0 || run.exitCode === 3) st.lastAttempt = { sig, at: now }
+    else logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
   } catch (error) {
     logOnce($, st, 'write-threw', `snapshot write did not run: ${error instanceof Error ? error.message : String(error)}`)
   }
