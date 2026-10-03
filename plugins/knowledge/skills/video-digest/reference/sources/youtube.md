@@ -82,7 +82,14 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 | Removed / private / 404 at preflight | fatal | adapter | `reject` / `unavailable`, never enqueued |
 | Not a YouTube video URL | queue-lane rejection (not an error class) | adapter (`acceptForEnqueue`) | `reject` / `invalid-url` |
 | Unsupported host | unsupported-source | registry, before any adapter | `reject` / `invalid-url`, listing the supported sources |
+| HTTP 403 on media fragments | stale client | this spoke | update yt-dlp first |
 | HTTP 429 / 503 / connection reset / timeout | retryable | **shared retry policy**, not this adapter | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
+
+The HTTP 403 row is this spoke's decision: treat a media-fragment 403 as a stale client and update yt-dlp before any other recovery. The probe that an aging client failed that way and a newer build succeeded is [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048).
+
+- **Pointer**: when a media download returns HTTP 403, fetch the current yt-dlp release notes live. No docs page in this repo owns that client's failure text.
+- **As of**: 2026-10-03
+- **Recheck trigger**: a yt-dlp release note that changes how an aging binary fails a media download.
 
 The last row is the one to read carefully: this adapter declares **no** retryable patterns of its
 own. Transport-level retry is shared machinery applied to every source, so a 429 never reaches

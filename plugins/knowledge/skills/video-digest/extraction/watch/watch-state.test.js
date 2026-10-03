@@ -1,11 +1,15 @@
-import { mkdtemp, readFile as realReadFile, rm } from "node:fs/promises";
+import { existsSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile as realReadFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { checkWatchOutcomes } from "../evals/check-watch-outcomes.js";
+import { LANES, lanePath } from "../lib/slice-lanes.js";
 import {
   buildContinuationPrompt,
+  computeVisionMetrics,
   continuationPromptPath,
   createWatchState,
   findNextPhase,
@@ -491,6 +495,161 @@ describe("skip-research phase map (resume routing)", () => {
     }
     state = markPhaseComplete(state, "research", { skipped: true });
     expect(buildContinuationPrompt(state, SLICE_DIR)).toContain("research (skipped)");
+  });
+});
+
+describe("mark-phase vision metrics", () => {
+  it("records triage and promotion counts so vision-metrics-honesty appears", async () => {
+    const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-vision-"));
+    try {
+      let state = sampleTalk();
+      state.artifactPaths = { contactSheetCount: 2 };
+      state.status = "vision";
+      await writeWatchState(sliceDir, state);
+
+      const triageDir = lanePath(sliceDir, LANES.keyFrames, "triage");
+      await mkdir(triageDir, { recursive: true });
+      const cells = [{ cell: "R1C1" }, { cell: "R1C2" }];
+      await writeFile(
+        path.join(triageDir, "manifest.json"),
+        `${JSON.stringify({
+          sheetCount: 2,
+          sheets: [
+            { sheetId: "sheet_001", cells },
+            { sheetId: "sheet_002", cells: [{ cell: "R3C2" }] },
+          ],
+        })}\n`,
+      );
+      await writeFile(
+        lanePath(sliceDir, LANES.keyFrames, "promotion-map.json"),
+        `${JSON.stringify({
+          "opening-slide.png": { sourceFile: "scene_0001.png" },
+          "diagram.png": { sourceFile: "scene_0004.png" },
+        })}\n`,
+      );
+      await writeFile(
+        lanePath(sliceDir, LANES.keyFrames, "frame-triage-log.md"),
+        "## sheet_001\n\n## sheet_002\n",
+      );
+
+      const code = await runMarkPhase(sliceDir, "vision");
+      expect(code).toBe(0);
+
+      const persisted = JSON.parse(await realReadFile(watchStatePath(sliceDir), "utf8"));
+      expect(persisted.phases.vision.metrics.contactSheetsTriaged).toBe(2);
+      expect(persisted.phases.vision.metrics.cellsTriaged).toBe(3);
+      expect(persisted.phases.vision.metrics.promotedCount).toBe(2);
+      expect(Object.keys(persisted.phases.vision.metrics).length).toBeGreaterThan(0);
+
+      const honesty = checkWatchOutcomes(sliceDir).checks.find(
+        (check) => check.id === "vision-metrics-honesty",
+      );
+      expect(honesty).toBeDefined();
+      expect(honesty?.pass).toBe(true);
+    } finally {
+      await rm(sliceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("records numeric zeros when the triage manifest and promotion map are absent", () => {
+    const metrics = computeVisionMetrics(path.join(os.tmpdir(), "watch-vision-missing"));
+    expect(metrics).toEqual({ contactSheetsTriaged: 0, cellsTriaged: 0, promotedCount: 0 });
+  });
+});
+
+describe("close removes recorded tempSession directories", () => {
+  /** @param {number} outcomeCode */
+  async function closeWithTemps(outcomeCode) {
+    const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-close-slice-"));
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
+    const framesDir = await mkdtemp(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = await mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
+    const leftover = await mkdtemp(path.join(os.tmpdir(), "video-extraction-leftover-"));
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    state.status = "synthesizing";
+    state.tempSession = {
+      workDir,
+      framesDir,
+      contactSheetsDir: sheetsDir,
+      acquiredAt: "2026-10-03T00:00:00.000Z",
+    };
+    await writeWatchState(sliceDir, state);
+    const code = await runClose(sliceDir, { verifyOutcomes: async () => outcomeCode });
+    return { code, sliceDir, workDir, framesDir, sheetsDir, leftover };
+  }
+
+  it("deletes only the directories named in that slice's tempSession", async () => {
+    const dirs = await closeWithTemps(0);
+    try {
+      expect(dirs.code).toBe(0);
+      expect(existsSync(dirs.workDir)).toBe(false);
+      expect(existsSync(dirs.framesDir)).toBe(false);
+      expect(existsSync(dirs.sheetsDir)).toBe(false);
+      expect(existsSync(dirs.leftover)).toBe(true);
+      const persisted = JSON.parse(await realReadFile(watchStatePath(dirs.sliceDir), "utf8"));
+      expect(persisted.status).toBe("complete");
+    } finally {
+      await rm(dirs.sliceDir, { recursive: true, force: true });
+      await rm(dirs.workDir, { recursive: true, force: true });
+      await rm(dirs.framesDir, { recursive: true, force: true });
+      await rm(dirs.sheetsDir, { recursive: true, force: true });
+      await rm(dirs.leftover, { recursive: true, force: true });
+    }
+  });
+
+  it("deletes the directory a recorded symlink resolves to", async () => {
+    const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-close-slice-"));
+    const target = await mkdtemp(path.join(os.tmpdir(), "video-extraction-target-"));
+    const framesDir = await mkdtemp(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = await mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
+    const link = path.join(os.tmpdir(), `video-extraction-link-${path.basename(target)}`);
+    writeFileSync(path.join(target, "keep.txt"), "x");
+    symlinkSync(target, link, "dir");
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    state.status = "synthesizing";
+    state.tempSession = {
+      workDir: link,
+      framesDir,
+      contactSheetsDir: sheetsDir,
+      acquiredAt: "2026-10-03T00:00:00.000Z",
+    };
+    await writeWatchState(sliceDir, state);
+    try {
+      expect(await runClose(sliceDir, { verifyOutcomes: async () => 0 })).toBe(0);
+      expect(existsSync(target)).toBe(false);
+      expect(existsSync(path.join(target, "keep.txt"))).toBe(false);
+    } finally {
+      await rm(sliceDir, { recursive: true, force: true });
+      await rm(target, { recursive: true, force: true });
+      await rm(link, { recursive: true, force: true });
+      await rm(framesDir, { recursive: true, force: true });
+      await rm(sheetsDir, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves tempSession directories in place when the outcome checks fail", async () => {
+    const dirs = await closeWithTemps(1);
+    try {
+      expect(dirs.code).toBe(1);
+      expect(existsSync(dirs.workDir)).toBe(true);
+      expect(existsSync(dirs.framesDir)).toBe(true);
+      expect(existsSync(dirs.sheetsDir)).toBe(true);
+      expect(existsSync(dirs.leftover)).toBe(true);
+      const persisted = JSON.parse(await realReadFile(watchStatePath(dirs.sliceDir), "utf8"));
+      expect(persisted.status).not.toBe("complete");
+    } finally {
+      await rm(dirs.sliceDir, { recursive: true, force: true });
+      await rm(dirs.workDir, { recursive: true, force: true });
+      await rm(dirs.framesDir, { recursive: true, force: true });
+      await rm(dirs.sheetsDir, { recursive: true, force: true });
+      await rm(dirs.leftover, { recursive: true, force: true });
+    }
   });
 });
 

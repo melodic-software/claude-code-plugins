@@ -135,6 +135,7 @@ export async function runWatchCli(argv) {
 
   /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
   let acquisition;
+  writeStderr("watch: acquire start");
   try {
     acquisition = await acquireMedia(url, { workDir, mode: "full" });
   } catch (error) {
@@ -148,6 +149,7 @@ export async function runWatchCli(argv) {
     writeStderr(acquisition.error ?? "Acquisition failed");
     return 1;
   }
+  writeStderr("watch: acquire end");
 
   const envelope = acquisition.data;
   const { metadata, entries } = envelope;
@@ -183,6 +185,8 @@ export async function runWatchCli(argv) {
   });
 
   const harvestedLinks = adapter.harvestLinks(metadata);
+  const transcriptStrategyLabel = strategyArg.override ?? adapter.transcriptStrategy;
+  writeStderr(`watch: transcript start (strategy: ${transcriptStrategyLabel})`);
   const written = await writeEnvelopeTranscriptArtifacts({
     sliceDir,
     envelope,
@@ -199,6 +203,8 @@ export async function runWatchCli(argv) {
   const degradationMetric = written.transcriptDegradation
     ? { transcriptDegradation: written.transcriptDegradation }
     : {};
+  const appliedTranscriptStrategy = primaryTranscript?.strategy ?? transcriptStrategyLabel;
+  writeStderr(`watch: transcript end (strategy: ${appliedTranscriptStrategy})`);
   state = markPhaseComplete(
     state,
     "transcript",
@@ -248,7 +254,9 @@ export async function runWatchCli(argv) {
   if (!primary?.mediaPath) {
     // 0-media envelope: well-formed text-only slice — watching/vision cannot
     // run without media, recorded as skipped so resume advances past them.
+    writeStderr("watch: watching start");
     state = markPhaseComplete(state, "watching", { skipped: true, reason: "no media entries" });
+    writeStderr("watch: watching end (skipped: no media entries)");
     state = markPhaseComplete(state, "vision", { skipped: true, reason: "no media entries" });
     state.status = "researching";
     const finished = await finishSlice(state);
@@ -292,6 +300,7 @@ export async function runWatchCli(argv) {
   // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
   // detectRecoverableBootstrap can discover (it requires the file to exist).
   state.status = "watching";
+  writeStderr("watch: watching start");
   await writeWatchState(sliceDir, state);
 
   const watching = await orchestrateWatching({
@@ -326,6 +335,7 @@ export async function runWatchCli(argv) {
     contactSheetCount: manifest.contactSheetCount,
     targetMinFrames: watching.targetMinFrames ?? 0,
   });
+  writeStderr("watch: watching end");
 
   const finished = await finishSlice(state);
   state = finished.state;
