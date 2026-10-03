@@ -187,13 +187,14 @@ Every push to a ready pull request started 4 jobs, a review job and a status job
    in one pull request comment it writes as `github-actions[bot]` and edits after each completed
    review. A push reviews the whole pull request again when no earlier review is recorded, the
    recorded head is not an ancestor of the new head (force push or rebase), 300 or more files
-   changed since, or a base-branch merge since then changed a file the pull request also changes
-   (or 300 or more files, too many to check). A push that changes none of the pull request's
-   files gets no new review.
+   changed since, a base-branch merge since then changed a file the pull request also changes
+   (or 300 or more files, too many to check), or the API returns no patch for a changed text file
+   (too large to show). A push that changes none of the pull request's files gets no new review.
 2. **Documentation-only scopes skip the security lane.** When every file in scope matches
    `docs/**/*.md`, `**/README.md` or `**/CHANGELOG.md`, no security review runs and its check is
    green. Skill, agent, command, rule, `CLAUDE.md` and `AGENTS.md` files are agent instructions,
-   not documentation, and are always security-reviewed. This is the one exception to the
+   not documentation, and are always security-reviewed; the reusable enforces this whatever a
+   caller's `docs-only-paths` lists. This is the one exception to the
    operator's rule of a security review on every pull request.
 3. **Decision 4 is narrowed.** Each lane is one job, which goes red, naming the cause, when no
    review happened; a review that was not needed is green. The code-review check keeps its name,
