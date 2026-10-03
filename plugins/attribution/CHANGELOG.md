@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `config-root.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
 ## [0.10.0] - 2026-10-02
 
 ### Added
