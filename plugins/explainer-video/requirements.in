@@ -1,0 +1,4 @@
+# ManimCE with Typst for math. Python 3.12 or 3.13: moderngl and glcontext publish no 3.14 wheel.
+# srt has no wheel anywhere, pycairo none for Linux or macOS, manimpango none for Linux: pydeps.py
+# BUILD_FROM_SOURCE names them (docs/conventions/on-demand-dependencies, Exceptions).
+manim[typst]==0.21.0
