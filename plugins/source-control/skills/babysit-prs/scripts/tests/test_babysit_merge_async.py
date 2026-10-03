@@ -75,16 +75,26 @@ class AsyncMergeHarness(unittest.TestCase):
         merge_flag: bool = True,
         pinned: bool = True,
         head: str | None = HEAD,
+        blockers: list[str] | None = None,
+        stack_member: bool = False,
     ) -> int:
+        if blockers is not None:
+            ready = not blockers
         verdict = {
             "ready": ready,
-            "blockers": [] if ready else ["1 unresolved review thread(s) [reviewer]"],
+            "blockers": (
+                blockers
+                if blockers is not None
+                else []
+                if ready
+                else ["1 unresolved review thread(s) [reviewer]"]
+            ),
             "headRefOid": head,
             "baseRef": base,
             "mergeAction": merge_action,
             "stack": {
                 "enabled": True,
-                "member": stack_lands,
+                "member": stack_lands or stack_member,
                 "landsLowerLayers": stack_lands,
                 "number": 7,
                 "layers": (
@@ -516,6 +526,38 @@ class StackLandsThroughTheAsyncApi(AsyncMergeHarness):
         )
 
 
+class BottomStackMemberMergesThroughTheAsyncApi(AsyncMergeHarness):
+    """GitHub documents the async API as the required API for merging a
+    stacked pull request, so the bottom layer (base == trunk) uses it even on
+    a trunk that is not the default branch."""
+
+    def _bottom(self, put: mock.Mock) -> int:
+        return self._run(
+            put,
+            base="release",
+            default_branch="main",
+            stack_member=True,
+            extra=("--stacked-prs",),
+        )
+
+    def test_bottom_member_on_a_non_default_trunk_merges_async(self) -> None:
+        code = self._bottom(_proc(_async("merged")))
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            len([c for c in self.captures if "merge-async" in " ".join(c)]), 1
+        )
+        self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
+        self.assertEqual(self.stack_reads, 0)
+
+    def test_bottom_member_without_the_endpoint_is_held(self) -> None:
+        missing = _proc(
+            {"message": "Not Found"}, returncode=1, stderr="gh: Not Found (HTTP 404)"
+        )
+        code = self._bottom(missing)
+        self.assertEqual(code, 10)
+        self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
+
+
 class PendingRequestOutlivesTheRun(AsyncMergeHarness):
     """GitHub documents no route to cancel an async merge request, so a request
     left pending is recorded and every later run reports it."""
@@ -590,9 +632,22 @@ class PendingRequestOutlivesTheRun(AsyncMergeHarness):
             merge_flag=False,
             extra=("--state-dir", self.state.name),
         )
-        self.assertEqual(code, 10)
+        self.assertEqual((code, self.output["merged"]), (0, True))
         self.assertEqual(self.output["pendingMergeRequest"]["status"], "merged")
         self.assertEqual(self._records(), {})
+
+    def test_a_record_older_than_a_day_is_still_polled(self) -> None:
+        self._corrupt_record(UUID, age_hours=30)
+        self._run(
+            _proc(),
+            [_async("merged")],
+            merge_flag=False,
+            extra=("--state-dir", self.state.name),
+        )
+        self.assertEqual(len(self.polls), 1)
+        prior = self.output["pendingMergeRequest"]
+        self.assertEqual(prior["status"], "merged")
+        self.assertIn("verification", prior)
 
     def test_an_expired_request_clears_the_record(self) -> None:
         self._leave_pending()
@@ -706,6 +761,23 @@ class PendingRequestIsVerifiedWhenItLands(AsyncMergeHarness):
         code = self._later_run(LANDED)
         self.assertEqual(code, 0)
         self.assertTrue(self.output["pendingMergeRequest"]["verification"]["verified"])
+        self.assertEqual(self._records(), {})
+
+    def test_a_landed_request_reports_merged_even_though_the_gate_sees_a_closed_pr(
+        self,
+    ) -> None:
+        self._leave_pending()
+        code = self._later_run(LANDED, blockers=["state=MERGED (not OPEN)"])
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertTrue(self.output["ready"])
+        self.assertEqual(self.output["blockers"], [])
+        self.assertEqual(self.output["action"], "check")
+        self.assertEqual(
+            (self.output["merge"]["attempted"], self.output["merge"]["source"]),
+            (False, "pendingMergeRequest"),
+        )
+        self.assertEqual(self.output["merge"]["uuid"], UUID)
         self.assertEqual(self._records(), {})
 
     def test_an_unreadable_stack_keeps_the_record_and_holds(self) -> None:

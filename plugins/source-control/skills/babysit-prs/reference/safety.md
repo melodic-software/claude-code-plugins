@@ -661,11 +661,13 @@ A ready PR merges through GitHub's async merge API, called with `gh api` (`gh` h
 it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's UUID.
 
 - **Which API.** Async when the base is the default branch, when it requires a merge queue, or when
-  the PR is a native stack layer under `--stacked-prs`. Any other base keeps `gh pr merge`, because
-  an unconfirmed stack layer there would land the layers below it, and so does every `--auto` arm:
-  the async API has no auto-merge form. On the default branch a 404 from the endpoint (a host that
-  lacks it) falls back to `gh pr merge` with the same pin; a queue or a stack has no other API and
-  holds.
+  the PR is a native stack member under `--stacked-prs`, the bottom layer on any trunk included:
+  GitHub documents the async API as the required API for merging a stacked PR. Any other base keeps
+  `gh pr merge`, and so does every `--auto` arm: the async API has no auto-merge form. Without
+  `--stacked-prs` the gate never reads stack membership, so a bottom layer on a non-default trunk
+  goes to `gh pr merge`, which GitHub refuses for a stacked PR; that fails closed. On the default
+  branch a 404 from the endpoint (a host that lacks it) falls back to `gh pr merge` with the same
+  pin; a queue or a stack member has no other API and holds.
 - **Request.** `sha` is always the head the gate just evaluated: `--allow-unpinned-head` waives only
   the `--expected-head` argument, never the pin, and `gh pr merge` carries the same head as
   `--match-head-commit`. `merge_method` is sent for a direct merge only,
@@ -687,12 +689,15 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   pending, or cannot be read, the run reports `action: merge-pending` with that hold first in
   `blockers`, exit `10`, and sends nothing. A record whose request id is not GitHub's UUID shape is
   corrupt: it is never put in an API path or cleared, and holds the same way until a human inspects
-  it. A finished request (or one past GitHub's 24-hour retention) clears the record and shows as
-  `pendingMergeRequest`. A request that finished merged is first checked against every head the
-  gate evaluated, the PR's and, for a stack, each lower layer's, recorded with it
+  it. A finished request, or one GitHub no longer returns (404; GitHub keeps a result 24 hours
+  after its latest update), clears the record and shows as `pendingMergeRequest`; the gate keeps no
+  local age limit of its own. A request that finished merged is first checked against every head
+  the gate evaluated, the PR's and, for a stack, each lower layer's, recorded with it
   (`pendingMergeRequest.verification`). A mismatch puts an escalation first in `blockers` with exit
   `10`; heads that cannot be read back keep the record, hold the same way, and are re-checked next
-  run. Report a merge-pending PR as "merge may still land", never as held. Without `--state-dir`
+  run. When every head matches, the run reports the merge even though the gate now reads a closed
+  PR: `merged: true`, `ready: true`, empty `blockers`, `merge.source: pendingMergeRequest`, exit
+  `0`, with `action` unchanged. Report a merge-pending PR as "merge may still land", never as held. Without `--state-dir`
   nothing is recorded and a later run cannot see the request, so `--state-dir <state-dir>` rides on
   every merge form.
 - **Merge queue.** A default-branch base that requires a merge queue is no longer a blocker. Once

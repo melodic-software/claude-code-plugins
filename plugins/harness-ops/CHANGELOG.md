@@ -8,10 +8,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 ### Fixed
 
 - `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
-  qualification. `CLEAN` can describe checks that ran against an older base, so the script reads
-  the compare endpoint once per clean PR and prints an `UNVERIFIED` line under any PR whose head
-  is behind its base, or whose comparison could not be read. A `--behind-json` fixture flag
-  feeds those counts to the tests.
+  qualification. It counts a clean PR as verified only when its head contains the base tip:
+  the script reads the compare endpoint once per clean PR, up to `--pr-limit`, and prints an
+  `UNVERIFIED` line under any PR whose head is behind its base, whose comparison could not be
+  read, or that fell past the cap, plus a `PARTIAL` line when the cap was hit. A `--behind-json`
+  fixture flag feeds those counts to the tests.
 - `machine-profile` refuses a record value holding a GitHub App installation token in the
   `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
   than only through the generic JWT rule.

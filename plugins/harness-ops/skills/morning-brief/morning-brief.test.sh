@@ -301,6 +301,21 @@ OUT_PARTIAL_BEHIND="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" --behi
 assert_contains "merge-ready with no count for a PR says freshness is unread" "$(section "$OUT_PARTIAL_BEHIND" "== Merge-ready")" \
   "    UNVERIFIED: base freshness unread: no behind count for #13"
 
+# The compare read costs one GET per clean PR, so it shares the --pr-limit cap;
+# a clean PR past the cap is UNVERIFIED with the cap as its reason.
+OUT_FRESH_CAP="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" --pr-limit 1 \
+  --counts-json "$TMP/counts.json" --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged.json" 2>&1)"
+FRESH_CAP="$(section "$OUT_FRESH_CAP" "== Merge-ready")"
+assert_contains "merge-ready reads freshness for clean PRs inside the cap" "$FRESH_CAP" \
+  "    http://x/10  review=none
+  #13 approved clean pr"
+assert_contains "merge-ready marks a clean PR past the compare cap unverified" "$FRESH_CAP" \
+  "    http://x/13  review=APPROVED
+    UNVERIFIED: base freshness unread: compare reads capped at 1 (raise --pr-limit)"
+assert_contains "merge-ready reports a capped compare read as PARTIAL" "$FRESH_CAP" \
+  "PARTIAL: 2 clean PRs; base freshness read for the first 1 only (raise --pr-limit)"
+
 # Decisions — two-tier RECOMMENDED extraction
 assert_contains "decision #100 uppercase marker wins" "$OUT" "Store the root in a userConfig key"
 assert_not_contains "decision #100 ignores 'not recommended'" "$OUT" "not recommended for this profile"

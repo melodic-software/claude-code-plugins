@@ -15,7 +15,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the merge every lower layer is checked against the head the gate evaluated, including when the
   request completes in a later run, and a mismatch is reported with exit `10`. A lower-layer push
   between the request and its completion still lands unvetted, so the flag assumes only trusted
-  actors can push to the lower layers. Off, a stack layer is held exactly as before.
+  actors can push to the lower layers. Every stack member, the bottom layer on any trunk included,
+  merges through the async merge API, GitHub's required API for a stacked PR, and holds rather than
+  falling back when the endpoint is missing. Off, a stack layer is held exactly as before.
 - **The `pull-request` skill has a stacked-PR reference** (`reference/stacks.md`) for creating a
   stack with the `gh stack` extension and merging it, including the v0.2.0 floor for stacks built
   in linked worktrees, and `merge.md` shows how to merge through the async merge API with `gh api`.
@@ -35,9 +37,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **A merge request still pending at the bound is recorded under `--state-dir`.** GitHub documents
   no route to cancel one, so every later run reads it first and, while it is live or unreadable,
   reports `action: merge-pending` and sends nothing. A request that later finishes merged is checked
-  against every head the gate evaluated, and a mismatch is escalated with exit `10`. A record with
-  an unusable request id is held as corrupt, never read or cleared. Merge commands now carry
-  `--state-dir <state-dir>`.
+  against every head the gate evaluated: a mismatch is escalated with exit `10`, and a match is
+  reported as merged (`merged: true`, exit `0`) although the gate now reads a closed PR. A record
+  clears only when the request finishes or GitHub stops returning it (404), never on a local age
+  limit. A record with an unusable request id is held as corrupt, never read or cleared. Merge
+  commands now carry `--state-dir <state-dir>`.
 - **A default branch that requires a merge queue no longer blocks the gate.** A fully ready PR is
   enqueued instead (`action: enqueue`, `enqueued: true`), which is reported as queued, not merged.
   Auto-merge is never armed over a queue, and a queue on any other base is still held.

@@ -19,9 +19,12 @@ Contract enforced here (encoded as code, not convention):
   vetted head as `sha`, polled to a terminal status; on a base that requires a
   merge queue it is enqueued instead (`enqueued` is queued, not merged). A host
   without the endpoint (404) falls back to `gh pr merge` for a direct merge.
-  Any other base, and every `--auto` arm, keeps `gh pr merge`. A request still
-  pending at the poll bound is recorded under `--state-dir` (GitHub offers no
-  cancel), and every later run reports it as merge pending until it finishes.
+  Under `--stacked-prs` every stack member, the bottom layer included, merges
+  through the async API too (GitHub's required API for a stacked PR) and never
+  falls back. Any other base, and every `--auto` arm, keeps `gh pr merge`. A
+  request still pending at the poll bound is recorded under `--state-dir`
+  (GitHub offers no cancel), and every later run reports it as merge pending
+  until it finishes.
 - With `--stacked-prs`, a native stack layer is judged against the stack's
   trunk and every open layer below it runs the same gate, since the async
   merge lands them together. Without it a stack layer is held as before.
@@ -1855,9 +1858,6 @@ def verify_request_landed(
 
 
 PENDING_MERGES_FILE = "merge-requests.json"
-# GitHub keeps an async merge result for 24 hours after its last update; a
-# record older than that (plus slack) can no longer be read and is dropped.
-PENDING_MERGE_MAX_AGE_SECONDS = 25 * 60 * 60
 
 
 def _load_pending(path: Path) -> dict[str, Any]:
@@ -1888,16 +1888,15 @@ def update_pending(path: Path, key: str, entry: dict[str, Any] | None) -> None:
         write_state(path, {"schema_version": 1, "requests": requests})
 
 
-def check_pending_request(
-    repo: str, number: int, path: Path, *, now: datetime | None = None
-) -> dict[str, Any] | None:
+def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] | None:
     """The PR's recorded async merge request as GitHub reports it now.
 
     A request left pending stays live on GitHub: it can still merge after a
     hold appears that would refuse a new one. There is no route to cancel it,
-    so every later run reads it first. A terminal or expired request clears
-    the record; an unreadable one stays recorded and counts as pending, and a
-    corrupt one (an unusable request id) is held however old it is.
+    so every later run reads it first. A terminal request, or one GitHub no
+    longer returns (404: it keeps a result 24 hours after its latest update),
+    clears the record; an unreadable one stays recorded and counts as pending,
+    and a corrupt one (an unusable request id) is held however old it is.
 
     A merged request is checked against every head the gate evaluated
     (`verification`), since its `sha` pinned only this PR. A check that cannot
@@ -1908,19 +1907,7 @@ def check_pending_request(
         entry = _load_pending(path).get(key)
     if not is_json_object(entry):
         return None
-    uuid = str(entry.get("uuid") or "")
-    requested = parse_github_timestamp(str(entry.get("requestedAt") or ""))
-    age = (
-        ((now or datetime.now(UTC)) - requested).total_seconds() if requested else None
-    )
-    if (
-        age is not None
-        and age > PENDING_MERGE_MAX_AGE_SECONDS
-        and ASYNC_UUID_RE.fullmatch(uuid)
-    ):
-        update_pending(path, key, None)
-        return {**entry, "status": "expired", "message": "older than GitHub retains"}
-    current = read_async_merge(repo, number, uuid)
+    current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
     report = {
         **entry,
         "status": current["status"] or None,
@@ -2418,6 +2405,18 @@ def main() -> int:
             result["merge"] = {"attempted": False, "reason": reason or "merge pending"}
             print(json.dumps(result, indent=2))
             return 10
+        if prior.get("status") == "merged":
+            # The recorded request landed at every evaluated head. The gate now
+            # reads a merged (closed) PR, but that merge is this run's outcome.
+            result["merged"] = result["ready"] = True
+            result["blockers"] = []
+            result["merge"] = {
+                **prior,
+                "attempted": False,
+                "source": "pendingMergeRequest",
+            }
+            print(json.dumps(result, indent=2))
+            return 0
 
     if not args.merge:
         print(json.dumps(result, indent=2))
@@ -2472,14 +2471,16 @@ def main() -> int:
         return 10
 
     # A ready PR merges through the async merge API: REST (so it works where
-    # GraphQL is refused), and the only API that enqueues or lands a stack. It is
-    # used on the default branch, for a queue, and for a stack; any other base
-    # keeps `gh pr merge`, because an unconfirmed stack layer there would land
-    # the layers below it. Auto-merge has no async form and keeps `gh pr merge`.
+    # GraphQL is refused), the only API that enqueues, and GitHub's required API
+    # for merging any stacked PR, the bottom layer included. It is used on the
+    # default branch, for a queue, and for a stack member; any other base keeps
+    # `gh pr merge`. Auto-merge has no async form and keeps `gh pr merge`.
     if not arm_auto:
-        stack_lands = bool(json_object(result.get("stack")).get("landsLowerLayers"))
+        stack = json_object(result.get("stack"))
+        stack_lands = bool(stack.get("landsLowerLayers"))
+        stack_member = bool(stack.get("member"))
         queue = result.get("mergeAction") == "merge_queue"
-        use_async = stack_lands or queue
+        use_async = stack_member or stack_lands or queue
         if not use_async:
             default_branch = repository_default_branch(repo)
             use_async = bool(default_branch) and result.get("baseRef") == default_branch
@@ -2499,7 +2500,7 @@ def main() -> int:
                 merge_action="merge_queue" if queue else "direct_merge",
                 method=method,
             )
-            if not record["endpointMissing"] or stack_lands or queue:
+            if not record["endpointMissing"] or stack_member or stack_lands or queue:
                 if record["endpointMissing"]:
                     record["message"] = (
                         "the async merge endpoint returned 404 on this host; a queue "

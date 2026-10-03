@@ -10,9 +10,8 @@
 # It runs `gh` read queries only. The authoritative merge gate lives in the
 # source-control:babysit-prs skill; the merge-ready list here is a lighter
 # gh-native signal (mergeStateStatus CLEAN + non-draft) meant for a 5-second
-# glance, not a substitute for that skill's classification. CLEAN reports the
-# checks GitHub last ran, which can predate the current base, so a clean PR
-# whose head is behind its base (or whose comparison could not be read) carries
+# glance, not a substitute for that skill's classification. A clean PR whose
+# head does not contain its base tip, or whose comparison was not read, carries
 # an UNVERIFIED line.
 #
 # Owner/repo is derived from `gh repo view`, or from the checkout's `origin`
@@ -41,7 +40,7 @@
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        age window for stranded review findings (default 3)
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
-#   morning-brief.sh --pr-limit N             open PRs whose merge state the REST path checks (default 50)
+#   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):
@@ -704,12 +703,10 @@ fetch_prs_rest() {
                   reviewDecision: "n/a", baseRefName: .base.ref, headRefOid: .head.sha} ]' "$WORK/prs.detail" >"$out"
 }
 
-# CLEAN says the checks GitHub last ran passed, not that they ran against the
-# current base: without a strict up-to-date rule a PR stays CLEAN while its
-# base moves on (SKILL.md carries the upstream record). A head that already
-# contains the base tip leaves nothing untested, so the compare endpoint's
-# `behind_by` decides: 0 prints nothing; a positive count, or a read that
-# failed, prints why the PR's CLEAN is unverified.
+# A clean PR counts as verified only when its head contains the base tip
+# (SKILL.md carries the upstream record). The compare endpoint's `behind_by`
+# decides: 0 prints nothing; a positive count, or a read that failed, prints
+# why the PR's CLEAN is unverified.
 #
 # freshness_note NUMBER BASE HEAD_SHA
 freshness_note() {
@@ -748,12 +745,20 @@ print_merge_ready() {
     }
   fi
   local clean='[ .[] | select(.isDraft == false and .mergeStateStatus == "CLEAN") ] | sort_by(.number) | .[]'
-  local notes='{}' number base sha note ready
+  local notes='{}' number base sha note ready read=0
+  # One compare GET per clean PR, so the reads share the --pr-limit cap; a PR
+  # past it is UNVERIFIED, and the section says the read was partial.
   # stdin from /dev/null so gh cannot drain the loop's input.
   while IFS=$'\t' read -r number base sha; do
-    note="$(freshness_note "$number" "$base" "$sha" </dev/null)"
+    if ((read < PR_LIMIT)); then
+      note="$(freshness_note "$number" "$base" "$sha" </dev/null)"
+    else
+      note="base freshness unread: compare reads capped at $PR_LIMIT (raise --pr-limit)"
+    fi
+    ((++read))
     [[ -n "$note" ]] && notes="$(jq -c --arg n "$number" --arg v "$note" '.[$n] = $v' <<<"$notes")"
   done < <(jq -r "$clean"' | [.number, (.baseRefName // ""), (.headRefOid // "")] | @tsv' "$prs_file" 2>/dev/null)
+  ((read > PR_LIMIT)) && PR_PARTIAL+=("$read clean PRs; base freshness read for the first $PR_LIMIT only (raise --pr-limit)")
   ready="$(jq -r --argjson notes "$notes" "$clean"'
     | "  #\(.number) \(.title)\n    \(.url)  review=\(.reviewDecision // "" | if . == "" then "none" else . end)"
       + ($notes[.number | tostring] | if . then "\n    UNVERIFIED: \(.)" else "" end)
