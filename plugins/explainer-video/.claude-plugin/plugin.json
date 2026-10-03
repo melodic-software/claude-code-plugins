@@ -1,6 +1,6 @@
 {
   "name": "explainer-video",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Short explainer videos made with ManimCE, narrated when the speech plugin is installed and silent otherwise. The produce skill plans the beats, writes one scene script whose scene changes follow the narration's word timings, renders at low quality first, muxes narration and captions with ffmpeg, and checks every render with ffprobe and a frame read-back. A SessionStart hook installs the hash-locked Python packages; the check skill reports readiness.",
   "author": {
     "name": "Melodic Software",

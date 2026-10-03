@@ -74,7 +74,7 @@ at its entry point. `optional` means the scope continues with a reduced result a
 
 | `kind` | `detect` | Resolves when |
 | --- | --- | --- |
-| `cli`, `runtime` | `any` (names, first match wins), optional `local_bin` (paths tried upward from the working directory, up to eight levels), optional `version` (`args`, a `pattern` whose first group is the version, `min`) | A name is on `PATH` or a `local_bin` path is executable, and the version is at least `min`. A runtime lists its ladder in `any`, such as `["python3", "python", "py"]`. |
+| `cli`, `runtime` | `any` (names, first match wins), optional `local_bin` (paths tried upward from the working directory, up to eight levels), optional `version` (`args`, a `pattern` whose first group is the version, `min`), optional `reject_store_alias` (`true` skips Windows `WindowsApps` directories, so a Microsoft Store App Execution Alias never counts) | A name is on `PATH` or a `local_bin` path is executable, and the version is at least `min`. A runtime lists its ladder in `any`, such as `["python3", "python", "py"]`. On Windows a Store App Execution Alias counts as found, except the Python install stub, unless the entry sets `reject_store_alias`. |
 | `system-lib` | `probe`: `args` (the first item is the binary) and `pattern` | The probe output matches the pattern, for example `ffmpeg -encoders` listing `libx264`. |
 | `python-pkg` | `any` (interpreters) and `import` (a module name) | The first interpreter found imports the module. |
 | `node-pkg` | `module` and `paths` (relative to the plugin root, or starting with `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}`) | `<path>/<module>/package.json` exists under one of the paths. |
