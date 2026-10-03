@@ -1194,6 +1194,26 @@ test('timer: rewrites every 60 s inside a turn, never outside one', async ($, on
   expect(w.runs).toHaveLength(3)
 })
 
+test('timer: an unchanged reading over a long call is written every 60 s, never sooner, with no gap past 60 s plus the timer interval', async ($, on) => {
+  const { w, clock } = world(on)
+  await $.turn.start({ text: 'go', turnId: 'turn-1' })
+  await clock.advance(10_000)
+  await bash($)
+  const stamps: number[] = [10]
+  let seen = w.runs.length
+  for (let t = 10; t < 610; t += 5) {
+    await clock.advance(5_000)
+    if (w.runs.length > seen) {
+      seen = w.runs.length
+      stamps.push(t + 5)
+    }
+  }
+  const gaps = stamps.slice(1).map((s, i) => s - (stamps[i] as number))
+  expect(gaps.length).toBeGreaterThanOrEqual(8)
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(60)
+  expect(Math.max(...gaps)).toBeLessThanOrEqual(60 + 15)
+})
+
 test('switch: writes continue with the zone lines and the hooks switch off', { options: { zone_lines_enabled: false, context_guard_hooks_enabled: false } }, async ($, on) => {
   const { w } = world(on)
   await bash($)

@@ -11,7 +11,8 @@ const GATED_TOOLS = ['Write', 'Edit', 'NotebookEdit', 'Agent', 'Workflow']
 const PERSON_ORIGINS = ['composer', 'bridge']
 const REOFFER_MS = 5_000
 const FLOOR_MS = 60_000
-const WRITE_TIMER_MS = 60_000
+// A tick lands a write once the floor has passed, so a write is never later than the floor plus one tick.
+const WRITE_TIMER_MS = 15_000
 const HELPER = 'lib/write-snapshot.mjs'
 const DATA_ITEMS = ['zone', 'percent', 'tokens', 'window']
 const ACTIONS = ['none', 'save-state', 'handoff', 'block'] as const
