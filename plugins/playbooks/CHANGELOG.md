@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.18.0] - 2026-10-03
+
+### Changed
+
+- The prompt-caching reference's effort section says it covers API requests, and points at Claude
+  Code's own "Changing effort level" page for what an effort change in a Claude Code session does
+  to the cache.
+
 ## [0.17.5] - 2026-10-02
 
 ### Fixed
