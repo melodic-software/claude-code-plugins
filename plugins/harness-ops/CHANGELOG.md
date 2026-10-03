@@ -15,6 +15,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   printed brief stays the record.
 - The plugin carries generated copies of `lib/view-builder.mjs` and `lib/view-runtime.js`.
 
+## [3.4.1] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer quotes the GitHub REST `mergeable` sentence in its skill body. The missing review-decision field and the null-`mergeable` retry are separate bullets, each with its own pointer, as-of date, and recheck trigger ([#5963](https://github.com/melodic-software/claude-code-plugins/issues/5963)).
+
 ## [3.4.0] - 2026-10-03
 
 ### Changed

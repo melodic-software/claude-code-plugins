@@ -72,7 +72,7 @@ const items = hostile.map((text, i) => ({
 const run = build({ repo: "o/r", generated: "2026-10-03", items: items.slice(0, 3) });
 check("a board builds", run.status === 0, run.stderr);
 const page = readFileSync(`${work}/board.html`, "utf8");
-const data = JSON.parse(/<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(page)[1]);
+const data = JSON.parse(/<script type="application\/json" id="rv-data">([^]*?)<\/script>/.exec(page)[1]);
 const rows = (groups, key) => groups.flatMap((g) => g[key]);
 check("every item appears once per state", rows(data.bystate, "srows").length === 3);
 check("an item appears under each of its blockers, or unblocked", rows(data.byblocker, "brows").length === 4 && data.byblocker.some((g) => g.name === "unblocked"));
@@ -80,7 +80,7 @@ check("an item appears under each of its labels", rows(data.bylabel, "lrows").le
 check("a non-integer blocker number becomes ?", data.byblocker.some((g) => g.name === "#?"));
 check("groups sort by size, then name", data.bylabel[0].name === "needs-triage" && data.bylabel[0].count === 3);
 build({ items: [{ number: 1, title: "t" }] });
-const bare = JSON.parse(/id="rv-data">([\s\S]*?)<\/script>/.exec(readFileSync(`${work}/board.html`, "utf8"))[1]);
+const bare = JSON.parse(/id="rv-data">([^]*?)<\/script>/.exec(readFileSync(`${work}/board.html`, "utf8"))[1]);
 check("an item with no labels and no state groups as no label, untriaged", bare.bylabel[0].name === "no label" && bare.bystate[0].name === "untriaged");
 check("an item whose blockers were not read is neither blocked nor unblocked", bare.byblocker[0].name === "blockers not read");
 
@@ -88,12 +88,12 @@ check("an item whose blockers were not read is neither blocked nor unblocked", b
 const evil = build({ repo: hostile[0], generated: hostile[1], title: hostile[3], items });
 check("hostile items build", evil.status === 0, evil.stderr);
 const evilPage = readFileSync(`${work}/board.html`, "utf8");
-const block = /<script type="application\/json" id="rv-data">[\s\S]*?<\/script>/.exec(evilPage)[0];
+const block = /<script type="application\/json" id="rv-data">[^]*?<\/script>/.exec(evilPage)[0];
 const outside = evilPage.replace(block, "");
 check("the built page passes the interactive profile", validateView(evilPage).ok, validateView(evilPage).failures);
 check("no hostile string reaches the markup outside the data block", !/pwned|onerror|javascript:|alert|onload/.test(outside));
 check("the page carries exactly two scripts", (evilPage.match(/<script/g) ?? []).length === 2);
-check("the data block holds the hostile text as JSON", JSON.parse(/id="rv-data">([\s\S]*?)<\/script>/.exec(evilPage)[1]).bystate.length > 0);
+check("the data block holds the hostile text as JSON", JSON.parse(/id="rv-data">([^]*?)<\/script>/.exec(evilPage)[1]).bystate.length > 0);
 
 // Failure exits.
 check("input that is not JSON exits 1", build("not json").status === 1);

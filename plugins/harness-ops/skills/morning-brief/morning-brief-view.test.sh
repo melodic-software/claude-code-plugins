@@ -15,7 +15,7 @@ if ! have jq || ! have node; then
   echo "SKIP: jq and node are required" >&2
   exit 0
 fi
-if ! date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1 && ! date -u -j -f "%Y-%m-%dT%H:%MZ" "2026-01-01T00:00Z" +%s >/dev/null 2>&1; then
+if ! date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1 && ! date -u -j -f "%Y-%m-%dT%H:%MZ" "2026-01-01T00:00Z" +%s >/dev/null 2>&1; then # portability-ok: probes GNU date then falls back to BSD date
   echo "SKIP: no supported date dialect" >&2
   exit 0
 fi
