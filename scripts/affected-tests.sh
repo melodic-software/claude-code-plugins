@@ -112,7 +112,7 @@
 #                    a `#` after them starts a comment. Suites whose comments
 #                    start with `#` (shell, Python, Pester) can declare. A glob
 #                    matching no file fails the run that changes its suite.
-#   R9 wrapper       a selected <stem>.test.js, .test.mjs or .test.cjs whose
+#   R9 wrapper       a selected <stem>.test.js or <stem>.test.mjs whose
 #                    directory holds <stem>.test.sh selects that wrapper too,
 #                    however the Node suite was reached. CI runs such a suite only
 #                    through its wrapper (scripts/run-outside-node-suites.sh
@@ -1329,7 +1329,7 @@ if [[ ${#SUITES[@]} -gt 0 ]]; then
   # R9. The key list is expanded once, before the loop adds to it.
   for s in "${!SUITES[@]}"; do
     case "$s" in
-    *.test.js | *.test.mjs | *.test.cjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
+    *.test.js | *.test.mjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
     *) ;;
     esac
   done
