@@ -1,20 +1,61 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "markdownlint-cli2",
-      "local_bin": "node_modules/.bin/markdownlint-cli2",
-      "check": "/markdown-format:check",
-      "install": "npm i -D markdownlint-cli2"
+      "id": "markdownlint-cli2",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:markdown-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "markdownlint-cli2"
+        ],
+        "local_bin": [
+          "node_modules/.bin/markdownlint-cli2"
+        ]
+      },
+      "degrade": "Without markdownlint-cli2, the hook cannot format edited Markdown files; edits still go through.",
+      "install": {
+        "npm": "npm i -D markdownlint-cli2"
+      },
+      "check": "/markdown-format:check"
     },
     {
-      "name": "jq",
-      "check": "/markdown-format:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:markdown-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the markdown-format hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/markdown-format:check"
     },
     {
-      "name": "node",
-      "check": "/markdown-format:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the markdown-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/markdown-format:check"
     }
   ]
 }
