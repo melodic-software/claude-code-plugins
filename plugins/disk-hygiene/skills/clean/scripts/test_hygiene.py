@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/disk-hygiene/skills/clean/SKILL.md
 """Behavioral tests for the disk-hygiene safety engine and scoped guard."""
 
 from __future__ import annotations

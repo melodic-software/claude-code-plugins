@@ -16,6 +16,7 @@
 # Scoped to plugins/discovery/agents/*.md on purpose. A sweep over every
 # plugin's agents would fail this plugin's test on another plugin's drift, which
 # reports the defect in the wrong place and blocks the wrong change.
+# test-scope: plugins/discovery/agents/*.md
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

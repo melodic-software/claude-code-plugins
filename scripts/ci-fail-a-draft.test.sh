@@ -6,6 +6,7 @@
 # The case that matters is the re-run: a contract-only run drawn while the pull
 # request was a draft keeps that payload when the full run re-runs it after the
 # flip to ready, and must then pass. Every other combination stays red.
+# test-scope: .github/workflows/ci.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

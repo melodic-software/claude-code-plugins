@@ -2,6 +2,7 @@
 # Test for gen-hook-filters.sh: the shipped hooks.json is in sync with the
 # adapters, every row is gated by an `if`, no row matches a non-test path, no
 # glob repeats, and --check catches drift.
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016  # check() evals its single-quoted condition
 set -uo pipefail
 

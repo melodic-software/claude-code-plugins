@@ -8,6 +8,9 @@
 # against the LIVE repo — the derived shared-lib copy set and the real no-suite
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
+# test-scope: scripts/affected-tests* scripts/sync-*.sh .github/workflows/ci.yml
+# test-scope: plugins/github/skills/advise/S*.md plugins/planning/skills/interview/S*.md
+# test-scope: plugins/autonomy/reference/*.md
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -117,19 +120,6 @@ run_sel() {
   shift
   OUT="$(cd "$repo" && bash scripts/affected-tests.sh "$@" 2>/dev/null)"
   RC=$?
-}
-
-# run_sel_rules <repo> <args...>: like run_sel, but OUT keeps only the suites
-# R1-R7 select. R8 adds every shell suite of a touched plugin, so a case about
-# what NAMES a file reads the selection through --explain and drops the suites
-# whose recorded reason is R8's. A suite another rule also reached keeps that
-# rule's reason, because a seed's own walk runs before R8, so it stays.
-run_sel_rules() {
-  local repo="$1" err
-  shift
-  err="$(cd "$repo" && bash scripts/affected-tests.sh --explain "$@" 2>&1 >/dev/null)"
-  RC=$?
-  OUT="$(awk '/^select: / && !/  \(R8: / { sub(/^select: /, ""); sub(/  \(.*$/, ""); print }' <<<"$err")"
 }
 
 # Captured output is matched in-shell, never piped into a reader: under pipefail
@@ -834,7 +824,7 @@ else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
 
-# --- LIVE repo: reference YAML with no lane is UNMAPPED, not silently clean --
+# --- LIVE no-suite list: reference YAML with no lane is UNMAPPED -------------
 # The reference YAML under plugins/toolchain/ and docs/conventions/
 # ecosystem-commands/ is read by NO lane: no yamllint step exists, every
 # check-jsonschema step names its files and none names these,
@@ -847,29 +837,31 @@ fi
 # class again, this assertion is SUPPOSED to fail — update it together with the
 # no-suite entry, and make sure the entry names the lane that actually reads
 # them. Workflow YAML must stay covered via the .github/* entry throughout.
-# The probe paths are DISCOVERED with a glob, never written out literally. That
-# is not tidiness — a literal basename here would make this file a suite that
-# "references" the probe, R3 would select it, and the path would come back
-# MAPPED at exit 0. The assertion would then fail for a reason that has nothing
-# to do with the no-suite list. This is the MATCHING rule documented in
-# affected-tests.sh's header, met head-on: naming a file in a suite is exactly
-# what makes the selector consider it covered.
-# The exit status of this head pipe is never read, so its early exit is harmless.
-mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
-  'plugins/toolchain/reference/ecosystems/*.yaml' \
-  'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
-if [[ ${#eco_yaml[@]} -eq 0 ]]; then
-  fail "no reference YAML found to probe — the case below would be vacuous"
-fi
-for y in ${eco_yaml[@]+"${eco_yaml[@]}"}; do
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>&1)"
-  RC=$?
-  if [[ "$RC" -eq 1 ]] && contains "$out" 'UNMAPPED'; then
+#
+# The selector runs in a fixture that carries the live no-suite list, on probe
+# files in the two live directories whose names no live file has. A live file
+# would not do: a suite that names or globs one maps it, so this suite would map
+# the files it proves unmapped, and a live run would also fail on main as soon
+# as any other suite began naming one.
+eco_yaml=(plugins/toolchain/reference/ecosystems/zz-probe.yaml
+  docs/conventions/ecosystem-commands/examples/zz-probe.yaml)
+mk_repo repo
+for y in "${eco_yaml[@]}"; do
+  mkdir -p "$repo/${y%/*}"
+  printf 'name: probe\n' >"$repo/$y"
+done
+git_test_config "$repo" add plugins docs >/dev/null
+git_test_config "$repo" commit -qm eco-yaml >/dev/null
+out="$(cd "$repo" && bash scripts/affected-tests.sh "${eco_yaml[@]}" 2>&1)"
+RC=$?
+for y in "${eco_yaml[@]}"; do
+  if [[ "$RC" -eq 1 ]] && has_line "$out" "  - $y"; then
     ok "reference YAML with no covering lane is UNMAPPED: $y"
   else
     fail "$y should be UNMAPPED, not silently covered (rc=$RC): $out"
   fi
 done
+rm -rf "$repo"
 
 # ... while YAML under .github/, which actionlint/zizmor/check-jsonschema DO
 # read, stays covered by the .github/* entry. Without this, the cases above
@@ -882,7 +874,8 @@ done
 # no-suite list is consulted, which would pass a bare rc-0 check while proving
 # nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
 # is named by two suites and reaches exit 0 through R3, so it cannot serve as
-# this probe. Discovered by glob for the R3 reason given above.
+# this probe. Discovered by glob, never spelled: a path spelled here would make
+# this suite name it, and R3 would select this suite the same way.
 #
 # The candidate is additionally FILTERED to one that no grepped-language file
 # names at all, rather than assuming the sole `.github/*.yaml` qualifies. That
@@ -1020,6 +1013,29 @@ else
   fail "node .mjs co-located (rc=$RC): $OUT"
 fi
 
+# --- R9: a wrapped Node suite brings its <stem>.test.sh --------------------
+# CI runs a Node suite with a sibling <stem>.test.sh only through that wrapper.
+# The suite here is reached through a MENTION of the changed file, not through
+# its stem, so R2 cannot find the wrapper and the walk stops at the suite.
+printf 'export const w = 3;\n' >"$repo/eco/wrapped.mjs"
+printf 'import { w } from "./wrapped.mjs";\n' >"$repo/eco/wrapped-cases.test.mjs"
+# shellcheck disable=SC2016 # deliberate: the emitted file must expand these, not this shell
+printf 'node "$(dirname "$0")/wrapped-cases.test.mjs"\n' >"$repo/eco/wrapped-cases.test.sh"
+
+run_sel "$repo" eco/wrapped.mjs
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/wrapped-cases.test.mjs && has_line "$OUT" eco/wrapped-cases.test.sh; then
+  ok "R9: a Node suite reached through a mention selects its sibling .test.sh wrapper"
+else
+  fail "R9 wrapper via mention (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/probe.mjs
+if [[ "$RC" -eq 0 ]] && [[ "$OUT" != *.test.sh* ]]; then
+  ok "R9: a Node suite with no sibling .test.sh adds no shell suite"
+else
+  fail "R9 without a wrapper (rc=$RC): $OUT"
+fi
+
 run_sel "$repo" eco/ps/Get-Thing.ps1
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pstests/Get-Thing.Tests.ps1; then
   ok "powershell: a Pester suite in a mirrored tree is found by reference"
@@ -1051,28 +1067,51 @@ else
   fail "dual-ecosystem coverage (rc=$RC): $OUT"
 fi
 
-# --- cross-language matches are followed exactly one hop -------------------
-# Widening the corpus to four ecosystems introduced an edge that never existed
-# when the reverse lookup was `-- '*.sh'`: a match ACROSS languages. Left
-# uncapped, those coincidental matches chained (js -> ps1 -> sh) and saturated
-# on the far-end hubs. One hop still reaches the suite covering the crossed-to file,
-# which is what keeps a .sh wrapper around a .py helper working; what it must
-# NOT do is keep walking from there and drag in that file's own dependents.
-mkdir -p "$repo/eco/hop"
+# --- R4: another language counts only where it runs or loads the file ------
+# A file in another language that merely contains the name (a string, a log
+# message) is not a dependent and its suite is not selected: across languages
+# the text says nothing about a dependency unless the line runs or loads the
+# file. An interpreter on the line or a path to the file does; a bare name from
+# the file's own directory, with no interpreter on the line, does not.
+mkdir -p "$repo/eco/hop" "$repo/eco/elsewhere"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
-# A .ps1 that merely MENTIONS the js basename in a string — not a real
-# dependency, but a code line, so the walk still crosses into it. A comment-only
-# mention would not, and the case would pass without testing the crossing rule.
-printf "\$null = 'origin.js'\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
-# A shell file that depends on the .ps1, with its own suite. Reaching this suite
-# would require a SECOND cross-language hop, which the rule forbids.
-printf 'echo "runs Far.ps1"\n' >"$repo/eco/hop/far-runner.sh"
+printf 'echo "origin.js is the entry point"\n' >"$repo/eco/elsewhere/mention.test.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+printf 'node "$ROOT/eco/hop/origin.js"\n' >"$repo/eco/elsewhere/node-runs.test.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+printf 'cp "$SRC/eco/hop/origin.js" "$DEST"\n' >"$repo/eco/elsewhere/path-loads.test.sh"
+printf 'run_suite origin.js\n' >"$repo/eco/hop/wrapper.test.sh"
+printf 'node origin.js\n' >"$repo/eco/hop/node-wrapper.test.sh"
+# A .py naming a shell script by bare name, with no interpreter on the line,
+# is not a dependent of it either.
+printf 'echo hop\n' >"$repo/eco/hop/hop-tool.sh"
+printf 'TOOL = "hop-tool.sh"\n' >"$repo/eco/hop/test_hop_listing.py"
+# A .ps1 that runs the js, so the walk crosses into it once, and a shell file
+# that runs the .ps1: reaching ITS suite takes a second transition.
+printf "node origin.js\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
+suite_body far >"$repo/eco/hop/Far.Tests.ps1"
+printf 'pwsh -File Far.ps1\n' >"$repo/eco/hop/far-runner.sh"
 suite_body far-runner >"$repo/eco/hop/far-runner.test.sh"
 run_sel "$repo" eco/hop/origin.js
-if ! has_line "$OUT" eco/hop/far-runner.test.sh; then
-  ok "a chain that already crossed languages cannot cross a second time"
+if ! has_line "$OUT" eco/elsewhere/mention.test.sh &&
+  has_line "$OUT" eco/elsewhere/node-runs.test.sh &&
+  has_line "$OUT" eco/elsewhere/path-loads.test.sh &&
+  has_line "$OUT" eco/hop/node-wrapper.test.sh &&
+  ! has_line "$OUT" eco/hop/wrapper.test.sh; then
+  ok "R4: another language's suite runs only where its line runs or loads the file"
 else
-  fail "cross-language walk took a second transition (rc=$RC): $OUT"
+  fail "R4: cross-language selection wrong (rc=$RC): $OUT"
+fi
+if has_line "$OUT" eco/hop/Far.Tests.ps1 && ! has_line "$OUT" eco/hop/far-runner.test.sh; then
+  ok "R4: a chain crosses languages once and cannot cross a second time"
+else
+  fail "R4: the transition budget was not applied (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/hop/hop-tool.sh
+if ! has_line "$OUT" eco/hop/test_hop_listing.py; then
+  ok "R4: a bare shell-script name in another language is not a dependency"
+else
+  fail "R4: a bare .sh name selected a Python suite (rc=$RC): $OUT"
 fi
 
 # --- --run refuses to guess a runner for another ecosystem -----------------
@@ -1113,7 +1152,8 @@ mk_repo repo
 mkdir -p "$repo/eco/chain"
 printf 'def helper():\n    return 1\n' >"$repo/eco/chain/helper.py"
 # The shell wrapper that drives the Python helper: one crossing, py -> sh.
-printf 'echo "runs helper.py"\n' >"$repo/eco/chain/runner.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these, not this shell
+printf 'python3 "$(dirname "$0")/helper.py"\n' >"$repo/eco/chain/runner.sh"
 # A shell dependent of the wrapper: the SECOND edge, shell -> shell.
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these, not this shell
 printf 'source "$(dirname "$0")/runner.sh"\n' >"$repo/eco/chain/command.sh"
@@ -1144,9 +1184,9 @@ printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
 printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 
 # Names the shell source FIRST, the JS copy SECOND — so the cross-family hit is
-# the one a last-write-wins bug would keep. The second mention is a `:` no-op
-# rather than a comment, because a comment-only line makes no dependent at all.
-printf 'source "lib/mixed.sh"\n: also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
+# the one a last-write-wins bug would keep. The second line runs the copy, so
+# R4 takes it as a crossing; a bare mention would make no dependent at all.
+printf 'source "lib/mixed.sh"\nnode mixed.js\n' >"$repo2/eco/agg/zed.sh"
 # A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
 # would block. Its suite is the assertion.
 printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
@@ -1186,7 +1226,7 @@ printf 'echo target\n' >"$repo3/eco/name/deep-target.sh"
 printf 'echo prose\n' >"$repo3/eco/name/prose-target.sh"
 {
   printf '#!/usr/bin/env bash\n'
-  printf '# Every rejected shape is covered by prose-target.sh.\n'
+  printf 'echo "Every rejected shape is covered by prose-target.sh."\n'
 } >"$repo3/eco/name/prose.test.sh"
 
 # A file named with an ELLIPSIS butted straight against it. The mirror of the
@@ -1197,7 +1237,7 @@ printf 'echo prose\n' >"$repo3/eco/name/prose-target.sh"
 printf 'echo ellipsis\n' >"$repo3/eco/name/ellipsis-target.sh"
 {
   printf '#!/usr/bin/env bash\n'
-  printf '# the rest of that argument lives in ...ellipsis-target.sh\n'
+  printf 'echo "the rest of that argument lives in ...ellipsis-target.sh"\n'
 } >"$repo3/eco/name/ellipsis.test.sh"
 
 # A basename the token rule cannot spell, because `+` is not a path-token
@@ -1246,9 +1286,8 @@ fi
 
 # The exit code alone is not the assertion: what must be gone is the SELECTION
 # the substring match handed it. Under --allow-unmapped the run proceeds, so an
-# empty rule selection is direct evidence that no unrelated suite was borrowed
-# (R8's plugin suites are a different rule, and never map a file).
-run_sel_rules "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
+# empty selection is direct evidence that no unrelated suite was borrowed.
+run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
   ok "the borrowed suites are gone, not merely re-labeled"
 else
@@ -1306,11 +1345,12 @@ else
 fi
 rm -rf "$repo3"
 
-# --- a comment-only mention in a NON-suite file makes no dependent -----------
-# Hub files cite neighboring scripts in prose, and counting those as R4 edges
-# fanned one plugin's change out to most of the corpus. A suite's comment still
-# names the file (R3), and so does every code line, a trailing comment on one,
-# a shellcheck source directive and a JSDoc type import.
+# --- a comment-only mention makes no dependent and selects no suite ----------
+# Hub files cite neighboring scripts in prose, and counting those as edges
+# fanned one plugin's change out to most of the corpus; a suite citing a file
+# in prose does not run it either. Every code line still names the file, as do
+# a trailing comment on one, a shellcheck source directive and a JSDoc type
+# import.
 mk_repo repo3
 mkdir -p "$repo3/eco/cmt"
 printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
@@ -1328,15 +1368,11 @@ mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
 mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
-mk_cmt_dependent js-code js 'const target = "hub-target.sh";\n'
+mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
 mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
 printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
-# A Python import never spells the .py, so a comment naming the module is the
-# only text edge from an importer; it keeps counting. Prose alone does not.
 printf 'X = 1\n' >"$repo3/eco/cmt/hubmod.py"
 printf 'import hubmod\n' >"$repo3/eco/cmt/test_hubmod.py"
-printf '# hubmod.py is shared with a sibling\nfrom hubmod import X\n' >"$repo3/eco/cmt/pyimporter.py"
-printf 'import pyimporter\n' >"$repo3/eco/cmt/test_pyimporter.py"
 printf '# see hubmod.py\nimport os\n' >"$repo3/eco/cmt/pyprose.py"
 printf 'import pyprose\n' >"$repo3/eco/cmt/test_pyprose.py"
 git_test_config "$repo3" add eco >/dev/null
@@ -1361,18 +1397,18 @@ else
   fail "a non-comment mention lost its dependent (rc=$RC): $OUT"
 fi
 
-if has_line "$OUT" eco/cmt/hub-prose.test.sh; then
-  ok "a suite's comment mention still selects it"
+if ! has_line "$OUT" eco/cmt/hub-prose.test.sh; then
+  ok "a suite that names the file only in a comment is not selected"
 else
-  fail "a suite naming the file in a comment was dropped (rc=$RC): $OUT"
+  fail "a suite's comment-only mention still selected it (rc=$RC): $OUT"
 fi
 
 run_sel "$repo3" eco/cmt/hubmod.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_pyimporter.py &&
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_hubmod.py &&
   ! has_line "$OUT" eco/cmt/test_pyprose.py; then
-  ok "a comment naming a module the .py imports by name still selects; prose alone does not"
+  ok "a Python comment naming a module selects nothing"
 else
-  fail "python import-by-name comment edge lost or prose comment kept (rc=$RC): $OUT"
+  fail "python: a comment-only mention still selected (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
 
@@ -1453,9 +1489,11 @@ rm -rf "$repo"
 
 # --- LIVE repo: a real autonomy reference doc selects the contract suite -----
 # The probe doc is discovered, never spelled: a basename written here would make
-# this suite name that file, and R3 would then cover it without R7. The suite
-# path above IS spelled on purpose: renaming the suite selects this file, and
-# this case then fails instead of R7 silently selecting nothing.
+# this suite name that file, and R3 would then cover it without R7. The glob is
+# declared in this suite's test-scope header, so deleting the last doc selects
+# this suite. The suite path above IS spelled on purpose: renaming the suite
+# selects this file, and this case then fails instead of R7 silently selecting
+# nothing.
 # The assertion is on the R7 reason, not on bare selection: a live doc can also
 # reach the suite through R4 fan-out (a hook naming it), which would pass without
 # R7. The seed is walked first, so R7's reason is the one recorded.
@@ -1473,182 +1511,290 @@ else
   fi
 fi
 
-# --- R8: a plugin change selects every shell suite of that plugin -------------
-# A suite that globs its own plugin directory never spells the changed file's
-# name, so only a path rule reaches it from a SKILL.md edit. Pinned: the
-# plugin's shell suites are in, its Python suite and another plugin's suites are
-# out, the reason reads R8, and R8 never maps a file, so a plugin file nothing
-# names is still UNMAPPED.
+# --- R8: a declared scope selects the suite that scans a directory -----------
+# A suite that greps or globs a directory never spells the files it reads, so
+# it declares them in `# test-scope:` lines of its leading comment block, and a
+# matching change selects it and counts as mapped. Pinned: the glob crosses
+# `/`, a suite may declare on several lines, an inline comment ends the globs,
+# a line below the first code line declares nothing, the plugin's other suites
+# stay out, and a plugin file nothing names or declares is still UNMAPPED.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
 printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
-suite_body alpha-scan >"$repo/plugins/alpha/tests/scan.test.sh"
-printf 'import unittest\n' >"$repo/plugins/alpha/tests/test_scan.py"
+printf 'kind: probe\n' >"$repo/plugins/alpha/skills/one/probe.yaml"
+printf '#!/usr/bin/env bash\n# Scans the skill bodies.\n# test-scope: plugins/alpha/skills/*.md\n\n# test-scope: plugins/alpha/*.yaml  # and the probes\necho alpha-scan\n' \
+  >"$repo/plugins/alpha/tests/scan.test.sh"
+printf '# test-scope: plugins/alpha/skills/*/SKILL.md\n"""Scans the skill bodies."""\nimport unittest\n' \
+  >"$repo/plugins/alpha/tests/test_scan.py"
+printf '#!/usr/bin/env bash\necho late\n# test-scope: plugins/alpha/skills/*.md\n' >"$repo/plugins/alpha/tests/late.test.sh"
+printf 'import test from "node:test";\n' >"$repo/plugins/alpha/tests/scan.test.mjs"
+printf '#!/usr/bin/env bash\n# test-scope: plugins/nowhere/*\necho stale\n' >"$repo/plugins/alpha/tests/stale.test.sh"
 printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
 git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm r8 >/dev/null
 
 run_sel "$repo" plugins/alpha/skills/one/SKILL.md
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
-  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
-  ! has_line "$OUT" plugins/alpha/tests/test_scan.py &&
-  ! has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
-  ok "R8: a SKILL.md edit selects its plugin's shell suites and nothing else"
+  has_line "$OUT" plugins/alpha/tests/test_scan.py &&
+  ! has_line "$OUT" plugins/alpha/tests/late.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/scan.test.mjs &&
+  ! has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "R8: a SKILL.md edit selects the suites whose headers declare it and no other suite of the plugin"
 else
-  fail "R8: plugin selection wrong for a SKILL.md edit (rc=$RC): $OUT"
+  fail "R8: declared-scope selection wrong for a SKILL.md edit (rc=$RC): $OUT"
 fi
 
 out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/alpha/skills/one/SKILL.md 2>&1)"
-if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (R8: plugins/alpha/ changed)"; then
-  ok "R8: --explain reports the plugin reason"
+if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (test-scope plugins/alpha/skills/*.md)" &&
+  ! contains "$out" "and the probes"; then
+  ok "R8: --explain reports the declared glob"
 else
-  fail "R8: --explain lacks the plugin reason: $out"
+  fail "R8: --explain lacks the declared glob: $out"
+fi
+
+run_sel "$repo" plugins/alpha/skills/one/probe.yaml
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh; then
+  ok "R8: a file declared on a second header line, which no other rule reaches, is mapped"
+else
+  fail "R8: a declared file was not mapped by its scope (rc=$RC): $OUT"
 fi
 
 run_sel "$repo" plugins/alpha/zzorphan-plugin.sh
 if [[ "$RC" -eq 1 ]]; then
-  ok "R8: a plugin file no suite names is still UNMAPPED"
+  ok "R8: a plugin file no suite names or declares is still UNMAPPED"
 else
-  fail "R8: R8 mapped a plugin file nothing names (rc=$RC): $OUT"
+  fail "R8: a plugin file nothing names or declares was mapped (rc=$RC): $OUT"
+fi
+
+# A glob matching no file fails the run that changes the suite declaring it,
+# and only that run.
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]]; then
+  ok "R8: a glob matching nothing is not checked while its suite is unchanged"
+else
+  fail "R8: an unchanged suite's stale glob failed the run (rc=$RC): $out"
+fi
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/stale.test.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$out" "plugins/alpha/tests/stale.test.sh declares test-scope globs" &&
+  contains "$out" '  - plugins/nowhere/*'; then
+  ok "R8: a changed suite declaring a glob that matches nothing fails loud"
+else
+  fail "R8: a stale glob in a changed suite was not refused (rc=$RC): $out"
+fi
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/scan.test.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]]; then
+  ok "R8: a changed suite whose globs all match passes the check"
+else
+  fail "R8: a valid declaration was refused (rc=$RC): $out"
+fi
+
+# --- --unmapped-corpus: an unmapped file selects its own language's corpus ---
+# The report stays, the exit says so (4), and only the file's language runs: a
+# shell file never starts the Python corpus, and the other way round.
+run_sel "$repo" --unmapped-corpus plugins/alpha/zzorphan-plugin.sh
+if [[ "$RC" -eq 4 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
+  has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh && has_line "$OUT" lib/widget.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/test_scan.py && ! has_line "$OUT" plugins/alpha/tests/scan.test.mjs; then
+  ok "--unmapped-corpus: an unmapped .sh selects the shell corpus only, at exit 4"
+else
+  fail "--unmapped-corpus: wrong corpus or exit for an unmapped .sh (rc=$RC): $OUT"
+fi
+printf 'X = 1\n' >"$repo/plugins/alpha/zz_orphan_mod.py"
+run_sel "$repo" --unmapped-corpus plugins/alpha/zz_orphan_mod.py
+if [[ "$RC" -eq 4 ]] && has_line "$OUT" plugins/alpha/tests/test_scan.py &&
+  ! has_line "$OUT" plugins/alpha/tests/scan.test.sh; then
+  ok "--unmapped-corpus: an unmapped .py selects the Python corpus only"
+else
+  fail "--unmapped-corpus: wrong corpus for an unmapped .py (rc=$RC): $OUT"
+fi
+out="$(cd "$repo" && bash scripts/affected-tests.sh --unmapped-corpus plugins/alpha/zz_orphan_mod.py 2>&1 >/dev/null)"
+if contains "$out" 'UNMAPPED: 1 changed file(s)'; then
+  ok "--unmapped-corpus: the unmapped report is still printed"
+else
+  fail "--unmapped-corpus: the unmapped report went missing: $out"
+fi
+run_sel "$repo" --unmapped-corpus --allow-unmapped plugins/alpha/zz_orphan_mod.py
+if [[ "$RC" -eq 2 ]]; then
+  ok "--unmapped-corpus with --allow-unmapped is a usage error"
+else
+  fail "--unmapped-corpus with --allow-unmapped should exit 2 (rc=$RC)"
 fi
 rm -rf "$repo"
 
-# --- --with-always: the live-tree suites ride every selection ----------------
-# scripts/affected-tests-always.txt lists suites that assert against the live
-# repository, so no rule can see the change that breaks them. Pinned: off by
-# default, on under --with-always even when the diff selects nothing else, and
-# a stale entry is an error rather than a quiet skip.
+# --- --with-always is accepted and widens nothing ----------------------------
+# A caller that still passes it must neither fail nor get a wider selection:
+# the live-tree suites it used to add declare their scopes in their headers now.
 mk_repo repo
-mkdir -p "$repo/scripts/lib"
-suite_body live-scan >"$repo/scripts/lib/live-scan.test.sh"
-printf '# reason-bearing entries\nscripts/lib/live-scan.test.sh  scans every script\n' \
-  >"$repo/scripts/affected-tests-always.txt"
-git_test_config "$repo" add scripts >/dev/null
-git_test_config "$repo" commit -qm always >/dev/null
-
-run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
-if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" scripts/lib/live-scan.test.sh; then
-  ok "always-run: off by default"
-else
-  fail "always-run: a local run selected the live-tree suite (rc=$RC): $OUT"
-fi
-
 run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh &&
-  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
-  ok "always-run: --with-always adds the listed suite to the selection"
+with_out="$OUT" with_rc="$RC"
+run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
+if [[ "$with_rc" -eq 0 && "$RC" -eq 0 && "$with_out" == "$OUT" ]]; then
+  ok "--with-always is accepted and changes nothing"
 else
-  fail "always-run: --with-always did not add the listed suite (rc=$RC): $OUT"
-fi
-
-run_sel "$repo" --with-always plugins/alpha/README.md
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh; then
-  ok "always-run: a no-suite diff still runs the listed suite"
-else
-  fail "always-run: a no-suite diff dropped the listed suite (rc=$RC): $OUT"
-fi
-
-printf 'scripts/lib/gone.test.sh  removed long ago\n' >>"$repo/scripts/affected-tests-always.txt"
-out="$(cd "$repo" && bash scripts/affected-tests.sh --with-always plugins/alpha/hooks/alpha-hook.sh 2>&1)"
-RC=$?
-if [[ "$RC" -eq 2 ]] && contains "$out" "names 'scripts/lib/gone.test.sh'"; then
-  ok "always-run: a stale entry is an error, not a quiet skip"
-else
-  fail "always-run: a stale entry was not refused (rc=$RC): $out"
+  fail "--with-always changed the run (rc=$with_rc vs $RC): [$with_out] vs [$OUT]"
 fi
 rm -rf "$repo"
 
-# --- LIVE repo: every always-run entry names a suite today --------------------
-out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --with-always scripts/affected-tests-always.txt 2>&1)"
-RC=$?
-if [[ "$RC" -eq 0 ]] && contains "$out" "scripts/lib/gate-entry.test.sh"; then
-  ok "LIVE always-run: the shipped list resolves and joins the selection"
-else
-  fail "LIVE always-run: the shipped list did not resolve (rc=$RC): $out"
-fi
+# --- LIVE repo: the two suite breaks only a full main run caught --------------
+# Both were a skill body edit breaking a suite that never spells the body's
+# path the plain way: one scans its plugin's markdown (R8 declares it), the
+# other spells the body relative to its plugin (AMBIGUOUS NAMES resolves it).
+# The probe bodies are discovered by glob and declared in this suite's
+# test-scope header, so renaming or deleting either selects this suite.
+for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' \
+  'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh'; do
+  body="$(cd "$REPO_ROOT" && git ls-files "${probe%%|*}")"
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$body" 2>/dev/null)"
+  RC=$?
+  if [[ -n "$body" && "$RC" -eq 0 ]] && has_line "$out" "${probe#*|}"; then
+    ok "LIVE: $body selects ${probe#*|}"
+  else
+    fail "LIVE: '$body' did not select ${probe#*|} (rc=$RC): $out"
+  fi
+done
 
-# --- skill ownership: a bare reference name means the skill's OWN file -------
-# Skills reuse reference names freely, so a suite naming `ownership-probe.md` from inside
-# one skill is naming that skill's file. Changing another skill's `ownership-probe.md`
-# must not select it, and a path-qualified mention through the owning skill must
-# still select from anywhere.
+# --- ambiguous names: a shared basename counts only where it resolves ------
+# Skills reuse reference names freely, so a bare `probe-doc.md` says nothing
+# about which one. A mention names a file only when it resolves to it: a path
+# suffix no other file of that name ends in, any mention from the file's own
+# directory, or a path relative to a directory below the root holding both
+# files. The structural docs (SKILL.md and the like) always resolve this way.
 mk_repo repo
 own_a=plugins/alpha/skills/sa
 own_b=plugins/alpha/skills/sb
-mkdir -p "$repo/$own_a/reference" "$repo/$own_a/scripts" \
-  "$repo/$own_b/reference" "$repo/$own_b/scripts" \
-  "$repo/plugins/beta/skills/sc/scripts"
-printf '# a probe\n' >"$repo/$own_a/reference/ownership-probe.md"
-printf '# b probe\n' >"$repo/$own_b/reference/ownership-probe.md"
-printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' >"$repo/$own_a/scripts/sa.test.sh"
-printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' >"$repo/$own_b/scripts/sb.test.sh"
-# Another skill's suite that spells the path through skill sb.
-printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
-  >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
-# A bare mention from a skill that carries no file of that name itself.
-printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' \
-  >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
-# A suite inside skill sa that names the file only through skill sb.
-printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
-  >"$repo/$own_a/scripts/sa-cross.test.sh"
-# Another plugin's skill of the same name as sa, carrying the same file, named by path.
-mkdir -p "$repo/plugins/gamma/skills/sa/reference"
-printf '# gamma probe\n' >"$repo/plugins/gamma/skills/sa/reference/ownership-probe.md"
-printf '#!/usr/bin/env bash\n# reads plugins/gamma/skills/sa/reference/ownership-probe.md\n' \
-  >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
+mkdir -p "$repo/$own_a/reference" "$repo/$own_a/scripts" "$repo/$own_b/reference" "$repo/$own_b/scripts" \
+  "$repo/plugins/beta/skills/sc/scripts" "$repo/plugins/gamma/skills/sa/reference" \
+  "$repo/plugins/alpha/skills/one" "$repo/plugins/beta/skills/one" "$repo/plugins/alpha/tests" \
+  "$repo/plugins/alpha/.claude-plugin"
+for d in "$own_a" "$own_b" plugins/gamma/skills/sa; do
+  printf '# probe\n' >"$repo/$d/reference/probe-doc.md"
+done
+# shellcheck disable=SC2016 # deliberate: the emitted fixtures must expand these
+{
+  printf 'grep -q wording "$SKILL_DIR/reference/probe-doc.md"\n' >"$repo/$own_a/scripts/sa.test.sh"
+  printf 'grep -q wording "$SKILL_DIR/reference/probe-doc.md"\n' >"$repo/$own_b/scripts/sb.test.sh"
+  printf 'grep -q wording "$ROOT/plugins/alpha/skills/sb/reference/probe-doc.md"\n' \
+    >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
+  printf 'grep -q wording probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
+  printf 'cat plugins/gamma/skills/sa/reference/probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
+  # A bare name from a directory above the file: one probe-doc.md below gamma's
+  # skill, two below alpha's skills/ directory.
+  printf 'grep -c . probe-doc.md\n' >"$repo/plugins/gamma/skills/sa/above.test.sh"
+  printf 'grep -c . probe-doc.md\n' >"$repo/plugins/alpha/skills/above-both.test.sh"
+  printf '# reads plugins/alpha/skills/sa/reference/probe-doc.md\n' >"$repo/$own_a/scripts/sa-comment.test.sh"
+  # A bare mention from the file's own directory, in a script whose suite is its sibling.
+  printf 'grep -c . probe-doc.md\n' >"$repo/$own_a/reference/count.sh"
+  suite_body count >"$repo/$own_a/reference/count.test.sh"
+  # The SKILL.md shape: a plugin suite spelling the body relative to its plugin.
+  printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
+  printf -- '---\nname: one\n---\n' >"$repo/plugins/beta/skills/one/SKILL.md"
+  printf 'body="$PLUGIN_DIR/skills/one/SKILL.md"\n' >"$repo/plugins/alpha/tests/skill-body.test.sh"
+  printf '{ "name": "alpha" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+  printf 'jq . "$PLUGIN_DIR/.claude-plugin/plugin.json"\n' >"$repo/plugins/alpha/tests/manifest.test.sh"
+}
 git_test_config "$repo" add plugins >/dev/null
-git_test_config "$repo" commit -qm skills >/dev/null
+git_test_config "$repo" commit -qm ambiguous >/dev/null
 
-# Every suite here sits in plugin alpha or beta, so R8 selects all of a touched
-# plugin's suites; the ownership rule is read from the R1-R7 selection.
-run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
+run_sel "$repo" "$own_a/reference/probe-doc.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_a/scripts/sa.test.sh" &&
+  has_line "$OUT" "$own_a/reference/count.test.sh" &&
   ! has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
-  ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
-  ok "ownership: skill A's ownership-probe.md selects A's suite and not B's"
+  ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh &&
+  ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh &&
+  ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.test.sh &&
+  ! has_line "$OUT" "$own_a/scripts/sa-comment.test.sh"; then
+  ok "ambiguous: skill-relative and same-directory mentions resolve; bare, other-skill and comment ones do not"
 else
-  fail "ownership: A's ownership-probe.md selection wrong (rc=$RC): $OUT"
+  fail "ambiguous: skill A's probe-doc.md selection wrong (rc=$RC): $OUT"
 fi
 
-run_sel_rules "$repo" "$own_b/reference/ownership-probe.md"
+run_sel "$repo" "$own_b/reference/probe-doc.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
+  has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh &&
   ! has_line "$OUT" "$own_a/scripts/sa.test.sh"; then
-  ok "ownership: skill B's ownership-probe.md still selects B's suite and not A's"
+  ok "ambiguous: a unique path suffix resolves from another plugin"
 else
-  fail "ownership: B's ownership-probe.md selection wrong (rc=$RC): $OUT"
+  fail "ambiguous: skill B's probe-doc.md selection wrong (rc=$RC): $OUT"
 fi
 
-if has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
-  ok "ownership: a path-qualified mention from another skill still selects"
+run_sel "$repo" plugins/gamma/skills/sa/reference/probe-doc.md
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.test.sh &&
+  ! has_line "$OUT" "$own_a/scripts/sa.test.sh"; then
+  ok "ambiguous: a same-named skill in another plugin is told apart by its path"
 else
-  fail "ownership: path-qualified mention from another skill lost (rc=$RC): $OUT"
+  fail "ambiguous: gamma's probe-doc.md selection wrong (rc=$RC): $OUT"
+fi
+if has_line "$OUT" plugins/gamma/skills/sa/above.test.sh; then
+  ok "ambiguous: a bare name from above resolves when only one such file sits below"
+else
+  fail "ambiguous: a bare name unique below its namer did not resolve (rc=$RC): $OUT"
+fi
+run_sel "$repo" "$own_a/reference/probe-doc.md"
+if ! has_line "$OUT" plugins/alpha/skills/above-both.test.sh; then
+  ok "ambiguous: a bare name from above does not resolve when two such files sit below"
+else
+  fail "ambiguous: a bare name with two files below its namer resolved (rc=$RC): $OUT"
 fi
 
-run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
-if has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh; then
-  ok "ownership: a bare mention from a skill without its own file still selects"
+run_sel "$repo" plugins/alpha/skills/one/SKILL.md
+alpha_out="$OUT" alpha_rc="$RC"
+run_sel "$repo" plugins/beta/skills/one/SKILL.md
+if [[ "$alpha_rc" -eq 0 ]] && has_line "$alpha_out" plugins/alpha/tests/skill-body.test.sh &&
+  [[ "$RC" -eq 0 ]] && ! has_line "$OUT" plugins/alpha/tests/skill-body.test.sh; then
+  ok "ambiguous: a SKILL.md spelled relative to its plugin selects that plugin's suite only"
 else
-  fail "ownership: bare mention from a file-less skill lost (rc=$RC): $OUT"
+  fail "ambiguous: SKILL.md resolution wrong (rc=$alpha_rc/$RC): [$alpha_out] [$OUT]"
 fi
 
-if ! has_line "$OUT" "$own_a/scripts/sa-cross.test.sh"; then
-  ok "ownership: a suite in the owning skill that names another skill's file is not selected"
+# MANIFESTS: a suite that spells its plugin's manifest exactly is still not
+# selected by it; the manifest gates own it.
+run_sel "$repo" plugins/alpha/.claude-plugin/plugin.json
+if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
+  ok "manifests: a plugin.json selects no suite through a mention"
 else
-  fail "ownership: owner-local suite naming another skill's path was selected (rc=$RC): $OUT"
+  fail "manifests: plugin.json selected a suite (rc=$RC): $OUT"
 fi
 
-if ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.test.sh; then
-  ok "ownership: a path through another plugin's same-named skill is not selected"
+# A path that spells only the name, or a path from the repository root alone,
+# could be a file the suite builds under a temporary directory, so neither
+# resolves; a mention from the file's own directory does.
+printf '# root\n' >"$repo/README.md"
+# shellcheck disable=SC2016 # deliberate: the emitted fixtures must expand these
+{
+  printf 'grep -q x "$PLUGIN_DIR/README.md"\n' >"$repo/plugins/alpha/tests/readme.test.sh"
+  printf 'grep -q x "$REPO_ROOT/README.md"\n' >"$repo/scripts/zz-root-readme.test.sh"
+  # docs/guide.md at the root and a fixture copy ending in the same path.
+  printf 'grep -q x "$REPO_ROOT/docs/guide.md"\n' >"$repo/scripts/zz-root-path.test.sh"
+  printf 'grep -q x README.md\n' >"$repo/zz-root-local.test.sh"
+}
+mkdir -p "$repo/docs" "$repo/plugins/alpha/fixtures/docs"
+printf '# guide\n' >"$repo/docs/guide.md"
+printf '# guide\n' >"$repo/plugins/alpha/fixtures/docs/guide.md"
+run_sel "$repo" README.md
+root_out="$OUT"
+run_sel "$repo" plugins/alpha/README.md
+if has_line "$root_out" zz-root-local.test.sh && ! has_line "$root_out" scripts/zz-root-readme.test.sh &&
+  ! has_line "$root_out" plugins/alpha/tests/readme.test.sh && ! has_line "$OUT" plugins/alpha/tests/readme.test.sh; then
+  ok "ambiguous: a path spelling only the name does not resolve; the file's own directory does"
 else
-  fail "ownership: same-named skill in another plugin was accepted (rc=$RC): $OUT"
+  fail "ambiguous: name-only path resolution wrong: [$root_out] [$OUT]"
+fi
+run_sel "$repo" docs/guide.md
+if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" scripts/zz-root-path.test.sh; then
+  ok "ambiguous: a path from the repository root alone does not resolve"
+else
+  fail "ambiguous: a root-relative path resolved (rc=$RC): $OUT"
 fi
 rm -rf "$repo"
 
 # --- R5 copies inside skill directories still reach every copy's suite -------
 # A shared source outside any skill, copied into each skill's reference/, with
-# each skill's suite naming its own copy bare. The source's fan-out must reach
-# every suite: ownership only narrows basenames that no file outside a skill
-# directory carries, and the source is one.
+# each skill's suite naming its own copy bare. The basename is carried three
+# times, but a shared library's copies keep the plain rule, so the source's
+# fan-out reaches every suite.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/sa/reference" "$repo/plugins/beta/skills/sb/reference"
 write_print_manifest "$repo/scripts/sync-guard.sh" "lib/guard-util.sh" \
@@ -1657,7 +1803,7 @@ printf 'guard_util() { echo guard; }\n' >"$repo/lib/guard-util.sh"
 for p in alpha beta; do
   s=s${p:0:1}
   printf 'guard_util() { echo guard; }\n' >"$repo/plugins/$p/skills/$s/reference/guard-util.sh"
-  printf '#!/usr/bin/env bash\n# sources guard-util.sh\n' >"$repo/plugins/$p/skills/$s/reference/$s.test.sh"
+  printf '#!/usr/bin/env bash\nsource guard-util.sh\n' >"$repo/plugins/$p/skills/$s/reference/$s.test.sh"
 done
 git_test_config "$repo" add lib scripts plugins >/dev/null
 git_test_config "$repo" commit -qm guard >/dev/null
@@ -1680,6 +1826,82 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &
 else
   fail "R5: hooks-dir copy fan-out lost a suite (rc=$RC): $OUT"
 fi
+rm -rf "$repo"
+
+# --- --replay: each commit selected against its parent, with this tree's rules --
+# A replay carries this tree's no-suite list and declared scopes to every
+# commit, since the commits may predate them; --against runs the selector at
+# <ref> with <ref>'s own and prints only the suites the two disagree on.
+mk_repo repo
+# scan_suite <old|new> [<glob>]: a scripts/ suite declaring <glob>, or nothing.
+scan_suite() {
+  {
+    printf '#!/usr/bin/env bash\n'
+    if [[ -n "${2:-}" ]]; then printf '# test-scope: %s\n' "$2"; fi
+    printf 'echo %s\n' "$1"
+  } >"$repo/scripts/zz-$1-scan.test.sh"
+}
+scan_suite old 'plugins/alpha/*'
+scan_suite new
+git_test_config "$repo" add scripts >/dev/null
+git_test_config "$repo" commit -qm scans >/dev/null
+printf '# edited\n' >>"$repo/plugins/alpha/hooks/alpha-hook.sh"
+git_test_config "$repo" commit -qam 'edit alpha hook' >/dev/null
+alpha_commit="$(git -C "$repo" rev-parse HEAD)"
+scan_suite old
+scan_suite new 'plugins/alpha/*'
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && has_line "$out" "commit $alpha_commit 2 0  edit alpha hook" &&
+  has_line "$out" "  plugins/alpha/hooks/alpha-hook.test.sh  (co-located with plugins/alpha/hooks/alpha-hook.sh)" &&
+  has_line "$out" "  scripts/zz-new-scan.test.sh  (test-scope plugins/alpha/*)"; then
+  ok "--replay selects each commit against its parent with this tree's declarations"
+else
+  fail "--replay output wrong (rc=$RC): $out"
+fi
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD --against HEAD 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && has_line "$out" "commit $alpha_commit 2 2 0 0  edit alpha hook" &&
+  has_line "$out" "  + scripts/zz-new-scan.test.sh  (test-scope plugins/alpha/*)" &&
+  has_line "$out" "  - scripts/zz-old-scan.test.sh  (test-scope plugins/alpha/*)" &&
+  ! contains "$out" "alpha-hook.test.sh" && contains "$out" "replay: 1 commit(s)"; then
+  ok "--replay --against prints only the suites the two selectors disagree on, and a summary"
+else
+  fail "--replay --against output wrong (rc=$RC): $out"
+fi
+
+# A commit this selector maps to no suite still reports what <ref> ran as
+# dropped, not as added.
+scan_suite old 'plugins/beta/*'
+scan_suite new
+git_test_config "$repo" commit -qam 'scan beta' >/dev/null
+printf 'notes\n' >"$repo/plugins/beta/zz-notes.yaml"
+git_test_config "$repo" add plugins >/dev/null
+git_test_config "$repo" commit -qm 'add beta notes' >/dev/null
+beta_commit="$(git -C "$repo" rev-parse HEAD)"
+scan_suite old
+scan_suite new 'plugins/alpha/*'
+out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD --against HEAD 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" "commit $beta_commit 0 1 " &&
+  has_line "$out" "  - scripts/zz-old-scan.test.sh  (test-scope plugins/beta/*)" && ! contains "$out" "  + "; then
+  ok "--replay --against lists a commit's suites as dropped when this selector picks none"
+else
+  fail "--replay --against with an empty selection wrong (rc=$RC): $out"
+fi
+
+for args in "--replay HEAD~1..HEAD plugins/alpha/hooks/alpha-hook.sh" "--against HEAD" "--replay HEAD~1..HEAD --run"; do
+  # shellcheck disable=SC2086 # deliberate: each case is a word list
+  (cd "$repo" && bash scripts/affected-tests.sh $args >/dev/null 2>&1)
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "usage: '$args' exits 2"
+  else
+    fail "usage: '$args' should exit 2, got rc=$RC"
+  fi
+done
 rm -rf "$repo"
 
 # --- --help reaches the actual end of the header -----------------------------

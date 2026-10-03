@@ -119,21 +119,24 @@ plugins/miro/server/*
 # bare LICENSE file has no extension, so it needs its own line.
 LICENSE
 
-# Eval fixtures carrying a non-markdown, non-JSON extension. `.md` and `.json`
-# fixtures are already covered by the two entries above; a fixture shaped like
-# shell or like an instruction file is deliberately given a `.txt` extension so
-# that scripts/check-shell-portability.sh does not lint a file that is input
-# data rather than code, and so a fixture shaped like a memory file is not named
-# in a way that would load it as live instructions. That rename is what leaves
-# these with no extension-based entry.
+# Eval data: input the evals read, never code a suite runs, whatever its
+# extension (a fixture repository's .js and .py, a case's scaffold.sh).
 #
-# The lane covering them is the skill-quality gate, which reads every file under
-# an evals/fixtures/ tree twice: scripts/check-orphaned-fixtures.sh --check
-# fails when a fixture is consumed by no grader, and
-# plugins/skill-quality/scripts/check-evals-quality.sh fails when a case names a
-# fixture that does not resolve. A fixture that a shell suite genuinely names is
-# still selected by the reference rule before this line is consulted.
-plugins/*/evals/fixtures/*.txt
+# Skill evals (plugins/<p>/skills/<s>/evals/): the skill-quality gate reads
+# every file under an evals/fixtures/ tree twice, since
+# scripts/check-orphaned-fixtures.sh --check fails when a fixture is consumed by
+# no grader and plugins/skill-quality/scripts/check-evals-quality.sh fails when
+# a case names a fixture that does not resolve.
+#
+# Plugin eval suites (plugins/<p>/evals/<case>/: case.yaml, prompt.md,
+# scaffold.sh, graders/, samples/): an ON-DEMAND lane, not a CI one. They run
+# under `claude plugin eval`, a paid model run, and /evals:validate
+# (plugins/evals/skills/validate/scripts/validate-cases.py) checks a suite
+# offline; both are run by hand, the way the Linear schema check below is.
+#
+# A file under an evals/ tree that a suite genuinely names is still selected by
+# the reference rule before this line is consulted.
+plugins/*/evals/*
 
 # Kept-trace fixtures for the evals plugin's result checkers. test_run_validity.py
 # and test_calibrate_judge.py read them through their fixture directories, never
@@ -141,6 +144,13 @@ plugins/*/evals/fixtures/*.txt
 # two wrapping shell suites, run-validity.test.sh and calibrate-judge.test.sh,
 # which run those tests whenever any script in that directory changes.
 plugins/evals/skills/plugin-eval/scripts/fixtures/*.jsonl
+
+# The performance plugin's generated copy of lib/spawn_noise.py
+# (scripts/shared-copies.txt). No code in the plugin imports it; its skills
+# show the import in prose. It changes only with its canonical, whose shared-lib
+# fan-out selects harness-ops's spawn_noise suites, and the shared-copies
+# --check drift step fails a copy that differs from the canonical.
+plugins/performance/lib/spawn_noise.py
 
 # The task-end judge's calibration cases: test and production code copied
 # verbatim from other repositories' histories, read as data by the judge, never
@@ -153,26 +163,3 @@ plugins/testing/skills/audit/evals/judge-calibration/cases/*
 # sweep table. The lane covering the code that reads them is the testing
 # plugin's shell lane: metrics.test.sh tests --table and --rerun on stub sweeps.
 plugins/testing/skills/audit/evals/judge-calibration/sweep/*
-
-# Python modules imported by Python suites that share no stem with them, so no
-# selection rule maps them. The covering lane is the affected-tests step's
-# pytest run, which executes test_install_state.py and test_deep_inventory.py
-# (plugin_cache_versions.py), test_overlap.py and test_native_drift.py
-# (discover.py), and test_inventory.py (docs_crosscheck.py).
-plugins/harness-ops/lib/plugin_cache_versions.py
-plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
-plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
-
-# The generated session-bridge copy (scripts/shared-copies.txt). It changes only
-# with its canonical, lib/session-bridge/session_bridge.py, whose shared-lib
-# fan-out selects the carrying plugin's suites; the copy itself is covered by
-# the shared-copies --check drift step and by the affected-tests step's pytest
-# run of the planning surface's test_server.py and test_round.py, which import it.
-plugins/*/surface/session_bridge.py
-
-# The cleanup skill's eval fixture: a small repository (production modules,
-# a config, a judge findings file) that the cleanup evals copy and run the
-# skill over. The lane covering it is the skill-quality gate:
-# scripts/check-orphaned-fixtures.sh --check and check-evals-quality.sh, as for
-# the *.txt fixtures above. Its unittest files are still selected as suites.
-plugins/testing/skills/cleanup/evals/fixtures/*

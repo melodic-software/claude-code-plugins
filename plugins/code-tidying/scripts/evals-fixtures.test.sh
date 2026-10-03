@@ -5,6 +5,7 @@
 # When tree-sitter (or its grammar) is absent the self-certify checks skip
 # visibly, matching test_change_shape.py. CI sets
 # CODE_TIDYING_REQUIRE_TREE_SITTER=1 so a missing dependency fails there.
+# test-scope: plugins/code-tidying/evals/*
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

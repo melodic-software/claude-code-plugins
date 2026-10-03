@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.7.4] - 2026-10-03
+
+### Changed
+
+- `skills/audit-automation-gaps/scripts/inventory.test.sh` and `skills/audit-permission-state/scripts/audit.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [1.7.3] - 2026-10-03
 
 ### Changed

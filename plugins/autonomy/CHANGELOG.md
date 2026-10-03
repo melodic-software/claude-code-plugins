@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2] - 2026-10-03
+
+### Changed
+
+- `skills/setup/scripts/check-prerequisite-resolution-slice.test.sh`, `skills/setup/scripts/check-security-binding.fixtures.test.sh`, `skills/setup/scripts/generate-identity-prerequisites.test.sh`, and `skills/setup/scripts/resolve-prerequisites.fixtures.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.26.1] - 2026-10-03
 
 ### Changed

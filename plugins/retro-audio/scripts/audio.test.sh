@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Contract tests for retro-audio WAV rendering.
+# test-scope: plugins/retro-audio/examples/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
