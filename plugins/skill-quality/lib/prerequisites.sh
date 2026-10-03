@@ -15,9 +15,9 @@
 # With node on PATH it exits 0 and prints nothing. Without node it prints one
 # SessionStart notice on both hook channels, then exits 0, because Claude Code
 # reads hook JSON only from a zero exit. Every plugin's notice shares one latch
-# keyed by session id in the temp directory, so a session sees it once. A
-# plugin's kill switch (CLAUDE_PLUGIN_OPTION_<name>) set to anything but true
-# silences it.
+# keyed by session id in the temp directory, so a session sees it once. Old
+# latch files stay until the OS clears the temp directory. A plugin's kill
+# switch (CLAUDE_PLUGIN_OPTION_<name>) set to anything but true silences it.
 # shellcheck shell=sh disable=SC2154
 if [ "${1:-}" = node-notice ]; then
   command -v node >/dev/null 2>&1 && exit 0
@@ -39,7 +39,6 @@ if [ "${1:-}" = node-notice ]; then
   if [ "$session" != no-session ]; then
     latch="${TMPDIR:-/tmp}/claude-plugins-node-missing"
     mkdir -p "$latch" 2>/dev/null && {
-      find "$latch" -mindepth 1 -maxdepth 1 -mtime +1 -exec rm -rf {} + 2>/dev/null
       mkdir "$latch/$session" 2>/dev/null || exit 0
     }
   fi

@@ -28,9 +28,6 @@ if ($args.Count -gt 0 -and $args[0] -eq 'node-notice') {
         $latch = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath 'claude-plugins-node-missing'
         try {
             [void][IO.Directory]::CreateDirectory($latch)
-            Get-ChildItem -LiteralPath $latch -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
-                Remove-Item -Force -ErrorAction SilentlyContinue
             $stream = [IO.File]::Open((Join-Path -Path $latch -ChildPath $session), [IO.FileMode]::CreateNew)
             $stream.Dispose()
         } catch [IO.IOException] {
