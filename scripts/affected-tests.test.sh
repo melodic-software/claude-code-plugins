@@ -119,6 +119,19 @@ run_sel() {
   RC=$?
 }
 
+# run_sel_rules <repo> <args...>: like run_sel, but OUT keeps only the suites
+# R1-R7 select. R8 adds every shell suite of a touched plugin, so a case about
+# what NAMES a file reads the selection through --explain and drops the suites
+# whose recorded reason is R8's. A suite another rule also reached keeps that
+# rule's reason, because a seed's own walk runs before R8, so it stays.
+run_sel_rules() {
+  local repo="$1" err
+  shift
+  err="$(cd "$repo" && bash scripts/affected-tests.sh --explain "$@" 2>&1 >/dev/null)"
+  RC=$?
+  OUT="$(awk '/^select: / && !/  \(R8: / { sub(/^select: /, ""); sub(/  \(.*$/, ""); print }' <<<"$err")"
+}
+
 # Captured output is matched in-shell, never piped into a reader: under pipefail
 # an early-exit reader can kill the writer with SIGPIPE (see the pin below).
 # has_line <text> <line>: <line> is one whole line of <text>, matched literally.
@@ -1051,8 +1064,10 @@ fi
 # NOT do is keep walking from there and drag in that file's own dependents.
 mkdir -p "$repo/eco/hop"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
-# A .ps1 that merely MENTIONS the js basename — not a real dependency.
-printf "# mentions origin.js in a comment only\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
+# A .ps1 that merely MENTIONS the js basename in a string — not a real
+# dependency, but a code line, so the walk still crosses into it. A comment-only
+# mention would not, and the case would pass without testing the crossing rule.
+printf "\$null = 'origin.js'\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
 # A shell file that depends on the .ps1, with its own suite. Reaching this suite
 # would require a SECOND cross-language hop, which the rule forbids.
 printf 'echo "runs Far.ps1"\n' >"$repo/eco/hop/far-runner.sh"
@@ -1133,8 +1148,9 @@ printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
 printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 
 # Names the shell source FIRST, the JS copy SECOND — so the cross-family hit is
-# the one a last-write-wins bug would keep.
-printf 'source "lib/mixed.sh"\n# also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
+# the one a last-write-wins bug would keep. The second mention is a `:` no-op
+# rather than a comment, because a comment-only line makes no dependent at all.
+printf 'source "lib/mixed.sh"\n: also mirrors mixed.js\n' >"$repo2/eco/agg/zed.sh"
 # A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
 # would block. Its suite is the assertion.
 printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
@@ -1234,8 +1250,9 @@ fi
 
 # The exit code alone is not the assertion: what must be gone is the SELECTION
 # the substring match handed it. Under --allow-unmapped the run proceeds, so an
-# empty stdout is direct evidence that no unrelated suite was borrowed.
-run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
+# empty rule selection is direct evidence that no unrelated suite was borrowed
+# (R8's plugin suites are a different rule, and never map a file).
+run_sel_rules "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
   ok "the borrowed suites are gone, not merely re-labeled"
 else
@@ -1290,6 +1307,76 @@ if [[ "$RC" -eq 0 ]] &&
   ok "co-located selection is untouched by the boundary rule"
 else
   fail "co-located suite lost or unrelated suite still borrowed (rc=$RC): $OUT"
+fi
+rm -rf "$repo3"
+
+# --- a comment-only mention in a NON-suite file makes no dependent -----------
+# Hub files cite neighboring scripts in prose, and counting those as R4 edges
+# fanned one plugin's change out to most of the corpus. A suite's comment still
+# names the file (R3), and so does every code line, a trailing comment on one,
+# a shellcheck source directive and a JSDoc type import.
+mk_repo repo3
+mkdir -p "$repo3/eco/cmt"
+printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
+suite_body hub-target >"$repo3/eco/cmt/hub-target.test.sh"
+# Each dependent below has a suite of its own that does not name hub-target.sh,
+# so that suite comes back only through an R4 edge.
+mk_cmt_dependent() { # <stem> <ext> <body>
+  printf '%b' "$3" >"$repo3/eco/cmt/$1.$2"
+  suite_body "$1" >"$repo3/eco/cmt/$1.test.$2"
+}
+mk_cmt_dependent sh-comment sh '#!/usr/bin/env bash\n# see hub-target.sh\n  # also hub-target.sh\necho hub\n'
+mk_cmt_dependent js-comment js '// see hub-target.sh\n/* hub-target.sh */\n/**\n * hub-target.sh\n */\nexport const x = 1;\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
+mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
+mk_cmt_dependent js-code js 'const target = "hub-target.sh";\n'
+mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
+printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
+# A Python import never spells the .py, so a comment naming the module is the
+# only text edge from an importer; it keeps counting. Prose alone does not.
+printf 'X = 1\n' >"$repo3/eco/cmt/hubmod.py"
+printf 'import hubmod\n' >"$repo3/eco/cmt/test_hubmod.py"
+printf '# hubmod.py is shared with a sibling\nfrom hubmod import X\n' >"$repo3/eco/cmt/pyimporter.py"
+printf 'import pyimporter\n' >"$repo3/eco/cmt/test_pyimporter.py"
+printf '# see hubmod.py\nimport os\n' >"$repo3/eco/cmt/pyprose.py"
+printf 'import pyprose\n' >"$repo3/eco/cmt/test_pyprose.py"
+git_test_config "$repo3" add eco >/dev/null
+git_test_config "$repo3" commit -qm comments >/dev/null
+
+run_sel "$repo3" eco/cmt/hub-target.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/hub-target.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-comment.test.sh &&
+  ! has_line "$OUT" eco/cmt/js-comment.test.js; then
+  ok "a comment-only mention in a non-suite file no longer selects"
+else
+  fail "comment-only mention still made a dependent (rc=$RC): $OUT"
+fi
+
+if has_line "$OUT" eco/cmt/sh-code.test.sh &&
+  has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  has_line "$OUT" eco/cmt/sh-directive.test.sh &&
+  has_line "$OUT" eco/cmt/js-code.test.js &&
+  has_line "$OUT" eco/cmt/js-typeimport.test.js; then
+  ok "a code mention, a trailing comment, a shellcheck directive and a JSDoc import still select"
+else
+  fail "a non-comment mention lost its dependent (rc=$RC): $OUT"
+fi
+
+if has_line "$OUT" eco/cmt/hub-prose.test.sh; then
+  ok "a suite's comment mention still selects it"
+else
+  fail "a suite naming the file in a comment was dropped (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/cmt/hubmod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_pyimporter.py &&
+  ! has_line "$OUT" eco/cmt/test_pyprose.py; then
+  ok "a comment naming a module the .py imports by name still selects; prose alone does not"
+else
+  fail "python import-by-name comment edge lost or prose comment kept (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
 
@@ -1390,6 +1477,100 @@ else
   fi
 fi
 
+# --- R8: a plugin change selects every shell suite of that plugin -------------
+# A suite that globs its own plugin directory never spells the changed file's
+# name, so only a path rule reaches it from a SKILL.md edit. Pinned: the
+# plugin's shell suites are in, its Python suite and another plugin's suites are
+# out, the reason reads R8, and R8 never maps a file, so a plugin file nothing
+# names is still UNMAPPED.
+mk_repo repo
+mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
+printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
+suite_body alpha-scan >"$repo/plugins/alpha/tests/scan.test.sh"
+printf 'import unittest\n' >"$repo/plugins/alpha/tests/test_scan.py"
+printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
+git_test_config "$repo" add plugins >/dev/null
+git_test_config "$repo" commit -qm r8 >/dev/null
+
+run_sel "$repo" plugins/alpha/skills/one/SKILL.md
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
+  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/test_scan.py &&
+  ! has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "R8: a SKILL.md edit selects its plugin's shell suites and nothing else"
+else
+  fail "R8: plugin selection wrong for a SKILL.md edit (rc=$RC): $OUT"
+fi
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/alpha/skills/one/SKILL.md 2>&1)"
+if contains "$out" "select: plugins/alpha/tests/scan.test.sh  (R8: plugins/alpha/ changed)"; then
+  ok "R8: --explain reports the plugin reason"
+else
+  fail "R8: --explain lacks the plugin reason: $out"
+fi
+
+run_sel "$repo" plugins/alpha/zzorphan-plugin.sh
+if [[ "$RC" -eq 1 ]]; then
+  ok "R8: a plugin file no suite names is still UNMAPPED"
+else
+  fail "R8: R8 mapped a plugin file nothing names (rc=$RC): $OUT"
+fi
+rm -rf "$repo"
+
+# --- --with-always: the live-tree suites ride every selection ----------------
+# scripts/affected-tests-always.txt lists suites that assert against the live
+# repository, so no rule can see the change that breaks them. Pinned: off by
+# default, on under --with-always even when the diff selects nothing else, and
+# a stale entry is an error rather than a quiet skip.
+mk_repo repo
+mkdir -p "$repo/scripts/lib"
+suite_body live-scan >"$repo/scripts/lib/live-scan.test.sh"
+printf '# reason-bearing entries\nscripts/lib/live-scan.test.sh  scans every script\n' \
+  >"$repo/scripts/affected-tests-always.txt"
+git_test_config "$repo" add scripts >/dev/null
+git_test_config "$repo" commit -qm always >/dev/null
+
+run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
+if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" scripts/lib/live-scan.test.sh; then
+  ok "always-run: off by default"
+else
+  fail "always-run: a local run selected the live-tree suite (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh &&
+  has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "always-run: --with-always adds the listed suite to the selection"
+else
+  fail "always-run: --with-always did not add the listed suite (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" --with-always plugins/alpha/README.md
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" scripts/lib/live-scan.test.sh; then
+  ok "always-run: a no-suite diff still runs the listed suite"
+else
+  fail "always-run: a no-suite diff dropped the listed suite (rc=$RC): $OUT"
+fi
+
+printf 'scripts/lib/gone.test.sh  removed long ago\n' >>"$repo/scripts/affected-tests-always.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh --with-always plugins/alpha/hooks/alpha-hook.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$out" "names 'scripts/lib/gone.test.sh'"; then
+  ok "always-run: a stale entry is an error, not a quiet skip"
+else
+  fail "always-run: a stale entry was not refused (rc=$RC): $out"
+fi
+rm -rf "$repo"
+
+# --- LIVE repo: every always-run entry names a suite today --------------------
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --with-always scripts/affected-tests-always.txt 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" "scripts/lib/gate-entry.test.sh"; then
+  ok "LIVE always-run: the shipped list resolves and joins the selection"
+else
+  fail "LIVE always-run: the shipped list did not resolve (rc=$RC): $out"
+fi
+
 # --- skill ownership: a bare reference name means the skill's OWN file -------
 # Skills reuse reference names freely, so a suite naming `ownership-probe.md` from inside
 # one skill is naming that skill's file. Changing another skill's `ownership-probe.md`
@@ -1422,7 +1603,9 @@ printf '#!/usr/bin/env bash\n# reads plugins/gamma/skills/sa/reference/ownership
 git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm skills >/dev/null
 
-run_sel "$repo" "$own_a/reference/ownership-probe.md"
+# Every suite here sits in plugin alpha or beta, so R8 selects all of a touched
+# plugin's suites; the ownership rule is read from the R1-R7 selection.
+run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_a/scripts/sa.test.sh" &&
   ! has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
   ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
@@ -1431,7 +1614,7 @@ else
   fail "ownership: A's ownership-probe.md selection wrong (rc=$RC): $OUT"
 fi
 
-run_sel "$repo" "$own_b/reference/ownership-probe.md"
+run_sel_rules "$repo" "$own_b/reference/ownership-probe.md"
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$own_b/scripts/sb.test.sh" &&
   ! has_line "$OUT" "$own_a/scripts/sa.test.sh"; then
   ok "ownership: skill B's ownership-probe.md still selects B's suite and not A's"
@@ -1445,7 +1628,7 @@ else
   fail "ownership: path-qualified mention from another skill lost (rc=$RC): $OUT"
 fi
 
-run_sel "$repo" "$own_a/reference/ownership-probe.md"
+run_sel_rules "$repo" "$own_a/reference/ownership-probe.md"
 if has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh; then
   ok "ownership: a bare mention from a skill without its own file still selects"
 else

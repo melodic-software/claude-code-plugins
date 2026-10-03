@@ -149,6 +149,17 @@ done
 checked=0
 failed=0
 
+# ONE CHECKER PER CORE. Each skill is checked on its own, so the checks run
+# CHECK_CHANGED_SKILLS_JOBS at a time (default: the core count) and each one's
+# output is captured and printed whole, in the order the skills were found, so
+# the log reads exactly as a serial run's. A marketplace-wide change checked
+# the skills one at a time for up to six minutes.
+jobs_max="${CHECK_CHANGED_SKILLS_JOBS:-$(nproc 2>/dev/null || echo 1)}"
+[[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || jobs_max=1
+out_dir="$(mktemp -d)" || exit 2
+trap 'rm -rf "$out_dir"' EXIT
+keys=()
+
 for skill_dir in ${changed[@]+"${changed[@]}"}; do
   # A deletion/rename-away leaves no SKILL.md in the tree — not a regression to
   # gate (and the checker would FAIL "not found"). Skip those.
@@ -156,22 +167,37 @@ for skill_dir in ${changed[@]+"${changed[@]}"}; do
   skills_root="${skill_dir%/*}" # plugins/<plugin>/skills
   skill_name="${skill_dir##*/}" # <skill>
   checked=$((checked + 1))
-  printf '=== %s ===\n' "$skill_dir"
-  require_evals_args=()
-  if grep -q . < <(git diff --name-only "$BASE" -- "$skill_dir/SKILL.md"); then
-    if evals_warrant_skip "$skill_dir"; then
-      printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
-    else
-      require_evals_args=(--require-evals)
+  key="$(printf '%06d' "$checked")"
+  keys+=("$key")
+  {
+    printf '=== %s ===\n' "$skill_dir"
+    require_evals_args=()
+    if grep -q . < <(git diff --name-only "$BASE" -- "$skill_dir/SKILL.md"); then
+      if evals_warrant_skip "$skill_dir"; then
+        printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
+      else
+        require_evals_args=(--require-evals)
+      fi
     fi
-  fi
-  if ! CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
-    CHECK_SKILL_BASE_REF="$BASE" \
-    CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
-    CHECK_SKILL_DESC_FIELD_BASELINE="$DESC_CAP_BASELINE" \
-    bash "$CHECKER" ${require_evals_args[@]+"${require_evals_args[@]}"} "$skill_name"; then
-    failed=$((failed + 1))
-  fi
+  } >"$out_dir/$key.head"
+  (
+    rc=0
+    CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
+      CHECK_SKILL_BASE_REF="$BASE" \
+      CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      CHECK_SKILL_DESC_FIELD_BASELINE="$DESC_CAP_BASELINE" \
+      bash "$CHECKER" ${require_evals_args[@]+"${require_evals_args[@]}"} "$skill_name" \
+      >"$out_dir/$key.out" 2>&1 || rc=$?
+    printf '%s\n' "$rc" >"$out_dir/$key.rc"
+  ) &
+  while (($(jobs -rp | wc -l) >= jobs_max)); do wait -n || true; done
+done
+wait
+
+for key in ${keys[@]+"${keys[@]}"}; do
+  cat "$out_dir/$key.head" "$out_dir/$key.out"
+  rc="$(cat "$out_dir/$key.rc" 2>/dev/null || echo 1)"
+  [[ "$rc" == 0 ]] || failed=$((failed + 1))
 done
 
 if ((checked == 0)); then
