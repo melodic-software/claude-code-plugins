@@ -36,7 +36,7 @@ On resume: if companion is unmarked, run 0b before vision even when CLI phases a
 ## CLI bootstrap
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
 ```
 
 Pass an explicit `--target <repo>` through from the invoking `watch <url> --target <repo>` command.
@@ -68,7 +68,7 @@ snapshotted to `key-frames/contact-sheets/` for local disaster recovery, see
 Before `watch` or `resume` when frames are needed:
 
 ```bash
-node "<skill-dir>/extraction/setup-deps.mjs"
+node "<skill-dir>/extraction/setup-deps.mjs" --data-dir "<plugin-data>"
 ```
 
 STOP if the hub's pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick. Cloud
@@ -82,7 +82,7 @@ After CLI bootstrap, parallelize like `/knowledge:course-digest` Phase 3:
 | --- | --- | --- |
 | Parallel | Transcript agent | Claims + timestamps → `research/research-agenda.md` draft |
 | Parallel | Visual agent | Contact-sheet triage → detail reads → `key-frames/visual-frames.md` + on-screen URLs |
-| Parallel | Link/repo agent | WebFetch previews + `node "<skill-dir>/extraction/run.mjs" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
+| Parallel | Link/repo agent | WebFetch previews + `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
 | Sequential | Research fan-out | external research (standard or deep) per claim cluster → `RESEARCH.md` + `research/findings/` |
 | Sequential | Synthesis agent | `recommendations/menu.md` + `recommendations/takeaways.md` (hub: `recommendations/README.md`) |
 | Sequential | Interview handoff | `recommendations/interview.md` → offer `/planning:interview` for POC/full-slice picks |
@@ -91,7 +91,7 @@ Mark each phase in `watch.json` after the wave completes (idempotent, re-running
 already-marked phase is a no-op):
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/watch-state.js mark-phase <slice-dir> <phase>
 ```
 
 `mark-phase <slice-dir> synthesis` delegates to `close` (Phase 9).
@@ -99,7 +99,7 @@ node "<skill-dir>/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir
 Promote only via vision-gated decisions:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/vision-gated-promote.js "<slice-dir>"
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
 (`promote-key-frames.js` remains for ad-hoc single copies, not the completion path.)
@@ -109,7 +109,7 @@ node "<skill-dir>/extraction/run.mjs" watch/vision-gated-promote.js "<slice-dir>
 After CLI bootstrap (or on resume), materialize and maintain the slice checklist:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/init-watch-checklist.js "<slice-dir>"
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/init-watch-checklist.js "<slice-dir>"
 ```
 
 Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Tick `[ ]` → `[x]`
@@ -164,7 +164,7 @@ Checklist: `watching/frame-triage-checklist.json`; **JSON SSOT** + rendered mark
 - **Pass 1 contact-sheet triage:** One subagent per sheet from `tempSession.contactSheetsDir`
   (or `key-frames/contact-sheets/`). Write `key-frames/triage/batches/sheet_NNN.json` (cells per
   `sheet-frame-index.json`). Merge:
-  `node "<skill-dir>/extraction/run.mjs" watch/merge-triage-json.js "<slice>"`;
+  `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/merge-triage-json.js "<slice>"`;
   validate: `validate-triage-json.js`; render: `render-triage-log.js`.
 - **Pass 2 detail reads:** All `keep-detail` frames + transcript interleave
   (`key-frames/selection.json` timeline). Escalate text-dense frames to **1920×1080**.
@@ -181,7 +181,7 @@ Checklist: `watching/frame-triage-checklist.json`; **JSON SSOT** + rendered mark
   `render-quality-audit.js` + `render-key-frames-manifest.js`. **Delete** failures with
   `pass: false`.
 - **Repair pass (when filename verify fails):**
-  `node "<skill-dir>/extraction/run.mjs" watch/repair-synthesis-promotions.js "<slice-dir>"`
+  `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/repair-synthesis-promotions.js "<slice-dir>"`
   Semantic renames from `gapNote`, reject generic pipeline placeholders, fix forbidden sessions.
 
 ## Phase 5: high-volume advisory
@@ -203,7 +203,7 @@ Default-on. Gate: `mark-phase <slice-dir> research` only after `check-research-c
 and agenda clusters are `done` or `deferred`:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-research-complete.js "<slice-dir>"
 ```
 
 - `research/claim-inventory.md` must exist; draft or expand `research/research-agenda.md` with
@@ -282,14 +282,14 @@ Write `recommendations/interview.md` with the menu + *"Should we go further?"*; 
 Mandatory host verify script, before closing the slice:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-watch-outcomes.js "<slice-dir>" --write-report
 ```
 
 Writes `verification/<ISO-basic>Z-watch-outcomes.md`. Once it exits 0 and the blocking checklist
 items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/watch-state.js close "<slice-dir>"
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/watch-state.js close "<slice-dir>"
 ```
 
 `close` is the only writer of `status: complete`. It marks synthesis, re-runs the outcome checks
@@ -339,13 +339,13 @@ correction. A probe on ffmpeg 8.0.1 found the reported times already relative to
 Standalone pipeline (when video + VTT already acquired):
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watching/run-watching-pipeline.js "<video-path>" "<vtt-path>"
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watching/run-watching-pipeline.js "<video-path>" "<vtt-path>"
 ```
 
 Metadata-only link harvest:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" harvesting/run-harvest.js "<info-json-path>" [--url "<source-url>"]
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" harvesting/run-harvest.js "<info-json-path>" [--url "<source-url>"]
 ```
 
 The owning source adapter is resolved from `--url` when given, else from the info JSON's

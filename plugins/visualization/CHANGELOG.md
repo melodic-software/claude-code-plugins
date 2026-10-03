@@ -3,11 +3,27 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.5] - 2026-10-03
+## [0.10.1] - 2026-10-03
 
 ### Changed
 
 - `visualize` names `education:illustrate` for a picture explainer of a concept or codebase topic. It replaces `education:eli5`.
+
+## [0.10.0] - 2026-10-03
+
+### Added
+
+- `lib/mermaid-gate.mjs`, a script `visualize` runs: parses every Mermaid block before it is
+  emitted, names the error and line of a failing block, and pre-renders to SVG for a local page
+  when `mmdc` 11.17.0 or newer is installed. Without it the source is kept and the report gives
+  the reason. A published Artifact needs the parse only. It is a script, not a skill, so it adds
+  no always-loaded trigger.
+- `prerequisites.json` declaring `node` (required for the gate) and `mmdc` (optional, pinned
+  11.17.0), with the generated prerequisites checker in `lib/`.
+
+### Changed
+
+- `visualize` runs the gate on each mermaid block before emitting it.
 
 ## [0.9.4] - 2026-10-03
 
