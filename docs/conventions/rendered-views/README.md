@@ -365,8 +365,12 @@ and the reader is told to set `medium: artifact` to publish it anyway. An operat
 `medium: file` in their personal layer (`~/.claude/rendered-views.md` or the repo
 overlay); the cascade below resolves it like any other key.
 
+The deck lane (`visualization:present`) is the second exception: a deck exists only as an
+Artifact made from the account's Slides type, so it publishes behind the same gate (see
+Artifact types), and anything the gate keeps local stays the markdown outline.
+
 Rendered views are untracked by default; publishing anywhere else is optional and
-configured, never the default, except for the digest's `artifact` default.
+configured, never the default, except for the digest's and the deck's `artifact` default.
 
 A plan that depends on sharing or editing a rendered view across accounts or subscriptions
 does not assume it works: it checks the live Share dialog first.
@@ -376,6 +380,38 @@ does not assume it works: it checks the live Share dialog first.
 - **As of**: 2026-10-02 (Claude Code v2.1.287)
 - **Recheck trigger**: a Claude Code version bump, or a plan about to rely on cross-account or
   cross-subscription sharing or editing (present or absent).
+
+## Artifact types
+
+A claude.ai Artifact type is a ready-made page that takes content as data, such as the Slides
+type for decks. A producer uses a type instead of the shared builder when all three hold:
+
+- The deliverable is the genre the type was made for: a deck uses the Slides type.
+- The view is meant to be published: a type exists only as an Artifact on claude.ai.
+- The type renders its content from a closed format, so the session writes data and never script.
+
+Otherwise the producer builds a local page with the shared builder, or keeps the markdown record.
+Rules for a producer on a type:
+
+- **The record stays markdown.** The type's data files are the view. They are written in a scratch
+  folder outside any working tree and outside the record's bundle, then sent to the Artifact.
+- **Types are per account.** The producer finds the type at run time through the Artifact tool's
+  `quickstart` and never hard-codes a type URL. With no such type, or no Artifact tool, it delivers
+  the markdown record and says why: that is the fallback.
+- **Content classes still bind.** K2 text enters the type's store as escaped text only. A K2 deck
+  carries no live embed, script, link, inline SVG, CSS `url()`, or image taken from its source; the
+  producer's check script refuses one before anything is sent.
+- **The publish gate decides first.** `lib/publish-gate.mjs` (shared with `review:explain-change`)
+  runs before the type's create call, which already publishes the title. Only an explicit
+  `medium: artifact` from a layer a checked-out branch cannot write (the argument, the plugin's
+  option, `~/.claude/rendered-views.md`, or an untracked, gitignored overlay) publishes as is.
+  Otherwise the producer names the destination ("a private Artifact on claude.ai") and keeps the
+  view local when the source repository is not `PUBLIC` or any file looks like a credential, naming
+  `medium: artifact` in `~/.claude/rendered-views.md` as the opt-in.
+- **A design system is optional.** It is used only when the user names one or the `quickstart`
+  attaches the account's default.
+
+Producers on a type: `visualization:present` (Slides).
 
 ## Genre rubric and stopping rule
 
@@ -449,6 +485,9 @@ Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `p
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
 (`plugins/architecture/scripts/build-view.mjs`).
+
+Emitters through an Artifact type (see Artifact types): `visualization:present`, a deck made from
+the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,

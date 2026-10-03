@@ -317,3 +317,5 @@ lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
 lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
+lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
+lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
