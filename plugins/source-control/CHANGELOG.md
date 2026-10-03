@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.5] - 2026-10-03
+
+### Fixed
+
+- The babysit branch-rules read percent-encodes the base branch, including `/`, before calling `repos/{repo}/rules/branches/{branch}`. A base such as `release/1.x` is one path segment (`release%2F1.x`). A name with no reserved characters, such as `main`, is unchanged ([#5954](https://github.com/melodic-software/claude-code-plugins/issues/5954)).
+
 ## [0.77.4] - 2026-10-03
 
 ### Fixed

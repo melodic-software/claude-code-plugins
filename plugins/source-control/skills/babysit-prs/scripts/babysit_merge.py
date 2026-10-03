@@ -84,6 +84,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
@@ -341,7 +342,12 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         "mergeQueueRequired": False,
     }
     try:
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{branch}"])
+        # `{branch}` is one path parameter. Percent-encode it, including `/`,
+        # so a base such as release/1.x stays a single segment. quote(..., safe="")
+        # matches Go's url.PathEscape, which go-github uses for this endpoint
+        # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
+        # gh 2.99.0 forwards that path unchanged.
+        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"])
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
