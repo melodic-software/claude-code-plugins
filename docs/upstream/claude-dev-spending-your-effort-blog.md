@@ -33,8 +33,7 @@ Dropped or held, each needing the user's go-ahead before it runs:
 - Dating the agent pin count in [claudedevs-cost-performance.md](claudedevs-cost-performance.md)
   was dropped: [#5767](https://github.com/melodic-software/claude-code-plugins/pull/5767) replaced
   the count with a pointer.
-- Held for the user: an eval of the object-writer agent across effort levels (it settles
-  [E4](#decisions)); a correction round on the digest slice; graduating the slice to the knowledge
+- Held for the user: a correction round on the digest slice; graduating the slice to the knowledge
   corpus in its own draft pull request; comments on
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) and
   [#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346). The replay sweep

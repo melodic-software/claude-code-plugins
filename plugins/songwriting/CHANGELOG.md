@@ -8,7 +8,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 ### Changed
 
 - **The `object-writer` agent's `medium` effort pin is settled.** An eval of the object-writing
-  cases at `low`, `medium` and `high` found `medium` level with `high` on pass rate and blind-graded
+  cases at `low`, `medium` and `high` found `medium` matched `high` on pass rate and blind-graded
   write quality, while `low` failed the 10-minute case (drift back to the seed) and the character
   case (first-person voice). The agent's effort note records the reason and a new recheck trigger.
 
