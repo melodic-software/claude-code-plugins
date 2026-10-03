@@ -5,6 +5,58 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.4] - 2026-10-03
+
+### Fixed
+
+- `collect-categories.sh` accepts a Windows drive-form `saved=` path (`C:/...`) when `cygpath` is
+  on PATH, and prints `research-corroborator-duplicate-url` when a corroborator repeats a URL
+  already counted. A `cygpath` or `realpath` failure leaves the packet directory unchanged and
+  still rejects a path outside it
+  ([#5942](https://github.com/melodic-software/claude-code-plugins/issues/5942)).
+
+## [0.13.3] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.13.2] - 2026-10-03
+
+### Changed
+
+- **A mod audit reads the running build's declarations.** When the target ships a mod, step 1
+  loads the built-in `plugin-authoring` skill and records the declaration-file path that skill
+  names (as of 2026-10-03, `types/claude-code.d.ts`) in the packet, and the auditor reads event
+  and call meanings from that path before the docs pages. A missing or dead path falls back to
+  the pages and is recorded.
+
+## [0.13.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `context-zone.sh`, `resolve-convention-home.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The zones-inline-drift suite comment now names that generator.
+
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.12.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `audit` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+- `skills/audit/reference/component-types/skill.md` is now `skill-component.md`. claude.ai matches `SKILL.md` without regard to case and rejected the file as a skill without frontmatter.
+
 ## [0.12.2] - 2026-10-02
 
 ### Changed

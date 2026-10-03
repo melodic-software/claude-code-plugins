@@ -1,0 +1,168 @@
+name: selection-audit
+
+# Miss detection for the pull-request test selection (scripts/affected-tests.sh).
+# Informational: not in ci.yml and not behind `ci-status`, so nothing here can
+# block a merge. It reports in the job summary and an artifact and never opens
+# or edits an issue.
+#
+#   audit-test-selection  daily and on dispatch: traces one seventh of the
+#                         suites under strace and reports every file a suite
+#                         read whose one-file diff would not select that suite.
+#                         The seventh rotates with the day, so every suite is
+#                         traced within a week; the whole corpus under strace
+#                         would not fit the 16-minute job.
+#   audit-red-replay      when a ci run on main fails: for each failing suite,
+#                         replays the selector on every commit since the
+#                         suite's last green run and reports a selection miss
+#                         when none of them selected it.
+#
+# 10:43 UTC is the quietest hour of ci load (1.4 runs/hour over 8 days, against
+# 36 at 05h) and clear of the scheduled full ci run.
+
+on:
+  schedule:
+    - cron: "43 10 * * *"
+  workflow_dispatch:
+    inputs:
+      shard:
+        description: "I/N of the suite corpus to trace; empty traces today's seventh, 0/1 traces every suite"
+        required: false
+        default: ""
+      suites:
+        description: "Space-separated suite paths to trace instead of a shard"
+        required: false
+        default: ""
+  # Runs only for ci runs on main, checks out main, holds a read-only token and
+  # no secret, so no fork-controlled code runs with privileges.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  audit-test-selection:
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    permissions:
+      contents: read
+    concurrency:
+      group: selection-audit-trace
+      cancel-in-progress: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The suites read what they read only when their tools are present, so
+      # the toolchains match ci.yml's test-bash lane (Node, Python, ShellCheck,
+      # shfmt, the inventory parser packages, DuckDB); a suite that skips for a
+      # missing tool reads less and can hide a gap, never invent one.
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            .github/requirements-ci.txt
+            .github/requirements-ci-animation.txt
+      - name: Install and verify ShellCheck toolchain
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        with:
+          paths: plugins/bash-format
+          rcfile: .shellcheckrc
+      - name: Install pinned shfmt
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+      - name: Install locked test toolchains
+        run: |
+          npm ci
+          python -m pip install --user --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-ci.txt \
+            --requirement .github/requirements-ci-animation.txt
+          python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
+      - name: Install DuckDB CLI
+        env:
+          DUCKDB_VERSION: v1.5.5
+          DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
+        run: |
+          mkdir -p "$RUNNER_TEMP/duckdb"
+          curl -fsSL -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
+            "https://github.com/duckdb/duckdb/releases/download/$DUCKDB_VERSION/duckdb_cli-linux-amd64.gz"
+          echo "$DUCKDB_SHA256  $RUNNER_TEMP/duckdb/duckdb.gz" | sha256sum -c -
+          gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
+          chmod +x "$RUNNER_TEMP/duckdb/duckdb"
+      - name: Test the selection audit
+        run: bash scripts/selection-audit.test.sh
+      # Budget 600 s: suites start for the first 360 s, selector queries stop
+      # at 600 s, and anything cut off is counted in the report, not dropped.
+      # PATH is set here rather than through GITHUB_PATH, which zizmor rejects
+      # in a workflow that also has a workflow_run trigger.
+      - name: Trace suites and report selection gaps
+        env:
+          SHARD_INPUT: ${{ inputs.shard }}
+          SUITES_INPUT: ${{ inputs.suites }}
+          # As in ci.yml: these suites fail on a missing dependency instead of skipping green.
+          ANIMATION_REQUIRE_DEPS: '1'
+          INVENTORY_REQUIRE_ACORN: '1'
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
+          shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"
+          read -ra suites <<<"${SUITES_INPUT:-}"
+          scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 600 \
+            --out "$RUNNER_TEMP/selection-audit" ${suites[@]+"${suites[@]}"}
+      - name: Upload the trace report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: selection-audit-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/selection-audit/*.md
+            ${{ runner.temp }}/selection-audit/*.tsv
+            ${{ runner.temp }}/selection-audit/logs/
+          retention-days: 30
+
+  audit-red-replay:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      contains(fromJSON('["push","schedule"]'), github.event.workflow_run.event)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Replay the selection for each failing suite
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: scripts/selection-audit.sh red-replay --run-id "$RUN_ID" --out "$RUNNER_TEMP/red-replay"
+      - name: Upload the replay report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: selection-red-replay-${{ github.event.workflow_run.id }}
+          path: ${{ runner.temp }}/red-replay/report.md
+          retention-days: 30

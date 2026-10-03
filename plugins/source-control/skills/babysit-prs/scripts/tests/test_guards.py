@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/*/SKILL.md
 """Executes the guard contract in `guard_contract.py` against the real entry points.
 
 Every assertion here exercises a fact a consumer is told to rely on, and fails
@@ -514,12 +515,12 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
         wrappers = {
             f"scripts/{path.name}"
             for path in (contract.PLUGIN_ROOT / "scripts").iterdir()
-            if path.is_file() and path.name.startswith("source-control-babysit-")
+            if path.is_file() and path.name.startswith("source-control-")
         }
         self.assertEqual(
             wrappers,
             {entry.wrapper for entry in contract.ENTRY_POINTS if entry.wrapper},
-            "a babysit wrapper is missing from ENTRY_POINTS",
+            "a source-control-* wrapper is missing from ENTRY_POINTS",
         )
 
     def test_classifications_cite_only_real_rows(self) -> None:

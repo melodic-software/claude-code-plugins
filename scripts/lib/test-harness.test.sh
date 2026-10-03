@@ -14,6 +14,7 @@
 # forces exit 1 even if report was sabotaged. A throwaway-copy mutation
 # regression pins both defects: deleting report's return 1, and removing
 # fail()'s increment.
+# test-scope: scripts/*.test.sh
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

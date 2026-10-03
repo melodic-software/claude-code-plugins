@@ -3,6 +3,133 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0] - 2026-10-03
+
+### Added
+
+- **`/review:explain-change` checks its risk map with a fresh-context agent ([#5856](https://github.com/melodic-software/claude-code-plugins/issues/5856)).**
+  One subagent rates the pull request's risks from the diff alone, without the record or its
+  reasoning. Each row is marked `agreed`, `disputed` (kept, with the checker's level and reason),
+  `added` (an area only the checker named), or `unchecked`. The page shows a Check column.
+- **An optional quiz section.** `--quiz`, or a reader's request, adds three to five questions
+  with choices and answers to the record and the page. The reader ticks choices; the copied reply
+  carries only their builder ids. With no request, neither has a quiz section.
+- **A run-e2e recording link.** When `/testing:run-e2e` recorded the pull request's head, the
+  record links the recording and the page shows its path. Otherwise neither has the section.
+
+### Changed
+
+- **The digest publishes as an Artifact by default, for a public repository and a clean diff.**
+  `digest-policy.mjs` resolves `medium` to `artifact` when no layer sets it. Before publishing
+  that default, `digest-policy.mjs --publish-gate <visibility>` reads the diff: a repository that
+  is not public, or a hunk that looks like a credential (a private key header, an AWS, GitHub,
+  Anthropic, OpenAI, Slack, or Stripe token, or a quoted `password=`/`secret=` value), keeps the
+  page as a local file and names `medium: artifact` in `~/.claude/rendered-views.md` as the
+  opt-in. An explicit `medium: artifact` still publishes. Either way the session names claude.ai
+  as the destination, in the offer and before publishing. `medium: file` in a personal layer
+  keeps the page local.
+- **The risk-map checker is a read-only `Explore` agent.** It reads author-controlled diff text.
+- **The recording path is repo-relative.** The builder drops a recording whose path is absolute
+  or starts with `~`, so the page never shows a home directory.
+
+## [0.38.1] - 2026-10-03
+
+### Changed
+
+- `tests/change-set-block.test.sh` declares the files it reads without naming them in a `# test-scope:` header, so CI's test selection runs it when one of them changes. Nothing the plugin runs changed.
+
+## [0.38.0] - 2026-10-03
+
+### Added
+
+- **`/review:explain-change` explains one pull request ([#1217](https://github.com/melodic-software/claude-code-plugins/issues/1217)).**
+  The markdown digest (why, before and after, risk map, where to focus, annotated hunks) is the
+  record. `scripts/build-digest.mjs` builds an interactive view from the checked-in
+  `templates/digest.html` plus the digest as escaped JSON, through the shared view-builder's
+  interactive profile. The page filters files, collapses hunks, and copies or saves a reply that
+  holds only the reader's input and builder row ids. It takes no output path: each page goes to a
+  fresh temp directory outside any working tree.
+- **`digest_policy` decides when the digest runs unasked.** `scripts/digest-policy.mjs` reads
+  `gh pr view --json files,additions,deletions,labels,baseRefOid` and resolves the new `review-digest`
+  cascade concern. `off` never runs it, `offer` (the default) offers it when more than 5 files or
+  200 changed lines, a HIGH or CRITICAL blast radius, a risk path, or the `explain-change` label
+  fires, and `always` builds it at the ready flip. A direct request always builds. It also
+  resolves the `rendered-views` `medium` key, with `file` as this lane's default.
+- **A pull request cannot configure its own digest.** Team config is read from the base commit (`baseRefOid`), an
+  overlay applies only untracked, not through a symlink, and not when `.claude` is a submodule or tracked entry, and a change to any digest config file always
+  fires the risk-path trigger.
+- **The digest never posts.** The skill grants no tool that comments, reviews, labels, or sets a
+  check status, and its scripts never call `gh`.
+
+### Changed
+
+- **`/review:pr-explainer` is a one-release stub** that names `/review:explain-change`. Its
+  report-profile builder `build-explainer.mjs` is removed, and `tests/pr-explainer-chrome.test.sh`
+  becomes `tests/explain-change-chrome.test.sh`, checking the new template's chrome tokens.
+
+## [0.37.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.37.1] - 2026-10-02
+
+### Changed
+
+- **Shared `html-escape.mjs`, `standards-contract.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and reference.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.37.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.36.4] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.36.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.36.2] - 2026-10-02
+
+### Added
+
+- **Shared `view-builder.mjs` and `view-runtime.js` synced ([#5852](https://github.com/melodic-software/claude-code-plugins/issues/5852)); no change to this plugin's skills.**
+  `lib/view-builder.mjs` builds a rendered view from a checked-in template plus data under the
+  report or interactive profile, and `lib/view-runtime.js` is the client runtime it inlines and pins
+  by hash. Both are generated from the repository's `lib/` by `scripts/sync-shared-copies.sh`, ready
+  for the pull-request digest to build on.
+- **Bindings stay in page text.** The interactive validator refuses any `data-rv-*` binding on
+  `html`, `head`, `title`, `meta`, `style`, or `script`, and any content binding (`data-rv-text`,
+  `data-rv-count`, `data-rv-each`) on a form control; the runtime skips the same elements.
+
+## [0.36.1] - 2026-10-02
+
+### Changed
+
+- **`/review:quality-gate`'s architecture follow-up places a small unrelated pattern fix by
+  source-control's D4.6 scope test:** in this change only when it is in a file the change already
+  touches, otherwise its own small PR with no tracker item.
+
+## [0.36.0] - 2026-10-02
+
+### Changed
+
+- **`fanout` run-everything mode shows each leaf's effort level.** The report's Surfaces line
+  names each leaf as `label@level`: slices from the workflow's returned roles, named agents from
+  their definition's pin, noting that the level is the one requested.
+
 ## [0.35.0] - 2026-10-02
 
 ### Added

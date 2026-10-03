@@ -2,6 +2,7 @@
 # Test for gen-hook-filters.sh: the shipped hooks.json is in sync with the
 # adapters, every row is gated by an `if`, no row matches a non-test path, no
 # glob repeats, and --check catches drift.
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016  # check() evals its single-quoted condition
 set -uo pipefail
 
@@ -37,10 +38,10 @@ check "test-judge-bg rows are async and match test-scan's if rows" \
 check "Stop: one entry, test-judge.sh, timeout 240" \
   '[[ "$(judge ".hooks.Stop | length")" == 1 && "$(judge ".hooks.Stop[0].hooks | length")" == 1 &&
     "$(judge ".hooks.Stop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.Stop[0].hooks[0].timeout")" == 240 ]]'
-check "SessionStart: one entry, test-judge-start.sh" \
-  '[[ "$(judge ".hooks.SessionStart | length")" == 1 && "$(judge ".hooks.SessionStart[0].hooks[0].args[-1]")" == */test-judge-start.sh ]]'
+check "SessionStart: the judge entry first, test-judge-start.sh, then the node-notice entry" \
+  '[[ "$(judge ".hooks.SessionStart | length")" == 2 && "$(judge ".hooks.SessionStart[1].hooks[0].command | contains(\"node-notice /testing:check\")")" == true && "$(judge ".hooks.SessionStart[0].hooks[0].args[-1]")" == */test-judge-start.sh ]]'
 check "every judge row is gated on test_guards_enabled and test_judge_enabled" \
-  '[[ "$(judge "[(.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\"))), .hooks.Stop[].hooks[], .hooks.SessionStart[].hooks[]
+  '[[ "$(judge "[(.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\"))), .hooks.Stop[].hooks[], .hooks.SessionStart[0].hooks[]
       | .args[1:5] == [\"--require-true\", \"TEST_GUARDS_ENABLED\", \"--require-true\", \"TEST_JUDGE_ENABLED\"]] | unique | tostring")" == "[true]" ]]'
 check "the description names both options" \
   '[[ "$(judge .description)" == *test_guards_enabled* && "$(judge .description)" == *test_judge_enabled* ]]'

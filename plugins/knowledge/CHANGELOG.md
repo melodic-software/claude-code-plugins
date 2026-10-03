@@ -4,6 +4,93 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.3] - 2026-10-03
+
+### Changed
+
+- `skills/docpage-digest/scripts/check-html-rows.test.sh` and `skills/docpage-digest/scripts/extract_blog_body.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.19.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.19.1] - 2026-10-03
+
+### Fixed
+
+- **`video-digest` and `course-digest` install into and load from the knowledge plugin's own data
+  directory, whatever `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds.** Another plugin's
+  SessionStart hook can export its own data directory under that name for every Bash call, and
+  `setup-deps.mjs` installed the extraction dependencies there. `run.mjs` and `setup-deps.mjs`
+  now take a leading `--data-dir`, which every documented command passes as
+  `"${CLAUDE_PLUGIN_DATA}"` (or `"<plugin-data>"` in the spoke files). Without the flag they
+  accept an inherited value only when it names this plugin, and `setup-deps.mjs` stops before
+  writing anything when no directory resolves. The pre-computed dependency checks read the
+  substituted path, and the bootstrap recovery command names the launcher by absolute path with
+  the resolved `--data-dir`.
+
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.18.0] - 2026-10-03
+
+### Changed
+
+- **`map-corpus`'s effort gotcha points at the marketplace's Effort tiers record.** It no longer
+  says no dispatched subagent takes a per-call effort override; which dispatch surfaces take one is
+  read from that record's Workflow probe paragraph.
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `docpage-digest` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- **The Anthropic docs profile tags a blog post's outcome counts for claude.ai as
+  `tag-exempt (consumer-surface)` with the `vendor-claimed` marker,** on both blog hosts. A team
+  that wants them handled otherwise says so in its own CLAUDE.md or AGENTS.md.
+
+### Changed
+
+- **The Anthropic docs queue's notes on the loops, Code Review, and test-impact analysis posts
+  record their fetched topics** and give each pointer in the when-fetch-live form with an as-of
+  date and a recheck trigger.
+
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
+
+## [0.15.4] - 2026-10-02
+
+### Security
+
+- The `video-digest` recommendations-menu HTML view is built by a checked-in builder
+  (`skills/video-digest/scripts/build-menu-view.mjs`) that escapes every field derived from fetched
+  transcripts, titles, and URLs through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script and the URL
+  renders as text. `build-menu-view.mjs --check <file>` flags a page that bypassed the builder.
+
 ## [0.15.3] - 2026-10-02
 
 ### Changed

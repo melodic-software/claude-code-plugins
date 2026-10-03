@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Runs every pixel-art test suite (test_*.py).
+# test-scope: plugins/pixel-art/examples/* plugins/pixel-art/palettes/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

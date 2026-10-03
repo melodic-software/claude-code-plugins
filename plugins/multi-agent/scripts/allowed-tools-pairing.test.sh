@@ -25,12 +25,13 @@
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
 # placeholders are substituted by Claude Code at load time. Letting the shell
 # expand any of them would make this gate silently match nothing.
+# test-scope: plugins/multi-agent/skills/*.md plugins/multi-agent/skills/*/scripts/*
 # shellcheck disable=SC2016
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(assess route audit-defaults setup)
+SKILLS=(assess route audit-defaults setup check)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY: this is the guard for a

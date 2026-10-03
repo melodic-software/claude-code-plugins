@@ -1,0 +1,47 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["plugin"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node the SessionStart hook does not run, so ManimCE is never installed and /explainer-video:produce stops at its first render.",
+      "install": { "docs": "https://nodejs.org/en/download", "brew": "node", "winget": "OpenJS.NodeJS.LTS", "apt": "nodejs" },
+      "check": "/explainer-video:check"
+    },
+    {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["hook:install-python-deps.sh", "skill:produce", "skill:check"],
+      "detect": {
+        "any": ["python3.13", "python3.12", "python3", "python"],
+        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
+      },
+      "degrade": "Without Python 3.12 or 3.13 ManimCE is not installed and /explainer-video:produce cannot render. Python 3.14 is not supported.",
+      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3.13" },
+      "check": "/explainer-video:check"
+    },
+    {
+      "id": "ffmpeg",
+      "kind": "cli",
+      "need": "required",
+      "for": ["skill:produce"],
+      "detect": { "any": ["ffmpeg"] },
+      "degrade": "Without ffmpeg ManimCE cannot write the video and render.py cannot extract frames or mux the narration and captions; /explainer-video:produce stops with exit 2.",
+      "install": { "docs": "https://ffmpeg.org/download.html", "brew": "ffmpeg", "winget": "Gyan.FFmpeg", "apt": "ffmpeg" },
+      "check": "/explainer-video:check"
+    },
+    {
+      "id": "ffprobe",
+      "kind": "cli",
+      "need": "required",
+      "for": ["skill:produce"],
+      "detect": { "any": ["ffprobe"] },
+      "degrade": "Without ffprobe render.py cannot confirm the duration and streams, so /explainer-video:produce stops with exit 2. FFmpeg packages ship it.",
+      "install": { "docs": "https://ffmpeg.org/download.html", "brew": "ffmpeg", "winget": "Gyan.FFmpeg", "apt": "ffmpeg" },
+      "check": "/explainer-video:check"
+    }
+  ]
+}

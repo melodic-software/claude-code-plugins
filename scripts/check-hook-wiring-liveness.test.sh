@@ -7,6 +7,7 @@
 # repo tree is not sufficient evidence the gate works — these fixtures prove
 # it goes red on the #2959/#2960 failure class (an unwired hook script) and
 # green when every non-test script is referenced by a hook command or env.
+# test-scope: .claude/settings.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

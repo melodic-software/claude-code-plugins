@@ -9,7 +9,8 @@
 # Deliberately NOT lib/hook-utils.sh: a logging producer runs on every hook
 # event, and parsing that library costs more than the rest of the hook.
 # Nothing here spawns a
-# process; every function assigns into a caller-named variable (`printf -v`)
+# process, except slog_append on a locked line (`rm`, and `sleep` while it
+# waits for the lock); every other function assigns into a caller-named variable (`printf -v`)
 # or returns a status. Locals carry a `slog__` prefix so `printf -v` can never
 # land on a shadowed name.
 #
@@ -23,9 +24,11 @@
 #   source: "envelope"       hook, exit_code, subject, tool, and changed when
 #                            the producer sent a rewrite verdict — a hook run,
 #                            written by hook-telemetry-sink.sh on both routes
-#   source: "event-log"      category, plus prompt_id, tool_use_id, agent_id,
-#                            tool_name, file_path, reason and traceparent when
-#                            the payload carried them — one hook EVENT the
+#   source: "event-log"      category and effort, plus prompt_id, tool_use_id,
+#                            agent_id, tool_name, file_path, reason,
+#                            traceparent and the SLOG_EVENT_LOG_STRINGS and
+#                            SLOG_EVENT_LOG_SCALARS keys below when the
+#                            payload carried them — one hook EVENT the
 #                            session saw, written by session-event-log.sh;
 #                            no `hook`, because no hook run is described and
 #                            `duration_ms` is the logger's own cost
@@ -35,6 +38,49 @@
 # with `.source == "event-log"`. The skill-usage store is a SEPARATE contract
 # with its own readers (skills/audit-skill-visibility); it shares the formatter
 # and the escaping, not this key set.
+
+# THE EVENT-LOG METADATA ALLOWLIST. The payload keys an event-log record copies
+# when they sit at the payload's top level: string enums, ids, names and paths
+# (STRINGS, re-emitted as the payload's own JSON string bodies) and booleans and
+# numbers (SCALARS, emitted with their JSON type). Paths are recorded as the
+# payload's raw absolute values; `file_path` keeps its own reduction in the
+# hook. A `key@Event` entry is read only on that event: `error` is an enum on
+# StopFailure and tool output on PostToolUseFailure. Content strings
+# (SLOG_EVENT_LOG_CONTENT) are copied only when the session_event_log_content
+# option is true. Never copied: every object or array, tool_input and
+# tool_response among them, and the payload keys `source` and `duration_ms`,
+# whose names the record's spine already holds.
+#
+# `effort` is on every event-log record: the level, `n/a` on the events in
+# SLOG_EFFORT_NA_EVENTS, `unset` when an event that can carry a level did not.
+# The logged events outside that list (PermissionRequest, PermissionDenied,
+# PostToolUseFailure, PostToolBatch, Stop, SubagentStop, StopFailure) are built
+# from a tool-use context, the only source of the payload's effort object, and
+# Claude Code sets a hook's $CLAUDE_EFFORT from that object alone. So the
+# payload's level is recorded first; $CLAUDE_EFFORT fills in only when the
+# payload has no effort object, and an inherited value never overrides it.
+#
+# Claim: these keys, their types and the events carrying them are the hooks
+# reference's common input fields and per-event input sections; `effort` is
+# present only on events fired within a tool-use context, and a hook's
+# $CLAUDE_EFFORT is the payload's effort.level, so both are empty on the
+# SLOG_EFFORT_NA_EVENTS events.
+# Basis: https://code.claude.com/docs/en/hooks ("Common input fields" and each
+# event's "input" section); the page does not say which events, so the event
+# split is read from the Claude Code 2.1.287 binary (the hook-input builder
+# and the hook spawn environment).
+# As of: 2026-10-02.
+# Recheck: each /harness-ops:changelog ingest whose release notes touch hook
+# input fields, when a key here stops appearing in the page's input sections,
+# or when Stop rows on an effort-capable model record `unset`.
+# shellcheck disable=SC2034 # the lists are read by session-event-log.sh
+SLOG_EVENT_LOG_STRINGS="transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name error@StopFailure old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action"
+# shellcheck disable=SC2034
+SLOG_EVENT_LOG_SCALARS="seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm"
+# shellcheck disable=SC2034
+SLOG_EVENT_LOG_CONTENT="prompt session_title command_args message title last_assistant_message task_subject task_description error_details custom_instructions compact_summary url error@PostToolUseFailure"
+# shellcheck disable=SC2034
+SLOG_EFFORT_NA_EVENTS="SessionStart SessionEnd Setup InstructionsLoaded UserPromptSubmit UserPromptExpansion Notification SubagentStart TaskCreated TaskCompleted TeammateIdle ConfigChange CwdChanged DirectoryAdded WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult"
 
 # Default log root, project-relative. Overridden by the session_event_log_dir
 # userConfig option (CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR).
@@ -279,6 +325,77 @@ slog_record_to() {
     slog__sep=","
   done
   printf -v "$slog__var" '%s' "${slog__line}}"
+}
+
+# slog_append <file> <line> [lock]: appends <line> and a newline; always
+# returns 0. Bash's printf writes in 4096-byte chunks, so a longer line is
+# several write() calls, and any appender that skips the lock can land inside
+# one. A line goes under the lock file <file>.lock when it is over 4000 bytes
+# or when the caller passes `lock` (session-event-log.sh does whenever content
+# fields are on, so its short rows wait for a long one too); otherwise it is
+# the single unlocked write it always was, with nothing spawned.
+#
+# The lock holds the owner's token, and only the owner removes it. A waiter
+# polls every 0.05 s. A lock whose token stays the same for 100 polls (5 s or
+# more; a 64 KB append takes milliseconds) is stale and is removed, but only
+# while it still holds that token. After 200 polls (10 s or more) without the
+# lock, the line is appended unlocked, the one path that can still interleave,
+# so a hook never drops its row or holds up the session for longer.
+slog_append() {
+  local slog__f="$1" slog__l="$2" slog__lock="$1.lock" slog__bytes slog__token
+  local slog__seen="" slog__cur slog__same=0 slog__n=0 slog__held=0
+  slog_byte_len_to slog__bytes "$slog__l"
+  if [[ "${3:-}" != lock ]] && ((slog__bytes <= 4000)); then
+    printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+    return 0
+  fi
+  slog__token="$$.$RANDOM$RANDOM"
+  while ((slog__n++ < 200)); do
+    if slog_lock "$slog__lock" "$slog__token"; then
+      slog__held=1
+      break
+    fi
+    slog__cur=""
+    IFS= read -r slog__cur 2>/dev/null <"$slog__lock"
+    if [[ "$slog__cur" != "$slog__seen" ]]; then
+      slog__seen="$slog__cur"
+      slog__same=0
+    elif ((++slog__same >= 100)); then
+      slog_unlock "$slog__lock" "$slog__seen"
+      slog__same=0
+    fi
+    sleep 0.05 2>/dev/null
+  done
+  printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+  ((slog__held)) && slog_unlock "$slog__lock" "$slog__token"
+  return 0
+}
+
+# slog_lock <path> <token>: 0 when this call created <path>, writing <token>
+# into it. noclobber makes the `>` an O_EXCL create, so exactly one racer
+# wins, with no process spawned. Not mkdir: uutils mkdir 0.10.0 was caught
+# exiting 0 on EEXIST under contention.
+slog_lock() {
+  local slog__was=0 slog__rc=0
+  [[ $- == *C* ]] && slog__was=1
+  set -C
+  { printf '%s' "$2" >"$1"; } 2>/dev/null || slog__rc=1
+  ((slog__was)) || set +C
+  return "$slog__rc"
+}
+
+# slog_unlock <path> <token>: removes <path> only while it holds <token>.
+slog_unlock() {
+  local slog__cur=""
+  IFS= read -r slog__cur 2>/dev/null <"$1"
+  [[ "$slog__cur" == "$2" ]] && rm -f "$1" 2>/dev/null
+  return 0
+}
+
+# slog_byte_len_to <var> <string>: the string's length in bytes, not characters.
+slog_byte_len_to() {
+  local LC_ALL=C
+  printf -v "$1" '%s' "${#2}"
 }
 
 # slog_event_record_to <var> <source> <ts> <session_id> <hook_event_name>

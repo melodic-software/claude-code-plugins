@@ -22,6 +22,7 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
+# test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 
@@ -1659,6 +1660,52 @@ if grep -q 'has different titles' <<<"$out"; then
   fail "a key with one title across plugins should be silent: $out"
 else
   ok "a key carrying the same title across plugins is silent"
+fi
+
+# --- 8f. claude.ai marketplace sync limits. ---------------------------------
+reset_fixture
+write_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
+long="$(printf 'a%.0s' {1..501})"
+write_manifest longfix ''
+printf '{"name": "longfix", "version": "0.1.0", "description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
+write_manifest okfix ''
+out="$(run_fixture)"
+if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultEnabled' &&
+  grep -qE '^- .*longfix.*description is 501 characters' <<<"$out" &&
+  ! grep -qE 'okfix..claude-plugin' <<<"$out"; then
+  ok "\$schema, defaultEnabled, a description over 500 fail, and a conforming manifest passes"
+else
+  fail "claude.ai manifest limits should fail as stated: $out"
+fi
+
+# write_skill <relative-path> <content>
+write_skill() {
+  mkdir -p "$(dirname "$TMP/plugins/skfix/skills/$1")"
+  printf '%s' "$2" >"$TMP/plugins/skfix/skills/$1"
+}
+reset_fixture
+write_manifest skfix ''
+write_skill good/SKILL.md $'---\nname: good\ndescription: >-\n  Folded text, a\n  second line.\n---\nbody\n'
+write_skill angle/SKILL.md $'---\ndescription: "Use when: \'scan <X>\'."\n---\n'
+write_skill long/SKILL.md "$(printf -- '---\ndescription: %s\n---\n' "$(printf 'b%.0s' {1..1025})")"
+write_skill empty/SKILL.md $'---\nname: empty\n---\n'
+write_skill badname/SKILL.md $'---\nname: Claude_Helper\ndescription: fine\n---\n'
+write_skill good/reference/skill.md $'# Not a skill\n'
+write_skill commented/SKILL.md $'---\nname: commented-name # migration note\ndescription: | # note\n  Literal text.\n---\n'
+write_skill indented/SKILL.md $'---\ndescription: |-2\n  Indented literal.\n---\n'
+write_skill emptyblock/SKILL.md $'---\ndescription: >-2\n---\n'
+write_skill quotedcomment/SKILL.md $'---\nname: "quoted-name" # note\ndescription: "Use when X, # not a comment." # note <tag>\n---\n'
+out="$(run_fixture)"
+if grep -qE '^- .*angle.SKILL.md: skill description must not contain < or >' <<<"$out" &&
+  grep -qE '^- .*long.SKILL.md: skill description is 1025 characters' <<<"$out" &&
+  grep -qE '^- .*empty.SKILL.md: skill description must not be empty' <<<"$out" &&
+  grep -qE '^- .*badname.SKILL.md: skill name "Claude_Helper"' <<<"$out" &&
+  grep -qE '^- .*reference.skill.md: a file named SKILL.md must start with YAML frontmatter' <<<"$out" &&
+  grep -qE '^- .*emptyblock.SKILL.md: skill description must not be empty' <<<"$out" &&
+  ! grep -qE 'good.SKILL.md|commented.SKILL.md|indented.SKILL.md|quotedcomment.SKILL.md' <<<"$out"; then
+  ok "skill description, name and frontmatter limits fail per file, and a conforming skill passes"
+else
+  fail "skill limits should fail per file: $out"
 fi
 
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------

@@ -15,6 +15,7 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:audit` | Read-only findings report | Sweeps the instruction layer and ordinary markdown, classifies candidates, emits a diffable findings artifact |
 | `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings, with no blanket-approve path |
 | `/instruction-placement:check` | Deterministic pass/fail gate | Verifies every rule glob resolves and the always-loaded index is current |
+| `/instruction-placement:check-prerequisites` | Read-only report | Reports whether the tools the plugin declares in `prerequisites.json` resolve; installs nothing |
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 | `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |

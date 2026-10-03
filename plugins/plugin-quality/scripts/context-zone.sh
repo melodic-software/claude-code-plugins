@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/context-zone.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # context-zone: resolve a session's context-usage zone from its snapshot.
 #
 # Usage:

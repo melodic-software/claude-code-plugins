@@ -3,6 +3,47 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-10-03
+
+### Changed
+
+- `visualize` names `education:illustrate` for a picture explainer of a concept or codebase topic. It replaces `education:eli5`.
+
+## [0.10.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.10.0] - 2026-10-03
+
+### Added
+
+- `lib/mermaid-gate.mjs`, a script `visualize` runs: parses every Mermaid block before it is
+  emitted, names the error and line of a failing block, and pre-renders to SVG for a local page
+  when `mmdc` 11.17.0 or newer is installed. Without it the source is kept and the report gives
+  the reason. A published Artifact needs the parse only. It is a script, not a skill, so it adds
+  no always-loaded trigger.
+- `prerequisites.json` declaring `node` (required for the gate) and `mmdc` (optional, pinned
+  11.17.0), with the generated prerequisites checker in `lib/`.
+
+### Changed
+
+- `visualize` runs the gate on each mermaid block before emitting it.
+
+## [0.9.4] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.9.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.9.2] - 2026-10-02
 
 ### Fixed

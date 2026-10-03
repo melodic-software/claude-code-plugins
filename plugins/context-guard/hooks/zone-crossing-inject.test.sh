@@ -9,6 +9,7 @@
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
+# test-scope: plugins/context-guard/hooks/*
 
 set -uo pipefail
 
@@ -858,7 +859,7 @@ fi
 #    and NO jq, for the same reason A is free: the builtin parser answers the two
 #    envelope fields of an ordinary-sized payload.
 # Anything else is a regression. The count is of commands in COMMAND POSITION
-# (anchored on the xtrace depth prefix), so `command -v jq` in hook::require_jq
+# (anchored on the xtrace depth prefix), so `command -v jq` in hook::require jq
 # is correctly not counted: it is a shell builtin and spawns nothing.
 #
 # HOOK_TELEMETRY_SINK is empty, as everywhere else in this file. With a sink

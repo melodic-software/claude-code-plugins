@@ -32,7 +32,7 @@
 # command this hook cannot tokenize all ALLOW: a misplaced worktree is
 # reversible (`git worktree remove`), so blocking arbitrary Bash on a guess is
 # the worse failure. Same posture and same wrapper/segment machinery as the
-# sibling pr-body-linkage-gate; jq gate is the fail-open hook::require_jq per
+# sibling pr-body-linkage-gate; jq gate is the fail-open hook::require jq per
 # the posture doctrine in hook-utils.sh (this guard fails closed on no other
 # unparsable-input condition, so it does not join the fail-closed class).
 #
@@ -79,7 +79,7 @@ source "$HOOK_DIR/worktree-path-lib.sh"
 source "$HOOK_DIR/../scripts/worktree-root-resolve.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require_jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
+hook::require jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
 
 # ONE `jq` for the field and no `tr` behind it. The payload is fed through
 # `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook

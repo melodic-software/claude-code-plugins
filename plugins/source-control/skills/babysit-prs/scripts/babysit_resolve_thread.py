@@ -86,13 +86,14 @@ Deterministic guards encoded here:
   severity bright line -- this is still an unattended path, so "never a security or
   P1 thread" still holds. `--include-human` is refused too: widening authorship and
   dropping `isOutdated` in the same call is the combination nothing would guard.
-  `--disposition` names one of three claims and its matching evidence flag, and the
+  `--disposition` names one of four claims and its matching evidence flag, and the
   script validates the evidence AGAINST THE WORLD rather than trusting the claim:
   `fixed` + `--fix-commit <sha>` (must be reachable from the PR's head commit),
   `deferred` + `--tracker-item <id>` (must exist and be open), `incorrect` +
   `--counter-evidence <text>` (must appear in a reply already on the thread,
   posted by someone other than the thread's OPENER, so the finding's own author
-  cannot supply the words that rebut it).
+  cannot supply the words that rebut it), `linked-pr` + `--linked-pr <N>` (a
+  different PR in this repository, cited in such a reply, open or merged).
   Missing, unparsable, or unverifiable evidence REFUSES the resolve rather than
   warning: refusing leaves the thread unresolved, which is the recoverable
   direction, while a suppressed finding is not. A refusal names WHICH answer it
@@ -215,8 +216,12 @@ def resolve_thread_audit_log_path() -> Path:
     override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
     if override:
         return Path(override).expanduser()
-    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if plugin_data:
+    # Another plugin's SessionStart hook can export its own data dir into every
+    # Bash call under this name, so an inherited value counts only when its last
+    # path segment names this plugin.
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+    segment = Path(plugin_data.rstrip("/\\")).name if plugin_data else ""
+    if segment == "source-control" or segment.startswith("source-control-"):
         return Path(plugin_data) / "source-control" / "resolve-thread-audit.jsonl"
     home = os.environ.get("HOME")
     if home:
@@ -627,9 +632,11 @@ DISPOSITION_EVIDENCE: dict[str, str] = {
     "fixed": "--fix-commit",
     "deferred": "--tracker-item",
     "incorrect": "--counter-evidence",
+    "linked-pr": "--linked-pr",
 }
 
 FIX_COMMIT_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
+LINKED_PR_RE = re.compile(r"\A[1-9][0-9]*\Z")
 
 
 def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
@@ -805,6 +812,57 @@ def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool,
     return False, "refused-counter-evidence-not-found"
 
 
+def verify_linked_pr(
+    thread: dict[str, object], repo: str, linked: str
+) -> tuple[bool, str]:
+    """True when a reply on the thread cites PR `linked`, a ready same-repo PR, open or merged.
+
+    The D4.6 scope test sends an unrelated fix to its own PR, so the thread's
+    record is the citation: it must be ON the thread, in a reply by someone other
+    than the opener, the same visibility rule the `incorrect` disposition holds.
+    A PR closed without merging is the fix disappearing, as a closed tracker
+    item is for a deferral. A fork head or a draft is not a fix this repository
+    has in hand, so neither disposes of the finding.
+    """
+    qualified = re.escape(repo)
+    citation = re.compile(
+        rf"(?:(?<![\w/#])|(?<![\w./-]){qualified})#{linked}(?!\w)"
+        rf"|(?<![\w./-])(?:https?://)?(?:www\.)?github\.com/{qualified}"
+        rf"/pull/{linked}(?!\w)",
+        re.IGNORECASE,
+    )
+    replies = thread.get("replyBodies")
+    if not (
+        isinstance(replies, list)
+        and any(isinstance(body, str) and citation.search(body) for body in replies)
+    ):
+        return False, "refused-linked-pr-not-cited"
+    proc = gh_capture(["api", f"repos/{repo}/pulls/{linked}"])
+    if proc.returncode != 0:
+        return False, (
+            "refused-linked-pr-not-found"
+            if gh_http_status(proc) == 404
+            else "refused-evidence-unverifiable"
+        )
+    try:
+        payload = json.loads(proc.stdout or "null")
+    except json.JSONDecodeError:
+        return False, "refused-evidence-unverifiable"
+    state = dig(payload, "state")
+    if not (state == "open" or dig(payload, "merged") is True):
+        return False, (
+            "refused-linked-pr-closed"
+            if state == "closed"
+            else "refused-evidence-unverifiable"
+        )
+    head_repo = dig(payload, "head", "repo", "full_name")
+    if not isinstance(head_repo, str) or head_repo.casefold() != repo.casefold():
+        return False, "refused-linked-pr-fork"
+    if dig(payload, "draft") is not False:
+        return False, "refused-linked-pr-draft"
+    return True, ""
+
+
 def verify_disposition(
     thread: dict[str, object],
     *,
@@ -814,6 +872,7 @@ def verify_disposition(
     fix_commit: str | None,
     tracker_item: str | None,
     counter_evidence: str | None,
+    linked_pr: str | None = None,
 ) -> tuple[bool, str]:
     """Dispatch to the validator for the claimed disposition.
 
@@ -828,6 +887,8 @@ def verify_disposition(
         return verify_tracker_item(repo, str(tracker_item))
     if disposition == "incorrect":
         return verify_counter_evidence(thread, str(counter_evidence))
+    if disposition == "linked-pr" and linked_pr is not None:
+        return verify_linked_pr(thread, repo, linked_pr.strip())
     return False, "refused-evidence-unverifiable"
 
 
@@ -875,9 +936,18 @@ def main() -> int:
         default=None,
         help=(
             "the claim being made about the finding, for --independent-resolver: "
-            "fixed (--fix-commit), deferred (--tracker-item), or incorrect "
-            "(--counter-evidence). The script validates the evidence against the "
-            "world, not the claim"
+            "fixed (--fix-commit), deferred (--tracker-item), incorrect "
+            "(--counter-evidence), or linked-pr (--linked-pr). The script "
+            "validates the evidence against the world, not the claim"
+        ),
+    )
+    parser.add_argument(
+        "--linked-pr",
+        default=None,
+        help=(
+            "evidence for --disposition linked-pr: the number of the separate PR "
+            "in this repository that carries the fix, which a reply on the thread "
+            "must cite and which must be open or merged"
         ),
     )
     parser.add_argument(
@@ -1018,6 +1088,7 @@ def main() -> int:
         "--fix-commit": args.fix_commit,
         "--tracker-item": args.tracker_item,
         "--counter-evidence": args.counter_evidence,
+        "--linked-pr": args.linked_pr,
     }
 
     if not args.independent_resolver:
@@ -1096,6 +1167,17 @@ def main() -> int:
                 f"--tracker-item {args.tracker_item!r} is not owner/repo#N, #N, "
                 "or N; an unparsable item id is refused, never looked up"
             )
+        if args.linked_pr is not None:
+            if not LINKED_PR_RE.match(args.linked_pr.strip()):
+                return _refuse(
+                    f"--linked-pr {args.linked_pr!r} is not a PR number; an "
+                    "unparsable number is refused, never looked up"
+                )
+            if int(args.linked_pr.strip()) == number:
+                return _refuse(
+                    f"--linked-pr {args.linked_pr!r} names the PR under review; "
+                    "a fix in this PR is the fixed disposition (--fix-commit)"
+                )
 
     if args.resolve and args.autonomous and not args.thread_id:
         return _refuse(
@@ -1256,6 +1338,7 @@ def main() -> int:
                 fix_commit=args.fix_commit,
                 tracker_item=args.tracker_item,
                 counter_evidence=args.counter_evidence,
+                linked_pr=args.linked_pr,
             )
             if verified:
                 evidence_refusal = ""

@@ -5,10 +5,10 @@
       "id": 1,
       "name": "preflight-reports-before-spending",
       "prompt": "/evals:plugin-eval preflight plugins/evals",
-      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, platform, sandbox_backend, target_type: plugin, suite_tools, estimate_usd, and ceiling, then stops. No claude plugin eval invocation happens during a preflight.",
+      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, and ceiling, in that order, then stops. No claude plugin eval invocation happens during a preflight.",
       "narration": true,
       "expectations": [
-        "Every preflight field is printed, including sandbox_backend and estimate_usd",
+        "Every preflight field is printed in order, including sandbox_backend, same_model, and estimate_usd",
         "cli_version comes from reading claude --version rather than being asserted",
         "target_type is reported as plugin for a directory holding a plugin manifest and an eval dir",
         "No eval run is launched and no cost is incurred by the preflight action"
@@ -116,6 +116,30 @@
         "Triggers without the user typing /evals:plugin-eval",
         "Starts from preflight and the cost estimate rather than invoking the CLI immediately",
         "Frames the answer as the ablation delta rather than an absolute score"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "same-model-judge-warned-not-blocked",
+      "prompt": "/evals:plugin-eval preflight plugins/evals. I'll run it with --model haiku --judge-model haiku to keep it cheap.",
+      "expected_output": "Reports same_model: yes with both models named, prints the warning that the judge is the model under test and suggests a different --judge-model, and does not refuse or stop the run because of it.",
+      "narration": true,
+      "expectations": [
+        "The same_model field reads yes and names haiku as both the tested and the judge model",
+        "The warning line suggests passing a different --judge-model",
+        "The warning does not block or refuse the run"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "small-gain-read-through-noise-report",
+      "prompt": "/evals:plugin-eval read results.json. Four cases, partial is false, every run is clean, and the mean delta is +0.05 with the without-arm mean at 0.95. Ship it?",
+      "expected_output": "Runs scripts/noise-report.py over results.json with the run's threshold, the interval_method setting, and --grader-agreement when grader_run_twice is on, then reads its lines: the gain is not established while the verdict is within noise or n too small to call, the near-ceiling line means the baseline leaves no headroom, and cost is reported beside the scores.",
+      "expectations": [
+        "Runs the noise report script rather than computing an interval by hand",
+        "Does not call the +0.05 delta an improvement while the verdict is within noise or n too small to call",
+        "Names the near-ceiling baseline as leaving no headroom",
+        "Reports cost beside the scores"
       ]
     }
   ]

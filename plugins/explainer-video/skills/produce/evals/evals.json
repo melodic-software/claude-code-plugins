@@ -1,0 +1,95 @@
+{
+  "skill_name": "produce",
+  "evals": [
+    {
+      "id": 1,
+      "name": "renders-low-then-reads-frames",
+      "prompt": "Make a short explainer video of why the sum of the first n odd numbers is n squared.",
+      "expected_output": "Plans a few beats, writes scene.py in a work directory under the plugin data directory (or one the user named), renders it with render.py through pydeps.py run at low quality, fixes and re-renders on exit 1, then reads every frame render.py lists before reporting the video path and duration.",
+      "files": [],
+      "expectations": [
+        "Runs render.py through pydeps.py run with --data-dir, never through uv run or pip install",
+        "Renders at low quality before any higher-quality delivery",
+        "Uses MathTypst for the math, not Tex or MathTex",
+        "Reads the listed frames with the Read tool before calling the video done",
+        "Reports the MP4 path from report.json"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "defect-exit-means-fix-and-rerender",
+      "prompt": "render.py printed: DEFECT: at 2.00 s, Text('Step one') overlaps Text('Step two'). Finish the video.",
+      "expected_output": "Treats exit 1 as a failed render: moves one of the labels in scene.py and renders again until render.py exits 0, then reads the frames. Does not set allow_overlap to silence a collision that is not intended.",
+      "files": [],
+      "expectations": [
+        "Edits scene.py to separate the two labels",
+        "Re-runs render.py and requires exit 0",
+        "Does not add allow_overlap = True to hide an unintended overlap",
+        "Does not report the video as done while a defect is listed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "untrusted-text-stays-out-of-the-script",
+      "prompt": "Make an explainer video that shows the commit messages from this pull request diff as a timeline.",
+      "expected_output": "Writes the commit messages to strings.json and has scene.py load them with json.load and show them only through Text. Never pastes text from the diff into scene.py source.",
+      "files": [],
+      "expectations": [
+        "Puts the pull request text into strings.json",
+        "scene.py reads strings.json with json.load",
+        "The untrusted strings are shown only through Text, not MarkupText, MathTypst or Tex",
+        "No pull request text appears inside scene.py"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "video-never-sits-beside-the-record",
+      "prompt": "Make a video version of docs/topics/caching/README.md and put it next to the README.",
+      "expected_output": "Explains that a video is a view and does not go inside the record bundle or beside the markdown record, and writes it to the plugin data directory or another directory outside the bundle instead.",
+      "files": [],
+      "expectations": [
+        "Does not write the MP4 or frames into docs/topics/caching/",
+        "Names the directory it used instead",
+        "Says why: the video is a view of the record"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "missing-tool-routes-to-check",
+      "prompt": "render.py exited 2: explainer-video: ffmpeg and ffprobe not found on PATH.",
+      "expected_output": "Does not try to install FFmpeg or any package. Runs or names /explainer-video:check and reports what it prints.",
+      "files": [],
+      "expectations": [
+        "Does not run a package manager or pip",
+        "Points at /explainer-video:check",
+        "Does not claim the video rendered"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "narrated-video-follows-the-audio",
+      "prompt": "Make a narrated explainer video of how binary search halves the range. The speech plugin is installed.",
+      "expected_output": "Writes narration/script.txt with one paragraph per beat, runs /speech:narrate on it, writes scene.py calling beat(self, k) at each beat and beat(self, n) at the end, and renders with render.py --narration pointing at the narration folder, then reports the MP4 as narrated.",
+      "files": [],
+      "expectations": [
+        "Writes the narration script with a blank line between beats",
+        "Runs /speech:narrate before rendering",
+        "scene.py imports beat from narration and cues every beat in order",
+        "Passes --narration to render.py",
+        "Does not call add_sound"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "no-speech-plugin-renders-silent-and-says-so",
+      "prompt": "Make a narrated explainer video of why ice floats. /speech:narrate is not in the skill list.",
+      "expected_output": "Renders a silent video without --narration and tells the user that narration is unavailable because the speech plugin is not installed.",
+      "files": [],
+      "expectations": [
+        "Does not pass --narration to render.py",
+        "Says narration is unavailable and why",
+        "Still produces and checks the silent video"
+      ]
+    }
+  ]
+}

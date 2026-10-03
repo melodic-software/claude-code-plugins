@@ -45,7 +45,7 @@ so proposals citing them carry no model condition.
   [capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
   (the rendered page gives this heading the id `capability-improvements`) and
   [unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs).
-- **As of**: 2026-09-23 (our probe: the subpage's raw `.md`, 28,311 bytes; no artifact stored).
+- **As of**: 2026-10-02, moved (our probe: the subpage's raw `.md`, 28,499 bytes; no artifact stored).
   Both anchors re-matched against the rendered page on 2026-10-01.
 - **Recheck trigger**: a cited heading disappears from either page.
 

@@ -1,8 +1,9 @@
 # visualization
 
-A Claude Code plugin for on-demand visualization. One skill, one job: at any point
+A Claude Code plugin for on-demand visualization. `visualize` has one job: at any point
 in a conversation, decide **what** is most worth showing visually and **how** to
 show it, then render it. It is a form-and-medium router, not a craft teacher.
+`lib/mermaid-gate.mjs` parses the mermaid it emits; other plugins' mermaid-emitting skills run their own copy.
 
 | Skill | What it does |
 |---|---|

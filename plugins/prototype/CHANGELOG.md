@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.10] - 2026-10-03
+
+### Changed
+
+- `scripts/allowed-tools-pairing.test.sh`, `skills/explore-directions/scripts/detect-ecosystems.test.sh`, and `skills/pressure-test/scripts/detect-ecosystems.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.13.9] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.13.8] - 2026-10-02
 
 ### Fixed

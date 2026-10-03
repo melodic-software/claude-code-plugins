@@ -187,6 +187,33 @@ renderer can be embedded, deliver the mermaid **source** fence in the terminal a
 say it is unrendered. Never open a page that shows source instead of the promised
 picture.
 
+Parse every mermaid block before it is emitted, whatever the medium. Write each diagram to a
+`.mmd` file (or use the markdown file holding the ` ```mermaid ` fence) and run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/mermaid-gate.mjs" [--svg-dir "<dir>"] <file>...
+```
+
+Stdout is one JSON report; each block has `file`, `line`, `status` (`ok` or `error`) and `render`
+(`svg` or `source`). Exit 1 means a block failed to parse. For a local file, pass `--svg-dir` and
+embed the SVG a block names in place of the fence. For an Artifact, omit `--svg-dir`: the Artifact
+renders mermaid natively and needs the parse only.
+
+- `status: error`: do not write the page. Report the block's `file`, `line` and `error`, fix the
+  diagram, run the gate again.
+- `render: source`: keep the mermaid source and print the block's `reason` beside it. Never call
+  such a page rendered.
+- Without `mmdc` the parse is a structural check (unknown diagram type, unterminated quote,
+  unbalanced flowchart brackets), so say an `ok` does not prove every syntax error is absent.
+- The gate uses `mmdc` only at the minimum version in `prerequisites.json` or newer, found on PATH
+  or at `node_modules/.bin/mmdc` under the working directory. An older one is treated as absent.
+  A failure that is not a parse error (no Chrome) falls back to source with the failure as the
+  reason. Pointer: <https://github.com/mermaid-js/mermaid-cli/releases>. As of 2026-10-03.
+  Recheck when the Artifact runtime's Mermaid version (see `context/decision-matrix.md`) moves to
+  a different major.
+- Check the prerequisites with
+  `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
+
 Honor a preference without overproducing: `artifact` still renders a trivial
 three-row table inline, and `terminal` degrades a rich form to its best terminal
 approximation with a visible note rather than dropping detail silently.
@@ -255,8 +282,8 @@ An **interactive parameter explorer whose output returns as a prompt** (controls
 beside a live preview with a copy-out prompt, the "playground" shape) is not a form
 this skill renders. When the first-party `playground` plugin is installed, route the
 request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use`
-when that wrapper is installed, which also owns the install uplift and cloud delivery
-guidance. When neither is installed, say the capability exists as an installable
+when that wrapper is enabled, which also owns the install uplift and cloud delivery
+guidance. When neither is enabled, say the capability exists as an installable
 plugin and continue with this skill's closest static form (a rich page without the
 round-trip controls), never a hand-built imitation of the explorer.
 
@@ -321,6 +348,6 @@ report the refusal and never retry around it. The four-part records live in
 - **Does not teach artifact-design fundamentals**. Those route to an artifact-design capability and the Artifact tool's contract.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
-- **Does not explain a topic from zero prior knowledge**. A one-idea-per-diagram picture explainer that assumes the reader knows nothing is `education:eli5` (if installed). This skill picks a form for what is already in the conversation.
+- **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.

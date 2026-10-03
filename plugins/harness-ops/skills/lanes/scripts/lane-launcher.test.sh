@@ -11,6 +11,8 @@
 #   - stop (real dispatch, PATH-stub claude): stops only running configured lanes
 #   - stop / restart of an unknown lane name is rejected (exit 3)
 #   - missing / empty prompt file and invalid effort are skipped, not launched
+#   - a lane with no effort is refused while its siblings launch
+#   - CLAUDE_CODE_EFFORT_LEVEL in the environment warns once per run
 #
 # Uses a per-suite fixture repo (config + prompt files) and PATH-stub `claude`
 # and `git` so no real CLI or network is touched.
@@ -21,6 +23,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/lane-launcher.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# A case that passes no --data-dir writes its launch-commit marker to the inherited
+# data dir. Pin that to the sandbox, named for the plugin so the launcher accepts it,
+# so no case writes into the caller's real plugin data.
+export CLAUDE_PLUGIN_DATA="$TMP/harness-ops-test-data"
 
 FAILED=0
 CASE_NUM=0
@@ -48,7 +54,7 @@ cat >"$REPO/.work/lanes/lanes.json" <<'JSON'
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
     { "name": "babysit", "prompt": "babysit.md", "model": "opus",   "effort": "medium",
       "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": { "lane_stop_gate_enabled": true } } } } },
-    { "name": "decide",  "prompt": "decide.md" }
+    { "name": "decide",  "prompt": "decide.md",                    "effort": "high" }
   ]
 }
 JSON
@@ -162,6 +168,8 @@ chmod +x "$ARM_STUB"
 # inspect the log reset it first. Real git is never needed — repos are passed
 # via --repo, so resolve_repo never shells out.
 export PATH="$STUB_BIN:$PATH"
+# An ambient value would add the override warning to every start/restart below.
+unset CLAUDE_CODE_EFFORT_LEVEL
 
 # Launch-commit markers are namespaced by repo (#792): the data dir is
 # plugin-wide, but `work` is a conventional lane name in every repo. Mirrors the
@@ -224,7 +232,7 @@ done
 
 # …but a name with any other punctuation stays free-form and is accepted.
 cat >"$TMP/ok-name.json" <<'JSON'
-{ "lanes": [ { "name": "work.2 (alt)", "prompt": "work.md" } ] }
+{ "lanes": [ { "name": "work.2 (alt)", "prompt": "work.md", "effort": "high" } ] }
 JSON
 out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 rc=$?
@@ -284,7 +292,7 @@ assert_eq "a failed lane field typing validation query exits 3" 3 "$rc"
 assert_contains "a failed lane field typing validation query is named in the message" "$out" "validation query failed (lane field typing)"
 
 # `null` remains the JSON spelling of "no value" and stays equivalent to absent.
-jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
+jq -n '{lanes: [{name: "work", prompt: "work.md", model: null, effort: "high"}]}' >"$TMP/nullmodel.json"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 rc=$?
 assert_eq "a null scalar field is treated as absent" 0 "$rc"
@@ -312,7 +320,7 @@ assert_contains "start mirrors babysit model" "$out" "-n babysit --permission-mo
 assert_contains "start mirrors babysit effort" "$out" "--effort medium"
 assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
 assert_not_contains "start hides prompt body" "$out" "You are the babysit lane"
-assert_contains "start launches decide (no model/effort)" "$out" "claude --bg -n decide"
+assert_contains "start launches decide (no model)" "$out" "claude --bg -n decide"
 assert_not_contains "decide has no model flag" "$out" "-n decide --model"
 assert_contains "start passes babysit settings inline" "$out" "--settings"
 assert_contains "start settings carry the lane config object" "$out" "lane_stop_gate_enabled"
@@ -323,8 +331,8 @@ cat >"$TMP/badsettings.json" <<'JSON'
 {
   "prompt_dir": ".work/lanes",
   "lanes": [
-    { "name": "work",   "prompt": "work.md", "settings": "not-an-object" },
-    { "name": "decide", "prompt": "decide.md" }
+    { "name": "work",   "prompt": "work.md", "effort": "high", "settings": "not-an-object" },
+    { "name": "decide", "prompt": "decide.md", "effort": "high" }
   ]
 }
 JSON
@@ -343,8 +351,8 @@ cat >"$TMP/falsesettings.json" <<'JSON'
 {
   "prompt_dir": ".work/lanes",
   "lanes": [
-    { "name": "work",   "prompt": "work.md", "settings": false },
-    { "name": "decide", "prompt": "decide.md" }
+    { "name": "work",   "prompt": "work.md", "effort": "high", "settings": false },
+    { "name": "decide", "prompt": "decide.md", "effort": "high" }
   ]
 }
 JSON
@@ -358,7 +366,7 @@ assert_eq "settings:false surfaces a non-zero exit" 1 "$rcfalse"
 # `null` stays the JSON spelling of "no value": the lane launches, without
 # --settings, rather than being skipped as mistyped.
 cat >"$TMP/nullsettings.json" <<'JSON'
-{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md", "settings": null } ] }
+{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high", "settings": null } ] }
 JSON
 outnull="$(run_launcher start --repo "$REPO" --config "$TMP/nullsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 rcnull=$?
@@ -433,6 +441,50 @@ assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
 assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --permission-mode auto --effort ultracode"
+
+# ============================================================================
+# a lane with no effort is refused, never launched at the default; its siblings
+# still launch, and restart refuses it before stopping the running session
+# ============================================================================
+cat >"$TMP/noeffort.json" <<'JSON'
+{ "prompt_dir": ".work/lanes",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md" },
+    { "name": "decide", "prompt": "decide.md", "effort": "high" }
+  ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/noeffort.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "no-effort lane: the sweep exits non-zero" 1 "$rc"
+assert_contains "no-effort lane: the refusal names the lane" "$out" "lane 'work': no effort set"
+assert_contains "no-effort lane: the refusal names the config key" "$out" "lanes[].effort"
+assert_contains "no-effort lane: the refusal names the effort table" "$out" '"Choose an effort level" table'
+assert_not_contains "no-effort lane: no claude launch is recorded for it" "$log" "--bg -n work"
+assert_contains "no-effort lane: a sibling with effort still launches" "$log" "--bg -n decide --permission-mode auto --effort high"
+
+jq -n '{lanes: [{name: "work", prompt: "work.md", effort: null}]}' >"$TMP/nulleffort.json"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/nulleffort.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+assert_contains "no-effort lane: an explicit null effort is refused too" "$out" "lane 'work': no effort set"
+assert_not_contains "no-effort lane: a null-effort lane is not previewed" "$out" "claude --bg -n work"
+
+: >"$CLAUDE_LOG"
+out="$(run_launcher restart work --repo "$REPO" --config "$TMP/noeffort.json" --agents-json "$AGENTS_RUNNING" --no-pull --no-update 2>&1)"
+assert_contains "no-effort lane: restart refuses it" "$out" "lane 'work': no effort set"
+assert_not_contains "no-effort lane: restart leaves the running session up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
+
+# ============================================================================
+# CLAUDE_CODE_EFFORT_LEVEL may override every lane's --effort: one warning per run
+# ============================================================================
+out="$(CLAUDE_CODE_EFFORT_LEVEL=low run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+assert_eq "CLAUDE_CODE_EFFORT_LEVEL: start warns once across three lanes" 1 "$(grep -c 'CLAUDE_CODE_EFFORT_LEVEL=low is set' <<<"$out")"
+assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the warning says lane levels and agent pins may not hold" "$out" "may override lane --effort values and agent effort pins"
+assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the lanes still launch" "$out" "claude --bg -n decide --permission-mode auto --effort high"
+out="$(CLAUDE_CODE_EFFORT_LEVEL=low run_launcher restart --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run --no-pull --no-update 2>&1)"
+assert_eq "CLAUDE_CODE_EFFORT_LEVEL: restart warns once" 1 "$(grep -c 'CLAUDE_CODE_EFFORT_LEVEL=low is set' <<<"$out")"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+assert_not_contains "CLAUDE_CODE_EFFORT_LEVEL: no warning when the variable is unset" "$out" "CLAUDE_CODE_EFFORT_LEVEL"
 
 # ============================================================================
 # ultracode version gate — below the floor the lane is skipped, and a restart
@@ -748,10 +800,18 @@ out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config 
 marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
-DATA_DIR6="$TMP/data6"
+DATA_DIR6="$TMP/harness-ops-data6"
 out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA; the marker must never land there.
+FOREIGN7="$TMP/codex-openai-codex"
+out="$(HOME="$TMP/home7" CLAUDE_PLUGIN_DATA="$FOREIGN7" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA gets no marker" "absent" "$([[ -e "$FOREIGN7" ]] && echo present || echo absent)"
+marker="$(cat "$TMP/home7/.claude/plugins/data/harness-ops/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # The data dir is plugin-wide, so a second repo running the same conventional
 # lane name must not overwrite the first repo's marker.
@@ -805,7 +865,7 @@ if "$REAL_GIT" init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
   mkdir -p "$SHA256_REPO/.work/lanes"
   cp "$REPO/.work/lanes/work.md" "$SHA256_REPO/.work/lanes/"
   cat >"$SHA256_REPO/.work/lanes/lanes.json" <<'JSON'
-{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high" } ] }
 JSON
   DATA_DIR9="$TMP/data9"
   out="$(run_launcher start --repo "$SHA256_REPO" --config "$SHA256_REPO/.work/lanes/lanes.json" \
@@ -854,7 +914,7 @@ assert_eq "arm: only the gate-requesting lane arms (one helper call)" 1 "$gate_c
 # The lane's sentinel/marker settings ride into the arm call.
 cat >"$TMP/gateopts.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
-  "lanes": [ { "name": "work", "prompt": "work.md",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true,
       "lane_stop_gate_sentinel": "DONE-X",
@@ -879,7 +939,7 @@ assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker 
 # sentinel — so an empty sentinel is still treated as absent.
 cat >"$TMP/gate-empty-marker.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
-  "lanes": [ { "name": "work", "prompt": "work.md",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true,
       "lane_stop_gate_sentinel": "",
@@ -896,7 +956,7 @@ assert_not_contains "arm: an explicitly empty sentinel is still treated as absen
 # reaches user settings for it.
 cat >"$TMP/gate-no-opts.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
-  "lanes": [ { "name": "work", "prompt": "work.md",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true } } } } } ] }
 JSON
@@ -920,7 +980,7 @@ assert_not_contains "arm: an unset sentinel passes no --sentinel" "$armlog" "--s
 # nothing.
 cat >"$TMP/gate-multi.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
-  "lanes": [ { "name": "work", "prompt": "work.md",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
     "settings": { "pluginConfigs": {
       "autonomy@a": { "options": {
         "lane_stop_gate_enabled": true,
@@ -979,7 +1039,7 @@ assert_eq "arm: dry-run does not run the helper" 0 "$armran"
 # take the session down. No --gate-arm-script → no helper discoverable.
 cat >"$TMP/gate-work.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
-  "lanes": [ { "name": "work", "prompt": "work.md",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true } } } } } ] }
 JSON
@@ -1036,7 +1096,7 @@ assert_not_contains "arm: a partially-armed lane is NOT launched" "$log" "--bg -
 HOME_REPO="$TMP/home-repo"
 mkdir -p "$HOME_REPO/.work/lanes"
 cat >"$HOME_REPO/.work/lanes/lanes.json" <<'JSON'
-{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus" } ] }
+{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus", "effort": "high" } ] }
 JSON
 printf 'You are the work lane.\n' >"$HOME_REPO/.work/lanes/work.md"
 : >"$CLAUDE_LOG"
@@ -1051,7 +1111,7 @@ assert_not_contains "the lanes/ home emits no deprecation warning" "$out" "pre-m
 OLD_REPO="$TMP/old-repo"
 mkdir -p "$OLD_REPO/.work"
 cat >"$OLD_REPO/.work/lanes.json" <<'JSON'
-{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus" } ] }
+{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus", "effort": "high" } ] }
 JSON
 printf 'You are the work lane.\n' >"$OLD_REPO/.work/work.md"
 out="$(run_launcher start --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-old" --dry-run 2>&1)"
@@ -1067,7 +1127,7 @@ cat >"$BOTH_REPO/.work/lanes.json" <<'JSON'
 { "lanes": [ { "name": "stale", "prompt": "stale.md" } ] }
 JSON
 cat >"$BOTH_REPO/.work/lanes/lanes.json" <<'JSON'
-{ "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+{ "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high" } ] }
 JSON
 printf 'You are the work lane.\n' >"$BOTH_REPO/.work/lanes/work.md"
 printf 'stale\n' >"$BOTH_REPO/.work/stale.md"

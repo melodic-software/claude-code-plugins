@@ -1,0 +1,118 @@
+{
+  "schema": "audit-sessions.sweep-rules/v1",
+  "basis": "Thresholds are the per-session p90 of a 90-session spike on one machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. A null threshold reports the metric without a finding.",
+  "verified": "2026-10-02",
+  "recheck": "a Claude Code release changes a canary-fed metric, or the store's own p90 for a metric moves past its threshold by half",
+  "rules": [
+    {
+      "metric": "tokens.main",
+      "lens": "cost",
+      "unit": "tokens",
+      "threshold": 205212,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
+      "confidence": "measured",
+      "basis": "main-session output tokens per session; spike median 72738, p90 205212"
+    },
+    {
+      "metric": "tokens.sub",
+      "lens": "cost",
+      "unit": "tokens",
+      "threshold": 72347,
+      "route": "retro-codify",
+      "suggested_skill": "/harness-ops:observability",
+      "confidence": "measured",
+      "basis": "subagent output tokens per session; spike median 7467, p90 72347"
+    },
+    {
+      "metric": "cache.missed_input_tokens",
+      "lens": "cache",
+      "unit": "tokens",
+      "threshold": 272137,
+      "route": "config-change",
+      "suggested_skill": "/harness-ops:observability",
+      "confidence": "measured",
+      "basis": "input tokens re-sent after a reported cache miss per session; spike median 0, p90 272137, 18 of 90 sessions nonzero"
+    },
+    {
+      "metric": "cache.write_5m_share",
+      "lens": "cache",
+      "unit": "ratio",
+      "threshold": null,
+      "route": null,
+      "suggested_skill": null,
+      "confidence": "measured",
+      "basis": "share of cache-write tokens at the 5-minute TTL, machine-wide; spike 0.84 (subagents about 1.0, main about 0); no per-session spread to set a threshold from"
+    },
+    {
+      "metric": "time.active_s",
+      "lens": "context",
+      "unit": "s",
+      "threshold": 26064,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
+      "confidence": "measured",
+      "basis": "active seconds per session; spike median 0.76 h, p90 7.24 h"
+    },
+    {
+      "metric": "context.clear_commands",
+      "lens": "context",
+      "unit": "count",
+      "threshold": null,
+      "route": null,
+      "suggested_skill": null,
+      "confidence": "measured",
+      "basis": "/clear commands per session; spike p90 1, max 1, 33 of 90 sessions start with /clear as the handoff routine, so a threshold would flag normal use"
+    },
+    {
+      "metric": "human.turns",
+      "lens": "interruption",
+      "unit": "count",
+      "threshold": 14,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
+      "confidence": "heuristic",
+      "basis": "typed human turns per session; spike median 3, p90 14"
+    },
+    {
+      "metric": "tools.interrupts",
+      "lens": "interruption",
+      "unit": "count",
+      "threshold": 0,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
+      "confidence": "measured",
+      "basis": "main-session interrupts per session; spike median 0, p90 0, max 2, 3 of 90 sessions nonzero"
+    },
+    {
+      "metric": "tools.denials",
+      "lens": "permission",
+      "unit": "count",
+      "threshold": 27,
+      "route": "config-change",
+      "suggested_skill": "/fewer-permission-prompts",
+      "confidence": "measured",
+      "basis": "tool denials per session; spike median 3, p90 27"
+    },
+    {
+      "metric": "subagents.count",
+      "lens": "delegation",
+      "unit": "count",
+      "threshold": 33,
+      "route": "unhobble-experiment",
+      "suggested_skill": "/harness-config:unhobble",
+      "confidence": "measured",
+      "basis": "subagents spawned per session; spike median 6, p90 33"
+    },
+    {
+      "metric": "hooks.stop_ms",
+      "lens": "hooks",
+      "unit": "ms",
+      "threshold": 645,
+      "route": "config-change",
+      "suggested_skill": "/harness-ops:audit-performance",
+      "confidence": "measured",
+      "basis": "a session's p90 stop-hook run time; spike median 211 ms, p90 645 ms"
+    }
+  ]
+}

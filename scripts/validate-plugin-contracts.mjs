@@ -1366,6 +1366,71 @@ if (existsSync(marketplacePath)) {
   }
 }
 
+// claude.ai marketplace sync limits. plugin.json: description at most 500
+// characters; `$schema` and `defaultEnabled` are stripped with a warning (the
+// marketplace entry carries defaultEnabled). Skills follow the Agent Skills spec
+// (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview):
+// claude.ai reads every file named SKILL.md in any case, at any depth, as a
+// skill, so each must open with frontmatter whose description is 1-1024
+// characters with no XML tags and whose name, if set, is at most 64 lowercase
+// letters, digits and hyphens.
+const PLUGIN_DESCRIPTION_MAX = 500;
+const SKILL_DESCRIPTION_MAX = 1024;
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  for (const key of ["$schema", "defaultEnabled"]) {
+    if (key in manifest) fail(path, `must not set ${key} (claude.ai marketplace sync strips it)`);
+  }
+  const length = [...(manifest.description ?? "")].length;
+  if (length > PLUGIN_DESCRIPTION_MAX) {
+    fail(path, `description is ${length} characters, over claude.ai's ${PLUGIN_DESCRIPTION_MAX}`);
+  }
+}
+
+// Top-level frontmatter scalar: plain, quoted, or a | / > block scalar.
+function frontmatterScalar(frontmatter, key) {
+  const lines = frontmatter.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith(`${key}:`));
+  if (start === -1) return undefined;
+  const raw = lines[start].slice(key.length + 1).trim();
+  // A comment starts at a # preceded by whitespace, outside a quoted scalar.
+  const quoted = raw.match(/^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')(?:\s+#.*)?$/);
+  const head = quoted ? quoted[1] : /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
+  const rest = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line !== "" && !/^\s/.test(line)) break;
+    rest.push(line.trim());
+  }
+  // Block scalar header: indicator, then an optional indentation digit and chomping sign in either order.
+  if (/^[|>](?:[1-9][+-]?|[+-][1-9]?)?$/.test(head)) return rest.join(head[0] === ">" ? " " : "\n").trim();
+  const value = [head, ...rest].filter(Boolean).join(" ");
+  if (/^".*"$/.test(value)) return JSON.parse(value);
+  if (/^'.*'$/.test(value)) return value.slice(1, -1).replace(/''/g, "'");
+  return value;
+}
+
+for (const path of pluginFiles) {
+  const parts = pluginPathParts(path);
+  if (parts[1] !== "skills" || parts.at(-1).toLowerCase() !== "skill.md") continue;
+  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+  if (frontmatter === undefined) {
+    fail(path, "a file named SKILL.md must start with YAML frontmatter (claude.ai reads it as a skill)");
+    continue;
+  }
+  const description = frontmatterScalar(frontmatter, "description") ?? "";
+  const length = [...description].length;
+  if (length === 0) fail(path, "skill description must not be empty");
+  if (length > SKILL_DESCRIPTION_MAX) {
+    fail(path, `skill description is ${length} characters, over the ${SKILL_DESCRIPTION_MAX} maximum`);
+  }
+  if (/[<>]/.test(description)) fail(path, "skill description must not contain < or > (XML tags)");
+  const name = frontmatterScalar(frontmatter, "name");
+  if (name !== undefined && (!/^[a-z0-9-]{1,64}$/.test(name) || /anthropic|claude/.test(name))) {
+    fail(path, `skill name "${name}" must be 1-64 lowercase letters, digits and hyphens without "anthropic" or "claude"`);
+  }
+}
+
 for (const warning of warnings) console.error(`warning: ${warning}`);
 
 if (failures.length > 0) {

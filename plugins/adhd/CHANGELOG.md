@@ -3,6 +3,19 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-10-03
+
+### Changed
+
+- `clarify` routes a picture request ("ELI5", "draw me this") to `education:illustrate`, which replaces `education:eli5`.
+
+## [0.5.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.5.4] - 2026-10-02
 
 ### Fixed

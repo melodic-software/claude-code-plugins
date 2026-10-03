@@ -697,6 +697,17 @@ gate itself rather than an interpreter wrapping it:
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <slice> --expect-evidence-use <mode>
 ```
 
+Run each gate as one plain command, one Bash call per gate. Pass the slice or ledger
+path as an argument and stop there: no `; echo exit=$?`, no `for` loop, and no `&&`
+chain. The tool result already carries a non-zero exit. A worktree-isolated session
+refused a compound command whose words included a slice path ending in `git`, and
+allowed the same path as one plain command. The side-effect-free `--help` probes in
+"Pre-flight" stay chained; they take no slice path.
+
+- **Pointer**: when a worktree-isolated Bash command is refused, fetch <https://code.claude.com/docs/en/worktrees> (isolation, command shape) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
+- **As of**: 2026-10-03
+- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in `/discovery:research-deep`.
+
 The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
 `python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
 from any open lane; a session that can run no Python interpreter halts on criterion 13.
@@ -877,7 +888,7 @@ write `general-purpose` as the worker.
 
 | Value | State | Meaning |
 |---|---|---|
-| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. |
+| `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. A pass keeps each claim's `single source` flag: the parent presents the flag with the claim and carries it into any record an edit rests on. |
 | `fail rows <n>[,<n>…] (research-verifier, <date>)` | `fail` | The verifier failed those rows, named as it returned them. `explore` and `trace-intent` have no rows: they write `fail (general-purpose, <date>)` and the failed claims stay in the verifier's return. |
 | `skipped (cost)` | outside the shape | Research only. The parent chose not to pay for a verifier: no worker, no date. |
 | `unverified (none, <date>)` | `unverified` | No verifier could be dispatched, in all three families. The index carries a numbered gap. |

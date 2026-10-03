@@ -3,6 +3,57 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-10-03
+
+### Changed
+
+- `scripts/allowed-tools-pairing.test.sh` and `tests/drift-audit.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.4.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/multi-agent:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+## [0.3.3] - 2026-10-02
+
+### Changed
+
+- **Shared `config-root.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.3.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`, and its description is shortened to fit claude.ai's
+  500-character limit. claude.ai's marketplace sync stripped `$schema` with a warning.
+
+## [0.3.0] - 2026-10-02
+
+### Added
+
+- **`/multi-agent:check`**, a read-only check that reports whether `node` resolves, whether
+  `hooks/hooks.json` registers the `drift-checker` fetch gate on `WebFetch`, and whether the gate
+  denies a sample off-host drift-checker fetch, through its bundled `scripts/check.sh`. The
+  registration row requires one `PreToolUse` entry to carry the matcher, command and script
+  together when `node` resolves. The script takes no arguments, and the skill installs nothing. `prerequisites.json` declares
+  `node` with this skill as its check.
+
+### Changed
+
+- **The README states that the fetch gate fails open without `node`**: the hook cannot start,
+  Claude Code shows a non-blocking hook error notice, and the drift checker's fetches are held to
+  first-party docs hosts only by the workflow's source filter and the agent's prompt.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

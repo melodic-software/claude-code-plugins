@@ -39,6 +39,7 @@
 # that real jq-removal "is not portably simulable" via an isolated bin dir
 # (which cannot host bash + coreutils across Git Bash and Linux). That is true
 # of the bin-dir approach, and is exactly why this one overrides the lookup.
+# test-scope: plugins/guardrails/hooks/*.sh
 
 set -uo pipefail
 
@@ -61,7 +62,7 @@ for f in "$HOOK_DIR"/*.sh; do
   hook-utils.sh | abort-boundary.sh | guardrails-test-helpers.sh | resolve-convention-pattern.sh | *.test.sh) continue ;;
   *) ;;
   esac
-  grep -q 'hook::require_jq' "$f" 2>/dev/null || continue
+  grep -qE 'hook::require(_jq_blocking| jq)' "$f" 2>/dev/null || continue
   if grep -qE '^MAX_COMMAND_LEN=' "$f"; then
     FAIL_CLOSED+=("$base")
   else
@@ -87,8 +88,8 @@ for base in "${FAIL_CLOSED[@]}"; do
   else
     bad "$base defines MAX_COMMAND_LEN but does not call hook::require_jq_blocking — two opposite postures toward an unparsable input in one script is the defect #2146 reports"
   fi
-  if grep -qE 'hook::require_jq[[:space:]]' "$f"; then
-    bad "$base also calls the fail-OPEN hook::require_jq; the blocking gate must be the only jq gate in a fail-closed guard"
+  if grep -qE 'hook::require jq[[:space:]]' "$f"; then
+    bad "$base also calls the fail-OPEN hook::require jq; the blocking gate must be the only jq gate in a fail-closed guard"
   else
     ok "$base does not also carry the fail-open gate"
   fi

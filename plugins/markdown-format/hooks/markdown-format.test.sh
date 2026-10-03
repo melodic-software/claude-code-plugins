@@ -1935,12 +1935,11 @@ fi
 # --- SessionStart probe: the kill switch closes the launcher gate ------------
 # markdown_format_enabled=false must silence the prerequisite probe as well as
 # the format hook. The gate sits in the launcher (exec-bash.mjs
-# --run-if-unset-or-true), so probe-prerequisite.sh stays the shared,
-# byte-identical manifest reader and a closed gate never resolves bash.
+# --run-if-unset-or-true), so the closed gate never reads the manifest.
 # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
-PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"]]'
+PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs","probe","${CLAUDE_PLUGIN_ROOT}","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED"]]'
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]?.args]' "$HOOKS_JSON")"
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
   if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
     ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
   else
@@ -1967,8 +1966,8 @@ if command -v node >/dev/null 2>&1; then
     local data
     data="$(mktemp -d "$WORK/pd.XXXXXX")"
     (cd "$UNRELATED" && env -i PATH="$PROBE_BIN" CLAUDE_PLUGIN_DATA="$data" "$@" \
-      node "$HOOK_DIR/exec-bash.mjs" --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED \
-      "$HOOK_DIR/probe-prerequisite.sh" <<<'{"session_id":"s1"}')
+      node "$HOOK_DIR/../lib/prerequisites.mjs" probe "$HOOK_DIR/.." --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED \
+      <<<'{"session_id":"s1"}')
   }
   OUT_PROBE_OFF="$(run_probe_launcher CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
   RC_PROBE_OFF=$?

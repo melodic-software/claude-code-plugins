@@ -1704,7 +1704,7 @@ assert_contains "latch (dispatched): first block carries the notice" "$GUARD_OUT
 guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
   -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR2"
 assert_absent "latch (dispatched): second block emits no notice" "$GUARD_OUT" "levers, narrowest first"
-# Without jq the guard cannot read the payload and allows (hook::require_jq), so
+# Without jq the guard cannot read the payload and allows (hook::require jq), so
 # the latch must not be spent on a run that never blocked: the next block with jq
 # back still carries the notice. run_guards::emit_one keeps one document there.
 LATCH_NOJQ_PATH=""

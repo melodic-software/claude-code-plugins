@@ -54,6 +54,18 @@
         "Raises a competing-consumer finding only for the same message and queue",
         "Gives no queue to a publish edge"
       ]
+    },
+    {
+      "id": 6,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-events\n\nevents.json and events.md are written. I would like to filter and trace the messages rather than read the flowchart.",
+      "expected_output": "After the report, offers an interactive view of events.json in one sentence, builds it only with scripts/build-view.mjs events from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "events.md and events.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs events --record events.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }

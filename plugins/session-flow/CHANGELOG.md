@@ -1,5 +1,123 @@
 # Changelog: session-flow plugin
 
+## [0.48.2] - 2026-10-03
+
+### Changed
+
+- `scripts/save_point.test.sh` and `skills/audit-sessions/scripts/audit-sessions.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.48.1] - 2026-10-03
+
+### Fixed
+
+- **`save_point.py` outside a git work tree no longer writes save-points into another plugin's data
+  directory.** Another plugin's SessionStart hook can export its own data directory as
+  `CLAUDE_PLUGIN_DATA` for every Bash call, and `new` and `memory-root` then resolved
+  `<that dir>/artifacts`. An inherited value is now used only when it names session-flow;
+  otherwise the data directory is derived from the script's installed cache path, as it already
+  was when the variable was unset.
+
+## [0.48.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/session-flow:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+## [0.47.4] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs`, `parse-concern-value.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks and skills.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.47.3] - 2026-10-03
+
+### Fixed
+
+- `audit-sessions sweep --format md` lists each drift change by class and key path under the counts line (vanished, new, canary-lost, unknown-record-type). The counts stay. A model other than the all-models bucket is named on the same bullet. A backtick or line break in a key or model stays inside one code span, so transcript text cannot open a new bullet or heading. The JSON report carries the same `changes` list ([#6001](https://github.com/melodic-software/claude-code-plugins/issues/6001)).
+
+## [0.47.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.47.1] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
+
+## [0.46.2] - 2026-10-03
+
+### Fixed
+
+- The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
+  match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
+
+## [0.46.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `find-handoff` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- **`audit-sessions` skill.** Collects every session transcript on the machine into a durable local
+  store under the plugin data directory (one record per session, incremental, redacted excerpts of
+  short typed turns only), then sweeps the store for sessions over this machine's own thresholds
+  and routes each finding to the skill that would act on it. It never applies a finding. A drift
+  check compares the transcript format across Claude Code versions and marks a metric unavailable
+  when a field it reads disappears.
+- **One shared transcript reader**, `scripts/transcript_reader.py`, used by `audit-sessions` and
+  `retro`'s parser.
+- **Five `audit_sessions_*` options**: store retention (default 180 days), excerpt length, the
+  short-turn word limit, and the two drift-check bounds.
+- `retro` names `/session-flow:audit-sessions sweep` as its next step.
+
+### Fixed
+
+- **`retro` no longer roughly doubles token counts or counts injected records as human
+  messages** (#5818). A message streamed as several transcript records is now counted once, and
+  `human_messages` counts only turns the person typed, not slash-command output, task
+  notifications, peer-session messages, interrupts or meta records. Field names, the output shape,
+  the CLI forms and exit codes are unchanged. **One-time step in retro trend history:** token and
+  human-message numbers from this version on are lower than earlier retros' for the same kind of
+  session; compare across that step with care.
+- **`retro`'s parser reports a transcript line that is valid JSON but not an object** as a parse
+  error instead of skipping it silently.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`workflow` advises an effort level per stage.** Each stage names its kind of work, and the
+  skill matches it to a row of model-config's "Choose an effort level" table, naming the level and
+  the matched text. Code-changing and verifying stages are never advised below medium. The
+  continuation router adds the advice when the next stage's level differs from the current one. It
+  only advises; the user sets the level with `/effort`. When the page cannot be read, it says so
+  and advises no level.
+- **`continue-in-background` passes an explicit `--effort`** for resumed verify work and any
+  unattended task, since a background session does not inherit the level. It picks the level from
+  the same table and names it in the launch report; when the page cannot be read, it passes none
+  and says the session starts at its default.
+
 ## [0.44.7] - 2026-10-02
 
 ### Changed

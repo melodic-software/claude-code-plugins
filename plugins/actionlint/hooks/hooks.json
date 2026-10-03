@@ -37,13 +37,24 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
+              "probe",
+              "${CLAUDE_PLUGIN_ROOT}",
               "--run-if-unset-or-true",
-              "ACTIONLINT_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+              "ACTIONLINT_ENABLED"
             ],
             "timeout": 10,
             "statusMessage": "Checking actionlint..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /actionlint:check ACTIONLINT_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /actionlint:check ACTIONLINT_ENABLED",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

@@ -58,8 +58,8 @@
 #                           fail-open, because it replaces that step's real
 #                           outcome with `success` on every docs-only diff.
 #   7. NO JOB-LEVEL IF    — a consumer carries no job-level condition other than
-#                           the contract-only gate, pinned below as an exact
-#                           literal. It reaches the output through `needs`, so it
+#                           the contract-only gate or its draft form, pinned
+#                           below as exact literals. It reaches the output through `needs`, so it
 #                           runs only when the resolver succeeded — which is what
 #                           makes the output's domain exactly {'true','false'}
 #                           and the two sanctioned forms exact complements.
@@ -79,6 +79,20 @@
 #                           gate that reports "all references are well formed"
 #                           over zero references is the nominal closure this file
 #                           exists to deny.
+#  10. DATA IS NOT A GATE — the resolver also publishes DATA outputs (the diff
+#                           base), pinned in DATA_TABLE by exact expression like
+#                           the boolean rows. A data output is read in exactly
+#                           one form, a whole env entry `KEY: ${{ needs.<resolver>
+#                           .outputs.<name> }}`, and never in a condition: its
+#                           value is not a polarity decision, and an empty one
+#                           must mean "the whole tree" to the script reading it.
+#                           The one other read is the test-bash matrix size,
+#                           pinned whole in MATRIX_READ with its four-leg
+#                           default.
+#  11. A SKIP NEVER PASSES — the aggregate's `treat-skipped-as` is `fail`, a
+#                           draft's included: a draft runs no lane, and a green
+#                           draft ci-status is the newest one on the SHA from
+#                           the flip to ready until the lanes finish.
 #
 # FAIL CLOSED ON SHAPE. Like scripts/check-lane-coverage.sh, this reads the
 # workflow structurally rather than through a YAML library (the repo ships no
@@ -121,7 +135,7 @@ fi
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
 TAB="$(printf '\t')"
-RESOLVER_JOB="changes"
+RESOLVER_JOB="scope"
 DETECT_STEP_ID="detect"
 # The resolver publishes a TABLE of boolean-string outputs, not one. Every
 # polarity decision in the workflow lives in this table, and consumers only
@@ -137,11 +151,23 @@ OUTPUT_NAME="run_full"
 OUTPUT_TABLE="\
 run_full${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
 run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-run_shell${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
-run_windows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
-run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}"
+run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
+run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
+run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
+# Outputs that carry a VALUE rather than a polarity decision, each pinned by its
+# exact expression and read only as a whole env entry (property 10). `lane_base`
+# is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
+# request, the newest green push run's commit on a push, and empty (the whole
+# tree) on a schedule, a dispatch, or a push with no usable base.
+DATA_TABLE="\
+lane_base${TAB}\${{ steps.base.outputs.ref }}
+test_legs${TAB}\${{ steps.legs.outputs.legs }}
+test_needs${TAB}\${{ steps.legs.outputs.needs }}"
+# The one data read that is not an env entry: test-bash sizes its matrix from
+# `test_legs`, and an unset value falls back to the full four-leg fan-out.
+MATRIX_READ="leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.test_legs || '[0,1,2,3]') }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -156,6 +182,9 @@ LANE_OPT_OUT="lane-coverage-ok:"
 # others. See check 5c.
 CONTRACT_ONLY_PREDICATE="github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))"
 JOB_GATE="\${{ !(${CONTRACT_ONLY_PREDICATE}) }}"
+# The same gate with the draft term every lane carries: a draft pull request
+# runs no lane at all, and `ci-status` fails on the skipped lanes.
+JOB_GATE_DRAFT="\${{ !(${CONTRACT_ONLY_PREDICATE}) && github.event.pull_request.draft != true }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
@@ -168,6 +197,15 @@ table_names() {
     [[ -n "$tn" ]] || continue
     out+="${out:+$sep}$tn"
   done <<<"$OUTPUT_TABLE"
+  printf '%s' "$out"
+}
+
+data_names() {
+  local sep="$1" tn out=""
+  while IFS="$TAB" read -r tn _; do
+    [[ -n "$tn" ]] || continue
+    out+="${out:+$sep}$tn"
+  done <<<"$DATA_TABLE"
   printf '%s' "$out"
 }
 
@@ -197,7 +235,7 @@ report() {
 #   STEPOUT  <job>                        reads a step-level docs_only output
 #   ERR      <message>
 parsed="$(
-  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names ' ')" -v lane_opt_out="$LANE_OPT_OUT" '
+  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names ' ') $(data_names ' ')" -v lane_opt_out="$LANE_OPT_OUT" '
     function trim(s) { sub(/^[[:blank:]]+/, "", s); sub(/[[:blank:]]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/[^[:blank:]].*$/, "", t); return length(t) }
 
@@ -410,6 +448,12 @@ parsed="$(
         print "STEPID\t" job "\t" step "\t" trim(sid)
       }
 
+      if ($0 ~ /^[[:blank:]]+treat-skipped-as:/) {
+        sk = $0
+        sub(/^[[:blank:]]+treat-skipped-as:[[:blank:]]*/, "", sk)
+        print "SKIPAS\t" job "\t" uncommented(sk)
+      }
+
       if ($0 ~ /^        if:/ && mentions_output(uncommented($0))) {
         rest = $0
         sub(/^        if:[[:blank:]]*/, "", rest)
@@ -445,6 +489,7 @@ REC_REF=""
 REC_STEPOUT=""
 REC_JOBIF=""
 REC_LANEOK=""
+REC_SKIPAS=""
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   case "$line" in
@@ -462,6 +507,7 @@ while IFS= read -r line; do
   "STEPOUT$TAB"*) REC_STEPOUT+="${line#*"$TAB"}"$'\n' ;;
   "JOBIF$TAB"*) REC_JOBIF+="${line#*"$TAB"}"$'\n' ;;
   "LANEOK$TAB"*) REC_LANEOK+="${line#*"$TAB"}"$'\n' ;;
+  "SKIPAS$TAB"*) REC_SKIPAS+="${line#*"$TAB"}"$'\n' ;;
   # The awk pass emits no other record kind; a line that reaches here means the
   # two halves have drifted, which is not something to guess past.
   *)
@@ -483,6 +529,31 @@ table_has() {
     [[ "$tn" == "$1" ]] && return 0
   done <<<"$OUTPUT_TABLE"
   return 1
+}
+
+# data_has <name>: is <name> a sanctioned data output?
+data_has() {
+  local tn
+  while IFS="$TAB" read -r tn _; do
+    [[ "$tn" == "$1" ]] && return 0
+  done <<<"$DATA_TABLE"
+  return 1
+}
+
+# is_data_read <line>: is this line exactly one env entry reading one data
+# output, `KEY: ${{ needs.<resolver>.outputs.<name> }}`? Whole-string, like
+# the consumer forms: a longer expression around the read is a decision this
+# gate does not model.
+is_data_read() {
+  local t="$1" key rest name
+  # shellcheck disable=SC2016 # `${{ }}` is a literal workflow delimiter here.
+  [[ "$t" == *': ${{ '"$REFERENCE_PREFIX"*' }}' ]] || return 1
+  key="${t%%: *}"
+  [[ "$key" =~ ^[A-Z][A-Z0-9_]*$ ]] || return 1
+  rest="${t#"$key: \${{ $REFERENCE_PREFIX"}"
+  name="${rest%' }}'}"
+  [[ "$t" == "$key: \${{ ${REFERENCE_PREFIX}${name} }}" ]] || return 1
+  data_has "$name"
 }
 
 # parse_consumer_form <bare-expression>: recognizes exactly
@@ -614,11 +685,31 @@ while IFS="$TAB" read -r tname texpr; do
   fi
 done <<<"$OUTPUT_TABLE"
 
+# The data rows are pinned the same way: the value a consumer diffs against is
+# exactly what the resolver's step wrote, so an unset step output is the empty
+# string every reader takes as "the whole tree".
+while IFS="$TAB" read -r tname texpr; do
+  [[ -n "$tname" ]] || continue
+  published_expr=""
+  published_found=0
+  while IFS="$TAB" read -r ojob oname oexpr; do
+    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$tname" ]] || continue
+    published_found=1
+    published_expr="$oexpr"
+  done <<<"$REC_OUTPUT"
+  if [[ "$published_found" -eq 0 ]]; then
+    report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes no '$tname' data output; expected exactly '$tname: $texpr'."
+  elif [[ "$published_expr" != "$texpr" ]]; then
+    report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes '$tname: $published_expr', expected exactly '$tname: $texpr'. A data output passes its step's value through unchanged; an expression around it is a decision this gate does not model."
+  fi
+done <<<"$DATA_TABLE"
+
 while IFS="$TAB" read -r ojob oname oexpr; do
   [[ "$ojob" == "$RESOLVER_JOB" ]] || continue
   [[ -n "$oname" ]] || continue
   table_has "$oname" && continue
-  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which the output table does not name. Every polarity decision belongs in the table [$(table_names ', ')]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
+  data_has "$oname" && continue
+  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which neither the output table nor the data table names. Every polarity decision belongs in the table [$(table_names ', ')] and every value in [$(data_names ', ')]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
 done <<<"$REC_OUTPUT"
 
 # --- 3. FAILURE IS ABSORBED -------------------------------------------------
@@ -712,9 +803,20 @@ while IFS="$TAB" read -r refjob reford kind text; do
   jobif)
     # Judged in check 5c, which knows the required-lane closure. A job-level
     # read is a defect on an aggregated lane and the intended shape on a lane
-    # outside it, and that distinction is not available here.
+    # outside it, and that distinction is not available here. A data output is
+    # never a condition, on any lane.
+    for dn in $(data_names ' '); do
+      if [[ "$bare" == *"${REFERENCE_PREFIX}${dn}"* ]]; then
+        report "DATA IS NOT A GATE: job '$refjob' conditions the job on the data output '$dn': if: $text. Its value is not a polarity decision; read it in an env entry and let the script branch on it."
+      fi
+    done
     ;;
   *)
+    # A data output, read as a whole env entry or as the matrix size
+    # (property 10).
+    if is_data_read "$text" || [[ "$text" == "$MATRIX_READ" ]]; then
+      continue
+    fi
     # An aggregator feed entry, for some table output X:
     #   <name>=${{ needs.<resolver>.outputs.X == 'false' && 'success' || steps.<id>.outcome }}
     ok_feed=0
@@ -863,16 +965,44 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # 906ae7ef379ea4d2b8497f64475dce1d3d8715c4 and must be re-verified whenever that
 # pin moves. A drifted copy that skipped the lanes while the composite still
 # aggregated would turn all-`skipped` into a pass with nothing executed.
+#
+# AND ITS DRAFT FORM, `$JOB_GATE_DRAFT`, pinned the same way: the contract-only
+# gate followed by `&& github.event.pull_request.draft != true`. It carries no
+# status-check function either, so the needs edge still governs; what it
+# subtracts is a draft pull request, where every lane is skipped and the
+# aggregate fails.
 
 while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
   is_required "$refjob" || continue
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
-    [[ "$ctext" == "$JOB_GATE" ]] && continue
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level condition here is exactly: $JOB_GATE"
+    [[ "$ctext" == "$JOB_GATE" || "$ctext" == "$JOB_GATE_DRAFT" ]] && continue
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
+
+# --- 11. A SKIPPED LANE NEVER PASSES -----------------------------------------
+#
+# The draft gate skips every lane on a draft, and the aggregate fails it. A
+# draft's ci-status is the newest one on its SHA from the flip to ready until
+# the `ready_for_review` run's lanes finish, so a draft that passed would let a
+# merge through with nothing linted or tested. `treat-skipped-as` is therefore
+# the literal `fail`: anything else turns a lane skipped for some reason into a
+# green required check with nothing run.
+skipas_seen=0
+while IFS="$TAB" read -r sjob svalue; do
+  [[ -n "$sjob" ]] || continue
+  [[ "$sjob" == "$AGGREGATE_JOB" ]] || continue
+  skipas_seen=1
+  [[ "$svalue" == "fail" ]] && continue
+  report "A SKIPPED LANE NEVER PASSES: job '$AGGREGATE_JOB' sets treat-skipped-as: $svalue. Use 'fail', a draft's included: a draft runs no lane."
+done <<<"$REC_SKIPAS"
+if [[ "$skipas_seen" -eq 0 ]] && has_line "$jobs_all" "$AGGREGATE_JOB"; then
+  if [[ -n "$(printf '%s' "$REC_JOBIF" | awk -F'\t' -v j="$JOB_GATE_DRAFT" '$2 == j')" ]]; then
+    report "A SKIPPED LANE NEVER PASSES: a lane carries the draft gate but job '$AGGREGATE_JOB' sets no treat-skipped-as, whose default passes a skip. Set it to 'fail'."
+  fi
+fi
 
 # --- 8. NO LANE OPT-OUT INSIDE THE CLOSURE ----------------------------------
 #

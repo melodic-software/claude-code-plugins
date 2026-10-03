@@ -52,6 +52,12 @@ AWS_PREFIX='AKIA'
 AWS_TOKEN="${AWS_PREFIX}IOSFODNN7EXAMPLE"
 GH_PREFIX='ghp_'
 GH_PAT="${GH_PREFIX}$(printf 'a%.0s' {1..36})"
+GHS_PREFIX='ghs_'
+GH_APP_TOKEN="${GHS_PREFIX}$(printf 'b%.0s' {1..36})"
+# The ghs_<APPID>_<JWT> installation-token format GitHub rolls out from
+# 2026-04-27, about 520 characters: a JWT's `eyJ` header start, then
+# dot-separated segments that spell FAKE.
+GH_APP_TOKEN_JWT="${GHS_PREFIX}1234567_eyJFAKE.FAKEpayload$(printf 'A%.0s' {1..450}).FAKEsignatureNOTreal"
 SLACK_PREFIX='xoxb-'
 SLACK_TOKEN="${SLACK_PREFIX}1234567890123-9876543210987"
 STRIPE_PREFIX='sk_live_'
@@ -78,6 +84,32 @@ OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_PAT'")" 2>&1)
 RC=$?
 assert_exit "GitHub PAT → exit 2" 2 "$RC"
 assert_contains "GH PAT → message" "$OUT" "GitHub PAT"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_APP_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "GitHub App token, 36-char form → exit 2" 2 "$RC"
+assert_contains "GH App token, 36-char form → message" "$OUT" "GitHub App Token"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_APP_TOKEN_JWT'")" 2>&1)
+RC=$?
+assert_exit "GitHub App token, ghs_<APPID>_<JWT> form → exit 2" 2 "$RC"
+assert_contains "GH App token, ghs_<APPID>_<JWT> form → message" "$OUT" "GitHub App Token"
+
+# One long line that once took GNU grep 25-60 s in a UTF-8 locale. `timeout 10`
+# is the backstop: a slow scan reads as rc 124, a finished one as 0.
+SLOW_SHAPES=(
+  "${GHS_PREFIX}1_-:50000" "${GHS_PREFIX}1_eyJ:30000" "${GHS_PREFIX}1_eyJa.:30000" "${GHS_PREFIX}1_eyJ-:30000"
+)
+for shape in "${SLOW_SHAPES[@]}"; do
+  unit="${shape%:*}" count="${shape##*:}"
+  printf -v content '%*s' "$count" ''
+  printf '%s' "${content// /$unit}" >"$TEST_TMPDIR/slow.txt"
+  rc=0
+  # shellcheck disable=SC2016  # expanded by the inner bash
+  LC_ALL=C.UTF-8 timeout 10 bash -c 'source "$1"; secrets::scan_text "$(<"$2")" >/dev/null || :' \
+    _ "$HOOK_DIR/../lib/secret-detection/secret-patterns.sh" "$TEST_TMPDIR/slow.txt" || rc=$?
+  assert_exit "scan of '${unit}' x${count} finishes" 0 "$rc"
+done
 
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "SLACK='$SLACK_TOKEN'")" 2>&1)
 RC=$?
@@ -430,12 +462,12 @@ assert_silent "kill switch off → no stderr" "$OUT"
 # Runtime jq-removal is not portably simulable — an isolated bin dir without jq
 # cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
 # Assert the fail-open guard is present in the hook source via the shared
-# hook::require_jq helper (docs/conventions/hook-observability/) — it composes
+# hook::require jq helper (docs/conventions/hook-observability/) — it composes
 # the once per session and agent notice_once gate with the dual-channel
-# (systemMessage + additionalContext) visibility notice; require_jq's own behavior is covered
+# (systemMessage + additionalContext) visibility notice; hook::require's own behavior is covered
 # by lib/hook-utils.test.sh, not re-asserted here.
 HOOK_SRC=$(cat "$HOOK")
-assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
+assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 
 # --- Allowlist path-segment anchoring (finding P5) --------------------------
 # A real dependency-cache SEGMENT is exempt; a directory that merely CONTAINS the

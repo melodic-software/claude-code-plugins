@@ -8,3 +8,9 @@
 04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:20
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:21
+# The vendored gitleaks rules file: this rule's regex is a literal prefix that
+# matches itself. A commit-less line is checked in git scans as well as dir
+# scans, so it survives the squash merge that replaces the adding commit.
+plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+# The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
+plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21

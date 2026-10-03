@@ -3,6 +3,108 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.5] - 2026-10-03
+
+### Changed
+
+- `surface/surface.test.sh`, `surface/test_exporters.py`, `surface/test_round.py`, `surface/test_schema.py`, `surface/test_server.py`, `surface/watch.test.sh`, and `tests/reattach-slice.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.65.4] - 2026-10-03
+
+### Changed
+
+- The generated `surface/session_bridge.py` copy now carries session-bridge's second adapter, on
+  Claude Code's native channels, and the selection that keeps the loopback watcher when channels
+  are unavailable. Planning registers no channel server and calls neither, so the interview page,
+  the watcher and `round.sh` behave as before ([#5855](https://github.com/melodic-software/claude-code-plugins/issues/5855)).
+- The channels adapter's rings carry only fixed text: a lease conflict no longer quotes the holder
+  the page server names. A malformed wait answer or an unexpected error releases the lease and
+  rings a stopped notice, and the channel server releases its leases when its input closes.
+
+## [0.65.3] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.65.2] - 2026-10-02
+
+### Fixed
+
+- The interview page's **Show: Open** lists only unanswered questions. Answered questions that
+  Claude revised or replied to after the answer move to a new **Review** filter, and the group
+  counter reads `N open / M, K to review`.
+- Tree view drops a filtered-out question and moves its matching descendants up a level instead of
+  keeping every answered question that has dependents.
+- After an answer, the page moves to the next open question after the one just answered instead of
+  the first in the list.
+
+## [0.65.1] - 2026-10-02
+
+### Changed
+
+- **Shared `resolve-convention-home.sh`, `standards-contract.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and reference.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.65.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.64.0] - 2026-10-03
+
+### Added
+
+- **Interactive plan and brainstorm views, built with the shared view builder (#5866).**
+  `/planning:plan` offers a plan view (phases, the phases each depends on, acceptance criteria, and
+  a reply that names the phases to change) and `/planning:brainstorm` offers a candidate view
+  (cheapest to most ambitious, a tick for each that resonates). `scripts/build-view.mjs` fills a
+  checked-in template with the session's JSON as escaped data through `lib/view-builder.mjs` and
+  `lib/view-runtime.js`, which the plugin now carries as generated copies with `lib/html-escape.mjs`.
+  No page carries model-written markup or script, and no page sits beside `PLAN.md` or the brainstorm
+  record, which stay the record. The publish destination comes from the `medium` key of the
+  `rendered-views` cascade (`file` when unset); the procedure is in `reference/rendered-view.md`.
+
+### Changed
+
+- The plan and brainstorm skills no longer offer a model-written HTML page; they offer the built view.
+
+## [0.63.2] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.63.1] - 2026-10-03
+
+### Changed
+
+- The interview page's transport moved to the shared session-bridge library
+  (`lib/session-bridge/`): the 127.0.0.1 server, token, event stream, long-poll, watcher lease,
+  `watch.sh` and `wake.sh`. `surface/session_bridge.py`, `watch.sh` and `wake.sh` are now
+  generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
+  the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
+  watcher lease, which `round.sh lease` and `stop` now read.
+
+## [0.63.0] - 2026-10-03
+
+### Added
+
+- **`interview` recommends separate implement and verify effort levels.** An engineering handoff
+  names one level for each phase, matched to a row of model-config's "Choose an effort level"
+  table and never below medium. When the page cannot be read, it says so and recommends no level.
+  The downstream session-config eval checks both levels.
+
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.62.2] - 2026-10-02
 
 ### Fixed

@@ -1,5 +1,69 @@
 # Changelog: discovery plugin
 
+## [0.28.2] - 2026-10-03
+
+### Changed
+
+- `agents/tool-honesty.test.sh` and `scripts/contract.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.28.1] - 2026-10-03
+
+### Fixed
+
+- **Research gates run as one plain command, and a fan-out sub-slice is not named `git` (#6067).**
+  A worktree-isolated session refused a compound gate command whose words included a slice path ending in `git`, and allowed the same path as one plain command. "How to invoke" now says each gate is one Bash call, and `/discovery:research-deep` forbids the slug `git`.
+
+## [0.28.0] - 2026-10-03
+
+### Added
+
+- **Interactive blindspot view, built with the shared view builder (#5864).** `/discovery:blindspot` offers a
+  view of its cards: filterable by type, a tick for each card that was news to the reader, the improved
+  prompt, and a copy-out of the reaction. `scripts/build-view.mjs` fills a checked-in template with the
+  session's JSON as escaped data through `lib/view-builder.mjs` and `lib/view-runtime.js`, which the plugin
+  now carries as generated copies with `lib/html-escape.mjs`. No page carries model-written markup or script,
+  so repository and fetched text stays data, and no page sits beside the cards, which stay the record. The
+  publish destination comes from the `medium` key of the `rendered-views` cascade (`file` when unset); the
+  procedure is in `reference/rendered-view.md`.
+
+## [0.27.2] - 2026-10-02
+
+### Changed
+
+- **Shared `index-regen.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's scripts.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.27.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is shortened to 500 characters, claude.ai's limit.
+
+## [0.27.0] - 2026-10-02
+
+### Changed
+
+- **Contract change: the `/discovery:research` outcome gate accepts a single-publisher claim,
+  flagged.** A first-party content claim, one that states what a named Anthropic page, file or
+  changelog says, passes rows 4 and 7 at the new confidence level `HIGH (single source)` when it
+  states why only one publisher exists. A repost of the page is never a second source, and a
+  behavior claim still needs two independent corroborators. The verifier grades the stated reason,
+  and a reason that does not hold fails row 4. The flag stays visible in the evidence table, the
+  answer and any synthesis, and a flagged claim may ground a code edit with the flag carried into
+  the record beside it.
+- **The sidecar header gains a per-claim `single_source:` field**, and its `confidence:` vocabulary
+  gains `HIGH (single source)`. The definition lives in `context/discipline.md`, "Single-source
+  first-party content claims"; the verifier, the researcher, the parent contract's `pass` value,
+  the gotchas and `research-deep`'s synthesis rule point at it.
+- Two research evals grade the new branch: a flagged changelog claim with two reposts passes, and a
+  behavior claim flagged from one docs page is a Gap.
+- `research/SKILL.md` moves its `breadth=` paragraph below the Effort table so the outcome gate's
+  longer rows 4 and 7 keep the effort ceiling inside the compaction re-attach slice.
+- Outcome-gate row 7 keeps the Gaps rule: a MEDIUM or LOW claim listed in the Gaps section is not
+  an accepted claim, and `HIGH (single source)` under row 4's flag is.
+
 ## [0.26.2] - 2026-10-02
 
 ### Fixed

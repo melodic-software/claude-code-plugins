@@ -1,5 +1,139 @@
 # Changelog: evals
 
+## [0.5.2] - 2026-10-03
+
+### Changed
+
+- `skills/plugin-eval/scripts/calibrate-judge.test.sh`, `skills/plugin-eval/scripts/run-validity.test.sh`, and `skills/validate/scripts/validate-cases.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.5.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.5.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.4.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `validate` skill description writes `samples/GRADER.json` instead of an angle-bracket placeholder, which claude.ai reads as an XML tag.
+
+## [0.4.0] - 2026-10-02
+
+### Added
+
+- **`plugin-eval` reports noise before a gain counts.** A new `scripts/noise-report.py` reads
+  `aggregate-result.json` and prints an interval on each arm's mean, a paired interval on the
+  with-versus-without difference, "within noise" when that interval contains 0, "n too small to
+  call" below 3 cases or when every per-case delta is equal, a warning when the without-arm mean
+  is 0.95 or higher, a pass-count view at the run's threshold, and judge-vote agreement per `llm`
+  grader. `## Reading the delta` tells the reader to run it.
+- **The preflight warns when the tested model and the judge are the same model.** It is advice
+  only and never blocks a run.
+- **`design` routes by repository kind and has every input approved.** A Claude API app is told
+  to type `/claude-api build-eval`; a skill or plugin repository continues here and runs through
+  `plugin-eval`. Candidate cases render for approval through a new `scripts/render-review.py`,
+  Markdown by default and escaped HTML as the option. A Markdown table cell escapes link and image
+  syntax, so case text cannot load a remote image or hide a link behind other text; a bare URL
+  still shows as itself. Raw transcripts stay out of cases in a public repository or one of
+  unknown visibility. Graders are checked against a handful of cases before their scores are
+  trusted.
+- **`methodology` points at the bundled hillclimb guides.** A new `reference/hillclimb.md` links
+  each step at a pinned commit and states only this plugin's facts; a new
+  `reference/local-decisions.md` holds this plugin's defaults and source conflicts. The skill
+  routes by repository kind.
+- **Six settings:** `split_policy`, `interval_method`, `review_format`, `grader_run_twice`,
+  `same_model_warning` and `labeled_grader_check`.
+- **The suite grows to 30 cases.** 21 are hard cases, each saying why it is hard; 4 are routine
+  guards where the base model already answers well; 4 are near-miss controls that must not invoke
+  an evals skill; and 1 is a knowledge case. `noise-before-gain` is the one a person judged hard: a
+  model tends to take a small gain over a near-ceiling baseline at face value.
+- **Every `llm` grader has labeled samples.** All 47 hold must-pass and must-fail answers in
+  `samples/<grader>.json`, so each rubric can be calibrated against them.
+- **`plugin-eval` calibrates a judge.** A new `scripts/calibrate-judge.py` builds one case per
+  labeled sample, whose agent replies with the sample word for word, and scores the judge's
+  verdicts against the labels: agreement, false positives and negatives, split votes, runs whose
+  reply was not the sample (whitespace and bold markers aside), and samples never judged. A grader under 90% agreement prints a
+  `FAIL grader` line and the script exits 1. A `case.yaml` grader name that is not one path
+  segment is skipped with a note, so a suite cannot write outside `--out`. `## Calibrating a
+  judge` gives the commands.
+- **`plugin-eval` checks a run is valid before its score counts.** A new
+  `scripts/run-validity.py` reads `aggregate-result.json` and the kept traces and prints VALID or
+  INVALID: an incomplete or empty run, skipped paid graders, an errored run, a row count that
+  differs from `--runs`, any permission denial in a trace, or a should-trigger case whose skill did
+  not fire makes it INVALID; split judge votes, an unrecorded judge model and ceiling cases are
+  warnings. The run command now keeps traces (`--keep-temp`).
+- **`validate` tests free graders offline against sample answers.** Each case can hold
+  `samples/<grader>.json` with answers that must pass and answers that must fail; a `regex`,
+  `tool_used`, `tool_order` or `file_exists` grader that rejects a must-pass answer or accepts a
+  must-fail one is a FAIL, and one with no sample file is a WARN. `llm` graders with samples get a
+  calibration WARN, since only a paid judge run can check them.
+- **`validate` warns on the two undocumented `prompt.md` keys.** `artifact_publish` and
+  `growthbook_overrides` load but are not on the reference page, so they can change without notice.
+
+### Changed
+
+- **The pilot suite's graders are fixed.** `methodology-wording` stays a `regex` but is an unscored
+  with-arm indicator (`arm: with-only`), and a new `llm` grader, `grading-choice`, scores answer
+  quality; `noise-verdict` is replaced by the `not-established` and `ceiling` graders, so one judge
+  error costs half a run; `four-properties` requires the target number itself to be justified. Each
+  case's description says what it measures, and the three `llm`-graded tracked cases name `--judge-model sonnet`.
+- **`run-validity` exempts a no-trigger control.** A case is a control when its `prompt.md` tags or
+  description say so, or when it has a max-0 `Skill` grader aimed at this plugin's own skills and
+  no grader requiring a call. A guard on another skill does not make a control.
+- **The four controls score their must-not-invoke guard in both arms** (`arm: both`), since
+  staying quiet is what a control measures. The routing cases' guards stay unscored indicators.
+- **`methodology` states the target-number rule.** A target number is realistic only when a
+  measured baseline, a prior result, a benchmark or expert review justifies it; a grader checked
+  against labels, or a miss called severe, does not.
+- **The `plugin-eval` hub records the reference-read denial.** A path-scoped `Read` grant does not
+  lift the refusal of a spoke file, so anything a case depends on goes in the hub.
+- **The cost anchor for a fresh suite is 0.1 USD per run in either arm**, judge calls included,
+  called headroom. The old 0.8 USD per without-run applies only when a kept trace shows the
+  without-arm loading a large skill.
+- **CI pins a full model ID for the agent and the judge**, never an alias such as `sonnet`.
+- **`reading-results.md` says to count rows per arm**, never `runsPerCase`.
+- **`plugin-eval`'s description names comparing two runs and asking whether a gain is real**, so
+  those questions route to it.
+- **Each "volume" line says volume means cheaper grading, never easier cases.**
+- **The design skill's tone test case expects a checkable pass/fail rubric**, not a 5-point
+  scale.
+- **The "not yet public" distribution records are pointers to the published guides.**
+- **The hubs answer without opening a spoke or a script**, since an eval run can read only the
+  hub. `validate` lists the `prompt.md` keys (`timeout_seconds`, not `timeout`), the grader types
+  and their options, and the bounds; a pattern check is `type: regex` with `pattern`.
+  `methodology` answers from its quick guide when it covers the question, and a rewritten
+  criterion grounds its target the way the success-criteria page's Achievable property allows;
+  with no data given it states the target relative to the current baseline, never a made-up
+  baseline figure, expert agreement or X/Y/Z placeholders. `plugin-eval` answers a CI question from its CI section,
+  names the pass-count line as the only one the interval setting changes, says an estimate under
+  the ceiling starts with `--max-cost-usd` and no prompt, says to rerun cases a usage limit
+  zeroed once it resets, and says the unavailable message leaves no access to request.
+- **Descriptions route more asks to the skill that answers them.** `plugin-eval` names a
+  `claude plugin eval` refused by Bash or in a worktree, and whether it can measure CLAUDE.md or
+  rules; `methodology` and `design` name evals for a service that calls the Messages API and the
+  route for each part of a repository.
+- **`run-validity` prints the path a denied call aimed at**, and a denial is a warning when that
+  run scored the same as every denial-free run of its case in the same arm. A with-arm denial
+  aimed at, under or above the plugin's directory or at no path, or any denial with a different
+  score or nothing to compare, stays a FAIL. On an INVALID line those warned cases are marked
+  "warnings only, not counted".
+- **The hubs lead with the right first step.** `methodology` and `design` present the reference
+  files as background for a human reader, and both give `/claude-api build-eval` as a Claude API
+  app's first step, ahead of any hand-written criteria or cases. `plugin-eval` answers for the
+  platform the user states, never the session's own host, and with a null `error` runs the
+  validity gate and the noise report before saying anything about the cases.
+
 ## [0.3.13] - 2026-10-02
 
 ### Changed

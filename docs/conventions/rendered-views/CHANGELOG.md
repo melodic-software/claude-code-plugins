@@ -3,6 +3,68 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The digest publishes as an Artifact by default, 2026-10-03
+
+- **`review:explain-change` ships `medium: artifact` (#5856).** With no layer setting
+  `medium`, the digest page is published as a private Artifact when the repository is public
+  and no hunk looks like a credential; otherwise it falls back to `file` and names
+  `medium: artifact` as the opt-in. An operator who wants it local sets `medium: file` in a
+  personal layer.
+
+## The digest lane is `review:explain-change`, 2026-10-03
+
+- **`review:pr-explainer` is renamed `review:explain-change` (#1217).** The digest lane
+  builds an interactive page through the shared builder from a checked-in template, ships
+  `medium: file`, and keeps the planned `artifact` default behind its own review. The
+  escape-helper bullet and the thin-skill example name the new lane.
+
+## The first interactive emitter, 2026-10-03
+
+- **`education:illustrate` replaces `education:eli5` on the escape-helper emitter list
+  (#5858).** It builds its page through the shared builder's interactive profile, from a
+  checked-in template plus the explainer model as JSON data, and writes the markdown
+  record from the same model.
+
+## The map-* skills offer views on the builder, 2026-10-03
+
+- **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**
+  One checked-in template plus the skill's JSON record as data, through the interactive profile, with the
+  destination taken from the `medium` key. The markdown and the record stay the record.
+
+## Post-mortem and blindspot views on the builder, 2026-10-03
+
+- **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**
+  Each view is a checked-in template plus the session's JSON as data, through the interactive profile, with
+  the destination taken from the `medium` key. Log, error and repository text reaches the page only as data.
+
+## Plan and brainstorm views move onto the builder, 2026-10-03
+
+- **`planning:plan` and `planning:brainstorm` offer interactive views built by `lib/view-builder.mjs` (#5866).**
+  Each view is a checked-in template plus the session's JSON as data, through the interactive profile, with the
+  destination taken from the `medium` key. The model-written HTML offer in both skills is gone.
+
+## The shared builder ships, 2026-10-02
+
+- **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator
+  profiles (#5852).** The builder fills a report template's slots with escaped text,
+  or puts an interactive page's data only in the JSON data block and inlines the
+  runtime under a policy that pins it and the page's style by hash. It refuses any page
+  that fails its profile. A lane whose context holds K2 text may now emit through it.
+  Rule 7 records what publishing the sample showed: the artifact host wraps the page,
+  so the page's policy meta is not applied there, and the host blocks downloads.
+- **Six clarifications from the #5875 security review.** Rule 7 forbids the runtime
+  from writing a data value to any attribute, URL, or selector. Rule 5 makes ids
+  opaque tokens never derived from data and bans pre-filling a form control from
+  data. Rule 4 allows `<a href="#id">` and a runtime-created `blob:` download anchor.
+  Rule 2 says the runtime reads the data block only with `JSON.parse`. Rule 8 names
+  the marker string for each profile and falls back to the report profile for any
+  other. A record outside the repository keeps K0 or K1 only with a
+  `content-class` provenance line, and a K0 or K1 page inlines its fonts and scripts.
+- **Rule 5 refuses bindings outside page text.** No `data-rv-*` binding on `html`,
+  `head`, `title`, `meta`, `style`, or `script`, and no content binding on a form
+  control, so data cannot become CSS inside the artifact host, where the page's policy
+  is not applied.
+
 ## Tiers and content classes, 2026-10-02
 
 - **Views gain tiers, content classes, and a validator profile (#5851).** Four
@@ -74,6 +136,16 @@ versioned; this log records each change to it.
   `lib/html-escape.mjs` and stamps the generator marker. `education:eli5` joins the emitter list
   as an escape-helper lane; `education:teach` stays grandfathered for topic mode. No
   boundary-rule, genre, or cascade-key change.
+
+## Three more lanes on the escape helper, 2026-10-02
+
+- **`knowledge:video-digest`, `harness-ops:observability` and `event-storming:simulation` build
+  their HTML with a checked-in builder (#5846).** Each routes every interpolated external string
+  (fetched transcripts and titles, telemetry strings, board text) through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. The two that were grandfathered
+  (`harness-ops:observability`, `event-storming:simulation`) leave that list; the escape-helper
+  lanes are named in the emitters paragraph of the README. No boundary-rule, genre, or
+  cascade-key change.
 
 ## Escape helper, 2026-09-28
 

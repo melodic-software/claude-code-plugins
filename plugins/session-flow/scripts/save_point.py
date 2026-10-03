@@ -226,7 +226,15 @@ PRIOR_SEPARATOR = "|---|---|---|---|---|"
 SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----"), "private key"),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "API key"),
-    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "GitHub token"),
+    (
+        # The bounded `eyJ` header and the spelled-out segments keep this
+        # linear; an unbounded first segment is quadratic on a repeated `ghs_1_-`.
+        re.compile(
+            r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
+            r"|gh[pousr]_[A-Za-z0-9]{20,})"
+        ),
+        "GitHub token",
+    ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS key id"),
     (
@@ -1370,10 +1378,12 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _plugin_data_root() -> Path | None:
-    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when set, else derived
-    from this script's install path. Bash-tool commands do not receive the
-    variable, so the derivation is the normal case in a session (record:
-    ``reference/structure.md`` "Verification record: plugin data dir").
+    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when its last path
+    segment names session-flow, else derived from this script's install path.
+    Bash-tool commands do not receive this plugin's value, so the derivation
+    is the normal case in a session (record: ``reference/structure.md``
+    "Verification record: plugin data dir"), and another plugin's SessionStart
+    hook can export its own data dir under that name, which is ignored.
     An installed plugin runs from ``<config>/plugins/cache/<marketplace>/
     <plugin>/<version>/``, and its data dir is ``<config>/plugins/data/<id>/``
     where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
@@ -1381,7 +1391,8 @@ def _plugin_data_root() -> Path | None:
     (``--plugin-dir``, a source checkout) has no derivable id: None.
     Caveat: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
     env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
-    if env:
+    segment = Path(env.rstrip("/\\")).name if env else ""
+    if segment == "session-flow" or segment.startswith("session-flow-"):
         return Path(env).expanduser()
     version_dir = _SCRIPTS_DIR.parent
     plugin_dir = version_dir.parent

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes, and it's worth knowing before you spend. Native Windows has no sandbox backend, and Claude Code puts every Bash command inside its sandbox, so each run that grants Bash is refused instead of run unconfined. The case reports a run error and usually scores 0. Don't pay for it on this machine.\n\nRun the suite on one of the supported hosts:\n\n- WSL2, which you can add to this Windows machine\n- a Linux machine or VM with bubblewrap and socat installed\n- macOS\n- a Claude cloud session\n\nRead-only cases would run anywhere, but this one needs a real sandbox, so pick whichever of those is quickest for you.",
+      "why": "P-canonical: names all four supported places to run the suite (WSL2, Linux with bubblewrap and socat, macOS, a Claude cloud session)."
+    },
+    {
+      "answer": "The Bash grant is the problem. Claude Code only runs Bash inside an OS sandbox, and Windows without WSL has none, so the CLI turns away every run of that case and you'd be billed for runs that score nothing.\n\nYou've got two easy ways around the machine itself. If there's a Mac on hand, clone the repo there and run the same command; the sandbox ships with macOS. Or skip local setup entirely and start the eval from a Claude cloud session, which already has a working sandbox. Either one lets the helper script actually execute, so the pass measures your skill rather than the platform.",
+      "why": "P-alt: names macOS ('a Mac') and a Claude cloud session as places to run, without mentioning WSL2 or Linux."
+    },
+    {
+      "answer": "Don't run it from native Windows. There's no sandbox backend there, so the CLI refuses each run that grants Bash; those runs come back as run errors and usually score 0, and you'd still pay for the rest of the pass.\n\nInstall WSL2 and run the eval from inside the Linux distribution. WSL2 has a working sandbox, and your --allow-tools Bash flag carries over unchanged.\n\nA caveat: Git Bash, Cygwin, and MSYS2 don't help here. They give you a POSIX shell, not the sandbox backend Claude Code needs, so the runs would still be refused. Cases limited to read-only tools are fine on any platform.",
+      "why": "P-caveat: names WSL2 as the place to run; it mentions Git Bash, Cygwin and MSYS2 only to rule them out, so it does not offer them."
+    },
+    {
+      "answer": "Plan to run this suite on a Linux machine or VM with bubblewrap and socat installed. Those two packages are what Claude Code's sandbox uses on Linux, and a case that grants Bash depends on that sandbox.\n\nA small cloud VM is enough. Install bubblewrap and socat from the distribution's package manager, confirm both resolve on PATH with `which bwrap socat`, install Claude Code, check out the plugin repo, and run the same command with --allow-tools Bash. Keep the case list and run count the same as you planned so the result is comparable with later passes.",
+      "why": "P-plain: names a Linux machine or VM with bubblewrap and socat; it never says that Bash runs are refused and score 0 on native Windows or that the user should not pay here, the sibling refuse-before-spend points."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Native Windows can't use the Linux sandbox, so the Bash tool needs a POSIX shell to run your helper script. The fix is to give it one rather than change machines.\n\n1. Install Git for Windows so Git Bash is on PATH; Claude Code picks it up for Bash commands.\n2. Open your terminal as administrator so the helper script isn't blocked by permission prompts.\n3. Run the eval with --allow-tools Bash as planned.\n\nWith Git Bash in place the case runs normally and the pass is worth paying for. If Git Bash gives you trouble, MSYS2 is a good alternative shell.",
+      "why": "F-wrong: offers only Git Bash, running as administrator and MSYS2, all on the FAIL list, and names no supported place to run."
+    },
+    {
+      "answer": "Yes, there's a real problem. Native Windows has no sandbox backend, and Claude Code runs every Bash command inside its sandbox, so each run that grants Bash is refused instead of running unconfined. The case comes back as a run error and usually scores 0, which means you'd pay for a pass that tells you nothing about that case.\n\nSo don't pay for this run on this machine. Removing Bash from the case doesn't help either, because the helper script is the point of the skill. The suite needs a machine where the sandbox backend is available before it's worth running.",
+      "why": "F-partial: explains the refusal and says not to pay, but names no place to run the suite (no WSL2, Linux with bubblewrap and socat, macOS, or cloud session)."
+    },
+    {
+      "answer": "Native Windows has no sandbox backend, so each run that grants Bash would be refused and score 0. The usual advice is to run under WSL2 instead.\n\nHonestly, though, skip WSL2; it's more setup than this needs. Git Bash already gives Claude Code a working shell on Windows, so install Git for Windows, make sure bash.exe is on PATH, and run the eval from there with --allow-tools Bash. That keeps everything on the machine you already have and saves you configuring a Linux distribution just for one case. Pay for the run once Git Bash is in place.",
+      "why": "F-retract: names WSL2, then retracts it ('skip WSL2') and offers only Git Bash."
+    },
+    {
+      "answer": "Worth pausing. Native Windows has no sandbox backend, so every run that grants Bash is refused rather than run unconfined, and the case scores 0. Don't pay for it as things stand.\n\nYou don't need another machine to fix it. Install MSYS2 or Cygwin, which supply the Unix tooling the helper script expects, and launch Claude Code from that shell. If the refusal persists, turn the sandbox off for this project in your settings so Bash executes directly. Once the case runs from the MSYS2 or Cygwin shell, the pass is safe to pay for, and you keep everything on the Windows box you already use.",
+      "why": "F-near: offers only MSYS2, Cygwin and disabling the sandbox, all on the FAIL list, and names no supported place to run."
+    }
+  ]
+}

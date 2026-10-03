@@ -148,6 +148,18 @@ that picture as the whole path.
 Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
 layout. Nothing was written. Report that message. Do not reformat the record by hand.
 
+Parse `flow.md` before the report. Stdout is one JSON report with a `status` of `ok` or `error` per
+block; exit 1 means a block failed to parse:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/mermaid-gate.mjs" "<out>/flow.md"
+```
+
+Quote any failing block's `line` and `error`. A failing block is a defect in the render script:
+report it and do not repair `flow.md` by hand. Without `mmdc` the parse is a structural check, so
+say that an `ok` does not prove every syntax error is absent. When node is missing, say the
+diagram was not checked.
+
 ## Close with the report
 
 End every run with this block, in this order, filled from the record and the script exits:
@@ -160,6 +172,13 @@ End every run with this block, in this order, filled from the record and the scr
 - **Unresolved**: `unresolved=` split into `external=` (framework and other calls outside the
   tree, or on a receiver of unknown type), `di=` (interface and service-locator hops), and the
   remainder, and that none were bound to a guessed implementation.
+
+## Interactive view
+
+After the report, offer an interactive view of `flow.json` in one sentence. The markdown and the record stay
+authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs flow`, never hand-written; the
+publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do
 

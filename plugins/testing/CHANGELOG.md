@@ -3,6 +3,102 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2] - 2026-10-03
+
+### Changed
+
+- `scripts/gen-hook-filters.test.sh` and `skills/setup/scripts/setup.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.22.1] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.22.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/testing:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- Hooks call `hook::require jq` where they called `hook::require_jq`.
+
+## [0.21.4] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs`, `rewrite-guard.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.21.3] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.21.2] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.21.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.21.0] - 2026-10-02
+
+### Added
+
+- **`/testing:fix-until-green` workflow** (`workflows/fix-until-green.js`). One runner runs the
+  command and lists failures with the source files each points at or imports. The workflow
+  groups them so no two groups share a file and runs one fixer per group in the same working
+  tree, in waves of `maxConcurrent`. A verifier then checks the
+  diff from the starting commit for test weakening and for changed files no fixer was allowed to
+  edit, and the command runs again. It stops when the command passes, at `maxRounds`, after two
+  rounds in a row with no fewer failures, when a fixer's root cause sits in a file that is out of
+  scope or protected (an editable in-scope file joins that fixer's group next round instead), when
+  the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
+  and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent
+  settings, hooks, CI, editor tasks or dependency trees, or name a dependency manifest, lockfile,
+  build file, or secret-bearing file or directory in any common ecosystem, never reach a fixer
+  (matched case-insensitively). A file a fixer asks for joins its group only when git tracks it.
+  The checks, and every re-run, count untracked files and a moved HEAD, and fixers are told to run
+  no git command that writes. After any round that dispatched a fixer, a green run gets a final
+  verifier that re-runs the command and reviews the whole diff. Its `args` carry `command`
+  (required; without it the run returns `{error: "missing-command"}` and dispatches nothing; a
+  string that is itself valid JSON, such as `true`, stays the command), `scope` (path prefixes
+  the fixers may edit; when every entry is rejected the run returns `{error: "bad-scope"}`),
+  `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16), `roles`
+  and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`, `changes`
+  per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers take the
+  worker role's fan-out variant at `medium` effort, the runner the retrieval role's single
+  variant at `low`, and the round check and final verifier the verifier role's single variant at
+  `high`, from `/multi-agent:route` when the caller passes them, else from built-in fallbacks that
+  run fixers on `opus`. It commits nothing.
+- **`testing:green-runner`, `testing:green-fixer` and `testing:green-verifier` agents**, one per
+  workflow stage, each holding only that stage's tools: Bash for the runner; Read, Edit and Bash
+  for fixers; Read and Bash for the verifier. Fixers and the verifier preload `testing:test-value`.
+  Each inherits the model and pins no effort; the workflow passes both from the role map.
+
+### Changed
+
+- **`diagnose` offers the workflow when several tests fail across files**
+  (`context/fix-until-green.md`): it asks for a clean working tree, checks that the Workflow tool
+  is available, resolves roles with `/multi-agent:route all code` when that skill resolves, and
+  falls back to the investigate and loop phases on the main thread. It grants
+  `Workflow(testing:fix-until-green)` only.
+
 ## [0.20.2] - 2026-10-02
 
 ### Changed

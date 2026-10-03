@@ -3,6 +3,41 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.3] - 2026-10-03
+
+### Changed
+
+- `scripts/allowed-tools-pairing.test.sh` and `scripts/evals-fixtures.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.28.2] - 2026-10-03
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- The `dissolve-comments` skill names `hook::require jq`, the helper's new spelling, in its example.
+
+## [0.28.1] - 2026-10-03
+
+### Fixed
+
+- `evals-fixtures.test.sh` skips the change-shape self-certify checks, with one visible SKIP, when tree-sitter or a grammar it probes is absent, and still runs the parse, presence, and seeding checks. Bash and Python are probed separately, so a missing Python grammar does not fail the Bash fixtures or get reported as a fixture regression. The UNPROVABLE fixture is required to be present even when its self-certify check is skipped. `CODE_TIDYING_REQUIRE_TREE_SITTER=1` (set on the plugin-test CI steps) makes that absence a failure. A fixture no longer prints both `FAIL:` and `ok:` ([#6010](https://github.com/melodic-software/claude-code-plugins/issues/6010)).
+
+## [0.28.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.27.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `setup` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [0.27.0] - 2026-10-02
 
 ### Changed

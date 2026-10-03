@@ -167,6 +167,13 @@ End every run with this block, in this order, filled from the record and the scr
 - **Redaction**: the record stores host, kind, port, file, and key. No credential was copied into
   the report.
 
+## Interactive view
+
+After the report, offer an interactive view of `context.json` in one sentence. The markdown and the record
+stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs context`, never
+hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Invent an actor, or treat CODEOWNERS, commit authors, or prose as people.

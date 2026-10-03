@@ -6,6 +6,7 @@
 # code, stderr, and the stdout document. The registered set is read from
 # hooks.json, never enumerated here, so a hook added without the boundary
 # fails this suite. Self-contained; no host-repo assertion library.
+# test-scope: plugins/guardrails/hooks/* plugins/guardrails/lib/*
 
 set -uo pipefail
 
@@ -290,7 +291,7 @@ done
 # Deeper than the prologue: hook-utils.sh has loaded and stdin has been read
 # when a shared helper, redefined to trip an unbound expansion, aborts the
 # guard. One blocking hook (hook::jq_fields) on a payload it would otherwise
-# DENY, one advisory hook (hook::require_jq) on its normal PostToolUse payload.
+# DENY, one advisory hook (hook::require jq) on its normal PostToolUse payload.
 MID="$TEST_TMPDIR/mid"
 cp -R "$PLUGIN_DIR" "$MID"
 inject_after "$MID/hooks/block-windows-drive-tmp.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
@@ -309,7 +310,7 @@ assert_exit "block-windows-drive-tmp: shipped guard still denies D:/tmp" 2 "$RC"
 assert_absent "block-windows-drive-tmp: a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
 
 inject_after "$MID/hooks/cli-flag-verify.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
-  "hook::require_jq() { : \"\${${MARKER}?forced abort in hook::require_jq}\"; }"
+  "hook::require() { : \"\${${MARKER}?forced abort in hook::require}\"; }"
 mkdir -p "$TEST_TMPDIR/data"
 run_hook CLAUDE_PLUGIN_ROOT="$MID" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
   feed_run "$(write_json "$TEST_TMPDIR/notes.md" 'run git status')" bash "$MID/hooks/cli-flag-verify.sh"

@@ -3,6 +3,57 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-10-03
+
+### Added
+
+- **Interactive views for the `map-*` records (#5863).** Each of `map-landscape`, `map-containers`,
+  `map-components`, `map-dependencies`, `map-data`, `map-events`, `map-flow`, `map-context` and
+  `map-deployment` offers a view of its record: a filter that traces an id through every row that names it,
+  and rows that open to their fields and citations. `scripts/build-view.mjs` fills the checked-in
+  `templates/map-view.html` with the record as escaped JSON data through `lib/view-builder.mjs` and
+  `lib/view-runtime.js`, which the plugin now carries as generated copies with `lib/html-escape.mjs`. No page
+  carries model-written markup or script, so repository text stays data. The markdown and the JSON record stay
+  the record. The publish destination comes from the `medium` key of the `rendered-views` cascade (`file` when
+  unset); the procedure is in `reference/rendered-view.md`. `map-components` passes `--from` to chart the
+  chosen deployable's closure.
+
+## [0.20.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.20.0] - 2026-10-03
+
+### Changed
+
+- `map-flow` parses the diagram it writes with its own copy of `lib/mermaid-gate.mjs` and says
+  the diagram was not checked when node is missing.
+
+## [0.19.1] - 2026-10-02
+
+### Changed
+
+- **Shared `resolve-convention-home.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.18.4] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.18.3] - 2026-10-02
 
 ### Fixed

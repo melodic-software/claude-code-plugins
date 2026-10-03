@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Select the test suites that cover a set of changed files, so a developer can
-# run what their change actually affects instead of the whole corpus. Four
-# ecosystems carry suites here and each names them differently: shell
-# **/*.test.sh, Node **/*.test.js and **/*.test.mjs, Python **/test_*.py, and
-# Pester **/*.Tests.ps1.
+# Select the test suites that cover a set of changed files, so a change runs the
+# suites it affects instead of the whole corpus. Four ecosystems carry suites
+# here and each names them differently: shell **/*.test.sh, Node **/*.test.js
+# and **/*.test.mjs, Python **/test_*.py, and Pester **/*.Tests.ps1.
 #
 # The full corpus is tens of minutes of wall clock on a Windows box
 # (Git Bash pays ~140ms per process spawn, and these suites are spawn-bound),
@@ -16,25 +15,23 @@
 #   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
 #   scripts/affected-tests.sh --allow-unmapped   downgrade an unmapped file to a warning
+#   scripts/affected-tests.sh --unmapped-corpus  select an unmapped file's whole language corpus (exit 4)
 #   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#   scripts/affected-tests.sh --replay <range> [--against <ref>]
+#                                                select every first-parent commit of <range> against
+#                                                its parent; with --against, diff each selection with
+#                                                the selector at <ref> (see REPLAY)
 #
-# SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
-# rule below runs in full, the unmapped check fires in full, and only then is
-# the sorted suite list partitioned by index modulo n. Legs are therefore a
-# partition in the mathematical sense: the union of legs 0..n-1 is exactly the
-# unsharded selection and no two legs share a suite. That is the property CI
-# needs when it fans one selection across n runners and calls the change tested.
-# Modulo, not contiguous blocks: the sorted list clusters suites by directory,
-# so a block partition hands one leg a whole slow plugin while another gets
-# nothing, and interleaving spreads the clusters. An EMPTY leg is not an error;
-# it exits 0, because "this leg had nothing to run" and "nothing was affected"
-# are the same statement about that runner.
+# --with-always is accepted and changes nothing: the suites that assert against
+# the live tree declare what they read in a `# test-scope:` header (R8).
 #
 # Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
 # suite it selected but ALSO selected suites in other ecosystems, whose runner
-# it deliberately will not guess (see the --run note at the foot of this file).
+# it deliberately will not guess (see the --run note at the foot of this file);
+# 4 --unmapped-corpus widened the selection to the corpus of an unmapped file's
+# language. Under --run the first that applies wins, in the order 1, 3, 4.
 #
 # HOST: --run IS A LINUX GATE. On a Windows Git Bash host a standing set of
 # suites fails for reasons that belong to the host and not to the tree: text-mode
@@ -46,262 +43,177 @@
 # the listing forms to see what a change affects and run individual suites by
 # hand. CI's Linux lanes are the gate that decides.
 #
-# DIRECTION: over-selection is safe, under-selection is not. Every rule below is
-# deliberately generous — a basename match counts even when it lands in a
-# comment — because a suite that runs needlessly costs seconds, while a suite
-# that should have run and did not is the regression this tool exists to stop.
+# SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
+# rule below runs in full, the unmapped check fires in full, and only then is
+# the sorted suite list partitioned by index modulo n. The union of legs
+# 0..n-1 is exactly the unsharded selection and no two legs share a suite.
+# Modulo rather than contiguous blocks, because the sorted list clusters suites
+# by directory. An EMPTY leg exits 0: "this leg had nothing to run" and
+# "nothing was affected" are the same statement about that runner.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
-# means "nothing here knows what covers this". The only exceptions are the path
+# means "nothing here knows what covers this". The exceptions are the path
 # classes recorded in scripts/affected-tests-no-suite.txt, each of which names
-# the non-shell CI lane that does cover it. Anything else fails, and
-# --allow-unmapped is the one-flag escape.
+# the lane that does cover it, and deletions, which have no content left to
+# cover. --allow-unmapped downgrades the error to a warning; --unmapped-corpus
+# keeps the report and adds every suite of the file's language to the selection:
+# the shell corpus for .sh and .bash, Python for .py, Node for .js .mjs .cjs,
+# Pester for .ps1 .psm1, and the shell corpus for any other file, because shell
+# suites are the ones that read data files out of the tree.
 #
-# SELECTION RULES
+# SELECTION RULES. A suite runs when the changed file is code the suite runs or
+# loads, or data the suite (or code it runs) reads. Every rule finds that
+# relation from text and paths, so each one is written to say no when the text
+# does not show the relation.
 #   R1 self          a changed suite selects itself, in any ecosystem.
 #   R2 co-located    <dir>/<stem>.<ext> selects the sibling suites covering it,
-#                    under each ecosystem's OWN naming convention: <stem>.test.sh,
-#                    <stem>.test.js, <stem>.test.mjs, <stem>.Tests.ps1, and
-#                    <dir>/test_<stem>.py — the last also with `-` folded to `_`,
-#                    which is how this repo names the Python suites covering its
-#                    hyphenated scripts (check-manifest-duplicate-keys.py ->
-#                    test_check_manifest_duplicate_keys.py) — and
-#                    <dir>/tests/test_<stem>.py, the one convention here that
-#                    puts the suite in a SUBDIRECTORY rather than beside the
-#                    file (13 of the 59 non-suite .py files in this repo). R3
-#                    cannot stand in for that arm and never could: a Python
-#                    suite reaches its subject with `import babysit_lease`, so
-#                    the filename is never spelled and there is nothing for a
-#                    text match to find. EVERY match is taken,
-#                    never just the first: a .py can carry both a test_<stem>.py
-#                    and a wrapping <stem>.test.sh, and stopping at one
-#                    under-selects, which is the unsafe direction.
-#   R3 referenced    any SUITE that NAMES the file — carries its basename as a
-#                    whole path token, see MATCHING below — is a covering suite
-#                    (it names the file, so it exercises it). This rule is a text
-#                    match and therefore language-agnostic: a Pester suite
-#                    dot-sourcing Foo.ps1 and a Node suite importing foo.js are
-#                    found exactly the way a shell suite is. Widening the corpus
-#                    is what taught it the other three ecosystems; the rule
-#                    itself did not change.
-#   R4 dependents    any other source file (.sh .bash .js .mjs .cjs .py .ps1
-#                    .psm1 — the same set the reverse-lookup pathspec searches,
-#                    and the same set lang_family() names; all three move
-#                    together or a path is classified into a family nothing ever
-#                    greps) that
-#                    NAMES the file the same way is a dependent; R2/R3 are
-#                    then applied to IT, transitively. This is what carries a lib
-#                    change out to the hooks that source it.
-#   R5 shared-lib    a file that is the `src` of a scripts/sync-*.sh selects
-#                    every path in that script's published `copy` list, and then
-#                    R2/R3/R4 on each copy. The copy set is DERIVED by invoking
-#                    `--print-manifest` on every run, never hardcoded here and
-#                    never scraped out of `src=` / `copies=(` source text: the
-#                    manifests are what CI's *-sync lanes enforce, so a new
-#                    carrying plugin is picked up the moment it exists. Deriving
-#                    it is the whole point — a list copied into this file would
-#                    silently rot, and the rot would show up as an under-selection.
+#                    under each ecosystem's own naming: <stem>.test.sh,
+#                    <stem>.test.js, <stem>.test.mjs, <stem>.Tests.ps1,
+#                    <dir>/test_<stem>.py and <dir>/tests/test_<stem>.py, the
+#                    two Python forms also with `-` folded to `_`. Every match is
+#                    taken: a .py can carry a test_<stem>.py and a wrapping
+#                    <stem>.test.sh at once.
+#   R3 same language a file in the changed file's language that NAMES it (see
+#                    MATCHING) on a line that is not only a comment is a
+#                    dependent; R1, R2 and R3 then apply to it, transitively,
+#                    with no depth cap. A suite that names it is selected. This is
+#                    what carries a library change out to what sources it.
+#   R4 other language a file in another language counts only where the naming
+#                    line runs or loads the file: an interpreter or process API on
+#                    the line (bash, sh, python3, node, pwsh, source, subprocess,
+#                    spawn*, exec*, ...), or a path to the file rather than its
+#                    bare name. Nothing else on the line counts: not the named
+#                    file being a shell script, not the naming file sitting in
+#                    the same directory. A chain takes at most one such
+#                    transition and then keeps walking its new language.
+#                    A data file (any extension that is not code) reaches code of
+#                    every language that names it, and that first step spends no
+#                    transition: data has no language of its own to stay inside.
+#   R5 shared lib    a file that is the `src` of a scripts/sync-*.sh selects
+#                    every path in that script's published `copy` list, then R2,
+#                    R3 and R4 on each copy. The copy set is DERIVED from
+#                    `--print-manifest` on every run, never hardcoded or scraped,
+#                    because the manifests are what CI's sync lanes enforce.
 #   R6 sync script   a changed scripts/sync-*.sh selects its own co-located test
-#                    plus everything its published `src` selects, since its
-#                    failure mode is the copies drifting from that source.
+#                    plus everything its published `src` selects.
 #   R7 path class    a path under plugins/autonomy/reference/ selects the
-#                    plugin-contract validator's suite. The validator bans
-#                    vendor names across that whole directory, but its files
-#                    are markdown that no suite names, so R1-R4 never reach
-#                    them and they fell to the no-suite *.md class. Only a
-#                    path rule can see them. The validator's fleet-token ban
-#                    over the rest of plugins/autonomy/ is not mapped here;
-#                    CI also runs the contract suite in a step of its own.
+#                    plugin-contract validator's suite, which bans vendor names
+#                    across that directory without naming any file in it.
+#   R8 declared scope a suite that enumerates a directory of the live tree
+#                    (a grep -r, a find, a glob over a plugin or scripts/), or
+#                    builds a path from parts, never names the files it reads,
+#                    so it declares them in its leading comment block, before
+#                    any code or docstring, in one or more lines of
+#                        # test-scope: plugins/github/* scripts/x.sh
+#                    A changed file matching a glob selects the suite and counts
+#                    as mapped. The globs use the dialect of the no-suite list:
+#                    matched against the repo-relative path, `*` crosses `/`;
+#                    a `#` after them starts a comment. Suites whose comments
+#                    start with `#` (shell, Python, Pester) can declare. A glob
+#                    matching no file fails the run that changes its suite.
+#   R9 wrapper       a selected <stem>.test.js or <stem>.test.mjs whose
+#                    directory holds <stem>.test.sh selects that wrapper too,
+#                    however the Node suite was reached. CI runs such a suite only
+#                    through its wrapper (scripts/run-outside-node-suites.sh
+#                    leaves it to the wrapper), so the Node suite alone runs
+#                    nothing. Applied after every other rule, before --shard.
 #
-# R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
-# like — because those name a repo-wide role rather than one artifact, so a
-# basename match carries no coverage signal (SKILL.md alone appears in 20
-# unrelated suites). Such files fall through to R2, then to the no-suite list.
+# MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
+# PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
+# is outside that class, so a path-qualified mention names the file. A trailing
+# run of `.` is sentence punctuation and is dropped, and so is a leading run of
+# `-`, `+`, `=`, `?` or `.`, so `${TARGET:-<name>}` and `...<name>` name <name>.
+# A basename buried inside a longer token (`handoff-paths.json` against
+# `paths.js`) is not a mention: a substring match there is FALSE COVERAGE, a
+# file nothing covers coming back mapped at exit 0. A basename the token rule
+# cannot spell, one with a character outside the class, keeps the substring
+# test rather than losing its coverage.
 #
-# The transitive walk has no depth cap WITHIN one ecosystem. It terminates on
-# the visited set, and its worst case is selecting every suite — the safe
-# direction.
+# MANIFESTS. plugin.json, marketplace.json, hooks.json, settings.json,
+# package.json, package-lock.json, CHANGELOG.md and LICENSE select no suite
+# through a mention: a suite that reads one reads its name or version, and the
+# manifest, changelog and catalog gates own those files. Only R1, R2 and a
+# declared scope (R8) reach a suite from them; anything else is on the no-suite
+# list.
 #
-# ACROSS ecosystems each path may take exactly ONE language transition, and this
-# asymmetry is load-bearing rather than tidiness. Within a language, "B's text
-# contains A's basename" is a real dependency: shell sources shell, Node imports
-# Node. Across languages it usually is not — a .ps1 that happens to contain the
-# characters "paths.js" is not loading it — so chaining those coincidences
-# compounds them. Measured before this rule existed, with the corpus widened to
-# four ecosystems and the walk left uncapped: EVERY .js file in the repo selected
-# the same 156 of 439 suites, and one selected 376, because the walk crossed
-# js -> ps1 -> sh and saturated on the hubs at the far end
-# (Assert-CheckResult.ps1, hook-utils.sh). An answer identical for every file in
-# a language carries no information about which file changed, which is the tool
-# failing at its whole job even though it fails in the "safe" direction.
+# AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
+# (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
+# only when the mention RESOLVES to it, because a bare `SKILL.md` or
+# `config.json` says nothing about which one. Any mention from the file's own
+# directory resolves. A bare name resolves from a directory above the file when
+# no other file of that name sits below that directory
+# (`FIXTURES / "questions.json"`), and never otherwise. A path resolves when it
+# ends in the shortest suffix of the file's path, two components or more, that
+# no other file of that name ends in, or in the file's path relative to a
+# directory below the repository root that holds both files, when that relative
+# path has a directory in it: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
+# `$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin. A path that
+# spells only the name (`$SKILL_DIR/SKILL.md`, `$T/README.md`) or that is
+# relative to the root alone (`$ROOT/.github/workflows/ci.yml`) does not
+# resolve: tests build the same path under a temporary directory as often as
+# they read the real file, so a suite that reads such a file declares it (R8),
+# as the strace of every suite showed where one does. A shared
+# library's source and copies are the exception and keep the plain rule: R5's
+# copies share a basename on purpose, change together with their source, and a
+# suite naming its own plugin's copy is naming the shared source.
 #
-# The budget is one TRANSITION per path, not one hop. A crossed-to file keeps
-# walking its OWN language freely; what it may not do is cross a second time.
-# The distinction matters and the weaker "one hop then stop" rule was wrong:
-# helper.py -> runner.sh -> command.sh -> command.test.sh is a real chain whose
-# second edge is shell-to-shell, and stopping dead at runner.sh dropped
-# command.test.sh — an under-selection, the direction this file calls unsafe. It
-# is the repeated re-crossing that saturates, not depth within one language.
+# COMMENTS. A line that is only a comment (`#` in shell, Python and
+# PowerShell; `//`, `/*` or a `*` continuation in Node) names nothing, in suites
+# and in code alike: prose that cites a file is not a dependency on it. A
+# `# shellcheck source=` directive and a JSDoc type import (`@import`,
+# `import('...')`) are read by tools and still count, as does a trailing
+# comment on a code line.
 #
-# This costs nothing that was ever load-bearing: before the corpus was widened
-# the reverse lookup was `-- '*.sh'`, so cross-language edges did not exist at
-# all and no shell-to-shell chain is shortened by any of this.
+# REPLAY. `--replay <range>` selects every first-parent commit of <range>
+# (`git rev-list --first-parent <range>`) against its parent, the squash-merged
+# pull request's net diff, in a scratch clone checked out at that commit, with
+# THIS script's rules, its no-suite list and its suites' declared scopes, so it
+# answers "what would this selector have run for those pull requests". It
+# prints one `commit <sha> <suites> <unmapped>` line per commit, an indented
+# `unmapped <path>` line per unmapped file and one indented
+# `<suite>  (<reason>)` line per suite. With `--against <ref>` it also runs the
+# selector at <ref>, with <ref>'s own no-suite list and declared scopes, on the
+# same tree, and prints only the suites that differ (`+` this script only,
+# `-` <ref> only, each with its reason) after a
+# `commit <sha> <new> <old> <new-unmapped> <old-unmapped>` line
+# and its `unmapped` lines, so a selector change shows its blast radius. Both
+# sides run with --allow-unmapped; a summary on stderr counts suites per commit
+# (p50, p95, max, total) and the commits with an unmapped file on each side.
+# Each run is pointed at the scratch clone with AFFECTED_TESTS_ROOT and at the
+# no-suite list with AFFECTED_TESTS_NO_SUITE, and AFFECTED_TESTS_SCOPES hands it
+# the declarations as `<suite> <glob>...` lines in place of the suites' headers,
+# since the replayed commits may predate them.
 #
-# MATCHING, for R3 and R4. One file NAMES another when the basename stands
-# there as a WHOLE PATH TOKEN: bounded on both sides by a character that cannot
-# occur inside a single path component, which is anything outside
-# [A-Za-z0-9_.-]. `/` is deliberately OUTSIDE that class, so a path-qualified
-# mention names the file — `source "$dir/hook-utils.sh"`, `"./gadget.js"`,
-# `. (Join-Path $PSScriptRoot 'Get-Thing.ps1')` — and so does a bare mention in
-# prose or a comment. A leading or trailing run of `.` is sentence punctuation
-# rather than part of a name, so a comment ending "... is covered by
-# <stem>.test.sh." names that suite too — which is how most of this repo's
-# comments cite the suite covering them.
-#
-# A leading run of shell PARAMETER-EXPANSION OPERATOR characters is stripped for
-# the same reason: `"${TARGET:-<name>.sh}"` is a mention of <name>.sh, but the
-# `-` of the `:-` sits INSIDE the token class, so without the strip the token is
-# `-<name>.sh` and nothing matches. The stripped set is `-`, `+`, `=`, `?` — every
-# operator character of the `${V:-x}` / `${V:+x}` / `${V:=x}` / `${V:?x}` family
-# and its colon-less forms. Only `-` is load-bearing today: the other three are
-# already outside [A-Za-z0-9_.-] and so already end a token on their own. They
-# are stripped anyway so the two sets cannot drift apart if the token class is
-# ever widened. This errs toward OVER-selection — a token that merely BEGINS
-# with one of those characters now names the file — which is the direction
-# DIRECTION above calls safe, and every pair it admits is one the pre-token
-# substring rule admitted too. What it buys is the failure it removes: without
-# it, a file whose only mention from some dependent is `${VAR:-<name>.sh}` still
-# looked MAPPED whenever it had a co-located suite, so the run exited 0 while
-# that dependent's suite was quietly left out. A silent under-selection is
-# exactly what this tool exists to refuse.
-#
-# What no longer counts is a basename buried INSIDE a longer token:
-# `handoff-paths.json` is not a mention of `paths.js`,
-# `status.showUntrackedFiles` is not a mention of `status.sh`, and
-# `common.sh.tmpl` is not a mention of `common.sh` — all three are real hits
-# this corpus used to serve. Those were not merely noisy over-selection. They
-# were FALSE COVERAGE, which is the fail-OPEN direction: a file nothing covers
-# came back with a non-empty selection and exit 0 instead of failing unmapped,
-# so the FAIL LOUD contract above silently did not apply to it. Measured on this
-# corpus: a new hooks helper named with a basename that another path merely ENDS
-# with, covered by nothing at all, selected 131 suites at exit 0 — most of the
-# shell corpus, and an answer that would have been the same for any name in that
-# collision class; under this rule the same file is UNMAPPED. (The count tracks
-# the corpus and will drift; "most of it" is the part that matters.) Naming a
-# file "distinctively" was never a defense — whether the collision happens is
-# decided by every OTHER path already in the repo, not by how the new name reads
-# on its own. This paragraph deliberately does not spell that helper's basename:
-# a name written HERE is a name this file then references, and the tool would map
-# the file to this hub instead of failing loud, which is the very report the
-# example exists to describe. Every example below is spelled the same careful
-# way, and for the same reason.
-#
-# The class cuts BOTH ways, and this is the strict edge of the rule: a
-# token-class character abutting the basename ends the match exactly as a letter
-# does, because `-`, `_` and `.` are INSIDE the class while `/` is not. With the
-# leading strips above, that is now a TRAILING-side statement only:
-# `<name>-shaped` in a sentence stops naming <name>, while a leading `-`, the one
-# `${2:-<name>}` puts in front of a default, does not. The asymmetry is forced
-# rather than chosen — a leading strip cannot reach the trailing case, where the
-# whole token is `<name>-shaped` and there is no prefix to remove. Two files in
-# this corpus are mentioned in the trailing form today and keep their suites only
-# because they are ALSO named in bounded form elsewhere. A file mentioned only in
-# such a form loses R3/R4 outright — and that lands LOUD rather than silent: with
-# no other rule reaching it, the file is reported UNMAPPED at exit 1, which is
-# the fail-CLOSED direction this tool is built to shout about, not the silent
-# under-selection it is built to refuse.
-#
-# SWEPT over every tracked file when this landed: 534 files selected fewer
-# suites (15.8% fewer selected-suite slots across the tree), 4 files that had
-# been UNMAPPED became mapped, and NOTHING became unmapped. 25 files did drop to
-# an EMPTY selection — every one a markdown context file whose basename had been
-# landing inside a longer one (a `<verb>.md` matching inside a
-# `<something>-<verb>.md`), and every one already covered by a class in
-# scripts/affected-tests-no-suite.txt, so they report as no-suite at exit 0
-# rather than as a finding. "Nothing became unmapped" is therefore the true
-# statement, and "nothing lost its whole selection" is NOT.
-#
-# That sweep was measured before the expansion-operator strip landed, and the
-# strip only ADDS pairs back, every one of them a pair the old substring rule
-# also served. So it moves the counts toward the pre-rule baseline and can
-# reverse none of the sweep's directions: nothing that was mapped becomes
-# unmapped, and no file gains a suite the old behavior did not already give it.
-# Measured on the corpus as it stands, the strip re-admits two (file, basename)
-# pairs in total, one of which R3/R4 discards anyway as a structural basename.
-#
-# SKILL OWNERSHIP. Skills reuse reference and script names freely, so inside a
-# skill directory, plugins/<plugin>/skills/<skill>/, that carries its own <file>,
-# a bare <file> means that one, never another skill's file of the same name.
-# When every frontier file carrying a basename sits inside a skill directory, a
-# hit keeps the pair only when one of these holds:
-#   - the hit lies inside one of those same skill directories and its line does
-#     not name the file only through another skill;
-#   - the matched line spells the file path-qualified: a path token ending in
-#     /<file> with <skill>/ as one of its components, which the repo-relative
-#     path also satisfies. A token that spells plugins/<plugin>/skills/<skill>/
-#     must match the owning plugin as well as the skill;
-#   - the line mentions the file bare, or under a path that does not run through
-#     skills/<other>/, and the hit's own skill directory, if it has one,
-#     carries no file of that basename.
-# A path token through skills/<other>/ names another skill's file and never keeps
-# the pair, wherever the hit lives. A bare mention inside a skill that carries
-# its own file of that name is that skill citing its own file, and is dropped
-# too. A skill WITHOUT such a file keeps the pair, because its plain mention can
-# only mean somebody else's file: a test reaching a sibling skill's script as
-# `$<VAR>/<file>`, or building the path from parts, spells no skill name.
-#
-# A basename any frontier file carries OUTSIDE a skill directory keeps the plain
-# basename rule for every hit, and that is what leaves R5 untouched: its shared
-# sources live outside skill directories, and a source that sits in one enters
-# the frontier on the same level as its copies, so each copy's own skill is one
-# of the owners and that skill's suites still match it bare. A copy changed on
-# its own, apart from its source, no longer reaches the other copies' suites; R5
-# fans out from the source, and the sync lane gates a copy that drifts from it.
-#
-# Three things stay deliberately generous, all in the over-selecting direction:
-#   - a token match on the SAME basename in ANOTHER directory counts for any
-#     basename a frontier file carries outside a skill directory. There it is a
-#     basename rule and has to stay one: R5's entire fan-out is copies that share
-#     a basename across directories (lib/hook-utils.sh ->
-#     plugins/*/hooks/hook-utils.sh), so a suite naming its own plugin's copy is
-#     naming the shared source. Requiring the whole repo-relative path would cut
-#     that, which is under-selection.
-#   - a mention in a comment counts, exactly as it did before.
-#   - a basename the token rule cannot express — one carrying a character
-#     outside [A-Za-z0-9_.-], which no tracked path in this repo does today —
-#     falls back to the old substring test rather than to no coverage at all. A
-#     name this rule cannot spell must over-select, never quietly stop matching.
-#
-# MECHANICALLY this is two stages, and the split is a measured cost rather than
-# taste. `git grep -F` keeps its fixed-string fast path (~4s over this corpus
-# for a 559-basename level); spelling the boundaries as an ERE alternation
-# instead — `git grep -o -E`, one bounded pattern per basename — took over two
-# minutes for that same level, which is not a usable per-level cost. So git grep
-# still finds the candidate LINES with the substring test, and one awk pass over
-# those lines (~0.06s) splits each into path tokens and keeps only the pairs
-# whose token IS one of the basenames asked about and that SKILL OWNERSHIP lets
-# stand. Both stages fail loud; see the call site in select_for.
+# MECHANICALLY the reverse lookup is two stages. `git grep -F` finds the
+# candidate LINES with the substring test, which keeps git's fixed-string fast
+# path (an ERE alternation of bounded basenames took minutes per level); one
+# awk pass then drops comment lines, splits each line into tokens, and keeps the
+# (file, name) pairs MATCHING and AMBIGUOUS NAMES let stand, marking each with
+# whether its line runs or loads the file.
+# Both stages fail loud; see the call site in select_for.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+SELF="$SCRIPT_DIR/${BASH_SOURCE[0]##*/}"
+cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
+SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
 
-# Basenames that name a structural role rather than one artifact. R3/R4 ignore
-# them; see the note above.
-STRUCTURAL_BASENAMES="README.md SKILL.md AGENTS.md CLAUDE.md CHANGELOG.md
-plugin.json marketplace.json settings.json hooks.json package.json
-package-lock.json index.md LICENSE"
+# Basenames that name a repository-wide role, reached only through a resolved
+# mention (AMBIGUOUS NAMES in the header), however few files carry them today.
+STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
+# Manifests and changelogs, which no mention reaches (MANIFESTS in the header).
+MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
+MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
 
 # Print the header block (everything after the shebang up to the first
-# non-comment line) with its comment markers stripped. Derived rather than a
-# hardcoded line range, which silently truncated as the header grew.
+# non-comment line) with its comment markers stripped.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
@@ -310,23 +222,24 @@ usage() {
 base_ref=""
 do_run=0
 allow_unmapped=0
+unmapped_corpus=0
 explain=0
 print_fanout=""
 shard_spec=""
+replay_range=""
+against_ref=""
 jobs=1
-# Whether --shard was SUPPLIED, tracked apart from its value. `--shard=` with an
-# empty right-hand side is what an environment variable that expanded to nothing
-# produces, and a presence test on the value alone would read it as "no shard
-# requested" and run the whole selection on every leg while reporting success.
+# Whether --shard was SUPPLIED, tracked apart from its value: `--shard=` with an
+# empty right-hand side is what an unset environment variable produces, and it
+# must not read as "no shard requested" and run everything on every leg.
 shard_given=0
 shard_index=0
 shard_total=1
 declare -a explicit_paths=()
 
 # parse_shard <spec>: accept exactly `<i>/<n>` with i and n decimal, n >= 1 and
-# 0 <= i < n. Rejected whole-string rather than by prefix: a spec this function
-# cannot read must never silently become leg 0 of 1, because that leg RUNS
-# EVERYTHING and would report a full pass from a typo'd fan-out.
+# 0 <= i < n. A spec this function cannot read must never become leg 0 of 1,
+# which RUNS EVERYTHING and would report a full pass from a typo'd fan-out.
 parse_shard() {
   local spec="$1" i n
   [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
@@ -342,94 +255,76 @@ parse_shard() {
   return 0
 }
 
+# need_value <flag> <argc> <value>: usage errors exit 2, never 1, which is
+# spoken for by an unmapped file and a failing suite.
+need_value() {
+  if [[ "$2" -lt 2 || -z "$3" ]]; then
+    echo "error: $1 needs a value ($4)." >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
     exit 0
     ;;
-  --run)
-    do_run=1
-    shift
-    ;;
-  --allow-unmapped)
-    allow_unmapped=1
-    shift
-    ;;
-  --explain)
-    explain=1
-    shift
-    ;;
+  --run) do_run=1 ;;
+  --allow-unmapped) allow_unmapped=1 ;;
+  --unmapped-corpus) unmapped_corpus=1 ;;
+  --explain) explain=1 ;;
+  --with-always) ;;
   --jobs)
-    # Same as --base below: usage errors exit 2, not 1.
-    if [[ $# -lt 2 || -z "$2" ]]; then
-      echo "error: --jobs needs a positive integer." >&2
-      exit 2
-    fi
+    need_value "$1" $# "${2:-}" "a positive integer"
     jobs="$2"
-    shift 2
-    ;;
-  --jobs=*)
-    jobs="${1#--jobs=}"
     shift
     ;;
+  --jobs=*) jobs="${1#--jobs=}" ;;
   --base)
-    # Checked explicitly rather than with `${2:?...}`, which exits 1. Exit 1 is
-    # already spoken for twice here — an unmapped changed file, and a failing
-    # suite under --run — and the header documents usage errors as 2. A caller
-    # that branches on the code cannot tell a typo'd flag from a real finding.
-    if [[ $# -lt 2 || -z "$2" ]]; then
-      echo "error: --base needs a ref." >&2
-      exit 2
-    fi
+    need_value "$1" $# "${2:-}" "a ref"
     base_ref="$2"
-    shift 2
-    ;;
-  --base=*)
-    base_ref="${1#--base=}"
     shift
     ;;
+  --base=*) base_ref="${1#--base=}" ;;
   --shard)
-    # Same as --base above: usage errors exit 2, not 1.
-    if [[ $# -lt 2 || -z "$2" ]]; then
-      echo "error: --shard needs <index>/<total>." >&2
-      exit 2
-    fi
+    need_value "$1" $# "${2:-}" "<index>/<total>"
     shard_spec="$2"
     shard_given=1
-    shift 2
+    shift
     ;;
   --shard=*)
     shard_spec="${1#--shard=}"
     shard_given=1
-    shift
     ;;
   --print-fanout)
-    # Same as --base above: usage errors exit 2, not 1.
-    if [[ $# -lt 2 || -z "$2" ]]; then
-      echo "error: --print-fanout needs a path." >&2
-      exit 2
-    fi
+    need_value "$1" $# "${2:-}" "a path"
     print_fanout="$2"
-    shift 2
+    shift
+    ;;
+  --replay)
+    need_value "$1" $# "${2:-}" "a revision range"
+    replay_range="$2"
+    shift
+    ;;
+  --against)
+    need_value "$1" $# "${2:-}" "a ref"
+    against_ref="$2"
+    shift
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      explicit_paths+=("$1")
-      shift
-    done
+    explicit_paths+=("$@")
+    break
     ;;
   -*)
     echo "error: unknown option: $1" >&2
     usage >&2
     exit 2
     ;;
-  *)
-    explicit_paths+=("$1")
-    shift
-    ;;
+  *) explicit_paths+=("$1") ;;
   esac
+  shift
 done
 
 if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
@@ -440,6 +335,18 @@ if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total; got: $shard_spec" >&2
   exit 2
 fi
+if [[ "$allow_unmapped" -eq 1 && "$unmapped_corpus" -eq 1 ]]; then
+  echo "error: --allow-unmapped and --unmapped-corpus answer the same question two ways; pass one." >&2
+  exit 2
+fi
+if [[ -n "$against_ref" && -z "$replay_range" ]]; then
+  echo "error: --against only applies to --replay." >&2
+  exit 2
+fi
+if [[ -n "$replay_range" ]] && [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
+  echo "error: --replay takes its changed files from each commit; it combines with no paths, --base, --run or --shard." >&2
+  exit 2
+fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests.XXXXXX")" || exit 2
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -448,8 +355,8 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Sync-manifest derivation (R5/R6)
 # ---------------------------------------------------------------------------
 
-# Published --print-manifest format (scripts/lib/sync-cluster.sh,
-# scripts/sync-shared-copies.sh), one block per canonical source:
+# Published --print-manifest format (scripts/sync-shared-copies.sh), one
+# block per canonical source:
 #   src<TAB><path>     opens a block; empty path means the key was declared blank
 #   copy<TAB><path>    zero or more per block; path may still be a glob
 # A script that does not implement the flag (usage on stderr, empty stdout) or
@@ -474,9 +381,7 @@ register_sync_block() {
   fi
   SYNC_SCRIPT_SRC["$script"]+="$src"$'\n'
   # A src with NO copy key at all is a canonical-only cluster: the lib has
-  # landed and no plugin carries it yet. That is not the rot the zero-yield
-  # guard below catches (copy patterns declared, none matching anything), so
-  # it registers with an empty copy set and R5/R6 resolve to the src alone.
+  # landed and no plugin carries it yet. It registers with an empty copy set.
   if ((has_copy_key == 0)); then
     SYNC_SRC_COPIES["$src"]=""
     return 0
@@ -557,13 +462,10 @@ build_sync_map() {
       exit 2
     fi
 
-    # A script matching scripts/sync-*.sh that publishes NEITHER key is not a
-    # copy manifest — it is a helper that happens to share the prefix. Skip it.
-    # Hard-exiting on it would be a repo-wide outage: this suite runs in the
-    # plugin-gate lane, so the first future `scripts/sync-something.sh` that is
-    # not a manifest would turn a REQUIRED check red for every PR, including
-    # ones that never touch this tool. Such a script opens no block, so the
-    # loop below registers nothing for it. Half a manifest is still fatal.
+    # A script matching scripts/sync-*.sh that publishes NEITHER key is a
+    # helper that happens to share the prefix, and opens no block. Exiting on
+    # it would turn a required lane red for every pull request the day such a
+    # helper lands. Half a manifest is still fatal.
     for i in "${!block_src[@]}"; do
       patterns=()
       while IFS= read -r line; do
@@ -579,6 +481,70 @@ build_sync_map() {
 }
 
 # ---------------------------------------------------------------------------
+# Tree index: every file, the ambiguous basenames, the declared scopes
+# ---------------------------------------------------------------------------
+
+declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
+declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
+declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
+# build_tree_index: every tracked or untracked-unignored file, listed once for
+# the ambiguous-name set, the reverse lookup's resolution, the declared scopes
+# and the unmapped corpora. Fatal on a failed listing: a short list under-selects.
+build_tree_index() {
+  local b src copy suite
+  if ! git ls-files --cached --others --exclude-standard >"$WORK_DIR/all-files" ||
+    ! awk '{ sub(/.*\//, ""); if (++count[$0] == 2) print }' "$WORK_DIR/all-files" >"$WORK_DIR/ambiguous"; then
+    echo "error: listing the tree failed." >&2
+    exit 2
+  fi
+  while IFS= read -r b; do
+    AMBIGUOUS["$b"]=1
+  done <"$WORK_DIR/ambiguous"
+  for src in "${!SYNC_SRC_COPIES[@]}"; do
+    SYNC_MEMBER["$src"]=1
+    while IFS= read -r copy; do
+      [[ -n "$copy" ]] && SYNC_MEMBER["$copy"]=1
+    done <<<"${SYNC_SRC_COPIES[$src]}"
+  done
+
+  # R8: the suites' `# test-scope:` headers, or the `<suite> <glob>...` lines
+  # a replay hands in, whose suites an older commit may lack.
+  local -a entries=() words=()
+  local entry i decls
+  if [[ -n "$SCOPES_LIST" ]]; then
+    read_list::into entries "$SCOPES_LIST" --comments inline || exit 2
+  else
+    decls="$(scope_declarations "$WORK_DIR/all-files")" || exit 2
+    read_list::into_text entries "$decls" --comments inline || exit 2
+  fi
+  for entry in ${entries[@]+"${entries[@]}"}; do
+    read -r -a words <<<"$entry"
+    suite="${words[0]}"
+    for ((i = 1; i < ${#words[@]}; i++)); do
+      SCOPE_SUITES+=("$suite")
+      SCOPE_GLOBS+=("${words[i]}")
+    done
+  done
+}
+
+# scope_declarations <file-list> -> one `<suite> <glob>...` line per
+# `# test-scope:` line in the leading comment block of each suite the list
+# names, read from the current directory (R8).
+scope_declarations() {
+  awk '
+    { b = $0; sub(/.*\//, "", b) }
+    !(/\.test\.sh$|\.Tests\.ps1$/ || b ~ /^test_.*\.py$/) { next }
+    {
+      while ((getline line < $0) > 0) {
+        sub(/\r$/, "", line)
+        if (line !~ /^#/ && line !~ /^[ \t]*$/) break
+        if (sub(/^#[ \t]*test-scope:/, "", line)) print $0 " " line
+      }
+      close($0)
+    }' "$1"
+}
+
+# ---------------------------------------------------------------------------
 # Selection
 # ---------------------------------------------------------------------------
 
@@ -586,18 +552,9 @@ declare -A SUITES=()   # suite path -> reason
 declare -a UNMAPPED=() # changed paths that mapped to nothing
 declare -a DELETED=()  # changed paths that mapped to nothing AND no longer exist
 
-is_structural() {
-  local b="$1" s
-  for s in $STRUCTURAL_BASENAMES; do
-    [[ "$b" == "$s" ]] && return 0
-  done
-  return 1
-}
-
 # SEED_HITS counts the suites the CURRENT seed reached, whether or not an
-# earlier seed had already selected them. Counting only NEWLY added suites was
-# wrong and wrong in the dangerous direction: the second of two changed files
-# that share a suite looked like it mapped to nothing and was reported unmapped.
+# earlier seed had already selected them: counting only new ones reported the
+# second of two files sharing a suite as unmapped.
 SEED_HITS=0
 add_suite() {
   local suite="$1" reason="$2"
@@ -609,11 +566,9 @@ add_suite() {
   return 0
 }
 
-# is_suite_path <path> -> 0 when the path IS a test suite, in any ecosystem this
-# repo actually carries. The conventions are READ from the corpus, not invented:
-# shell and Node co-locate <stem>.test.<ext>, Pester suffixes <Stem>.Tests.ps1,
-# and Python PREFIXES test_<stem>.py — which is why the Python arm has to test
-# the basename rather than the whole path.
+# is_suite_path <path> -> 0 when the path IS a test suite, in any ecosystem
+# this repo carries. Python PREFIXES test_<stem>.py, so its arm tests the
+# basename rather than the whole path.
 is_suite_path() {
   case "$1" in
   *.test.sh | *.test.js | *.test.mjs | *.Tests.ps1) return 0 ;;
@@ -626,13 +581,10 @@ is_suite_path() {
   return 1
 }
 
-# lang_family <path> -> sets LANG_FAMILY to the ecosystem the path belongs to,
-# for the one-hop rule above. A global rather than stdout for the same reason
-# SEED_HITS is, plus one more: a command substitution forks a subshell, and this
-# runs once per frontier path and once per reverse-lookup hit — a per-spawn cost
-# the header's Windows note is about. Anything unrecognized gets its own bucket
-# rather than a shared "other": two unrelated extensions must not read as the
-# same language and license a walk between them.
+# lang_family <path> -> sets LANG_FAMILY to the ecosystem the path belongs to.
+# A global rather than stdout: a command substitution forks, and this runs once
+# per frontier path and per lookup hit. Anything unrecognized gets its own
+# `ext:` bucket rather than a shared "other", and an `ext:` origin is data (R4).
 LANG_FAMILY=""
 lang_family() {
   case "$1" in
@@ -644,148 +596,160 @@ lang_family() {
   esac
 }
 
-# token_hits <patterns> <frontier> <skill-files> <grep-output> <hits>
-# Reduce `git grep`'s SUBSTRING hits to the TOKEN hits R3/R4 actually mean: keep
-# a (file, basename) pair only where that basename stands in the matched line as
-# a whole path token, and, for a basename only skill directories carry, only
-# where SKILL OWNERSHIP lets the line mean that file. See MATCHING in the header
-# for both rules and for why they live here instead of in the grep pattern.
-#
-# The frontier file lists the paths whose basenames this level asked about, so a
-# basename traces back to the skill directories that own it; the skill-files
-# list says which skills carry a file of that name of their own. The grep input
-# is `<path>:<line>`; the output is `<path>:<name>`, deduplicated, which is the
-# shape the caller already parses. Splitting the LINE rather than the path keeps
-# a basename that appears only in the path prefix from counting as a mention of
-# itself.
+# token_hits <plain> <resolve> <matched-lines> <hits>
+# Reduce `git grep`'s SUBSTRING hits to the mentions the rules mean. Inputs:
+# the frontier paths this level looks up by plain basename, those whose names
+# must RESOLVE (AMBIGUOUS NAMES), and the `<path>:<line>` grep output. Output,
+# one line per pair:
+#   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
+#   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
-  awk -v pat="$1" -v front="$2" -v skills="$3" '
-    function skill_dir(p) {
-      if (match(p, "^plugins/[^/]+/skills/[^/]+/")) return substr(p, 1, RLENGTH)
+  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" '
+    function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
+    function base_of(p) { sub(/.*\//, "", p); return p }
+    function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
+    # Plain names: a basename that is itself a path token gets the exact test;
+    # anything else keeps the substring test rather than losing coverage.
+    FILENAME == plainf {
+      if ($0 == "") next
+      b = base_of($0)
+      if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
+      else loose[b] = 1
+      next
+    }
+    FILENAME == resf {
+      if ($0 == "") next
+      b = base_of($0)
+      rt[b, ++nrt[b]] = $0
+      next
+    }
+    FILENAME == allf {
+      b = base_of($0)
+      if (b in nrt) same[b, ++nsame[b]] = $0
+      next
+    }
+    # uniq_suffix: the shortest path suffix, two components or more, that no
+    # other file of the same basename ends in; empty when there is none.
+    function uniq_suffix(t,   n, pa, k, j, suf, b, i, o, clash) {
+      n = split(t, pa, "/")
+      b = pa[n]
+      for (k = 2; k <= n; k++) {
+        suf = pa[n - k + 1]
+        for (j = n - k + 2; j <= n; j++) suf = suf "/" pa[j]
+        clash = 0
+        for (i = 1; i <= nsame[b]; i++) {
+          o = same[b, i]
+          if (o != t && (o == suf || ends(o, "/" suf))) { clash = 1; break }
+        }
+        if (!clash) return suf
+      }
       return ""
     }
-    # First file: the basenames this level asked about. A name that is itself a
-    # path token gets the exact test; anything else cannot be tokenized at all,
-    # so it keeps the old substring test rather than losing coverage silently.
-    FILENAME == pat {
-      if ($0 == "") next
-      if ($0 ~ /^[A-Za-z0-9_.-]+$/) want[$0] = 1
-      else loose[$0] = 1
-      next
-    }
-    # Second file: the frontier paths. A basename any of them carries outside a
-    # skill directory keeps the plain basename rule; the rest record the skill
-    # directories and skill names that own them.
-    FILENAME == front {
-      if ($0 == "") next
-      n = split($0, c, "/")
-      d = skill_dir($0)
-      if (d == "") free[c[n]] = 1
-      else {
-        k = ++nowner[c[n]]
-        odir[c[n], k] = d
-        oskill[c[n], k] = c[4]
+    # resolves: does path token pt, written in file namer, mean target t? Any
+    # mention from the directory of t does. A bare name does from a directory
+    # above t when no other file of that name sits below that directory. A path
+    # does when it ends in the shortest unique suffix of t, or in the path of t
+    # relative to a directory below the root holding both files, when that
+    # relative path has a directory in it ($SCRIPT_DIR/lib/x.sh,
+    # $PLUGIN_DIR/skills/<s>/SKILL.md).
+    function resolves(namer, pt, t,   u, a, i, b, rel) {
+      a = dir_of(namer)
+      if (a == dir_of(t)) return 1
+      b = base_of(t)
+      if (!index(pt, "/")) {
+        if (a != "" && index(t, a) != 1) return 0
+        for (i = 1; i <= nsame[b]; i++)
+          if (same[b, i] != t && (a == "" || index(same[b, i], a) == 1)) return 0
+        return 1
       }
-      next
-    }
-    # Third file: every file inside a skill directory, as <skill dir><basename>.
-    FILENAME == skills {
-      carries[$0] = 1
-      next
-    }
-    # mine_tok: does this path token (leading slash added) name the file through
-    # an owning skill? A token that spells the plugin must match the owning
-    # plugin and skill both; one that spells only the skill matches by name.
-    function mine_tok(q, name,   k, full) {
-      full = match(q, "/plugins/[^/]+/skills/[^/]+/") ? substr(q, RSTART, RLENGTH) : ""
-      for (k = 1; k <= nowner[name]; k++) {
-        if (full != "") { if (full == "/" odir[name, k]) return 1 }
-        else if (index(q, "/" oskill[name, k] "/")) return 1
+      if (!(t in usuf)) usuf[t] = uniq_suffix(t)
+      u = usuf[t]
+      if (u != "" && (pt == u || ends(pt, "/" u))) return 1
+      for (; a != ""; sub(/[^\/]*\/$/, "", a)) {
+        if (index(t, a) != 1) continue
+        rel = substr(t, length(a) + 1)
+        if (index(rel, "/") && (pt == rel || ends(pt, "/" rel))) return 1
       }
       return 0
     }
-    # owned: may this line in this file stand for a frontier file of that name?
-    function owned(path, name, text,   hd, k, n, j, pt, q, named, plain, mine, own) {
-      if ((name in free) || !(name in nowner)) return 1
-      hd = skill_dir(path)
-      own = 0
-      for (k = 1; k <= nowner[name]; k++)
-        if (hd == odir[name, k]) own = 1
-      named = 0
-      plain = 0
-      mine = 0
-      n = split(text, ptok, "[^A-Za-z0-9_./-]+")
-      for (j = 1; j <= n; j++) {
-        pt = ptok[j]
-        sub(/\.+$/, "", pt)
-        sub(/^[-+=?.]+/, "", pt)
-        if (pt != name && substr(pt, length(pt) - length(name)) != "/" name) continue
-        named = 1
-        q = "/" pt
-        if (mine_tok(q, name)) mine = 1
-        else if (!index(q, "/skills/")) plain = 1
-      }
-      if (mine) return 1
-      # A mention this split cannot place counts as plain: over-select. Inside an
-      # owning skill, a plain mention is that skill citing its own file.
-      if (own) return plain || !named
-      return (plain || !named) && !((hd name) in carries)
+    # runs_or_loads: R4. An interpreter or process API on the line, or a path
+    # to the file.
+    function runs_or_loads(name, n,   j) {
+      if (exec_line) return 1
+      for (j = 1; j <= n; j++) if (ends(ptok[j], "/" name)) return 1
+      return 0
     }
-    function emit(path, name) {
-      if ((path SUBSEP name) in seen) return
-      seen[path SUBSEP name] = 1
-      print path ":" name
+    function keep(path, name, n) {
+      key = path SUBSEP name
+      if (!(key in kept)) { kept[key] = 0; order[++nkept] = key }
+      if (!kept[key] && runs_or_loads(name, n)) kept[key] = 1
     }
-    # A rejected line does not mark the pair seen: a later line may qualify it.
-    function keep(path, name, text) {
-      if ((path SUBSEP name) in seen) return
-      if (owned(path, name, text)) emit(path, name)
+    # comment_only: a whole-line comment names nothing (COMMENTS in the header),
+    # except a shellcheck source directive and a JSDoc type import.
+    function comment_only(path, text) {
+      if (path ~ /\.(js|mjs|cjs)$/)
+        return text ~ /^[ \t]*(\/\/|\/\*|\*([ \t\/]|$))/ && text !~ /@import|import\(/
+      if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
+      return text ~ /^[ \t]*#/
     }
     {
       i = index($0, ":")
-      # No separator means no path: git grep says "Binary file X matches" that
-      # way, and a hit with no readable path must not become a frontier entry.
+      # No separator means no path: git grep says "Binary file X matches" that way.
       if (i == 0) next
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
+      if (comment_only(path, text)) next
+      # A word, not an extension: the `.sh` of `x.sh` is no interpreter.
+      exec_line = text ~ /(^|[^A-Za-z0-9_.-])(bash|sh|zsh|python3?|node|deno|pwsh|powershell|uv|npx|source|subprocess|Popen|check_output|check_call|spawn[A-Za-z0-9_]*|exec[A-Za-z0-9_]*|execa|child_process|Start-Process|Invoke-Expression)([^A-Za-z0-9_-]|$)/
+      # Path tokens. A leading `.` stays: `./x`, `../x` and `.claude-plugin/x`
+      # are paths, not punctuation.
+      np = split(text, ptok, /[^A-Za-z0-9_.\/-]+/)
+      for (j = 1; j <= np; j++) {
+        sub(/\.+$/, "", ptok[j])
+        sub(/^[-+=?]+/, "", ptok[j])
+        b = base_of(ptok[j])
+        if (!(b in nrt)) continue
+        for (k = 1; k <= nrt[b]; k++)
+          if (rt[b, k] != path && resolves(path, ptok[j], rt[b, k])) {
+            key = path SUBSEP rt[b, k]
+            if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
+          }
+      }
       n = split(text, tok, /[^A-Za-z0-9_.-]+/)
       for (j = 1; j <= n; j++) {
         t = tok[j]
         if (t == "") continue
-        if (t in want) { keep(path, t, text); continue }
-        # A trailing dot run is sentence punctuation (a comment ending "... in
-        # that suite."), and a leading one is an ellipsis butted against the
-        # name. Neither is part of a filename. The leading arm is the narrow
-        # one: a relative path needs no stripping, because the `/` in `./x`
-        # already delimits the token, so it fires only on a literal `...x`.
+        if (t in want) { keep(path, t, np); continue }
         sub(/\.+$/, "", t)
-        if (t in want) { keep(path, t, text); continue }
-        # The leading strip also drops a run of parameter-expansion operator
-        # characters, so `${V:-<name>}` names <name>. Only `-` is load-bearing:
-        # it is the one operator character inside the token class, so it glues
-        # onto the name instead of ending the token. See MATCHING in the header.
+        if (t in want) { keep(path, t, np); continue }
         sub(/^[-+=?.]+/, "", t)
-        if (t in want) keep(path, t, text)
+        if (t in want) keep(path, t, np)
       }
       for (name in loose)
-        if (index(text, name) > 0) emit(path, name)
+        if (index(text, name) > 0) {
+          key = path SUBSEP name
+          if (!(key in kept)) order[++nkept] = key
+          kept[key] = 1
+        }
     }
-  ' "$1" "$2" "$3" "$4" >"$5"
+    END {
+      for (k = 1; k <= nkept; k++) {
+        split(order[k], kv, SUBSEP)
+        print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
+      }
+    }
+  ' "$1" "$2" "$WORK_DIR/all-files" "$3" >"$4"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
-# PLURAL on purpose: one source file can carry suites in two ecosystems at once
-# — a .py with both a co-located test_<stem>.py and a wrapping <stem>.test.sh
-# that drives it — and returning only the first is an under-selection, the one
-# direction this tool treats as unsafe.
+# PLURAL on purpose: a .py can carry a co-located test_<stem>.py and a
+# wrapping <stem>.test.sh at once, and returning one under-selects.
 colocated_suites() {
   local p="$1" stem dir base candidate
   if is_suite_path "$p"; then
     printf '%s\n' "$p"
     return 0
   fi
-  # An extensionless path keeps its whole name as the stem, which is what
-  # ${p%.*} already yields when there is no dot to strip.
   stem="${p%.*}"
   dir="${p%/*}"
   [[ "$dir" == "$p" ]] && dir="."
@@ -796,15 +760,10 @@ colocated_suites() {
     "$stem.test.mjs"
     "$stem.Tests.ps1"
     "$dir/test_$base.py"
-    # The one suite this repo puts in a SUBDIRECTORY instead of beside its
-    # subject. It has to be a path rule: the suites in question reach their
-    # subject with `import <module>`, which never spells the filename, so the
-    # reference rule has no text to match and the file looks uncovered.
+    # A Python suite reaches its subject with `import <module>`, which never
+    # spells the filename, so the tests/ form has to be a path rule.
     "$dir/tests/test_$base.py"
   )
-  # The hyphen fold is a SECOND candidate only when there is a hyphen to fold;
-  # otherwise it is character-for-character the previous entry and would emit
-  # the same path twice.
   [[ "$base" == *-* ]] && candidates+=(
     "$dir/test_${base//-/_}.py"
     "$dir/tests/test_${base//-/_}.py"
@@ -816,29 +775,19 @@ colocated_suites() {
 }
 
 # select_for <changed-path> -> populate SUITES, and set SEED_HITS to the number
-# of suites THIS seed reached. The count comes back through a global rather than
-# stdout on purpose: a command substitution would run the whole walk in a
-# SUBSHELL and every SUITES mutation would be discarded with it.
+# of suites THIS seed reached. The count comes back through a global: a command
+# substitution would run the walk in a subshell and lose every SUITES entry.
 select_for() {
   local seed="$1"
-  local -a frontier=()
-  local -a next=()
-  local p b sib copy line matched_path matched_name grep_rc
-  local origin_family matched_family hop_state
-  # PATTERN_ORIGIN maps a batched basename back to the ecosystem of the file that
-  # contributed it, and PATTERN_CROSSED records whether that file had already
-  # spent its one language transition. When two files in DIFFERENT families
-  # contribute the same basename, the origin collapses to '*' and the pattern is
-  # treated as same-family against anything — the over-selecting direction, which
-  # is the safe one.
-  local -A PATTERN_ORIGIN=()
-  local -A PATTERN_CROSSED=()
-  local -A CROSSED=()
-  # The visited set is PER SEED, not shared across seeds. Sharing it made a
-  # changed file that an earlier seed had already walked past look unvisited-
-  # and-unmapped, which is the fail-open direction: the file would be reported
-  # as covered because someone else's walk touched it, or as unmapped because
-  # its own walk was short-circuited. Re-walking costs one batched grep.
+  local -a frontier=() next=()
+  local p b sib copy line kind hit_path hit_name hit_x grep_rc
+  local origin_family hit_family hop_state
+  # PATTERN_ORIGIN maps a plain basename back to the ecosystem of the file that
+  # contributed it ('*' when two families contributed it, which over-selects),
+  # and PATTERN_CROSSED records whether that file had spent its transition.
+  local -A PATTERN_ORIGIN=() PATTERN_CROSSED=() CROSSED=()
+  # PER SEED, not shared: a shared visited set made a changed file another
+  # seed had walked past look unmapped.
   local -A VISITED=()
   SEED_HITS=0
 
@@ -862,7 +811,8 @@ select_for() {
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
     : >"$WORK_DIR/patterns"
-    : >"$WORK_DIR/frontier"
+    : >"$WORK_DIR/plain"
+    : >"$WORK_DIR/resolve"
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
@@ -877,8 +827,7 @@ select_for() {
         fi
       done < <(colocated_suites "$p")
       # R7. The suite path is joined from two pieces so this file never carries
-      # its basename as one token: that would make this file an R4 dependent of
-      # the suite and fan every edit to it out to whatever names this file.
+      # its basename as one token, which would make this file name the suite.
       case "$p" in
       plugins/autonomy/reference/*)
         add_suite "scripts/validate-plugin-contracts"".test.sh" \
@@ -887,7 +836,14 @@ select_for() {
       *) ;;
       esac
       b="${p##*/}"
-      is_structural "$b" && continue
+      # MANIFESTS: no mention reaches a suite from a manifest or changelog.
+      [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
+      printf '%s\n' "$b" >>"$WORK_DIR/patterns"
+      if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
+        [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then
+        printf '%s\n' "$p" >>"$WORK_DIR/resolve"
+        continue
+      fi
       lang_family "$p"
       origin_family="$LANG_FAMILY"
       if [[ -z "${PATTERN_ORIGIN[$b]:-}" ]]; then
@@ -895,96 +851,125 @@ select_for() {
         PATTERN_CROSSED["$b"]="${CROSSED[$p]:-0}"
       else
         [[ "${PATTERN_ORIGIN[$b]}" == "$origin_family" ]] || PATTERN_ORIGIN["$b"]='*'
-        # Any contributor that has NOT yet crossed wins: the walk keeps its
-        # budget. Over-selection is the safe direction, so a tie resolves toward
-        # more walking.
+        # Any contributor that has NOT yet crossed wins: over-select.
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
-      printf '%s\n' "$b" >>"$WORK_DIR/patterns"
-      printf '%s\n' "$p" >>"$WORK_DIR/frontier"
+      printf '%s\n' "$p" >>"$WORK_DIR/plain"
     done
 
     [[ -s "$WORK_DIR/patterns" ]] || break
 
-    # R3/R4: one batched reverse lookup per level, in the two stages MATCHING
-    # describes — git grep finds the candidate lines, token_hits keeps only the
-    # ones that NAME a basename rather than merely containing it. The hits go
-    # through a FILE, not a process substitution, so this lookup can FAIL LOUD
-    # like every other step here. `done < <(git grep ... 2>/dev/null || true)` could not: after
-    # the loop `$?` holds the LOOP's status, git's stderr was discarded, and
-    # `|| true` erased the code, so a git ERROR (exit >= 2 — a bad flag, an
-    # unreadable pattern file, a corrupt index) was indistinguishable from NO
-    # MATCH (exit 1). Both produced an empty read and the walk simply found no
-    # dependents. That is the fail-open this tool exists to refuse, and it
-    # lands in the UNDER-selection direction the DIRECTION note above calls
-    # unsafe: a broken lookup reported a narrow selection, or "no suites
-    # selected", at exit 0. Same reasoning as changed_from_diff below.
+    # One batched reverse lookup per level, in the two stages the header
+    # describes. The hits go through a FILE rather than a process substitution
+    # so a git ERROR (exit >= 2) is not read as NO MATCH (exit 1): both would
+    # come back as "no dependents", an under-selection at exit 0. Every
+    # extension lang_family() names is searched, or a family it classifies
+    # would be under-covered while looking supported.
     grep_rc=0
-    # Every extension lang_family() names must appear here. If it classifies a
-    # path into a family but nothing ever greps that path's content, the file is
-    # silently under-covered while LOOKING supported — fail-open, and the reason
-    # .bash and .cjs are in this list despite the repo carrying none today.
     git grep --untracked -F -f "$WORK_DIR/patterns" \
       -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
       >"$WORK_DIR/matched-lines" || grep_rc=$?
-    # Exit 1 is "no match" and is completely ordinary — most seeds reach a level
-    # with no further dependents. Only above 1 is git itself failing.
     if [[ "$grep_rc" -gt 1 ]]; then
       echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
       echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
       echo "       under-selection is reported as success by everything downstream." >&2
       exit 2
     fi
-    # The boundary half of the lookup, and fatal for the same reason: a filter
-    # that dies mid-stream hands the walk a TRUNCATED hit set, which is an
-    # under-selection wearing a successful exit code.
-    if ! token_hits "$WORK_DIR/patterns" "$WORK_DIR/frontier" "$WORK_DIR/skill-files" \
-      "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
+    # Fatal for the same reason: a filter that dies mid-stream hands the walk a
+    # TRUNCATED hit set.
+    if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
       echo "error: the token filter over the reverse lookup failed on the current level." >&2
       echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
       echo "       under-selection is reported as success by everything downstream." >&2
       exit 2
     fi
-    while IFS= read -r line; do
-      matched_path="${line%:*}"
-      matched_name="${line##*:}"
-      [[ -n "$matched_path" ]] || continue
-      if is_suite_path "$matched_path"; then
-        # A suite is taken whatever language it is written in: a .test.sh that
-        # drives a .py helper is exactly the cross-language coverage this must
-        # keep finding.
-        add_suite "$matched_path" "references $matched_name" || true
+    while IFS=$'\t' read -r kind hit_path hit_name hit_x; do
+      [[ -n "$hit_path" ]] || continue
+      if [[ "$kind" == r ]]; then
+        # A mention that resolves to an ambiguous or structural file is a real
+        # reference to it, from any language, and spends no transition.
+        if is_suite_path "$hit_path"; then
+          add_suite "$hit_path" "references ${hit_name##*/} (resolves to $hit_name)" || true
+        elif [[ -z "${VISITED[$hit_path]:-}" ]]; then
+          CROSSED["$hit_path"]=0
+          next+=("$hit_path")
+        fi
         continue
       fi
-      lang_family "$matched_path"
-      matched_family="$LANG_FAMILY"
-      origin_family="${PATTERN_ORIGIN[$matched_name]:-*}"
-      if [[ "$origin_family" == '*' || "$matched_family" == "$origin_family" ]]; then
-        # Same-family edge: a real dependency, and it spends no budget.
-        hop_state="${PATTERN_CROSSED[$matched_name]:-0}"
-      elif [[ "${PATTERN_CROSSED[$matched_name]:-0}" == "1" ]]; then
-        # This would be a SECOND language transition for the chain reaching here.
+      lang_family "$hit_path"
+      hit_family="$LANG_FAMILY"
+      origin_family="${PATTERN_ORIGIN[$hit_name]:-*}"
+      if [[ "$origin_family" == '*' || "$hit_family" == "$origin_family" ]]; then
+        # R3: same language, spends no transition.
+        hop_state="${PATTERN_CROSSED[$hit_name]:-0}"
+      elif [[ "$origin_family" == ext:* ]]; then
+        # R4: data reaches code of any language, and spends no transition.
+        hop_state=0
+      elif [[ "$hit_x" != 1 ]]; then
+        # R4: another language that neither runs nor loads the file.
+        continue
+      elif ! is_suite_path "$hit_path" && [[ "${PATTERN_CROSSED[$hit_name]:-0}" == 1 ]]; then
+        # R4: a second transition. A suite that runs or loads the file is still
+        # taken: the budget bounds the walk, not the suites it ends in.
         continue
       else
         hop_state=1
       fi
-      [[ -n "${VISITED[$matched_path]:-}" ]] && continue
-      # AGGREGATE, never assign. One path can be hit several times in a single
-      # round by different patterns — a shell wrapper naming both a shell helper
-      # and a JS file — and those hits can disagree about whether the chain
-      # reaching it has already crossed. A plain assignment let whichever hit
-      # `git grep` happened to emit last decide, so an unrelated cross-family
-      # mention could spend a path's budget and cut its own same-family walk
-      # short: order-dependent UNDER-selection, the direction this file calls
-      # unsafe. The path keeps the most permissive state any contributor gives
-      # it, matching how PATTERN_CROSSED already resolves its own ties.
-      if [[ "${CROSSED[$matched_path]:-1}" != "0" ]]; then
-        CROSSED["$matched_path"]="$hop_state"
+      if is_suite_path "$hit_path"; then
+        add_suite "$hit_path" "references $hit_name" || true
+        continue
       fi
-      next+=("$matched_path")
+      [[ -n "${VISITED[$hit_path]:-}" ]] && continue
+      # AGGREGATE, never assign: one path can be hit by several patterns in one
+      # round that disagree about whether its chain has crossed, and the most
+      # permissive state wins, whatever order git grep printed them in.
+      if [[ "${CROSSED[$hit_path]:-1}" != "0" ]]; then
+        CROSSED["$hit_path"]="$hop_state"
+      fi
+      next+=("$hit_path")
     done <"$WORK_DIR/hits"
 
     frontier=(${next[@]+"${next[@]}"})
+  done
+}
+
+# check_scope_globs <suite> -> exit 2 when a glob the suite declares matches no
+# file of the tree: it declares nothing, so the suite misses the changes it
+# reads. Run when a declaring suite changes, which is when a glob is written.
+check_scope_globs() {
+  local i
+  for i in "${!SCOPE_GLOBS[@]}"; do
+    if [[ "${SCOPE_SUITES[i]}" == "$1" ]]; then printf '%s\n' "${SCOPE_GLOBS[i]}"; fi
+  done | awk '
+    # The glob dialect of the lists: `*` any run of characters, `/` included.
+    function to_regex(g,   r, i, c) {
+      r = "^"
+      for (i = 1; i <= length(g); i++) {
+        c = substr(g, i, 1)
+        if (c == "*") r = r ".*"
+        else if (c == "?") r = r "."
+        else if (index(".+(){}|^$\\", c)) r = r "\\" c
+        else r = r c
+      }
+      return r "$"
+    }
+    FNR == NR { if (!($0 in want)) { want[$0] = to_regex($0); order[++n] = $0 } next }
+    { for (g in want) if (!(g in hit) && $0 ~ want[g]) hit[g] = 1 }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in hit)) { print order[i]; bad = 1 } exit bad }
+  ' - "$WORK_DIR/all-files" >"$WORK_DIR/stale-globs" && return 0
+  echo "error: $1 declares test-scope globs that match no file of the tree:" >&2
+  sed 's/^/  - /' "$WORK_DIR/stale-globs" >&2
+  exit 2
+}
+
+# select_scoped <changed-path> -> R8: add every suite whose declared test-scope
+# matches the path, counting each as a hit of the current seed.
+select_scoped() {
+  local p="$1" i
+  for i in "${!SCOPE_GLOBS[@]}"; do
+    # shellcheck disable=SC2053 # the right-hand side is a glob pattern by design.
+    [[ "$p" == ${SCOPE_GLOBS[i]} ]] || continue
+    add_suite "${SCOPE_SUITES[i]}" "test-scope ${SCOPE_GLOBS[i]}" || true
   done
 }
 
@@ -1024,11 +1009,9 @@ is_no_suite() {
 
 changed_from_diff() {
   local base="" mb
-  # An explicit --base is resolved HERE, not through the shared ladder: a ref
-  # the user typed and got wrong must be an error naming that ref, never a
-  # silent fall-through to origin/main that would report suites for a diff they
-  # did not ask for. The fallback ladder (origin/main, origin/master, main,
-  # master) is the part shared with the checker gates.
+  # An explicit --base must resolve or be an error naming it, never a silent
+  # fall-through to origin/main that reports suites for a diff nobody asked
+  # for. The fallback ladder is shared with the checker gates.
   if [[ -n "$base_ref" ]]; then
     if ! changed_files::verify_base "$base_ref"; then
       echo "error: base ref '$base_ref' does not resolve to a commit." >&2
@@ -1040,16 +1023,10 @@ changed_from_diff() {
     echo "       Pass --base <ref>, or give explicit paths." >&2
     exit 2
   fi
-  # Compare the WORKING TREE against the merge base: a local developer wants the
-  # suites covering the work in front of them, including uncommitted edits, and
-  # not the suites for whatever else landed on the base branch meanwhile.
-  #
-  # Mid-merge, HEAD is still the pre-merge commit while the working tree already
-  # holds the incoming side, so merge-base(base, HEAD) would charge this change
-  # with every file the incoming side brought. Passing the MERGE_HEAD commits as
-  # further arguments makes git compute the base against a hypothetical merge of
-  # HEAD and them: the same base the selector reports once the merge commit
-  # lands. --git-path resolves the file in a linked worktree too.
+  # The WORKING TREE against the merge base: uncommitted edits count, and so
+  # does nothing that landed on the base branch meanwhile. Mid-merge, the
+  # MERGE_HEAD commits join the merge-base computation, so the incoming side's
+  # files are not charged to this change.
   local merge_head_file=""
   local -a merge_heads=()
   merge_head_file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || merge_head_file=""
@@ -1057,12 +1034,9 @@ changed_from_diff() {
     mapfile -t merge_heads <"$merge_head_file"
   fi
   mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
-  # Every failure here is fatal, never an empty list. An empty change set is
-  # indistinguishable from "the diff blew up" downstream, and downstream reports
-  # it as "nothing to select, exit 0" — the fail-open this whole tool exists to
-  # refuse. This function must therefore run in the CURRENT shell (see the call
-  # site): from inside a process substitution these exits would kill only the
-  # subshell and `mapfile` would happily succeed with nothing.
+  # Every failure is fatal, never an empty list, which downstream reads as
+  # "nothing to select, exit 0". This runs in the CURRENT shell (see the call
+  # site) so these exits are the script's.
   if ! git diff --name-only "$mb" --; then
     echo "error: 'git diff --name-only $mb' failed; refusing to report an empty change set." >&2
     exit 2
@@ -1088,15 +1062,161 @@ if [[ -n "$print_fanout" ]]; then
   exit 0
 fi
 
+# ---------------------------------------------------------------------------
+# Replay
+# ---------------------------------------------------------------------------
+
+# replay_select <out-prefix> <tree> <selector> <no-suite-list> <scopes-list>
+#               [<flag>...] -- <path>...
+# One selection in the replay tree, through a fresh process. Writes
+# <out-prefix>.sel (`<suite>\t<reason>`) and <out-prefix>.unmapped, and fails
+# loud on any exit but 0, because a broken selection counted as an empty one
+# would understate the side it ran for.
+replay_select() {
+  local out="$1" tree="$2" sel="$3" list="$4" scopes="$5" rc=0
+  shift 5
+  AFFECTED_TESTS_ROOT="$tree" AFFECTED_TESTS_NO_SUITE="$list" AFFECTED_TESTS_SCOPES="$scopes" \
+    bash "$sel" --explain --allow-unmapped "$@" >/dev/null 2>"$out.err" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    echo "error: the selector $sel failed (exit $rc) on a replayed commit:" >&2
+    cat "$out.err" >&2
+    exit 2
+  fi
+  awk '/^select: / { sub(/^select: /, ""); i = index($0, "  ("); print substr($0, 1, i - 1) "\t" substr($0, i + 3, length($0) - i - 3) }' \
+    "$out.err" | sort >"$out.sel"
+  awk '/^UNMAPPED:/ { f = 1; next } f && /^  - / { sub(/^  - /, ""); print; next } { f = 0 }' "$out.err" >"$out.unmapped"
+}
+
+run_replay() {
+  local tree="$WORK_DIR/replay-tree" against="$WORK_DIR/against" against_scopes="" against_sha=""
+  local c subject n_new n_old u_new u_old
+  local -a commits=() changed=() against_flags=()
+  if ! git rev-list --first-parent --reverse "$replay_range" >"$WORK_DIR/commits"; then
+    echo "error: '$replay_range' is not a revision range git can list." >&2
+    exit 2
+  fi
+  mapfile -t commits <"$WORK_DIR/commits"
+  if [[ ${#commits[@]} -eq 0 ]]; then
+    echo "error: '$replay_range' holds no commits to replay." >&2
+    exit 2
+  fi
+  # This tree's rules travel with the replay: its no-suite list and its suites'
+  # declared scopes.
+  cp "$NO_SUITE_LIST" "$WORK_DIR/replay-no-suite" || exit 2
+  if [[ -n "$SCOPES_LIST" ]]; then
+    cp "$SCOPES_LIST" "$WORK_DIR/replay-scopes" || exit 2
+  elif ! git ls-files --cached --others --exclude-standard >"$WORK_DIR/replay-files" ||
+    ! scope_declarations "$WORK_DIR/replay-files" >"$WORK_DIR/replay-scopes"; then
+    echo "error: could not read this tree's declared test scopes." >&2
+    exit 2
+  fi
+  if ! git clone -q --shared --no-checkout . "$tree"; then
+    echo "error: could not make the scratch clone for the replay." >&2
+    exit 2
+  fi
+  if [[ -n "$against_ref" ]]; then
+    # <ref>'s selector, its scripts/lib/ and its lists, pointed at the replay
+    # tree through AFFECTED_TESTS_ROOT. A selector without that override gets
+    # its one `cd` line rewritten; one with neither form cannot be pointed.
+    mkdir -p "$against/scripts" || exit 2
+    if ! git show "$against_ref:scripts/affected-tests.sh" >"$against/selector.orig" ||
+      ! git archive "$against_ref" scripts/lib | tar -x -C "$against" ||
+      ! git show "$against_ref:scripts/affected-tests-no-suite.txt" >"$against/no-suite.txt"; then
+      echo "error: could not read the selector, its scripts/lib/ or its no-suite list at '$against_ref'." >&2
+      exit 2
+    fi
+    awk '$0 == "cd \"$SCRIPT_DIR/..\" || exit 2" { print "cd \"${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}\" || exit 2"; n++; next }
+      index($0, "AFFECTED_TESTS_ROOT") { n++ } { print } END { exit n ? 0 : 1 }' \
+      "$against/selector.orig" >"$against/scripts/affected-tests.sh" || {
+      echo "error: the selector at '$against_ref' cannot be pointed at another tree." >&2
+      exit 2
+    }
+    grep -q -- '--with-always)' "$against/scripts/affected-tests.sh" && against_flags+=(--with-always)
+    git show "$against_ref:scripts/affected-tests-always.txt" >"$against/always.txt" 2>/dev/null ||
+      rm -f "$against/always.txt"
+    # <ref>'s own declared scopes, read from its suites in the scratch clone.
+    against_scopes="$against/scopes.txt"
+    if ! changed_files::verify_base "$against_ref" || ! against_sha="$(git rev-parse "$against_ref")" ||
+      ! git -C "$tree" -c advice.detachedHead=false checkout -q --detach "$against_sha" ||
+      ! git -C "$tree" ls-files >"$against/files" ||
+      ! (cd "$tree" && scope_declarations "$against/files") >"$against_scopes"; then
+      echo "error: could not read the declared test scopes at '$against_ref'." >&2
+      exit 2
+    fi
+  fi
+
+  for c in "${commits[@]}"; do
+    git -C "$tree" -c advice.detachedHead=false checkout -q --detach "$c" || exit 2
+    subject="$(git -C "$tree" log -1 --format=%s "$c")" || exit 2
+    if ! git -C "$tree" diff --no-renames --name-only "$c^" "$c" >"$WORK_DIR/replay-changed"; then
+      echo "error: could not diff $c against its parent." >&2
+      exit 2
+    fi
+    mapfile -t changed <"$WORK_DIR/replay-changed"
+    [[ ${#changed[@]} -gt 0 ]] || continue
+    replay_select "$WORK_DIR/new" "$tree" "$SELF" "$WORK_DIR/replay-no-suite" "$WORK_DIR/replay-scopes" \
+      -- "${changed[@]}"
+    n_new=$(grep -c . "$WORK_DIR/new.sel")
+    u_new=$(grep -c . "$WORK_DIR/new.unmapped")
+    if [[ -z "$against_ref" ]]; then
+      printf 'commit %s %s %s  %s\n' "$c" "$n_new" "$u_new" "$subject"
+      sed 's/^/  unmapped /' "$WORK_DIR/new.unmapped"
+      awk -F '\t' '{ print "  " $1 "  (" $2 ")" }' "$WORK_DIR/new.sel"
+      printf '%s\t%s\t-\t%s\t-\n' "$c" "$n_new" "$u_new" >>"$WORK_DIR/replay-counts"
+      continue
+    fi
+    # The always list as <ref> has it, narrowed to the suites this commit has:
+    # its selector refuses an entry naming no suite.
+    if [[ -f "$against/always.txt" ]]; then
+      awk -v root="$tree" '/^#/ || NF == 0 { print; next } { if ((getline _ < (root "/" $1)) >= 0) print; close(root "/" $1) }' \
+        "$against/always.txt" >"$WORK_DIR/always-now"
+      export AFFECTED_TESTS_ALWAYS="$WORK_DIR/always-now"
+    fi
+    replay_select "$WORK_DIR/old" "$tree" "$against/scripts/affected-tests.sh" "$against/no-suite.txt" \
+      "$against_scopes" ${against_flags[@]+"${against_flags[@]}"} -- "${changed[@]}"
+    n_old=$(grep -c . "$WORK_DIR/old.sel")
+    u_old=$(grep -c . "$WORK_DIR/old.unmapped")
+    printf 'commit %s %s %s %s %s  %s\n' "$c" "$n_new" "$n_old" "$u_new" "$u_old" "$subject"
+    sed 's/^/  unmapped /' "$WORK_DIR/new.unmapped"
+    awk -F '\t' 'FILENAME == ARGV[1] { n[$1] = $2; next } { o[$1] = $2 }
+      END {
+        for (s in n) if (!(s in o)) print "  + " s "  (" n[s] ")"
+        for (s in o) if (!(s in n)) print "  - " s "  (" o[s] ")"
+      }' "$WORK_DIR/new.sel" "$WORK_DIR/old.sel" | sort -k2
+    printf '%s\t%s\t%s\t%s\t%s\n' "$c" "$n_new" "$n_old" "$u_new" "$u_old" >>"$WORK_DIR/replay-counts"
+  done
+
+  [[ -s "$WORK_DIR/replay-counts" ]] || {
+    echo "Replayed ${#commits[@]} commit(s); none changed a file." >&2
+    return 0
+  }
+  awk -F '\t' -v against="$against_ref" '
+    function pct(a, n, q,   i) { i = int(q * n); if (i >= n) i = n - 1; return a[i + 1] }
+    function sortn(a, n,   i, j, t) { for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] > t; j--) a[j + 1] = a[j]; a[j + 1] = t } }
+    { nn[++c] = $2; tn += $2; un += ($4 > 0); if (against != "") { no[c] = $3; to += $3; uo += ($5 > 0) } }
+    END {
+      sortn(nn, c)
+      printf "replay: %d commit(s); this selector: suites per commit p50 %d, p95 %d, max %d, total %d; commits with an unmapped file %d\n", c, pct(nn, c, .5), pct(nn, c, .95), nn[c], tn, un
+      if (against != "") {
+        sortn(no, c)
+        printf "replay: %s: suites per commit p50 %d, p95 %d, max %d, total %d; commits with an unmapped file %d\n", against, pct(no, c, .5), pct(no, c, .95), no[c], to, uo
+      }
+    }' "$WORK_DIR/replay-counts" >&2
+}
+
+if [[ -n "$replay_range" ]]; then
+  run_replay
+  exit 0
+fi
+
 declare -a changed=()
 if [[ ${#explicit_paths[@]} -gt 0 ]]; then
   for p in "${explicit_paths[@]}"; do
     p="${p#./}"
     # Every rule is repo-relative, and so is every sync-manifest key. An
-    # absolute path that stayed absolute would miss those keys and then fall
-    # through to a broad no-suite pattern — reporting success with no suites,
-    # which is the fail-open direction. Normalize what can be normalized and
-    # refuse the rest out loud.
+    # absolute path that stayed absolute would miss them and fall through to a
+    # broad no-suite pattern: success with no suites. Normalize what can be
+    # normalized and refuse the rest out loud.
     case "$p" in
     "$PWD"/*) p="${p#"$PWD"/}" ;;
     /* | [A-Za-z]:[/\\]*)
@@ -1111,9 +1231,8 @@ if [[ ${#explicit_paths[@]} -gt 0 ]]; then
 else
   # Run the producer in the CURRENT shell so its fatal exits are the script's.
   changed_from_diff >"$WORK_DIR/changed.raw"
-  # The sort is checked for the same reason the diff above is: reading it from a
-  # process substitution would let a failing `sort` yield an EMPTY change set at
-  # exit 0, which the very next block reports as "nothing to select".
+  # Checked: a failing `sort` read from a process substitution would yield an
+  # EMPTY change set at exit 0.
   if ! sort -u "$WORK_DIR/changed.raw" >"$WORK_DIR/changed"; then
     echo "error: sorting the changed-file list failed; refusing to report an empty change set." >&2
     exit 2
@@ -1128,56 +1247,28 @@ fi
 
 build_sync_map
 load_no_suite_patterns
-# Every file inside a skill directory, listed once for SKILL OWNERSHIP as
-# `plugins/<plugin>/skills/<skill>/<basename>`: the file set the reverse lookup
-# greps, and fatal on failure for the same reason, since a missing list would
-# read as "no skill carries its own copy of any name".
-if ! git ls-files --cached --others --exclude-standard -- 'plugins/*/skills/*' \
-  >"$WORK_DIR/skill-files.raw" ||
-  ! awk '{
-      n = split($0, c, "/")
-      if (match($0, "^plugins/[^/]+/skills/[^/]+/")) print substr($0, 1, RLENGTH) c[n]
-    }' "$WORK_DIR/skill-files.raw" >"$WORK_DIR/skill-files"; then
-  echo "error: listing the skill directories failed." >&2
-  exit 2
-fi
+build_tree_index
 
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
+  # Only this tree's own headers: handed-in declarations may postdate the tree.
+  [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && check_scope_globs "$f"
   select_for "$f"
+  select_scoped "$f"
   if [[ "$SEED_HITS" -eq 0 ]]; then
     if is_no_suite "$f"; then
       NO_SUITE_FILES+=("$f")
     elif [[ ! -e "$f" ]]; then
-      # A deletion that maps to nothing needs no suite: the file has no content
-      # left to cover, and anything that still referenced it selects through
-      # its own changed path or a suite that names the dead path (both handled
-      # by select_for above, which runs for deletions too). Only the terminal
-      # would-be-UNMAPPED case lands here, reported visibly rather than as the
-      # loud unknown-coverage error that exists for files that DO have content.
+      # A deletion that maps to nothing needs no suite: it has no content left
+      # to cover, and anything that still referenced it selects through its own
+      # changed path or a suite naming the dead path.
       DELETED+=("$f")
     else
       UNMAPPED+=("$f")
     fi
   fi
 done
-
-# `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as
-# an indirect reference and rejects the expanded key list as a variable name.
-declare -a selected=()
-if [[ ${#SUITES[@]} -gt 0 ]]; then
-  # Checked, and read from a file, for the third time and the same reason: a
-  # failing `sort` here would empty a NON-EMPTY selection, and the block below
-  # would then print "every changed file is a recorded no-suite class" — a
-  # statement that is affirmatively false — and exit 0.
-  if ! printf '%s\n' "${!SUITES[@]}" | sort -u >"$WORK_DIR/selected"; then
-    echo "error: sorting the selected-suite list failed; refusing to report an empty selection" >&2
-    echo "       when ${#SUITES[@]} suite(s) were selected." >&2
-    exit 2
-  fi
-  mapfile -t selected <"$WORK_DIR/selected"
-fi
 
 if [[ ${#NO_SUITE_FILES[@]} -gt 0 && "$explain" -eq 1 ]]; then
   for f in "${NO_SUITE_FILES[@]}"; do
@@ -1191,19 +1282,65 @@ if [[ ${#DELETED[@]} -gt 0 ]]; then
   done
 fi
 
+corpus_used=0
 if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   echo "UNMAPPED: ${#UNMAPPED[@]} changed file(s) map to no test suite:" >&2
   for f in "${UNMAPPED[@]}"; do
     echo "  - $f" >&2
   done
   echo "This is NOT 'nothing to run' — it is 'this tool does not know what covers these'." >&2
-  echo "Fix one of: add a co-located <stem>.test.sh; make a suite name the file; or record the" >&2
-  echo "path class in $NO_SUITE_LIST with the CI lane that does cover it." >&2
-  if [[ "$allow_unmapped" -eq 0 ]]; then
+  echo "Fix one of: add a co-located <stem>.test.sh; make a suite name the file; declare a" >&2
+  echo "test-scope on the suite that reads it; or record the path class in $NO_SUITE_LIST" >&2
+  echo "with the CI lane that does cover it." >&2
+  if [[ "$unmapped_corpus" -eq 1 ]]; then
+    declare -A CORPORA=()
+    for f in "${UNMAPPED[@]}"; do
+      lang_family "$f"
+      case "$LANG_FAMILY" in
+      py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
+      *) CORPORA[sh]=1 ;;
+      esac
+    done
+    awk -v want=" ${!CORPORA[*]} " '
+      { b = $0; sub(/.*\//, "", b) }
+      /\.test\.sh$/ { e = "sh" }
+      /\.test\.m?js$/ { e = "node" }
+      /\.Tests\.ps1$/ { e = "ps" }
+      b ~ /^test_.*\.py$/ { e = "py" }
+      e != "" && index(want, " " e " ") { print e "\t" $0 }
+      { e = "" }' "$WORK_DIR/all-files" >"$WORK_DIR/corpus"
+    while IFS=$'\t' read -r lang suite; do
+      add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
+    done <"$WORK_DIR/corpus"
+    echo "Selecting the whole corpus of each unmapped file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    corpus_used=1
+  elif [[ "$allow_unmapped" -eq 0 ]]; then
     echo "Re-run with --allow-unmapped to proceed anyway." >&2
     exit 1
+  else
+    echo "Proceeding under --allow-unmapped." >&2
   fi
-  echo "Proceeding under --allow-unmapped." >&2
+fi
+
+# `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as
+# an indirect reference and rejects the expanded key list as a variable name.
+declare -a selected=()
+if [[ ${#SUITES[@]} -gt 0 ]]; then
+  # R9. The key list is expanded once, before the loop adds to it.
+  for s in "${!SUITES[@]}"; do
+    case "$s" in
+    *.test.js | *.test.mjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
+    *) ;;
+    esac
+  done
+  # Checked, and read from a file: a failing `sort` here would empty a
+  # NON-EMPTY selection and report "every changed file is a no-suite class".
+  if ! printf '%s\n' "${!SUITES[@]}" | sort -u >"$WORK_DIR/selected"; then
+    echo "error: sorting the selected-suite list failed; refusing to report an empty selection" >&2
+    echo "       when ${#SUITES[@]} suite(s) were selected." >&2
+    exit 2
+  fi
+  mapfile -t selected <"$WORK_DIR/selected"
 fi
 
 if [[ ${#selected[@]} -eq 0 ]]; then
@@ -1211,12 +1348,10 @@ if [[ ${#selected[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# The partition. It happens HERE, after the unmapped check, after the deletion
-# and no-suite reporting, and after the sort, so every leg derives the same
-# full selection from the same diff and then keeps its own slice of it. Doing it
-# earlier (partitioning the CHANGED FILES) would give each leg a different
-# derivation, and the unmapped check would then fire on whichever leg happened
-# to receive the unmapped file rather than on all of them.
+# The partition happens HERE, after the unmapped check and the sort, so every
+# leg derives the same full selection from the same diff and keeps its own
+# slice; partitioning the changed files would let the unmapped check fire on
+# only one leg.
 if [[ "$shard_total" -gt 1 ]]; then
   declare -a leg=()
   for ((si = shard_index; si < ${#selected[@]}; si += shard_total)); do
@@ -1238,34 +1373,25 @@ fi
 
 if [[ "$do_run" -eq 0 ]]; then
   printf '%s\n' "${selected[@]}"
+  [[ "$corpus_used" -eq 1 ]] && exit 4
   exit 0
 fi
 
-# SEQUENTIAL BY DEFAULT, --jobs N ON REQUEST. The default stays 1 because that
-# is the measurement this file was written from: on a Windows Git Bash host a
-# parallel run was sublinear (the suites are spawn-bound and the box saturates
-# on process creation). On a Linux CI runner the same measurement came out the
-# other way, which is why scripts/run-plugin-tests.sh has carried --jobs since
-# it was written and why CI passes a count explicitly there.
-#
-# --jobs N > 1 hands the selection to run-plugin-tests.sh rather than spawning
-# anything here: that runner already owns the worker, the bounded xargs
-# dispatch, the per-suite print lock that keeps concurrent output from
-# interleaving, and scripts/run-plugin-tests-serial.txt, the suites that assert
-# wall-clock ceilings or drive concurrency probes and so must never overlap
-# anything. A second parallel runner in this file would be a second copy of all
-# four, and the serial allowlist is the one that must not be forgotten. Three
-# is the proven ceiling on a 4-vCPU runner: at four, suites failed by producing
-# empty output from an external command (#3694).
+# SEQUENTIAL BY DEFAULT, --jobs N ON REQUEST. On a Windows Git Bash host a
+# parallel run was sublinear (the suites are spawn-bound); on a Linux CI runner
+# it pays, which is why CI passes a count. --jobs N > 1 hands the selection to
+# run-plugin-tests.sh, which owns the worker, the bounded xargs dispatch, the
+# per-suite print lock and scripts/run-plugin-tests-serial.txt, the suites that
+# must never overlap anything. Three is the proven ceiling on a 4-vCPU runner:
+# at four, suites failed by producing empty output from an external command
+# (#3694).
 #
 # Only *.test.sh is executable HERE. The other three ecosystems are run by their
-# own lanes, with lane-specific invocations this script cannot derive from a
-# suite path: `python -m unittest` against a named module, `npm test`, a bare
-# `node --test`, vitest, Pester. Guessing one is strictly worse than declining
-# to: the wrong runner either errors in a way that reads as the SUITE failing,
-# or exits 0 having run nothing, which is a PASS the change never earned. So
-# they are named and NOT run, and the exit code says so rather than reporting
-# success over suites that never executed.
+# own lanes, with invocations this script cannot derive from a suite path
+# (`python -m unittest` against a named module, `npm test`, `node --test`,
+# vitest, Pester), and a guessed runner either errors as though the suite failed
+# or exits 0 having run nothing. So they are named and NOT run, and the exit
+# code says so.
 declare -a runnable=() delegated=()
 for s in "${selected[@]}"; do
   case "$s" in
@@ -1279,7 +1405,7 @@ if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)." >&2
   list="$WORK_DIR/selection.txt"
   printf '%s\n' "${runnable[@]}" >"$list"
-  bash "$(dirname "${BASH_SOURCE[0]}")/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
+  bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
 elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
   for s in "${runnable[@]}"; do
@@ -1309,5 +1435,9 @@ fi
 if [[ ${#delegated[@]} -gt 0 ]]; then
   echo "${#runnable[@]} shell suite(s) passed or were skipped; ${#delegated[@]} still need their own lane." >&2
   exit 3
+fi
+if [[ "$corpus_used" -eq 1 ]]; then
+  echo "All ${#runnable[@]} selected suites passed or were skipped, including an unmapped file's corpus." >&2
+  exit 4
 fi
 echo "All ${#runnable[@]} selected suites passed or were skipped."

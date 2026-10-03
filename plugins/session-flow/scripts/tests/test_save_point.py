@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -453,6 +454,40 @@ def test_validate_secret_shape_is_warn_only(tmp_path):
         and "secret-shaped" in out(result)
         and "GitHub token" in out(result)
     )
+
+
+def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
+    token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
+    text = text.replace(
+        "None. Nothing waits on a person or an access grant.",
+        f"None. The token {token} was rotated.",
+    )
+    target.write_text(text, encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 0, out(result)
+    assert "secret-shaped" in out(result) and "GitHub token" in out(result)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "ghs_1_-" * 50000,
+        "ghs_1_eyJ" * 30000,
+        "ghs_1_eyJa." * 30000,
+        "ghs_1_eyJ-" * 30000,
+    ],
+    ids=["dash", "header", "dotted", "header-dash"],
+)
+def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
+    # Shapes that made the GitHub token pattern backtrack for seconds to minutes.
+    start = time.monotonic()
+    for pattern, _ in _save_point_module().SECRET_SHAPES:
+        pattern.search(line)
+    assert time.monotonic() - start < 1.0
 
 
 @pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])
@@ -1138,7 +1173,7 @@ def _outside_git(tmp_path: Path) -> Path:
 
 def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
     cwd = _outside_git(tmp_path)
-    data = tmp_path / "plugin-data"
+    data = tmp_path / "session-flow-test"
     memory = data / "artifacts"
     memory.mkdir(parents=True)
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
@@ -1183,9 +1218,38 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
+def test_new_without_memory_dir_ignores_another_plugins_data_env(tmp_path):
+    # Another plugin's SessionStart hook can export its own data dir into every
+    # Bash call as CLAUDE_PLUGIN_DATA; the derivation from the cache path wins.
+    cwd = _outside_git(tmp_path)
+    config = tmp_path / "config"
+    version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
+    shutil.copytree(
+        SCRIPT.parent,
+        version_dir / "scripts",
+        ignore=shutil.ignore_patterns("tests", "__pycache__"),
+    )
+    memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
+    memory.mkdir(parents=True)
+    (memory / ".gitignore").write_text("*\n", encoding="utf-8")
+    foreign = tmp_path / "codex-openai-codex"
+    (foreign / "artifacts").mkdir(parents=True)
+    (foreign / "artifacts" / ".gitignore").write_text("*\n", encoding="utf-8")
+    env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(foreign)}
+    result = run(
+        *_no_memory_dir_args(tmp_path),
+        env=env,
+        cwd=cwd,
+        script=version_dir / "scripts" / "save_point.py",
+    )
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(memory / "handoffs" / HOP1)
+    assert not (foreign / "artifacts" / "handoffs").exists()
+
+
 def test_memory_root_outside_git_prints_the_plugin_data_artifacts(tmp_path):
     cwd = _outside_git(tmp_path)
-    data = tmp_path / "plugin-data"
+    data = tmp_path / "session-flow-test"
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     result = run("memory-root", env=env, cwd=cwd)
     assert result.returncode == 0, err(result)

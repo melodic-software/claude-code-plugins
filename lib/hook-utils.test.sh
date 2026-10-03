@@ -1471,16 +1471,16 @@ else
   ok "raw_file_path: absent file_path returns 1"
 fi
 
-# --- Test 17: hook::require_jq — gate behavior --------------------------------
+# --- Test 17: hook::require — gate behavior --------------------------------
 # jq present → returns 0, no output, no exit.
 out17=$( (
-  hook::require_jq PostToolUse tp '{"session_id":"s"}'
+  hook::require jq PostToolUse tp '{"session_id":"s"}'
   echo "alive"
 ) 2>/dev/null)
 if [[ "$out17" == "alive" ]]; then
-  ok "require_jq: jq present → pass-through"
+  ok "require: jq present → pass-through"
 else
-  fail "require_jq: jq present misbehaved: $out17"
+  fail "require: jq present misbehaved: $out17"
 fi
 # jq absent → notice on first run, exit 0; suppressed on second. Simulate the
 # REAL missing-jq shape (Git Bash without jq): a stub PATH that still carries
@@ -1505,7 +1505,7 @@ run17() {
   CLAUDE_PLUGIN_DATA="$DATA17" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
     source "'"$HOOK_DIR"'/hook-utils.sh"
-    hook::require_jq PostToolUse tp "{\"session_id\":\"cccc-3333\"}"
+    hook::require jq PostToolUse tp "{\"session_id\":\"cccc-3333\"}"
     echo "unreachable"
   ' 2>/dev/null
 }
@@ -1514,16 +1514,74 @@ rc_first=$?
 second17=$(run17)
 rc_second=$?
 if [[ $rc_first -eq 0 && "$first17" == *'"systemMessage"'* && "$first17" != *unreachable* ]]; then
-  ok "require_jq: jq absent → visible notice + exit 0"
+  ok "require: jq absent → visible notice + exit 0"
 else
-  fail "require_jq: first run rc=$rc_first out=$first17"
+  fail "require: first run rc=$rc_first out=$first17"
 fi
 if [[ $rc_second -eq 0 && "$second17" != *'"systemMessage"'* && "$second17" != *unreachable* ]]; then
-  ok "require_jq: second run same session → silent exit 0"
+  ok "require: second run same session → silent exit 0"
 else
-  fail "require_jq: second run rc=$rc_second out=$second17"
+  fail "require: second run rc=$rc_second out=$second17"
 fi
 rm -rf "$DATA17" "$FAKEBIN17"
+
+# hook::require builds its notice from the declared prerequisites.json entry, and
+# falls back to a /<plugin>:check derived from the plugin root when there is none.
+FAKEBIN17="$(make_stub_bin)"
+ROOT17="$(mktemp -d)/cache/market/demo-plug/1.2.3"
+mkdir -p "$ROOT17"
+cat >"$ROOT17/prerequisites.json" <<'JSON'
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "degrade": "Without node, nothing runs.",
+      "install": { "docs": "https://example.invalid/node" },
+      "check": "/demo-plug:check-node"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": ["hook:demo.sh"],
+      "degrade": "Without jq, the \"demo\" hook is skipped.",
+      "install": { "docs": "https://example.invalid/jq", "brew": "jq" },
+      "check": "/demo-plug:check"
+    }
+  ]
+}
+JSON
+require17() {
+  local root="$1" id="${2:-jq}"
+  CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/data17r.XXXXXX")" "$BASH" -c '
+    PATH="'"$FAKEBIN17"'"
+    source "'"$HOOK_DIR"'/hook-utils.sh"
+    hook::require '"$id"' PostToolUse tp "{\"session_id\":\"dddd-4444\"}"
+  ' 2>/dev/null
+}
+declared17=$(require17 "$ROOT17")
+if [[ "$declared17" == *'Without jq, the \"demo\" hook is skipped.'* && "$declared17" == *'Install: https://example.invalid/jq.'* &&
+  "$declared17" == *'Run /demo-plug:check to verify. It does not install.'* && "$declared17" != *'/demo-plug:check-node'* ]]; then
+  ok "require: notice carries the declared degrade text, first install doc link and check command"
+else
+  fail "require: declared entry notice: $declared17"
+fi
+rm "$ROOT17/prerequisites.json"
+generic17=$(require17 "$ROOT17")
+if [[ "$generic17" == *'tp: jq not found on PATH'* && "$generic17" == *'Run /demo-plug:check to verify.'* && "$generic17" != *harness-ops* ]]; then
+  ok "require: no declared entry → generic text and /<plugin>:check from the plugin root"
+else
+  fail "require: generic notice: $generic17"
+fi
+mkdir -p "$ROOT17/skills/check-prerequisites"
+colliding17=$(require17 "$ROOT17")
+if [[ "$colliding17" == *'Run /demo-plug:check-prerequisites to verify.'* ]]; then
+  ok "require: a plugin shipping check-prerequisites names that skill"
+else
+  fail "require: check-prerequisites notice: $colliding17"
+fi
+rm -rf "$ROOT17" "$FAKEBIN17"
 
 # --- Test 17b: hook::require_jq_blocking — fail-closed gate (#2146) -----------
 out17b=$( (
@@ -4509,7 +4567,7 @@ else
 fi
 
 # The jq gate, and the pre-filter that must run BEFORE it. Same missing-jq
-# shape the require_jq cases above use: a stub PATH carrying the coreutils
+# shape the require cases above use: a stub PATH carrying the coreutils
 # notice_once needs and no jq.
 BG_NOJQ="$(make_stub_bin)"
 BG_DATA="$(mktemp -d)"

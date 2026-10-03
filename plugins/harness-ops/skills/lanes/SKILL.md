@@ -131,7 +131,7 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI, offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
-launch-commit marker; default `$CLAUDE_PLUGIN_DATA`). Exit codes: `0` ok · `3`
+launch-commit marker; default an inherited `$CLAUDE_PLUGIN_DATA` only when it names harness-ops). Exit codes: `0` ok · `3`
 bad argument/config · `4` prerequisite missing or repo/config unresolved.
 
 ## Consume restart-requests
@@ -163,7 +163,7 @@ registering the schedule or changing the consumer.
 
 Lanes are defined in a JSON config, resolved first-hit-wins:
 `--config FILE` → `$HARNESS_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
-carries a `name`, a `prompt` file path, and optional `model`/`effort`/`settings`
+carries a `name`, a `prompt` file path, a required `effort`, and optional `model`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
 `autonomy` plugin's lane-stop gate). The full
 schema, resolution rules, and the prompt-storage seam live in

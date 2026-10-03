@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/index-regen.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Regenerate the marker-fenced child listing of a work-folder slice's INDEX.md,
 # and grade frontmatter-vs-disk child parity while doing it. Frontmatter is
 # the single home for child order and slice status, the generated body between
@@ -8,7 +10,7 @@
 # SINGLE SOURCE OF TRUTH: lib/index-regen.sh at the marketplace repo root. The
 # copies materialized into consuming plugins exist because installed plugins
 # are cache-isolated and must be self-contained — never edit a copy. Edit the
-# source and run scripts/sync-index-regen.sh; CI rejects drifted copies.
+# source and run scripts/sync-shared-copies.sh; CI rejects drifted copies.
 #
 # Usage:
 #   index-regen.sh <slice-dir>

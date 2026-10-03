@@ -265,6 +265,13 @@ End every run with this block, in this order:
 - **Secrets**: redacted. No secret value was written.
 - **Live**: not requested, or requested and refused. No cloud API was called.
 
+## Interactive view
+
+After the report, offer an interactive view of `deployment.json` in one sentence. The markdown and the record
+stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs deployment`, never
+hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Call a cloud API, use credentials, or compare live state to the declaration.

@@ -3,6 +3,80 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.1] - 2026-10-03
+
+### Changed
+
+- `tests/no-hardcoded-priority-scheme.test.sh`, `tools/work-item-tracker/adapters/gitea/list-items.test.sh`, `tools/work-item-tracker/adapters/local-markdown/claim-integrity.test.sh`, `tools/work-item-tracker/adapters/local-markdown/list-sub-items.test.sh`, `tools/work-item-tracker/adapters/local-markdown/renew-lease.test.sh`, `tools/work-item-tracker/conformance/bindings/jira.test.sh`, `tools/work-item-tracker/conformance/bindings/local-markdown.test.sh`, and `tools/work-item-tracker/work-item-tracker.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.47.0] - 2026-10-03
+
+### Added
+
+- **`/work-items:triage` builds a triage board page for the attention view.** In an interactive
+  session, after the table, it groups the same items by state, blocker and label in collapsible
+  sections with a filter box. The page is built only by `scripts/build-board.mjs` from a checked-in
+  template and the items as escaped JSON data, so a hostile issue title renders as text. The
+  `medium` key of the `rendered-views` cascade decides whether the page is built, written to a file,
+  or published as an Artifact; the table stays the record.
+- The plugin carries generated copies of `lib/view-builder.mjs`, `lib/view-runtime.js` and
+  `lib/html-escape.mjs`.
+
+## [0.46.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.45.4] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work` pushes each review round once.** The orchestrator waits until every CI and
+  reviewer check run on the head has finished, then hands every failing check and VALID finding
+  to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
+  that push, or while no run is in flight, never as its own edit right after a push.
+
+## [0.45.3] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.45.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `onboard-adapter` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.45.1] - 2026-10-02
+
+### Changed
+
+- **Where a small unrelated fix lands follows source-control's D4.6 scope test:** in the current
+  change only when it is in a file the change already touches, otherwise its own small PR with no
+  tracker item. `tracker-seam.md` "Default = fix, not file" carries a marked copy of the rule;
+  `/work-items:work` and `dogfood-filing.md` point at it, and the `work` eval follows the new
+  placement.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`work-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
 ## [0.44.2] - 2026-10-02
 
 ### Changed

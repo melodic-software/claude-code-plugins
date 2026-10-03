@@ -196,6 +196,11 @@ context. Run this once **per resolved target**, into that target's own packet. W
 - Hook failures/blocks, permission-prompt denials, MCP/tool errors observed this session.
 - The transcript path, working directory, platform/shell, plugin version + install source.
 - Anything anomalous you noticed while using the component (the reason this audit started).
+- When the target plugin ships a mod (its hook config names `"modules"`): load the built-in
+  `plugin-authoring` skill and record the declaration-file path that skill names, whatever its
+  basename or directory. As of 2026-10-03 that path ends in `types/claude-code.d.ts`. The
+  auditor cannot load skills, so the packet is its only way to that file. Why the file matters is
+  in `reference/component-types/hook.md` "A mod (hooks module)".
 
 ### Step 2. Map + ground (fresh `auditor` subagent, never inline, never a conversation fork)
 
@@ -474,7 +479,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 | `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
 | `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
-| `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
+| `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
 | `reference/component-types/command.md` | Auditing a slash command. |
 | `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |

@@ -3,6 +3,52 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4] - 2026-10-03
+
+### Changed
+
+- `scripts/dispatch.test.sh`, `scripts/tool-free-path.test.sh`, `skills/audit-complexity/scripts/audit-complexity.test.sh`, `skills/audit-coverage/scripts/audit-coverage.test.sh`, `skills/audit-duplication/scripts/audit-duplication.test.sh`, `skills/audit-size/scripts/audit-size.test.sh`, `skills/audit-type-debt/scripts/audit-type-debt.test.sh`, and `skills/setup/scripts/setup-check.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.5.3] - 2026-10-03
+
+### Fixed
+
+- The audits keep their report documents in code-metrics' own data directory, whatever
+  `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds. Another plugin's SessionStart hook can export
+  its own data directory under that name for every Bash call, and the audits then wrote
+  `reports/` there and pruned `<skill>-*.json` files in it down to the newest 20. An inherited
+  value is now used only when it names code-metrics; otherwise the documents go to
+  `~/.claude/plugins/data/code-metrics/reports/`, where Bash-run audits kept them before.
+
+## [0.5.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.5.1] - 2026-10-02
+
+### Changed
+
+- **Shared `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.5.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.4.9] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.4.8] - 2026-10-02
 
 ### Fixed

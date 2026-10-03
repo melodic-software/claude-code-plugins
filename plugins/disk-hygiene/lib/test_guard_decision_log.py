@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -75,8 +76,11 @@ class GuardDecisionLogTests(unittest.TestCase):
     def test_record_creates_the_log_under_the_data_root(self) -> None:
         self.assertTrue(self.write_one())
         self.assertTrue(self.log_file.is_file())
+        # The on-disk location is the contract README.md publishes
+        # (`<CLAUDE_PLUGIN_DATA>/guard-decisions/decisions.jsonl`). Literals,
+        # not the module constants, so a renamed directory or file fails here.
         self.assertEqual(
-            self.data_root / decision_log.LOG_DIRNAME / decision_log.LOG_FILENAME,
+            self.data_root / "guard-decisions" / "decisions.jsonl",
             self.log_file,
         )
 
@@ -142,6 +146,58 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertNotIn("supersecretvalue", entry["reason"])
         self.assertIn(decision_log.REDACTED, entry["command"])
         self.assertIn(decision_log.REDACTED, entry["reason"])
+
+    def test_github_app_installation_token_jwt_form_is_redacted(self) -> None:
+        # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
+        payload = "FAKEpayload" + ("A" * 450)
+        token = "ghs" + "_1234567_eyJFAKE." + payload + ".FAKEsignatureNOTreal"
+        self.write_one(command="echo " + token)
+        (entry,) = self.read_records()
+        self.assertNotIn(payload[:40], entry["command"])
+        self.assertEqual("echo " + decision_log.REDACTED, entry["command"])
+
+    def test_redaction_of_adversarial_commands_finishes_promptly(self) -> None:
+        # Shapes that made a backtracking pattern take seconds to minutes.
+        for command in (
+            "ghs_1_-" * 50000,
+            "ghs_1_eyJ" * 30000,
+            "ghs_1_eyJa." * 30000,
+            "ghs_1_eyJ-" * 30000,
+            "KEY" * 1300,
+            "-eyJ" * 75000,
+        ):
+            with self.subTest(command=command[:12]):
+                start = time.monotonic()
+                decision_log.build_record(
+                    hook="destructive-guard", decision="deny", rule="r", command=command
+                )
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_secret_cut_at_the_scan_bound_stays_out_of_the_record(self) -> None:
+        # Two redacted assignments shrink the scanned text to a few dozen
+        # characters, which would pull a token cut at the bound into view.
+        assignments = ("token=" + "v" * 2000 + " ") * 2
+        token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsig"
+        self.write_one(command=assignments + token)
+        (entry,) = self.read_records()
+        self.assertNotIn("FAKE", entry["command"])
+
+    def test_secret_starting_in_view_and_running_past_the_scan_bound_is_redacted(
+        self,
+    ) -> None:
+        # Each starts in the first 400 characters and ends past the scan bound,
+        # so no complete-shape rule can match it inside the scanned prefix.
+        pem_header = "-----BEGIN " + "RSA PRIVATE KEY-----"
+        for label, secret in (
+            ("pem", pem_header + "\nMIIJFAKEbody" + "Q" * 6000),
+            ("jwt", "eyJ" + "FAKEheader" + "." + "FAKEpayload" + "Q" * 6000),
+            ("ghs", "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "Q" * 6000),
+        ):
+            with self.subTest(label):
+                record = decision_log.build_record(
+                    hook="h", decision="deny", rule="r", command="printf %s " + secret
+                )
+                self.assertNotIn("FAKE", record["command"])
 
     def test_none_and_deny_by_default_persist_length_not_command_text(self) -> None:
         secret = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"

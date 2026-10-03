@@ -19,6 +19,7 @@
 #
 # SC2016 is disabled file-wide on purpose. Single-quoted `$ARGUMENTS` strings in
 # assertion labels and grep patterns are literal prose/regex under test.
+# test-scope: plugins/discovery/*.md plugins/discovery/*.json
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -1048,7 +1049,69 @@ for agent in explorer researcher intent-tracer research-verifier; do
 done
 
 # ---------------------------------------------------------------------------
-# 19. The run aims at the acceptance bar, and a single-publisher fact is
+# 19. A first-party content claim with one possible publisher passes flagged
+#
+# A claim about what a named Anthropic page, file or changelog says has no
+# second publisher to find. It passes rows 4 and 7 at `HIGH (single source)`
+# when it states why only one publisher exists; a repost is never a second
+# source, and a behavior claim still needs two corroborators. The flag travels
+# with the claim into the answer and into any record an edit rests on.
+# ---------------------------------------------------------------------------
+single_heading='## Single-source first-party content claims'
+assert_present 'gate row 4 has a single source branch that states why only one publisher exists' \
+  'skills/research/SKILL.md' '^\| 4 \|.*flagged `single source`.*why only one publisher exists'
+assert_present 'gate row 4 says a repost is not a second source' \
+  'skills/research/SKILL.md' '^\| 4 \|.*a repost is not a second source'
+assert_present 'gate row 4 keeps behavior claims at two corroborators' \
+  'skills/research/SKILL.md' '^\| 4 \|.*a behavior claim'
+assert_present 'gate row 7 accepts HIGH (single source)' \
+  'skills/research/SKILL.md' '^\| 7 \|.*`HIGH \(single source\)`'
+assert_present 'discipline 5 points at the single-source exception' \
+  'skills/research/SKILL.md' "^5\. .*\"Single-source first-party content claims\""
+assert_present 'discipline.md carries the single-source section' \
+  'skills/research/context/discipline.md' "^$single_heading$"
+assert_present 'discipline.md defines the HIGH (single source) level' \
+  'skills/research/context/discipline.md' '^- \*\*HIGH \(single source\)\*\*'
+assert_present 'discipline.md lets a flagged claim ground a code edit with the flag carried' \
+  'skills/research/context/discipline.md' 'may ground a code edit'
+assert_present 'discipline.md keeps behavior claims at two corroborators' \
+  'skills/research/context/discipline.md' '^\*\*A behavior claim is not a content claim\.\*\*'
+assert_present 'the corroboration rule points at the exception' \
+  'skills/research/context/discipline.md' '^\*\*Authoritative is not a waiver for corroboration\.\*\*.*Single-source first-party content claims'
+assert_present 'the sidecar header carries the single_source reason' \
+  'skills/research/context/artifact-shape.md' '^ {4}single_source: '
+assert_present 'the sidecar confidence vocabulary lists HIGH (single source)' \
+  'skills/research/context/artifact-shape.md' 'confidence: HIGH +# HIGH \| HIGH \(single source\) \| MEDIUM \| LOW'
+assert_present 'the verifier grades the stated single_source reason' \
+  'agents/research-verifier.md' '`single_source:` reason'
+assert_present 'the researcher records the reason in the header' \
+  'agents/researcher.md' '`single_source:`'
+assert_present 'a research pass keeps the single source flag' \
+  'reference/parent-contract.md' '^\| `pass \(research-verifier, <date>\)` \|.*`single source` flag'
+assert_present 'gotchas name the repost trap' \
+  'skills/research/context/gotchas.md' '^- \*\*Counting a repost as the second source\.\*\*'
+assert_present 'research-deep keeps the flag through the synthesis' \
+  'skills/research-deep/SKILL.md' 'keeps its `single source` flag'
+for name in single-source-content-claim-passes-flagged behavior-claim-from-one-page-is-a-gap; do
+  assert_present "research evals grade $name" 'skills/research/evals/evals.json' "\"name\": \"$name\""
+done
+single_owners="$(surface | xargs grep -lE -- "^$single_heading$" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$single_owners" -eq 1 ]]; then
+  pass 'the single-source definition has exactly one owner'
+else
+  fail "the single-source definition has exactly one owner — $single_owners files carry the heading"
+fi
+recbasis="$PLUGIN_ROOT/../../docs/conventions/recommendation-basis/README.md"
+if [[ ! -f "$recbasis" ]]; then
+  pass 'recommendation-basis carry-forward not checked outside the monorepo'
+elif grep -qE 'Basis: verified \(single source\)' "$recbasis"; then
+  pass 'recommendation-basis carries the single source flag into the Basis label'
+else
+  fail 'recommendation-basis carries the single source flag into the Basis label'
+fi
+
+# ---------------------------------------------------------------------------
+# 20. The run aims at the acceptance bar, and a single-publisher fact is
 #     labeled, never accepted
 #
 # Criterion 4's corroborator count is a floor; acceptance also needs HIGH
@@ -1082,6 +1145,20 @@ for field in pool subject_pool; do
 done
 assert_present 'evals grade a single-publisher claim that is not accepted' \
   'skills/research/evals/evals.json' 'single-publisher-claim-is-labeled-not-accepted'
+
+# ---------------------------------------------------------------------------
+# 21. A gate is one plain command, and a fan-out sub-slice is not named git
+#     (#6067)
+#
+# A worktree-isolated session refused compound commands whose words included a
+# slice path ending in `git`, and allowed the same path as one plain command.
+# ---------------------------------------------------------------------------
+assert_present 'how to invoke runs each gate as one plain command per Bash call' \
+  'reference/parent-contract.md' 'one plain command, one Bash call per gate'
+assert_present 'how to invoke gives the worktree-isolation reason' \
+  'reference/parent-contract.md' 'worktree-isolated session'
+assert_present 'research-deep fan-out says a sub-slice is not named git' \
+  'skills/research-deep/SKILL.md' 'Do not name a sub-slice `git`'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
