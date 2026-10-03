@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/resolve-convention-pattern.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Resolve the ENFORCEMENT pattern for a source-control convention key
 # (`subject_pattern` / `pr_title_pattern`) to a POSIX-ERE regex a hook can hand
 # straight to `[[ =~ ]]` or `grep -E`, cross-platform.
@@ -28,8 +30,8 @@
 # SINGLE SOURCE OF TRUTH: lib/resolve-convention-pattern.sh at the marketplace
 # repo root. Copies materialized into consuming plugins exist only because
 # installed plugins are cache-isolated and must be self-contained — never edit a
-# copy. Edit the source and run scripts/sync-resolve-convention-pattern.sh; CI
-# rejects drifted copies. Owner contract: docs/conventions/commit-convention/.
+# copy. Edit the source and run scripts/sync-shared-copies.sh; CI rejects
+# drifted copies. Owner contract: docs/conventions/commit-convention/.
 #
 # Usage:
 #   resolve-convention-pattern.sh <repo_root> <subject_pattern|pr_title_pattern>

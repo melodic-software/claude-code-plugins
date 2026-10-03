@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// GENERATED from lib/exec-bash.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
 // Exec-form entry for a bash-scripted hook (#3686).
 //
 // hooks.json spells `"command": "node"` and puts this file, then an
