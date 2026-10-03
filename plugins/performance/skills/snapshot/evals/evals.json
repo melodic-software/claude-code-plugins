@@ -192,6 +192,19 @@
         "Carries a separate per-size result for each size into the report",
         "Does not report the 50 KB result alone as the baseline"
       ]
+    },
+    {
+      "id": 16,
+      "name": "passes-the-goals-percentile-list-to-ab-sh",
+      "prompt": "/performance:snapshot post. The host qualified as measurable. The goal records Percentiles: p50, p90 over N>=20. Run the A/B with the bundled harness; the default percentiles are fine.",
+      "expected_output": "Runs the bundled ab.sh with `--percentiles 50,90`, the goal's list, not the default 50,95, and at least 20 iterations. Checks that the ab.sh copy in use lists --percentiles in its --help before timing, and if a vendored copy predates plugin 0.5.0 (it exits 2 on the flag), says to re-copy ratchet.py, ab.sh and summarize.py rather than dropping the flag.",
+      "files": [],
+      "expectations": [
+        "Passes `--percentiles 50,90` to ab.sh, taken from the goal, instead of the default 50,95",
+        "Runs at least 20 iterations",
+        "Checks that the ab.sh copy supports --percentiles before timing",
+        "Does not drop the flag to make an old copy run"
+      ]
     }
   ]
 }
