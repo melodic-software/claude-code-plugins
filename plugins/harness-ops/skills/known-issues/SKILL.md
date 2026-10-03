@@ -44,7 +44,10 @@ instead keep the registry inside their repository, git-tracked and team-shared, 
   configuration problem visibly, and direct `/harness-ops:setup`; do not join, normalize, create,
   or use the destination. If valid, pass
   `--data-dir "${CLAUDE_PROJECT_DIR}/${user_config.registry_dir}"`.
-- If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → OMIT `--data-dir`; the script falls back to `${CLAUDE_PLUGIN_DATA}`.
+- If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → pass
+  `--data-dir "${CLAUDE_PLUGIN_DATA}"`. The Bash tool's environment does not carry this plugin's
+  `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can export its own data directory
+  under that name, so the script uses an inherited value only when it names harness-ops.
 
 | File | Purpose | Who edits |
 | --- | --- | --- |

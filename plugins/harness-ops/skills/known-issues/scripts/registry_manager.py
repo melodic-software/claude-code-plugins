@@ -657,18 +657,27 @@ def output_result(
 def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     """Resolve the registry directory.
 
-    Precedence: --data-dir flag, then the CLAUDE_PLUGIN_DATA directory the
-    harness provisions for this plugin (survives plugin updates), then its
-    conventional location under ~/.claude/plugins/data/. Never the plugin's
-    own install directory — that is replaced on every update.
+    Precedence: --data-dir flag, then an inherited CLAUDE_PLUGIN_DATA whose
+    last path segment names this plugin, then its conventional location under
+    ~/.claude/plugins/data/. The Bash tool does not carry this plugin's
+    CLAUDE_PLUGIN_DATA, and another plugin's SessionStart hook can export its
+    own data directory under that name, so any other inherited value is
+    ignored. Never the plugin's own install directory — that is replaced on
+    every update.
     """
     if cli_data_dir:
+        if "${" in str(cli_data_dir) or "<plugin-data>" in str(cli_data_dir):
+            sys.exit(f"--data-dir got an unsubstituted placeholder: {cli_data_dir}")
         data_dir = cli_data_dir.resolve()
     else:
-        env_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+        env_dir = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+        segment = Path(env_dir.rstrip("/\\")).name if env_dir else ""
+        names_this_plugin = segment == "harness-ops" or segment.startswith(
+            "harness-ops-"
+        )
         data_dir = (
             Path(env_dir).resolve()
-            if env_dir
+            if names_this_plugin
             else Path.home()
             / ".claude"
             / "plugins"

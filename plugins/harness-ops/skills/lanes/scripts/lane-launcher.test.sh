@@ -796,10 +796,18 @@ out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config 
 marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
-DATA_DIR6="$TMP/data6"
+DATA_DIR6="$TMP/harness-ops-data6"
 out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA; the marker must never land there.
+FOREIGN7="$TMP/codex-openai-codex"
+out="$(HOME="$TMP/home7" CLAUDE_PLUGIN_DATA="$FOREIGN7" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA gets no marker" "absent" "$([[ -e "$FOREIGN7" ]] && echo present || echo absent)"
+marker="$(cat "$TMP/home7/.claude/plugins/data/harness-ops/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # The data dir is plugin-wide, so a second repo running the same conventional
 # lane name must not overwrite the first repo's marker.

@@ -3,6 +3,22 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.2] - 2026-10-03
+
+### Fixed
+
+- **Bash-run scripts no longer write into another plugin's data directory.** Another plugin's
+  SessionStart hook can export its own data directory as `CLAUDE_PLUGIN_DATA` for every Bash call,
+  and `known-issues`' `check-all.sh` and `registry_manager.py`, `observability`'s
+  `report-path.sh`, and `lanes`' `lane-launcher.sh` and `restart-consumer.sh` then put their
+  scratch files, registry, reports, launch-commit markers and run ledger there, while
+  `telemetry-upsert.sh` accepted a body file from anywhere under it. Each now uses an inherited
+  value only when its last path segment names harness-ops, and otherwise falls back to the
+  location it already used outside a session (`telemetry-upsert.sh` then requires `--body-dir`).
+  The `known-issues` registry-location rule now always passes `--data-dir`, as
+  `"${CLAUDE_PLUGIN_DATA}"` when no `registry_dir` is configured, and `registry_manager.py`
+  refuses an unsubstituted placeholder.
+
 ## [3.4.1] - 2026-10-03
 
 ### Fixed

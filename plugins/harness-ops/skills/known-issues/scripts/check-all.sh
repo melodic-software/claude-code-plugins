@@ -58,7 +58,16 @@ if [[ $# -gt 0 ]]; then
   exit 2
 fi
 
-DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/harness-ops}"
+# An inherited CLAUDE_PLUGIN_DATA is used only when its last path segment names
+# this plugin: the Bash tool does not carry harness-ops' value, and another
+# plugin's SessionStart hook can export its own data dir under that name.
+DATA_DIR="$HOME/.claude/plugins/data/harness-ops"
+seg="${CLAUDE_PLUGIN_DATA:-}"
+seg="${seg%[/\\]}"
+seg="${seg##*[/\\]}"
+if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+  DATA_DIR="$CLAUDE_PLUGIN_DATA"
+fi
 COMPONENT_DIR="$DATA_DIR/check-all-output"
 
 if [[ -n "${CHECK_ALL_OUTPUT_DIR:-}" ]]; then
