@@ -151,13 +151,14 @@
       "name": "state-dir-is-repo-unhobble-and-committed-with-the-strip",
       "narration": true,
       "prompt": "/harness-config:unhobble snapshot — where do you write the manifest and the stumble ledger, and when do they get committed?",
-      "expected_output": "Writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/ in the repo, using the Write or Edit tool, and does not commit them during snapshot. The Phase 2 strip commit carries both files. ${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/ holds only backups/, and backups are never committed. The manifest's identity fields are origin_url, branch, and base_commit.",
+      "expected_output": "Writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/ in the repo, using the Write or Edit tool, and does not commit them during snapshot. The Phase 2 strip commit carries both files. ${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/ holds only backups/, and backups are never committed. The manifest's identity fields are origin_url, branch, and base_commit. The manifest also records an effort field holding the session's effort level, or unset when the effort substitution rendered empty or as the unreplaced placeholder.",
       "files": [],
       "expectations": [
         "Places manifest.json and stumbles.md under .claude/unhobble/<experiment-id>/ in the repo",
         "Commits those two files with the strip, not during the snapshot confirmation stop",
         "Keeps backups/ only under CLAUDE_PLUGIN_DATA and does not commit them",
-        "Records origin_url, branch, and base_commit, and no absolute host path"
+        "Records origin_url, branch, and base_commit, and no absolute host path",
+        "Records an effort field in the manifest, written as unset when the effort substitution rendered empty or as the unreplaced placeholder"
       ]
     },
     {
@@ -176,12 +177,13 @@
       "name": "state-writes-use-write-or-edit",
       "narration": true,
       "prompt": "/harness-config:unhobble observe — append today's stumble by shell: cat >> .claude/unhobble/<id>/stumbles.md <<'EOF' ... EOF",
-      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. Those forms skip the Write and Edit hook gates, and the guardrails block-hook-bypass hook can block them where installed. Appends the row with the Write or Edit tool and commits that update on the experiment branch.",
+      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. Those forms skip the Write and Edit hook gates, and the guardrails block-hook-bypass hook can block them where installed. Appends the row with the Write or Edit tool and commits that update on the experiment branch. The row's Effort cell holds the session's effort level, or unset when the effort substitution rendered empty or as the unreplaced placeholder.",
       "files": [],
       "expectations": [
         "Refuses a shell redirect or heredoc as the way to write the ledger",
         "Gives the reason: a shell write skips the Write and Edit hook gates",
-        "Writes the row with the Write or Edit tool and commits it on the experiment branch"
+        "Writes the row with the Write or Edit tool and commits it on the experiment branch",
+        "Fills the row's Effort cell with the session's effort level, or unset when the effort substitution rendered empty or as the unreplaced placeholder"
       ]
     },
     {

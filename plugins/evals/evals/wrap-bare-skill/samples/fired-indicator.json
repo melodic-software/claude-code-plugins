@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No: the runner loads plugins, so wrap the skill first. Add `.claude-plugin/plugin.json` around it, or scaffold with `claude plugin init review-notes`, put the skill under `skills/review-notes/`, and point the command at that plugin.\n\nTo see whether the skill was used, add this grader to each case:\n\n```yaml\ntype: tool_used\ntool: Skill\ninput_match: review-notes\n```\n\nIt passes when the model invoked the skill. Read it on the with-plugin arm; the no-plugin arm has no skill to call. Keep a second grader on the answer itself, so a right answer and a fired skill are scored separately and you can tell which one moved.",
+      "why": "P-canonical: a `tool_used` grader on the Skill tool with `input_match` naming the skill."
+    },
+    {
+      "answer": "Whether the skill fired is not something the score delta can answer, because the baseline arm has no skill to call at all. The direct signal is a grader that checks for the Skill tool call itself: a `tool_used` grader pointed at the Skill tool, matching on review-notes, passes only in runs where the model actually invoked your skill.\n\nAs for the folder: the command takes a plugin, not a bare skill directory. Wrap it in a minimal plugin with a `.claude-plugin/plugin.json` manifest and run the eval against that. Expect it to pass only in the with-plugin arm.",
+      "why": "P-alt: usage first, in prose: a `tool_used` grader on the Skill tool matching review-notes."
+    },
+    {
+      "answer": "No. The eval runner loads a plugin, so put the skill inside a minimal one (`claude plugin init review-notes` scaffolds it; then move SKILL.md under `skills/review-notes/`) and point the command at that directory.\n\nFor whether it was used, give each case a `tool_used` grader on the Skill tool, with `input_match: review-notes` so another skill can't satisfy it. Keep a separate grader on the answer itself: the pair separates \"the answer was right\" from \"the skill is why\". Expect the Skill check to pass only in the with-plugin arm; if it rarely passes there, the skill isn't being picked up, and any delta you see isn't the skill's doing.",
+      "why": "P-caveat: `tool_used` on the Skill tool with `input_match`; the extra advice on pairing with a result grader does not touch the graded point."
+    },
+    {
+      "answer": "Yes, point the command at the `review-notes` folder; it runs the cases with the skill available and again without it, and reports the difference.\n\nDon't read usage off that difference, though. Add a `tool_used` grader to each case with `tool: Skill` and `input_match: review-notes`. It passes only in runs where the model actually invoked your skill, so it tells you directly whether the skill fired, which a score gap can't. Expect it to pass only in the with-skill arm, since the other arm has nothing to invoke. Keep a separate grader on the answer itself so you can tell a right answer from a fired skill.",
+      "why": "P-plain: `tool_used` grader on the Skill tool; wrong on the sibling point (says the bare folder works)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, wrap it first: add `.claude-plugin/plugin.json` with a name, move the skill to `skills/review-notes/SKILL.md`, and point the command at that plugin directory.\n\nTo tell whether the skill was used, look at the delta between the with-plugin and no-plugin arms. The only difference between the arms is your skill, so a clearly positive delta means it was invoked and changed the answers; a delta near zero means the model never picked it up. Run the cases at the default 3 runs per case so the delta isn't a single noisy sample, and look at it per case rather than only the suite total.",
+      "why": "F-wrong: relies on the score delta to tell whether the skill was used; sibling point (wrap) is right."
+    },
+    {
+      "answer": "The command needs a plugin, so wrap the skill: scaffold one with `claude plugin init review-notes`, put SKILL.md under `skills/review-notes/`, and point `claude plugin eval` at the wrapper.\n\nDon't use the score delta to decide whether the skill fired. Open the with-plugin run transcripts and look for a Skill tool call naming review-notes; if it's there, the skill was used in that run, and if it's missing, the model answered without it. Do this for a few runs per case; if the call shows up in most of them, the skill is being picked up reliably.",
+      "why": "F-partial: reads the trace alone and never adds a `tool_used` grader on the Skill tool, the required point."
+    },
+    {
+      "answer": "No, wrap it in a plugin first: `.claude-plugin/plugin.json` plus `skills/review-notes/SKILL.md`, then point the command at that root.\n\nYou could add a `tool_used` grader on the Skill tool with `input_match: review-notes` to record whether it fired. In practice it's extra ceremony: the no-plugin arm has no skill, so the only thing that can move the score is the skill, and a positive delta already tells you it was used. Skip the extra grader and read the delta. Run at the default 3 runs per case so a single noisy run doesn't mislead you either way.",
+      "why": "F-retract: names the `tool_used` grader on Skill, then dismisses it in favor of the delta."
+    },
+    {
+      "answer": "Not directly: the runner loads a plugin, so wrap the skill with a `.claude-plugin/plugin.json` manifest and point the command at that wrapper.\n\nTo tell whether it was used, add a `tool_used` grader for the Read tool with `input_match: review-notes/SKILL.md`. When a skill loads, its SKILL.md is read into the session, so a Read of that file in the with-plugin runs means the skill fired, and its absence means the model never opened it. Keep a separate grader on the answer itself so you can see the result and the skill load apart. Expect the Read check to pass only in the with-plugin arm.",
+      "why": "F-near: a `tool_used` grader on another tool (Read), which the rubric lists as a FAIL; sibling point is right."
+    }
+  ]
+}

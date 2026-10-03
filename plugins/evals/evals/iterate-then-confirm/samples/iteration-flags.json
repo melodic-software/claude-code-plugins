@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Iterate on just that case with a single run and no baseline arm:\n\n```bash\nclaude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none\n```\n\nThat reports `SCORE` and `PASS%` instead of with, without and delta, and it's the cheapest loop. One run is noisy, though, so once the grader looks right, confirm the change at 3 runs per case and read that run's noise report before believing it helped. Each iteration costs a single with-plugin run of one case.",
+      "why": "P-canonical: gives `--case`, `--runs 1` and `--ablation none` together in one command."
+    },
+    {
+      "answer": "Cheapest loop: `--ablation none --runs 1 --case grader-tune`. Dropping the ablation skips the baseline arm entirely, one run keeps the cost per edit minimal, and the case filter keeps every other case out of it.\n\nWhen you think you've got it, do a proper confirm: 3 runs per case, which is the default, and check the noise verdict before you trust the result. Expect each edit to cost one with-plugin run of that one case, and the output to show `SCORE` and `PASS%` rather than a delta.",
+      "why": "P-alt: the same three flags in a different order with an explanation of each."
+    },
+    {
+      "answer": "Use `--case <name> --runs 1 --ablation none` on every edit. The `--case` filter runs only that case, `--runs 1` runs it once, and `--ablation none` skips the no-plugin arm so you don't pay for the baseline each time.\n\nA caveat while iterating: with no baseline arm the output shows `SCORE` and `PASS%`, not a delta, so you're tuning the grader's verdict on the with-plugin answer, not measuring the plugin's effect.\n\nTo believe a change helped, rerun at 3 runs per case and read the noise report's verdict before trusting it.",
+      "why": "P-caveat: all three flags, with the no-baseline-arm explanation the rubric says is fine and a caveat about the missing delta."
+    },
+    {
+      "answer": "While iterating, run only that case once, without the baseline:\n\n```bash\nclaude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none\n```\n\nEach edit costs one with-plugin run. Single runs swing a lot, so before you believe a change helped, rerun with `--runs 5` and compare the average score against what you had before the edit; if it's clearly higher, keep the change. Keep that command in your shell history; you'll run it after every grader edit, and each run finishes quickly.",
+      "why": "P-plain: all three iteration flags; wrong on sibling points (confirms at 5 runs, trusts the score with no noise report)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Copy the suite to a scratch directory that contains only the case you're tuning, and point the command there with `--runs 1`:\n\n```bash\nclaude plugin eval ./scratch/notes-one-case --runs 1\n```\n\nThat limits the run to a single case and a single run, which is as cheap as it gets. Once the grader behaves, confirm the change at 3 runs per case and read the confirm's noise report before trusting it. Delete the scratch copy when you're done so it doesn't drift from the real suite.",
+      "why": "F-wrong: replaces `--case` with a copied one-case directory and omits `--ablation none`; sibling points (3 runs, noise report) are right."
+    },
+    {
+      "answer": "Filter to the one case and run it once:\n\n```bash\nclaude plugin eval ./plugins/notes --case grader-tune --runs 1\n```\n\nRepeat that after each edit to the grader. A single run is noisy, so when you think the change works, confirm it at 3 runs per case and read the noise report the confirm prints before you believe it helped. Each pass gives you the with-plugin and no-plugin scores for that case, so you can see the delta move as you edit the grader.",
+      "why": "F-partial: gives `--case` and `--runs 1` but is missing `--ablation none`."
+    },
+    {
+      "answer": "The documented iteration loop is `--case grader-tune --runs 1 --ablation none`. I'd drop the `--ablation none` part, though: without the baseline arm you lose the with-versus-without delta, which is exactly what tells you whether your edit mattered. Run `--case grader-tune --runs 1` and keep the baseline.\n\nWhen the grader looks right, confirm at 3 runs per case and check the noise report's verdict before trusting the change. The baseline costs a second run per edit, but it's worth it.",
+      "why": "F-retract: states all three flags, then retracts `--ablation none`."
+    },
+    {
+      "answer": "Tag the case you're tuning, say `wip`, and iterate with:\n\n```bash\nclaude plugin eval ./plugins/notes --tag wip --runs 1 --ablation none\n```\n\nThat runs only the tagged case, once, with no baseline arm. When the grader looks right, run a confirm at 3 runs per case and read its noise report before you believe the change helped. Tags live in the case's `case.yaml`, so you can move the `wip` tag to whichever case you're working on next without touching the command.",
+      "why": "F-near: `--tag` replaces `--case`, which the rubric lists as a FAIL; sibling points are right."
+    }
+  ]
+}

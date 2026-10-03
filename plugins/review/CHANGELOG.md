@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.1] - 2026-10-02
+## [0.36.1] - 2026-10-02
 
 ### Added
 
@@ -15,6 +15,14 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **Bindings stay in page text.** The interactive validator refuses any `data-rv-*` binding on
   `html`, `head`, `title`, `meta`, `style`, or `script`, and any content binding (`data-rv-text`,
   `data-rv-count`, `data-rv-each`) on a form control; the runtime skips the same elements.
+
+## [0.36.0] - 2026-10-02
+
+### Changed
+
+- **`fanout` run-everything mode shows each leaf's effort level.** The report's Surfaces line
+  names each leaf as `label@level`: slices from the workflow's returned roles, named agents from
+  their definition's pin, noting that the level is the one requested.
 
 ## [0.35.0] - 2026-10-02
 

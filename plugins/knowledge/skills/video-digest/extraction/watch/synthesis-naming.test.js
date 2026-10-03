@@ -15,6 +15,14 @@ describe("synthesisDestName", () => {
   it("falls back to timestamped source stem when unmapped", () => {
     expect(synthesisDestName("scene_0048.png", 1894.8, {})).toBe("at-31m35s-scene_0048.png");
   });
+
+  it("names an untimed frame untimed, never at 0m00s", () => {
+    expect(synthesisDestName("scene_0048.png", null, {})).toBe("untimed-scene_0048.png");
+  });
+
+  it("names a frame with an estimated time by that time", () => {
+    expect(synthesisDestName("interval_0003.png", 60, {})).toBe("at-1m00s-interval_0003.png");
+  });
 });
 
 describe("formatTimestampSlug", () => {
@@ -30,6 +38,12 @@ describe("synthesisNameQualityScore", () => {
     );
     expect(synthesisNameQualityScore("0012-2-3.png")).toBeLessThan(
       synthesisNameQualityScore("at-31m35s-scene_0048.png"),
+    );
+  });
+
+  it("ranks a generated untimed name below a semantic one", () => {
+    expect(synthesisNameQualityScore("untimed-scene_0048.png")).toBeLessThan(
+      synthesisNameQualityScore("network-diagram.png"),
     );
   });
 });

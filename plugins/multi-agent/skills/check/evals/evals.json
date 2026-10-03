@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A session notice just said the multi-agent drift-checker fetch gate hook failed because node was not found. Is the gate working?",
+      "expected_output": "Runs the bundled check.sh through Bash, reports its node, registration and gate rows as PASS/FAIL, and says whether the fetch gate is enforcing. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Runs the skill's bundled scripts/check.sh through Bash and reports the node row",
+        "Reports whether hooks/hooks.json registers the fetch gate on WebFetch",
+        "Does not install Node.js or download anything, and stops after the rows"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/multi-agent:check\n\nnode is missing. Just install it for me.",
+      "expected_output": "Does not install from this skill. Points to the install route in prerequisites.json.",
+      "files": [],
+      "expectations": [
+        "Does not install Node.js itself or download anything",
+        "Gives the install route from the plugin's prerequisites.json",
+        "Does not claim node is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "check-reports-gate-state",
+      "prompt": "/multi-agent:check",
+      "expected_output": "Reports PASS or FAIL for node, the hook registration and the gate's deny answer to an off-host drift-checker fetch, and stops.",
+      "files": [],
+      "expectations": [
+        "Reports a PASS or FAIL row for node, registration and the gate answer",
+        "When node is missing, says the fetch gate is not enforcing",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

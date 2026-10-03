@@ -53,6 +53,12 @@ outcome gate's artifact-grounded criteria, or not at all.
   `historical` from each source's `published:` and `applies_to:`, and criterion 12's era and
   scenario checks ask whether the source covers the claim's product line and situation. A
   `historical` source is labeled and never counted.
+- **Counting a repost as the second source.** A blog post or synthesis answer that restates an
+  Anthropic page is that page again. Counting it lets a single-publisher claim pass criterion 4 as
+  corroborated, and the `single source` flag that should travel with the claim disappears. Record
+  the repost under the page's pool and flag the claim. The opposite slip costs as much: flagging a
+  behavior claim because its docs page is the only one found, when a probe or an issue could
+  corroborate it.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a

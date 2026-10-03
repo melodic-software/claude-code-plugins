@@ -5,6 +5,42 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.5.0] - 2026-10-02
+
+### Added
+
+- **An effort-pin drift check and an `effort-pins` audit scope.** `check-effort-pins.sh` reads
+  model-config's effort tables and per-model defaults, compares their hash with a committed
+  baseline, and lists every effort pin in agents, skills, lane configs, and Workflow literals in
+  skill `context/` files and plugin `workflows/*.js` and `*.mjs` scripts. It
+  flags pins when the page changed or a pin names a level the page does not list, and never edits
+  a pin or the baseline. `/harness-config:audit effort-pins` runs only this check; a full audit
+  runs it in Phase 3.
+- **`unhobble` records the session's effort level** in its manifest and in each `stumbles.md`
+  row, written as `unset` when no level renders.
+
+## [1.4.0] - 2026-10-02
+
+### Fixed
+
+- **`audit-instructions` offers `/doctor prompt-audit` only where it can run.** The offer now
+  requires both `doctor` and the bundled `claude-api` skill to resolve in the session, and the
+  report says when it was skipped. The skill never asks either audit to apply its proposals.
+- **The `audit-instructions` records for the bundled `claude-api` and `doctor` skills are
+  links-only.** Each row in `reference/bundled-claude-api.md` and `reference/native-doctor.md` is
+  our decision, a pointer to the exact docs section or the guide at a pinned `anthropics/skills`
+  commit, an as-of date and a recheck trigger. The outdated record that two subcommands were
+  missing from the public repository and the docs is gone, and the record whose trigger fired at
+  Claude Code 2.1.283 was re-derived at 2.1.287.
+
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
+  still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
+  file can carry a rule that names the legacy tool.
+
 ## [1.3.3] - 2026-10-02
 
 ### Changed

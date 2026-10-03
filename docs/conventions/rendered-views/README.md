@@ -426,12 +426,14 @@ Current emitters, grandfathered on their shipped ladder and `medium` only, since
 content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`harness-ops:observability`, `planning:interview` (and planning's other rendered views),
-`overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
+`planning:interview` (and planning's other rendered views),
+`overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
-its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode).
+its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode),
+`knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
+grandfathered list when they moved onto it.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,

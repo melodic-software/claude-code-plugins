@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes, it goes through. Roughly 3.6 USD: 6 cases x 3 runs x 2 arms = 36 agent runs, priced at about 0.1 USD each in either arm with judge calls included, since the suite has no earlier pass to scale from.\n\nThe plugin's default ceiling is 5 USD for the whole pass, not per case or per run. The estimate is printed first, and because 3.6 is under 5, the run starts with `--max-cost-usd 5` passed and doesn't stop to ask you anything. The ceiling is checked before each run launches, so even if real costs ran high, an overrun would be bounded by the runs already in flight.",
+      "why": "P-canonical: names the 5 USD default ceiling for the whole pass, says the estimate is under it, and says the run starts with the cap passed."
+    },
+    {
+      "answer": "It fits. Thirty-six runs (six cases, three repeats, with and without the plugin) at roughly ten cents apiece, the judge's votes included, comes to about 3.60 USD.\n\nOut of the box the plugin caps a pass at five dollars in total, and the estimate sits under that line, so the pass is launched right away, with the five-dollar cap handed to the CLI as a guard rather than a reason to pause. You would only be asked to raise the cap, narrow the run, or accept a partial result if the estimate came in over it, which it doesn't here.",
+      "why": "P-alt: says in other words that the five-dollar default total cap is above the estimate, so the pass launches without a pause."
+    },
+    {
+      "answer": "About 3.6 USD: 36 agent runs (6 x 3 x 2) at roughly 0.1 USD per run, judge calls included.\n\nThat's under the plugin's 5 USD default ceiling for the whole pass, so it goes through: the run starts with `--max-cost-usd 5` and no prompt.\n\nOne thing to keep in mind: the margin is about 1.4 USD. If you later add cases, raise the run count, or put more llm graders on each case, re-estimate before the next pass, because a pass estimated over the ceiling stops before starting and asks whether to raise it, narrow the run with `--case` or `--tag`, or accept a partial run.",
+      "why": "P-caveat: under the 5 USD default and goes through; the caveat about re-estimating a larger suite does not undercut the answer for this one."
+    },
+    {
+      "answer": "It goes through. A pass this small costs about 2 USD: 36 agent runs, and measured read-only passes of this plugin came in around 0.05 USD per run with the judge included, so 36 x 0.05 = 1.8 USD, call it 2.\n\nThe plugin's default ceiling is 5 USD for the whole pass. Since the estimate is printed before any spend and sits well under that cap, the run starts with `--max-cost-usd 5` and doesn't ask anything first. If you want more room for longer answers, raise `max_cost_usd` in the plugin's settings.",
+      "why": "P-plain: correct on the 5 USD default for the whole pass and that the run starts, while giving a sibling estimate (about 2 USD) below the band."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, it won't simply go through. A without-plugin run on a knowledge question costs about 0.8 USD, because the model hunts for what it doesn't know, against about 0.1 USD with the plugin. So 18 x 0.8 + 18 x 0.1 = 16.2 USD, plus cents of judge calls.\n\nThe plugin's default ceiling is 5 USD for the whole pass, and 16 USD is well over it, so the run stops before starting and asks whether to raise the ceiling, narrow the run with `--case` or `--tag`, or accept a partial run that exits 2. Raise the ceiling to about 20 USD if you want the full pass.",
+      "why": "F-wrong: says the pass is over the 5 USD default and will not go through, built on the older 0.8 USD anchor."
+    },
+    {
+      "answer": "Roughly 3.6 USD: 6 cases x 3 runs x 2 arms = 36 agent runs at about 0.1 USD each, judge calls included.\n\nAs for the cap, the plugin ships a default spending ceiling and prints the estimate before any run. A small read-only suite like this one is the kind of pass the default is meant to cover, so it should go through without you touching any setting. If you ever do hit the ceiling, the run stops launching new runs and the result is marked partial, so check the `partial` field before reading the scores.",
+      "why": "F-partial: says the pass should go through but never names the default ceiling's figure, so point 1 (5 USD for the whole pass) is missing."
+    },
+    {
+      "answer": "About 3.6 USD: 36 runs at roughly 0.1 USD each, judge calls included. That's under the 5 USD default ceiling for the whole pass, so it starts with the cap passed.\n\nCorrection, though: the default ceiling is applied to each arm separately, 2.5 USD for the with-plugin runs and 2.5 USD for the without-plugin runs. Each arm here is about 1.8 USD, so you might squeak by, but if the without-plugin answers run long that arm hits its 2.5 USD share, stops launching runs, and the pass ends partial. Plan on raising the ceiling to be safe.",
+      "why": "F-retract: says under the 5 USD default for the whole pass, then retracts it into a per-arm 2.5 USD ceiling."
+    },
+    {
+      "answer": "Yes, comfortably. Each case costs about 0.6 USD for its with-and-without runs and judging, 3.6 USD in all for six cases.\n\nThe plugin's default spending cap is 5 USD per case, so a case at 0.6 USD has plenty of room, and no case comes anywhere near the limit. The CLI checks the cap as each case starts, and since every case here is far under it, the full pass runs to completion without stopping or asking. You'd only need to raise it for cases with many llm graders or a much higher run count.",
+      "why": "F-near: treats the 5 USD default as a per-case cap rather than a ceiling for the whole pass."
+    }
+  ]
+}

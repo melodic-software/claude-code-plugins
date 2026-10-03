@@ -73,7 +73,7 @@ inline.
 /session-flow:workflow steps      # full stage definitions
 /session-flow:workflow pre-pr     # ordered pre-PR gate checklist
 /session-flow:workflow wrap-up    # end-of-session checklist
-/session-flow:workflow spec-first # stage-by-stage execution with /clear between stages
+/session-flow:workflow spec-first # stage-by-stage execution from a written spec
 ```
 
 ### handoff

@@ -97,6 +97,16 @@ versioned; this log records each change to it.
   as an escape-helper lane; `education:teach` stays grandfathered for topic mode. No
   boundary-rule, genre, or cascade-key change.
 
+## Three more lanes on the escape helper, 2026-10-02
+
+- **`knowledge:video-digest`, `harness-ops:observability` and `event-storming:simulation` build
+  their HTML with a checked-in builder (#5846).** Each routes every interpolated external string
+  (fetched transcripts and titles, telemetry strings, board text) through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. The two that were grandfathered
+  (`harness-ops:observability`, `event-storming:simulation`) leave that list; the escape-helper
+  lanes are named in the emitters paragraph of the README. No boundary-rule, genre, or
+  cascade-key change.
+
 ## Escape helper, 2026-09-28
 
 - **The wave-2 escape helper shipped (#3605).** `lib/html-escape.mjs` is the

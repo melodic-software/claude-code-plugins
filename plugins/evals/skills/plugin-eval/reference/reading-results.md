@@ -11,17 +11,23 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 - [Per-run fields](#per-run-fields)
 - [Per-grader fields](#per-grader-fields)
 - [What a delta does and does not say](#what-a-delta-does-and-does-not-say)
+- [Noise report](#noise-report)
 
 ## Read order
 
-1. `partial`. When `true`, `partialReason` is `cost_ceiling`, `interrupted`, or `auth_failed`. The
+1. `scripts/run-validity.py <json> --runs <n>`. Only `verdict: VALID` lets a number be reported;
+   on `verdict: INVALID`, report INVALID and its reasons. The command and its exits are in
+   [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta).
+2. `partial`. When `true`, `partialReason` is `cost_ceiling`, `interrupted`, or `auth_failed`. The
    suite did not finish; report that and keep the document out of any trend. The check is done when
    the field has been read, not inferred from the exit code.
-2. Every run in both arms: `skippedPaidGraders` and `error`. Either one makes its case not
+3. Every run in both arms: `skippedPaidGraders` and `error`. Either one makes its case not
    comparable. Say "not comparable" and name which run; do not report the case's number.
-3. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable, and so is
+4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable, and so is
    `scoreWithout`. An omitted field is never zero.
-4. Only then, the delta itself.
+5. Only then, the delta itself.
+6. Run the [noise report](#noise-report) over the same file and read its lines before calling any
+   delta a gain.
 
 ## Document fields
 
@@ -41,6 +47,16 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 `name`, `dir`, `source`, `promptMarkdown`, `runsPerCase`, `timeoutSeconds`, `maxTurns`, `graders`,
 `arms`, and `aggregates`. `arms` holds `with` and `without`, each a list of runs; under
 `--ablation none` only `with` is present, and `suite.ablation` records which mode ran.
+
+Count each arm's rows for the run count, never `runsPerCase`: under `--runs 2` at Claude Code
+2.1.287 every case reported `runsPerCase: 3` while each arm held 2 rows.
+
+- **Basis**: an `aggregate-result.json` from this plugin's own suite under `--runs 2`, Claude Code
+  2.1.287; no docs page defines `runsPerCase`
+  (<https://code.claude.com/docs/en/plugin-evals#json-result>).
+- **As of**: 2026-10-01
+- **Recheck trigger**: the plugin-evals page documents `runsPerCase`, or a run's `runsPerCase`
+  matches its row count under `--runs`. Then update this paragraph.
 
 `cases[].aggregates` carries `score` and `passRate` for the with-arm, plus `scoreWithout`,
 `passRateWithout`, and `delta` when the arms are comparable. Observed on a suite where one
@@ -93,3 +109,37 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
   excluded, so the same suite scores differently. Hold the mode fixed or the trend line is fiction.
 - A single run is a smoke test. The defaults exist because a non-deterministic agent tells you
   little in one sample, and pinning both models buys comparability, not determinism.
+
+## Noise report
+
+`scripts/noise-report.py` reads one `aggregate-result.json` and prints noise lines beside its
+scores. It makes no model call and spends nothing. SKILL.md carries the full command; relative to
+this skill's directory it is:
+
+```bash
+python3 scripts/noise-report.py results.json --threshold <the run's --threshold> --interval-method <normal|wilson|jeffreys> --grader-agreement
+```
+
+Pass the `--threshold` the run used, the `interval_method` setting as `--interval-method`, and
+`--grader-agreement` when the `grader_run_twice` setting is on. A partial result prints one line
+and nothing else. An interval method other than `normal`, `wilson` or `jeffreys` falls back to
+`normal` with one line saying so. Exit 0 means the report printed; exit 2 means the file could not
+be read or an argument was malformed.
+
+| Line | What to do with it |
+|---|---|
+| `not comparable: case <name> (<reason>)` | Name the case and leave it out of any claim. The report has already left it out of every number |
+| `score check: ...` | The run's reported score and its graders disagree. Read that run's graders before using its number |
+| `<arm>-arm mean: ...` | Report each mean with its interval, never the mean alone |
+| `cost: ...` | Report it beside the scores, in the same answer as the delta |
+| `near ceiling: ...` | The baseline leaves no headroom, so the suite has almost no room to show a gain. Add a case the model fails without the plugin |
+| `delta ...` and `verdict: within noise` or `verdict: n too small to call` | The gain is not established, whatever the delta's sign or size |
+| `delta ...` and `verdict: the interval excludes 0` | Report the delta with its interval |
+| `<arm>-arm pass count ...` | Cases at or above the threshold, with the chosen interval. Only this line follows `--interval-method` |
+| `judge agreement: ...` | A grader with split runs needs its `explanation` and `evidence` read before its verdict is trusted |
+| `the result file holds no judge votes ...` | Agreement is unknown, not perfect |
+
+Why score intervals stay normal while the pass count follows the setting:
+[local-decisions.md, Interval method](../../methodology/reference/local-decisions.md#interval-method).
+How many runs and cases to add when an interval is too wide:
+[local-decisions.md, Repeat count](../../methodology/reference/local-decisions.md#repeat-count).

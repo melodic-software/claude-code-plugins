@@ -402,19 +402,18 @@ hook::raw_file_path() {
 # WHICH HOOKS ARE IN THAT MINORITY — the criterion is mechanical, and it is
 # INTERNAL CONSISTENCY, not a taste judgment about severity. A hook belongs in
 # the fail-closed class iff it ALREADY fails closed on some other
-# "I cannot parse this input" condition. Today exactly two do, both via a
-# MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread:
+# "I cannot parse this input" condition. Every such hook today carries a
+# MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread;
+# plugins/guardrails/hooks/require-jq-posture.test.sh derives the class from
+# that ceiling, so no list here can go stale.
 #
-#     plugins/guardrails/hooks/block-dangerous-git.sh
-#     plugins/guardrails/hooks/block-no-verify.sh
-#
-# Those two scripts held two opposite postures toward the same question — an
-# over-long command is hostile and blocked; a missing jq is fine and skipped —
-# which meant an author who could not fit a dangerous command under 16384
-# characters could simply be on a machine without jq. That contradiction is what
-# #2146 reports, and resolving it is all this class is for.
-# plugins/guardrails/hooks/require-jq-posture.test.sh pins the membership so the
-# two cannot drift apart again.
+# block-dangerous-git and block-no-verify, the first two members, held two
+# opposite postures toward the same question (an over-long command is hostile
+# and blocked; a missing jq is fine and skipped), which meant an author who
+# could not fit a dangerous command under 16384 characters could simply be on a
+# machine without jq. That contradiction is what #2146 reports, and resolving it
+# is all this class is for. Because the posture test derives membership from the
+# ceiling, the class cannot drift.
 #
 # DELIBERATELY NOT WIDENED. block-hook-bypass and block-noncanonical-commit also
 # exit 2, and block-hook-bypass carries the same "the only supported deliberate

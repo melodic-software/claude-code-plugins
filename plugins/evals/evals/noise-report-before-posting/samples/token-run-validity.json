@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "python3 plugins/evals/skills/plugin-eval/scripts/run-validity.py results.json --runs 3",
+      "why": "the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Check partial is false and every error is null, then post it.",
+      "why": "no gate"
+    }
+  ]
+}

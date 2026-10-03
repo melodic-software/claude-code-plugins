@@ -50,8 +50,8 @@ Avoid: highway, stale highway
 
 **phase boundary**
 
-The moment a stage has produced its artifact and the next has not begun, where the continuation
-router runs and where a compaction, if taken at all, is least destructive.
+The moment a stage has produced its artifact and the next has not begun.
+Here, route the next step with `/session-flow:workflow`.
 
 **primary source**
 

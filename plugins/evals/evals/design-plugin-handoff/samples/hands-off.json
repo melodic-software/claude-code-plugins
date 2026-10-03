@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "A whole plugin measured against a no-plugin baseline isn't something I'd hand-write here. Claude Code's own scaffolder covers it:\n\n```\nclaude plugin eval init ./plugins/notes\n```\n\nIt interviews you for the cases and graders and writes them in the layout its runner reads, so the suite runs as-is under `claude plugin eval`.\n\nTwo things before you start. Settle the success criteria first: what should change in Claude's behavior when the notes plugin is installed? And read and approve every case input before it is written, keeping raw session transcripts out of the cases.",
+      "why": "P-canonical: hands the whole-plugin target to claude plugin eval init, which interviews for cases and graders and writes them in the runner's layout, instead of hand-writing them."
+    },
+    {
+      "answer": "Rather than me drafting case files, let `claude plugin eval init` do it. Point it at `./plugins/notes`: it asks you about the behaviors to test and how to grade them, then writes the cases and graders in the exact folder layout the plugin eval runner expects, with the no-plugin run as the baseline. Hand-written cases tend to drift from that layout and fail to load. Before the interview, decide what success means for each skill, for example the share of note requests that land in the right file, so your answers to init's questions are concrete.",
+      "why": "P-alt: the same hand-off in different words ('asks you about the behaviors... writes... in the exact folder layout the runner expects'); it omits the approve-inputs line, which only the sibling grades."
+    },
+    {
+      "answer": "Hand this one to `claude plugin eval init ./plugins/notes` instead of having me write the cases. It interviews you for cases and graders and writes them in the layout the runner reads; a whole-plugin suite against a no-plugin baseline is exactly what it's for.\n\nA few things alongside it:\n\n- Agree on success criteria before any case exists.\n- Read and approve every case input before init writes it.\n- When the suite is written, `/evals:plugin-eval` can run it and help you read the with-versus-without delta.\n\nBudget for both arms: each case runs with the plugin and without it, so a suite costs roughly twice its case count in runs.",
+      "why": "P-caveat: hand-off to claude plugin eval init with its interview and layout; running with /evals:plugin-eval and the cost note are extras that do not change the hand-off."
+    },
+    {
+      "answer": "For a whole plugin against a no-plugin baseline, the scaffolder is `claude plugin eval init`. Run it on `./plugins/notes`; it interviews you for the cases and graders and writes them in the layout its runner reads, so you get a suite that `claude plugin eval` can run straight away. That beats hand-written cases here, which would need reshaping into the runner's layout anyway. Answer its questions with the behaviors you care about most. Focus on the skills whose behavior you most want to protect, and expect it to ask how each case should be graded.",
+      "why": "P-plain: the hand-off to claude plugin eval init is complete; it says nothing about settling criteria first or approving inputs, which only the before-handoff sibling grades."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sure. First, agree on success criteria: what should Claude do differently when the notes plugin is loaded? Then here's a starter set; read and approve each input before I write it to disk.\n\n1. **Capture:** 'Save a note that the deploy moved to Friday.' With plugin: a note file is created under the notes folder.\n2. **Recall:** 'What did I note about the deploy?' With plugin: the saved note is quoted.\n3. **No trigger:** 'Explain Go interfaces.' With plugin: no notes skill fires.\n4. **Edit:** 'Change the deploy note to Monday.' With plugin: the existing note is updated, not duplicated.\n\nI'll put each in its own case folder with a prompt and a grader, and you run them with and without the plugin.",
+      "why": "F-wrong: writes the case files itself as the main answer and never mentions claude plugin eval init (the sibling's criteria and approval points are present)."
+    },
+    {
+      "answer": "I'd rather not hand-write these. Claude Code has a built-in scaffolding step for whole-plugin evals: it interviews you for the cases and graders and writes them in the layout its runner reads, with a no-plugin run as the baseline, so the suite loads without reshaping. Before you start it, settle the success criteria for the notes plugin, and read and approve every case input before it is written. Keep raw session transcripts out of the cases too; describe the scenario in your own words instead. The no-plugin arm then shows what the plugin actually adds.",
+      "why": "F-partial: describes the hand-off and what the scaffolder does but never names `claude plugin eval init`, the one missing point (the sibling points are all present)."
+    },
+    {
+      "answer": "The standard route for a whole plugin against a no-plugin baseline is `claude plugin eval init`, which interviews you for cases and graders and writes them in its runner's layout.\n\nIn practice init only gives you a skeleton to fill in, so it's quicker if I write the cases now. Here are four for `./plugins/notes`:\n\n1. 'Save a note: standup moved to 10am.' Expect a new note file.\n2. 'What's in my notes about standup?' Expect the note quoted back.\n3. 'Rename the standup note to meetings.' Expect a rename, not a copy.\n4. 'What is a goroutine?' Expect no notes skill to fire.\n\nSettle your criteria first and approve each input before I save these.",
+      "why": "F-retract: names claude plugin eval init, then dismisses it and hand-writes the cases as the main answer."
+    },
+    {
+      "answer": "Sure, here's a suite in the standard `evals/evals.json` format, which you can drop next to the plugin:\n\n```json\n{\"skill_name\": \"notes\", \"evals\": [\n  {\"id\": 1, \"prompt\": \"Save a note: release is Friday\", \"expected_output\": \"A note file is created\"},\n  {\"id\": 2, \"prompt\": \"What did I note about the release?\", \"expected_output\": \"The Friday note is quoted\"}\n]}\n```\n\nAdd a case per skill behavior and one that should not trigger. You could also use `claude plugin eval init`, but writing the file directly is faster for a small plugin. Agree on criteria first, and approve each input before it goes in.",
+      "why": "F-near: writes the cases itself in the skill-creator evals.json format and offers claude plugin eval init only as a slower alternative."
+    }
+  ]
+}

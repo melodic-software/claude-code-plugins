@@ -9,7 +9,10 @@ import path from "node:path";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { parsePromotedTimestampsSec } from "../evals/check-watch-outcomes.js";
+import {
+  loadPromotedTimestampsSec,
+  parsePromotedTimestampsSec,
+} from "../evals/check-watch-outcomes.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { readLaneJson } from "../lib/watch-frame-index.js";
 
@@ -20,13 +23,18 @@ export function expandVisualGaps(sliceDir) {
   const absSlice = path.resolve(sliceDir);
   const sel = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
   const visualFramesPath = lanePath(absSlice, LANES.keyFrames, "visual-frames.md");
-  const promoted = parsePromotedTimestampsSec(fs.readFileSync(visualFramesPath, "utf8"));
+  const exact = loadPromotedTimestampsSec(absSlice);
+  // Minute labels are the fallback for slices with no promoted frames on disk.
+  const promoted =
+    exact.length > 0 || !fs.existsSync(visualFramesPath)
+      ? exact
+      : parsePromotedTimestampsSec(fs.readFileSync(visualFramesPath, "utf8"));
 
   const gapRows = sel.densificationWindows
     .filter((window) => !promoted.some((ts) => ts >= window.startSec && ts <= window.endSec))
     .map(
       (window) =>
-        `| ~${Math.round(window.startSec / 60)}m | ${window.reason} | No synthesis frame in window; transcript-only |`,
+        `| ~${Math.round(window.startSec / 60)}m (${window.startSec.toFixed(1)}-${window.endSec.toFixed(1)}s) | ${window.reason} | No synthesis frame in window; transcript-only |`,
     );
 
   const body = `# Visual gaps — densification alignment
