@@ -46,7 +46,7 @@ Each entry gives:
   `lower-effort` or `lower-verification`).
 - **A candidate rests on a catalog row.** It needs a row in a named catalog file whose `area`
   cell holds the area slug (or `all`), and an expected size from a count this entry names. Fetch
-  the row's `pointer` with WebFetch in this run and cite it as `{url, as_of: <today>, recheck:
+  the row's `pointer` with WebFetch in this run and cite it as `{url, as_of: <the run's date>, recheck:
   <the row's recheck_trigger>}`, with `confidence` the row's label. A row you cannot fetch is not
   cited, and a candidate that needed it is not reported. No row, no candidate.
 - **Fix owner.** A measured finding names the owner its entry gives. Where none is given, use the

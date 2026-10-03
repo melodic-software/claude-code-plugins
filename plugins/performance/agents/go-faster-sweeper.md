@@ -82,7 +82,7 @@ array) on stdin. The fields:
 | `route` | `performance-chain` for a speedup worth a numbered target, else `next-run` |
 | `effect` | optional: `fewer-checks`, `drops-check`, `lower-verification`, `lower-effort`, `lower-model`, `delegation`, `parallelism`, `batching` |
 | `guard_metric`, `revert_if` | the reading that shows accuracy slipping, and the reading that ends a `now` adoption |
-| `confidence`, `citations` | the source's label; `{url, as_of: YYYY-MM-DD, recheck}` for outside advice re-read this run |
+| `confidence`, `citations` | the source's label; `{url, as_of: YYYY-MM-DD, recheck}` for outside advice re-read this run; `as_of` is the run's date, the UTC date in `RUN`'s directory name (`runs/YYYYMMDDT...Z`), never your local date; `findings.py add` refuses any other |
 | `reason_code`, `reason` | `not-checked`: `no-data`, `owner-unavailable`, `needs-elevation`, `needs-setting`, `auth-gap` or `refused-by-guard`, and a reason under the rule in Rules; `flag-only`: why |
 | `conditions` | measured findings: `{repo, machine, harness_version, model, workload}`, plus `gh_config_dir` on a GitHub finding when areas.md's gh-account rule sets it |
 

@@ -806,4 +806,48 @@ denied "a report that cannot be written" "report.md"
 capture bash -c "cd '$REPO' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$BLOCKED' --runs 1"
 denied "a trace folder that cannot be made" "trace2-status.txt"
 
+# --- 31. a run that already exists is a denied write too: exit 3, one line ---
+# Two run-starts pinned to the same second name the same runs/<stamp>/findings.json.
+DX="$(native "$WORK/data/run-twice")"
+capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DX" --session s1 --mode attended --session-evidence true
+assert_eq "the first run-start in a second exits 0" "0" "$RUN_RC"
+capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DX" --session s1 --mode attended --session-evidence true
+denied "a run whose findings.json already exists" "findings.json: already exists"
+
+# --- 32. a citation is outside advice re-read in this run: its as_of is the run's start date (AC8) ---
+# The run starts at midday UTC on a fixed date; add runs on the real clock, so only the header's
+# date can make the matching citation pass.
+RUN_DAY=2026-05-01
+DC="$(native "$WORK/data/cite")"
+capture env GO_FASTER_NOW="$(date -u -d "${RUN_DAY}T12:00:00Z" +%s)" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DC" --session s1 --mode attended --session-evidence true
+CITE_RUN="$RUN_OUT"
+cite() { # <id> <as_of>
+  measured "$1" git elapsed-ms 10 "\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"$2\",\"recheck\":\"next git release\"}]"
+}
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$CITE_RUN" <<<"$(cite git-1 "$RUN_DAY")"
+assert_eq "a citation dated the run's start date is added" "0" "$RUN_RC"
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$CITE_RUN" <<<"$(cite git-2 2026-04-30)"
+assert_eq "a citation dated before the run is refused" "1" "$RUN_RC"
+assert_contains "the refusal names both dates" "git-2: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
+assert_not_contains "a refused citation is not written" "git-2" "$(cat "$CITE_RUN/findings.json")"
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$CITE_RUN" <<<"$(cite git-3 soon)"
+assert_eq "a malformed as_of gets only the format error" "git-3: citation as_of must be YYYY-MM-DD" "$RUN_OUT"
+# A run file whose citation predates its header, written by hand since add refuses it.
+OLD_RUN="$WORK/old-cite-run"
+mkdir -p "$OLD_RUN"
+doc "$OLD_RUN/findings.json" "$(cite git-1 2026-04-30)"
+sed -i 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$OLD_RUN/findings.json"
+run validate "$(native "$OLD_RUN/findings.json")"
+assert_eq "validate of a run file refuses a citation dated before the run" "1" "$RUN_RC"
+assert_contains "validate names both dates" "git-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
+run finish --run "$(native "$OLD_RUN")"
+assert_eq "finish refuses a citation dated before the run" "1" "$RUN_RC"
+assert_contains "finish names both dates" "git-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
+sed -i 's/"as_of":"2026-04-30"/"as_of":"2026-05-01"/' "$OLD_RUN/findings.json"
+run finish --run "$(native "$OLD_RUN")"
+assert_eq "finish accepts a citation dated the run's start date" "0" "$RUN_RC"
+doc "$WORK/bare-cite.json" "$(cite git-1 2026-04-30)"
+run validate "$(native "$WORK/bare-cite.json")"
+assert_eq "a bare findings file with no run header checks only the citation's format" "0" "$RUN_RC"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

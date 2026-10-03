@@ -5,9 +5,15 @@ folder passed as a literal argument. Subcommands:
 
     run-start --data <dir> --session <id> --mode attended|unattended --session-evidence true|false
                                         create runs/<UTC-stamp>/findings.json, print the run dir
-    add --run <run-dir>                 append the finding(s) on stdin; refuse any that break a rule
+    add --run <run-dir>                 append the finding(s) on stdin; refuse any that break a rule,
+                                        including a citation whose as_of is not the run's date
     finish --run <run-dir>              validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
+
+A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
+re-read in this run, so add, finish and validate refuse one with any other as_of. A findings file
+with no started_at gets the format check only. A run-start whose findings.json already exists
+exits 3 like any other denied write.
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
     render <findings.json>              the markdown report
     lint-catalog <dir|file>...          exit 1 naming each catalog row that breaks the grammar
@@ -115,7 +121,13 @@ def load(path: str) -> dict:
     return doc
 
 
-def finding_errors(f: dict) -> list[str]:
+def run_date(doc: dict) -> str | None:
+    """The UTC date run-start stamped on the header; None for a findings file with no header."""
+    date = str(doc.get("started_at") or "")[:10]
+    return date if DATE_RE.match(date) else None
+
+
+def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
     fid = f.get("id") or "<no id>"
     errors = []
 
@@ -222,9 +234,12 @@ def finding_errors(f: dict) -> list[str]:
             isinstance(c.get("url"), str) and c["url"].startswith("http"),
             "citation url required",
         )
+        as_of = c.get("as_of")
+        dated = isinstance(as_of, str) and bool(DATE_RE.match(as_of))
+        need(dated, "citation as_of must be YYYY-MM-DD")
         need(
-            isinstance(c.get("as_of"), str) and bool(DATE_RE.match(c["as_of"])),
-            "citation as_of must be YYYY-MM-DD",
+            not dated or run_day is None or as_of == run_day,
+            f"citation as_of {as_of} is not this run's date {run_day}",
         )
         need(
             isinstance(c.get("recheck"), str) and c["recheck"],
@@ -236,11 +251,12 @@ def finding_errors(f: dict) -> list[str]:
 def doc_errors(doc: dict) -> list[str]:
     errors = []
     ids = set()
+    day = run_date(doc)
     for f in doc["findings"]:
         if not isinstance(f, dict):
             errors.append("a finding is not an object")
             continue
-        errors += finding_errors(f)
+        errors += finding_errors(f, day)
         if f.get("id") in ids:
             errors.append(f"{f['id']}: duplicate id")
         ids.add(f.get("id"))
@@ -390,8 +406,8 @@ def read_json(path: Path) -> dict | None:
 WRITE_DENIED = 3
 
 
-def write_denied(path: Path, exc: OSError) -> NoReturn:
-    print(f"cannot write {path}: {exc}", file=sys.stderr)
+def write_denied(path: Path, reason: object) -> NoReturn:
+    print(f"cannot write {path}: {reason}", file=sys.stderr)
     sys.exit(WRITE_DENIED)
 
 
@@ -794,7 +810,7 @@ def cmd_run_start(args: argparse.Namespace) -> int:
         "findings": [],
     }
     if not write_json(run / "findings.json", header, exclusive=True):
-        die(f"{run} already exists")
+        write_denied(run / "findings.json", "already exists")
     print(run.as_posix())
     return 0
 
@@ -808,12 +824,13 @@ def cmd_add(args: argparse.Namespace) -> int:
         die(f"stdin is not JSON: {exc}")
     new = new if isinstance(new, list) else [new]
     have = {f.get("id") for f in doc["findings"]}
+    day = run_date(doc)
     errors = []
     for f in new:
         if not isinstance(f, dict):
             errors.append("a finding is not an object")
             continue
-        errors += finding_errors(f)
+        errors += finding_errors(f, day)
         if f.get("id") in have:
             errors.append(f"{f.get('id')}: duplicate id")
         have.add(f.get("id"))
