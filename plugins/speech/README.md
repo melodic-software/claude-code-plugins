@@ -14,7 +14,7 @@ interactive page can then follow the voice word by word.
 
 ## The kokoro backend
 
-kokoro is the only backend so far. It runs [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
+kokoro is the default backend. It runs [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
 (Apache-2.0) on your CPU through onnxruntime and sends nothing over the network while it speaks.
 It uses the
 [timestamped ONNX export](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped),
@@ -27,10 +27,32 @@ it; the plugin never installs, downloads or ships it.** The plugin also avoids t
 that bundle it (`espeakng-loader`) or wrap it under the GPL (`phonemizer`): it runs your
 `espeak-ng` command directly.
 
+## The elevenlabs backend (optional, third-party)
+
+`scripts/elevenlabs.py` sends the script text to the [ElevenLabs](https://elevenlabs.io) REST API at
+`api.elevenlabs.io` and writes the same two files. It is off unless you ask for it by name. The
+official ElevenLabs MCP server is archived, so the plugin calls the REST API directly with the Python
+standard library.
+
+- **Key.** Set `ELEVENLABS_API_KEY` in your shell environment. The plugin never stores, prints or
+  logs it, never takes it as an argument, and sends it only in the `xi-api-key` request header.
+- **Cost estimate before every call.** The script prints the character count, the host, the model
+  and voice, and the estimated cost, then stops. `--proceed` is required to send anything, and the
+  skill passes it only after you agree. The rates are an estimate from the public price list (the
+  `MODELS` table in the script says where and when); ElevenLabs bills credits against your plan.
+- **Organization egress floor.** Managed settings can set `SPEECH_EGRESS_FLOOR=local` in `env`.
+  Managed settings outrank every other settings layer, so a user cannot unset it. The backend then
+  exits 4 with the reason, before it reads the key or prints an estimate. An unrecognized value is
+  treated as `local`; `any` or unset allows the backend.
+- **Text to speech only.** No voice cloning, speech-to-text or other ElevenLabs endpoints.
+
+Word times come from the API's per-character alignment: a word spans its first to its last character.
+
 ## Prerequisites
 
 | Prerequisite | Installed by | Needed for |
 |---|---|---|
+| `ELEVENLABS_API_KEY` (optional) | you | the elevenlabs backend only |
 | Python 3.12 or later | you | the install hook and every script |
 | Node.js | you | starting the SessionStart hook |
 | espeak-ng | you (`apt`/`dnf`/`pacman`/`brew install espeak-ng`, `winget install eSpeak-NG.eSpeak-NG`) | `/speech:narrate` |

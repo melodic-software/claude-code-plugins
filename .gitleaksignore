@@ -12,3 +12,5 @@
 # matches itself. A commit-less line is checked in git scans as well as dir
 # scans, so it survives the squash merge that replaces the adding commit.
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+# The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
+plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
