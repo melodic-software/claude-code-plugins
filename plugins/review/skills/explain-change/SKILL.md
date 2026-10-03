@@ -97,6 +97,8 @@ Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, 
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
 - `medium: file` from step 1: tell the reader the path. A reader who keeps digests on their machine sets `medium: file` in `~/.claude/rendered-views.md`.
 
+If the publish gate exits non-zero or its result is unclear, keep the page as a file and do not publish.
+
 ## 5. Never post
 
 This skill reads the pull request and nothing else. It never comments, reviews, labels, or sets a check status, and the digest gates nothing.

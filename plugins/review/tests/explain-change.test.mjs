@@ -403,6 +403,7 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
     assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);
+    assert.match(skill, /exits non-zero or its result is unclear, keep the page as a file/);
   });
 });
 
