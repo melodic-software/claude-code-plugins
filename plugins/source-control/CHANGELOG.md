@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.2] - 2026-10-03
+## [0.77.3] - 2026-10-03
 
 ### Changed
 
@@ -22,6 +22,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reviewer check run on the head has completed, commits each fix, pushes once through
   `lane_push`, then verifies each commit and posts each D7 reply. §5.1.4 no longer pushes per
   finding.
+
+## [0.77.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
 
 ## [0.77.1] - 2026-10-03
 
