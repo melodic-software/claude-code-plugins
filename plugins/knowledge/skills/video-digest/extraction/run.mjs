@@ -21,8 +21,12 @@
  * or `${NAME}` / `%NAME%` env-var references — expanded here (`expandPathValue`)
  * so machine-varying roots never require a literal path in stored configuration.
  *
- * Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>]
- *   [--cookies-from-browser <name>] [--max-concurrent-acquires <n>]
+ * `--data-dir` names the plugin data directory the hook resolves dependencies from.
+ * The child sees only the value `resolvePluginData` accepts, never an inherited
+ * `CLAUDE_PLUGIN_DATA` that names another plugin.
+ *
+ * Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>]
+ *   [--cookies-file <path>] [--cookies-from-browser <name>] [--max-concurrent-acquires <n>]
  *   [--acquire-phase-gap <sec>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
@@ -30,18 +34,19 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { buildChildEnv, expandPathValue, parseRunArgs } from "./lib/run-args.js";
+import { buildChildEnv, expandPathValue, parseRunArgs, resolvePluginData } from "./lib/run-args.js";
 
 const here = import.meta.dirname;
 
 let parsed;
 const usage =
-  "Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
+  "Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
   "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] " +
   "[--acquire-phase-gap <sec>] <relative-script.js> [args…]\n";
 
 try {
   parsed = parseRunArgs(process.argv.slice(2));
+  parsed.dataDir = resolvePluginData(parsed.dataDir, process.env);
   if (parsed.workRoot) {
     parsed.workRoot = expandPathValue(parsed.workRoot, process.env, os.homedir());
   }
@@ -63,10 +68,11 @@ if (rel.startsWith("..") || path.isAbsolute(rel)) {
   process.exit(2);
 }
 
+const { CLAUDE_PLUGIN_DATA: _inherited, ...inheritedEnv } = process.env;
 const registerHook = path.join(here, "register-hook.mjs");
 const result = spawnSync(
   process.execPath,
   ["--import", pathToFileURL(registerHook).href, target, ...rest],
-  { stdio: "inherit", env: buildChildEnv(process.env, parsed) },
+  { stdio: "inherit", env: buildChildEnv(inheritedEnv, parsed) },
 );
 process.exit(result.status ?? 1);
