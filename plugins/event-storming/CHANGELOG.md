@@ -3,11 +3,21 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.21] - 2026-10-02
+## [0.6.22] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.6.21] - 2026-10-02
+
+### Security
+
+- The `simulation` bounded-context HTML view (`--discover-bcs`) is built by a checked-in builder
+  (`skills/simulation/scripts/build-bc-view.mjs`) that escapes every board-derived field through
+  the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the generator
+  marker. The page has no script, and hostile sticky text renders as text.
+  `build-bc-view.mjs --check <file>` flags a page that bypassed the builder.
 
 ## [0.6.20] - 2026-10-02
 

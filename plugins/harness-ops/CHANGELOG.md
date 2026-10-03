@@ -3,13 +3,23 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.4] - 2026-10-02
+## [2.5.5] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
 
 ## [2.5.3] - 2026-10-02
 
