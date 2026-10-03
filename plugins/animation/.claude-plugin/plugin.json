@@ -1,6 +1,6 @@
 {
   "name": "animation",
-  "version": "0.2.3",
+  "version": "0.3.1",
   "description": "Hand-drawn-style 2D animation as code, rendered in headless Chromium by an ink brush engine. rotoscope copies a reference clip drawing by drawing: trace to vector paths, render, measure against the source (XOR, SSIM), and fit per-shot brush overrides. learn-style measures a clip into a style pack (ships woodcut-ink) and checks films against it. produce turns a brief into approved boards, a shot list, frames, and a delivered file. setup checks ffmpeg, Node, Chromium, and Python.",
   "author": {
     "name": "Melodic Software",

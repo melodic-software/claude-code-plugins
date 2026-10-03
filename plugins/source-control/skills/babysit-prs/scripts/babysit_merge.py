@@ -84,6 +84,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
@@ -159,11 +160,28 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
-# The two AI review status checks `--auto` waits for. `ci-status` is the only
-# required check and does not wait on these separate workflows, so auto-merge
-# armed before both pass on the live head could merge ahead of their review.
-# Matched on the job segment of the check name (`review / claude-review-status`).
-AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
+# The two AI review lanes `--auto` waits for. `ci-status` is the only required
+# check and does not wait on these separate workflows, so auto-merge armed
+# before both pass on the live head could merge ahead of their review. Each
+# lane maps to the job segments its check may carry (`review /
+# claude-review-status`). A name holding ` / ` must match the whole check
+# name: the security lane is one job named `security-review`, a name generic
+# enough that another workflow's job could carry it, so it counts only as
+# `security-review / security-review`. A pin that predates that fold reports
+# `claude-security-review-status` beside it. Every matching check must succeed.
+AI_REVIEW_CHECKS = {
+    "claude-review-status": ("claude-review-status",),
+    "claude-security-review-status": (
+        "claude-security-review-status",
+        "security-review / security-review",
+    ),
+}
+
+
+def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
+    full = " / ".join(part.strip() for part in check_name.split("/"))
+    segment = full.rsplit(" / ", 1)[-1]
+    return any(full == n if " / " in n else segment == n for n in names)
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
 # UUID and runs the merge in the background; the gate polls it to a terminal
@@ -266,6 +284,7 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None
         return {
             "author": author_object.get("login"),
             "path": first_object.get("path"),
+            "url": first_object.get("url"),
             "isOutdated": thread.get("isOutdated", False),
         }
 
@@ -324,7 +343,12 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         "mergeQueueRequired": False,
     }
     try:
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{branch}"])
+        # `{branch}` is one path parameter. Percent-encode it, including `/`,
+        # so a base such as release/1.x stays a single segment. quote(..., safe="")
+        # matches Go's url.PathEscape, which go-github uses for this endpoint
+        # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
+        # gh 2.99.0 forwards that path unchanged.
+        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"])
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
@@ -1438,12 +1462,12 @@ def evaluate(
     # check (which the check buckets count as success) passes.
     ai_review_holds = [
         f"AI review check {lane!r} has not succeeded on the live head"
-        for lane in AI_REVIEW_CHECKS
+        for lane, names in AI_REVIEW_CHECKS.items()
         if not (
             matches := [
                 c
                 for c in checks["checks"]
-                if c["name"].rsplit("/", 1)[-1].strip() == lane
+                if is_ai_review_check(c["name"], names)
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)

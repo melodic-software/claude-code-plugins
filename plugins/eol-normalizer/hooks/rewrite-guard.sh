@@ -1,3 +1,5 @@
+# GENERATED from lib/rewrite-guard.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Content-mutation disclosure guard (#1596, #3401, #3409) for hooks that may
 # rewrite the edited file. One implementation of the protocol every mutating
@@ -13,8 +15,8 @@
 # SINGLE SOURCE OF TRUTH: lib/rewrite-guard.sh at the marketplace repo root.
 # The copies at plugins/*/hooks/rewrite-guard.sh exist because installed
 # plugins are cache-isolated and must be self-contained — never edit a copy.
-# Edit the source and run scripts/sync-rewrite-guard.sh; CI rejects drifted
-# copies. A plugin opts in by committing an initial copy of the file there.
+# Edit the source and run scripts/sync-shared-copies.sh; CI rejects drifted
+# copies. A plugin opts in by registering its copy in scripts/shared-copies.txt.
 #
 # Source AFTER hook-utils.sh: hook::rewrite_disclose composes through
 # hook::emit_channels.

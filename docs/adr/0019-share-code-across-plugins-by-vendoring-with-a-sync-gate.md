@@ -108,11 +108,18 @@ Settled with this amendment and not reopened by it: copies, not symlinks (the al
 no dependency plugin (the alternative above); and no versioning of the copy or registry format,
 since a format change migrates every copy in the same change.
 
-The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) is the pilot: its hand-run
-`scripts/sync-html-escape.sh` is deleted and its copy is generated. The other `sync-*.sh` clusters
-keep their byte-identical copies and their scripts until each moves to the registry in its own
-change; a cluster is migrated by registering its copies, regenerating, deleting its script and its
-test, and pointing its CI steps at the generator.
+The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) was the pilot: its hand-run
+`scripts/sync-html-escape.sh` is deleted and its copy is generated. Every other cluster except
+`hook-utils.sh` has since moved the same way: its copies are registered, regenerated, its
+`sync-*.sh` script and test are deleted, and its CI steps call the generator. `lib/hook-utils.sh`
+keeps `scripts/sync-hook-utils.sh` until its own change.
+
+A canonical that lived inside one plugin moved to `lib/` when its cluster migrated, so that plugin's
+copy is generated like the rest and every copy of a library stays byte-identical to every other. A
+Markdown canonical gets the header as an HTML comment after any frontmatter block. The standards
+contract keeps one gate the generator does not own: `scripts/check-standards-contract-bump.sh`
+requires its frontmatter semver and CHANGELOG entry to move with a change to the contract or its
+schema.
 
 ## Addendum (2026-09-07): one sync lane with N steps, not one lane per library
 
