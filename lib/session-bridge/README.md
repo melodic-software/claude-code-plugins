@@ -1,8 +1,8 @@
 # session-bridge
 
 Carries a local page's events to a live Claude Code session. Two apps run on it: the planning
-interview page, and the view app behind Claude-interactive views (the work-items triage board and
-the planning plan view).
+interview page, and the view app behind Claude-interactive views (the work-items triage board, the
+planning plan and brainstorm views, and the review change digest's author Q&A).
 
 ## Files
 
