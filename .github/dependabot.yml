@@ -148,6 +148,9 @@ updates:
   # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: pip
     directory: /plugins/explainer-video
+  # The speech plugin's hash-locked Python packages (numpy, onnxruntime), installed the same way.
+  - package-ecosystem: pip
+    directory: /plugins/speech
     labels:
       - dependencies
     schedule:

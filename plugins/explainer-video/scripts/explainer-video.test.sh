@@ -12,4 +12,4 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-exec python3 -B -m unittest test_pydeps test_render -q
+exec python3 -B -m unittest test_explainer_video_pydeps test_render -q

@@ -175,6 +175,50 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertEqual(run.stdout.strip(), "0 1 Ampersand ScriptBlockExpressionAst")
 
+    # PowerShell's tokenizer treats U+2018, U+2019, U+201A and U+201B as single-quote
+    # characters (language specification 2.3.5.2); doubling the same character escapes each.
+    CURLY_TARGET = pathlib.Path(
+        "D:\\it\u2018s \u2019 \u201a \u201b data\\inventory-parser\\abc"
+    )
+
+    def test_the_windows_form_doubles_every_powershell_single_quote_character(
+        self,
+    ) -> None:
+        cmd = pr.install_command(self.CURLY_TARGET, "win32")
+        self.assertIn(
+            "-LiteralPath 'D:\\it\u2018\u2018s \u2019\u2019 \u201a\u201a "
+            "\u201b\u201b data\\inventory-parser\\abc'",
+            cmd,
+        )
+
+    def test_a_path_with_curly_single_quotes_stays_one_argument_in_each_use(
+        self,
+    ) -> None:
+        pwsh = shutil.which("pwsh")
+        if pwsh is None:
+            self.skipTest("pwsh is not installed")
+        probe = (
+            "$e = $null; $a = [System.Management.Automation.Language.Parser]::"
+            "ParseInput($env:REPAIR_LINE, [ref]$null, [ref]$e); "
+            "$h = $a.FindAll({ param($n) "
+            "$n -is [System.Management.Automation.Language.StringConstantExpressionAst] "
+            "-and $n.Value -ceq $env:EXPECTED_PATH }, $true); "
+            '"$($e.Count) $($h.Count)"'
+        )
+        run = subprocess.run(
+            [pwsh, "-NoProfile", "-NonInteractive", "-Command", probe],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={
+                **os.environ,
+                "REPAIR_LINE": pr.install_command(self.CURLY_TARGET, "win32"),
+                "EXPECTED_PATH": str(self.CURLY_TARGET),
+            },
+        )
+        # Remove-Item, New-Item, Copy-Item -Destination and npm --prefix each carry it once.
+        self.assertEqual(run.stdout.strip(), "0 4")
+
     def test_the_default_platform_is_this_one(self) -> None:
         target = pathlib.Path("/a b/t")
         self.assertEqual(
@@ -739,6 +783,8 @@ class TestFlowQuery(unittest.TestCase):
             sorted(self.reader.exports(src, 0, len(src)) or []), ["a", "b", "c", "e"]
         )
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
+        star = 'export*from"/b.js";export var a=1;'
+        self.assertIsNone(self.reader.exports(star, 0, len(star)))
 
 
 class TestModuleTable(unittest.TestCase):

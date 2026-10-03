@@ -1801,6 +1801,47 @@
     },
     {
       "native": {
+        "name": "insights",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "audit-sessions",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command generates an HTML report across recent sessions; ours keeps a durable store of every session on the machine, flags sessions over measured thresholds and routes each finding to a skill. User-only, so ours suggests it. Ruled 2026-10-02 by the user at plan approval.",
+      "evidence": [
+        "`insights` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "native description: Generate a report analyzing your Claude Code sessions",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `prompt`)",
+        "detect: human-added pair",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
         "name": "update-config",
         "class": "bundled-skill",
         "markers": []

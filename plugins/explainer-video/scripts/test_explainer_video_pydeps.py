@@ -2,12 +2,13 @@
 the hand-over to a supported interpreter.
 
 The lock is a local wheel that provides the manim module, installed with pip's own PIP_NO_INDEX and PIP_FIND_LINKS,
-so no test reaches a package index. `python test_pydeps.py --make-wheel DIR` builds that wheel and prints its
+so no test reaches a package index. `python test_explainer_video_pydeps.py --make-wheel DIR` builds that wheel and prints its
 sha256, for the hook suite (../hooks/install-python-deps.test.sh). Each run pins pydeps.PYTHONS to the Python
 running the test, so the suite runs under any Python with pip.
 """
 import base64
 import hashlib
+import importlib.util
 import os
 import re
 import shutil
@@ -23,8 +24,9 @@ PLUGIN = HERE.parent
 SCRIPT = HERE / 'pydeps.py'
 NAME, VERSION = 'fakedeps', '1.0'
 MODULES = {'manim/__init__.py': 'VALUE = 42\n'}
-sys.path.insert(0, str(HERE))
-import pydeps  # noqa: E402
+_spec = importlib.util.spec_from_file_location('explainer_video_pydeps', SCRIPT)
+pydeps = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(pydeps)
 
 # Run pydeps.main as if this Python were the supported one.
 AS_SUPPORTED = ('import sys, pydeps; pydeps.PYTHONS = (tuple(sys.version_info[:2]),); '
@@ -229,7 +231,7 @@ class Launcher(unittest.TestCase):
 class NoRuntimeFetch(unittest.TestCase):
     """Nothing the skills or scripts run fetches a package; the install hook, through pydeps.py, is the only fetch."""
     FETCH = re.compile(r'\buv\s+(run|pip|tool|sync)\b|\buvx\b|\bpip3?\s+install\b|-m\s+pip\b|--with-requirements')
-    OWNERS = {'pydeps.py', 'test_pydeps.py'}
+    OWNERS = {'pydeps.py', 'test_explainer_video_pydeps.py'}
 
     def test_no_skill_or_script_fetches_a_package(self):
         runnable = [*PLUGIN.glob('skills/**/SKILL.md'), *PLUGIN.glob('skills/**/*.py'),

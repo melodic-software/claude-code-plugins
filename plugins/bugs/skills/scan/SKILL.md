@@ -1,5 +1,5 @@
 ---
-description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan, recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate, over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in <X>'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`harness-ops:known-issues`); 'file a bug' the user observed is `bugs:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake (subject to the team's `filing_posture`)."
+description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan, recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate, over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in X'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`harness-ops:known-issues`); 'file a bug' the user observed is `bugs:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake (subject to the team's `filing_posture`)."
 argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run]"
 user-invocable: true
 disable-model-invocation: false
@@ -141,22 +141,29 @@ Zero verified findings is a clean, successful outcome. Do **not** invent a findi
 
 Cost follows what is scanned, and precision never pays for it. Three rules, applied in this order:
 
-**Model by stage.** Each stage runs on the tier its job needs, passed through the Agent tool's
-per-invocation `model` parameter, never on the session's top model. The tiers below are the
-fleet's ordered capability tiers; which alias each one binds today is the loop-lane convention's
-to state, not this skill's. Resolve it from the marketplace's
-`docs/conventions/loop-lane/README.md` "Capability tiers", whose alias binding is dated and
-carries its own recheck trigger:
+**Model by stage.** Each stage's model comes from the multi-agent role map, passed through the
+Agent tool's per-invocation `model` parameter. This skill names roles, never aliases: the map's
+defaults and their upstream basis belong to the multi-agent plugin. When `/multi-agent:route`
+resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per
+run. Pass the role's `fanout` variant model when the stage dispatches more than one agent and its
+`single` variant when it dispatches one (a one-lens run, a one-candidate wave), omitting the model
+when `omit_model` is true. A gate never runs on a weaker model than the hunters it checks: when the
+gate's resolved model (the session's, if omitted) is weaker than the hunters', pass the hunters'
+model to the gate instead.
 
-| Stage | Tier | Why |
+| Stage | Role | Why |
 |---|---|---|
-| Hunters (Step 2) | fast | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
-| Gates (Step 4) | strong | The precision stage; the reproduction it runs is what makes a finding credible. |
+| Hunters (Step 2) | `retrieval` | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
+| Gates (Step 4) | `verifier` | The precision stage; the reproduction it runs is what makes a finding credible. |
 | Main thread | the session's model, nothing passed | Orchestration and triage only. |
 
-Name the alias that actually resolved in the report's run metadata, so a reader can tell which
-binding the run used. A dispatch the harness rejects means the binding moved: report it and
-re-read the owner doc rather than substituting an alias here.
+When `/multi-agent:route` does not resolve, omit the model for both stages so they inherit the
+session's, except when the session model is frontier or unknown, where pass `opus`; say once in the
+report that enabling the multi-agent plugin makes this routing configurable. The Agent tool takes no
+per-spawn effort, so the roles' effort values do not apply here.
+
+Name the model each stage ran on in the report's run metadata. A dispatch the harness rejects means
+the role map names an alias this session cannot use: report it rather than substituting one.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope
 and size the recall stage from it:
@@ -215,7 +222,7 @@ the scope class that sizes the rest of the run.
 
 ### Step 2. Dispatch hunters (recall stage)
 
-Dispatch **one subagent per lens** over the resolved scope, on the hunter tier the sizing table
+Dispatch **one subagent per lens** over the resolved scope, on the hunter role the sizing table
 names, each with the four-part contract: objective, output format, tool/source guidance, and task boundaries, spelled out
 in [`context/lenses.md`](context/lenses.md). The scope class picks the lens count and the
 [Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a verbatim evidence quote
@@ -253,7 +260,7 @@ for in the report.
 
 ### Step 4. Verification gate (precision stage)
 
-Dispatch a **separate fresh-context subagent per candidate**, on the gate tier the sizing table
+Dispatch a **separate fresh-context subagent per candidate**, on the gate role the sizing table
 names, using the prompt contract in [`context/verification-gate.md`](context/verification-gate.md). The hunter that found a
 candidate never grades it. A model re-checking its own work rubber-stamps it. The gate's default
 stance is **refute**: it must try to construct the concrete input path that triggers the claimed
@@ -356,7 +363,7 @@ verified: say so plainly and name the lane and rung, so the next run rotates on.
 - **The hunter never grades itself.** If you collapse Steps 2 and 4 into one agent, precision collapses
   with them. The gate is a separate fresh-context dispatch, per candidate.
 - **A cheaper hunter is fine; a cheaper gate is not.** The gate's reproduction is the whole precision
-  claim, so it stays on the gate tier whatever the hunters ran on, and a scope class never lowers
+  claim, so it stays on the `verifier` role whatever the hunters ran on, and a scope class never lowers
   the gate's stance.
 - **The ungated tail is a queue, not an archive.** Step 3 reads the prior report's "Candidates not
   gated" rows back before it merges; a run that skips the seed re-derives what the last run over

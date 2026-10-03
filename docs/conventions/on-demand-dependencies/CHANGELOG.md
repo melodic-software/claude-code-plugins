@@ -11,6 +11,8 @@ or adopter is a minor bump; wording is a patch.
   stays wheels only. The build backends are the one fetch pip does not hash-check
   ([#5861](https://github.com/melodic-software/claude-code-plugins/issues/5861)).
 - **Adoption**: `explainer-video` is the second Python adopter.
+- **Adoption**: the `speech` plugin's numpy and onnxruntime follow the Python rules
+  ([#5859](https://github.com/melodic-software/claude-code-plugins/issues/5859)).
 
 ## [2.1.0] - 2026-10-02
 

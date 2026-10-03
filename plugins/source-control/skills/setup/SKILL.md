@@ -158,7 +158,8 @@ the step UNKNOWN with remediation, never green.
    surviving literal `${user_config.…}` placeholder there means the key is unset. For each unset key
    state what will be inferred at run time. `babysit_watched_owners` → the current repo's owner,
    `babysit_self_logins` → none (your `gh api user --jq .login` login is always used, extras only add
-   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → `auto` (repo convention, then squash), the
+   to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → `auto` (repo convention, then squash),
+   `babysit_stacked_prs` → `false` (a stack layer is held for a human), the
    review-trigger keys → module dormant, `babysit_worktree_root` → the plugin data dir's
    `worktrees/` subdirectory. Unset keys are INFO (documented defaults), not FAIL.
 2. **Branch-protection posture across watched repos.** For each watched owner (or the current repo's
@@ -170,8 +171,8 @@ the step UNKNOWN with remediation, never green.
    protection). Flag every repo reporting zero required reviews AND zero required status contexts as
    **unprotected**: the merge gate refuses gate-proven merges there for non-self authors, and for a
    self author whenever the base is not the default branch (`--allow-unprotected` is the deliberate
-   override), so an unprotected repo in an autopilot fleet deserves a protection rule, not an
-   override.
+   override; `babysit_stacked_prs` judges a native stack layer against its trunk instead), so an
+   unprotected repo in an autopilot fleet deserves a protection rule, not an override.
 3. **Windows long-path support for the worktree root.** On Windows, worktrees under the (possibly
    deep) worktree root can exceed 260 characters. Probe `git config --get core.longpaths` and the OS
    policy (registry value `LongPathsEnabled` under
