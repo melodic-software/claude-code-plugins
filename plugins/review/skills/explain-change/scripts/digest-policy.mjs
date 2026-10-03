@@ -14,11 +14,11 @@
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve, isAbsolute } from "node:path";
+import { join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SECRET_PATTERNS, findSecret, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
+import { SECRET_PATTERNS, findRoot, findSecret, overlayApplies, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
 
 export const DEFAULTS = Object.freeze({
   digest_policy: "offer",
@@ -54,17 +54,6 @@ const VALID = {
 };
 
 // ------------------------------------------------------------ layers
-
-function findRoot() {
-  if (process.env.CLAUDE_PROJECT_DIR) return resolve(process.env.CLAUDE_PROJECT_DIR);
-  let at = process.cwd();
-  for (;;) {
-    if (existsSync(join(at, ".git"))) return at;
-    const up = dirname(at);
-    if (up === at) return null;
-    at = up;
-  }
-}
 
 const real = (p) => {
   try {
@@ -196,39 +185,6 @@ function readTeamDigest(base, docsPath, dotPath, warnings) {
   }
   return null;
 }
-
-/** An overlay applies only untracked and gitignored, so a pull request cannot ship one. */
-function overlayApplies(root, path, warnings) {
-  // Any tracked case variant counts: on a case-insensitive filesystem it is this file.
-  const rel = relative(root, path).split("\\").join("/");
-  if (gitOut(root, ["ls-files", "--", `:(icase)${rel}`])) {
-    warnings.push(`overlay ${path}: tracked in git, so a pull request could set it; layer ignored`);
-    return false;
-  }
-  const dir = join(root, ".claude");
-  // A submodule or tracked file at .claude itself is content a pull request controls.
-  const entries = (gitOut(root, ["ls-files", "-s", "-z", "--", ":(icase).claude"]) ?? "").split("\0");
-  if (entries.some((e) => e.split("\t")[1]?.toLowerCase() === ".claude") || existsSync(join(dir, ".git"))) {
-    warnings.push(`overlay ${path}: .claude is a submodule or tracked entry; layer ignored`);
-    return false;
-  }
-  if (isLink(dir) || isLink(path) || !within(real(path), join(real(root), ".claude"))) {
-    warnings.push(`overlay ${path}: .claude or the overlay is a symlink or resolves outside ${dir}; layer ignored`);
-    return false;
-  }
-  if (!git(root, ["check-ignore", "-q", "--", path])) {
-    warnings.push(`overlay ${path}: not gitignored, so it can reach team history`);
-  }
-  return true;
-}
-
-const isLink = (p) => {
-  try {
-    return lstatSync(p).isSymbolicLink();
-  } catch {
-    return false;
-  }
-};
 
 /** The review-digest surface, per-key over the shipped defaults. */
 export function resolveDigestConfig(baseOid) {

@@ -10,6 +10,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 - `/review:explain-change`'s publish gate and credential patterns moved to the shared
   `lib/publish-gate.mjs` ([#5867](https://github.com/melodic-software/claude-code-plugins/issues/5867)),
   which this plugin carries as a generated copy. The digest's gate decides as before.
+- The digest's overlay guard and project-root lookup moved to the same shared library; the overlay
+  is still ignored when tracked, symlinked, or under a `.claude` submodule.
 
 ## [0.39.1] - 2026-10-03
 

@@ -14,10 +14,13 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   used only when the user names one or the quickstart attaches a default. With no Slides type the
   outline is delivered and the reason given.
 - `skills/present/scripts/check-deck.mjs` runs before the type's create call: it refuses a deck
-  folder inside a working tree, refuses a K2 deck carrying anything but text and uploaded images,
-  and runs the shared publish gate over every file. A source repository that is not `PUBLIC`, or a
-  file shaped like a credential, keeps the deck local unless the user's own layer sets
-  `medium: artifact`.
+  folder inside a working tree or reached through a symlink, refuses a title that is not plain text
+  and prints the gated title for the create call, holds a K2 slide to a quote-aware allowlist of
+  text and layout elements, attributes, and uploaded image sources (failing closed on anything it
+  cannot parse), and runs the shared publish gate over every file. It resolves the medium layers
+  itself: a source repository that is not `PUBLIC`, or a file shaped like a credential, keeps the
+  deck local unless the user's argument, the plugin option, `~/.claude/rendered-views.md`, or an
+  untracked, gitignored overlay sets `medium: artifact`; a tracked team file never publishes.
 - `lib/publish-gate.mjs`, a generated copy of the shared publish gate.
 
 ### Changed

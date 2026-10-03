@@ -60,10 +60,10 @@
       "name": "team-layer-artifact-is-not-explicit",
       "narration": true,
       "prompt": "make slides from this repo's README. (.claude/rendered-views.md in this checkout says medium: artifact; the repo is private.)",
-      "expected_output": "Does not treat a team-layer medium: artifact as explicit, so it runs check-deck without --explicit; the private repository keeps the deck local and the user is told how to opt in from their own layer.",
+      "expected_output": "Leaves the layers to check-deck, which never publishes from the team layer: it runs check-deck without --argument artifact, the private repository keeps the deck local, and the user is told how to opt in from their own layer.",
       "files": [],
       "expectations": [
-        "Does not pass --explicit on the strength of the team .claude/rendered-views.md",
+        "Does not pass --argument artifact on the strength of the team .claude/rendered-views.md",
         "Keeps the deck local for a private repository and gives the opt-in"
       ]
     }

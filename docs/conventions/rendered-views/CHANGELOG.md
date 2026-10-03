@@ -12,7 +12,10 @@ versioned; this log records each change to it.
 - **`visualization:present` is the deck lane and the second `artifact` default.** It is listed
   under Emitters through an Artifact type and in Default ladder and its reconciliation.
 - **The publish gate is a shared library.** `lib/publish-gate.mjs` holds the credential patterns
-  and the gate that `review:explain-change` used inline; both lanes carry a generated copy.
+  and the gate that `review:explain-change` used inline; both lanes carry a generated copy. It
+  also resolves the trusted medium layers, so a team file can keep a deck local but never publish it.
+- **A K2 deck is held to an allowlist**, read by a quote-aware tokenizer that fails closed, and the
+  create call's title is the one the gate read.
 
 ## The Claude-interactive tier opens to builder pages, 2026-10-03
 

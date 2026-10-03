@@ -398,11 +398,13 @@ Rules for a producer on a type:
 - **Types are per account.** The producer finds the type at run time through the Artifact tool's
   `quickstart` and never hard-codes a type URL. With no such type, or no Artifact tool, it delivers
   the markdown record and says why: that is the fallback.
-- **Content classes still bind.** K2 text enters the type's store as escaped text only. A K2 deck
-  carries no live embed, script, link, inline SVG, CSS `url()`, or image taken from its source; the
-  producer's check script refuses one before anything is sent.
+- **Content classes still bind.** K2 text enters the type's store as escaped text only. The
+  producer's check script holds a K2 deck to an allowlist of text and layout elements, attributes,
+  and uploaded image sources, read by a quote-aware tokenizer that refuses whatever it cannot parse,
+  so no live embed, script, link, inline SVG, CSS function, or image taken from the source is sent.
 - **The publish gate decides first.** `lib/publish-gate.mjs` (shared with `review:explain-change`)
-  runs before the type's create call, which already publishes the title. Only an explicit
+  runs before the type's create call, which already publishes the title, so the create call takes
+  the title the gate read. The check script resolves the layers itself, not the model: only
   `medium: artifact` from a layer a checked-out branch cannot write (the argument, the plugin's
   option, `~/.claude/rendered-views.md`, or an untracked, gitignored overlay) publishes as is.
   Otherwise the producer names the destination ("a private Artifact on claude.ai") and keeps the
