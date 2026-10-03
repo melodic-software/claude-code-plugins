@@ -176,6 +176,15 @@ lib/html-escape.mjs
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/mermaid-gate.mjs. The visualization and architecture plugins carry the
+# generated copies.
+lib/mermaid-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/mermaid-gate.mjs -> plugins/*/lib/mermaid-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/session-bridge/session_bridge.py. The planning plugin is the first
 # adopting copy (plugins/planning/surface/), generated with a header that names
 # the canonical. A path-within-plugin line stays out until a second plugin
