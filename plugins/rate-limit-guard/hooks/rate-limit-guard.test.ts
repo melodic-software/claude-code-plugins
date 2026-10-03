@@ -1091,3 +1091,108 @@ test('options: good values log no option line', { options: { rate_limit_line_thr
   expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: the 5-hour window is at the 80% line threshold (81% used) ${SOURCE}`])
   expect(optionLogs(w)).toEqual([])
 })
+
+test('options: line threshold 100 and approach mark 1, the ends of the range, are used as given with no option line', { options: { rate_limit_guard_enabled: false, rate_limit_line_threshold: 100, rate_limit_approach_pct: 1 } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(1, 0) })
+  expect(ownLines((await bash($)).context)).toEqual([
+    `rate-limit-guard: the 5-hour window is approaching the 100% line threshold, resets at 2026-10-03 21:00 UTC ${SOURCE}`,
+  ])
+  w.limits = limits(99, 0)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  w.limits = limits(100, 0)
+  expect(ownLines((await bash($)).context)).toEqual([
+    `rate-limit-guard: the 5-hour window is at the 100% line threshold, resets at 2026-10-03 21:00 UTC ${SOURCE}`,
+  ])
+  expect(optionLogs(w)).toEqual([])
+})
+
+test('options: line threshold 1 and approach mark 100 are used as given with no option line', { options: { rate_limit_guard_enabled: false, rate_limit_line_threshold: 1, rate_limit_approach_pct: 100 } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(0.5, 0) })
+  expect(ownLines((await bash($)).context)).toEqual([])
+  w.limits = limits(1, 0)
+  expect(ownLines((await bash($)).context)).toEqual([
+    `rate-limit-guard: the 5-hour window is at the 1% line threshold, resets at 2026-10-03 21:00 UTC ${SOURCE}`,
+  ])
+  expect(optionLogs(w)).toEqual([])
+})
+
+test('options: an empty line data value reads as the default with no option line, as an unset one does', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: '' } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(92) })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+  expect(optionLogs(w)).toEqual([])
+})
+
+test('account: a state file rewritten at the same size with another identity and a new mtime is read again', async ($, on) => {
+  const reads: string[] = []
+  const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    reads.push(e.path)
+    const file = w.files[e.path]
+    if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
+    return { value: file.text }
+  })
+  await answerStep(on, $)
+  await bash($)
+  expect(bodies(w)[0].account).toEqual({ email: 'me@example.com' })
+  const size = w.files[STATE_FILE].text.length
+  w.files[STATE_FILE] = stateFile('us@example.com', T0 + 5)
+  expect(w.files[STATE_FILE].text.length).toBe(size)
+  w.limits = limits(30)
+  await bash($)
+  expect(reads.filter(p => p === STATE_FILE)).toHaveLength(2)
+  expect(bodies(w)).toHaveLength(2)
+  expect(bodies(w)[1].account).toBeUndefined()
+})
+
+// An empty reading (no window reported, as before a session's first response) is no reading, not a reset.
+test('lines: a carrier with an empty reading sends no reset line and keeps the levels, so the same reading again sends nothing', async ($, on) => {
+  const { w } = world(on, { limits: limits(91) })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+  w.limits = []
+  expect(ownLines((await bash($)).context)).toEqual([])
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  // A windowless body still goes to the helper with the key it must keep from a file that has windows.
+  expect(w.runs.filter(r => !String(r.stdin).includes('rate_limits')).every(r => r.argv.join(' ').includes('--preserve-key rate_limits'))).toBe(true)
+})
+
+test('lines: a reading whose every window has passed its reset time still sends one reset line', NO_WRITES, async ($, on) => {
+  const { clock } = world(on, { limits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: FIVE_RESET }] })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+  await clock.set(Date.parse(FIVE_RESET) + 1000)
+  expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: the 5-hour window reset and is below the 90% pause edge ${SOURCE}`])
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+// A /branch or an in-process /resume: the new session's first prompt can come before any reading.
+const BRANCH = { reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-2' } } as any
+
+test('lines: after a branch, a carrier with no reading keeps the restatement, and the first carrier with one restates each window once', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: limits(91) })
+  await bash($)
+  await $.session.end(BRANCH)
+  w.sid = 'sess-2'
+  w.limits = []
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([
+    `rate-limit-guard: the 5-hour window is at the 90% pause edge, resets at 2026-10-03 21:00 UTC ${SOURCE}`,
+    `rate-limit-guard: the 7-day window is below the 90% pause edge, resets at 2026-10-08 09:00 UTC ${SOURCE}`,
+  ])
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+test('snapshot: the first write after a branch carries the new session id, inside the floor and with the reading unchanged', async ($, on) => {
+  const { w } = world(on, { limits: limits(91) })
+  await bash($)
+  await $.session.end(BRANCH)
+  w.sid = 'sess-2'
+  w.limits = []
+  await prompt($)
+  w.limits = limits(91)
+  await bash($)
+  expect(bodies(w).map(b => b.session_id)).toEqual(['sess-1', 'sess-2'])
+  await bash($)
+  expect(bodies(w)).toHaveLength(2)
+})

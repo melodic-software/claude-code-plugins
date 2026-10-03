@@ -49,6 +49,8 @@ type State = {
   handoff: Map<string, Event>
   restate: boolean
   restateIfLoud: boolean
+  // An in-process /resume or /branch ended the last session; cleared by the first decided write.
+  branched: boolean
   forceAutomatic: boolean
   origin: PromptOrigin | undefined
   notice: string | undefined
@@ -82,7 +84,8 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     .map(s => s.trim().toLowerCase())
     .filter(s => s !== '')
   const known = items.length > 0 && items.every(s => DATA_ITEMS.includes(s))
-  if (raw !== undefined && !known) {
+  // An empty value reads as the default silently, as an unset one does.
+  if (raw !== undefined && String(raw).trim() !== '' && !known) {
     const shown = typeof raw === 'string' ? JSON.stringify(raw.slice(0, 40)) : `a ${typeof raw}`
     reject('rate_limit_line_data', `${shown}, not a list of ${DATA_ITEMS.join(', ')}`, DEFAULT_DATA.join(','))
   }
@@ -208,7 +211,8 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   st.limits = rateLimits
   st.spend = rateLimits.find(l => l.kind === 'spend_limit')
   if (changed) $.ui.invalidate('ui.render')
-  recordCrossings(st, reading, cfg, now)
+  // No window reported is no reading, never a reset: the levels wait for the next reading.
+  if (rateLimits.some(l => WINDOWS.some(w => w.kind === l.kind))) recordCrossings(st, reading, cfg, now)
   return { now, reading }
 }
 
@@ -228,6 +232,8 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   }
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
+  // A restatement with no reading to restate waits for the first carrier that has one.
+  if (st.restate && lines.length === 0) return []
   consume(st)
   if (lines.length > 0) clearNotice($, st)
   return lines
@@ -333,7 +339,9 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   if (trigger === 'timer' && onDisk !== undefined && onDisk.session_id !== sessionId && !(diskAt < (st.lastResponseAtMs ?? 0))) {
     return
   }
-  const moved = onDisk === undefined || wholePoints(onDisk) !== wholePoints(body)
+  // After a branch the file takes the new session id at once: the id is part of what a reader trusts.
+  const moved =
+    onDisk === undefined || wholePoints(onDisk) !== wholePoints(body) || (st.branched && onDisk.session_id !== sessionId)
   if (!moved && Number.isFinite(diskAt) && now - diskAt < FLOOR_MS) return
   const sig = JSON.stringify({ ...body, captured_at: undefined })
   if (st.lastAttempt !== undefined && st.lastAttempt.sig === sig && now - st.lastAttempt.at < FLOOR_MS) return
@@ -341,7 +349,10 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
-    if (run.exitCode === 0 || run.exitCode === 3) st.lastAttempt = { sig, at: now }
+    if (run.exitCode === 0 || run.exitCode === 3) {
+      st.lastAttempt = { sig, at: now }
+      st.branched = false
+    }
     else logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
   } catch (error) {
     logOnce($, st, 'write-threw', `snapshot write did not run: ${error instanceof Error ? error.message : String(error)}`)
@@ -409,6 +420,7 @@ export const register: Register = (on, options) => {
     handoff: new Map(),
     restate: false,
     restateIfLoud: false,
+    branched: false,
     forceAutomatic: false,
     origin: undefined,
     notice: undefined,
@@ -458,7 +470,7 @@ export const register: Register = (on, options) => {
     st.writeTimer = stopTimer(st.writeTimer)
     st.reofferTimer = stopTimer(st.reofferTimer)
     await queueWrite($, st, cfg, 'event')
-    if (e.reason === 'resume') st.restate = true
+    if (e.reason === 'resume') st.restate = st.branched = true
     if (e.reason === 'clear') st.restateIfLoud = true
     st.origin = undefined
     return next(e)
