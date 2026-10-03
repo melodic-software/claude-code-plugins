@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: "showpiece|fastest, most reliable, most scalable|headline (metric|number)|read(ing)? (a )?samples?"
+pattern: "showpiece|most reliable,? (and )?most scalable|headline (metric|number)|(read|reading|compare|comparing) (a )?samples? of (its|the grader's|the) verdicts"
 flags: i
-arm: both
+arm: with-only
 ---

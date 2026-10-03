@@ -3,13 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "name": "full-audit-reports-and-proposes",
+      "name": "full-audit-launches-the-workflow",
       "prompt": "Are the multi-agent routing defaults still current?",
       "narration": true,
-      "expected_output": "Runs scripts/list-pointers.sh, fetches each URL pointer, loads the bundled /workflow-authoring skill when listed, and prints a table of owner, key, value, verdict, evidence and proposed value, then a diff block or `No changes proposed.` with the count of sources read and unread.",
+      "expected_output": "Confirms the Workflow tool is available, resolves roles through /multi-agent:route all, runs scripts/list-pointers.sh --json, and launches the multi-agent:drift-audit workflow with mode defaults and the printed pointers. Reports a table of owner, key, value, verdict, evidence and proposed value, then a diff block or `No changes proposed.`, with the count of sources read and unread.",
       "expectations": [
         "The bundled list-pointers.sh supplies the pointers; none are recalled from memory",
-        "Each verdict is current, drifted, trigger fired or unread, and a failed fetch is unread",
+        "The launch names multi-agent:drift-audit with mode defaults and args.pointers",
+        "Only rows the skeptics confirmed get a diff line; refuted and unverified rows are reported without one",
         "defaults.yaml is not edited",
         "The count of sources read and not read is stated"
       ]
@@ -19,7 +20,7 @@
       "name": "one-owner",
       "prompt": "/multi-agent:audit-defaults fanout",
       "narration": true,
-      "expected_output": "Only the fanout rows are audited: frontier_guard and model against the workflows Cost section and the cost page's orchestrator strategy section.",
+      "expected_output": "Only the fanout rows are audited: list-pointers.sh --json fanout feeds the workflow, which checks frontier, frontier_guard and model against the workflows Cost section and the cost page's orchestrator strategy section.",
       "expectations": [
         "Rows for other owners are left out",
         "Both fanout pointers are fetched",
@@ -31,10 +32,34 @@
       "name": "unreachable-source",
       "prompt": "Audit the worker default. Note: this session has no network access.",
       "narration": true,
-      "expected_output": "The URL pointers for worker cannot be fetched, so those rows are `unread`; the report says the default could not be confirmed and proposes no change on recall.",
+      "expected_output": "The URL pointers for worker cannot be fetched, so those rows are `unread` or unverified; the report says the default could not be confirmed and proposes no change on recall.",
       "expectations": [
         "Unfetched sources are reported as unread, never current",
         "No change is proposed without fetched evidence"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "repo-mode-sweep",
+      "prompt": "/multi-agent:audit-defaults repo",
+      "narration": true,
+      "expected_output": "Runs scripts/list-targets.sh, launches multi-agent:drift-audit with mode repo and the printed targets, and reports confirmed findings by file:line with kind, quote, proposed disposition and evidence URL, then refuted and unverified findings and any skipped areas. No file is edited.",
+      "expectations": [
+        "Targets come from list-targets.sh, not from a hand-picked file list",
+        "The launch passes mode repo and args.targets",
+        "Findings are reported with a proposed disposition and never applied"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "workflows-unavailable-fallback",
+      "prompt": "Recheck the routing defaults. Workflows are turned off in this session (CLAUDE_CODE_DISABLE_WORKFLOWS=1).",
+      "narration": true,
+      "expected_output": "Takes the main-thread fallback: runs list-pointers.sh, fetches each URL pointer with WebFetch, judges each default, and proposes a diff without applying it. The report says the fallback ran.",
+      "expectations": [
+        "No Workflow launch is attempted",
+        "The report says the main-thread fallback ran",
+        "defaults.yaml is not edited"
       ]
     }
   ]

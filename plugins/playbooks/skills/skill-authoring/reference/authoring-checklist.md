@@ -34,7 +34,7 @@ have checked a judgment row is misreporting.
 | A gotchas surface exists (`## Gotchas` inline or a gotchas spoke) | mechanical (check 11) |
 | `## Next` is present and names the successor in mention-only form | judgment |
 | Arguments follow the skill argument shape: one action first, earned `--flag` modifiers, at most one subject last, `argument-hint` in the same order ([`authoring-guidance.md`](authoring-guidance.md#argument-surface)) | judgment |
-| No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; no upstream text is restated, and a volatile specific the body depends on is our decision plus a pointer to the exact section, an as-of date, and a recheck trigger | judgment |
+| No date-conditional guidance; history lives in CHANGELOG, commit, or ADR, apart from a names-only "Old patterns" table ([`authoring-guidance.md`](authoring-guidance.md#time-sensitive-content)); no upstream text is restated, and a volatile specific the body depends on is our decision plus a pointer to the exact section, an as-of date, and a recheck trigger | judgment |
 | Every item of the upstream checklist (Pointer below) that this file does not sharpen holds | judgment |
 | Each spoke pointer says what the file holds and when to read it | judgment |
 | Freedom level chosen per section and matched to fragility | judgment |

@@ -210,7 +210,7 @@ analysis.
 ```
 
 Token totals count each assistant message once and human messages count only typed turns, so
-numbers from 0.45.0 on are lower than earlier retros' for the same kind of session (#5818).
+numbers from 0.46.0 on are lower than earlier retros' for the same kind of session (#5818).
 
 ### audit-sessions
 

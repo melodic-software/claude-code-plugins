@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No to both. An omitted `delta` is never 0: the runner leaves it out when the two arms aren't comparable. Report that case as not comparable and keep it out of the suite average, rather than averaging in a 0.\n\nThe skipped grader is why. A judge grader skipped at the cost ceiling is still scored, as a failure with `explanation: \"skipped: cost ceiling\"`, so it drags the with-plugin arm down and can't be ignored; the case is not comparable. `partial: false` and exit 0 don't rule this out, since the ceiling skips judge calls, not runs. Rerun that case with a higher ceiling to get a usable delta.",
+      "why": "P-canonical: an omitted delta is never 0, it means the arms were not comparable, and the case is reported as not comparable and kept out of the average."
+    },
+    {
+      "answer": "Treat that case as having no comparison at all. The missing `delta` field is how the runner says the with-plugin and without-plugin arms couldn't be compared, so writing 0 in its place would claim \"no effect\" for a case that was never measured fairly. List it in the report as not comparable and compute the suite figure over the remaining cases, saying how many were excluded.\n\nDon't ignore the skipped judge calls either. Each skipped llm grader counts as a failed grader in that run's score, which pulls the with-plugin arm down; that's exactly why the case isn't comparable. Raise the cost ceiling and rerun it.",
+      "why": "P-alt: says it indirectly (writing 0 would claim no effect for an unmeasured case), with the same content: arms not comparable, reported as not comparable, not averaged in."
+    },
+    {
+      "answer": "Neither, I'm afraid. `cases[].aggregates.delta` is omitted exactly when the arms aren't comparable, and an omitted delta is never zero. Mark the case not comparable in your report and leave it out of the mean instead of averaging it in as 0. The same holds for a missing `scoreWithout`, if you ever see one.\n\nAs for the skipped grader: it's scored as a failure, so ignoring it hides a depressed with-plugin arm, and the case stays not comparable.\n\nThe clean exit doesn't contradict any of this: a pass that crosses the cost ceiling late skips judge calls, not runs, so it can still end with `partial: false` and exit 0.",
+      "why": "P-caveat: complete on the delta point; the extra notes on a missing scoreWithout and on why exit 0 is consistent do not touch it."
+    },
+    {
+      "answer": "Don't count it as 0. When a case has no `delta`, the arms weren't comparable, and an omitted delta is never zero. Put that case in the report as not comparable and leave it out of the suite average; averaging it in as 0 would quietly pull the suite number toward no effect.\n\nFor the skipped grader, the cost ceiling stopped the llm judge before it ran, so those runs simply have no judge score. Note in your report that the judge was skipped on a few with-plugin runs, and raise the cost ceiling next time so every grader gets a result.",
+      "why": "P-plain: complete on the delta point; it is wrong on the sibling point (treats the skipped grader as unscored rather than a failure)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, that's fine. When `partial` is false and the exit code is 0, every case ran to completion, and the runner leaves out `delta` when the two arms scored the same, so treating it as 0 is exactly right. Include it in the suite mean as 0.\n\nThe skipped grader works the same way: the cost ceiling only skips a paid grader after the rest of the run is graded, so it isn't counted and doesn't affect the score. Report the suite as normal, maybe with a note that the judge was skipped on a few runs to save cost.",
+      "why": "F-wrong: counts the missing delta as 0 and averages it in."
+    },
+    {
+      "answer": "No, don't plug in a 0. A missing `delta` isn't a measured zero, and averaging it in as one would drag the suite toward \"no effect\" on the strength of a number nobody measured. Leave the case out of the suite mean, and list it separately so readers know it's absent.\n\nThe skipped grader can't be ignored either. A judge skipped at the cost ceiling is still scored, as a failure, which lowers the with-plugin arm for those runs. Rerun that case with a higher cost ceiling so every grader gets called, and fold it into the suite only once it has a real delta.",
+      "why": "F-partial: says the delta is not 0 and keeps it out of the mean, but never says the omission means the arms were not comparable or reports the case as not comparable; that required point is missing."
+    },
+    {
+      "answer": "An omitted `delta` is never 0; the runner omits it when the arms aren't comparable, so strictly that case should be reported as not comparable, not averaged in.\n\nIn practice, though, dropping a case shrinks an already small suite, so the conservative move is to keep it and count its delta as 0: that can only understate the plugin's effect, never inflate it. Add a footnote saying the case's delta was missing.\n\nThe skipped grader is still scored as a failure, which pulls the with-plugin arm down, so don't ignore it; it's one more reason that case isn't comparable.",
+      "why": "F-retract: states the never-0 rule, then says to count the delta as 0 in the suite."
+    },
+    {
+      "answer": "Don't count it as 0; an omitted `delta` is never zero, and averaging a 0 in would misstate the suite. The runner just didn't write the subtraction for that case, but both arm scores are still in the file, so compute it yourself:\n\n```bash\njq '.cases[] | select(.aggregates.delta == null) | .aggregates.scoreWith - .aggregates.scoreWithout' aggregate-result.json\n```\n\nUse that value for the case in the suite mean. As for the skipped grader, it isn't ignorable: a skipped judge is scored as a failure, which pulls the with-plugin arm down, so keep that in mind when you read the computed delta.",
+      "why": "F-near: rejects 0 but fills the delta in from the arm scores and averages it in, which the FAIL list names."
+    }
+  ]
+}

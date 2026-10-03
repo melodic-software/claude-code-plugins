@@ -214,6 +214,39 @@ wall_ms() {
 wall_off="$(wall_ms false)"
 wall_on="$(wall_ms true)"
 
+# The enabled row on a 60 KB tool_input payload that carries none of the
+# allowlisted metadata keys, minus the same row on a small payload, sample by
+# sample: the cost of reading the top-level members out of a payload at the
+# read cap. S (`bash -c :`, the hook-budget convention's unit) is timed in the
+# same loop so the two figures share the host's conditions.
+WIDE_PAYLOAD="$WORK/wide.json"
+SMALL_PAYLOAD="$WORK/small.json"
+printf '{"session_id":"budget","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"%s"}}' \
+  "$(head -c 61440 /dev/zero | tr '\0' 'a')" >"$WIDE_PAYLOAD"
+printf '%s' '{"session_id":"budget","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"a"}}' >"$SMALL_PAYLOAD"
+time_us() {
+  local t0 t1
+  t0=$EPOCHREALTIME
+  "$@" >/dev/null 2>&1
+  t1=$EPOCHREALTIME
+  printf '%s\n' "$((10#${t1//[.,]/} - 10#${t0//[.,]/}))"
+}
+us_to_ms() { awk -v u="$1" 'BEGIN { printf "%.2f", u / 1000 }'; }
+extra_file="$WORK/wide-extra.txt"
+s_file="$WORK/s.txt"
+: >"$extra_file"
+: >"$s_file"
+i=0
+while [[ "$i" -lt "$SAMPLES" ]]; do
+  small_us="$(time_us run_row "$SMALL_PAYLOAD" true)"
+  wide_us="$(time_us run_row "$WIDE_PAYLOAD" true)"
+  printf '%s\n' "$((wide_us - small_us))" >>"$extra_file"
+  time_us "${launcher_bash:-bash}" -c : >>"$s_file"
+  i=$((i + 1))
+done
+wide_extra="$(us_to_ms "$(median_of "$extra_file")")"
+s_ms="$(us_to_ms "$(median_of "$s_file")")"
+
 append_probe() {
   local bytes="$1"
   local file="$WORK/append-$bytes"
@@ -299,6 +332,8 @@ invoking_bash_spawn_floor_median_ms: $invoking_bash_floor
 kill_switch_off_median_ms: $kill_off
 parallel_wall_off_ms: $wall_off
 parallel_wall_on_ms: $wall_on
+wide_payload_extra_ms: $wide_extra
+S_ms: $s_ms
 append_4kb_lines: $append4_lines
 append_4kb_corrupt: $append4_corrupt
 append_16kb_lines: $append16_lines

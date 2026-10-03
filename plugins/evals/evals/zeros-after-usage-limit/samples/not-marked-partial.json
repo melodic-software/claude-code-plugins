@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Probably neither. The most likely cause is a usage or rate limit hit partway through the suite, and that is not marked partial, so `partial: false` does not mean every run finished normally. Runs after the limit end with the error, get graded on whatever they produced, and usually score 0 on both arms, which is exactly the pattern you see.\n\nBefore believing the drop, check `cases[].arms.with[].error` for those three cases. If it shows the limit, rerun them once it resets and compare again.",
+      "why": "P-canonical: says a usage or rate limit mid-suite is not marked partial, so partial: false does not show every run completed normally."
+    },
+    {
+      "answer": "Don't read `partial: false` as proof the suite ran cleanly. The flag stays false when your account runs out of quota midway; the runs after that point still get scored, they just score zero.\n\nThree trailing cases at 0 on both arms is the signature of that, not of a regression (a regression would open a gap between the arms) or of flakiness. Open the results JSON, read the `error` on each run for those cases, and if it names a limit, run the three cases again after it resets.",
+      "why": "P-alt: makes the same point in other words: quota exhausted midway leaves partial false, so the flag is not proof of a clean run."
+    },
+    {
+      "answer": "Neither yet. A rate or usage limit reached mid-suite does not set `partial` to true, so the false flag tells you nothing about whether the last runs completed normally. Those runs end with the limit error and are graded on what little they produced, so both arms land on 0.\n\n1. Check each affected run's `error` field (for example `cases[].arms.with[].error`).\n2. If it names the limit, rerun those cases after it resets.\n3. Only compare with last week once every run has a null error.\n\nIf the errors are null, then look further.",
+      "why": "P-caveat: states the limit is not marked partial so partial: false proves nothing; the extra advice to compare only after clean reruns and the null-error condition do not touch the graded point."
+    },
+    {
+      "answer": "This looks like a usage or rate limit that kicked in partway through the run. That condition is not marked partial, so `partial: false` is no evidence that all runs completed normally. Once the limit hits, the remaining runs come back nearly empty, the graders score them 0 on both arms, and the suite total sinks. Look through the command's log output for a limit message near those last three cases. A suite score built on cut-off runs isn't comparable with last week's.",
+      "why": "P-plain: makes this grader's point (limit not marked partial, so partial: false proves nothing) and omits the sibling's error-field check and rerun, pointing only at logs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`partial: false` tells you the suite ran to completion: if a usage or rate limit had cut it short, the JSON would report `partial: true`. So every case really executed, and zeros on both arms for three cases in a row point at the cases themselves. Most likely their graders or fixtures are brittle and flaky. Rerun just those three with more runs per case to see whether the scores move, and compare the variance with last week before blaming the plugin.",
+      "why": "F-wrong: says partial: false proves the run completed and that a limit would have set partial: true."
+    },
+    {
+      "answer": "Probably neither. Zeros on both arms for the last three cases look like you hit a usage or rate limit partway through the suite: the runs after it end with an error, are still graded on what they produced, and score 0 whether the plugin is loaded or not.\n\nBefore believing the drop, check `cases[].arms.with[].error` on those three cases. If it shows the limit, rerun those cases once it resets and compare with last week again.",
+      "why": "F-partial: names a usage limit as the cause but never connects it to the partial field, so it never says partial: false fails to show a clean run."
+    },
+    {
+      "answer": "Most likely a usage limit, not a regression. A limit reached partway through the suite is not marked partial, so the remaining runs simply score 0 on both arms.\n\nThat said, in your case `partial: false` does settle it: the JSON records a limit as an interrupted run, so false means every run completed normally and the zeros reflect real behavior. Check `cases[].arms.with[].error` anyway, then rerun those three cases to see whether the scores hold.",
+      "why": "F-retract: says a mid-suite limit is not marked partial, then retracts it by saying partial: false proves every run completed normally."
+    },
+    {
+      "answer": "My first suspect is a usage limit rather than the plugin. A mid-suite usage limit normally flips `partial` to true, so seeing false makes a limit less likely, though not impossible if it hit right at the end.\n\nEither way, check each affected run's `error` field (`cases[].arms.with[].error`) before believing the drop. If the error names a limit, rerun those three cases after it resets; if it is null, the zeros are worth a closer look. Don't call it a regression or flaky cases until then.",
+      "why": "F-near: says a usage limit would normally set partial to true, the exact belief the rubric fails, while getting the sibling's error check and rerun right."
+    }
+  ]
+}

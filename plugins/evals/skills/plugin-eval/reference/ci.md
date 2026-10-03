@@ -18,8 +18,8 @@ claude plugin eval . \
   --trust-plugin \
   --json results.json \
   --threshold 0.8 \
-  --model <pinned agent model> \
-  --judge-model <pinned judge model> \
+  --model <full agent model ID> \
+  --judge-model <full judge model ID> \
   --no-publish \
   --max-cost-usd 20
 ```
@@ -27,8 +27,9 @@ claude plugin eval . \
 - `--trust-plugin` is mandatory in practice. Without it a job whose checkout is untrusted is refused
   with exit 1 where there is no terminal, and waits at the prompt where the runner allocates one.
 - Pin **both** models so a model rollout is not read as a plugin regression and rubric verdicts stay
-  comparable. The pinned values are the operator's choice and carry their own refresh cadence:
-  review them whenever the provider retires or renames a model, and record the swap alongside the
+  comparable. Pin each by its full model ID, never an alias, per the record in the
+  [hub's CI section](../SKILL.md#ci). The pinned values are the operator's choice and carry their
+  own refresh cadence: review them whenever the provider retires or renames a model, and record the swap alongside the
   trend so a step change in scores has a cause.
 - `--threshold 0.8` rather than the default 1.0. At 1.0 every stochastic near-miss is a red build,
   and exit 1 stops carrying information.
@@ -112,5 +113,11 @@ Three rules the parser encodes, each of which a naive reader gets wrong:
 - Budget awareness: the command has no free mode, so an every-commit lane should use deterministic
   graders only, and the expensive judge lane should run on a schedule or on demand.
 - A fallback plan for the server-side switch. The command can answer
-  `plugin eval is currently unavailable`, and nothing on the runner restores it, so a required check
-  built on this command can block merges for reasons no one in the repository controls.
+  `plugin eval is currently unavailable` while Anthropic has it switched off, which can change at
+  any time and may depend on the account or context; nothing on the runner fixes it, so a required check built
+  on this command can block merges for reasons no one in the repository controls.
+
+  - **Pointer**: for what the message means, see
+    <https://code.claude.com/docs/en/plugin-evals#troubleshooting>, the "plugin eval is currently unavailable" entry.
+  - **As of**: 2026-10-02
+  - **Recheck trigger**: that troubleshooting entry changes or is removed.
