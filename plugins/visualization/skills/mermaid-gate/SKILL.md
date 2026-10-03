@@ -40,11 +40,12 @@ Stdout is one JSON report; each block has `file`, `line`, `status` (`ok` or `err
 
 Without `mmdc`, the parse is a structural check: an unknown diagram type, an unterminated quote, unbalanced brackets in a flowchart. It does not catch every syntax error. Say so when reporting an `ok` from a `source` block.
 
+## Next
+
+- Write the page: `/visualization:visualize`.
+- Chart a C# entry point, gate included: `/architecture:map-flow`.
+
 ## Gotchas
 
 - The gate uses `mmdc` only at the pinned version, and the version is in `prerequisites.json` and the script's `PINNED_MMDC`. Any other version is treated as absent, with the reason in the report. As of 2026-10-02, 11.17.0 is the newest 11.x release of `@mermaid-js/mermaid-cli`. Recheck when the Artifact runtime's Mermaid version (see `visualize/context/decision-matrix.md`) moves to a different major.
 - `mmdc` renders in a headless browser. A failure that is not a parse error (no Chrome) falls back to source with the failure text as the reason. It is not a syntax error.
-
-## Next
-
-- Write the page: `/visualization:visualize`.
