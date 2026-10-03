@@ -3,12 +3,60 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.76.2] - 2026-10-03
+## [0.77.1] - 2026-10-03
 
 ### Changed
 
 - Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
 - The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.77.0] - 2026-10-03
+
+### Added
+
+- **`babysit_stacked_prs` (boolean, default `false`) lets the babysit merge gate merge a native
+  stacked PR layer.** With it on, the gate's `--stacked-prs` judges the layer against the stack's
+  trunk and runs the full gate over every open layer below it, since merging the layer lands them
+  too. Under `--auto` a lower layer's missing AI review check holds the merge as well. The stack is
+  re-read just before the merge request and the merge is refused if a lower layer changed. After
+  the merge every lower layer is checked against the head the gate evaluated, including when the
+  request completes in a later run, and a mismatch is reported with exit `10`. A lower-layer push
+  between the request and its completion still lands unvetted, so the flag assumes only trusted
+  actors can push to the lower layers. Every stack member, the bottom layer on any trunk included,
+  merges through the async merge API, GitHub's required API for a stacked PR, and holds rather than
+  falling back when the endpoint is missing. Off, a stack layer is held exactly as before.
+- **The `pull-request` skill has a stacked-PR reference** (`reference/stacks.md`) for creating a
+  stack with the `gh stack` extension and merging it, including the v0.2.0 floor for stacks built
+  in linked worktrees, and `merge.md` shows how to merge through the async merge API with `gh api`.
+
+### Changed
+
+- **The babysit merge gate merges a ready PR on the default branch through GitHub's async merge
+  API** (`gh api` on the PR's `merge-async` endpoint), pinned with `sha` to the head the gate
+  evaluated, `bypass_rules` always false, and polled for up to 60 seconds. A 409 polls the request
+  already pending unless its body names another head or merge action, which is held instead; a host
+  without the endpoint falls back to `gh pr merge`. Any other base and every `--auto` arm keep
+  `gh pr merge`. A reported merge is read back: one at another head exits `10` for a human, and one
+  the gate cannot read back is reported as unconfirmed (`mergeUnconfirmed: true`, exit `10`), not
+  as merged.
+- **`--allow-unpinned-head` no longer sends an unpinned merge.** It waives only the
+  `--expected-head` argument; the merge still pins the head the run evaluated.
+- **A merge request still pending at the bound is recorded under `--state-dir`.** GitHub documents
+  no route to cancel one, so every later run reads it first and, while it is live or unreadable,
+  reports `action: merge-pending` and sends nothing. A request that later finishes merged is checked
+  against every head the gate evaluated: a mismatch is escalated with exit `10`, and a match is
+  reported as merged (`merged: true`, exit `0`) although the gate now reads a closed PR. A record
+  clears only when the request finishes or GitHub stops returning it (404), never on a local age
+  limit. A record with an unusable request id is held as corrupt, never read or cleared. Merge
+  commands now carry `--state-dir <state-dir>`.
+- **A default branch that requires a merge queue no longer blocks the gate.** A fully ready PR is
+  enqueued instead (`action: enqueue`, `enqueued: true`), which is reported as queued, not merged.
+  Auto-merge is never armed over a queue, and a queue on any other base is still held.
+- **A check concluded `action_required` (a workflow run held for approval) is escalated as a
+  material finding** (`checks.approval_held`) instead of counted as a failing check that dispatches
+  a fix worker. The merge gate still holds on it.
+- `safety.md` and `merge.md` record that `CLEAN` does not say which base CI tested, since GitHub
+  regenerates a PR's test merge commit only on a push, a merge-base change, or after 12 hours.
 
 ## [0.76.1] - 2026-10-02
 

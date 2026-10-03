@@ -1,10 +1,19 @@
 # Changelog: session-flow plugin
 
-## [0.46.2] - 2026-10-03
+## [0.46.3] - 2026-10-03
 
 ### Changed
 
 - Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.46.2] - 2026-10-03
+
+### Fixed
+
+- The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
+  match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
 
 ## [0.46.1] - 2026-10-02
 
