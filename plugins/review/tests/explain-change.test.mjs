@@ -283,6 +283,24 @@ describe("overlay guards", () => {
     assert.equal(result.config.max_files.source, "default");
     assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
   });
+  test("a .claude submodule holding the overlay is refused and .gitmodules fires risk-path", () => {
+    const { repo, git, commit, run } = setup("submodule");
+    const sub = join(scratch, "sub");
+    mkdirSync(sub);
+    const s = gitRepo(sub);
+    writeFileSync(join(sub, "review-digest.local.json"), '{"digest_policy": "off"}');
+    writeFileSync(join(sub, "rendered-views.local.md"), "medium: terminal\n");
+    s.git("add", ".");
+    s.commit();
+    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, ".claude");
+    commit();
+    const result = run({ ...facts, files: [{ path: ".gitmodules" }, { path: ".claude" }] });
+    assert.deepEqual(result.policy, { value: "offer", source: "default" });
+    assert.deepEqual(result.medium, { value: "file", source: "default" });
+    assert.deepEqual(result.triggers, ["risk-path"]);
+    assert.equal(result.action, "offer");
+    assert.match(result.warnings.join("\n"), /submodule or tracked entry; layer ignored/);
+  });
   test("a tracked symlinked .claude pointing at a dir holding the overlay is refused", () => {
     const { repo, git, commit, run } = setup("linkdir");
     const evil = join(scratch, "evil");
@@ -293,7 +311,7 @@ describe("overlay guards", () => {
     commit();
     const result = run(facts);
     assert.equal(result.config.max_files.source, "default");
-    assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
+    assert.match(result.warnings.join("\n"), /(symlink|tracked entry).*layer ignored/);
   });
 });
 

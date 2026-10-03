@@ -33,6 +33,7 @@ export const CONFIG_PATHS = Object.freeze([
   ".claude/review-digest.local.json",
   ".claude/rendered-views.md",
   ".claude/rendered-views.local.md",
+  ".gitmodules",
 ]);
 export const MEDIUM_DEFAULT = "file";
 const POLICIES = ["off", "offer", "always"];
@@ -203,6 +204,12 @@ function overlayApplies(root, path, warnings) {
     return false;
   }
   const dir = join(root, ".claude");
+  // A submodule or tracked file at .claude itself is content a pull request controls.
+  const entries = (gitOut(root, ["ls-files", "-s", "-z", "--", ":(icase).claude"]) ?? "").split("\0");
+  if (entries.some((e) => e.split("\t")[1]?.toLowerCase() === ".claude") || existsSync(join(dir, ".git"))) {
+    warnings.push(`overlay ${path}: .claude is a submodule or tracked entry; layer ignored`);
+    return false;
+  }
   if (isLink(dir) || isLink(path) || !within(real(path), join(real(root), ".claude"))) {
     warnings.push(`overlay ${path}: .claude or the overlay is a symlink or resolves outside ${dir}; layer ignored`);
     return false;
