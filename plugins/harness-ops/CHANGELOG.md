@@ -35,6 +35,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   treated as stale and removed; after 10 seconds without the lock the row is appended anyway. With
   content off, short rows keep the single unlocked write.
 
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [3.2.0] - 2026-10-02
 
 ### Added

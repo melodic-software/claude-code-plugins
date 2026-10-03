@@ -11,6 +11,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   a Workflow script this repository ships that names either agent never passes `effort` or `model`
   below the agent's binding, and omits both to keep it.
 
+## [0.20.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.20.4] - 2026-10-02
 
 ### Changed

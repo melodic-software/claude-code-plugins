@@ -12,6 +12,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   table and never below medium. When the page cannot be read, it says so and recommends no level.
   The downstream session-config eval checks both levels.
 
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.62.2] - 2026-10-02
 
 ### Fixed

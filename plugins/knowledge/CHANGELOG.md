@@ -12,6 +12,14 @@ only after that version increases.
   says no dispatched subagent takes a per-call effort override; which dispatch surfaces take one is
   read from that record's Workflow probe paragraph.
 
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `docpage-digest` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [0.17.0] - 2026-10-02
 
 ### Added
