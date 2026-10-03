@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.2.1] - 2026-10-02
+## [3.2.2] - 2026-10-03
 
 ### Fixed
 
@@ -21,6 +21,14 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   starts only where a run of token characters starts, so its header stays unbounded and a JWS
   with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
   512 characters.
+
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
 
 ## [3.2.0] - 2026-10-02
 

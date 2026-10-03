@@ -169,9 +169,11 @@ page has produced inconsistent readings of the same entries. Second, a changelog
 what changed **in a version**, so always pin the version, and pair it with the topic page rather than
 replacing it, since the topic page stays authoritative for mechanism and semantics.
 
-Machine-readable JSON Schemas, which we use for editor validation only and never as a load-time
+Machine-readable JSON Schemas, which CI validates against by URL and never treats as a load-time
 contract: `marketplace.json` →
 [`https://json.schemastore.org/claude-code-marketplace.json`](https://json.schemastore.org/claude-code-marketplace.json),
 `plugin.json` →
 [`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)
 (published on SchemaStore, sourced from the same plugin system these pages document).
+`plugin.json` files carry no `$schema` key: claude.ai's marketplace sync strips it with a warning,
+and Claude Code ignores it at load time.

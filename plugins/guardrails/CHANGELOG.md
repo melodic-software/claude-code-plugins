@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.10] - 2026-10-02
+## [0.46.11] - 2026-10-03
 
 ### Fixed
 
@@ -13,6 +13,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `eyJ` as every JWT header does; the 36-character `ghs_`/`ghu_` form is still detected. The scan
   runs grep under `LC_ALL=C`: in a UTF-8 locale GNU grep took 25 to 60 seconds on a 300 KB line
   against the combined pattern set.
+
+## [0.46.10] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 
 ## [0.46.9] - 2026-10-02
 

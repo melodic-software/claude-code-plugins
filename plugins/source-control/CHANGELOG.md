@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.0] - 2026-10-02
+## [0.77.0] - 2026-10-03
 
 ### Added
 
@@ -50,6 +50,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fix worker. The merge gate still holds on it.
 - `safety.md` and `merge.md` record that `CLEAN` does not say which base CI tested, since GitHub
   regenerates a PR's test merge commit only on a push, a merge-base change, or after 12 hours.
+
+## [0.76.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `babysit-loop` and `commit` skill descriptions no longer contain angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
 
 ## [0.76.0] - 2026-10-02
 
