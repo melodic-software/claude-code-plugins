@@ -8,6 +8,7 @@
  * option is passed as a cross-platform double-quoted CLI arg and translated here
  * into the environment variable the extraction child already reads. The env vars
  * are an internal launcher-to-child interface, not a consumer-facing channel.
+ * `--data-dir` carries the plugin data directory the same way (see `resolvePluginData`).
  *
  * Both helpers are pure so the launcher's contract is unit-testable without
  * spawning a child process.
@@ -19,6 +20,7 @@
  * missing-value error message.
  */
 const LEADING_FLAGS = {
+  "--data-dir": { key: "dataDir", env: "CLAUDE_PLUGIN_DATA", valueLabel: "directory value" },
   "--work-root": { key: "workRoot", env: "VIDEO_DIGEST_WORK_ROOT", valueLabel: "directory value" },
   "--js-runtimes": {
     key: "jsRuntimes",
@@ -49,6 +51,7 @@ const LEADING_FLAGS = {
 
 /**
  * @typedef {object} RunArgs
+ * @property {string} [dataDir]
  * @property {string} [workRoot]
  * @property {string} [jsRuntimes]
  * @property {string} [cookiesFile]
@@ -110,6 +113,33 @@ export function buildChildEnv(baseEnv, flags = {}) {
     return baseEnv;
   }
   return { ...baseEnv, ...overlay };
+}
+
+/**
+ * The knowledge plugin's data directory for a script Claude runs through the Bash tool.
+ *
+ * That tool's environment does not carry `CLAUDE_PLUGIN_DATA`, and another plugin's
+ * SessionStart hook can persist its own data directory there under that name, so the
+ * skill passes `--data-dir "${CLAUDE_PLUGIN_DATA}"`, substituted when the skill loads,
+ * and that value wins. Without the flag an inherited value is used only when its last
+ * path segment names this plugin (`knowledge-<marketplace>`), the order the
+ * marketplace's on-demand-dependencies convention sets. Basis: plugins reference,
+ * "Where each variable resolves", as of 2026-10-02.
+ *
+ * @param {string|undefined} flagValue
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string|undefined} undefined when neither source names this plugin
+ */
+export function resolvePluginData(flagValue, env) {
+  if (flagValue) {
+    if (flagValue.includes("${") || flagValue.includes("<plugin-data>")) {
+      throw new Error(`\`--data-dir\` got an unsubstituted placeholder: \`${flagValue}\``);
+    }
+    return flagValue;
+  }
+  const inherited = env.CLAUDE_PLUGIN_DATA;
+  const lastSegment = inherited?.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  return /^knowledge(-|$)/.test(lastSegment) ? inherited : undefined;
 }
 
 const ENV_REF = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|%([A-Za-z_][A-Za-z0-9_]*)%/g;
