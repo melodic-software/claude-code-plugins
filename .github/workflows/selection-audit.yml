@@ -120,6 +120,7 @@ jobs:
           # As in ci.yml: these suites fail on a missing dependency instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           INVENTORY_REQUIRE_ACORN: '1'
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
           export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
           shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"

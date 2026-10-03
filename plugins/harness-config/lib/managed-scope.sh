@@ -1,3 +1,5 @@
+# GENERATED from lib/managed-scope.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Managed (machine-scope) policy surfaces — per-OS enumeration, library only.
 #

@@ -1305,18 +1305,18 @@ jobs:
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
   # gates, the hook-declaration gates, `claude plugin validate`, the
-  # rendered-view HTML assets, the performance counter ceilings, and every
-  # shared-library sync cluster with its delivery check.
+  # rendered-view HTML assets, the performance counter ceilings, and the
+  # shared-library copy gates with their delivery checks.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
   # requirements. Node and the root npm install follow, gated like the steps
   # that read them. The manifest schema steps run last: their composite leaves
   # uv on PATH for every later step.
   #
-  # The sync gates' `--check-bump` steps need base history: `checkout-with-base`
-  # runs once, at the top, and every `--check-bump` below resolves
-  # `origin/$BASE_REF` from it. Each bump check returns early on a push rather
-  # than diffing against a ref that does not exist.
+  # The shared-library bump checks need base history: `checkout-with-base`
+  # runs once, at the top, and every bump check below resolves
+  # `origin/$BASE_REF` from it. Each returns early on a push rather than
+  # diffing against a ref that does not exist.
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-plugins:
@@ -1595,12 +1595,14 @@ jobs:
             scripts/validate-plugins.sh
           fi
 
-      # The shared-library sync gates. Each keeps two steps: the byte equality
-      # check against the canonical copy, and the delivery check that a change
-      # to the canonical copy bumps every carrying plugin. The library's own
-      # suite is a corpus suite, reached by the selector. The bump check needs
-      # a base ref, so it returns early on a push rather than diffing against a
-      # ref that does not exist.
+      # The shared-library gates (ADR 0019). Every per-plugin copy but
+      # hook-utils.sh's is generated from one canonical source by
+      # scripts/sync-shared-copies.sh; hook-utils.sh keeps its own sync script.
+      # CI only verifies: the copies match their canonical, and a change to a
+      # canonical bumps every carrying plugin. The libraries' own suites are
+      # corpus suites, reached by the selector. The bump checks need a base
+      # ref, so they return early on a push rather than diffing against a ref
+      # that does not exist.
       - name: Verify plugin copies match the shared hook-utils lib
         if: needs.scope.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check
@@ -1615,150 +1617,6 @@ jobs:
           fi
           scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
-      - name: Verify plugin copies match the shared lib
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-rewrite-guard.sh --check
-      - name: Verify carrying plugins bumped when the lib changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the exec-form bash launcher
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-exec-bash.sh --check
-      - name: Test the exec-form bash launcher resolver
-        if: needs.scope.outputs.run_tests == 'true'
-        run: node --test lib/exec-bash.resolver.test.mjs
-      - name: Verify carrying plugins bumped when the launcher changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-exec-bash.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared parser
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-parse-concern-value.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify managed-scope cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-managed-scope.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-managed-scope.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify state-key cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-state-key.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify spawn-noise cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-spawn-noise.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify check-retirements cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-check-retirements.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify legacy-statusline-detect cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-legacy-statusline-detect.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify unwrap-before-compose cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-unwrap-before-compose.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-unwrap-before-compose.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify context-zone cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-context-zone.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
-
-      # Generated shared-library copies (ADR 0019): verify only, never write.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.scope.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
@@ -1778,66 +1636,6 @@ jobs:
             exit 0
           fi
           scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify fetch-docs copies match the canonical fetcher
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-fetch-docs.sh --check
-      - name: Verify carrying plugins bumped when the fetcher changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-fetch-docs.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify resolve-convention-home cluster matches canonical
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-resolve-convention-home.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-resolve-convention-home.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared resolver
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-resolve-convention-pattern.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared regen script
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-index-regen.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-index-regen.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin binding copies match the canonical contract
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-standards-contract.sh --check
       - name: Verify contract, changelog, and carrying plugins bumped together
         if: needs.scope.outputs.run_tests == 'true'
         env:
@@ -1847,7 +1645,11 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
-          scripts/sync-standards-contract.sh --check-bump "origin/$BASE_REF"
+          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
+
+      - name: Test the exec-form bash launcher resolver
+        if: needs.scope.outputs.run_tests == 'true'
+        run: node --test lib/exec-bash.resolver.test.mjs
 
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.scope.outputs.run_tests == 'true'
@@ -2471,6 +2273,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
+          # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
           if [ -z "$DIFF_BASE" ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"

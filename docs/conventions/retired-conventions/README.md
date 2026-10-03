@@ -130,11 +130,10 @@ fleet-wide (below) without deleting the evidence that the window existed.
 
 ## The helper: `lib/check-retirements.sh`
 
-Canonical copy: `plugins/harness-config/lib/check-retirements.sh`, with its test suite beside it.
-Synced byte-identical into every plugin that ships a manifest as
-`plugins/<plugin>/lib/check-retirements.sh` by `scripts/sync-check-retirements.sh`, registered in
-`scripts/cross-plugin-source-registry.txt`, and drift-gated by the `check-retirements-sync` CI job.
-A plugin never imports a sibling's copy; it runs its own.
+Canonical source: `lib/check-retirements.sh`; its test suite sits beside the harness-config copy.
+Generated into every plugin that ships a manifest as `plugins/<plugin>/lib/check-retirements.sh` by
+`scripts/sync-shared-copies.sh`, registered in `scripts/shared-copies.txt`, and drift-gated by the
+CI step that runs its `--check`. A plugin never imports a sibling's copy; it runs its own.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest <path> [--root <repo>]
