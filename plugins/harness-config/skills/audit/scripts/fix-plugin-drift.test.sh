@@ -1427,6 +1427,51 @@ exit_code=0
 out=$(guard_probe "$TEST_TMPDIR/case-x/settings.json") || exit_code=$?
 assert_eq "guard: a path under the suite temp dir passes" "0 reached" "$exit_code $out"
 
+# --- Catalog renames and removed rows are report-only ---------------------------
+# A false orphan is still removed. A rename row, catalog or heuristic, is not
+# written, and a removed row is not turned into a rename to null or deleted.
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+jq -n '[{
+  key: "mkt",
+  status: "ok",
+  skip_reason: "",
+  orphans: [
+    {name: "stale", marketplace: "mkt", enabled: false},
+    {name: "heuristic-old", marketplace: "mkt", enabled: true}
+  ],
+  new_upstream: [{name: "heuristic-older", marketplace: "mkt"}],
+  renames: [
+    {from: "old-name", to: "unrelated", marketplace: "mkt", source: "renames"},
+    {from: "heuristic-old", to: "heuristic-older", marketplace: "mkt", source: "heuristic"},
+    {from: "gone", to: null, marketplace: "mkt", source: "renames"}
+  ],
+  removed: [{name: "gone", marketplace: "mkt", enabled: false, reason: "removed per catalog renames map"}]
+}]' >"$case_dir/findings.json"
+jq -n '{enabledPlugins: {"old-name@mkt": true, "heuristic-old@mkt": true, "gone@mkt": false, "stale@mkt": false}}' \
+  >"$case_dir/settings.json"
+before=$(jq -c . "$case_dir/settings.json")
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+after=$(jq -c . "$case_dir/settings.json")
+assert_exit "renames-map: apply exits 0" 0 "$exit_code"
+assert_contains "renames-map: RENAME advisory" "$out" "RENAME?"
+assert_contains "renames-map: catalog pair shown" "$out" "old-name -> unrelated"
+assert_contains "renames-map: heuristic pair shown" "$out" "heuristic-old -> heuristic-older"
+assert_contains "renames-map: settings-file remediation" "$out" \
+  "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+assert_not_contains "renames-map: a null to is not a rename" "$out" "-> null"
+assert_contains "renames-map: removed row shown" "$out" "REMOVED (report only)"
+assert_contains "renames-map: removed key shown" "$out" "gone@mkt"
+kept=$(jq -c '.enabledPlugins | {old: .["old-name@mkt"], heur: .["heuristic-old@mkt"], gone: .["gone@mkt"], stale: .["stale@mkt"]}' "$case_dir/settings.json")
+assert_eq "renames-map: only the false orphan is removed" \
+  '{"old":true,"heur":true,"gone":false,"stale":null}' "$kept"
+# The settings file changed because stale was an orphan false. The rename and
+# removed keys are the ones that must survive; compare them rather than the whole file.
+assert_eq "renames-map: the file was eligible to change" "changed" \
+  "$([[ "$before" == "$after" ]] && echo same || echo changed)"
+
 # --- Final ------------------------------------------------------------------
 
 printf '\nPASS %d, FAIL %d, SKIP %d\n' "$PASSED" "$FAILED" "$SKIPPED"

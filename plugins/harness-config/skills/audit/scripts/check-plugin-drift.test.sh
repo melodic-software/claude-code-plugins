@@ -721,8 +721,8 @@ out=$(NO_COLOR=1 \
 
 assert_exit "case-20: rename with orphan exits 1" 1 "$exit_code"
 assert_contains "case-20: displayed pair shows the CR as ?" "$out" "frontend-design? -> frontend-designer"
-assert_jq "case-20: JSON pair keeps the CR" "$OUTPUT_JSON_PATH" \
-  '.[0].renames == [{from: "frontend-design\r", to: "frontend-designer", marketplace: "mk"}]'
+assert_jq "case-20: JSON pair keeps the CR and is labeled heuristic" "$OUTPUT_JSON_PATH" \
+  '.[0].renames == [{from: "frontend-design\r", to: "frontend-designer", marketplace: "mk", source: "heuristic"}]'
 
 # --- Case 21: the shared jq definitions bind every variable they use ---------
 # jq 1.6 refuses to compile a program whose def names an unbound $variable, even
@@ -791,6 +791,260 @@ assert_contains "case-24: false is a removal candidate" "$out" "f@mk"
 assert_eq "case-24: only one removal candidate" "1" "$(grep -c 'removal candidate' <<<"$out")"
 assert_contains "case-24: a string value is manual review" "$out" '("yes", manual review required)'
 assert_contains "case-24: null is manual review" "$out" '(null, manual review required)'
+
+# --- Case 25: a renames-map pair names the final plugin, similarity or not ------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"old-name@mkt": true},
+  "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
+}'
+# old-name-extra shares a prefix with old-name, so the heuristic would pair them.
+# The map names unrelated, which shares neither a prefix nor a suffix.
+write_fixture "$case_dir/fixtures" mkt '{
+  "name": "mkt",
+  "plugins": [{"name": "unrelated"}, {"name": "old-name-extra"}],
+  "renames": {"old-name": "unrelated"}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-25: a mapped orphan exits 1" 1 "$exit_code"
+assert_jq "case-25: the rename names unrelated from the map" "$OUTPUT_JSON_PATH" \
+  '.[0].renames == [{from: "old-name", to: "unrelated", marketplace: "mkt", source: "renames"}]'
+assert_jq "case-25: the old key stays an orphan" "$OUTPUT_JSON_PATH" \
+  '.[0].orphans == [{name: "old-name", marketplace: "mkt", enabled: true}]'
+assert_contains "case-25: settings-file remediation" "$out" \
+  "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+assert_not_contains "case-25: the similar name is not the reported target" "$out" "old-name -> old-name-extra"
+
+# --- Case 26: a renames chain is followed to its end ----------------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"a@mkt": true},
+  "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
+}'
+write_fixture "$case_dir/fixtures" mkt '{
+  "name": "mkt",
+  "plugins": [{"name": "c"}],
+  "renames": {"a": "b", "b": "c"}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-26: a chained orphan exits 1" 1 "$exit_code"
+assert_jq "case-26: the rename names the final name c" "$OUTPUT_JSON_PATH" \
+  '.[0].renames == [{from: "a", to: "c", marketplace: "mkt", source: "renames"}]'
+assert_not_contains "case-26: the intermediate name is not the target" "$out" "a -> b"
+
+# --- Case 27: a null renames entry is removed, not a bare orphan ----------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"gone@mkt": true, "mid@mkt": false},
+  "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
+}'
+# gone-plugin is similar to gone. A null entry must not fall through to that pair.
+write_fixture "$case_dir/fixtures" mkt '{
+  "name": "mkt",
+  "plugins": [{"name": "gone-plugin"}],
+  "renames": {"gone": null, "mid": "gone"}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-27: a removed entry exits 1" 1 "$exit_code"
+assert_jq "case-27: both keys are removed rows" "$OUTPUT_JSON_PATH" \
+  '.[0].removed | sort_by(.name) == [
+     {name: "gone", marketplace: "mkt", enabled: true, reason: "removed per catalog renames map"},
+     {name: "mid", marketplace: "mkt", enabled: false, reason: "removed per catalog renames map"}]'
+assert_jq "case-27: removed keys are not orphans and not renames" "$OUTPUT_JSON_PATH" \
+  '.[0].orphans == [] and .[0].renames == []'
+assert_contains "case-27: REMOVED heading" "$out" "REMOVED"
+assert_not_contains "case-27: no ORPHAN heading" "$out" "ORPHAN"
+assert_not_contains "case-27: no rename to null" "$out" "-> null"
+
+# --- Case 28: a cyclic renames map finishes and invents no final name -----------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"a@mkt": true},
+  "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
+}'
+write_fixture "$case_dir/fixtures" mkt '{
+  "name": "mkt",
+  "plugins": [{"name": "other"}],
+  "renames": {"a": "b", "b": "a"}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(timeout 15 bash -c 'NO_COLOR=1 CLAUDE_SETTINGS_FILE="$1" SETTINGS_AUDIT_FIXTURE_DIR="$2" SETTINGS_AUDIT_OUTPUT_JSON="$3" bash "$4"' \
+  _ "$case_dir/settings.json" "$case_dir/fixtures" "$OUTPUT_JSON_PATH" "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-28: a cycle finishes with the orphan exit" 1 "$exit_code"
+assert_jq "case-28: the orphan says the chain cycles" "$OUTPUT_JSON_PATH" \
+  '.[0].orphans == [{name: "a", marketplace: "mkt", enabled: true, reason: "renames chain cycles"}]'
+assert_jq "case-28: no rename row and no removed row" "$OUTPUT_JSON_PATH" \
+  '.[0].renames == [] and .[0].removed == []'
+assert_contains "case-28: the cycle reason is printed" "$out" "renames chain cycles"
+
+# --- Case 29: a local clone is used when the network fetch cannot run -----------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+clone_root="$TEST_TMPDIR/home/.claude/plugins/marketplaces/localmkt/.claude-plugin"
+mkdir -p "$clone_root"
+catalog_body='{"name":"localmkt","plugins":[{"name":"alpha"},{"name":"fresh"}]}'
+printf '%s\n' "$catalog_body" >"$clone_root/marketplace.json"
+before=$(sha256sum "$clone_root/marketplace.json")
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"alpha@localmkt": true},
+  "extraKnownMarketplaces": {"localmkt": {"source": {"source": "github", "repo": "owner/localmkt"}}}
+}'
+shim="$case_dir/bin"
+mkdir -p "$shim"
+printf '%s\n' '#!/bin/sh' 'echo curl-was-called >&2' 'exit 1' >"$shim/curl"
+chmod +x "$shim/curl"
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(PATH="$shim:$PATH" NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+after=$(sha256sum "$clone_root/marketplace.json")
+assert_exit "case-29: local clone with a new plugin exits 0" 0 "$exit_code"
+assert_eq "case-29: block source is local-clone" "local-clone" \
+  "$(jq -r '.[0].source' "$OUTPUT_JSON_PATH")"
+assert_jq "case-29: drift rows still compute" "$OUTPUT_JSON_PATH" \
+  '.[0].status == "ok" and .[0].new_upstream == [{name: "fresh", marketplace: "localmkt"}]'
+assert_contains "case-29: header names the local source" "$out" "local-clone"
+assert_not_contains "case-29: curl was not run" "$out" "curl-was-called"
+assert_eq "case-29: the clone file is unchanged" "$before" "$after"
+assert_eq "case-29: no known_marketplaces.json was created" "no" \
+  "$([[ -e "$TEST_TMPDIR/home/.claude/plugins/known_marketplaces.json" ]] && echo yes || echo no)"
+
+# --- Case 30: installLocation is the local clone when the conventional path is absent
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+install_dir="$case_dir/recorded-clone"
+mkdir -p "$install_dir/.claude-plugin"
+printf '%s\n' '{"name":"ikm","plugins":[{"name":"alpha"},{"name":"from-install"}]}' \
+  >"$install_dir/.claude-plugin/marketplace.json"
+mkdir -p "$TEST_TMPDIR/home/.claude/plugins"
+jq -n --arg p "$install_dir" '{ikm: {installLocation: $p}}' \
+  >"$TEST_TMPDIR/home/.claude/plugins/known_marketplaces.json"
+known_before=$(sha256sum "$TEST_TMPDIR/home/.claude/plugins/known_marketplaces.json")
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"alpha@ikm": true},
+  "extraKnownMarketplaces": {"ikm": {"source": {"source": "github", "repo": "owner/ikm"}}}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(PATH="$shim:$PATH" NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+known_after=$(sha256sum "$TEST_TMPDIR/home/.claude/plugins/known_marketplaces.json")
+assert_exit "case-30: installLocation catalog exits 0" 0 "$exit_code"
+assert_eq "case-30: block source is local-clone" "local-clone" \
+  "$(jq -r '.[0].source' "$OUTPUT_JSON_PATH")"
+assert_jq "case-30: the recorded clone supplied the new plugin" "$OUTPUT_JSON_PATH" \
+  '.[0].new_upstream == [{name: "from-install", marketplace: "ikm"}]'
+assert_not_contains "case-30: curl was not run" "$out" "curl-was-called"
+assert_eq "case-30: known_marketplaces.json is unchanged" "$known_before" "$known_after"
+
+# --- Case 31: the fixture directory wins over a local clone ----------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+prec_root="$TEST_TMPDIR/home/.claude/plugins/marketplaces/prec/.claude-plugin"
+mkdir -p "$prec_root"
+printf '%s\n' '{"name":"prec","plugins":[{"name":"alpha"},{"name":"from-clone"}]}' \
+  >"$prec_root/marketplace.json"
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"alpha@prec": true},
+  "extraKnownMarketplaces": {"prec": {"source": {"source": "github", "repo": "owner/prec"}}}
+}'
+write_fixture "$case_dir/fixtures" prec '{
+  "name": "prec",
+  "plugins": [{"name": "alpha"}, {"name": "from-fixture"}]
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+  SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-31: fixture route exits 0" 0 "$exit_code"
+assert_eq "case-31: fixture keeps the repo source" "repo" "$(jq -r '.[0].source' "$OUTPUT_JSON_PATH")"
+assert_jq "case-31: the fixture plugin is the one reported" "$OUTPUT_JSON_PATH" \
+  '.[0].new_upstream == [{name: "from-fixture", marketplace: "prec"}]'
+assert_not_contains "case-31: the local clone was not read" "$out" "from-clone"
+
+# --- Case 32: managed settings get the managed remediation -----------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/managed-settings.json" '{
+  "enabledPlugins": {"old-name@mkt": true},
+  "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
+}'
+write_fixture "$case_dir/fixtures" mkt '{
+  "name": "mkt",
+  "plugins": [{"name": "unrelated"}],
+  "renames": {"old-name": "unrelated"}
+}'
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$case_dir/managed-settings.json" \
+  SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-32: managed rename exits 1" 1 "$exit_code"
+assert_contains "case-32: managed remediation" "$out" "update managed enabledPlugins"
+assert_not_contains "case-32: no settings-file rewrite sentence" "$out" "replace the key in this file"
+
+# --- Case 33: a directory catalog's renames map is read the same way ------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+project_dir=$(make_project_dir "$case_dir")
+write_settings "$project_dir/.claude/settings.json" '{
+  "enabledPlugins": {"old-name@local-market": true},
+  "extraKnownMarketplaces": {"local-market": {"source": {"source": "directory", "path": "./"}}}
+}'
+write_directory_catalog "$project_dir" '{
+  "name": "local-market",
+  "plugins": [{"name": "unrelated"}],
+  "renames": {"old-name": "unrelated"}
+}'
+OUTPUT_JSON_PATH="$case_dir/findings.json"
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_SETTINGS_FILE="$project_dir/.claude/settings.json" \
+  SETTINGS_AUDIT_OUTPUT_JSON="$OUTPUT_JSON_PATH" \
+  bash "$SCRIPT" 2>&1) || exit_code=$?
+assert_exit "case-33: directory rename exits 1" 1 "$exit_code"
+assert_eq "case-33: directory source stays directory" "directory" "$(jq -r '.[0].source' "$OUTPUT_JSON_PATH")"
+assert_jq "case-33: the directory catalog named unrelated" "$OUTPUT_JSON_PATH" \
+  '.[0].renames == [{from: "old-name", to: "unrelated", marketplace: "local-market", source: "renames"}]'
 
 # --- Final ------------------------------------------------------------------
 

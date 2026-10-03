@@ -1723,15 +1723,16 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
   # Only an exact false is removable; true and any other value go to a person.
   drift_rows orphan '.[] | select(type == "object") | .orphans[]? | select(type == "object")
     | "\(.name)@\(.marketplace)" as $k | (.marketplace | tostring) as $mk
+    | (if (.reason | type) == "string" and .reason != "" then " (" + .reason + ")" else "" end) as $why
     | if .enabled == false then
         ["drift-orphan", "finding", "info", $sp, "orphan-disabled:" + $k,
-         "\($k) is disabled and gone from the \($mk) catalog; the entry is removable", "/enabledPlugins/" + $k]
+         "\($k) is disabled and gone from the \($mk) catalog; the entry is removable" + $why, "/enabledPlugins/" + $k]
       elif .enabled == true then
         ["drift-orphan", "finding", "warning", $sp, "orphan-enabled:" + $k,
-         "\($k) is enabled but no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+         "\($k) is enabled but no longer in the \($mk) catalog; review before removing" + $why, "/enabledPlugins/" + $k]
       else
         ["drift-orphan", "finding", "warning", $sp, "orphan-nonboolean:" + $k,
-         "\($k) holds \(.enabled | tojson | disp), neither true nor false, and is no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+         "\($k) holds \(.enabled | tojson | disp), neither true nor false, and is no longer in the \($mk) catalog; review before removing" + $why, "/enabledPlugins/" + $k]
       end
     | emit'
   # The drift script reads the project file alone; Claude Code merges the user,
@@ -1751,9 +1752,22 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
          "\(length) plugin(s) in the \($mk) catalog have no enabledPlugins entry in any scope (for example \(.[0] | disp))", "-"]
       | emit')
   fi
-  drift_rows rename '.[] | select(type == "object") | .renames[]? | select(type == "object")
+  drift_rows rename '.[] | select(type == "object") | .renames[]? | select(type == "object" and (.to | type) == "string")
     | ["drift-rename", "finding", "warning", $sp, "possible-rename:\(.from)->\(.to)@\(.marketplace)",
-       "\(.from) may have been renamed to \(.to) in \(.marketplace); confirm before editing the key", "/enabledPlugins/\(.from)@\(.marketplace)"]
+       (if .source == "renames" then
+          "\(.from) is renamed to \(.to) in the \(.marketplace) catalog; replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+        else
+          "\(.from) may have been renamed to \(.to) in \(.marketplace); confirm before editing the key"
+        end),
+       "/enabledPlugins/\(.from)@\(.marketplace)"]
+    | emit'
+  drift_rows removed '.[] | select(type == "object") | .removed[]? | select(type == "object")
+    | "\(.name)@\(.marketplace)" as $k | (.marketplace | tostring) as $mk
+    | ["drift-removed", "finding",
+       (if .enabled == false then "info" else "warning" end),
+       $sp, "removed:" + $k,
+       "\($k) is removed per the \($mk) catalog renames map; remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes",
+       "/enabledPlugins/" + $k]
     | emit'
 else
   row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (skipped, no project settings, or the drift script produced no document)" -

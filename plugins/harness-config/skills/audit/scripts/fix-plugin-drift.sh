@@ -21,7 +21,13 @@
 #                              and an explicit `false` are separate states, and
 #                              the choice between them belongs to a person.
 #
-#   RENAME                  ->  REPORT ONLY (heuristic match, human reviews)
+#   RENAME                  ->  REPORT ONLY. A catalog renames-map pair and a
+#                              heuristic pair are both left for a person. This
+#                              script writes nothing for either. A removed row
+#                              is never turned into a rename to null.
+#
+#   REMOVED                 ->  REPORT ONLY. A null entry in the catalog
+#                              renames map. Not an orphan, so it is not removed.
 #
 # Modes:
 #   --dry-run  (default)   print plan, no writes
@@ -185,6 +191,16 @@ fi
 # included, so a display line carries none of its own.
 JQ_DEFS='def san: tostring | gsub("[[:cntrl:]]"; "?");'
 
+# settings_file_is_managed - the audited path is managed settings: the file is
+# named managed-settings.json or remote-settings.json, or it sits in
+# managed-settings.d. Those get the managed-settings remediation.
+settings_file_is_managed() {
+  local base parent
+  base=$(basename -- "$SETTINGS")
+  parent=$(basename -- "$(dirname -- "$SETTINGS")")
+  [[ "$base" == "managed-settings.json" || "$base" == "remote-settings.json" || "$parent" == "managed-settings.d" ]]
+}
+
 # --- Obtain findings ---------------------------------------------------------
 
 TMP_JSON=""
@@ -304,9 +320,13 @@ manual_json=$(findings '.orphans[] | select(.enabled != false)
 new_json=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"') ||
   findings_failed "new upstream"
 
-# Rename candidates (informational).
-rename_json=$(findings '.renames[] | "\(.from) -> \(.to)  (\(.marketplace))"') ||
+# Rename candidates (informational). A null `to` is not a rename: a removed row
+# lives in `.removed` and must not be printed as a rename to null.
+rename_json=$(findings '.renames[] | select(.to | type == "string") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
   findings_failed "renames"
+
+removed_json=$(findings '.removed[]? | "\(.name)@\(.marketplace)"') ||
+  findings_failed "removed"
 
 # Every block that is not "ok" was not compared, whatever its status says.
 skipped_json=$(jq -c '[.[] | select(.status != "ok")
@@ -317,6 +337,7 @@ remove_count=$(count "$remove_json")
 manual_count=$(count "$manual_json")
 new_count=$(count "$new_json")
 rename_count=$(count "$rename_json")
+removed_count=$(count "$removed_json")
 skipped_count=$(count "$skipped_json")
 ok_count=$(jq -j '[.[] | select(.status == "ok")] | length' "$INPUT_JSON") ||
   findings_failed "marketplace status"
@@ -521,8 +542,24 @@ if [[ "$manual_count" -gt 0 ]]; then
 fi
 
 if [[ "$rename_count" -gt 0 ]]; then
-  printf '%sRENAME?%s %d possible rename pairs (heuristic, review manually):\n' "$YELLOW" "$RESET" "$rename_count"
+  printf '%sRENAME?%s %d rename pairs (report only, nothing is written):\n' "$YELLOW" "$RESET" "$rename_count"
   print_list '  ' "$rename_json" 'san'
+  if settings_file_is_managed; then
+    printf '  %s\n' "update managed enabledPlugins"
+  else
+    printf '  %s\n' "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+  fi
+  echo
+fi
+
+if [[ "$removed_count" -gt 0 ]]; then
+  printf '%sREMOVED (report only)%s %d entries the catalog renames map marks removed:\n' "$YELLOW" "$RESET" "$removed_count"
+  print_list '  ' "$removed_json" 'san'
+  if settings_file_is_managed; then
+    printf '  %s\n' "update managed enabledPlugins"
+  else
+    printf '  %s\n' "remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+  fi
   echo
 fi
 
