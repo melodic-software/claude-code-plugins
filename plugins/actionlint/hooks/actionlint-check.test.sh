@@ -360,7 +360,7 @@ run_absent_as() {
   )
 }
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
 if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '.systemMessage | contains($check) and contains($install)' <<<"$OUT_ABS" >/dev/null 2>&1; then
   ok "actionlint-absent -> first notice names /actionlint:check and the install route"
 else
@@ -613,7 +613,7 @@ fi
 # path), so this case is the binding: the manifest lists actionlint, jq and node,
 # and the hook's missing-binary notice call states the actionlint tool's name,
 # check and install, verbatim.
-if jq -e '(.tools | map(.name)) == ["actionlint", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+if jq -e '(.requires | map(.id)) == ["actionlint", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
   ok "manifest: declares exactly actionlint, jq and node"
 else
   fail "manifest: expected tools actionlint, jq and node: $(cat "$MANIFEST")"

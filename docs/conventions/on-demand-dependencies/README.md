@@ -160,13 +160,16 @@ packages, installs on its own, or reports a partial result as complete.
 
 ## Exceptions
 
-None.
+| Component | Rule | Exception and reason |
+|---|---|---|
+| `explainer-video` ManimCE | P1, P2 (wheels only) | Three packages in ManimCE's tree publish no wheel for some platforms: `srt` (pure Python) for any, `pycairo` for Linux and macOS, `manimpango` for Linux. They install from their source archives, whose sha256 the lock pins like every wheel; `pydeps.py` passes pip `--only-binary` for every other package, so nothing else can build. Two costs follow. A build needs a C compiler, `pkg-config` and the cairo and pango development packages, which the plugin README lists and never installs. pip installs each build's backend into an isolated environment without checking its hash, so those build tools are the one unhashed fetch. Lifts when the three publish wheels for these platforms ([#5861](https://github.com/melodic-software/claude-code-plugins/issues/5861)). |
 
 ## Adoption
 
 | Component | State |
 |---|---|
 | `animation` numpy and opencv | Conforms (Python rules). `requirements.in` and the universal, hash-locked `requirements.txt` are committed; the `SessionStart` hook `hooks/install-python-deps.sh` installs them through `scripts/pydeps.py install` into `<data>/python/<lock hash>-<interpreter tag>/`; the skills run scripts through `pydeps.py run`. `test_pydeps.py` and `install-python-deps.test.sh` cover the first install, the no-op rerun and a failed install |
+| `explainer-video` ManimCE | Conforms (Python rules), with the wheels-only exception above. `requirements.in` pins `manim[typst]`; the universal `requirements.txt` hashes every wheel and source archive; `hooks/install-python-deps.sh` installs it through `scripts/pydeps.py install`, which hands over to the first Python 3.12 or 3.13 on PATH; `produce` runs `render.py` through `pydeps.py run`. `test_explainer_video_pydeps.py` and `install-python-deps.test.sh` cover the first install, the no-op rerun and a failed install |
 | `speech` numpy and onnxruntime | Conforms (Python rules), on the `animation` pattern: the same hook and launcher, probing `numpy` and `onnxruntime`. `/speech:narrate` runs `narrate.py` through `pydeps.py run`. The Kokoro model files are data, not packages: `/speech:setup apply install-model` downloads them from a pinned revision and checks each sha256 |
 | `harness-ops` inventory, `--reader=parser` / `--reader=compare` | Conforms. `skills/inventory/scripts/js/` holds the lockfile for acorn and eslint-scope; `parser_reader.py` installs into `<base>/inventory-parser/<lock hash>/`, probes the helper with `ping`, and turns every failure into a broken binary source carrying the repair command. CI installs it the same way so the parser test suites run on every pull request |
 

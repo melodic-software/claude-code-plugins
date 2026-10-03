@@ -46,12 +46,12 @@ ok() {
 # name, check, install and local_bin, verbatim.
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | map(.name)) == ["ruff", "jq", "node"] and .tools[0].local_bin == ".venv/bin/ruff"' "$MANIFEST" >/dev/null 2>&1; then
+  if jq -e '(.requires | map(.id)) == ["ruff", "jq", "node"] and .requires[0].detect.local_bin == [".venv/bin/ruff"]' "$MANIFEST" >/dev/null 2>&1; then
     ok "manifest: declares exactly ruff (at .venv/bin/ruff), jq and node"
   else
     fail "manifest: expected tools ruff, jq and node with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
   fi
-  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
+  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .detect.local_bin[0], .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to RUFF_NOTICE/,/[^\\]$/p' "$HOOK")"
   WALK_FN="$(sed -n '/^ruff_venv_bin_here()/,/^}/p' "$HOOK")"
   # assert_hook_states <field> <needle> <haystack>
@@ -97,7 +97,7 @@ else
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
   done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
-  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
 
   # run_probe <value|__unset__> -> run the row with ruff_format_enabled set to <value> (or unset).
   run_probe() {
@@ -667,12 +667,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   # form behind the ruff_format_enabled launcher gate, which is asserted on its
   # own here.
   ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  PROBE_COUNT="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED"])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED"]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true RUFF_FORMAT_ENABLED"
+    ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true RUFF_FORMAT_ENABLED"
   else
-    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true RUFF_FORMAT_ENABLED, found $PROBE_COUNT"
+    fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true RUFF_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"

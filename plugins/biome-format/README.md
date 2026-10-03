@@ -65,7 +65,7 @@ Skip notices repeat by class:
   route every eighth skip.
 
 A `SessionStart` probe reports a missing Biome binary before the first edit. It reads the tool's
-name, check and install strings from `prerequisites.json`, resolves `biome` on `PATH` or as
+id, check and install hints from `prerequisites.json`, resolves `biome` on `PATH` or as
 `node_modules/.bin/biome` walking up at most eight directories from the session cwd, does not run
 when `biome_format_enabled` is `false`, and installs nothing. It does not look for a `biome.json`, so it
 reports a missing Biome in every repository where the plugin is enabled, including one that never opted in.

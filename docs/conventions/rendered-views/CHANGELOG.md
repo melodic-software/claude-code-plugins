@@ -10,6 +10,12 @@ versioned; this log records each change to it.
   `medium: file`, and keeps the planned `artifact` default behind its own review. The
   escape-helper bullet and the thin-skill example name the new lane.
 
+## Plan and brainstorm views move onto the builder, 2026-10-03
+
+- **`planning:plan` and `planning:brainstorm` offer interactive views built by `lib/view-builder.mjs` (#5866).**
+  Each view is a checked-in template plus the session's JSON as data, through the interactive profile, with the
+  destination taken from the `medium` key. The model-written HTML offer in both skills is gone.
+
 ## The shared builder ships, 2026-10-02
 
 - **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator
