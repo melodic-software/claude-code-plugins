@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import elevenlabs  # noqa: E402
 
-KEY = 'sk-test-key-0123456789'  # gitleaks:allow
+KEY = 'sk-test-key-0123456789'
 TEXT = 'Hello, world. Two words!\n'
 
 
