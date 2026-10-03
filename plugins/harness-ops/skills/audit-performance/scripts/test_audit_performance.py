@@ -1009,6 +1009,198 @@ class TestOrphanAttribution(unittest.TestCase):
         self.assertIsNone(result["unknown_sample"][0]["parent_alive"])
 
 
+class TestDeadParentAnyAgeCensus(unittest.TestCase):
+    """Dead-parent fan-out debris at any age. A census, not a kill list.
+
+    Synthetic process tables only. The orphan verdict, its 24-hour floor, and its
+    candidate set stay as they are.
+    """
+
+    NOW = 1_700_000_000.0
+
+    def test_a_sixty_second_tail_exe_with_an_absent_parent_is_census_not_an_orphan(self):
+        now = self.NOW
+        orphan = {
+            "pid": 3,
+            "ppid": 999,
+            "name": "conhost.exe",
+            "started_epoch": now - 2 * 86400,
+        }
+        tail = {
+            "pid": 50,
+            "ppid": 998,
+            "name": "tail.exe",
+            "started_epoch": now - 60,
+        }
+        before = engine.attribute_orphans([orphan], now)
+        result = engine.attribute_orphans([orphan, tail], now)
+        self.assertEqual(result["orphan_count"], before["orphan_count"])
+        self.assertEqual(result["orphan_count"], 1)
+        self.assertEqual(result["orphans"][0]["pid"], 3)
+        rows = {row["name"]: row for row in result["dead_parent_any_age"]}
+        self.assertEqual(rows["tail.exe"]["count"], 1)
+        self.assertIn("conhost.exe", rows)
+        self.assertIn("not a kill list", result["dead_parent_any_age_note"])
+
+    def test_a_young_verdict_name_is_in_the_census_and_not_an_orphan(self):
+        now = self.NOW
+        records = [
+            {"pid": 5, "ppid": 998, "name": "bash.exe", "started_epoch": now - 60}
+        ]
+        result = engine.attribute_orphans(records, now)
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(
+            result["dead_parent_any_age"],
+            [{"name": "bash.exe", "count": 1, "youngest_h": 0.0, "oldest_h": 0.0}],
+        )
+
+    def test_a_name_outside_the_census_set_appears_in_neither(self):
+        now = self.NOW
+        records = [
+            {
+                "pid": 9,
+                "ppid": 999,
+                "name": "dotnet.exe",
+                "started_epoch": now - 5 * 86400,
+            },
+            {"pid": 10, "ppid": 999, "name": "find.exe", "started_epoch": now - 60},
+        ]
+        result = engine.attribute_orphans(records, now)
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["orphans"], [])
+        self.assertEqual(result["dead_parent_any_age"], [])
+        self.assertNotIn("dotnet.exe", engine.ORPHAN_CANDIDATE_NAMES)
+        self.assertNotIn("find", engine.DEAD_PARENT_CENSUS_EXTRA_NAMES)
+        self.assertNotIn("find.exe", engine.DEAD_PARENT_CENSUS_EXTRA_NAMES)
+        self.assertNotIn("find.exe", engine.ORPHAN_CANDIDATE_NAMES)
+
+    def test_a_recycled_parent_pid_is_counted_and_an_unreadable_start_is_not(self):
+        now = self.NOW
+        records = [
+            {"pid": 11, "ppid": 12, "name": "grep.exe", "started_epoch": now - 3600},
+            {"pid": 12, "ppid": 1, "name": "unrelated.exe", "started_epoch": now - 10},
+            {"pid": 13, "ppid": 14, "name": "cat.exe", "started_epoch": now - 3600},
+            {"pid": 14, "ppid": 1, "name": "protected.exe", "started_epoch": None},
+        ]
+        result = engine.attribute_orphans(records, now)
+        rows = {row["name"]: row for row in result["dead_parent_any_age"]}
+        self.assertEqual(rows["grep.exe"]["count"], 1)
+        self.assertNotIn("cat.exe", rows)
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["unknown_count"], 1)
+        self.assertEqual(result["unknown_sample"][0]["name"], "cat.exe")
+        self.assertIsNone(result["unknown_sample"][0]["parent_alive"])
+
+    def test_more_than_twenty_of_one_name_are_counted_before_any_truncation(self):
+        now = self.NOW
+        records = [
+            {
+                "pid": 1000,
+                "ppid": 9,
+                "name": "tail.exe",
+                "started_epoch": now - 30 * 3600,
+            }
+        ]
+        records += [
+            {
+                "pid": 1000 + i,
+                "ppid": 9,
+                "name": "tail.exe",
+                "started_epoch": now - 60,
+            }
+            for i in range(1, 20)
+        ]
+        records.append(
+            {
+                "pid": 1020,
+                "ppid": 9,
+                "name": "tail.exe",
+                "started_epoch": now - 2 * 3600,
+            }
+        )
+        result = engine.attribute_orphans(records, now)
+        self.assertEqual(len(records), 21)
+        self.assertEqual(len(result["dead_parent_any_age"]), 1)
+        row = result["dead_parent_any_age"][0]
+        self.assertEqual(row["name"], "tail.exe")
+        self.assertEqual(row["count"], 21)
+        self.assertGreater(row["count"], 20)
+        self.assertEqual(row["youngest_h"], 0.0)
+        self.assertEqual(row["oldest_h"], 30.0)
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["orphans"], [])
+
+    def test_coreutils_names_stay_out_of_the_verdict_set(self):
+        self.assertEqual(engine.ORPHAN_MIN_AGE_HOURS, 24.0)
+        self.assertEqual(len(engine.ORPHAN_CANDIDATE_NAMES), 18)
+        extras = {
+            "tail",
+            "tail.exe",
+            "grep",
+            "grep.exe",
+            "sleep",
+            "sleep.exe",
+            "cat",
+            "cat.exe",
+        }
+        self.assertTrue(extras <= engine.DEAD_PARENT_CENSUS_EXTRA_NAMES)
+        self.assertTrue(extras.isdisjoint(engine.ORPHAN_CANDIDATE_NAMES))
+        result = engine.attribute_orphans([], self.NOW)
+        self.assertIn("platform-agnostic", result["candidate_names_note"])
+        self.assertIn("inert on POSIX", result["candidate_names_note"])
+        self.assertIn("WSL", result["candidate_names_note"])
+        self.assertIn("inert on POSIX", result["dead_parent_any_age_note"])
+        for name in extras:
+            self.assertNotIn(name, result["candidate_names"])
+        bare = engine.attribute_orphans(
+            [{"pid": 1, "ppid": 9, "name": "tail", "started_epoch": self.NOW - 60}],
+            self.NOW,
+        )
+        self.assertEqual(bare["orphan_count"], 0)
+        self.assertEqual(bare["dead_parent_any_age"][0]["name"], "tail")
+        self.assertEqual(bare["dead_parent_any_age"][0]["count"], 1)
+
+    def test_a_process_inside_the_teardown_guard_is_absent(self):
+        now = self.NOW
+        records = [
+            {"pid": 1, "ppid": 9, "name": "tail.exe", "started_epoch": now - 5.0},
+            {"pid": 2, "ppid": 9, "name": "grep.exe", "started_epoch": now - 4.0},
+            {"pid": 3, "ppid": 9, "name": "sleep.exe", "started_epoch": now - 6.0},
+        ]
+        result = engine.attribute_orphans(records, now)
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["unknown_count"], 0)
+        self.assertEqual(
+            result["dead_parent_any_age"],
+            [{"name": "sleep.exe", "count": 1, "youngest_h": 0.0, "oldest_h": 0.0}],
+        )
+
+    def test_a_live_parent_keeps_a_census_name_out_of_the_census(self):
+        now = self.NOW
+        records = [
+            {"pid": 1, "ppid": 0, "name": "bash.exe", "started_epoch": now - 86400},
+            {"pid": 2, "ppid": 1, "name": "tail.exe", "started_epoch": now - 3600},
+        ]
+        result = engine.attribute_orphans(records, now)
+        self.assertEqual(result["dead_parent_any_age"], [])
+        self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["live_parent_count"], 0)
+
+    def test_the_engine_never_kills_or_signals_a_process(self):
+        source = Path(engine.__file__).read_text(encoding="utf-8")
+        for token in (
+            "os.kill",
+            "os.killpg",
+            "signal.SIG",
+            "taskkill",
+            "TerminateProcess",
+        ):
+            self.assertNotIn(token, source)
+        result = engine.attribute_orphans([], self.NOW)
+        self.assertIn("never kills", result["note"])
+        self.assertIn("not a kill list", result["dead_parent_any_age_note"])
+
+
 class TestPopulationTrend(unittest.TestCase):
     """Churn and accumulation look identical in one sample and mean opposite things.
 

@@ -137,6 +137,28 @@ ORPHAN_CANDIDATE_NAMES = frozenset(
         "cygwin-console-helper.exe",
     }
 )
+#: Dead-parent census only. The orphan verdict still uses ORPHAN_MIN_AGE_HOURS and
+#: ORPHAN_CANDIDATE_NAMES, because that verdict is what routes a process toward a kill.
+#: A process this young is still inside teardown, so the census requires an age strictly
+#: above this guard.
+DEAD_PARENT_CENSUS_MIN_AGE_SECONDS = 5.0
+#: MSYS coreutils names background tasks and Monitors leave behind, added to the census
+#: and not to the verdict set. Bare spellings match POSIX tables; suffixed spellings are
+#: inert there and match Windows and WSL interop, the same rule as ORPHAN_CANDIDATE_NAMES.
+#: `find` and `find.exe` are omitted: name-only matching cannot tell MSYS find from
+#: C:\Windows\System32\find.exe.
+DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
+    {
+        "tail.exe",
+        "grep.exe",
+        "sleep.exe",
+        "cat.exe",
+        "tail",
+        "grep",
+        "sleep",
+        "cat",
+    }
+)
 
 #: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
 #: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
@@ -998,49 +1020,100 @@ def attribute_orphans(
 
     A parent pid of 0 means no parent was recorded rather than a parent that
     died, so those are skipped instead of convicted.
+
+    `dead_parent_any_age` is a census, not a kill list. It applies the same
+    parent rules to the verdict names plus the MSYS coreutils names, at any age
+    above a few seconds of teardown, and counts per name before any truncation.
+    The orphan verdict, its age floor, and its candidate set are unchanged.
     """
     by_pid = {r["pid"]: r for r in records}
     orphans: list[dict] = []
     live_parent: list[dict] = []
     unknown: list[dict] = []
+    # name -> [count, youngest_hours, oldest_hours]. Counted in full before the
+    # orphan sample cap below; this table is not a kill list.
+    census_by_name: dict[str, list] = {}
+    census_names = candidate_names | DEAD_PARENT_CENSUS_EXTRA_NAMES
     for record in records:
-        if record["name"].lower() not in candidate_names:
+        lowered = record["name"].lower()
+        in_verdict = lowered in candidate_names
+        in_census = lowered in census_names
+        if not in_verdict and not in_census:
             continue
         if record.get("ppid", 0) <= 0:
             continue
         started = record.get("started_epoch")
         if started is None:
             continue
-        age_hours = (now_epoch - started) / 3600.0
-        if age_hours < min_age_hours:
+        age_seconds = now_epoch - started
+        age_hours = age_seconds / 3600.0
+        verdict_aged = in_verdict and age_hours >= min_age_hours
+        census_aged = (
+            in_census and age_seconds > DEAD_PARENT_CENSUS_MIN_AGE_SECONDS
+        )
+        if not verdict_aged and not census_aged:
             continue
         parent = by_pid.get(record["ppid"])
+        if parent is None:
+            parent_state = "dead"
+        else:
+            parent_started = parent.get("started_epoch")
+            if parent_started is None:
+                parent_state = "unknown"
+            elif parent_started > started:
+                # The PID was recycled: this "parent" started after its supposed child.
+                parent_state = "recycled"
+            else:
+                parent_state = "live"
         summary = {
             "name": record["name"],
             "pid": record["pid"],
             "ppid": record["ppid"],
             "age_hours": round(age_hours, 1),
         }
-        if parent is None:
-            summary["parent_alive"] = False
-            orphans.append(summary)
-            continue
-        parent_started = parent.get("started_epoch")
-        if parent_started is None:
+        if verdict_aged:
+            if parent_state == "dead":
+                summary["parent_alive"] = False
+                orphans.append(summary)
+            elif parent_state == "unknown":
+                summary["parent_alive"] = None
+                summary["reason"] = (
+                    "parent start time unreadable; PID reuse cannot be excluded"
+                )
+                unknown.append(summary)
+            elif parent_state == "recycled":
+                summary["parent_alive"] = False
+                summary["reason"] = "parent pid recycled by a newer process"
+                orphans.append(summary)
+            else:
+                summary["parent_alive"] = True
+                summary["parent_name"] = parent["name"]
+                live_parent.append(summary)
+        if census_aged and parent_state in {"dead", "recycled"}:
+            row = census_by_name.get(lowered)
+            if row is None:
+                census_by_name[lowered] = [1, age_hours, age_hours]
+            else:
+                row[0] += 1
+                if age_hours < row[1]:
+                    row[1] = age_hours
+                if age_hours > row[2]:
+                    row[2] = age_hours
+        elif census_aged and parent_state == "unknown" and not verdict_aged:
             summary["parent_alive"] = None
             summary["reason"] = (
                 "parent start time unreadable; PID reuse cannot be excluded"
             )
             unknown.append(summary)
-        elif parent_started > started:
-            # The PID was recycled: this "parent" started after its supposed child.
-            summary["parent_alive"] = False
-            summary["reason"] = "parent pid recycled by a newer process"
-            orphans.append(summary)
-        else:
-            summary["parent_alive"] = True
-            summary["parent_name"] = parent["name"]
-            live_parent.append(summary)
+    dead_parent_any_age = [
+        {
+            "name": name,
+            "count": count,
+            "youngest_h": round(youngest, 1),
+            "oldest_h": round(oldest, 1),
+        }
+        for name, (count, youngest, oldest) in sorted(census_by_name.items())
+    ]
     return {
         "min_age_hours": min_age_hours,
         "candidate_names": sorted(candidate_names),
@@ -1054,6 +1127,16 @@ def attribute_orphans(
         "live_parent_sample": live_parent[:10],
         "unknown_count": len(unknown),
         "unknown_sample": unknown[:10],
+        "dead_parent_any_age": dead_parent_any_age,
+        "dead_parent_any_age_note": (
+            "Census, not a kill list. Per-name counts of processes whose parent is gone "
+            "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
+            "The name set is the orphan candidate set plus tail, grep, sleep, and cat. "
+            "Executable-suffixed names are inert on POSIX process tables and retained for "
+            "WSL interop processes. An unreadable parent start time is unknown, not a row "
+            "here. Counts are taken per name before any sample cap. This engine reports "
+            "and never kills."
+        ),
         "note": (
             "Only a dead-parent process is an orphan. Live-parent processes of the same age "
             "are working software; killing them breaks whatever owns them. Scoped to the shells, "
