@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.5.3] - 2026-10-03
+## [1.6.1] - 2026-10-03
 
 ### Changed
 
@@ -11,6 +11,14 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   cases at `low`, `medium` and `high` found `medium` level with `high` on pass rate and blind-graded
   write quality, while `low` failed the 10-minute case (drift back to the seed) and the character
   case (first-person voice). The agent's effort note records the reason and a new recheck trigger.
+
+## [1.6.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
 ## [1.5.2] - 2026-10-03
 

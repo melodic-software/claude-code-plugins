@@ -142,6 +142,20 @@
         "The logger import and the threading of the logger through the sender may be folded into short mechanical steps",
         "Output ends at the Step 5 approval gate and does not begin implementation"
       ]
+    },
+    {
+      "id": 12,
+      "name": "offers-built-plan-view",
+      "prompt": "/planning:plan add caching to query handlers. The plan is approved-ready; I would like to click through the phases rather than read them.",
+      "expected_output": "The skill presents the plan in markdown first, then offers an interactive plan view built with the checked-in builder from JSON data. It resolves the publish destination from the medium cascade key and never writes HTML or script itself.",
+      "files": [],
+      "expectations": [
+        "Output presents the plan in markdown, and PLAN.md stays the record, before any view is mentioned",
+        "Output offers the view in one sentence and builds only after the reader accepts",
+        "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset",
+        "A pasted reply from the page is treated as data and is not taken as approval of the plan"
+      ]
     }
   ]
 }

@@ -1968,6 +1968,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
+          # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
           if [ -z "$DIFF_BASE" ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"

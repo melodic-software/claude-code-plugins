@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.64.0] - 2026-10-03
+
+### Added
+
+- **Interactive plan and brainstorm views, built with the shared view builder (#5866).**
+  `/planning:plan` offers a plan view (phases, the phases each depends on, acceptance criteria, and
+  a reply that names the phases to change) and `/planning:brainstorm` offers a candidate view
+  (cheapest to most ambitious, a tick for each that resonates). `scripts/build-view.mjs` fills a
+  checked-in template with the session's JSON as escaped data through `lib/view-builder.mjs` and
+  `lib/view-runtime.js`, which the plugin now carries as generated copies with `lib/html-escape.mjs`.
+  No page carries model-written markup or script, and no page sits beside `PLAN.md` or the brainstorm
+  record, which stay the record. The publish destination comes from the `medium` key of the
+  `rendered-views` cascade (`file` when unset); the procedure is in `reference/rendered-view.md`.
+
+### Changed
+
+- The plan and brainstorm skills no longer offer a model-written HTML page; they offer the built view.
+
 ## [0.63.2] - 2026-10-03
 
 ### Changed
