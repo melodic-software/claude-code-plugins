@@ -1414,6 +1414,42 @@ out=$(run_ids "$case_dir")
 assert_eq "update-candidates-user: emits an id behind the catalog version" \
   "alpha@market1" "$out"
 
+# An installed id the catalog no longer names is delisted, not a candidate.
+# An object-sourced catalog entry is still a name, so it is not delisted even
+# though catalog_versions has no key for it. An effective enabledPlugins key
+# at this marketplace is delisted the same way. A plugins array that is empty
+# produces no delisted set.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "remote", "source": {"source": "github", "repo": "example/remote"}}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}],"provenance@market1":[{"scope":"user","installPath":"p","version":"0.4.0"}],"remote@market1":[{"scope":"user","installPath":"r","version":"1.0.0"}]}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{"alpha@market1":true,"ghost@market1":true,"remote@market1":true}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "delisted: user-scope install and enabled key absent from catalog names" \
+  '["ghost@market1","provenance@market1"]' "$(jq -c '.delisted' <<<"$out" 2>/dev/null)"
+assert_eq "delisted: an object-sourced catalog name is not delisted" "0" \
+  "$(jq -r '[.delisted[]? | select(. == "remote@market1")] | length' <<<"$out" 2>/dev/null)"
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "delisted: withheld from update-candidates-user" "0" \
+  "$(printf '%s\n' "$out" | grep -c 'provenance@market1' || true)"
+assert_contains "delisted: an object-sourced install stays a candidate" "$out" "remote@market1"
+assert_contains "delisted: a behind catalog install stays a candidate" "$out" "alpha@market1"
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins":[]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "delisted: an empty plugins array yields no delisted set" "[]" \
+  "$(jq -c '.delisted' <<<"$out" 2>/dev/null)"
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "delisted: an empty plugins array does not withhold the install" "alpha@market1" "$out"
+
 # ============================================================================
 # The downgrade guard. A catalog that reads LOWER than the installed version is
 # withheld from every sweep selector and surfaced by downgrade-candidates

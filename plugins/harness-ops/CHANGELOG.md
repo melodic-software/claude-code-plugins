@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.1] - 2026-10-03
+
+### Fixed
+
+- **`/harness-ops:plugins` sync reports the CLI's own failure line, a default-disabled install, and a plugin the catalog no longer names.** A failed update or marketplace refresh classifies the outcome line from the untruncated CLI output, so a progress line is not the reason under Action needed. An install the CLI reports as disabled by default is named as installed but not enabled, with the enable command, and the install-enable note says the CLI writes an explicit `false`. A user-scope install or effective `enabledPlugins` key absent from the catalog's names is delisted, withheld from the user-scope sweep, and given an uninstall remedy; a catalog whose `plugins` array is empty is not treated as a delisting. Monitor counts read the nested `experimental.monitors` value or a top-level `monitors` value, and `monitors/monitors.json` only when neither key is present. An always monitor starts when the session starts and when the plugin reloads. On an `ask` re-entry the cache-content check runs after the installs when the first pass stopped before them. Version comparison reads every segment in base 10.
+
 ## [3.6.0] - 2026-10-03
 
 ### Added

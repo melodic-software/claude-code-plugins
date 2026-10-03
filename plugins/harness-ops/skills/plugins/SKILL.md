@@ -136,8 +136,9 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    An empty id list is legal and means "install nothing, still complete Step 5". A dismissed or
    unanswered multi-select is that case: re-enter with `--only-install ""`, and the report lists
    the declined gap under `Action needed`. The report that
-   call prints supersedes the first one, covers the whole run, and reuses the same cache-content
-   finding rather than checking again.
+   call prints supersedes the first one and covers the whole run. When the first pass stopped
+   before install it skipped the cache-content check, and this re-entry runs that check after the
+   installs; otherwise the re-entry reuses the finding the first pass wrote.
 
 4. **Report.** Paste the rendered report and append the one model-owned line; see the Report
    section below.
@@ -227,6 +228,7 @@ when a root resolved; the self-update note when the sweep moved this plugin; the
 records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
 with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+installs the CLI reported as disabled by default, plugins absent from the catalog,
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
 In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
@@ -247,8 +249,9 @@ command has already warned them. Never recommend `--force` pre-emptively alongsi
 treat it as opting into a real token cost the bare command declines to pay on its own.
 [context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,
 `--force` for the MCP-cache-invalidation case" holds the pointers and dates. Monitors are already
-covered: the render's `Action needed` names each updated plugin whose installed build declares one,
-so the reload line does not repeat it. After the line, answer follow-up questions from the digest
+covered: the render's `Action needed` names each updated plugin whose installed build declares one.
+[context/sync.md](context/sync.md) "Name the monitors" holds what that bullet says and where it was
+read, so the reload line does not restate it. After the line, answer follow-up questions from the digest
 and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
 why a step behaved the way it did.
 
