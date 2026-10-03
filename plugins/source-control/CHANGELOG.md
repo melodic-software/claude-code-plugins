@@ -17,6 +17,38 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the same gate every fourth poll and emits a line when the unresolved count changes, so resolving
   a thread wakes the loop.
 
+## [0.77.4] - 2026-10-03
+
+### Fixed
+
+- **The babysit merge gate accepts the folded security lane's check.** The ci-workflows security
+  lane is becoming one job named `security-review`, so its check is
+  `security-review / security-review` and `claude-security-review-status` stops reporting.
+  `--auto` now takes `security-review / security-review` (whole name only) or the old status job as
+  the security lane's check, so another workflow's `security-review` job cannot satisfy it. Every
+  check that matches must succeed, so a caller on an older pin still holds on a red
+  `claude-security-review-status` beside its green `security-review` job.
+
+## [0.77.3] - 2026-10-03
+
+### Changed
+
+- **`/source-control:pull-request monitor` pushes review fixes once per round, after every
+  reviewer on the head has finished.** monitor.md §3.3.2 gains step 0: every reviewer check run
+  on the head is completed and every comment-only reviewer has landed its round or reached its
+  Gate 5 bound before the push, and the cycle's CI fixes (§3.2) go up in the same push. Steps
+  D6 in `SKILL.md` and `reference/review-discipline.md` commit per finding and push once per
+  round; the D6 "verify commit pushed" check, and D7 and D7.5 after it, run for every finding
+  after that push. A PR body or label change is written before that push, never after it.
+- **The ready flip pushes the security review's commits in one push right before
+  `gh pr ready`,** through `push-branch.sh`, so the ready run replaces that push's draft run
+  within seconds. ready-for-review.md also records that `gh pr update-branch` pushes nothing
+  when the head already contains the base tip.
+- **`/source-control:babysit-prs` runs a comment wave as one batch:** it starts only after every
+  reviewer check run on the head has completed, commits each fix, pushes once through
+  `lane_push`, then verifies each commit and posts each D7 reply. §5.1.4 no longer pushes per
+  finding.
+
 ## [0.77.2] - 2026-10-03
 
 ### Changed

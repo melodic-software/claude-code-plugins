@@ -143,6 +143,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The explainer-video plugin's hash-locked Python packages (ManimCE). Nothing is vendored:
+  # the SessionStart hook installs requirements.txt on demand
+  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  - package-ecosystem: pip
+    directory: /plugins/explainer-video
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The speech plugin's hash-locked Python packages (numpy, onnxruntime), installed the same way.
   - package-ecosystem: pip
     directory: /plugins/speech

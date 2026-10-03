@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "notice-runs-the-read-only-check",
+      "prompt": "A session-start notice said the explainer-video Python packages could not be installed. Is it working?",
+      "expected_output": "Runs pydeps.py check with --data-dir and reports its PASS/FAIL rows. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Runs pydeps.py check rather than assuming the state",
+        "Reports the rows as printed",
+        "Does not run the repair line, pip or a package manager unasked"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-only-on-request",
+      "prompt": "/explainer-video:check\n\nManimCE failed. Install it for me.",
+      "expected_output": "Runs the repair line the check printed, which installs the hash-locked set in the foreground, because the user asked. Does not install system packages such as cairo or pango development libraries.",
+      "files": [],
+      "expectations": [
+        "Uses the repair line from the check output, not pip install or uv",
+        "Does not run apt, brew, winget or another system package manager",
+        "Re-runs the check after the repair line and reports the result"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-stops",
+      "prompt": "/explainer-video:check",
+      "expected_output": "Reports the rows. When every row passes, says the plugin is ready and stops.",
+      "files": [],
+      "expectations": [
+        "Reports PASS rows for Python, ManimCE, ffmpeg and ffprobe when they resolve",
+        "Modifies no file",
+        "Does not start a render"
+      ]
+    }
+  ]
+}
