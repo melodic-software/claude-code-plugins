@@ -3,6 +3,20 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-03
+
+### Added
+
+- **Interactive post-mortem view, built with the shared view builder (#5864).** `/debugging:debug` offers a
+  view of its Phase 6 post-mortem: the loop, cause, fix and seam, the hypotheses with their verdicts and
+  evidence, a tick for each the reader would re-open, and a copy-out of the challenge.
+  `scripts/build-view.mjs` fills a checked-in template with the session's JSON as escaped data through
+  `lib/view-builder.mjs` and `lib/view-runtime.js`, which the plugin now carries as generated copies with
+  `lib/html-escape.mjs`. No page carries model-written markup or script, so log and error text stays data,
+  and no page sits beside the post-mortem, which stays the record. The publish destination comes from the
+  `medium` key of the `rendered-views` cascade (`file` when unset); the procedure is in
+  `skills/debug/reference/rendered-view.md`.
+
 ## [0.7.14] - 2026-10-02
 
 ### Fixed
