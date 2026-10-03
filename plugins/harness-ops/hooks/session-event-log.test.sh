@@ -433,12 +433,59 @@ assert_eq "20 parallel 8 KB rows → 20 lines" 20 "$(wc -l <"$LLOG" | tr -d ' ')
 assert_eq "20 parallel 8 KB rows → every line parses" 20 "$(jq -c . "$LLOG" 2>/dev/null | wc -l | tr -d ' ')"
 assert_file_absent "20 parallel 8 KB rows → no lock left behind" "$LLOG.lock"
 
-# A stale lock never drops a row: the append waits out the bound, then writes.
+# A stale lock (its token unchanged for 100 polls) never drops a row: it is
+# removed and the row appended.
 : >"$LLOG.lock"
 run "$P" "$(payload s12l UserPromptSubmit "\"prompt\":\"stale$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null
 assert_exit "stale lock → exit 0" 0 "$?"
 assert_eq "stale lock → the row is still appended" 21 "$(wc -l <"$LLOG" | tr -d ' ')"
 assert_file_absent "stale lock → broken after the wait" "$LLOG.lock"
+
+# Mixed sizes with content on: short rows take the lock too, so none lands
+# between the 4 KB chunks of a long row.
+P=$(project parallel-mixed)
+FILL64=$(head -c 65000 /dev/zero | tr '\0' 'z')
+for i in {1..10}; do
+  run "$P" "$(payload s12m UserPromptSubmit "\"prompt\":\"$i$FILL64\"")" "$ON" "$CONTENT_ON" >/dev/null &
+  run "$P" "$(payload s12m UserPromptSubmit "\"prompt\":\"s$i\"")" "$ON" "$CONTENT_ON" >/dev/null &
+  run "$P" "$(payload s12m Stop)" "$ON" "$CONTENT_ON" >/dev/null &
+done
+wait
+MLOG="$P/.observability/claude/sessions/s12m.jsonl"
+assert_eq "30 parallel mixed short and 64 KB rows → 30 lines" 30 "$(wc -l <"$MLOG" | tr -d ' ')"
+assert_eq "30 parallel mixed short and 64 KB rows → every line parses" 30 "$(jq -c . "$MLOG" 2>/dev/null | wc -l | tr -d ' ')"
+
+# A live holder keeps the lock past the old 1.5 s give-up (its token changes,
+# so it is not stale): the waiter appends only after the holder releases.
+P=$(project live-holder)
+HLOG="$P/.observability/claude/sessions/s12h.jsonl"
+mkdir -p "$P/.observability/claude/sessions"
+printf 'h0' >"$HLOG.lock"
+(
+  for t in 1 2 3 4 5 6; do
+    sleep 0.5
+    printf 'h%s' "$t" >|"$HLOG.lock"
+  done
+  printf '{"holder":"done"}\n' >>"$HLOG"
+  rm -f "$HLOG.lock"
+) &
+run "$P" "$(payload s12h UserPromptSubmit "\"prompt\":\"w$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null
+wait
+assert_eq "live holder → the waiter's row lands after the holder's" "done UserPromptSubmit" \
+  "$(jq -r '.holder // .hook_event_name' "$HLOG" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+
+# The read cap is bytes: 30,000 four-byte characters (120 KB) cross 64 KB.
+P=$(project multibyte)
+EMOJI=$(printf '\360\237\230\200')
+WIDE=""
+for _ in {1..30000}; do WIDE+="$EMOJI"; done
+run "$P" "$(payload s14 UserPromptSubmit "\"prompt\":\"$WIDE\"")" "$ON" "$CONTENT_ON" >/dev/null
+BLOG14="$P/.observability/claude/sessions/s14.jsonl"
+assert_eq "multibyte prompt over 64 KB → prompt_truncated and content_truncated" "true true" \
+  "$(jq -r '"\(.prompt_truncated) \(.content_truncated)"' "$BLOG14" 2>/dev/null)"
+if (($(wc -c <"$BLOG14") <= 66560)); then ok "multibyte prompt → the row stays within the 64 KB cap plus metadata"; else bad "multibyte prompt → row is $(wc -c <"$BLOG14") bytes"; fi
+iconv -f UTF-8 -t UTF-8 "$BLOG14" >/dev/null 2>&1
+assert_exit "multibyte prompt → the cut row is valid UTF-8" 0 "$?"
 
 # --- an unusable stdin_read_timeout falls back to the default ----------------------
 # The env-block channel can deliver any string, so the schema's `min: 1` is not

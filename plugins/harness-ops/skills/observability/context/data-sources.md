@@ -89,7 +89,7 @@ unless the `session_event_log_content` option is on (default off). With it on, a
 whichever of these top-level content strings the payload held: `prompt session_title command_args
 message title last_assistant_message task_subject task_description error_details
 custom_instructions compact_summary url`, and `error` on `PostToolUseFailure` (tool output there,
-an enum on `StopFailure`). The hook reads only the first 64 KB of a payload. When the cap cuts a
+an enum on `StopFailure`). The hook reads only the first 64 KB (bytes, not characters) of a payload. When the cap cuts a
 content string that follows only scalar members, the row records its prefix, cut back to whole
 escapes and whole characters, beside `<key>_truncated: true` (for example `prompt_truncated`).
 When the cut string follows a nested value (`error` after `tool_input`, say), it is not recorded.

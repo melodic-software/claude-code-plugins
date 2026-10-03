@@ -46,6 +46,13 @@ set -uo pipefail
 
 start=${EPOCHREALTIME:-}
 
+# With content fields on, the 64 KB read cap and every length below count
+# bytes: under a UTF-8 locale `read -N` and `${#}` count characters, and a
+# multibyte prompt would pass the cap several times over. Off, rows carry no
+# content and the read is left as it was.
+content=false
+[[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]] && content=true && LC_ALL=C
+
 # shellcheck source=session-log-lib.sh
 source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
 
@@ -234,7 +241,7 @@ done
 # Only that position is provably top-level in a cut buffer; a field the cap
 # fell inside after a nested value is not recorded. Any row whose payload hit
 # the cap carries `content_truncated: true`, so a dropped field is never silent.
-if [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]]; then
+if [[ "$content" == true ]]; then
   open_key="" open_val=""
   if [[ "${buf:lead}" =~ ^[[:space:]]*\"([a-z_]+)\"[[:space:]]*:[[:space:]]*\"(.*)$ ]]; then
     open_key="${BASH_REMATCH[1]}"
@@ -242,14 +249,10 @@ if [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]]; t
     if [[ "$open_val" =~ ^(([^\"\\]|\\[^u]|\\u[0-9A-Fa-f]{4})*)\\?(u[0-9A-Fa-f]{0,3})?$ ]]; then
       open_val="${BASH_REMATCH[1]}"
       # A UTF-8 lead byte whose continuation bytes were cut off, matched byte
-      # by byte (the regex has to sit in a variable: quoted text in `=~` is
-      # literal).
+      # by byte under the byte locale set above (the regex has to sit in a
+      # variable: quoted text in `=~` is literal).
       cut_char=$'([\xc2-\xdf]|[\xe0-\xef][\x80-\xbf]?|[\xf0-\xf4][\x80-\xbf]{0,2})$'
-      trim_utf8() {
-        local LC_ALL=C
-        [[ "$open_val" =~ $cut_char ]] && open_val="${open_val:0:${#open_val}-${#BASH_REMATCH[1]}}"
-      }
-      trim_utf8
+      [[ "$open_val" =~ $cut_char ]] && open_val="${open_val:0:${#open_val}-${#BASH_REMATCH[1]}}"
     else
       open_key="" # the string closes: a whole member, read from `top` below
     fi
@@ -313,5 +316,8 @@ done
 extras+=(${meta[@]+"${meta[@]}"})
 slog_event_record_to line event-log "$ts" "$session_id" "$event" ok "$duration_ms" "${extras[@]}"
 
-slog_append "$root/sessions/$session_id.jsonl" "$line"
+# With content on, every row takes the lock (see slog_append).
+lock=""
+[[ "$content" == true ]] && lock=lock
+slog_append "$root/sessions/$session_id.jsonl" "$line" "$lock"
 exit 0
