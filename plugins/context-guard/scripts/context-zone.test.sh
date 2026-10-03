@@ -251,6 +251,36 @@ GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
 if [[ "$GOT" == "dumb" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
 if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
 
+# A zones.json with no edge keys that holds only known keys is a valid file
+# whose absent keys mean the defaults: right zone, no stderr.
+HQ="$WORK/h-quiet"
+mkdir -p "$HQ/.claude/context-guard"
+write_snapshot "$HQ" q60 60
+for QCASE in \
+  '{"thresholds":{"smart":40}}' \
+  '{"actions":{"edit":"warn"}}' \
+  '{"approach_margin":5}' \
+  '{"text":{"dumb":"stop"}}' \
+  '{"thresholds":{"smart":40},"actions":{},"text":{},"approach_margin":5}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "acceptable" ]]; then ok "no edge keys, known keys only $QCASE → default bands"; else fail "no edge keys $QCASE: got '$GOT'"; fi
+  if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
+done
+
+# Still malformed: not an object, an unknown key with no edge keys, one edge
+# key alone, and a known key beside a wrongly typed edge.
+for QCASE in \
+  '[]' \
+  '{"bogus":1}' \
+  '{"smart_max_used_percentage":30}' \
+  '{"thresholds":{"smart":40},"smart_max_used_percentage":"30","acceptable_max_used_percentage":60}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "acceptable" ]]; then ok "malformed $QCASE → default bands"; else fail "malformed $QCASE: got '$GOT'"; fi
+  if grep -q 'zones.json malformed' "$WORK/q-stderr"; then ok "malformed $QCASE → notice"; else fail "malformed $QCASE: silent fallback"; fi
+done
+
 # --- Exactly one word on stdout, always --------------------------------------
 for sid in s0 s75x snull nosuchsession storn; do
   OUT="$(resolve "$H" "$sid" 2>/dev/null)"
