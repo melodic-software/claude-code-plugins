@@ -19,6 +19,14 @@ All notable changes to the `speech` plugin are documented here. Format follows
 - `prerequisites.json` declares `ELEVENLABS_API_KEY` as an optional `env` entry, and `/speech:check` reports it
   as `INFO` when unset.
 
+## [0.1.5] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.1.4] - 2026-10-03
 
 ### Changed
