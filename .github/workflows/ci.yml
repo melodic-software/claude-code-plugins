@@ -2215,14 +2215,18 @@ jobs:
       #   3  every shell suite it selected ran, but it also selected suites in
       #      other ecosystems whose runner it will not guess. Those suites are
       #      RUN HERE rather than waved through: the steps further down this
-      #      job cover four Node sub-projects and one Python module, which is
-      #      2 of this tree's 40 Python suites, so treating exit 3 as success
-      #      would report a pass over suites that never executed. That is the
-      #      precise thing the selector's own header refuses to do.
+      #      job cover four Node sub-projects and one Python module, so
+      #      treating exit 3 as success would report a pass over suites that
+      #      never executed. That is the precise thing the selector's own
+      #      header refuses to do.
       #   1  an unmapped changed file OR a failing suite. Only the first is
       #      recoverable, and it announces itself with UNMAPPED: on stderr:
       #      nothing here knows what covers that file, so fall back to the full
-      #      corpus and record the fallback so its rate is countable per run.
+      #      shell corpus and record the fallback so its rate is countable per
+      #      run. The shell corpus holds no Python or Node suite, so those run
+      #      as on exit 3, from this leg's slice of the `--unmapped-corpus`
+      #      listing: the selection's own, plus every Python suite when the
+      #      unmapped file is a .py and every Node suite when it is Node.
       #   *  anything else fails.
       #
       # Three suites at a time, not four. The runner has 4 vCPUs and the suites
@@ -2243,10 +2247,16 @@ jobs:
       # instead, the matrix result would be `skipped` and `ci-status`, which is
       # fail-closed on `skipped`, would red the pull request.
       #
-      # The whole tree, and the UNMAPPED fallback, run the full corpus through
-      # run-plugin-tests.sh with the same `--shard`, which partitions its
-      # discovered suites the same way, so the four legs run it once between
-      # them.
+      # The whole tree, and the UNMAPPED fallback, run the full shell corpus
+      # through run-plugin-tests.sh with the same `--shard`, which partitions
+      # its discovered suites the same way, so the four legs run it once
+      # between them. The whole tree also runs every Python suite, each leg
+      # every legs-th one.
+      #
+      # ONE PYTEST PROCESS PER PYTHON SUITE, under the pinned pytest, which
+      # collects unittest.TestCase suites as well as pytest-style ones. Suites
+      # in different directories import same-named helpers (`from conftest
+      # import ...`), and a shared process hands each the first one loaded.
       - name: Run plugin contract tests
         if: needs.scope.outputs.run_tests == 'true'
         env:
@@ -2261,14 +2271,36 @@ jobs:
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
+          # Eval fixtures are data the skill evals read, not suites.
+          pytest_each() {
+            awk '!/\/evals\/fixtures\//' "$1" | tr '\n' '\0' |
+              xargs -0 -r -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+          }
+          # A listing's suites the selector does not run itself: Python here,
+          # Node through each package's own npm test. Pester is the
+          # test-windows lane. #3703.
+          run_delegated() {
+            local rc=0
+            grep -E '(^|/)test_[^/]*\.py$' "$1" >"$RUNNER_TEMP/python-suites.txt" || true
+            grep -Ev '(^$|\.test\.sh$|\.py$)' "$1" >"$RUNNER_TEMP/outside-node-paths.txt" || true
+            pytest_each "$RUNNER_TEMP/python-suites.txt" || rc=1
+            if [ -s "$RUNNER_TEMP/outside-node-paths.txt" ]; then
+              scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt" || rc=1
+            fi
+            return "$rc"
+          }
           if [ -z "$DIFF_BASE" ]; then
-            scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
+            status=0
+            scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS" || status=1
             # The shell corpus is sharded above. The outside-Node packages are
             # a fixed pair, so one leg runs them once on the whole-tree path (#3703).
             if [ "$LEG" = $((3 % LEGS)) ]; then
-              scripts/run-outside-node-suites.sh
+              scripts/run-outside-node-suites.sh || status=1
             fi
-            exit 0
+            git ls-files | awk -v leg="$LEG" -v legs="$LEGS" '{ b = $0; sub(/.*\//, "", b) }
+              b ~ /^test_.*\.py$/ && n++ % legs == leg' >"$RUNNER_TEMP/python-suites.txt"
+            pytest_each "$RUNNER_TEMP/python-suites.txt" || status=1
+            exit "$status"
           fi
           err="$RUNNER_TEMP/affected-tests.err"
           set +e
@@ -2281,34 +2313,32 @@ jobs:
               ;;
             3)
               # The selector prints the suites it declined to run under a
-              # "NOT RUN:" heading, one indented path each. Run the Python ones
-              # with the pinned pytest: it collects unittest.TestCase suites as
-              # well as pytest-style ones, and each of these files puts its own
-              # module directory on sys.path, so no per-suite runner has to be
-              # guessed. Node suites outside the four sub-projects run through
-              # each package's own npm test. Pester is the test-windows lane.
-              # Eval fixtures are excluded. #3703.
-              notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
-              py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
-              rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
-              if [ -n "$py" ]; then
-                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q -o tmp_path_retention_policy=none --
-              fi
-              if [ -n "$rest" ]; then
-                printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"
-                scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
-              fi
+              # "NOT RUN:" heading, one indented path each.
+              awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err" >"$RUNNER_TEMP/delegated.txt"
+              run_delegated "$RUNNER_TEMP/delegated.txt"
               ;;
             1)
               if grep -q '^UNMAPPED:' "$err"; then
                 summary=$(grep -m1 '^UNMAPPED:' "$err")
-                echo "::warning::$summary Falling back to the full contract corpus."
+                echo "::warning::$summary Falling back to the full shell corpus."
                 printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
-                scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
+                status=0
+                scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS" || status=1
                 # Same fixed pair the whole-tree path runs once on leg 3 (#3703).
                 if [ "$LEG" = $((3 % LEGS)) ]; then
-                  scripts/run-outside-node-suites.sh
+                  scripts/run-outside-node-suites.sh || status=1
                 fi
+                listed=0
+                scripts/affected-tests.sh --unmapped-corpus --shard "$LEG/$LEGS" --base "$DIFF_BASE" \
+                  >"$RUNNER_TEMP/listing.txt" 2>"$RUNNER_TEMP/listing.err" || listed=$?
+                if [ "$listed" != 0 ] && [ "$listed" != 4 ]; then
+                  cat "$RUNNER_TEMP/listing.err" >&2
+                  echo "::error::affected-tests.sh --unmapped-corpus exited $listed, so the Python and Node suites to run are unknown."
+                  exit 1
+                fi
+                grep -v '\.test\.sh$' "$RUNNER_TEMP/listing.txt" >"$RUNNER_TEMP/delegated.txt" || true
+                run_delegated "$RUNNER_TEMP/delegated.txt" || status=1
+                exit "$status"
               else
                 exit 1
               fi
