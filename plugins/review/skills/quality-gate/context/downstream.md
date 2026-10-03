@@ -128,7 +128,7 @@ its confidence is the shared `confidence` axis.
 Name the smallest test or reproduction that fails if the most serious confirmed risk is real. Do not
 write it here. This mode reports.
 
-- Authoring the test routes to `/testing:write` when the `testing` plugin is installed.
+- Authoring the test routes to `/testing:write` when the `testing` plugin is enabled.
 - Proving the test actually catches the bug routes to `/mutation-testing:audit` when the
   `mutation-testing` plugin is enabled, which is stronger than asserting it will, because the
   mutant is re-run and the agent that wrote the test does not grade itself into a pass.

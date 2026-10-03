@@ -28,7 +28,7 @@ Every skill named below is invoked through the Skill tool when its plugin is ena
 
 ## 1.2 Review the changes (the `code` class)
 
-Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is installed.
+Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is enabled.
 
 - Without that plugin: review the diff inline for correctness, error handling, security-sensitive surfaces, test coverage for new logic, and convention adherence against the project's own rules. Review agents (code-reviewer, security-reviewer, architecture-reviewer) serve the same purpose when your environment ships them
 - Auto-scale aspects to the diff: always check code errors; add test-focused review when test files changed; add type-design review for new type-heavy files. Collect findings
@@ -37,13 +37,13 @@ Run **one** fresh-context review over the branch diff: `/review:quality-gate` un
 
 Run the audit each detected class owes, over the changed files of that class only:
 
-- **`markdown`**: `/ai-slop:audit` when the `ai-slop` plugin is enabled, otherwise read the changed markdown against the project's own prose rules; and `/docs-hygiene:audit-noise` when the `docs-hygiene` plugin is installed, otherwise read it for stale citations, dead references, and conversational residue
-- **`renames`**: `/docs-hygiene:rename-references audit` when `docs-hygiene` is installed, otherwise grep the old path and the old name for every surviving reference. The class fires only when the diff reports a rename
+- **`markdown`**: `/ai-slop:audit` when the `ai-slop` plugin is enabled, otherwise read the changed markdown against the project's own prose rules; and `/docs-hygiene:audit-noise` when the `docs-hygiene` plugin is enabled, otherwise read it for stale citations, dead references, and conversational residue
+- **`renames`**: `/docs-hygiene:rename-references audit` when `docs-hygiene` is enabled, otherwise grep the old path and the old name for every surviving reference. The class fires only when the diff reports a rename
 - **`skills`**: `/skill-quality:check` when the `skill-quality` plugin is enabled, otherwise run the project's own skill lint, or read each changed skill's frontmatter against the contract the project documents
 - **`rules`**: `/instruction-placement:check` when the `instruction-placement` plugin is enabled, otherwise confirm each changed rule's `paths:` glob still matches a tracked file
 - **`security`**: not here. It reviews the pull request's own diff, so it runs in the ready step
 
-Audits that persist findings hand them to one `/review:fanout fix` pass when the `review` plugin is installed, and are applied by hand otherwise. Either way each finding goes through 1.3 first.
+Audits that persist findings hand them to one `/review:fanout fix` pass when the `review` plugin is enabled, and are applied by hand otherwise. Either way each finding goes through 1.3 first.
 
 ## 1.3 Verify every finding
 
@@ -70,7 +70,7 @@ Unless `quick` or `review-only` scope:
 
 ## 1.5 Verify gate (HARD: blocks PR creation)
 
-Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is installed (or `/toolchain:check` for the mechanical half alone) and otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.**
+Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.**
 
 **Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that "looks dotnet-only" can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
 
