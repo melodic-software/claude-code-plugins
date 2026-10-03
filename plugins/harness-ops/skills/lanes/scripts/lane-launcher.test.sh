@@ -23,6 +23,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/lane-launcher.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# A case that passes no --data-dir writes its launch-commit marker to the inherited
+# data dir. Pin that to the sandbox, named for the plugin so the launcher accepts it,
+# so no case writes into the caller's real plugin data.
+export CLAUDE_PLUGIN_DATA="$TMP/harness-ops-test-data"
 
 FAILED=0
 CASE_NUM=0
