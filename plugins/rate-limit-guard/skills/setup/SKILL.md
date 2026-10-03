@@ -125,24 +125,39 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      but not running (statusline refreshes only in interactive sessions; also re-check steps 2 and
      3, because a shim that is wired but not installed produces exactly this). Note the file only updates
      while some interactive session is active.
-   When step 4a reports mods off, report an absent or stale file as "mods off", not as a missing
-   instrument.
+   When step 4a's session row finds the status tool absent, report an absent or stale file with
+   that row's wording, not as a missing instrument.
 4a. **Module state.** The plugin's module (`hooks/register.tsx`) writes the same file and sends the
-   rate-limit lines; it loads only where mods can.
+   rate-limit lines; it loads only where mods can. Decide this session's state from inside this
+   session, never from a separate process: a `claude` you launch through Bash reads neither this
+   session's flags nor its `--settings` overlay.
    - Run `claude --version`. Older than 2.1.287 → FAIL "mods off: Claude Code <version> is older
      than the 2.1.287 floor; older builds are unsupported". Remediation: update Claude Code.
-   - Otherwise run `claude plugin test` from a new empty temporary directory and fetch the
-     troubleshoot table at the pointer below to read its message: mods can load → PASS; a setting,
-     a policy or a remote switch keeps them off → INFO "mods off", naming the cause the table gives.
-     Some states that turn mods off (such as `--bare`, or repeated hooks-worker crashes) belong to
-     one session and do not show here; say so.
+   - **This session.** At `session.start` the module registers its pull tool, which Claude sees as
+     `mcp__rate-limit-guard__status`. Look for that name in your own tool list, counting a name
+     listed only as a deferred tool. Do not call it.
+     - Present → PASS "mod running in this session".
+     - Absent → INFO "mods off in this session, or the status tool's registration was refused".
+       Say both causes and do not pick one: mods are off here (for example `disableAllHooks`,
+       `--bare`, Anthropic's remote switch, repeated hooks-worker crashes, or an organization's
+       mods policy), or the organization's policy refused the tool, in which case the module
+       writes one `the status pull tool could not register` line to the debug log
+       (`claude --debug`).
+   - **This machine (not this session).** Optionally run `claude plugin test` from a new empty
+     temporary directory and read its message against the table at the pointer below. It reports
+     whether mods can load on this build under the settings a fresh process reads, and nothing
+     about this session. Label the row "machine-level: mods can load on this build" or
+     "machine-level: mods off (<cause the table gives>)", never as this session's state.
    - Where mods are off, the guard runs reactive-only there: the StopFailure hook still records,
      and the file updates only from the tee or another session.
 
-   - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+   - **Pointer**: [api: add a tool](https://code.claude.com/docs/en/plugins/mods/api#add-a-tool)
+     (the `mcp__<plugin>__<name>` form),
+     [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
      and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
    - **As of**: 2026-10-03, Claude Code 2.1.288.
-   - **Recheck trigger**: that table changes a message, or the minimum version changes.
+   - **Recheck trigger**: the full tool name form changes, that table changes a message, or the
+     minimum version changes.
 5. **StopFailure hook.** INFO: the hook needs no wiring (it registers via the plugin's
    `hooks/hooks.json`); confirm the plugin is enabled (`/plugin` → Installed) and report the
    effective kill switch `${user_config.rate_limit_guard_enabled}` (unexpanded or empty means the
