@@ -1048,8 +1048,8 @@ fi
 # A file in another language that merely contains the name (a string, a log
 # message) is not a dependent and its suite is not selected: across languages
 # the text says nothing about a dependency unless the line runs or loads the
-# file. An interpreter on the line, a path to the file, or a bare name from the
-# file's own directory (a wrapper handing its sibling to a runner) does.
+# file. An interpreter on the line or a path to the file does; a bare name from
+# the file's own directory, with no interpreter on the line, does not.
 mkdir -p "$repo/eco/hop" "$repo/eco/elsewhere"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
 printf 'echo "origin.js is the entry point"\n' >"$repo/eco/elsewhere/mention.test.sh"
@@ -1058,6 +1058,11 @@ printf 'node "$ROOT/eco/hop/origin.js"\n' >"$repo/eco/elsewhere/node-runs.test.s
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 printf 'cp "$SRC/eco/hop/origin.js" "$DEST"\n' >"$repo/eco/elsewhere/path-loads.test.sh"
 printf 'run_suite origin.js\n' >"$repo/eco/hop/wrapper.test.sh"
+printf 'node origin.js\n' >"$repo/eco/hop/node-wrapper.test.sh"
+# A .py naming a shell script by bare name, with no interpreter on the line,
+# is not a dependent of it either.
+printf 'echo hop\n' >"$repo/eco/hop/hop-tool.sh"
+printf 'TOOL = "hop-tool.sh"\n' >"$repo/eco/hop/test_hop_listing.py"
 # A .ps1 that runs the js, so the walk crosses into it once, and a shell file
 # that runs the .ps1: reaching ITS suite takes a second transition.
 printf "node origin.js\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
@@ -1068,7 +1073,8 @@ run_sel "$repo" eco/hop/origin.js
 if ! has_line "$OUT" eco/elsewhere/mention.test.sh &&
   has_line "$OUT" eco/elsewhere/node-runs.test.sh &&
   has_line "$OUT" eco/elsewhere/path-loads.test.sh &&
-  has_line "$OUT" eco/hop/wrapper.test.sh; then
+  has_line "$OUT" eco/hop/node-wrapper.test.sh &&
+  ! has_line "$OUT" eco/hop/wrapper.test.sh; then
   ok "R4: another language's suite runs only where its line runs or loads the file"
 else
   fail "R4: cross-language selection wrong (rc=$RC): $OUT"
@@ -1077,6 +1083,12 @@ if has_line "$OUT" eco/hop/Far.Tests.ps1 && ! has_line "$OUT" eco/hop/far-runner
   ok "R4: a chain crosses languages once and cannot cross a second time"
 else
   fail "R4: the transition budget was not applied (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/hop/hop-tool.sh
+if ! has_line "$OUT" eco/hop/test_hop_listing.py; then
+  ok "R4: a bare shell-script name in another language is not a dependency"
+else
+  fail "R4: a bare .sh name selected a Python suite (rc=$RC): $OUT"
 fi
 
 # --- --run refuses to guess a runner for another ecosystem -----------------
@@ -1379,7 +1391,7 @@ mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
 mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
-mk_cmt_dependent js-code js 'const target = "hub-target.sh";\n'
+mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
 mk_cmt_dependent js-typeimport js '/** @import { T } from "./hub-target.sh" */\n/** @param {import("./hub-target.sh").T} t */\nexport const y = 2;\n'
 printf '#!/usr/bin/env bash\n# covers hub-target.sh\n' >"$repo3/eco/cmt/hub-prose.test.sh"
 # A Python import never spells the .py, so a comment naming the module is the
@@ -1683,8 +1695,8 @@ done
 # Skills reuse reference names freely, so a bare `probe-doc.md` says nothing
 # about which one. A mention names a file only when it resolves to it: a path
 # suffix no other file of that name ends in, any mention from the file's own
-# directory, or a path relative to a directory holding both files. The
-# structural names (SKILL.md, plugin.json and the like) always resolve this way.
+# directory, or a path relative to a directory below the root holding both
+# files. The structural docs (SKILL.md and the like) always resolve this way.
 mk_repo repo
 own_a=plugins/alpha/skills/sa
 own_b=plugins/alpha/skills/sb
@@ -1772,35 +1784,44 @@ else
   fail "ambiguous: SKILL.md resolution wrong (rc=$alpha_rc/$RC): [$alpha_out] [$OUT]"
 fi
 
-mkdir -p "$repo/plugins/beta/.claude-plugin"
-printf '{ "name": "beta" }\n' >"$repo/plugins/beta/.claude-plugin/plugin.json"
+# MANIFESTS: a suite that spells its plugin's manifest exactly is still not
+# selected by it; the manifest gates own it.
 run_sel "$repo" plugins/alpha/.claude-plugin/plugin.json
-alpha_out="$OUT" alpha_rc="$RC"
-run_sel "$repo" plugins/beta/.claude-plugin/plugin.json
-if [[ "$alpha_rc" -eq 0 ]] && has_line "$alpha_out" plugins/alpha/tests/manifest.test.sh &&
-  [[ "$RC" -eq 0 && -z "$OUT" ]]; then
-  ok "ambiguous: a manifest named relative to its plugin selects that suite; another plugin's does not"
+if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
+  ok "manifests: a plugin.json selects no suite through a mention"
 else
-  fail "ambiguous: plugin.json resolution wrong (rc=$alpha_rc/$RC): [$alpha_out] [$OUT]"
+  fail "manifests: plugin.json selected a suite (rc=$RC): $OUT"
 fi
 
-# `$DIR/README.md` spells only the name, so it means the nearest README.md above
-# the naming file: the plugin's own from inside the plugin, the root one from
-# scripts/.
+# A path that spells only the name, or a path from the repository root alone,
+# could be a file the suite builds under a temporary directory, so neither
+# resolves; a mention from the file's own directory does.
 printf '# root\n' >"$repo/README.md"
 # shellcheck disable=SC2016 # deliberate: the emitted fixtures must expand these
 {
   printf 'grep -q x "$PLUGIN_DIR/README.md"\n' >"$repo/plugins/alpha/tests/readme.test.sh"
   printf 'grep -q x "$REPO_ROOT/README.md"\n' >"$repo/scripts/zz-root-readme.test.sh"
+  # docs/guide.md at the root and a fixture copy ending in the same path.
+  printf 'grep -q x "$REPO_ROOT/docs/guide.md"\n' >"$repo/scripts/zz-root-path.test.sh"
+  printf 'grep -q x README.md\n' >"$repo/zz-root-local.test.sh"
 }
+mkdir -p "$repo/docs" "$repo/plugins/alpha/fixtures/docs"
+printf '# guide\n' >"$repo/docs/guide.md"
+printf '# guide\n' >"$repo/plugins/alpha/fixtures/docs/guide.md"
 run_sel "$repo" README.md
 root_out="$OUT"
 run_sel "$repo" plugins/alpha/README.md
-if has_line "$root_out" scripts/zz-root-readme.test.sh && ! has_line "$root_out" plugins/alpha/tests/readme.test.sh &&
-  has_line "$OUT" plugins/alpha/tests/readme.test.sh && ! has_line "$OUT" scripts/zz-root-readme.test.sh; then
-  ok "ambiguous: a path spelling only the name means the nearest file of that name"
+if has_line "$root_out" zz-root-local.test.sh && ! has_line "$root_out" scripts/zz-root-readme.test.sh &&
+  ! has_line "$root_out" plugins/alpha/tests/readme.test.sh && ! has_line "$OUT" plugins/alpha/tests/readme.test.sh; then
+  ok "ambiguous: a path spelling only the name does not resolve; the file's own directory does"
 else
-  fail "ambiguous: nearest-file resolution wrong: [$root_out] [$OUT]"
+  fail "ambiguous: name-only path resolution wrong: [$root_out] [$OUT]"
+fi
+run_sel "$repo" docs/guide.md
+if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" scripts/zz-root-path.test.sh; then
+  ok "ambiguous: a path from the repository root alone does not resolve"
+else
+  fail "ambiguous: a root-relative path resolved (rc=$RC): $OUT"
 fi
 rm -rf "$repo"
 

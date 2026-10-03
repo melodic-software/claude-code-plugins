@@ -82,12 +82,11 @@
 #   R4 other language a file in another language counts only where the naming
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
-#                    spawn*, exec*, ...), a path to the file rather than its bare
-#                    name, a shell script as the named file (another language
-#                    has no other use for one), or a file in the naming file's
-#                    own directory (a wrapper suite hands its sibling Python
-#                    suite to a runner by bare name). A chain takes at most one
-#                    such transition and then keeps walking its new language.
+#                    spawn*, exec*, ...), or a path to the file rather than its
+#                    bare name. Nothing else on the line counts: not the named
+#                    file being a shell script, not the naming file sitting in
+#                    the same directory. A chain takes at most one such
+#                    transition and then keeps walking its new language.
 #                    A data file (any extension that is not code) reaches code of
 #                    every language that names it, and that first step spends no
 #                    transition: data has no language of its own to stay inside.
@@ -124,23 +123,33 @@
 # cannot spell, one with a character outside the class, keeps the substring
 # test rather than losing its coverage.
 #
-# AMBIGUOUS NAMES. A basename two or more files carry, and the structural names
-# (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md, CHANGELOG.md, LICENSE,
-# plugin.json, marketplace.json, settings.json, hooks.json, package.json,
-# package-lock.json), name a specific file only when the mention RESOLVES to
-# it, because a bare `SKILL.md` or `config.json` says nothing about which one.
-# Any mention from the file's own directory resolves. A bare name resolves from
-# a directory above the file when no other file of that name sits below that
-# directory (`FIXTURES / "questions.json"`), and never otherwise. A path
-# resolves when it ends in the shortest suffix of the file's path that no other
-# file of that name ends in, or in the file's path relative to a directory that
-# holds both files: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
-# `$PLUGIN_DIR/skills/interview/SKILL.md` or `$PLUGIN_ROOT/hooks/hooks.json`
-# from inside the plugin. A path that spells only the name, `$DIR/README.md`,
-# means the nearest file of that name above the naming file. A shared library's
-# source and copies are the exception and keep the plain rule: R5's copies share
-# a basename on purpose, change together with their source, and a suite naming
-# its own plugin's copy is naming the shared source.
+# MANIFESTS. plugin.json, marketplace.json, hooks.json, settings.json,
+# package.json, package-lock.json, CHANGELOG.md and LICENSE select no suite
+# through a mention: a suite that reads one reads its name or version, and the
+# manifest, changelog and catalog gates own those files. Only R1, R2 and a
+# declared scope (R8) reach a suite from them; anything else is on the no-suite
+# list.
+#
+# AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
+# (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
+# only when the mention RESOLVES to it, because a bare `SKILL.md` or
+# `config.json` says nothing about which one. Any mention from the file's own
+# directory resolves. A bare name resolves from a directory above the file when
+# no other file of that name sits below that directory
+# (`FIXTURES / "questions.json"`), and never otherwise. A path resolves when it
+# ends in the shortest suffix of the file's path, two components or more, that
+# no other file of that name ends in, or in the file's path relative to a
+# directory below the repository root that holds both files, when that relative
+# path has a directory in it: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
+# `$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin. A path that
+# spells only the name (`$SKILL_DIR/SKILL.md`, `$T/README.md`) or that is
+# relative to the root alone (`$ROOT/.github/workflows/ci.yml`) does not
+# resolve: tests build the same path under a temporary directory as often as
+# they read the real file, so a suite that reads such a file declares it (R8),
+# as the strace of every suite showed where one does. A shared
+# library's source and copies are the exception and keep the plain rule: R5's
+# copies share a basename on purpose, change together with their source, and a
+# suite naming its own plugin's copy is naming the shared source.
 #
 # COMMENTS. A line that is only a comment (`#` in shell, Python and
 # PowerShell; `//`, `/*` or a `*` continuation in Node) names nothing, in suites
@@ -195,8 +204,10 @@ SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-scripts/affected-tests-scopes.txt}"
 
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
-STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md CHANGELOG.md LICENSE "
-STRUCTURAL_BASENAMES+="plugin.json marketplace.json settings.json hooks.json package.json package-lock.json "
+STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
+# Manifests and changelogs, which no mention reaches (MANIFESTS in the header).
+MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
+MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
 
 # Print the header block (everything after the shebang up to the first
 # non-comment line) with its comment markers stripped.
@@ -592,12 +603,10 @@ token_hits() {
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
     # Plain names: a basename that is itself a path token gets the exact test;
-    # anything else keeps the substring test rather than losing coverage. The
-    # directories that carry each name feed the same-directory arm of R4.
+    # anything else keeps the substring test rather than losing coverage.
     FILENAME == plainf {
       if ($0 == "") next
       b = base_of($0)
-      pdir[b, dir_of($0)] = 1
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
       next
@@ -610,7 +619,7 @@ token_hits() {
     }
     FILENAME == allf {
       b = base_of($0)
-      if (b in nrt) { same[b, ++nsame[b]] = $0; here[$0] = 1 }
+      if (b in nrt) same[b, ++nsame[b]] = $0
       next
     }
     # uniq_suffix: the shortest path suffix, two components or more, that no
@@ -634,11 +643,10 @@ token_hits() {
     # mention from the directory of t does. A bare name does from a directory
     # above t when no other file of that name sits below that directory. A path
     # does when it ends in the shortest unique suffix of t, or in the path of t
-    # relative to a directory holding both files ($SCRIPT_DIR/lib/x.sh,
+    # relative to a directory below the root holding both files, when that
+    # relative path has a directory in it ($SCRIPT_DIR/lib/x.sh,
     # $PLUGIN_DIR/skills/<s>/SKILL.md).
-    # A path spelling only the name, `$DIR/README.md`, means the nearest file of
-    # that name above the namer: a closer one claims it from any farther one.
-    function resolves(namer, pt, t,   u, a, i, b, rel, claimed) {
+    function resolves(namer, pt, t,   u, a, i, b, rel) {
       a = dir_of(namer)
       if (a == dir_of(t)) return 1
       b = base_of(t)
@@ -651,29 +659,24 @@ token_hits() {
       if (!(t in usuf)) usuf[t] = uniq_suffix(t)
       u = usuf[t]
       if (u != "" && (pt == u || ends(pt, "/" u))) return 1
-      claimed = 0
-      while (1) {
-        if (a == "" || index(t, a) == 1) {
-          rel = substr(t, length(a) + 1)
-          if ((pt == rel || ends(pt, "/" rel)) && (index(rel, "/") || !claimed)) return 1
-        }
-        if (((a b) in here) && (a b) != t) claimed = 1
-        if (a == "") return 0
-        sub(/[^\/]*\/$/, "", a)
+      for (; a != ""; sub(/[^\/]*\/$/, "", a)) {
+        if (index(t, a) != 1) continue
+        rel = substr(t, length(a) + 1)
+        if (index(rel, "/") && (pt == rel || ends(pt, "/" rel))) return 1
       }
+      return 0
     }
-    # runs_or_loads: R4. An interpreter or process API on the line, a path to
-    # the file, a shell script as the named file, or a file of the same
-    # directory: a wrapper suite hands its sibling to a runner by bare name.
-    function runs_or_loads(path, name, n,   j) {
-      if (exec_line || name ~ /\.(sh|bash)$/ || ((name SUBSEP dir_of(path)) in pdir)) return 1
+    # runs_or_loads: R4. An interpreter or process API on the line, or a path
+    # to the file.
+    function runs_or_loads(name, n,   j) {
+      if (exec_line) return 1
       for (j = 1; j <= n; j++) if (ends(ptok[j], "/" name)) return 1
       return 0
     }
     function keep(path, name, n) {
       key = path SUBSEP name
       if (!(key in kept)) { kept[key] = 0; order[++nkept] = key }
-      if (!kept[key] && runs_or_loads(path, name, n)) kept[key] = 1
+      if (!kept[key] && runs_or_loads(name, n)) kept[key] = 1
     }
     # comment_only: a whole-line comment names nothing (COMMENTS in the header),
     # except a shellcheck source directive and a JSDoc type import.
@@ -690,7 +693,8 @@ token_hits() {
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
       if (comment_only(path, text)) next
-      exec_line = text ~ /(^|[^A-Za-z0-9_-])(bash|sh|zsh|python3?|node|deno|pwsh|powershell|uv|npx|source|subprocess|Popen|check_output|check_call|spawn[A-Za-z0-9_]*|exec[A-Za-z0-9_]*|execa|child_process|Start-Process|Invoke-Expression)([^A-Za-z0-9_-]|$)/
+      # A word, not an extension: the `.sh` of `x.sh` is no interpreter.
+      exec_line = text ~ /(^|[^A-Za-z0-9_.-])(bash|sh|zsh|python3?|node|deno|pwsh|powershell|uv|npx|source|subprocess|Popen|check_output|check_call|spawn[A-Za-z0-9_]*|exec[A-Za-z0-9_]*|execa|child_process|Start-Process|Invoke-Expression)([^A-Za-z0-9_-]|$)/
       # Path tokens. A leading `.` stays: `./x`, `../x` and `.claude-plugin/x`
       # are paths, not punctuation.
       np = split(text, ptok, /[^A-Za-z0-9_.\/-]+/)
@@ -903,6 +907,8 @@ select_for() {
       *) ;;
       esac
       b="${p##*/}"
+      # MANIFESTS: no mention reaches a suite from a manifest or changelog.
+      [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
       if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
         [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then

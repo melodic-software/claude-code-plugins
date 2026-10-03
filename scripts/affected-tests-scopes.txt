@@ -14,7 +14,28 @@
 # reads, not the whole plugin, unless it reads the whole plugin.
 
 # Live-tree suites under scripts/: they scan the repository rather than fixtures.
-scripts/affected-tests.test.sh  scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh  # runs every sync manifest and reads the selector's lists
+scripts/affected-tests.test.sh  scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh .github/workflows/ci.yml  # runs every sync manifest, reads the selector's lists and the live workflow
+scripts/check-docs-only-gate.test.sh  .github/workflows/ci.yml  # checks the live workflow against the docs-only contract
+scripts/ci-fail-a-draft.test.sh  .github/workflows/ci.yml  # reads the live workflow
+scripts/check-lane-coverage.test.sh  .github/workflows/ci.yml  # checks the live workflow's lane coverage
+scripts/check-hook-wiring-liveness.test.sh  .claude/settings.json  # reads the live project settings
+
+# Suites that read a skill body or README through a path that spells only its
+# name ($SKILL_DIR/SKILL.md), which does not resolve.
+plugins/prototype/skills/explore-directions/scripts/detect-ecosystems.test.sh  plugins/prototype/skills/explore-directions/SKILL.md
+plugins/prototype/skills/pressure-test/scripts/detect-ecosystems.test.sh  plugins/prototype/skills/pressure-test/SKILL.md
+plugins/repo-hygiene/skills/clean/scripts/destructive-guard.test.sh  plugins/repo-hygiene/skills/clean/SKILL.md
+plugins/source-control/skills/babysit-prs/scripts/tests/test_guards.py  plugins/source-control/skills/*/SKILL.md
+plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py  plugins/disk-hygiene/skills/clean/SKILL.md
+plugins/playwright/skills/playwright/scripts/update.test.sh  plugins/playwright/skills/playwright/SKILL.md
+plugins/guardrails/hooks/coverage-manifest.test.sh  plugins/guardrails/README.md
+
+# Suites that read the repository's own .claude/settings.json, which no mention
+# reaches (MANIFESTS, and a root path does not resolve).
+plugins/docs-hygiene/skills/compress/scripts/detect-caveman.test.sh  .claude/settings.json
+plugins/harness-config/skills/audit-permission-state/scripts/audit.test.sh  .claude/settings.json
+plugins/harness-ops/skills/plugins/scripts/fleet-state.test.sh  .claude/settings.json
+plugins/harness-ops/skills/plugins/scripts/sync-run.test.sh  .claude/settings.json
 scripts/lib/gate-entry.test.sh  scripts/*.sh  # scans every script for a hand-rolled base-ref predicate
 scripts/lib/test-harness.test.sh  scripts/*.test.sh  # every harness suite must end on test_harness::report
 scripts/validate-plugin-contracts.test.sh  plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/reference/artifact-protocol.md  # the validator walks every plugin
@@ -29,7 +50,7 @@ plugins/discovery/agents/tool-honesty.test.sh  plugins/discovery/agents/*.md
 plugins/review/tests/change-set-block.test.sh  plugins/review/agents/*.md
 plugins/multi-agent/tests/drift-audit.test.sh  plugins/multi-agent/agents/*.md
 plugins/planning/tests/reattach-slice.test.sh  plugins/planning/skills/*/SKILL.md
-plugins/harness-config/skills/audit-automation-gaps/scripts/inventory.test.sh  plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md
+plugins/harness-config/skills/audit-automation-gaps/scripts/inventory.test.sh  plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md .claude/settings.json
 plugins/source-control/skills/babysit-prs/scripts/engine.test.sh  plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh  # test_guards.py walks the plugin
 
 # allowed-tools pairing: every listed skill's body and bundled scripts.
